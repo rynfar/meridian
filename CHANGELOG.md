@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.7.3...v1.7.4) (2026-03-20)
+
+
+### Bug Fixes
+
+* pass system prompt via appendSystemPrompt instead of merging into prompt ([2b55399](https://github.com/rynfar/opencode-claude-max-proxy/commit/2b5539919de9d538e142b0d5b81f83ef9d513a90))
+
 ## [1.7.3](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.7.2...v1.7.3) (2026-03-20)
 
 
