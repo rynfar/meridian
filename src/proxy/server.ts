@@ -385,6 +385,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}) {
         ? getLastUserMessage(body.messages || [])
         : body.messages
 
+      // Check if any messages contain multimodal content (images, documents, files, etc.)
+      const MULTIMODAL_BLOCK_TYPES = new Set(["image", "document", "file"])
+      const hasMultimodalContent = messagesToConvert?.some((m: any) =>
+        Array.isArray(m.content) && m.content.some((b: any) => MULTIMODAL_BLOCK_TYPES.has(b.type))
+      )
+
       // Convert messages to a text prompt, preserving all content types
       const conversationParts = messagesToConvert
         ?.map((m: { role: string; content: string | Array<{ type: string; text?: string; content?: string; tool_use_id?: string; name?: string; input?: unknown; id?: string }> }) => {
@@ -398,6 +404,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}) {
                 if (block.type === "text" && block.text) return block.text
                 if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
                 if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
+                if (block.type === "image") return "[Image attached]"
+                if (block.type === "document") return "[Document attached]"
+                if (block.type === "file") return "[File attached]"
                 return ""
               })
               .filter(Boolean)
@@ -408,6 +417,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}) {
           return `${role}: ${content}`
         })
         .join("\n\n") || ""
+
+      // Build structured messages for SDK when multimodal content is present
+      // The SDK accepts AsyncIterable<SDKUserMessage> which preserves image blocks
+      let structuredMessages: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null; session_id: string }> | undefined
+      if (hasMultimodalContent) {
+        const sessionId = randomUUID()
+        structuredMessages = messagesToConvert
+          ?.filter((m: any) => m.role === "user")
+          .map((m: any) => ({
+            type: "user" as const,
+            message: { role: m.role, content: m.content },
+            parent_tool_use_id: null,
+            session_id: sessionId,
+          }))
+      }
 
       // --- Passthrough mode ---
       // When enabled, ALL tool execution is forwarded to OpenCode instead of
@@ -465,31 +489,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}) {
           : undefined
 
       // Combine system context with conversation
-      const prompt = systemContext
+      const textPrompt = systemContext
         ? `${systemContext}\n\n${conversationParts}`
         : conversationParts
 
-        if (!stream) {
-          const contentBlocks: Array<Record<string, unknown>> = []
-          let assistantMessages = 0
-          const upstreamStartAt = Date.now()
-          let firstChunkAt: number | undefined
-          let currentSessionId: string | undefined
+      // When multimodal content is present, use AsyncIterable<SDKUserMessage> to preserve images
+      // Otherwise fall back to the text prompt
+      const prompt = hasMultimodalContent && structuredMessages?.length
+        ? (async function* () { for (const msg of structuredMessages!) yield msg })()
+        : textPrompt
 
-          claudeLog("upstream.start", { mode: "non_stream", model })
-
-          try {
-            const response = query({
-              prompt,
-              options: {
+      // Common SDK options — shared between stream and non-stream paths
+      const sdkOptions: Record<string, any> = {
                 maxTurns: passthrough ? 1 : 100,
                 cwd: workingDirectory,
                 model,
                 pathToClaudeCodeExecutable: claudeExecutable,
                 permissionMode: "bypassPermissions",
                 allowDangerouslySkipPermissions: true,
-                // In passthrough mode: block ALL SDK built-in tools, use OpenCode's via MCP
-                // In normal mode: block built-ins, use our own MCP replacements
+                // Pass system prompt via SDK option when using structured messages
+                ...(hasMultimodalContent && systemContext ? { systemPrompt: systemContext } : {}),
                 ...(passthrough
                   ? {
                       disallowedTools: [...BLOCKED_BUILTIN_TOOLS, ...CLAUDE_CODE_ONLY_TOOLS],
@@ -508,7 +527,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}) {
                 ...(Object.keys(sdkAgents).length > 0 ? { agents: sdkAgents } : {}),
                 ...(resumeSessionId ? { resume: resumeSessionId } : {}),
                 ...(sdkHooks ? { hooks: sdkHooks } : {}),
-              }
+      }
+
+        if (!stream) {
+          const contentBlocks: Array<Record<string, unknown>> = []
+          let assistantMessages = 0
+          const upstreamStartAt = Date.now()
+          let firstChunkAt: number | undefined
+          let currentSessionId: string | undefined
+
+          claudeLog("upstream.start", { mode: "non_stream", model })
+
+          try {
+            const response = query({
+              prompt,
+              options: sdkOptions,
             })
 
             for await (const message of response) {
@@ -655,31 +688,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}) {
               const response = query({
                 prompt,
                 options: {
-                  maxTurns: passthrough ? 1 : 100,
-                  cwd: workingDirectory,
-                  model,
-                  pathToClaudeCodeExecutable: claudeExecutable,
+                  ...sdkOptions,
                   includePartialMessages: true,
-                  permissionMode: "bypassPermissions",
-                  allowDangerouslySkipPermissions: true,
-                  ...(passthrough
-                    ? {
-                        disallowedTools: [...BLOCKED_BUILTIN_TOOLS, ...CLAUDE_CODE_ONLY_TOOLS],
-                        ...(passthroughMcp ? {
-                          allowedTools: passthroughMcp.toolNames,
-                          mcpServers: { [PASSTHROUGH_MCP_NAME]: passthroughMcp.server },
-                        } : {}),
-                      }
-                    : {
-                        disallowedTools: [...BLOCKED_BUILTIN_TOOLS],
-                        allowedTools: [...ALLOWED_MCP_TOOLS],
-                        mcpServers: { [MCP_SERVER_NAME]: opencodeMcpServer },
-                      }),
-                  plugins: [],
-                  env: { ...cleanEnv, ENABLE_TOOL_SEARCH: "false" },
-                  ...(Object.keys(sdkAgents).length > 0 ? { agents: sdkAgents } : {}),
-                  ...(resumeSessionId ? { resume: resumeSessionId } : {}),
-                  ...(sdkHooks ? { hooks: sdkHooks } : {}),
                 }
               })
 
