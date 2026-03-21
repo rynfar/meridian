@@ -12,7 +12,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROXY_SCRIPT="$SCRIPT_DIR/claude-proxy.ts"
+PROXY_SCRIPT="$SCRIPT_DIR/cli.ts"
 
 if [ ! -f "$PROXY_SCRIPT" ]; then
   echo "❌ Proxy script not found: $PROXY_SCRIPT" >&2

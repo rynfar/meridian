@@ -1,51 +1,39 @@
 # ---- Build stage ----
-FROM node:22 AS build
-
-RUN npm install -g bun \
-    && npm cache clean --force \
-    && userdel -r node \
-    && useradd -m -s /bin/bash -u 1000 claude \
-    && mkdir -p /home/claude/.claude \
-    && chown -R claude:claude /home/claude
-
-USER claude
-ENV PATH="/home/claude/.bun/bin:$PATH"
-
-RUN bun install -g @anthropic-ai/claude-code
+FROM oven/bun:1 AS build
 
 WORKDIR /app
-COPY --chown=claude:claude package.json bun.lock* ./
-RUN bun install --frozen-lockfile --production || bun install --production
+COPY package.json bun.lock* tsconfig.json ./
+COPY bin/ ./bin/
+COPY src/ ./src/
+
+RUN bun install
+RUN bun run build
 
 # ---- Runtime stage ----
-FROM node:22-slim
+FROM node:22-alpine
 
-COPY --from=build /usr/local/bin/bun /usr/local/bin/
-
-RUN userdel -r node \
-    && useradd -m -s /bin/bash -u 1000 claude \
+RUN deluser --remove-home node 2>/dev/null; \
+    adduser -D -u 1000 claude \
     && mkdir -p /home/claude/.claude \
     && chown -R claude:claude /home/claude
 
-COPY --from=build --chown=claude:claude /home/claude/.bun /home/claude/.bun
+RUN npm install -g @anthropic-ai/claude-code \
+    && npm cache clean --force
 
 USER claude
-ENV PATH="/home/claude/.bun/bin:$PATH"
-
 WORKDIR /app
+
 COPY --from=build --chown=claude:claude /app/node_modules ./node_modules
-COPY --chown=claude:claude package.json ./
-COPY --chown=claude:claude bin/ ./bin/
-COPY --chown=claude:claude src/proxy/ ./src/proxy/
-COPY --chown=claude:claude src/plugin/ ./src/plugin/
-COPY --chown=claude:claude src/logger.ts src/mcpTools.ts ./src/
+COPY --from=build --chown=claude:claude /app/dist ./dist
+COPY --from=build --chown=claude:claude /app/package.json ./
+COPY --chown=claude:claude bin/docker-entrypoint.sh ./bin/
 
 EXPOSE 3456
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD bun -e "const r=await fetch('http://127.0.0.1:3456/health');process.exit(r.ok?0:1)"
+    CMD node -e "const r=await fetch('http://127.0.0.1:3456/health');process.exit(r.ok?0:1)"
 
 ENV CLAUDE_PROXY_PASSTHROUGH=1 \
     CLAUDE_PROXY_HOST=0.0.0.0
 ENTRYPOINT ["./bin/docker-entrypoint.sh"]
-CMD ["./bin/claude-proxy-supervisor.sh"]
+CMD ["node", "dist/cli.js"]

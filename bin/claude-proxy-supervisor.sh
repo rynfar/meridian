@@ -1,10 +1,9 @@
 #!/bin/bash
 # Auto-restart supervisor for claude-max-proxy
 #
-# The Claude Agent SDK's cli.js subprocess (compiled with Bun) can crash
-# during cleanup of concurrent streaming responses — a known Bun bug
-# (oven-sh/bun#17947). All responses are delivered correctly; the crash
-# only occurs after response completion.
+# The Claude Agent SDK's cli.js subprocess can crash during cleanup of
+# concurrent streaming responses. All responses are delivered correctly;
+# the crash only occurs after response completion.
 #
 # This supervisor runs the proxy in a subshell with signal isolation,
 # detects crashes, and restarts in ~1 second.
@@ -42,7 +41,7 @@ while true; do
   fi
   
   # Run in subshell so crashes don't kill the supervisor
-  (exec bun run ./bin/claude-proxy.ts)
+  (exec bun run ./bin/cli.ts)
   EXIT_CODE=$?
   
   if [ $EXIT_CODE -eq 0 ]; then

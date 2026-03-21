@@ -3,7 +3,6 @@ node_modules
 .github
 *.log
 *.md
-tsconfig.json
 src/__tests__
 .dockerignore
 Dockerfile
