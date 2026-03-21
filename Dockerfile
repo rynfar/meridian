@@ -7,7 +7,9 @@ COPY bin/ ./bin/
 COPY src/ ./src/
 
 RUN bun install
-RUN bun run build
+# Run bun build directly (not "bun run build") to skip postbuild hook,
+# which calls "node --check" — unavailable in oven/bun image
+RUN rm -rf dist && bun build bin/cli.ts src/proxy/server.ts --outdir dist --target node --splitting --external @anthropic-ai/claude-agent-sdk --entry-naming '[name].js'
 
 # ---- Runtime stage ----
 FROM node:22-alpine
