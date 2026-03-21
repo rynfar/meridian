@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Docker entrypoint:
 # 1. Fix volume permissions (created as root, need claude ownership)
 # 2. Symlink .claude.json into persistent volume
