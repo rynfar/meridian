@@ -76,7 +76,8 @@ describe("proxy async ops", () => {
       await runCli(
         async () => {
           startCalled += 1
-          return {} as any
+          const { EventEmitter } = await import("events")
+          return { server: new EventEmitter(), config: {}, close: async () => {} } as any
         },
         (() => {
           throw new Error("spawn ENOENT")
