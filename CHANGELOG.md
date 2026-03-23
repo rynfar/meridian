@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.3](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.13.2...v1.13.3) (2026-03-23)
+
+
+### Bug Fixes
+
+* prevent cross-project session contamination in fingerprint cache ([93ef050](https://github.com/rynfar/opencode-claude-max-proxy/commit/93ef05030825f2668e49063d5991e188af483f5f))
+
 ## [1.13.2](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.13.1...v1.13.2) (2026-03-23)
 
 
