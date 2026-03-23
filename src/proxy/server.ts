@@ -896,6 +896,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             hasToolUse
           })
 
+          const nonStreamQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
           telemetryStore.record({
             requestId: requestMeta.requestId,
             timestamp: Date.now(),
@@ -904,7 +905,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             isResume,
             isPassthrough: passthrough,
             status: 200,
-            queueWaitMs: requestMeta.queueStartedAt - requestMeta.queueEnteredAt,
+            queueWaitMs: nonStreamQueueWaitMs,
+            proxyOverheadMs: upstreamStartAt - requestStartAt - nonStreamQueueWaitMs,
             ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
             upstreamDurationMs: Date.now() - upstreamStartAt,
             totalDurationMs,
@@ -1216,6 +1218,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   textEventsForwarded
                 })
 
+                const streamQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
                 telemetryStore.record({
                   requestId: requestMeta.requestId,
                   timestamp: Date.now(),
@@ -1224,7 +1227,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   isResume,
                   isPassthrough: passthrough,
                   status: 200,
-                  queueWaitMs: requestMeta.queueStartedAt - requestMeta.queueEnteredAt,
+                  queueWaitMs: streamQueueWaitMs,
+                  proxyOverheadMs: upstreamStartAt - requestStartAt - streamQueueWaitMs,
                   ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
                   upstreamDurationMs: Date.now() - upstreamStartAt,
                   totalDurationMs: streamTotalDurationMs,
@@ -1298,6 +1302,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
         claudeLog("proxy.error", { error: errMsg, classified: classified.type })
 
+        const errorQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
         telemetryStore.record({
           requestId: requestMeta.requestId,
           timestamp: Date.now(),
@@ -1306,7 +1311,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           isResume: false,
           isPassthrough: Boolean(process.env.CLAUDE_PROXY_PASSTHROUGH),
           status: classified.status,
-          queueWaitMs: requestMeta.queueStartedAt - requestMeta.queueEnteredAt,
+          queueWaitMs: errorQueueWaitMs,
+          proxyOverheadMs: Date.now() - requestStartAt - errorQueueWaitMs,
           ttfbMs: null,
           upstreamDurationMs: Date.now() - requestStartAt,
           totalDurationMs: Date.now() - requestStartAt,

@@ -79,6 +79,7 @@ export class TelemetryStore {
         errorCount: 0,
         requestsPerMinute: 0,
         queueWait: emptyPhase,
+        proxyOverhead: emptyPhase,
         ttfb: emptyPhase,
         upstreamDuration: emptyPhase,
         totalDuration: emptyPhase,
@@ -97,6 +98,7 @@ export class TelemetryStore {
 
     // Phase timings
     const queueWaits = metrics.map(m => m.queueWaitMs)
+    const overheads = metrics.map(m => m.proxyOverheadMs)
     const ttfbs = metrics.filter(m => m.ttfbMs !== null).map(m => m.ttfbMs!)
     const upstreams = metrics.map(m => m.upstreamDurationMs)
     const totals = metrics.map(m => m.totalDurationMs)
@@ -123,6 +125,7 @@ export class TelemetryStore {
       errorCount,
       requestsPerMinute: Math.round(requestsPerMinute * 100) / 100,
       queueWait: computePercentiles(queueWaits),
+      proxyOverhead: computePercentiles(overheads),
       ttfb: ttfbs.length > 0 ? computePercentiles(ttfbs) : { p50: 0, p95: 0, p99: 0, min: 0, max: 0, avg: 0 },
       upstreamDuration: computePercentiles(upstreams),
       totalDuration: computePercentiles(totals),

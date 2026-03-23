@@ -39,6 +39,7 @@ export const dashboardHtml = `<!DOCTYPE html>
   .waterfall { display: flex; align-items: center; height: 18px; min-width: 200px; position: relative; }
   .waterfall-seg { height: 100%; border-radius: 2px; min-width: 2px; }
   .waterfall-seg.queue { background: var(--queue); }
+  .waterfall-seg.overhead { background: var(--yellow); }
   .waterfall-seg.ttfb { background: var(--ttfb); }
   .waterfall-seg.response { background: var(--upstream); }
   .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
@@ -131,6 +132,7 @@ function render(s, reqs) {
     + card('Errors', s.errorCount, s.totalRequests > 0 ? ((s.errorCount/s.totalRequests)*100).toFixed(1) + '% error rate' : '')
     + card('Median Total', ms(s.totalDuration.p50), 'p95: ' + ms(s.totalDuration.p95))
     + card('Median TTFB', ms(s.ttfb.p50), 'p95: ' + ms(s.ttfb.p95))
+    + card('Proxy Overhead', ms(s.proxyOverhead.p50), 'p95: ' + ms(s.proxyOverhead.p95))
     + card('Queue Wait', ms(s.queueWait.p50), 'p95: ' + ms(s.queueWait.p95))
     + '</div>';
 
@@ -148,6 +150,7 @@ function render(s, reqs) {
   html += '<div class="section"><div class="section-title">Percentiles</div>'
     + '<table class="pct-table"><thead><tr><th>Phase</th><th>p50</th><th>p95</th><th>p99</th><th>Min</th><th>Max</th><th>Avg</th></tr></thead><tbody>'
     + pctRow('Queue Wait', 'var(--queue)', s.queueWait)
+    + pctRow('Proxy Overhead', 'var(--yellow)', s.proxyOverhead)
     + pctRow('TTFB', 'var(--ttfb)', s.ttfb)
     + pctRow('Upstream', 'var(--upstream)', s.upstreamDuration)
     + pctRow('Total', 'var(--purple)', s.totalDuration)
@@ -157,11 +160,12 @@ function render(s, reqs) {
   html += '<div class="section"><div class="section-title">Recent Requests</div>'
     + '<div class="legend">'
     + '<span><span class="legend-dot" style="background:var(--queue)"></span>Queue</span>'
+    + '<span><span class="legend-dot" style="background:var(--yellow)"></span>Proxy</span>'
     + '<span><span class="legend-dot" style="background:var(--ttfb)"></span>TTFB</span>'
     + '<span><span class="legend-dot" style="background:var(--upstream)"></span>Response</span>'
     + '</div>'
     + '<table><thead><tr><th>Time</th><th>Model</th><th>Mode</th><th>Status</th>'
-    + '<th>Queue</th><th>TTFB</th><th>Total</th><th>Waterfall</th></tr></thead><tbody>';
+    + '<th>Queue</th><th>Proxy</th><th>TTFB</th><th>Total</th><th>Waterfall</th></tr></thead><tbody>';
 
   const maxTotal = Math.max(...reqs.map(r => r.totalDurationMs), 1);
 
@@ -170,6 +174,7 @@ function render(s, reqs) {
     const statusText = r.error ? r.error : r.status;
     const scale = 280 / maxTotal;
     const qW = Math.max(r.queueWaitMs * scale, 2);
+    const ohW = Math.max((r.proxyOverheadMs || 0) * scale, 0);
     const ttfbW = Math.max((r.ttfbMs || 0) * scale, 0);
     const respW = Math.max((r.upstreamDurationMs - (r.ttfbMs || 0)) * scale, 2);
 
@@ -179,10 +184,12 @@ function render(s, reqs) {
       + '<td>' + r.mode + '</td>'
       + '<td class="' + statusClass + '">' + statusText + '</td>'
       + '<td class="mono">' + ms(r.queueWaitMs) + '</td>'
+      + '<td class="mono">' + ms(r.proxyOverheadMs) + '</td>'
       + '<td class="mono">' + ms(r.ttfbMs) + '</td>'
       + '<td class="mono">' + ms(r.totalDurationMs) + '</td>'
       + '<td><div class="waterfall">'
       + '<div class="waterfall-seg queue" style="width:' + qW + 'px"></div>'
+      + '<div class="waterfall-seg overhead" style="width:' + ohW + 'px"></div>'
       + '<div class="waterfall-seg ttfb" style="width:' + ttfbW + 'px"></div>'
       + '<div class="waterfall-seg response" style="width:' + respW + 'px"></div>'
       + '</div></td>'

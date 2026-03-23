@@ -3,10 +3,11 @@
  *
  * Each proxy request produces a RequestMetric capturing timing for every phase:
  *
- *   queueEnter → queueStart → upstreamStart → firstChunk → done
- *   ├─ queueWait ─┤            ├──── TTFB ────┤            │
- *   │                          ├──── upstream duration ─────┤
- *   ├──────────────── total duration ───────────────────────┤
+ *   queueEnter → queueStart → requestStart ──→ upstreamStart → firstChunk → done
+ *   ├─ queueWait ─┤           ├─ proxyOverhead ─┤              │            │
+ *   │                                            ├──── TTFB ────┤            │
+ *   │                                            ├── upstream duration ──────┤
+ *   ├──────────────────── total duration ────────────────────────────────────┤
  */
 
 export interface RequestMetric {
@@ -33,6 +34,11 @@ export interface RequestMetric {
 
   /** Time spent waiting in the concurrency queue (ms) */
   queueWaitMs: number
+
+  /** Time spent in proxy processing before SDK call — request parsing,
+   *  session lookup, prompt building (ms). If this is high, the proxy
+   *  is the bottleneck. Typically <50ms. */
+  proxyOverheadMs: number
 
   /** Time from SDK query start to first content chunk (ms) */
   ttfbMs: number | null
@@ -74,6 +80,7 @@ export interface TelemetrySummary {
 
   /** Timing breakdowns by phase */
   queueWait: PhaseTiming
+  proxyOverhead: PhaseTiming
   ttfb: PhaseTiming
   upstreamDuration: PhaseTiming
   totalDuration: PhaseTiming

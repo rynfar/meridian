@@ -12,6 +12,7 @@ function makeMetric(overrides: Partial<RequestMetric> = {}): RequestMetric {
     isPassthrough: false,
     status: 200,
     queueWaitMs: 5,
+    proxyOverheadMs: 12,
     ttfbMs: 120,
     upstreamDurationMs: 800,
     totalDurationMs: 850,
