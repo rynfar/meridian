@@ -4,11 +4,15 @@
   "description": "Use your Claude Max subscription with OpenCode via proxy server",
   "type": "module",
   "main": "./dist/server.js",
+  "types": "./dist/proxy/server.d.ts",
   "bin": {
     "claude-max-proxy": "./dist/cli.js"
   },
   "exports": {
-    ".": "./dist/server.js"
+    ".": {
+      "types": "./dist/proxy/server.d.ts",
+      "default": "./dist/server.js"
+    }
   },
   "engines": {
     "node": ">=22"
@@ -16,8 +20,8 @@
   "scripts": {
     "start": "./bin/claude-proxy-supervisor.sh",
     "proxy": "./bin/claude-proxy-supervisor.sh",
-    "build": "rm -rf dist && bun build bin/cli.ts src/proxy/server.ts --outdir dist --target node --splitting --external @anthropic-ai/claude-agent-sdk --entry-naming '[name].js'",
-    "postbuild": "node --check dist/cli.js && node --check dist/server.js",
+    "build": "rm -rf dist && bun build bin/cli.ts src/proxy/server.ts --outdir dist --target node --splitting --external @anthropic-ai/claude-agent-sdk --entry-naming '[name].js' && tsc -p tsconfig.build.json",
+    "postbuild": "node --check dist/cli.js && node --check dist/server.js && test -f dist/proxy/server.d.ts",
     "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
