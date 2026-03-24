@@ -164,7 +164,7 @@ function render(s, reqs) {
     + '<span><span class="legend-dot" style="background:var(--ttfb)"></span>TTFB</span>'
     + '<span><span class="legend-dot" style="background:var(--upstream)"></span>Response</span>'
     + '</div>'
-    + '<table><thead><tr><th>Time</th><th>Model</th><th>Mode</th><th>Status</th>'
+    + '<table><thead><tr><th>Time</th><th>Model</th><th>Mode</th><th>Session</th><th>Status</th>'
     + '<th>Queue</th><th>Proxy</th><th>TTFB</th><th>Total</th><th>Waterfall</th></tr></thead><tbody>';
 
   const maxTotal = Math.max(...reqs.map(r => r.totalDurationMs), 1);
@@ -178,10 +178,15 @@ function render(s, reqs) {
     const ttfbW = Math.max((r.ttfbMs || 0) * scale, 0);
     const respW = Math.max((r.upstreamDurationMs - (r.ttfbMs || 0)) * scale, 2);
 
+    const lineageBadge = r.lineageType ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + ({continuation:'var(--green)',compaction:'var(--yellow)',undo:'var(--purple)',diverged:'var(--red)',new:'var(--muted)'}[r.lineageType] || 'var(--muted)') + ';color:var(--bg)">' + r.lineageType + '</span>' : '';
+    const sessionShort = r.sdkSessionId ? r.sdkSessionId.slice(0, 8) : '—';
+    const msgCount = r.messageCount != null ? r.messageCount : '?';
+
     html += '<tr>'
       + '<td class="mono">' + ago(r.timestamp) + '</td>'
       + '<td>' + r.model + '</td>'
       + '<td>' + r.mode + '</td>'
+      + '<td class="mono">' + sessionShort + ' ' + lineageBadge + '<br><span style="font-size:10px;color:var(--muted)">' + msgCount + ' msgs</span></td>'
       + '<td class="' + statusClass + '">' + statusText + '</td>'
       + '<td class="mono">' + ms(r.queueWaitMs) + '</td>'
       + '<td class="mono">' + ms(r.proxyOverheadMs) + '</td>'

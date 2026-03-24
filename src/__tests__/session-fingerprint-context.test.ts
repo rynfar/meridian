@@ -212,8 +212,9 @@ describe("Fingerprint resume: cross-project safety via lineage", () => {
       { role: "user", content: "list the project B files" },
     ], "sdk-project-b")
 
-    // Should NOT resume project A — lineage diverged at message[1]
-    expect(capturedQueryParams?.options?.resume).toBeUndefined()
+    // Prefix overlap ("hello") → undo/branch detected → forks from project A
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-project-a")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
   })
 
   it("resumes correctly after cross-project rejection creates new session", async () => {
@@ -318,8 +319,9 @@ describe("Fingerprint resume: multi-turn with tool_use blocks", () => {
       { role: "user", content: "actually, delete that file instead" },
     ], "sdk-tools-undo-new")
 
-    // Should NOT resume — lineage diverged
-    expect(capturedQueryParams?.options?.resume).toBeUndefined()
+    // Prefix overlap ("create a file", "I'll create that file.") → undo → fork
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-tools-undo")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
   })
 })
 

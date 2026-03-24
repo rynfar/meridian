@@ -29,6 +29,20 @@ export interface RequestMetric {
   /** Whether passthrough mode was active */
   isPassthrough: boolean
 
+  /** Session lineage classification: how the incoming messages related to the stored session.
+   *  - continuation: normal follow-up (prefix matched)
+   *  - compaction:   older messages rewritten, recent preserved (suffix matched)
+   *  - undo:         user undid recent messages (prefix preserved, suffix changed) → SDK fork
+   *  - diverged:     no overlap with stored session → fresh start
+   *  - new:          first request, no stored session to compare */
+  lineageType?: "continuation" | "compaction" | "undo" | "diverged" | "new"
+
+  /** Number of messages in the request */
+  messageCount?: number
+
+  /** SDK session ID used for this request (for correlating across turns) */
+  sdkSessionId?: string
+
   /** HTTP status code returned to the client */
   status: number
 

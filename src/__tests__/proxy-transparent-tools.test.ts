@@ -93,7 +93,7 @@ describe("Phase 2: SDK should not use internal tools", () => {
     capturedQueryParams = null
   })
 
-  it("should use maxTurns: 100 for multi-turn tool execution", async () => {
+  it("should use maxTurns: 200 for multi-turn tool execution", async () => {
     mockMessages = [
       messageStart(),
       textBlockStart(0),
@@ -108,7 +108,7 @@ describe("Phase 2: SDK should not use internal tools", () => {
     await readStreamFull(response)
 
     expect(capturedQueryParams).toBeDefined()
-    expect(capturedQueryParams.options.maxTurns).toBe(100)
+    expect(capturedQueryParams.options.maxTurns).toBe(200)
   })
 
   it("should include MCP tools for internal tool execution", async () => {

@@ -31,6 +31,10 @@ export interface StoredSession {
   messageCount: number
   /** Hash of messages[0..messageCount-1] for conversation lineage verification */
   lineageHash?: string
+  /** Per-message content hashes for precise diff-based compaction detection */
+  messageHashes?: string[]
+  /** Per-message SDK assistant UUIDs for undo rollback (null for user messages) */
+  sdkMessageUuids?: Array<string | null>
 }
 
 // No time-based session expiry. SDK sessions persist on Anthropic's side
@@ -127,7 +131,7 @@ export function lookupSharedSession(key: string): StoredSession | undefined {
   return store[key]
 }
 
-export function storeSharedSession(key: string, claudeSessionId: string, messageCount?: number, lineageHash?: string): void {
+export function storeSharedSession(key: string, claudeSessionId: string, messageCount?: number, lineageHash?: string, messageHashes?: string[], sdkMessageUuids?: Array<string | null>): void {
   const path = getStorePath()
   const lockPath = `${path}.lock`
   const hasLock = acquireLock(lockPath)
@@ -143,6 +147,8 @@ export function storeSharedSession(key: string, claudeSessionId: string, message
       lastUsedAt: Date.now(),
       messageCount: messageCount ?? existing?.messageCount ?? 0,
       lineageHash: lineageHash ?? existing?.lineageHash,
+      messageHashes: messageHashes ?? existing?.messageHashes,
+      sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
     }
 
     // Prune oldest entries if over capacity (count-based, not time-based)

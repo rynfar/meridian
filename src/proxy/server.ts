@@ -26,15 +26,31 @@ import type { RequestMetric } from "../telemetry"
 
 // --- Session Tracking ---
 // Maps OpenCode session ID (or fingerprint) → Claude SDK session ID
+/** Minimum suffix overlap (stored messages found at the end of incoming)
+ *  required to classify a mutation as compaction rather than a branch. */
+const MIN_SUFFIX_FOR_COMPACTION = 2
+
 interface SessionState {
   claudeSessionId: string
   lastAccess: number
   messageCount: number
-  /** Hash of messages[0..messageCount-1] for lineage verification.
-   *  Resume is only safe when the incoming messages are a strict prefix-extension
-   *  of what the SDK session has seen. If the hash doesn't match, history has
-   *  diverged (undo, edit, branch) and we must start a fresh session. */
+  /** Hash of messages[0..messageCount-1] for fast-path lineage verification.
+   *  When the full prefix matches, the conversation is a strict continuation
+   *  and we skip the per-message diff entirely. */
   lineageHash: string
+  /** Per-message content hashes from the last stored request.
+   *  Used for precise diff-based mutation classification when the aggregate
+   *  lineageHash mismatches.  By comparing which stored hashes survive in the
+   *  incoming messages we can deterministically distinguish:
+   *    - Compaction  (beginning changed, end preserved → suffix overlap)
+   *    - Undo/branch (beginning preserved, end changed  → prefix-only overlap)
+   *    - Pruning     (middle changed, both ends preserved)  */
+  messageHashes?: string[]
+  /** SDK assistant message UUIDs indexed by message position.
+   *  Only assistant messages have UUIDs (user messages are null).
+   *  Used to find the rollback point for undo: the last matching
+   *  assistant message UUID becomes the `resumeSessionAt` target. */
+  sdkMessageUuids?: Array<string | null>
 }
 
 const DEFAULT_MAX_SESSIONS = 1000
@@ -173,8 +189,8 @@ function normalizeContent(content: any): string {
 
 /**
  * Compute a lineage hash of an ordered message array.
- * Used to verify that the incoming conversation is a strict prefix-extension
- * of what the SDK session has seen. Covers undo, edit, branch detection.
+ * Used as a fast-path check: if the aggregate hash matches, the messages
+ * are an exact prefix-extension and we skip the per-message diff.
  */
 export function computeLineageHash(messages: Array<{ role: string; content: any }>): string {
   if (!messages || messages.length === 0) return ""
@@ -183,34 +199,150 @@ export function computeLineageHash(messages: Array<{ role: string; content: any 
 }
 
 /**
+ * Compute a content hash for a single message (role + normalised content).
+ * Used to build per-message hash arrays for precise diff-based verification.
+ */
+export function hashMessage(message: { role: string; content: any }): string {
+  return createHash("sha256")
+    .update(`${message.role}:${normalizeContent(message.content)}`)
+    .digest("hex")
+    .slice(0, 32)
+}
+
+/**
+ * Compute per-message hashes for an entire message array.
+ */
+export function computeMessageHashes(messages: Array<{ role: string; content: any }>): string[] {
+  if (!messages || messages.length === 0) return []
+  return messages.map(hashMessage)
+}
+
+/**
+ * Measure how many stored hashes match from the START of the stored array
+ * against the incoming hashes (order-preserving).
+ *
+ * Prefix overlap means the beginning of the conversation is intact (undo
+ * changes the end but preserves the beginning).
+ */
+function measurePrefixOverlap(storedHashes: string[], incomingSet: Set<string>): number {
+  let overlap = 0
+  for (const h of storedHashes) {
+    if (incomingSet.has(h)) overlap++
+    else break
+  }
+  return overlap
+}
+
+/**
+ * Measure how many stored hashes match from the END of the stored array
+ * against the incoming hashes (order-preserving).
+ *
+ * Suffix overlap means the recent conversation is intact (compaction
+ * changes the beginning but preserves the end).
+ */
+function measureSuffixOverlap(storedHashes: string[], incomingSet: Set<string>): number {
+  let overlap = 0
+  for (let i = storedHashes.length - 1; i >= 0; i--) {
+    if (incomingSet.has(storedHashes[i]!)) overlap++
+    else break
+  }
+  return overlap
+}
+
+/**
+ * Result of lineage verification — classifies the mutation and provides
+ * the information needed to take the correct SDK action.
+ */
+export type LineageResult =
+  | { type: "continuation"; session: SessionState }
+  | { type: "compaction";   session: SessionState }
+  | { type: "undo";         session: SessionState; prefixOverlap: number; rollbackUuid: string | undefined }
+  | { type: "diverged" }
+
+/**
  * Verify that incoming messages are a valid continuation of a cached session.
- * Returns the session if lineage is intact, undefined if history has diverged.
+ * Uses per-message hash comparison to deterministically classify mutations.
+ *
+ * Decision matrix:
+ *   Full prefix match (fast-path)          → continuation (resume normally)
+ *   Suffix overlap >= MIN_SUFFIX           → compaction   (resume normally)
+ *   Prefix overlap > 0, no suffix          → undo         (fork at rollback point)
+ *   No overlap                             → diverged     (start fresh)
  */
 function verifyLineage(
   cached: SessionState,
   messages: Array<{ role: string; content: any }>,
   cacheKey: string,
   cache: typeof sessionCache | typeof fingerprintCache
-): SessionState | undefined {
+): LineageResult {
   // No stored lineage (legacy entry or first request) — allow resume
-  if (!cached.lineageHash || cached.messageCount === 0) return cached
-
-  // Messages were truncated — more removed than added (multi-undo)
-  if (messages.length < cached.messageCount) {
-    cache.delete(cacheKey)
-    return undefined
+  if (!cached.lineageHash || cached.messageCount === 0) {
+    return { type: "continuation", session: cached }
   }
 
-  // Verify the prefix matches what the SDK session saw
+  // --- Fast path: aggregate lineage hash ---
   const prefix = messages.slice(0, cached.messageCount)
   const prefixHash = computeLineageHash(prefix)
-  if (prefixHash !== cached.lineageHash) {
-    // History diverged (undo, edit, branch) — invalidate and start fresh
-    cache.delete(cacheKey)
-    return undefined
+  if (prefixHash === cached.lineageHash) {
+    return { type: "continuation", session: cached }
   }
 
-  return cached
+  // --- Slow path: per-message diff ---
+  if (!cached.messageHashes || cached.messageHashes.length === 0) {
+    // No per-message hashes stored (legacy session). Can't diff — reject.
+    cache.delete(cacheKey)
+    return { type: "diverged" }
+  }
+
+  const incomingHashes = computeMessageHashes(messages)
+  const incomingSet = new Set(incomingHashes)
+
+  const prefixOverlap = measurePrefixOverlap(cached.messageHashes, incomingSet)
+  const suffixOverlap = measureSuffixOverlap(cached.messageHashes, incomingSet)
+
+  // Compaction: suffix preserved, long enough conversation
+  const MIN_STORED_FOR_COMPACTION = 6
+  if (
+    suffixOverlap >= MIN_SUFFIX_FOR_COMPACTION &&
+    cached.messageHashes.length >= MIN_STORED_FOR_COMPACTION
+  ) {
+    console.error(
+      `[PROXY] Compaction detected (key=${cacheKey.slice(0, 8)}…): ` +
+      `suffix overlap ${suffixOverlap}/${cached.messageHashes.length}. Allowing resume.`
+    )
+    cached.lineageHash = computeLineageHash(messages)
+    cached.messageHashes = incomingHashes
+    cached.messageCount = messages.length
+    return { type: "compaction", session: cached }
+  }
+
+  // Undo: prefix preserved (beginning intact) but suffix changed
+  if (prefixOverlap > 0 && suffixOverlap === 0) {
+    // Find the SDK UUID at the last matching position.
+    // The last matching stored message is at index (prefixOverlap - 1).
+    // We need the most recent ASSISTANT UUID at or before that position.
+    let rollbackUuid: string | undefined
+    if (cached.sdkMessageUuids) {
+      for (let i = prefixOverlap - 1; i >= 0; i--) {
+        if (cached.sdkMessageUuids[i]) {
+          rollbackUuid = cached.sdkMessageUuids[i]!
+          break
+        }
+      }
+    }
+    console.error(
+      `[PROXY] Undo detected (key=${cacheKey.slice(0, 8)}…): ` +
+      `prefix overlap ${prefixOverlap}/${cached.messageHashes.length}, ` +
+      `rollback UUID: ${rollbackUuid || "none (legacy session)"}.`
+    )
+    // Don't delete the cache entry — we keep the original session for reference.
+    // The caller will fork it.
+    return { type: "undo", session: cached, prefixOverlap, rollbackUuid }
+  }
+
+  // No meaningful overlap — completely different conversation.
+  cache.delete(cacheKey)
+  return { type: "diverged" }
 }
 
 /** Refresh lastAccess on a verified session so LRU eviction reflects actual usage */
@@ -219,17 +351,20 @@ function touchSession(state: SessionState): SessionState {
   return state
 }
 
-/** Look up a cached session by header or fingerprint */
+/** Look up a cached session by header or fingerprint.
+ *  Returns a LineageResult that classifies the mutation and includes the
+ *  session state needed for the correct SDK action. */
 function lookupSession(
   opencodeSessionId: string | undefined,
   messages: Array<{ role: string; content: any }>,
   workingDirectory?: string
-): SessionState | undefined {
+): LineageResult {
   if (opencodeSessionId) {
     const cached = sessionCache.get(opencodeSessionId)
     if (cached) {
-      const verified = verifyLineage(cached, messages, opencodeSessionId, sessionCache)
-      return verified ? touchSession(verified) : undefined
+      const result = verifyLineage(cached, messages, opencodeSessionId, sessionCache)
+      if (result.type === "continuation" || result.type === "compaction") touchSession(result.session)
+      return result
     }
     const shared = lookupSharedSession(opencodeSessionId)
     if (shared) {
@@ -238,20 +373,25 @@ function lookupSession(
         lastAccess: Date.now(),
         messageCount: shared.messageCount || 0,
         lineageHash: shared.lineageHash || "",
+        messageHashes: shared.messageHashes,
+        sdkMessageUuids: shared.sdkMessageUuids,
       }
-      const verified = verifyLineage(state, messages, opencodeSessionId, sessionCache)
-      if (verified) sessionCache.set(opencodeSessionId, state)
-      return verified
+      const result = verifyLineage(state, messages, opencodeSessionId, sessionCache)
+      if (result.type === "continuation" || result.type === "compaction") {
+        sessionCache.set(opencodeSessionId, state)
+      }
+      return result
     }
-    return undefined
+    return { type: "diverged" }
   }
 
   const fp = getConversationFingerprint(messages, workingDirectory)
   if (fp) {
     const cached = fingerprintCache.get(fp)
     if (cached) {
-      const verified = verifyLineage(cached, messages, fp, fingerprintCache)
-      return verified ? touchSession(verified) : undefined
+      const result = verifyLineage(cached, messages, fp, fingerprintCache)
+      if (result.type === "continuation" || result.type === "compaction") touchSession(result.session)
+      return result
     }
     const shared = lookupSharedSession(fp)
     if (shared) {
@@ -260,29 +400,39 @@ function lookupSession(
         lastAccess: Date.now(),
         messageCount: shared.messageCount || 0,
         lineageHash: shared.lineageHash || "",
+        messageHashes: shared.messageHashes,
+        sdkMessageUuids: shared.sdkMessageUuids,
       }
-      const verified = verifyLineage(state, messages, fp, fingerprintCache)
-      if (verified) fingerprintCache.set(fp, state)
-      return verified
+      const result = verifyLineage(state, messages, fp, fingerprintCache)
+      if (result.type === "continuation" || result.type === "compaction") {
+        fingerprintCache.set(fp, state)
+      }
+      return result
     }
   }
-  return undefined
+  return { type: "diverged" }
 }
 
-/** Store a session mapping with lineage hash for divergence detection */
+/** Store a session mapping with lineage hash and SDK UUIDs for divergence detection.
+ *  @param sdkMessageUuids — per-message SDK assistant UUIDs (null for user messages).
+ *    If provided, merged with any previously stored UUIDs to build a complete map. */
 function storeSession(
   opencodeSessionId: string | undefined,
   messages: Array<{ role: string; content: any }>,
   claudeSessionId: string,
-  workingDirectory?: string
+  workingDirectory?: string,
+  sdkMessageUuids?: Array<string | null>
 ) {
   if (!claudeSessionId) return
   const lineageHash = computeLineageHash(messages)
+  const messageHashes = computeMessageHashes(messages)
   const state: SessionState = {
     claudeSessionId,
     lastAccess: Date.now(),
     messageCount: messages?.length || 0,
     lineageHash,
+    messageHashes,
+    sdkMessageUuids,
   }
   // In-memory cache
   if (opencodeSessionId) sessionCache.set(opencodeSessionId, state)
@@ -290,7 +440,7 @@ function storeSession(
   if (fp) fingerprintCache.set(fp, state)
   // Shared file store (cross-proxy resume)
   const key = opencodeSessionId || fp
-  if (key) storeSharedSession(key, claudeSessionId, state.messageCount, lineageHash)
+  if (key) storeSharedSession(key, claudeSessionId, state.messageCount, lineageHash, messageHashes, sdkMessageUuids)
 }
 
 /** Extract only the last user message (for resume — SDK already has history) */
@@ -579,11 +729,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }
         }
 
-        // Session resume: look up cached Claude SDK session
+        // Session resume: look up cached Claude SDK session and classify mutation
         const opencodeSessionId = c.req.header("x-opencode-session")
-        const cachedSession = lookupSession(opencodeSessionId, body.messages || [], workingDirectory)
+        const lineageResult = lookupSession(opencodeSessionId, body.messages || [], workingDirectory)
+        const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
+        const isUndo = lineageResult.type === "undo"
+        const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
         const resumeSessionId = cachedSession?.claudeSessionId
-        const isResume = Boolean(resumeSessionId)
+        // For undo: fork the session at the rollback point
+        const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
 
         // Debug: log request details
         const msgSummary = body.messages?.map((m: any) => {
@@ -592,7 +746,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             : "string"
           return `${m.role}[${contentTypes}]`
         }).join(" → ")
-        console.error(`[PROXY] ${requestMeta.requestId} model=${model} stream=${stream} tools=${body.tools?.length ?? 0} resume=${isResume} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgs=${msgSummary}`)
+        const lineageType = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
+        const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
+        console.error(`[PROXY] ${requestMeta.requestId} model=${model} stream=${stream} tools=${body.tools?.length ?? 0} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount} msgs=${msgSummary}`)
 
         claudeLog("request.received", {
           model,
@@ -630,11 +786,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const allMessages = body.messages || []
       let messagesToConvert: typeof allMessages
 
-      if (isResume && cachedSession) {
-        const knownCount = cachedSession.messageCount || 0
-        if (knownCount > 0 && knownCount < allMessages.length) {
-          messagesToConvert = allMessages.slice(knownCount)
+      if ((isResume || isUndo) && cachedSession) {
+        if (isUndo && undoRollbackUuid) {
+          // Undo with SDK rollback: the SDK will fork to the correct point,
+          // so we only need to send the new user message.
+          messagesToConvert = getLastUserMessage(allMessages)
+        } else if (isResume) {
+          const knownCount = cachedSession.messageCount || 0
+          if (knownCount > 0 && knownCount < allMessages.length) {
+            messagesToConvert = allMessages.slice(knownCount)
+          } else {
+            messagesToConvert = getLastUserMessage(allMessages)
+          }
         } else {
+          // Undo without UUID (legacy session) — fall back to last user message
+          // to avoid the catastrophic flat text replay.
           messagesToConvert = getLastUserMessage(allMessages)
         }
       } else {
@@ -810,6 +976,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           let firstChunkAt: number | undefined
           let currentSessionId: string | undefined
 
+          // Build SDK UUID map: start with previously stored UUIDs (if resuming),
+          // then capture new ones from the response. Declared outside try so
+          // storeSession (in the finally/after block) can access it.
+          const sdkUuidMap: Array<string | null> = cachedSession?.sdkMessageUuids
+            ? [...cachedSession.sdkMessageUuids]
+            : new Array(allMessages.length - 1).fill(null)
+          // Pad to current message count (the last user message has no UUID yet)
+          while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
+
           claudeLog("upstream.start", { mode: "non_stream", model })
 
           try {
@@ -821,14 +996,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             const response = query({
               prompt,
               options: {
-                maxTurns: passthrough ? 1 : 100,
+                maxTurns: passthrough ? 1 : 200,
                 cwd: workingDirectory,
                 model,
                 pathToClaudeCodeExecutable: claudeExecutable,
                 permissionMode: "bypassPermissions",
                 allowDangerouslySkipPermissions: true,
-                // Pass OpenCode's system prompt (includes AGENTS.md, custom instructions)
-                // as an append to Claude Code's default — preserves the SDK identity.
                 ...(systemContext ? {
                   systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: systemContext }
                 } : {}),
@@ -849,6 +1022,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 env: { ...cleanEnv, ENABLE_TOOL_SEARCH: "false" },
                 ...(Object.keys(sdkAgents).length > 0 ? { agents: sdkAgents } : {}),
                 ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+                ...(isUndo ? { forkSession: true, ...(undoRollbackUuid ? { resumeSessionAt: undoRollbackUuid } : {}) } : {}),
                 ...(sdkHooks ? { hooks: sdkHooks } : {}),
               }
             })
@@ -860,6 +1034,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }
               if (message.type === "assistant") {
                 assistantMessages += 1
+                // Capture SDK assistant UUID for undo rollback
+                if ((message as any).uuid) {
+                  sdkUuidMap.push((message as any).uuid)
+                }
                 if (!firstChunkAt) {
                   firstChunkAt = Date.now()
                   claudeLog("upstream.first_chunk", {
@@ -944,6 +1122,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             mode: "non-stream",
             isResume,
             isPassthrough: passthrough,
+            lineageType,
+            messageCount: allMessages.length,
+            sdkSessionId: currentSessionId || resumeSessionId,
             status: 200,
             queueWaitMs: nonStreamQueueWaitMs,
             proxyOverheadMs: upstreamStartAt - requestStartAt - nonStreamQueueWaitMs,
@@ -957,7 +1138,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
           // Store session for future resume
               if (currentSessionId) {
-                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory)
+                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
               }
 
               const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
@@ -1013,20 +1194,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }
             }
 
+            // Build SDK UUID map for the streaming path (declared before try for storeSession access)
+            const sdkUuidMap: Array<string | null> = cachedSession?.sdkMessageUuids
+              ? [...cachedSession.sdkMessageUuids]
+              : new Array(allMessages.length - 1).fill(null)
+            while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
+
             try {
               let currentSessionId: string | undefined
               const response = query({
                 prompt,
                 options: {
-                  maxTurns: passthrough ? 1 : 100,
+                  maxTurns: passthrough ? 1 : 200,
                   cwd: workingDirectory,
                   model,
                   pathToClaudeCodeExecutable: claudeExecutable,
                   includePartialMessages: true,
                   permissionMode: "bypassPermissions",
                   allowDangerouslySkipPermissions: true,
-                  // Pass OpenCode's system prompt (includes AGENTS.md, custom instructions)
-                  // as an append to Claude Code's default — preserves the SDK identity.
                   ...(systemContext ? {
                     systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: systemContext }
                   } : {}),
@@ -1047,6 +1232,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   env: { ...cleanEnv, ENABLE_TOOL_SEARCH: "false" },
                   ...(Object.keys(sdkAgents).length > 0 ? { agents: sdkAgents } : {}),
                   ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+                  ...(isUndo ? { forkSession: true, ...(undoRollbackUuid ? { resumeSessionAt: undoRollbackUuid } : {}) } : {}),
                   ...(sdkHooks ? { hooks: sdkHooks } : {}),
                 }
               })
@@ -1081,9 +1267,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     break
                   }
 
-                  // Capture session ID from any SDK message
+                  // Capture session ID and assistant UUID from any SDK message
                   if ((message as any).session_id) {
                     currentSessionId = (message as any).session_id
+                  }
+                  if (message.type === "assistant" && (message as any).uuid) {
+                    sdkUuidMap.push((message as any).uuid)
                   }
 
                   if (message.type === "stream_event") {
@@ -1181,7 +1370,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
               // Store session for future resume
               if (currentSessionId) {
-                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory)
+                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
               }
 
               if (!streamClosed) {
@@ -1266,6 +1455,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   mode: "stream",
                   isResume,
                   isPassthrough: passthrough,
+                  lineageType,
+                  messageCount: allMessages.length,
+                  sdkSessionId: currentSessionId || resumeSessionId,
                   status: 200,
                   queueWaitMs: streamQueueWaitMs,
                   proxyOverheadMs: upstreamStartAt - requestStartAt - streamQueueWaitMs,
@@ -1350,6 +1542,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           mode: "non-stream",
           isResume: false,
           isPassthrough: Boolean(process.env.CLAUDE_PROXY_PASSTHROUGH),
+          lineageType: undefined,
+          messageCount: undefined,
+          sdkSessionId: undefined,
           status: classified.status,
           queueWaitMs: errorQueueWaitMs,
           proxyOverheadMs: Date.now() - requestStartAt - errorQueueWaitMs,

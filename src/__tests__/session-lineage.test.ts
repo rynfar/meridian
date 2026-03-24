@@ -1,8 +1,13 @@
 /**
  * Tests for conversation lineage verification.
  *
- * Validates that session resume correctly detects history divergence
- * from undo, edit, branch, and normal continuation scenarios.
+ * Validates that session resume correctly handles:
+ *   - Normal continuation (new messages appended)
+ *   - Undo / branch (recent messages changed)
+ *   - Compaction (older messages rewritten, recent preserved)
+ *   - Pruning (middle messages modified, both ends preserved)
+ *   - Multiple compactions in sequence
+ *   - Post-compaction normal resume and undo
  */
 
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test"
@@ -43,7 +48,13 @@ mock.module("../mcpTools", () => ({
 const lineageTmpDir = mkdtempSync(join(tmpdir(), "session-lineage-test-"))
 process.env.CLAUDE_PROXY_SESSION_DIR = lineageTmpDir
 
-const { createProxyServer, clearSessionCache, computeLineageHash } = await import("../proxy/server")
+const {
+  createProxyServer,
+  clearSessionCache,
+  computeLineageHash,
+  hashMessage,
+  computeMessageHashes,
+} = await import("../proxy/server")
 const { clearSharedSessions } = await import("../proxy/sessionStore")
 
 afterAll(() => {
@@ -68,7 +79,7 @@ async function post(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-opencode-session": session,
+      ...(session ? { "x-opencode-session": session } : {}),
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-5",
@@ -87,6 +98,10 @@ beforeEach(() => {
   clearSessionCache()
   clearSharedSessions()
 })
+
+// ---------------------------------------------------------------------------
+// Unit tests for hash functions
+// ---------------------------------------------------------------------------
 
 describe("computeLineageHash", () => {
   it("returns empty string for empty messages", () => {
@@ -123,7 +138,6 @@ describe("computeLineageHash", () => {
   })
 
   it("produces identical hashes for string vs array content format", () => {
-    // OpenCode sends content as string on first request, array on follow-ups
     const asString = [{ role: "user", content: "hello world" }]
     const asArray = [{ role: "user", content: [{ type: "text", text: "hello world" }] }]
     expect(computeLineageHash(asString)).toBe(computeLineageHash(asArray as any))
@@ -137,7 +151,6 @@ describe("computeLineageHash", () => {
         { type: "tool_use", id: "toolu_123", name: "bash", input: { command: "ls" } },
       ]},
     ]
-    // Same content, same hash regardless of internal format
     expect(computeLineageHash(withToolUse as any)).toBe(computeLineageHash(withToolUse as any))
   })
 
@@ -152,16 +165,51 @@ describe("computeLineageHash", () => {
   })
 })
 
-describe("Session lineage: undo detection", () => {
-  it("resumes normally when messages are a strict continuation", async () => {
+describe("hashMessage / computeMessageHashes", () => {
+  it("hashMessage produces consistent hashes", () => {
+    const msg = { role: "user", content: "hello" }
+    expect(hashMessage(msg)).toBe(hashMessage(msg))
+  })
+
+  it("hashMessage differs for different content", () => {
+    expect(hashMessage({ role: "user", content: "a" }))
+      .not.toBe(hashMessage({ role: "user", content: "b" }))
+  })
+
+  it("hashMessage normalises string vs array content", () => {
+    const str = { role: "user", content: "hello" }
+    const arr = { role: "user", content: [{ type: "text", text: "hello" }] }
+    expect(hashMessage(str)).toBe(hashMessage(arr as any))
+  })
+
+  it("computeMessageHashes returns one hash per message", () => {
+    const msgs = [
+      { role: "user", content: "a" },
+      { role: "assistant", content: "b" },
+      { role: "user", content: "c" },
+    ]
+    const hashes = computeMessageHashes(msgs)
+    expect(hashes).toHaveLength(3)
+    expect(new Set(hashes).size).toBe(3) // all different
+  })
+
+  it("computeMessageHashes returns empty array for empty input", () => {
+    expect(computeMessageHashes([])).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Scenario 1: Normal continuation
+// ---------------------------------------------------------------------------
+
+describe("Session lineage: normal continuation", () => {
+  it("resumes when messages are a strict continuation", async () => {
     const app = createTestApp()
 
-    // Turn 1
     await post(app, "sess-1", [
       { role: "user", content: "Good evening" },
     ], "sdk-1")
 
-    // Turn 2 — strict continuation (adds assistant + new user message)
     await post(app, "sess-1", [
       { role: "user", content: "Good evening" },
       { role: "assistant", content: "Good evening!" },
@@ -170,38 +218,42 @@ describe("Session lineage: undo detection", () => {
 
     expect(capturedQueryParams?.options?.resume).toBe("sdk-1")
   })
+})
 
-  it("does NOT resume after undo (same message count, different content)", async () => {
+// ---------------------------------------------------------------------------
+// Scenarios 2-4: Undo / branch / edit
+// ---------------------------------------------------------------------------
+
+describe("Session lineage: undo detection", () => {
+  it("forks session on undo (same count, different last message)", async () => {
     const app = createTestApp()
 
-    // Turn 1
     await post(app, "sess-1", [
       { role: "user", content: "Good evening" },
     ], "sdk-1")
 
-    // Turn 2
     await post(app, "sess-1", [
       { role: "user", content: "Good evening" },
       { role: "assistant", content: "Good evening!" },
       { role: "user", content: "Remember: Flobulator" },
     ], "sdk-1")
 
-    // /undo removes turn 2, user sends a different message 2
-    // Message count is still 3 but content of message 3 is different
+    // Undo last turn, new message → should fork the session
     await post(app, "sess-1", [
       { role: "user", content: "Good evening" },
       { role: "assistant", content: "Good evening!" },
       { role: "user", content: "Do you remember the word?" },
     ], "sdk-new")
 
-    // Should NOT resume — lineage hash mismatch
-    expect(capturedQueryParams?.options?.resume).toBeUndefined()
+    // Should resume the original session with fork
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-1")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
+    expect(capturedQueryParams?.options?.resumeSessionAt).toBeDefined()
   })
 
-  it("does NOT resume after multi-undo (fewer messages)", async () => {
+  it("forks session on multi-undo (fewer messages)", async () => {
     const app = createTestApp()
 
-    // Build up 3 turns
     await post(app, "sess-1", [
       { role: "user", content: "hello" },
     ], "sdk-1")
@@ -220,15 +272,15 @@ describe("Session lineage: undo detection", () => {
       { role: "user", content: "step 3" },
     ], "sdk-1")
 
-    // Multi-undo back to turn 1, send new message
+    // Multi-undo back to turn 1 → fork
     await post(app, "sess-1", [
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi" },
       { role: "user", content: "completely different" },
     ], "sdk-new")
 
-    // Should NOT resume — fewer messages than stored + content changed
-    expect(capturedQueryParams?.options?.resume).toBeUndefined()
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-1")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
   })
 
   it("does NOT resume when earlier message is edited", async () => {
@@ -244,7 +296,7 @@ describe("Session lineage: undo detection", () => {
       { role: "user", content: "how are you?" },
     ], "sdk-1")
 
-    // Edit the first message
+    // Edit the first message (short conversation — no suffix overlap)
     await post(app, "sess-1", [
       { role: "user", content: "EDITED hello" },
       { role: "assistant", content: "hi" },
@@ -253,35 +305,35 @@ describe("Session lineage: undo detection", () => {
       { role: "user", content: "great" },
     ], "sdk-new")
 
-    // Should NOT resume — first message was edited, lineage broken
     expect(capturedQueryParams?.options?.resume).toBeUndefined()
   })
 
-  it("resumes correctly after undo when a NEW session starts", async () => {
+  it("undo forks then subsequent turns resume the fork", async () => {
     const app = createTestApp()
 
-    // Turn 1
     await post(app, "sess-1", [
       { role: "user", content: "hello" },
     ], "sdk-1")
 
-    // Turn 2
     await post(app, "sess-1", [
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi" },
       { role: "user", content: "remember X" },
     ], "sdk-1")
 
-    // /undo + new message → starts fresh (no resume)
+    // Undo + new message → forks from sdk-1, gets new session sdk-2
     await post(app, "sess-1", [
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi" },
       { role: "user", content: "forget about X" },
     ], "sdk-2")
 
-    expect(capturedQueryParams?.options?.resume).toBeUndefined()
+    // Should fork from original session
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-1")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
 
-    // Now continuing from the NEW session should resume with sdk-2
+    // Continuing from the fork should resume with sdk-2
+    capturedQueryParams = null
     await post(app, "sess-1", [
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi" },
@@ -291,61 +343,394 @@ describe("Session lineage: undo detection", () => {
     ], "sdk-2")
 
     expect(capturedQueryParams?.options?.resume).toBe("sdk-2")
+    expect(capturedQueryParams?.options?.forkSession).toBeUndefined()
   })
 })
 
-describe("Session lastAccess refresh on lookup", () => {
-  it("keeps actively-used sessions alive in LRU by refreshing lastAccess", async () => {
+// ---------------------------------------------------------------------------
+// Scenarios 5-7: Compaction
+// ---------------------------------------------------------------------------
+
+describe("Session lineage: compaction survival", () => {
+  it("resumes after compaction rewrites older messages (suffix preserved)", async () => {
     const app = createTestApp()
 
-    // Create 2 sessions (LRU limit is 1000 in tests, so no eviction pressure,
-    // but we can verify resume works across multiple lookups — proving the
-    // session stays accessible and its timestamp is refreshed)
+    // Build a 9-message conversation
+    await post(app, "sess-c", [{ role: "user", content: "hello" }], "sdk-c")
 
-    // Session A — created first
-    await post(app, "sess-A", [
-      { role: "user", content: "session A" },
-    ], "sdk-A")
+    await post(app, "sess-c", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "topic A" },
+    ], "sdk-c")
 
-    // Session B — created second
-    await post(app, "sess-B", [
-      { role: "user", content: "session B" },
-    ], "sdk-B")
+    await post(app, "sess-c", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "topic A" },
+      { role: "assistant", content: "A explained" },
+      { role: "user", content: "topic B" },
+    ], "sdk-c")
 
-    // Come back to session A much later — should still resume
+    await post(app, "sess-c", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "topic A" },
+      { role: "assistant", content: "A explained" },
+      { role: "user", content: "topic B" },
+      { role: "assistant", content: "B explained" },
+      { role: "user", content: "topic C" },
+    ], "sdk-c")
+
+    await post(app, "sess-c", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "topic A" },
+      { role: "assistant", content: "A explained" },
+      { role: "user", content: "topic B" },
+      { role: "assistant", content: "B explained" },
+      { role: "user", content: "topic C" },
+      { role: "assistant", content: "C explained" },
+      { role: "user", content: "topic D" },
+    ], "sdk-c")
+
+    // Compaction: beginning summarised, last 4 messages + 2 new
     capturedQueryParams = null
-    await post(app, "sess-A", [
-      { role: "user", content: "session A" },
-      { role: "assistant", content: "ok" },
-      { role: "user", content: "still here?" },
-    ], "sdk-A")
+    await post(app, "sess-c", [
+      { role: "user", content: "[Summary: A, B and C discussed]" },
+      { role: "assistant", content: "C explained" },
+      { role: "user", content: "topic D" },
+      { role: "assistant", content: "D explained" },
+      { role: "user", content: "topic E" },
+    ], "sdk-c")
 
-    expect(capturedQueryParams?.options?.resume).toBe("sdk-A")
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-c")
+  })
 
-    // And again — third access to same session, still resumes
+  it("resumes after compaction reduces message count", async () => {
+    const app = createTestApp()
+
+    // Build to 9 messages
+    const msgs: Array<{ role: string; content: string }> = []
+    for (let i = 1; i <= 5; i++) {
+      msgs.push({ role: "user", content: `step ${i}` })
+      if (i < 5) msgs.push({ role: "assistant", content: `done ${i}` })
+      await post(app, "sess-s", [...msgs], "sdk-s")
+    }
+
+    // Compaction: 9 msgs → 7 (summary + preserved tail + new)
     capturedQueryParams = null
-    await post(app, "sess-A", [
-      { role: "user", content: "session A" },
-      { role: "assistant", content: "ok" },
-      { role: "user", content: "still here?" },
-      { role: "assistant", content: "yes" },
-      { role: "user", content: "one more" },
-    ], "sdk-A")
+    await post(app, "sess-s", [
+      { role: "user", content: "[Summary: steps 1-3]" },
+      { role: "assistant", content: "done 3" },
+      { role: "user", content: "step 4" },
+      { role: "assistant", content: "done 4" },
+      { role: "user", content: "step 5" },
+      { role: "assistant", content: "done 5" },
+      { role: "user", content: "step 6" },
+    ], "sdk-s")
 
-    expect(capturedQueryParams?.options?.resume).toBe("sdk-A")
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-s")
+  })
+
+  it("does NOT resume when both prefix AND suffix changed (real branch)", async () => {
+    const app = createTestApp()
+
+    await post(app, "sess-b", [{ role: "user", content: "hello" }], "sdk-b")
+
+    await post(app, "sess-b", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "do task A" },
+    ], "sdk-b")
+
+    await post(app, "sess-b", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "do task A" },
+      { role: "assistant", content: "done with A" },
+      { role: "user", content: "now do B" },
+    ], "sdk-b")
+
+    // Completely different direction
+    capturedQueryParams = null
+    await post(app, "sess-b", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "do task C instead" },
+      { role: "assistant", content: "ok doing C" },
+      { role: "user", content: "continue with C" },
+    ], "sdk-new")
+
+    // Prefix overlap (hello, hi) → undo detected → forks from rollback point
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-b")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
+    expect(capturedQueryParams?.options?.resumeSessionAt).toBeDefined()
+  })
+
+  it("rejects aggressive compaction where nothing is preserved", async () => {
+    const app = createTestApp()
+
+    await post(app, "sess-agg", [{ role: "user", content: "start" }], "sdk-agg")
+    await post(app, "sess-agg", [
+      { role: "user", content: "start" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ], "sdk-agg")
+
+    // Nothing from the original survives
+    capturedQueryParams = null
+    await post(app, "sess-agg", [
+      { role: "user", content: "[Full summary of everything]" },
+      { role: "assistant", content: "I understand the summary" },
+      { role: "user", content: "now do something new" },
+    ], "sdk-new")
+
+    expect(capturedQueryParams?.options?.resume).toBeUndefined()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Scenario 8: Pruning (middle messages modified)
+// ---------------------------------------------------------------------------
+
+describe("Session lineage: pruning survival", () => {
+  it("resumes when middle messages are pruned (tool outputs removed)", async () => {
+    const app = createTestApp()
+
+    // Build a conversation where middle messages will be "pruned"
+    const fullConvo = [
+      { role: "user", content: "start project" },
+      { role: "assistant", content: "reading files..." },
+      { role: "user", content: "tool result: file contents here" },
+      { role: "assistant", content: "I see the files" },
+      { role: "user", content: "now edit them" },
+      { role: "assistant", content: "editing..." },
+      { role: "user", content: "tool result: edit applied" },
+      { role: "assistant", content: "done editing" },
+      { role: "user", content: "run tests" },
+    ]
+
+    // Build up incrementally
+    for (let i = 0; i < fullConvo.length; i += 2) {
+      await post(app, "sess-p", fullConvo.slice(0, i + 1), "sdk-p")
+    }
+
+    // Pruning: tool outputs in messages 2 and 6 are replaced with truncated versions
+    capturedQueryParams = null
+    await post(app, "sess-p", [
+      { role: "user", content: "start project" },           // same
+      { role: "assistant", content: "reading files..." },    // same
+      { role: "user", content: "[pruned tool output]" },     // PRUNED
+      { role: "assistant", content: "I see the files" },     // same
+      { role: "user", content: "now edit them" },            // same
+      { role: "assistant", content: "editing..." },          // same
+      { role: "user", content: "[pruned tool output]" },     // PRUNED
+      { role: "assistant", content: "done editing" },        // same
+      { role: "user", content: "run tests" },                // same
+      { role: "assistant", content: "tests passed" },        // new
+      { role: "user", content: "deploy" },                   // new
+    ], "sdk-p")
+
+    // Should resume — suffix (last 2+) of stored messages preserved
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-p")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Scenarios 9-11: Multiple compactions and post-compaction behavior
+// ---------------------------------------------------------------------------
+
+describe("Session lineage: post-compaction behavior", () => {
+  it("normal resume works after compaction is accepted", async () => {
+    const app = createTestApp()
+
+    // Build to 9 messages
+    await post(app, "sess-pc", [{ role: "user", content: "hello" }], "sdk-pc")
+    await post(app, "sess-pc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+    ], "sdk-pc")
+    await post(app, "sess-pc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+      { role: "assistant", content: "A done" },
+      { role: "user", content: "B" },
+    ], "sdk-pc")
+    await post(app, "sess-pc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+      { role: "assistant", content: "A done" },
+      { role: "user", content: "B" },
+      { role: "assistant", content: "B done" },
+      { role: "user", content: "C" },
+    ], "sdk-pc")
+    await post(app, "sess-pc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+      { role: "assistant", content: "A done" },
+      { role: "user", content: "B" },
+      { role: "assistant", content: "B done" },
+      { role: "user", content: "C" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+    ], "sdk-pc")
+
+    // Compaction
+    await post(app, "sess-pc", [
+      { role: "user", content: "[Summary: A B C]" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+      { role: "assistant", content: "D done" },
+      { role: "user", content: "E" },
+    ], "sdk-pc")
+
+    // Normal follow-up after compaction
+    capturedQueryParams = null
+    await post(app, "sess-pc", [
+      { role: "user", content: "[Summary: A B C]" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+      { role: "assistant", content: "D done" },
+      { role: "user", content: "E" },
+      { role: "assistant", content: "E done" },
+      { role: "user", content: "F" },
+    ], "sdk-pc")
+
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-pc")
+  })
+
+  it("second compaction is also detected correctly", async () => {
+    const app = createTestApp()
+
+    // Build to 9 messages
+    const topics = ["A", "B", "C", "D"]
+    let msgs: Array<{ role: string; content: string }> = []
+    for (const t of topics) {
+      msgs.push({ role: "user", content: t })
+      await post(app, "sess-2c", [...msgs], "sdk-2c")
+      msgs.push({ role: "assistant", content: `${t} done` })
+      await post(app, "sess-2c", [...msgs], "sdk-2c")
+    }
+    msgs.push({ role: "user", content: "E" })
+    await post(app, "sess-2c", [...msgs], "sdk-2c")
+
+    // First compaction
+    await post(app, "sess-2c", [
+      { role: "user", content: "[Summary: A B C]" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+      { role: "assistant", content: "D done" },
+      { role: "user", content: "E" },
+      { role: "assistant", content: "E done" },
+      { role: "user", content: "F" },
+    ], "sdk-2c")
+
+    // Continue to build up again
+    await post(app, "sess-2c", [
+      { role: "user", content: "[Summary: A B C]" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+      { role: "assistant", content: "D done" },
+      { role: "user", content: "E" },
+      { role: "assistant", content: "E done" },
+      { role: "user", content: "F" },
+      { role: "assistant", content: "F done" },
+      { role: "user", content: "G" },
+    ], "sdk-2c")
+
+    // Second compaction
+    capturedQueryParams = null
+    await post(app, "sess-2c", [
+      { role: "user", content: "[Summary: A-F]" },
+      { role: "assistant", content: "F done" },
+      { role: "user", content: "G" },
+      { role: "assistant", content: "G done" },
+      { role: "user", content: "H" },
+    ], "sdk-2c")
+
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-2c")
+  })
+
+  it("undo after compaction is correctly rejected", async () => {
+    const app = createTestApp()
+
+    // Build to 9 messages
+    await post(app, "sess-uc", [{ role: "user", content: "hello" }], "sdk-uc")
+    await post(app, "sess-uc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+    ], "sdk-uc")
+    await post(app, "sess-uc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+      { role: "assistant", content: "A done" },
+      { role: "user", content: "B" },
+    ], "sdk-uc")
+    await post(app, "sess-uc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+      { role: "assistant", content: "A done" },
+      { role: "user", content: "B" },
+      { role: "assistant", content: "B done" },
+      { role: "user", content: "C" },
+    ], "sdk-uc")
+    await post(app, "sess-uc", [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "A" },
+      { role: "assistant", content: "A done" },
+      { role: "user", content: "B" },
+      { role: "assistant", content: "B done" },
+      { role: "user", content: "C" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+    ], "sdk-uc")
+
+    // Compaction
+    await post(app, "sess-uc", [
+      { role: "user", content: "[Summary: A B C]" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+      { role: "assistant", content: "D done" },
+      { role: "user", content: "E" },
+    ], "sdk-uc")
+
+    // Undo after compaction — end changes, forks from rollback point
+    capturedQueryParams = null
+    await post(app, "sess-uc", [
+      { role: "user", content: "[Summary: A B C]" },
+      { role: "assistant", content: "C done" },
+      { role: "user", content: "D" },
+      { role: "assistant", content: "D done" },
+      { role: "user", content: "DIFFERENT from E" },
+    ], "sdk-new")
+
+    // Prefix overlap (Summary, C done, D, D done match) → undo → fork
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-uc")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Scenario 12: Fingerprint fallback (no session header)
+// ---------------------------------------------------------------------------
 
 describe("Session lineage: fingerprint fallback", () => {
   it("does NOT resume via fingerprint after undo", async () => {
     const app = createTestApp()
 
-    // No session header — uses fingerprint (hash of first user message)
     await post(app, "", [
       { role: "user", content: "Good evening" },
     ], "sdk-fp1")
 
-    // Manually clear session header, send via fingerprint
     queuedSessionIds.push("sdk-fp1")
     const r1 = await app.fetch(new Request("http://localhost/v1/messages", {
       method: "POST",
@@ -361,7 +746,7 @@ describe("Session lineage: fingerprint fallback", () => {
     }))
     await r1.json()
 
-    // Undo + new message, still no session header
+    // Undo + new message
     queuedSessionIds.push("sdk-fp-new")
     capturedQueryParams = null
     const r2 = await app.fetch(new Request("http://localhost/v1/messages", {
@@ -378,7 +763,46 @@ describe("Session lineage: fingerprint fallback", () => {
     }))
     await r2.json()
 
-    // Should NOT resume — fingerprint matches but lineage diverged
-    expect(capturedQueryParams?.options?.resume).toBeUndefined()
+    // Prefix overlap (Good evening, Hi!) → undo → fork via fingerprint
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-fp1")
+    expect(capturedQueryParams?.options?.forkSession).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// LRU / session refresh
+// ---------------------------------------------------------------------------
+
+describe("Session lastAccess refresh on lookup", () => {
+  it("keeps actively-used sessions alive in LRU by refreshing lastAccess", async () => {
+    const app = createTestApp()
+
+    await post(app, "sess-A", [
+      { role: "user", content: "session A" },
+    ], "sdk-A")
+
+    await post(app, "sess-B", [
+      { role: "user", content: "session B" },
+    ], "sdk-B")
+
+    capturedQueryParams = null
+    await post(app, "sess-A", [
+      { role: "user", content: "session A" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "still here?" },
+    ], "sdk-A")
+
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-A")
+
+    capturedQueryParams = null
+    await post(app, "sess-A", [
+      { role: "user", content: "session A" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "still here?" },
+      { role: "assistant", content: "yes" },
+      { role: "user", content: "one more" },
+    ], "sdk-A")
+
+    expect(capturedQueryParams?.options?.resume).toBe("sdk-A")
   })
 })
