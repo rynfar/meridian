@@ -173,10 +173,10 @@ function render(s, reqs, logs) {
 
   // Tabs
   let html = '<div class="tabs">'
-    + '<div class="tab' + (activeTab === 'overview' ? ' active' : '') + '" data-tab="overview" onclick="switchTab(\'overview\')">Overview</div>'
-    + '<div class="tab' + (activeTab === 'requests' ? ' active' : '') + '" data-tab="requests" onclick="switchTab(\'requests\')">'
+    + '<div class="tab' + (activeTab === 'overview' ? ' active' : '') + '" data-tab="overview" onclick="switchTab(&apos;overview&apos;)">Overview</div>'
+    + '<div class="tab' + (activeTab === 'requests' ? ' active' : '') + '" data-tab="requests" onclick="switchTab(&apos;requests&apos;)">'
     +   'Requests<span class="tab-badge">' + reqs.length + '</span></div>'
-    + '<div class="tab' + (activeTab === 'logs' ? ' active' : '') + '" data-tab="logs" onclick="switchTab(\'logs\')">'
+    + '<div class="tab' + (activeTab === 'logs' ? ' active' : '') + '" data-tab="logs" onclick="switchTab(&apos;logs&apos;)">'
     +   'Logs<span class="tab-badge">' + logs.length + '</span></div>'
     + '</div>';
 
@@ -279,10 +279,10 @@ function render(s, reqs, logs) {
 
   // Filter buttons
   html += '<div class="log-filters">'
-    + '<span class="log-filter' + (activeLogFilter === 'all' ? ' active' : '') + '" data-filter="all" onclick="setLogFilter(\'all\')">All<span class="tab-badge">' + logs.length + '</span></span>'
-    + '<span class="log-filter' + (activeLogFilter === 'session' ? ' active' : '') + '" data-filter="session" onclick="setLogFilter(\'session\')" style="--accent:var(--blue)">Session<span class="tab-badge">' + logCounts.session + '</span></span>'
-    + '<span class="log-filter' + (activeLogFilter === 'lineage' ? ' active' : '') + '" data-filter="lineage" onclick="setLogFilter(\'lineage\')" style="--accent:var(--purple)">Lineage<span class="tab-badge">' + logCounts.lineage + '</span></span>'
-    + '<span class="log-filter' + (activeLogFilter === 'error' ? ' active' : '') + '" data-filter="error" onclick="setLogFilter(\'error\')" style="--accent:var(--red)">Error<span class="tab-badge">' + logCounts.error + '</span></span>'
+    + '<span class="log-filter' + (activeLogFilter === 'all' ? ' active' : '') + '" data-filter="all" onclick="setLogFilter(&apos;all&apos;)">All<span class="tab-badge">' + logs.length + '</span></span>'
+    + '<span class="log-filter' + (activeLogFilter === 'session' ? ' active' : '') + '" data-filter="session" onclick="setLogFilter(&apos;session&apos;)" style="--accent:var(--blue)">Session<span class="tab-badge">' + logCounts.session + '</span></span>'
+    + '<span class="log-filter' + (activeLogFilter === 'lineage' ? ' active' : '') + '" data-filter="lineage" onclick="setLogFilter(&apos;lineage&apos;)" style="--accent:var(--purple)">Lineage<span class="tab-badge">' + logCounts.lineage + '</span></span>'
+    + '<span class="log-filter' + (activeLogFilter === 'error' ? ' active' : '') + '" data-filter="error" onclick="setLogFilter(&apos;error&apos;)" style="--accent:var(--red)">Error<span class="tab-badge">' + logCounts.error + '</span></span>'
     + '</div>';
 
   if (logs.length === 0) {
