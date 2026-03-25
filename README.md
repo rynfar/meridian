@@ -69,7 +69,7 @@ Meridian bridges that gap. It runs locally, accepts standard Anthropic API reque
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 opencode
 ```
 
-Or use the [OpenCode plugin](src/plugin/claude-max-headers.ts) for automatic session header injection.
+For automatic session tracking, use a plugin like [opencode-meridian](https://github.com/ianjwhite99/opencode-meridian), or see the [reference plugin](examples/opencode-plugin/claude-max-headers.ts) to build your own.
 
 ### Crush
 
@@ -100,15 +100,15 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 
 ## Tested Agents
 
-| Agent | Status | Notes |
-|-------|--------|-------|
-| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | Full tool support, session resume, streaming, subagents |
-| [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Tool execution, multi-turn, headless mode |
-| [Cline](https://github.com/cline/cline) | 🔲 Untested | Should work — standard Anthropic API |
-| [Continue](https://github.com/continuedev/continue) | 🔲 Untested | Should work — standard Anthropic API |
-| [Aider](https://github.com/paul-gauthier/aider) | 🔲 Untested | Should work — standard Anthropic API |
+| Agent | Status | Plugin | Notes |
+|-------|--------|--------|-------|
+| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | [opencode-meridian](https://github.com/ianjwhite99/opencode-meridian) | Full tool support, session resume, streaming, subagents |
+| [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | — | Tool execution, multi-turn, headless mode |
+| [Cline](https://github.com/cline/cline) | 🔲 Untested | — | Should work — standard Anthropic API |
+| [Continue](https://github.com/continuedev/continue) | 🔲 Untested | — | Should work — standard Anthropic API |
+| [Aider](https://github.com/paul-gauthier/aider) | 🔲 Untested | — | Should work — standard Anthropic API |
 
-Tested an agent? [Open an issue](https://github.com/rynfar/opencode-claude-max-proxy/issues) and we'll add it.
+Tested an agent or built a plugin? [Open an issue](https://github.com/rynfar/opencode-claude-max-proxy/issues) and we'll add it.
 
 ## Architecture
 
@@ -177,6 +177,64 @@ See [`adapters/opencode.ts`](src/proxy/adapters/opencode.ts) for reference.
 | `CLAUDE_PROXY_WORKDIR` | `cwd()` | Default working directory for SDK |
 | `CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS` | `120` | HTTP keep-alive timeout |
 | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size |
+
+## Programmatic API
+
+Meridian can be used as a library for building agent plugins and integrations.
+
+```typescript
+import { startProxyServer } from "opencode-claude-max-proxy"
+
+// Start a proxy instance
+const instance = await startProxyServer({
+  port: 3456,
+  host: "127.0.0.1",
+  silent: true,  // suppress console output
+})
+
+// instance.config  — resolved ProxyConfig
+// instance.server  — underlying http.Server
+
+// Shut down cleanly
+await instance.close()
+```
+
+### Session Header Contract
+
+For reliable session tracking, agents should send a session identifier via HTTP header. Without it, the proxy falls back to fingerprint-based matching (hashing the first user message + working directory), which is less reliable.
+
+| Header | Purpose |
+|--------|---------|
+| `x-opencode-session` | Maps agent conversations to Claude SDK sessions for resume, undo, and compaction |
+
+The proxy uses this header to maintain conversation continuity across requests. Plugin authors should inject it on every request to `/v1/messages`.
+
+### Plugin Architecture
+
+Meridian is the proxy. Plugins live in the agent's ecosystem.
+
+```
+┌──────────────┐         ┌──────────────┐         ┌──────────────┐
+│  Agent        │  HTTP   │  Meridian    │   SDK   │  Claude Max  │
+│  (OpenCode,   │────────▶│  Proxy       │────────▶│              │
+│   Crush, etc) │◀────────│              │◀────────│              │
+└──────────────┘         └──────────────┘         └──────────────┘
+       │
+       │ plugin injects headers,
+       │ manages proxy lifecycle
+       │
+┌──────────────┐
+│  Agent Plugin │
+│  (optional)   │
+└──────────────┘
+```
+
+A plugin's job is to:
+1. Start/stop a Meridian instance (`startProxyServer` / `instance.close()`)
+2. Inject session headers into outgoing requests
+3. Check proxy health (`GET /health`)
+
+See [`examples/opencode-plugin/`](examples/opencode-plugin/) for a reference implementation.
 
 ## Endpoints
 

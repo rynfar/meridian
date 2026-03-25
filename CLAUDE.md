@@ -65,6 +65,21 @@ session/
   cache.ts         → LRU caches, lookupSession, storeSession (stateful)
 ```
 
+## Stable API Contract
+
+External plugins depend on these interfaces. **Do not change without project owner approval.**
+
+| Interface | Location | Used by |
+|-----------|----------|---------|
+| `startProxyServer(config)` → `ProxyInstance` | `server.ts` | Plugins that spawn proxy instances |
+| `ProxyInstance.close()` | `types.ts` | Plugins for graceful shutdown |
+| `ProxyConfig` type | `types.ts` | Plugin configuration |
+| `x-opencode-session` header | `adapters/opencode.ts` | Session tracking from agent plugins |
+| `GET /health` response shape | `server.ts` | Plugin health checks |
+| `POST /v1/messages` request/response format | `server.ts` | All agents (Anthropic API contract) |
+
+If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
+
 ## Git
 
 - Commit format: `type: brief description`

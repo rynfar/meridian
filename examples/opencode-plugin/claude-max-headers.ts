@@ -1,23 +1,23 @@
 /**
- * OpenCode plugin that injects session tracking headers into Anthropic API requests.
+ * OpenCode plugin — reference implementation.
  *
- * This enables the claude-max-proxy to reliably track sessions and resume
- * Claude Agent SDK conversations instead of starting fresh every time.
+ * Injects session tracking headers into Anthropic API requests so the
+ * proxy can reliably map OpenCode sessions to Claude SDK sessions.
  *
- * Installation:
- *   Add to your opencode.json:
- *     { "plugin": ["./path/to/claude-max-headers.ts"] }
+ * This is a minimal example. For a full-featured OpenCode plugin with
+ * automatic proxy lifecycle management, see:
+ *   https://github.com/ianjwhite99/opencode-meridian
  *
- *   Or copy to your project's .opencode/plugin/ directory.
- *
- * What it does:
- *   Adds x-opencode-session and x-opencode-request headers to requests
- *   sent to the Anthropic provider. The proxy uses these to map OpenCode
- *   sessions to Claude SDK sessions for conversation resumption.
+ * Usage:
+ *   Copy this file into your project and add to opencode.json:
+ *     { "plugin": ["./claude-max-headers.ts"] }
  *
  * Without this plugin:
  *   The proxy falls back to fingerprint-based session matching (hashing
- *   the first user message). This works but is less reliable.
+ *   the first user message + working directory). This works but is less
+ *   reliable for session resume.
+ *
+ * See the Programmatic API section in the README for the full plugin contract.
  */
 
 type ChatHeadersHook = (
