@@ -982,6 +982,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     fetch: app.fetch,
     port: finalConfig.port,
     hostname: finalConfig.host,
+    overrideGlobalObjects: false,
   }, (info) => {
     if (!finalConfig.silent) {
       console.log(`Meridian running at http://${finalConfig.host}:${info.port}`)
