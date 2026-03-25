@@ -34,3 +34,7 @@ coverage/
 *.temp
 context.md
 .omc/
+
+# Local agent state
+.swarm/
+memory/

@@ -322,17 +322,15 @@ describe("Proxy basics", () => {
     expect(body.endpoints).toContain("/messages")
   })
 
-  it("should return landing page HTML on GET / from a browser", async () => {
+  it("should return JSON status on GET /", async () => {
     const app = createTestApp()
-    const req = new Request("http://localhost/", {
-      method: "GET",
-      headers: { "Accept": "text/html" },
-    })
+    const req = new Request("http://localhost/", { method: "GET" })
     const response = await app.fetch(req)
-    const html = await response.text()
+    const body = await response.json() as any
 
-    expect(response.headers.get("content-type")).toContain("text/html")
-    expect(html).toContain("Meridian")
+    expect(response.headers.get("content-type")).toContain("application/json")
+    expect(body.service).toBe("meridian")
+    expect(body.status).toBe("ok")
   })
 
   it("should accept requests on both /v1/messages and /messages", async () => {

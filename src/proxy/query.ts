@@ -40,6 +40,8 @@ export interface QueryContext {
   sdkHooks?: any
   /** The agent adapter providing tool configuration */
   adapter: AgentAdapter
+  /** Abort controller for cancellation/timeout */
+  abortController?: AbortController
 }
 
 /**
@@ -52,6 +54,7 @@ export function buildQueryOptions(ctx: QueryContext) {
     prompt, model, workingDirectory, systemContext, claudeExecutable,
     passthrough, stream, sdkAgents, passthroughMcp, cleanEnv,
     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter,
+    abortController,
   } = ctx
 
   const blockedTools = [...adapter.getBlockedBuiltinTools(), ...adapter.getAgentIncompatibleTools()]
@@ -90,6 +93,7 @@ export function buildQueryOptions(ctx: QueryContext) {
       ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       ...(isUndo ? { forkSession: true, ...(undoRollbackUuid ? { resumeSessionAt: undoRollbackUuid } : {}) } : {}),
       ...(sdkHooks ? { hooks: sdkHooks } : {}),
+      ...(abortController ? { abortController } : {}),
     }
   }
 }

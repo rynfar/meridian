@@ -140,7 +140,20 @@ function getDefaultCacheDir(): string {
   return newDir
 }
 
-function readStore(): Record<string, StoredSession> {
+// In-memory cache to avoid reading the full file on every request.
+// Loaded lazily on first access, then kept in sync via debounced writes.
+let memoryStore: Record<string, StoredSession> | null = null
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+const FLUSH_DEBOUNCE_MS = 500
+
+function getStore(): Record<string, StoredSession> {
+  if (memoryStore === null) {
+    memoryStore = readStoreFromDisk()
+  }
+  return memoryStore
+}
+
+function readStoreFromDisk(): Record<string, StoredSession> {
   const path = getStorePath()
   if (!existsSync(path)) return {}
   try {
@@ -152,7 +165,15 @@ function readStore(): Record<string, StoredSession> {
   }
 }
 
-function writeStore(store: Record<string, StoredSession>): void {
+function scheduleFlush(): void {
+  if (flushTimer) return // already scheduled
+  flushTimer = setTimeout(() => {
+    flushTimer = null
+    if (memoryStore) writeStoreToDisk(memoryStore)
+  }, FLUSH_DEBOUNCE_MS)
+}
+
+function writeStoreToDisk(store: Record<string, StoredSession>): void {
   const path = getStorePath()
   const tmp = `${path}.tmp`
   try {
@@ -160,7 +181,6 @@ function writeStore(store: Record<string, StoredSession>): void {
     renameSync(tmp, path) // atomic write
   } catch (e) {
     console.error("[sessionStore] write failed:", (e as Error).message)
-    // If rename fails, try direct write
     try {
       writeFileSync(path, JSON.stringify(store, null, 2))
     } catch (directWriteError) {
@@ -170,72 +190,48 @@ function writeStore(store: Record<string, StoredSession>): void {
 }
 
 export function lookupSharedSession(key: string): StoredSession | undefined {
-  const store = readStore()
-  return store[key]
+  return getStore()[key]
 }
 
 export function storeSharedSession(key: string, claudeSessionId: string, messageCount?: number, lineageHash?: string, messageHashes?: string[], sdkMessageUuids?: Array<string | null>): void {
-  const path = getStorePath()
-  const lockPath = `${path}.lock`
-  const hasLock = skipLocking ? false : acquireLock(lockPath)
-  if (!hasLock && !skipLocking) {
-    console.warn("[sessionStore] could not acquire lock, proceeding without")
+  const store = getStore()
+  const existing = store[key]
+  store[key] = {
+    claudeSessionId,
+    createdAt: existing?.createdAt || Date.now(),
+    lastUsedAt: Date.now(),
+    messageCount: messageCount ?? existing?.messageCount ?? 0,
+    lineageHash: lineageHash ?? existing?.lineageHash,
+    messageHashes: messageHashes ?? existing?.messageHashes,
+    sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
   }
-  try {
-    const store = readStore()
-    const existing = store[key]
-    store[key] = {
-      claudeSessionId,
-      createdAt: existing?.createdAt || Date.now(),
-      lastUsedAt: Date.now(),
-      messageCount: messageCount ?? existing?.messageCount ?? 0,
-      lineageHash: lineageHash ?? existing?.lineageHash,
-      messageHashes: messageHashes ?? existing?.messageHashes,
-      sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
-    }
 
-    // Prune oldest entries if over capacity (count-based, not time-based)
-    const maxEntries = getMaxStoredSessions()
-    const keys = Object.keys(store)
-    if (keys.length > maxEntries) {
-      const sorted = keys.sort((a, b) => (store[a]!.lastUsedAt || 0) - (store[b]!.lastUsedAt || 0))
-      const toRemove = sorted.slice(0, keys.length - maxEntries)
-      for (const k of toRemove) {
-        delete store[k]
-      }
-    }
-
-    writeStore(store)
-  } finally {
-    if (hasLock) {
-      releaseLock(lockPath)
+  // Prune oldest entries if over capacity (count-based, not time-based)
+  const maxEntries = getMaxStoredSessions()
+  const keys = Object.keys(store)
+  if (keys.length > maxEntries) {
+    const sorted = keys.sort((a, b) => (store[a]!.lastUsedAt || 0) - (store[b]!.lastUsedAt || 0))
+    const toRemove = sorted.slice(0, keys.length - maxEntries)
+    for (const k of toRemove) {
+      delete store[k]
     }
   }
+
+  scheduleFlush()
 }
 
 /** Remove a single session from the shared file store.
  *  Used when a session is detected as stale (e.g. expired upstream). */
 export function evictSharedSession(key: string): void {
-  const path = getStorePath()
-  const lockPath = `${path}.lock`
-  const hasLock = skipLocking ? false : acquireLock(lockPath)
-  if (!hasLock && !skipLocking) {
-    console.warn("[sessionStore] could not acquire lock for eviction, proceeding without")
-  }
-  try {
-    const store = readStore()
-    if (store[key]) {
-      delete store[key]
-      writeStore(store)
-    }
-  } finally {
-    if (hasLock) {
-      releaseLock(lockPath)
-    }
+  const store = getStore()
+  if (store[key]) {
+    delete store[key]
+    scheduleFlush()
   }
 }
 
 export function clearSharedSessions(): void {
+  memoryStore = {}
   const path = getStorePath()
   try {
     writeFileSync(path, "{}")

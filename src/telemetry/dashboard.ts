@@ -104,6 +104,9 @@ const $$ = s => document.querySelectorAll(s);
 let timer;
 let activeTab = 'requests';
 let activeLogFilter = 'all';
+const authKey = localStorage.getItem('adminKey') || '';
+const authHeaders = authKey ? { 'Authorization': 'Bearer ' + authKey } : {};
+const basePath = window.location.pathname.replace(/\\/+$/, '');
 
 function ms(v) {
   if (v == null) return '—';
@@ -148,9 +151,9 @@ async function refresh() {
   const w = $('#window').value;
   try {
     const [summary, reqs, logs] = await Promise.all([
-      fetch('/telemetry/summary?window=' + w).then(r => r.json()),
-      fetch('/telemetry/requests?limit=50&since=' + (Date.now() - Number(w))).then(r => r.json()),
-      fetch('/telemetry/logs?limit=200&since=' + (Date.now() - Number(w))).then(r => r.json()),
+      fetch(basePath + '/summary?window=' + w, { headers: authHeaders }).then(r => r.json()),
+      fetch(basePath + '/requests?limit=50&since=' + (Date.now() - Number(w)), { headers: authHeaders }).then(r => r.json()),
+      fetch(basePath + '/logs?limit=200&since=' + (Date.now() - Number(w)), { headers: authHeaders }).then(r => r.json()),
     ]);
     render(summary, reqs, logs);
     $('#lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();

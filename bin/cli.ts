@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { startProxyServer } from "../src/proxy/server"
+import { env } from "../src/env"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 
@@ -14,9 +15,28 @@ process.on("unhandledRejection", (reason) => {
   console.error(`[PROXY] Unhandled rejection (recovered): ${reason instanceof Error ? reason.message : reason}`)
 })
 
-const port = parseInt(process.env.CLAUDE_PROXY_PORT || "3456", 10)
-const host = process.env.CLAUDE_PROXY_HOST || "127.0.0.1"
-const idleTimeoutSeconds = parseInt(process.env.CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS || "120", 10)
+// Port/host resolution priority:
+// 1. CLAUDE_PROXY_PORT / CLAUDE_PROXY_HOST (explicit, highest priority)
+// 2. ANTHROPIC_BASE_URL (parsed from URL)
+// 3. Defaults (127.0.0.1:3456)
+let host = "127.0.0.1"
+let port = 3456
+const baseUrl = process.env.ANTHROPIC_BASE_URL
+if (baseUrl) {
+  try {
+    const url = new URL(baseUrl)
+    host = url.hostname
+    if (url.port) port = parseInt(url.port, 10)
+  } catch {
+    console.error(`\x1b[33m⚠ Invalid ANTHROPIC_BASE_URL: ${baseUrl}, using defaults\x1b[0m`)
+  }
+}
+// Explicit env vars override ANTHROPIC_BASE_URL
+const envPort = env("PORT")
+const envHost = env("HOST")
+if (envPort) port = parseInt(envPort, 10)
+if (envHost) host = envHost
+const idleTimeoutSeconds = parseInt(env("IDLE_TIMEOUT_SECONDS") || "120", 10)
 
 export async function runCli(
   start = startProxyServer,

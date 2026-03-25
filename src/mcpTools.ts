@@ -8,7 +8,8 @@ import { glob as globLib } from "glob"
 
 const execAsync = promisify(exec)
 
-const getCwd = () => process.env.MERIDIAN_WORKDIR ?? process.env.CLAUDE_PROXY_WORKDIR ?? process.cwd()
+import { env } from "./env"
+const getCwd = () => env("WORKDIR") || process.cwd()
 
 /**
  * Create a fresh MCP server instance per request.

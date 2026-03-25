@@ -48,7 +48,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
 
   if (model.includes("opus")) return use1m ? "opus[1m]" : "opus"
 
-  const sonnetOverride = process.env.MERIDIAN_SONNET_MODEL ?? process.env.CLAUDE_PROXY_SONNET_MODEL
+  const sonnetOverride = (process.env.MERIDIAN_SONNET_MODEL ?? process.env.CLAUDE_PROXY_SONNET_MODEL) as ClaudeModel | undefined
   if (sonnetOverride === "sonnet" || sonnetOverride === "sonnet[1m]") return sonnetOverride
 
   if (!use1m) return "sonnet"

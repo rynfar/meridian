@@ -194,7 +194,19 @@ export function storeSession(
 ) {
   if (!claudeSessionId) return
   const lineageHash = computeLineageHash(messages)
-  const messageHashes = computeMessageHashes(messages)
+
+  // Incremental hashing: reuse cached hashes for unchanged prefix messages.
+  // Only hash messages beyond what we already have cached.
+  const cached = sessionId ? sessionCache.get(sessionId) : undefined
+  let messageHashes: string[]
+  if (cached?.messageHashes && cached.messageHashes.length <= messages.length) {
+    // Reuse cached hashes and only compute new ones
+    const newHashes = computeMessageHashes(messages.slice(cached.messageHashes.length))
+    messageHashes = [...cached.messageHashes, ...newHashes]
+  } else {
+    messageHashes = computeMessageHashes(messages)
+  }
+
   const state: SessionState = {
     claudeSessionId,
     lastAccess: Date.now(),
