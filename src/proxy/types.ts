@@ -6,6 +6,22 @@ export interface ProxyConfig {
   debug: boolean
   idleTimeoutSeconds: number
   silent: boolean
+  profiles?: ProfileConfig[]
+  defaultProfile?: string
+}
+
+export type ProfileType = "claude-max" | "api"
+
+export interface ProfileConfig {
+  id: string
+  type?: ProfileType
+  claudeConfigDir?: string
+  claudeExecutable?: string
+  apiKey?: string
+  apiKeyEnv?: string
+  baseUrl?: string
+  authToken?: string
+  authTokenEnv?: string
 }
 
 export interface ProxyInstance {
@@ -31,4 +47,6 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   debug: process.env.CLAUDE_PROXY_DEBUG === "1",
   idleTimeoutSeconds: 120,
   silent: false,
+  profiles: undefined,
+  defaultProfile: undefined,
 }

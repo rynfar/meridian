@@ -21,6 +21,7 @@ export interface AgentAdapter {
    * Returns undefined if the agent doesn't provide session tracking.
    */
   getSessionId(c: Context): string | undefined
+  getProfileId(c: Context): string | undefined
 
   /**
    * Extract the client's working directory from the request body.
