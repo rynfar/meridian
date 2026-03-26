@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.17.2...v1.18.0) (2026-03-26)
+
+
+### Features
+
+* detect rate-limited accounts and fall back from 1m models ([#149](https://github.com/rynfar/opencode-claude-max-proxy/issues/149)) ([1b56c0b](https://github.com/rynfar/opencode-claude-max-proxy/commit/1b56c0b02b7de1f7ac6f04dc27f72a23949f43ab))
+
 ## [1.17.2](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.17.1...v1.17.2) (2026-03-25)
 
 
