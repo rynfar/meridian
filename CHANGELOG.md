@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.2](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.18.1...v1.18.2) (2026-03-26)
+
+
+### Bug Fixes
+
+* session store test race condition on CI ([90f927d](https://github.com/rynfar/opencode-claude-max-proxy/commit/90f927d8f0821ad7ed2548455fa96001d08510d6))
+
 ## [1.18.1](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.18.0...v1.18.1) (2026-03-26)
 
 
