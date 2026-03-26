@@ -7,6 +7,10 @@ export interface ProxyConfig {
   idleTimeoutSeconds: number
   silent: boolean
   requiredApiKeys?: string[]
+  adminApiKeys?: string[]
+  protectAdminRoutes?: boolean
+  adminUsername?: string
+  adminPassword?: string
   profiles?: ProfileConfig[]
   defaultProfile?: string
 }
@@ -58,6 +62,10 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   idleTimeoutSeconds: 120,
   silent: false,
   requiredApiKeys: parseRequiredApiKeys(process.env.CLAUDE_PROXY_API_KEYS),
+  adminApiKeys: parseRequiredApiKeys(process.env.CLAUDE_PROXY_ADMIN_API_KEYS),
+  protectAdminRoutes: process.env.CLAUDE_PROXY_PROTECT_ADMIN_ROUTES === "1",
+  adminUsername: process.env.CLAUDE_PROXY_ADMIN_USERNAME,
+  adminPassword: process.env.CLAUDE_PROXY_ADMIN_PASSWORD,
   profiles: undefined,
   defaultProfile: undefined,
 }

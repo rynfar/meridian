@@ -35,6 +35,8 @@ function normalizeProfile(profile: ProfileConfig, homeDir: string): ProfileConfi
 function normalizeConfig(config: Partial<ProxyConfig>, homeDir: string): Partial<ProxyConfig> {
   return {
     ...config,
+    adminUsername: config.adminUsername ? resolveConfigString(config.adminUsername, homeDir) : undefined,
+    adminPassword: config.adminPassword ? resolveConfigString(config.adminPassword, homeDir) : undefined,
     requiredApiKeys: config.requiredApiKeys
       ?.map((key) => resolveConfigString(key, homeDir))
       .filter((key): key is string => Boolean(key)),

@@ -28,6 +28,14 @@ function getEnvConfigOverrides(env: NodeJS.ProcessEnv = process.env): Partial<Pr
   if (env.CLAUDE_PROXY_API_KEYS) {
     overrides.requiredApiKeys = env.CLAUDE_PROXY_API_KEYS.split(",").map((key) => key.trim()).filter(Boolean)
   }
+  if (env.CLAUDE_PROXY_ADMIN_API_KEYS) {
+    overrides.adminApiKeys = env.CLAUDE_PROXY_ADMIN_API_KEYS.split(",").map((key) => key.trim()).filter(Boolean)
+  }
+  if (env.CLAUDE_PROXY_PROTECT_ADMIN_ROUTES) {
+    overrides.protectAdminRoutes = env.CLAUDE_PROXY_PROTECT_ADMIN_ROUTES === "1"
+  }
+  if (env.CLAUDE_PROXY_ADMIN_USERNAME) overrides.adminUsername = env.CLAUDE_PROXY_ADMIN_USERNAME
+  if (env.CLAUDE_PROXY_ADMIN_PASSWORD) overrides.adminPassword = env.CLAUDE_PROXY_ADMIN_PASSWORD
 
   return overrides
 }

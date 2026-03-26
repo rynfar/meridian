@@ -25,7 +25,14 @@ import { ALLOWED_MCP_TOOLS } from "./tools"
 import { getLastUserMessage } from "./messages"
 import { openCodeAdapter } from "./adapters/opencode"
 import { buildQueryOptions, type QueryContext } from "./query"
-import { extractRequestApiKey, isApiKeyAuthEnabled, isApiKeyAuthorized } from "./auth"
+import {
+  extractBasicAuthCredentials,
+  extractRequestApiKey,
+  isApiKeyAuthEnabled,
+  isApiKeyAuthorized,
+  isBasicAuthAuthorized,
+  isBasicAuthEnabled,
+} from "./auth"
 import { resolveProfile } from "./profiles"
 import {
   computeLineageHash,
@@ -162,9 +169,53 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   }
 
   const validateApiKey = createApiKeyMiddleware(finalConfig.requiredApiKeys)
+  const adminRouteKeys = finalConfig.adminApiKeys ?? finalConfig.requiredApiKeys
+  const adminBasicAuthEnabled = isBasicAuthEnabled(finalConfig.adminUsername, finalConfig.adminPassword)
+  const validateAdminAccess = async (c: Context, next: () => Promise<void>) => {
+    const authorization = c.req.header("authorization")
+    const providedApiKey = extractRequestApiKey(c.req.header("x-api-key"), authorization)
+    const providedBasicAuth = extractBasicAuthCredentials(authorization)
+    const apiKeyEnabled = isApiKeyAuthEnabled(adminRouteKeys)
+    const apiKeyAuthorized = apiKeyEnabled && isApiKeyAuthorized(providedApiKey, adminRouteKeys)
+    const basicAuthorized = adminBasicAuthEnabled
+      && isBasicAuthAuthorized(providedBasicAuth, finalConfig.adminUsername, finalConfig.adminPassword)
+
+    if (!apiKeyEnabled && !adminBasicAuthEnabled) {
+      await next()
+      return
+    }
+
+    if (apiKeyAuthorized || basicAuthorized) {
+      await next()
+      return
+    }
+
+    const headers = adminBasicAuthEnabled
+      ? { "WWW-Authenticate": 'Basic realm="Meridian Admin"' }
+      : undefined
+
+    return c.json(
+      {
+        type: "error",
+        error: {
+          type: "authentication_error",
+          message: adminBasicAuthEnabled
+            ? "Invalid or missing admin credentials"
+            : "Invalid or missing API key",
+        },
+      },
+      401,
+      headers,
+    )
+  }
 
   app.use("/v1/messages", validateApiKey)
   app.use("/messages", validateApiKey)
+  if (finalConfig.protectAdminRoutes) {
+    app.use("/health", validateAdminAccess)
+    app.use("/telemetry", validateAdminAccess)
+    app.use("/telemetry/*", validateAdminAccess)
+  }
 
   app.get("/", (c) => {
     // API clients get JSON, browsers get the landing page

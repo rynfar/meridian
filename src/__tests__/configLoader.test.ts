@@ -62,8 +62,11 @@ describe("configLoader", () => {
     try {
       process.env.MERIDIAN_SHARED_KEY = "shared-secret"
       process.env.MERIDIAN_API_KEY = "profile-secret"
+      process.env.MERIDIAN_ADMIN_PASSWORD = "admin-secret"
 
       writeFileSync(join(cwd, "meridian.config.json"), JSON.stringify({
+        adminUsername: "admin",
+        adminPassword: "env:MERIDIAN_ADMIN_PASSWORD",
         requiredApiKeys: ["env:MERIDIAN_SHARED_KEY"],
         profiles: [{
           id: "company",
@@ -74,6 +77,8 @@ describe("configLoader", () => {
       }))
 
       const config = loadProxyConfigFile({ cwd, homeDir })
+      expect(config.adminUsername).toBe("admin")
+      expect(config.adminPassword).toBe("admin-secret")
       expect(config.requiredApiKeys).toEqual(["shared-secret"])
       expect(config.profiles?.[0]?.apiKey).toBe("profile-secret")
       expect(config.profiles?.[0]?.claudeConfigDir).toBe(join(homeDir, ".claude-company"))

@@ -179,6 +179,7 @@ Example:
 {
   "port": 4567,
   "defaultProfile": "personal",
+  "protectAdminRoutes": true,
   "requiredApiKeys": ["env:MERIDIAN_LAPTOP_KEY", "env:MERIDIAN_DESKTOP_KEY"],
   "profiles": [
     { "id": "personal", "claudeConfigDir": "~/.claude" },
@@ -196,6 +197,34 @@ Plaintext keys also work if you want a fully self-contained local config:
 ```
 
 That is supported, but safer practice is to keep secret values in env vars and reference them from JSON.
+
+To lock down telemetry and health endpoints separately from message traffic, you can turn on admin-route protection and optionally use a different key set:
+
+```json
+{
+  "protectAdminRoutes": true,
+  "requiredApiKeys": ["env:MERIDIAN_CLIENT_KEY"],
+  "adminApiKeys": ["env:MERIDIAN_ADMIN_KEY"]
+}
+```
+
+For browser-friendly access, you can also enable Basic Auth on protected admin routes:
+
+```json
+{
+  "protectAdminRoutes": true,
+  "adminUsername": "admin",
+  "adminPassword": "env:MERIDIAN_ADMIN_PASSWORD"
+}
+```
+
+When `protectAdminRoutes` is enabled:
+
+- `/health` requires an admin key
+- `/telemetry` and `/telemetry/*` require an admin key
+- Basic Auth also works when `adminUsername` and `adminPassword` are configured
+- `/` remains public
+- if `adminApiKeys` is omitted, Meridian falls back to `requiredApiKeys`
 
 String values support:
 
@@ -215,6 +244,10 @@ String values support:
 | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size |
 | `CLAUDE_PROXY_CONFIG` | unset | Explicit path to a JSON config file |
 | `CLAUDE_PROXY_API_KEYS` | unset | Comma-separated allowed inbound API keys |
+| `CLAUDE_PROXY_ADMIN_API_KEYS` | unset | Comma-separated admin keys for `/health` and `/telemetry/*` |
+| `CLAUDE_PROXY_PROTECT_ADMIN_ROUTES` | `0` | Require API keys on `/health` and `/telemetry/*` |
+| `CLAUDE_PROXY_ADMIN_USERNAME` | unset | Optional Basic Auth username for protected admin routes |
+| `CLAUDE_PROXY_ADMIN_PASSWORD` | unset | Optional Basic Auth password for protected admin routes |
 
 ## Programmatic API
 
