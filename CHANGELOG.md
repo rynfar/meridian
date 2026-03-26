@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.18.1](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.18.0...v1.18.1) (2026-03-26)
+
+
+### Bug Fixes
+
+* ensure Docker entrypoint scripts are executable ([#142](https://github.com/rynfar/opencode-claude-max-proxy/issues/142)) ([6888f32](https://github.com/rynfar/opencode-claude-max-proxy/commit/6888f32fa0a7355f702f44b101fe0629ae1a8201))
+* make CLAUDE_PROXY_WORKDIR override extracted cwd ([#154](https://github.com/rynfar/opencode-claude-max-proxy/issues/154)) ([#158](https://github.com/rynfar/opencode-claude-max-proxy/issues/158)) ([7c68ee6](https://github.com/rynfar/opencode-claude-max-proxy/commit/7c68ee64435a53c1e0fec3025e688f067f0089c0))
+* rate-limit retry with backoff and auth status resilience ([#156](https://github.com/rynfar/opencode-claude-max-proxy/issues/156)) ([f0dd8dd](https://github.com/rynfar/opencode-claude-max-proxy/commit/f0dd8ddc826bc8ea5218e42e9c3619775150001d))
+* remap block indices across multi-turn streaming responses ([#153](https://github.com/rynfar/opencode-claude-max-proxy/issues/153)) ([#159](https://github.com/rynfar/opencode-claude-max-proxy/issues/159)) ([39f09ca](https://github.com/rynfar/opencode-claude-max-proxy/commit/39f09cacbbc272ebf23364400a4a60489b84a7d4))
+
 ## [1.18.0](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.17.2...v1.18.0) (2026-03-26)
 
 
