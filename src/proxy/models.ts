@@ -30,6 +30,41 @@ let cachedAuthStatusAt = 0
 let cachedAuthStatusIsFailure = false
 let cachedAuthStatusPromise: Promise<ClaudeAuthStatus | null> | null = null
 
+type AuthStatusCache = {
+  cachedAuthStatus: ClaudeAuthStatus | null
+  lastKnownGoodAuthStatus: ClaudeAuthStatus | null
+  cachedAuthStatusAt: number
+  cachedAuthStatusIsFailure: boolean
+  cachedAuthStatusPromise: Promise<ClaudeAuthStatus | null> | null
+}
+
+const authStatusCacheByKey = new Map<string, AuthStatusCache>()
+
+function getAuthStatusCacheKey(envOverrides?: Record<string, string | undefined>): string {
+  if (!envOverrides) return "default"
+  return JSON.stringify({
+    CLAUDE_CONFIG_DIR: envOverrides.CLAUDE_CONFIG_DIR,
+    ANTHROPIC_API_KEY: envOverrides.ANTHROPIC_API_KEY,
+    ANTHROPIC_BASE_URL: envOverrides.ANTHROPIC_BASE_URL,
+    ANTHROPIC_AUTH_TOKEN: envOverrides.ANTHROPIC_AUTH_TOKEN,
+  })
+}
+
+function getAuthStatusCache(key: string): AuthStatusCache {
+  let cache = authStatusCacheByKey.get(key)
+  if (!cache) {
+    cache = {
+      cachedAuthStatus,
+      lastKnownGoodAuthStatus,
+      cachedAuthStatusAt,
+      cachedAuthStatusIsFailure,
+      cachedAuthStatusPromise,
+    }
+    authStatusCacheByKey.set(key, cache)
+  }
+  return cache
+}
+
 /**
  * Only Claude 4.6 models support the 1M extended context window.
  * Older models (4.5 and earlier) do not.
@@ -72,39 +107,43 @@ export function hasExtendedContext(model: ClaudeModel): boolean {
   return model.endsWith("[1m]")
 }
 
-export async function getClaudeAuthStatusAsync(): Promise<ClaudeAuthStatus | null> {
+export async function getClaudeAuthStatusAsync(envOverrides?: Record<string, string | undefined>): Promise<ClaudeAuthStatus | null> {
+  const cache = getAuthStatusCache(getAuthStatusCacheKey(envOverrides))
   // Return cached result if within TTL — use shorter TTL for failures to recover faster
-  const ttl = cachedAuthStatusIsFailure ? AUTH_STATUS_FAILURE_TTL_MS : AUTH_STATUS_CACHE_TTL_MS
-  if (cachedAuthStatusAt > 0 && Date.now() - cachedAuthStatusAt < ttl) {
+  const ttl = cache.cachedAuthStatusIsFailure ? AUTH_STATUS_FAILURE_TTL_MS : AUTH_STATUS_CACHE_TTL_MS
+  if (cache.cachedAuthStatusAt > 0 && Date.now() - cache.cachedAuthStatusAt < ttl) {
     // On failure, return last known good status (preserves subscription type for model selection)
-    return cachedAuthStatus ?? lastKnownGoodAuthStatus
+    return cache.cachedAuthStatus ?? cache.lastKnownGoodAuthStatus
   }
-  if (cachedAuthStatusPromise) return cachedAuthStatusPromise
+  if (cache.cachedAuthStatusPromise) return cache.cachedAuthStatusPromise
 
-  cachedAuthStatusPromise = (async () => {
+  cache.cachedAuthStatusPromise = (async () => {
     try {
-      const { stdout } = await exec("claude auth status", { timeout: 5000 })
+      const { stdout } = await exec("claude auth status", {
+        timeout: 5000,
+        env: { ...process.env, ...envOverrides },
+      })
       const parsed = JSON.parse(stdout) as ClaudeAuthStatus
-      cachedAuthStatus = parsed
-      lastKnownGoodAuthStatus = parsed
-      cachedAuthStatusAt = Date.now()
-      cachedAuthStatusIsFailure = false
+      cache.cachedAuthStatus = parsed
+      cache.lastKnownGoodAuthStatus = parsed
+      cache.cachedAuthStatusAt = Date.now()
+      cache.cachedAuthStatusIsFailure = false
       return parsed
     } catch {
       // Short-lived negative cache: retry in 5s instead of 60s.
       // Return last known good status so model selection doesn't degrade
       // (e.g. sonnet[1m] → sonnet) during transient auth command failures.
-      cachedAuthStatusIsFailure = true
-      cachedAuthStatusAt = Date.now()
-      cachedAuthStatus = null
-      return lastKnownGoodAuthStatus
+      cache.cachedAuthStatusIsFailure = true
+      cache.cachedAuthStatusAt = Date.now()
+      cache.cachedAuthStatus = null
+      return cache.lastKnownGoodAuthStatus
     }
   })()
 
   try {
-    return await cachedAuthStatusPromise
+    return await cache.cachedAuthStatusPromise
   } finally {
-    cachedAuthStatusPromise = null
+    cache.cachedAuthStatusPromise = null
   }
 }
 
@@ -172,6 +211,7 @@ export function resetCachedClaudeAuthStatus(): void {
   cachedAuthStatusAt = 0
   cachedAuthStatusIsFailure = false
   cachedAuthStatusPromise = null
+  authStatusCacheByKey.clear()
 }
 
 /** Expire the auth status cache without clearing lastKnownGoodAuthStatus — for testing only.
@@ -180,6 +220,10 @@ export function resetCachedClaudeAuthStatus(): void {
 export function expireAuthStatusCache(): void {
   cachedAuthStatusAt = 0
   cachedAuthStatusPromise = null
+  for (const cache of authStatusCacheByKey.values()) {
+    cache.cachedAuthStatusAt = 0
+    cache.cachedAuthStatusPromise = null
+  }
 }
 
 /**

@@ -25,6 +25,7 @@ import { ALLOWED_MCP_TOOLS } from "./tools"
 import { getLastUserMessage } from "./messages"
 import { openCodeAdapter } from "./adapters/opencode"
 import { buildQueryOptions, type QueryContext } from "./query"
+import { resolveProfile } from "./profiles"
 import {
   computeLineageHash,
   hashMessage,
@@ -181,11 +182,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
       try {
         const body = await c.req.json()
-        const authStatus = await getClaudeAuthStatusAsync()
-        let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType)
         const stream = body.stream ?? true
         const adapter = openCodeAdapter
+        const requestedProfile = resolveProfile(finalConfig, adapter.getProfileId(c))
         const workingDirectory = process.env.CLAUDE_PROXY_WORKDIR || adapter.extractWorkingDirectory(body) || process.cwd()
+        const opencodeSessionId = adapter.getSessionId(c)
+        const lineageResult = lookupSession(opencodeSessionId, body.messages || [], workingDirectory, requestedProfile.id)
+        const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
+        const isUndo = lineageResult.type === "undo"
+        const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
+        const effectiveProfile = resolveProfile(finalConfig, cachedSession?.profileId || requestedProfile.id)
+        const authStatus = await getClaudeAuthStatusAsync(effectiveProfile.env)
+        let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType)
 
         // Strip env vars that would cause the SDK subprocess to loop back through
         // the proxy instead of using its native Claude Max auth. Also strip vars
@@ -197,6 +205,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           ANTHROPIC_AUTH_TOKEN: _dropAuthToken,
           ...cleanEnv
         } = process.env
+        const runtimeEnv = { ...cleanEnv, ...effectiveProfile.env }
+        let runtimeClaudeExecutable = effectiveProfile.claudeExecutable || claudeExecutable
 
         let systemContext = ""
         if (body.system) {
@@ -210,12 +220,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }
         }
 
-        // Session resume: look up cached Claude SDK session and classify mutation
-        const opencodeSessionId = adapter.getSessionId(c)
-        const lineageResult = lookupSession(opencodeSessionId, body.messages || [], workingDirectory)
-        const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
-        const isUndo = lineageResult.type === "undo"
-        const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
         const resumeSessionId = cachedSession?.claudeSessionId
         // For undo: fork the session at the rollback point
         const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
@@ -478,8 +482,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
           try {
             // Lazy-resolve executable if not already set (e.g. when using createProxyServer directly)
-            if (!claudeExecutable) {
-              claudeExecutable = await resolveClaudeExecutableAsync()
+            if (!runtimeClaudeExecutable) {
+              runtimeClaudeExecutable = await resolveClaudeExecutableAsync()
             }
 
             // Wrap SDK call with transparent retry for recoverable errors.
@@ -502,8 +506,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 let didYieldContent = false
                 try {
                   for await (const event of query(buildQueryOptions({
-                    prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
-                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv,
+                    prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable: runtimeClaudeExecutable,
+                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: runtimeEnv,
                     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter,
                   }))) {
                     if ((event as any).type === "assistant") {
@@ -526,13 +530,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       resumeSessionId,
                     })
                     console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
-                    evictSession(opencodeSessionId, workingDirectory, allMessages)
+                    evictSession(opencodeSessionId, workingDirectory, allMessages, requestedProfile.id)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* query(buildQueryOptions({
                       prompt: buildFreshPrompt(allMessages, stripCacheControl),
-                      model, workingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv,
+                        model, workingDirectory, systemContext, claudeExecutable: runtimeClaudeExecutable,
+                        passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: runtimeEnv,
                       resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter,
                     }))
                     return
@@ -684,7 +688,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
           // Store session for future resume
               if (currentSessionId) {
-                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
+                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap, requestedProfile.id, effectiveProfile.id)
               }
 
               const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
@@ -768,8 +772,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   let didYieldClientEvent = false
                   try {
                     for await (const event of query(buildQueryOptions({
-                      prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv,
+                      prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable: runtimeClaudeExecutable,
+                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: runtimeEnv,
                       resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter,
                     }))) {
                       if ((event as any).type === "stream_event") {
@@ -792,13 +796,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         resumeSessionId,
                       })
                       console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
-                      evictSession(opencodeSessionId, workingDirectory, allMessages)
+                      evictSession(opencodeSessionId, workingDirectory, allMessages, requestedProfile.id)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* query(buildQueryOptions({
                         prompt: buildFreshPrompt(allMessages, stripCacheControl),
-                        model, workingDirectory, systemContext, claudeExecutable,
-                        passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv,
+                        model, workingDirectory, systemContext, claudeExecutable: runtimeClaudeExecutable,
+                        passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: runtimeEnv,
                         resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter,
                       }))
                       return
@@ -971,7 +975,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
               // Store session for future resume
               if (currentSessionId) {
-                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
+                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap, requestedProfile.id, effectiveProfile.id)
               }
 
               if (!streamClosed) {
