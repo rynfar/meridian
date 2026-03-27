@@ -191,7 +191,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     }
 
     const headers = adminBasicAuthEnabled
-      ? { "WWW-Authenticate": 'Basic realm="Meridian Admin"' }
+      ? { "WWW-Authenticate": 'Basic realm="Admin"' }
       : undefined
 
     return c.json(
@@ -212,6 +212,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   app.use("/v1/messages", validateApiKey)
   app.use("/messages", validateApiKey)
   if (finalConfig.protectAdminRoutes) {
+    app.use("/", validateAdminAccess)
     app.use("/health", validateAdminAccess)
     app.use("/telemetry", validateAdminAccess)
     app.use("/telemetry/*", validateAdminAccess)
@@ -1276,7 +1277,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Health check endpoint — verifies auth status
   app.get("/health", async (c) => {
     try {
-      const auth = await getClaudeAuthStatusAsync()
+      const defaultProfile = resolveProfile(finalConfig)
+      const auth = await getClaudeAuthStatusAsync(defaultProfile.env)
       if (!auth) {
         return c.json({
           status: "degraded",
