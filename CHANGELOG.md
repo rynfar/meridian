@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.1](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.19.0...v1.19.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* skip file locking in session store tests ([875e136](https://github.com/rynfar/opencode-claude-max-proxy/commit/875e136091ff4521364429c13db2a25907777b4a))
+
 ## [1.19.0](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.18.2...v1.19.0) (2026-03-27)
 
 
