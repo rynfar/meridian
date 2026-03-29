@@ -6,6 +6,36 @@ export interface ProxyConfig {
   debug: boolean
   idleTimeoutSeconds: number
   silent: boolean
+  requiredApiKeys?: string[]
+  adminApiKeys?: string[]
+  protectAdminRoutes?: boolean
+  adminUsername?: string
+  adminPassword?: string
+  profiles?: ProfileConfig[]
+  defaultProfile?: string
+}
+
+function parseRequiredApiKeys(envValue: string | undefined): string[] | undefined {
+  const keys = envValue
+    ?.split(",")
+    .map((key) => key.trim())
+    .filter(Boolean)
+
+  return keys && keys.length > 0 ? keys : undefined
+}
+
+export type ProfileType = "claude-max" | "api"
+
+export interface ProfileConfig {
+  id: string
+  type?: ProfileType
+  claudeConfigDir?: string
+  claudeExecutable?: string
+  apiKey?: string
+  apiKeyEnv?: string
+  baseUrl?: string
+  authToken?: string
+  authTokenEnv?: string
 }
 
 export interface ProxyInstance {
@@ -31,4 +61,11 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   debug: process.env.CLAUDE_PROXY_DEBUG === "1",
   idleTimeoutSeconds: 120,
   silent: false,
+  requiredApiKeys: parseRequiredApiKeys(process.env.CLAUDE_PROXY_API_KEYS),
+  adminApiKeys: parseRequiredApiKeys(process.env.CLAUDE_PROXY_ADMIN_API_KEYS),
+  protectAdminRoutes: process.env.CLAUDE_PROXY_PROTECT_ADMIN_ROUTES === "1",
+  adminUsername: process.env.CLAUDE_PROXY_ADMIN_USERNAME,
+  adminPassword: process.env.CLAUDE_PROXY_ADMIN_PASSWORD,
+  profiles: undefined,
+  defaultProfile: undefined,
 }

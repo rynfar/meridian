@@ -19,6 +19,7 @@ import {
 // --- Cache setup ---
 
 const DEFAULT_MAX_SESSIONS = 1000
+const IMPLICIT_DEFAULT_PROFILE_ID = "default"
 
 export function getMaxSessionsLimit(): number {
   const raw = process.env.CLAUDE_PROXY_MAX_SESSIONS
@@ -31,6 +32,11 @@ export function getMaxSessionsLimit(): number {
   }
 
   return parsed
+}
+
+function buildScopedKey(key: string, profileId?: string): string {
+  if (!profileId || profileId === IMPLICIT_DEFAULT_PROFILE_ID) return key
+  return `${profileId}:${key}`
 }
 
 function removeFingerprintEntriesByClaudeSessionId(claudeSessionId: string): void {
@@ -89,25 +95,28 @@ export function clearSessionCache() {
 export function evictSession(
   sessionId: string | undefined,
   workingDirectory?: string,
-  messages?: Array<{ role: string; content: any }>
+  messages?: Array<{ role: string; content: any }>,
+  profileId?: string
 ): void {
   if (sessionId) {
-    const cached = sessionCache.get(sessionId)
+    const scopedSessionId = buildScopedKey(sessionId, profileId)
+    const cached = sessionCache.get(scopedSessionId)
     if (cached) {
       removeFingerprintEntriesByClaudeSessionId(cached.claudeSessionId)
-      sessionCache.delete(sessionId)
+      sessionCache.delete(scopedSessionId)
     }
-    try { evictSharedSession(sessionId) } catch {}
+    try { evictSharedSession(scopedSessionId) } catch {}
   }
   if (messages) {
     const fp = getConversationFingerprint(messages, workingDirectory)
     if (fp) {
-      const cached = fingerprintCache.get(fp)
+      const scopedFingerprint = buildScopedKey(fp, profileId)
+      const cached = fingerprintCache.get(scopedFingerprint)
       if (cached) {
         removeSessionEntriesByClaudeSessionId(cached.claudeSessionId)
-        fingerprintCache.delete(fp)
+        fingerprintCache.delete(scopedFingerprint)
       }
-      try { evictSharedSession(fp) } catch {}
+      try { evictSharedSession(scopedFingerprint) } catch {}
     }
   }
 }
@@ -126,28 +135,31 @@ function touchSession(state: SessionState): SessionState {
 export function lookupSession(
   sessionId: string | undefined,
   messages: Array<{ role: string; content: any }>,
-  workingDirectory?: string
+  workingDirectory?: string,
+  profileId?: string
 ): LineageResult {
   if (sessionId) {
-    const cached = sessionCache.get(sessionId)
+    const scopedSessionId = buildScopedKey(sessionId, profileId)
+    const cached = sessionCache.get(scopedSessionId)
     if (cached) {
-      const result = verifyLineage(cached, messages, sessionId, sessionCache)
+      const result = verifyLineage(cached, messages, scopedSessionId, sessionCache)
       if (result.type === "continuation" || result.type === "compaction") touchSession(result.session)
       return result
     }
-    const shared = lookupSharedSession(sessionId)
+    const shared = lookupSharedSession(scopedSessionId)
     if (shared) {
       const state: SessionState = {
         claudeSessionId: shared.claudeSessionId,
+        profileId: shared.profileId,
         lastAccess: Date.now(),
         messageCount: shared.messageCount || 0,
         lineageHash: shared.lineageHash || "",
         messageHashes: shared.messageHashes,
         sdkMessageUuids: shared.sdkMessageUuids,
       }
-      const result = verifyLineage(state, messages, sessionId, sessionCache)
+      const result = verifyLineage(state, messages, scopedSessionId, sessionCache)
       if (result.type === "continuation" || result.type === "compaction") {
-        sessionCache.set(sessionId, state)
+        sessionCache.set(scopedSessionId, state)
       }
       return result
     }
@@ -156,25 +168,27 @@ export function lookupSession(
 
   const fp = getConversationFingerprint(messages, workingDirectory)
   if (fp) {
-    const cached = fingerprintCache.get(fp)
+    const scopedFingerprint = buildScopedKey(fp, profileId)
+    const cached = fingerprintCache.get(scopedFingerprint)
     if (cached) {
-      const result = verifyLineage(cached, messages, fp, fingerprintCache)
+      const result = verifyLineage(cached, messages, scopedFingerprint, fingerprintCache)
       if (result.type === "continuation" || result.type === "compaction") touchSession(result.session)
       return result
     }
-    const shared = lookupSharedSession(fp)
+    const shared = lookupSharedSession(scopedFingerprint)
     if (shared) {
       const state: SessionState = {
         claudeSessionId: shared.claudeSessionId,
+        profileId: shared.profileId,
         lastAccess: Date.now(),
         messageCount: shared.messageCount || 0,
         lineageHash: shared.lineageHash || "",
         messageHashes: shared.messageHashes,
         sdkMessageUuids: shared.sdkMessageUuids,
       }
-      const result = verifyLineage(state, messages, fp, fingerprintCache)
+      const result = verifyLineage(state, messages, scopedFingerprint, fingerprintCache)
       if (result.type === "continuation" || result.type === "compaction") {
-        fingerprintCache.set(fp, state)
+        fingerprintCache.set(scopedFingerprint, state)
       }
       return result
     }
@@ -190,13 +204,16 @@ export function storeSession(
   messages: Array<{ role: string; content: any }>,
   claudeSessionId: string,
   workingDirectory?: string,
-  sdkMessageUuids?: Array<string | null>
+  sdkMessageUuids?: Array<string | null>,
+  profileId?: string,
+  effectiveProfileId?: string
 ) {
   if (!claudeSessionId) return
   const lineageHash = computeLineageHash(messages)
   const messageHashes = computeMessageHashes(messages)
   const state: SessionState = {
     claudeSessionId,
+    profileId: effectiveProfileId,
     lastAccess: Date.now(),
     messageCount: messages?.length || 0,
     lineageHash,
@@ -204,10 +221,20 @@ export function storeSession(
     sdkMessageUuids,
   }
   // In-memory cache
-  if (sessionId) sessionCache.set(sessionId, state)
+  if (sessionId) sessionCache.set(buildScopedKey(sessionId, profileId), state)
   const fp = getConversationFingerprint(messages, workingDirectory)
-  if (fp) fingerprintCache.set(fp, state)
+  if (fp) fingerprintCache.set(buildScopedKey(fp, profileId), state)
   // Shared file store (cross-proxy resume)
   const key = sessionId || fp
-  if (key) storeSharedSession(key, claudeSessionId, state.messageCount, lineageHash, messageHashes, sdkMessageUuids)
+  if (key) {
+    storeSharedSession(
+      buildScopedKey(key, profileId),
+      claudeSessionId,
+      state.messageCount,
+      lineageHash,
+      messageHashes,
+      sdkMessageUuids,
+      effectiveProfileId,
+    )
+  }
 }

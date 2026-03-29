@@ -26,6 +26,7 @@ import { join } from "node:path"
 
 export interface StoredSession {
   claudeSessionId: string
+  profileId?: string
   createdAt: number
   lastUsedAt: number
   messageCount: number
@@ -145,7 +146,15 @@ export function lookupSharedSession(key: string): StoredSession | undefined {
   return store[key]
 }
 
-export function storeSharedSession(key: string, claudeSessionId: string, messageCount?: number, lineageHash?: string, messageHashes?: string[], sdkMessageUuids?: Array<string | null>): void {
+export function storeSharedSession(
+  key: string,
+  claudeSessionId: string,
+  messageCount?: number,
+  lineageHash?: string,
+  messageHashes?: string[],
+  sdkMessageUuids?: Array<string | null>,
+  profileId?: string
+): void {
   const path = getStorePath()
   const lockPath = `${path}.lock`
   const hasLock = skipLocking ? false : acquireLock(lockPath)
@@ -157,6 +166,7 @@ export function storeSharedSession(key: string, claudeSessionId: string, message
     const existing = store[key]
     store[key] = {
       claudeSessionId,
+      profileId: profileId ?? existing?.profileId,
       createdAt: existing?.createdAt || Date.now(),
       lastUsedAt: Date.now(),
       messageCount: messageCount ?? existing?.messageCount ?? 0,

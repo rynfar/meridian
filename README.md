@@ -166,6 +166,71 @@ See [`adapters/opencode.ts`](src/proxy/adapters/opencode.ts) for reference.
 
 ## Configuration
 
+Meridian can load a JSON config file from either:
+
+- `~/.config/meridian/config.json`
+- `./meridian.config.json`
+
+Set `CLAUDE_PROXY_CONFIG=/path/to/config.json` to use an explicit file.
+
+Example:
+
+```json
+{
+  "port": 4567,
+  "defaultProfile": "personal",
+  "protectAdminRoutes": true,
+  "requiredApiKeys": ["env:MERIDIAN_LAPTOP_KEY", "env:MERIDIAN_DESKTOP_KEY"],
+  "profiles": [
+    { "id": "personal", "claudeConfigDir": "~/.claude" },
+    { "id": "company", "claudeConfigDir": "~/.claude-company" }
+  ]
+}
+```
+
+Plaintext keys also work if you want a fully self-contained local config:
+
+```json
+{
+  "requiredApiKeys": ["laptop-secret", "desktop-secret"]
+}
+```
+
+That is supported, but safer practice is to keep secret values in env vars and reference them from JSON.
+
+To lock down telemetry and health endpoints separately from message traffic, you can turn on admin-route protection and optionally use a different key set:
+
+```json
+{
+  "protectAdminRoutes": true,
+  "requiredApiKeys": ["env:MERIDIAN_CLIENT_KEY"],
+  "adminApiKeys": ["env:MERIDIAN_ADMIN_KEY"]
+}
+```
+
+For browser-friendly access, you can also enable Basic Auth on protected admin routes:
+
+```json
+{
+  "protectAdminRoutes": true,
+  "adminUsername": "admin",
+  "adminPassword": "env:MERIDIAN_ADMIN_PASSWORD"
+}
+```
+
+When `protectAdminRoutes` is enabled:
+
+- `/health` requires an admin key
+- `/telemetry` and `/telemetry/*` require an admin key
+- Basic Auth also works when `adminUsername` and `adminPassword` are configured
+- `/` remains public
+- if `adminApiKeys` is omitted, Meridian falls back to `requiredApiKeys`
+
+String values support:
+
+- `~/...` home expansion
+- `env:NAME` or `$env:NAME` environment variable expansion
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CLAUDE_PROXY_PORT` | `3456` | Port to listen on |
@@ -177,6 +242,12 @@ See [`adapters/opencode.ts`](src/proxy/adapters/opencode.ts) for reference.
 | `CLAUDE_PROXY_WORKDIR` | `cwd()` | Default working directory for SDK |
 | `CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS` | `120` | HTTP keep-alive timeout |
 | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size |
+| `CLAUDE_PROXY_CONFIG` | unset | Explicit path to a JSON config file |
+| `CLAUDE_PROXY_API_KEYS` | unset | Comma-separated allowed inbound API keys |
+| `CLAUDE_PROXY_ADMIN_API_KEYS` | unset | Comma-separated admin keys for `/health` and `/telemetry/*` |
+| `CLAUDE_PROXY_PROTECT_ADMIN_ROUTES` | `0` | Require API keys on `/health` and `/telemetry/*` |
+| `CLAUDE_PROXY_ADMIN_USERNAME` | unset | Optional Basic Auth username for protected admin routes |
+| `CLAUDE_PROXY_ADMIN_PASSWORD` | unset | Optional Basic Auth password for protected admin routes |
 
 ## Programmatic API
 
@@ -255,11 +326,41 @@ See [`examples/opencode-plugin/`](examples/opencode-plugin/) for a reference imp
 docker run -v ~/.claude:/home/claude/.claude -p 3456:3456 meridian
 ```
 
+To use config-file-driven profiles and API keys in Docker, mount your config to the default path inside the container:
+
+```bash
+docker run \
+  -v ~/.claude:/home/claude/.claude \
+  -v ~/.config/meridian/config.json:/home/claude/.config/meridian/config.json:ro \
+  -e MERIDIAN_LAPTOP_KEY="$MERIDIAN_LAPTOP_KEY" \
+  -e MERIDIAN_DESKTOP_KEY="$MERIDIAN_DESKTOP_KEY" \
+  -p 3456:3456 \
+  meridian
+```
+
+If you prefer plaintext keys in the mounted JSON, you can omit the extra env vars and keep the file fully self-contained.
+
 Or with docker-compose:
 
 ```bash
 docker compose up -d
 ```
+
+Example `docker-compose.yml` service override:
+
+```yaml
+services:
+  proxy:
+    environment:
+      CLAUDE_PROXY_CONFIG: /home/claude/.config/meridian/config.json
+      MERIDIAN_LAPTOP_KEY: ${MERIDIAN_LAPTOP_KEY}
+      MERIDIAN_DESKTOP_KEY: ${MERIDIAN_DESKTOP_KEY}
+    volumes:
+      - claude-auth:/home/claude/.claude
+      - ./meridian.config.json:/home/claude/.config/meridian/config.json:ro
+```
+
+The container now creates `/home/claude/.config/meridian` automatically, so the default config-file path works without extra setup.
 
 ## Testing
 

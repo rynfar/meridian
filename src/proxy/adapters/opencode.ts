@@ -18,6 +18,10 @@ export const openCodeAdapter: AgentAdapter = {
     return c.req.header("x-opencode-session")
   },
 
+  getProfileId(c: Context): string | undefined {
+    return c.req.header("x-meridian-profile")
+  },
+
   extractWorkingDirectory(body: any): string | undefined {
     return extractClientCwd(body)
   },
