@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.4](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.19.3...v1.19.4) (2026-03-29)
+
+
+### Bug Fixes
+
+* CI workflow must use npm test, not bun test ([1644484](https://github.com/rynfar/opencode-claude-max-proxy/commit/1644484b1990adc401a9e8b01d4cd4e41e5df193))
+
 ## [1.19.3](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.19.2...v1.19.3) (2026-03-29)
 
 
