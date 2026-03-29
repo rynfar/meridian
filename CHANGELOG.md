@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.20.0...v1.21.0) (2026-03-29)
+
+
+### Features
+
+* Crush (Charm) agent adapter with full E2E test suite ([#183](https://github.com/rynfar/opencode-claude-max-proxy/issues/183)) ([7395b1f](https://github.com/rynfar/opencode-claude-max-proxy/commit/7395b1fc91d67274c7dbf0ef695dd6ef51608e85))
+
 ## [1.20.0](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.19.4...v1.20.0) (2026-03-29)
 
 
