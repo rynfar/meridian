@@ -123,4 +123,14 @@ describe("detectAdapter — adapter contracts", () => {
     const adapter = detectAdapter(makeContext(""))
     expect(adapter.getMcpServerName()).toBe("opencode")
   })
+
+  it("detected droid adapter always returns false for usesPassthrough", () => {
+    const adapter = detectAdapter(makeContext("factory-cli/0.89.0"))
+    expect(adapter.usesPassthrough!()).toBe(false)
+  })
+
+  it("detected opencode adapter has no usesPassthrough — defers to env var", () => {
+    const adapter = detectAdapter(makeContext(""))
+    expect(adapter.usesPassthrough).toBeUndefined()
+  })
 })

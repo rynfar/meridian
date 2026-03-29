@@ -114,4 +114,17 @@ export const droidAdapter: AgentAdapter = {
   buildSystemContextAddendum(_body: any, _sdkAgents: Record<string, any>): string {
     return ""
   },
+
+  /**
+   * Droid always uses internal mode — the proxy executes tools via the
+   * mcp__droid__* MCP server rather than forwarding tool_use blocks back
+   * to Droid. This overrides CLAUDE_PROXY_PASSTHROUGH for Droid requests.
+   *
+   * Why: Droid's TUI via BYOK does not complete the passthrough tool
+   * execution loop (sending tool_results back), so Claude hallucinates
+   * from context instead of actually reading files.
+   */
+  usesPassthrough(): boolean {
+    return false
+  },
 }

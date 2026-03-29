@@ -212,6 +212,14 @@ describe("openCodeAdapter.buildSdkHooks", () => {
   })
 })
 
+describe("openCodeAdapter.usesPassthrough", () => {
+  it("is not defined — falls through to CLAUDE_PROXY_PASSTHROUGH env var", () => {
+    // OpenCode defers to the env var so the launchd service PASSTHROUGH=1
+    // setting continues to control passthrough mode for OpenCode requests
+    expect(openCodeAdapter.usesPassthrough).toBeUndefined()
+  })
+})
+
 describe("openCodeAdapter.buildSystemContextAddendum", () => {
   it("returns hint string when agents are present", () => {
     const sdkAgents = { oracle: {}, explore: {}, build: {} }

@@ -76,4 +76,15 @@ export interface AgentAdapter {
    * Return empty string if nothing to add.
    */
   buildSystemContextAddendum?(body: any, sdkAgents: Record<string, any>): string
+
+  /**
+   * Whether this agent uses passthrough mode for tool execution.
+   *
+   * In passthrough mode the proxy returns tool_use blocks to the calling
+   * agent for it to execute, rather than executing them internally via MCP.
+   *
+   * When undefined, falls back to the CLAUDE_PROXY_PASSTHROUGH env var.
+   * When defined, takes precedence over the env var for this agent.
+   */
+  usesPassthrough?(): boolean
 }

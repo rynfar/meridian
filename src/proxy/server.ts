@@ -389,7 +389,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // When enabled, ALL tool execution is forwarded to OpenCode instead of
       // being handled internally. This enables multi-model agent delegation
       // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
-      const passthrough = Boolean(process.env.CLAUDE_PROXY_PASSTHROUGH)
+      // Adapter can override the global passthrough env var per-agent.
+      // Droid always uses internal mode; OpenCode defers to the env var.
+      const adapterPassthrough = adapter.usesPassthrough?.()
+      const passthrough = adapterPassthrough !== undefined
+        ? adapterPassthrough
+        : Boolean(process.env.CLAUDE_PROXY_PASSTHROUGH)
       const capturedToolUses: Array<{ id: string; name: string; input: any }> = []
 
       // In passthrough mode, register OpenCode's tools as MCP tools so Claude

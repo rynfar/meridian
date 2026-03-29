@@ -285,3 +285,9 @@ describe("droidAdapter.buildSystemContextAddendum", () => {
     expect(droidAdapter.buildSystemContextAddendum!({}, {})).toBe("")
   })
 })
+
+describe("droidAdapter.usesPassthrough", () => {
+  it("always returns false — Droid uses internal mode regardless of env var", () => {
+    expect(droidAdapter.usesPassthrough!()).toBe(false)
+  })
+})

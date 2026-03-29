@@ -299,6 +299,47 @@ describe("Droid adapter: response format", () => {
   })
 })
 
+describe("Droid adapter: always internal mode (usesPassthrough=false)", () => {
+  beforeEach(() => {
+    mockMessages = [assistantMessage([{ type: "text", text: "Done" }])]
+    capturedQueryParams = null
+    clearSessionCache()
+  })
+
+  it("Droid requests use internal MCP server even when CLAUDE_PROXY_PASSTHROUGH=1", async () => {
+    // Simulate the launchd environment where PASSTHROUGH is set globally
+    const original = process.env.CLAUDE_PROXY_PASSTHROUGH
+    process.env.CLAUDE_PROXY_PASSTHROUGH = "1"
+
+    try {
+      const app = createTestApp()
+      await (await post(app, DROID_BODY, { "User-Agent": DROID_UA })).json()
+
+      // Droid adapter's usesPassthrough()=false overrides the env var:
+      // allowedTools use mcp__droid__ prefix (internal mode), not passthrough MCP
+      const allowedTools: string[] = capturedQueryParams.options.allowedTools
+      expect(allowedTools).toBeDefined()
+      for (const tool of allowedTools) {
+        expect(tool).toStartWith("mcp__droid__")
+      }
+      // maxTurns is 200 (internal), not 1 (passthrough)
+      expect(capturedQueryParams.options.maxTurns).toBe(200)
+    } finally {
+      if (original === undefined) delete process.env.CLAUDE_PROXY_PASSTHROUGH
+      else process.env.CLAUDE_PROXY_PASSTHROUGH = original
+    }
+  })
+
+  it("openCodeAdapter.usesPassthrough is undefined — verified at adapter unit level, not integration level", () => {
+    // The openCodeAdapter deliberately does NOT implement usesPassthrough()
+    // so the env var continues to govern passthrough mode for OpenCode.
+    // Full passthrough integration is covered by proxy-passthrough-concept.test.ts.
+    // Here we just confirm the adapter contract at the unit level.
+    const { openCodeAdapter } = require("../proxy/adapters/opencode")
+    expect(openCodeAdapter.usesPassthrough).toBeUndefined()
+  })
+})
+
 describe("Backward compatibility: OpenCode unaffected", () => {
   beforeEach(() => {
     mockMessages = [assistantMessage([{ type: "text", text: "OpenCode response" }])]
