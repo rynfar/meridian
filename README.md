@@ -73,25 +73,6 @@ For automatic session tracking, use a plugin like [opencode-meridian](https://gi
 
 ### Crush
 
-```jsonc
-// ~/.config/crush/crush.json
-{
-  "providers": {
-    "meridian": {
-      "type": "anthropic",
-      "base_url": "http://127.0.0.1:3456",
-      "api_key": "x",
-      "models": [
-        { "id": "claude-sonnet-4-5-20250514", "name": "Claude Sonnet 4.5" },
-        { "id": "claude-opus-4-20250514", "name": "Claude Opus 4" }
-      ]
-    }
-  }
-}
-```
-
-### Crush (Charm)
-
 Add a provider to `~/.config/crush/crush.json`:
 
 ```json
@@ -171,6 +152,36 @@ The `apiKey` value doesn't matter — Meridian authenticates through your Claude
 
 > **Note:** Droid automatically uses Meridian's internal tool execution mode regardless of the global `CLAUDE_PROXY_PASSTHROUGH` setting. No extra configuration needed.
 
+### Cline
+
+Cline CLI connects by setting `anthropicBaseUrl` in its config. This is a one-time setup.
+
+**1. Authenticate Cline with the Anthropic provider:**
+
+```bash
+cline auth --provider anthropic --apikey "dummy" --modelid "claude-sonnet-4-6"
+```
+
+**2. Add the proxy base URL** to `~/.cline/data/globalState.json`:
+
+```json
+{
+  "anthropicBaseUrl": "http://127.0.0.1:3456",
+  "actModeApiProvider": "anthropic",
+  "actModeApiModelId": "claude-sonnet-4-6"
+}
+```
+
+**3. Run Cline:**
+
+```bash
+cline --yolo "refactor the login function"                       # interactive
+cline --yolo --model claude-opus-4-6 "review this codebase"      # opus
+cline --yolo --model claude-haiku-4-5-20251001 "quick question"  # haiku (fastest)
+```
+
+No adapter or plugin needed — Cline uses the standard Anthropic SDK and falls through to the default adapter. All models (Sonnet 4.6, Opus 4.6, Haiku 4.5) route to their correct Claude Max tiers automatically.
+
 ### Any Anthropic-compatible tool
 
 ```bash
@@ -186,7 +197,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 | [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | [opencode-meridian](https://github.com/ianjwhite99/opencode-meridian) | Full tool support, session resume, streaming, subagents |
 | [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see setup above) | Full tool support, session resume, streaming; one-time BYOK setup |
 | [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see setup below) | Full tool support, session resume, streaming, headless `crush run` |
-| [Cline](https://github.com/cline/cline) | 🔲 Untested | — | Should work — standard Anthropic API |
+| [Cline](https://github.com/cline/cline) | ✅ Verified | Config (see setup above) | Full tool support, file read/write/edit, bash, session resume, all models |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | — | Should work — standard Anthropic API |
 | [Aider](https://github.com/paul-gauthier/aider) | 🔲 Untested | — | Should work — standard Anthropic API |
 

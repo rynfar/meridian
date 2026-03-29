@@ -1092,6 +1092,22 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               })
               const streamErr = classifyError(errMsg)
               claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
+
+              // If we already emitted message_start, close the message cleanly so
+              // clients that access usage.input_tokens don't crash on the incomplete response.
+              if (messageStartEmitted) {
+                safeEnqueue(encoder.encode(
+                  `event: message_delta\ndata: ${JSON.stringify({
+                    type: "message_delta",
+                    delta: { stop_reason: "end_turn", stop_sequence: null },
+                    usage: { output_tokens: 0 }
+                  })}\n\n`
+                ), "error_message_delta")
+                safeEnqueue(encoder.encode(
+                  `event: message_stop\ndata: {"type":"message_stop"}\n\n`
+                ), "error_message_stop")
+              }
+
               safeEnqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({
                 type: "error",
                 error: { type: streamErr.type, message: streamErr.message }

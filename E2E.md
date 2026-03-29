@@ -61,6 +61,14 @@ kill $(lsof -ti :3456)
 | C3 | [Crush: Tool Use (Read)](#c3-crush-tool-use-read) | `ls`/`view`/`grep` tool round-trip: Crush executes, sends tool_result, proxy resumes | 2026-03-29 |
 | C4 | [Crush: Model Routing](#c4-crush-model-routing) | sonnet-4-6→sonnet[1m], opus-4-6→opus[1m], haiku→haiku for Max users | 2026-03-29 |
 | C5 | [Crush: Backward Compat](#c5-crush-backward-compat) | OpenCode and Droid sessions unaffected when Crush requests coexist | 2026-03-29 |
+| CL1 | [Cline: Basic Response](#cl1-cline-basic-response) | Proxy accepts Cline requests via anthropicBaseUrl, returns valid response | 2026-03-29 |
+| CL2 | [Cline: File Read](#cl2-cline-file-read) | Cline reads a file via tool_use/tool_result passthrough loop | 2026-03-29 |
+| CL3 | [Cline: File Write](#cl3-cline-file-write) | Cline writes a file to disk in --yolo mode | 2026-03-29 |
+| CL4 | [Cline: Bash Execution](#cl4-cline-bash-execution) | Cline runs bash commands through passthrough | 2026-03-29 |
+| CL5 | [Cline: File Edit](#cl5-cline-file-edit) | Cline edits an existing file (bug fix) | 2026-03-29 |
+| CL6 | [Cline: Session Continuation](#cl6-cline-session-continuation) | `-T taskId` resumes session; `lineage=continuation` in proxy log | 2026-03-29 |
+| CL7 | [Cline: Model Routing](#cl7-cline-model-routing) | sonnet-4-6→sonnet[1m], opus-4-6→opus[1m], haiku→haiku | 2026-03-29 |
+| CL8 | [Cline: Multi-Agent Coexistence](#cl8-cline-multi-agent-coexistence) | Cline + Crush + OpenCode on same port simultaneously | 2026-03-29 |
 
 ---
 
@@ -889,7 +897,9 @@ Which proxy modules each E2E test exercises:
 | `query.ts` | All (builds SDK options) |
 | `adapter.ts` + `adapters/opencode.ts` | All E-tests, D3, D10 |
 | `adapters/droid.ts` | D1, D2, D4, D5, D6, D7, D8, D9 |
-| `adapters/detect.ts` | D1, D2, D3, D6, D7, D9, D10 |
+| `adapters/crush.ts` | C1, C2, C3, C4, C5 |
+| `adapters/detect.ts` | D1, D2, D3, D6, D7, D9, D10, C1, C5 |
+| *(default adapter — no Cline adapter needed)* | CL1–CL8 |
 | `errors.ts` | E16 |
 | `models.ts` | E14 |
 | `messages.ts` | E4, E5, E6 (content normalization for hashing) |
@@ -1494,3 +1504,219 @@ curl -s http://127.0.0.1:3456/v1/messages \
 - Proxy logs show `model=haiku` for Crush, normal models for others
 - OpenCode session `c5-oc-001` is tracked independently (header-based)
 - Droid and Crush both use fingerprint-based tracking independently
+
+---
+
+## Cline Tests
+
+Cline connects via its `anthropicBaseUrl` config key. No adapter needed — it uses the standard Anthropic SDK and falls through to the default (OpenCode) adapter. Passthrough mode handles tool execution correctly.
+
+### Cline Setup
+
+**1. Authenticate with the Anthropic provider:**
+
+```bash
+cline auth --provider anthropic --apikey "dummy" --modelid "claude-sonnet-4-6"
+```
+
+**2. Set the proxy base URL** in `~/.cline/data/globalState.json`:
+
+```json
+{
+  "anthropicBaseUrl": "http://127.0.0.1:3456"
+}
+```
+
+Verify Cline can reach the proxy:
+```bash
+cline --yolo --model claude-haiku-4-5-20251001 --timeout 20 --json "Say: OK" 2>/dev/null | grep completion_result
+```
+
+---
+
+## CL1: Cline Basic Response
+
+**Verifies:** Proxy accepts Cline requests routed via `anthropicBaseUrl`, returns valid response.
+
+```bash
+cline --yolo \
+  --model claude-haiku-4-5-20251001 \
+  --cwd /path/to/project \
+  --timeout 20 \
+  --json \
+  "Reply with exactly: CLINE_E2E_OK" 2>/dev/null | grep completion_result
+```
+
+**Pass criteria:**
+- Output includes `CLINE_E2E_OK`
+- Proxy log: `model=haiku stream=true tools=11 lineage=new`
+- No authentication errors
+
+---
+
+## CL2: Cline File Read
+
+**Verifies:** Cline's tool_use/tool_result passthrough loop works for reading files.
+
+```bash
+echo "CLINE_CANARY_123" > /tmp/cline-canary.txt
+
+cline --yolo \
+  --model claude-haiku-4-5-20251001 \
+  --cwd /path/to/project \
+  --timeout 45 \
+  --json \
+  "Read /tmp/cline-canary.txt and tell me its exact contents" 2>/dev/null | grep completion_result
+
+rm /tmp/cline-canary.txt
+```
+
+**Pass criteria:**
+- Output includes `CLINE_CANARY_123`
+- Proxy log shows multi-turn: `lineage=continuation` with `tool_use` → `tool_result` in message chain
+
+---
+
+## CL3: Cline File Write
+
+**Verifies:** Cline writes files to disk through the passthrough tool loop.
+
+```bash
+rm -f /tmp/cline-write-test.txt
+
+cline --yolo \
+  --model claude-haiku-4-5-20251001 \
+  --cwd /path/to/project \
+  --timeout 45 \
+  --json \
+  "Write 'CLINE_WRITE_OK' to /tmp/cline-write-test.txt" 2>/dev/null | grep completion_result
+
+cat /tmp/cline-write-test.txt   # → CLINE_WRITE_OK
+rm /tmp/cline-write-test.txt
+```
+
+**Pass criteria:**
+- File exists on disk with correct content
+- Proxy log shows tool_use → tool_result continuation
+
+---
+
+## CL4: Cline Bash Execution
+
+**Verifies:** Bash commands execute through the passthrough loop.
+
+```bash
+cline --yolo \
+  --model claude-haiku-4-5-20251001 \
+  --cwd /path/to/project \
+  --timeout 45 \
+  --json \
+  "Run 'echo CLINE_BASH_OK' using bash and show the output" 2>/dev/null | grep completion_result
+```
+
+**Pass criteria:**
+- Output includes `CLINE_BASH_OK`
+
+---
+
+## CL5: Cline File Edit
+
+**Verifies:** Cline edits existing files correctly.
+
+```bash
+echo 'function add(a, b) { return a - b }' > /tmp/cline-edit-test.js
+
+cline --yolo \
+  --model claude-haiku-4-5-20251001 \
+  --cwd /path/to/project \
+  --timeout 45 \
+  --json \
+  "Fix the bug in /tmp/cline-edit-test.js — it subtracts instead of adding" 2>/dev/null | grep completion_result
+
+cat /tmp/cline-edit-test.js   # → should contain a + b
+rm /tmp/cline-edit-test.js
+```
+
+**Pass criteria:**
+- File on disk shows `a + b` (not `a - b`)
+- Proxy log shows read → edit tool chain
+
+---
+
+## CL6: Cline Session Continuation
+
+**Verifies:** Resuming a session with `-T taskId` maintains conversation context through the proxy.
+
+```bash
+# Turn 1: create session
+OUTPUT=$(cline --yolo \
+  --model claude-haiku-4-5-20251001 \
+  --cwd /path/to/project \
+  --timeout 30 \
+  --json \
+  "Remember the code: CLINE_RECALL_55. Say 'noted'." 2>/dev/null)
+TASK_ID=$(echo "$OUTPUT" | head -1 | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('taskId',''))" 2>/dev/null)
+echo "Task ID: $TASK_ID"
+
+# Turn 2: resume with task ID
+cline --yolo \
+  --model claude-haiku-4-5-20251001 \
+  --cwd /path/to/project \
+  --timeout 30 \
+  -T "$TASK_ID" \
+  --json \
+  "What was the code?" 2>/dev/null | grep completion_result
+```
+
+**Pass criteria:**
+- Turn 2 output includes `CLINE_RECALL_55`
+- Proxy log Turn 2: `lineage=continuation session=<id>`
+
+---
+
+## CL7: Cline Model Routing
+
+**Verifies:** Model names map to correct Claude Max tiers.
+
+```bash
+cline --yolo --model claude-sonnet-4-6 --timeout 20 --json "Say: OK" 2>/dev/null > /dev/null
+# Proxy log: model=sonnet[1m]
+
+cline --yolo --model claude-opus-4-6 --timeout 20 --json "Say: OK" 2>/dev/null > /dev/null
+# Proxy log: model=opus[1m]
+
+cline --yolo --model claude-haiku-4-5-20251001 --timeout 20 --json "Say: OK" 2>/dev/null > /dev/null
+# Proxy log: model=haiku
+```
+
+**Pass criteria:**
+- `claude-sonnet-4-6` → `model=sonnet[1m]`
+- `claude-opus-4-6` → `model=opus[1m]`
+- `claude-haiku-4-5-20251001` → `model=haiku`
+
+---
+
+## CL8: Cline Multi-Agent Coexistence
+
+**Verifies:** Cline, Crush, and OpenCode all work on the same proxy port simultaneously.
+
+```bash
+# Cline
+cline --yolo --model claude-haiku-4-5-20251001 --timeout 20 --json "Say: CLINE_COEXIST" 2>/dev/null | grep completion_result
+
+# Crush
+crush run --model claude-max/claude-haiku-4-5-20251001 --quiet "Say: CRUSH_COEXIST" 2>/dev/null
+
+# OpenCode (curl)
+curl -s http://127.0.0.1:3456/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "x-opencode-session: cl8-oc-001" \
+  -d '{"model":"claude-haiku-4-5-20251001","max_tokens":20,"stream":false,"messages":[{"role":"user","content":"Say: OC_COEXIST"}]}' \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['content'][0]['text'])"
+```
+
+**Pass criteria:**
+- All three respond correctly
+- No cross-contamination between sessions
+- Proxy handles all three without errors
