@@ -57,4 +57,23 @@ export interface AgentAdapter {
    * MCP tools that are allowed through the proxy's tool filter.
    */
   getAllowedMcpTools(): readonly string[]
+
+  /**
+   * Build SDK agent definitions from the request body.
+   * Returns agent name → AgentDefinition map for SDK subagent routing.
+   * Return empty object {} if the agent doesn't support subagent routing.
+   */
+  buildSdkAgents?(body: any, mcpToolNames: readonly string[]): Record<string, any>
+
+  /**
+   * Build SDK hooks (e.g., PreToolUse) for this agent.
+   * Return undefined if no hooks are needed.
+   */
+  buildSdkHooks?(body: any, sdkAgents: Record<string, any>): any
+
+  /**
+   * Build additional system context to append (e.g., agent name hints).
+   * Return empty string if nothing to add.
+   */
+  buildSystemContextAddendum?(body: any, sdkAgents: Record<string, any>): string
 }

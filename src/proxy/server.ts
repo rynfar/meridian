@@ -13,17 +13,14 @@ import { promisify } from "util"
 
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
-import { fuzzyMatchAgentName } from "./agentMatch"
-import { buildAgentDefinitions } from "./agentDefs"
 import { createPassthroughMcpServer, stripMcpPrefix, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
 import { classifyError, isStaleSessionError, isRateLimitError } from "./errors"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, isClosedControllerError, getClaudeAuthStatusAsync, hasExtendedContext, stripExtendedContext } from "./models"
-import { ALLOWED_MCP_TOOLS } from "./tools"
 import { getLastUserMessage } from "./messages"
-import { openCodeAdapter } from "./adapters/opencode"
+import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
 import {
   computeLineageHash,
@@ -184,7 +181,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const authStatus = await getClaudeAuthStatusAsync()
         let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType)
         const stream = body.stream ?? true
-        const adapter = openCodeAdapter
+        const adapter = detectAdapter(c)
         const workingDirectory = process.env.CLAUDE_PROXY_WORKDIR || adapter.extractWorkingDirectory(body) || process.cwd()
 
         // Strip env vars that would cause the SDK subprocess to loop back through
@@ -211,8 +208,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
 
         // Session resume: look up cached Claude SDK session and classify mutation
-        const opencodeSessionId = adapter.getSessionId(c)
-        const lineageResult = lookupSession(opencodeSessionId, body.messages || [], workingDirectory)
+        const agentSessionId = adapter.getSessionId(c)
+        const lineageResult = lookupSession(agentSessionId, body.messages || [], workingDirectory)
         const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
         const isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
@@ -241,27 +238,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           hasSystemPrompt: Boolean(body.system)
         })
 
-      // Extract available agent types from the Task tool definition.
-      // Used for: 1) SDK agent definitions, 2) fuzzy matching in PreToolUse hook, 3) prompt hints
-      let validAgentNames: string[] = []
-      let sdkAgents: Record<string, any> = {}
-      if (Array.isArray(body.tools)) {
-        const taskTool = body.tools.find((t: any) => t.name === "task" || t.name === "Task")
-        if (taskTool?.description) {
-          // Build SDK agent definitions from the Task tool description.
-          // This makes the SDK's native Task handler recognize agent names
-          // from OpenCode (with or without oh-my-opencode).
-          sdkAgents = buildAgentDefinitions(taskTool.description, [...ALLOWED_MCP_TOOLS])
-          validAgentNames = Object.keys(sdkAgents)
-
-          if (process.env.CLAUDE_PROXY_DEBUG) {
-            claudeLog("debug.agents", { names: validAgentNames, count: validAgentNames.length })
-          }
-          if (validAgentNames.length > 0) {
-            systemContext += `\n\nIMPORTANT: When using the task/Task tool, the subagent_type parameter must be one of these exact values (case-sensitive, lowercase): ${validAgentNames.join(", ")}. Do NOT capitalize or modify these names.`
-          }
-        }
+      // Build SDK agent definitions and system context hint via adapter.
+      // OpenCode parses the Task tool description; other adapters return empty.
+      const sdkAgents = adapter.buildSdkAgents?.(body, adapter.getAllowedMcpTools()) ?? {}
+      const validAgentNames = Object.keys(sdkAgents)
+      if (process.env.CLAUDE_PROXY_DEBUG && validAgentNames.length > 0) {
+        claudeLog("debug.agents", { names: validAgentNames, count: validAgentNames.length })
       }
+      systemContext += adapter.buildSystemContextAddendum?.(body, sdkAgents) ?? ""
 
 
 
@@ -417,8 +401,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
 
 
-      // In passthrough mode: block ALL tools, capture them for forwarding
-      // In normal mode: only fix agent names on Task tool
+      // In passthrough mode: block ALL tools, capture them for forwarding (agent-agnostic).
+      // In normal mode: delegate hook construction to the adapter.
       const sdkHooks = passthrough
         ? {
             PreToolUse: [{
@@ -436,25 +420,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }],
             }],
           }
-        : validAgentNames.length > 0
-          ? {
-              PreToolUse: [{
-                matcher: "Task",
-                hooks: [async (input: any) => ({
-                  hookSpecificOutput: {
-                    hookEventName: "PreToolUse" as const,
-                    updatedInput: {
-                      ...input.tool_input,
-                      subagent_type: fuzzyMatchAgentName(
-                        String(input.tool_input?.subagent_type || ""),
-                        validAgentNames
-                      ),
-                    },
-                  },
-                })],
-              }],
-            }
-          : undefined
+        : adapter.buildSdkHooks?.(body, sdkAgents) ?? undefined
 
 
 
@@ -526,7 +492,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       resumeSessionId,
                     })
                     console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
-                    evictSession(opencodeSessionId, workingDirectory, allMessages)
+                    evictSession(agentSessionId, workingDirectory, allMessages)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* query(buildQueryOptions({
@@ -685,7 +651,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
           // Store session for future resume
               if (currentSessionId) {
-                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
+                storeSession(agentSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
               }
 
               const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
@@ -793,7 +759,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         resumeSessionId,
                       })
                       console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
-                      evictSession(opencodeSessionId, workingDirectory, allMessages)
+                      evictSession(agentSessionId, workingDirectory, allMessages)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* query(buildQueryOptions({
@@ -988,7 +954,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
               // Store session for future resume
               if (currentSessionId) {
-                storeSession(opencodeSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
+                storeSession(agentSessionId, body.messages || [], currentSessionId, workingDirectory, sdkUuidMap)
               }
 
               if (!streamClosed) {

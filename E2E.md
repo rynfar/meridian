@@ -4,6 +4,8 @@ Live tests against the real proxy + Claude Max SDK. These verify the full reques
 
 **Prerequisites:** Claude Max subscription, `claude auth status` shows `loggedIn: true`, `opencode` installed.
 
+> **Droid tests (D1–D10)** additionally require `droid` installed (`droid --version` ≥ 0.89.0) and a Factory AI account for BYOK configuration.
+
 ## Quick Start
 
 ```bash
@@ -44,6 +46,16 @@ kill $(lsof -ti :3456)
 | E19 | [Subagent / Task Tool](#e19-subagent--task-tool) | Task tool agent definitions extracted, request processes correctly | 2026-03-24 |
 | E20 | [Env Stripping](#e20-env-stripping) | ANTHROPIC_* vars don't leak to SDK subprocess | 2026-03-24 |
 | E21 | [Session Store Pruning](#e21-session-store-pruning) | File store respects count cap, oldest entries evicted | 2026-03-24 |
+| D1 | [Droid: Basic Response](#d1-droid-basic-response) | Proxy accepts Droid User-Agent, routes via droid adapter, returns valid response | 2026-03-29 |
+| D2 | [Droid: MCP Server Name](#d2-droid-mcp-server-name) | Tools use `mcp__droid__` prefix, not `mcp__opencode__` | 2026-03-29 |
+| D3 | [Droid: OpenCode Backward Compat](#d3-droid-opencode-backward-compat) | Requests without Droid UA still use opencode adapter | 2026-03-29 |
+| D4 | [Droid: CWD from system-reminder](#d4-droid-cwd-from-system-reminder) | Working directory extracted from `<system-reminder>` block | 2026-03-29 |
+| D5 | [Droid: Fingerprint Session Resume](#d5-droid-fingerprint-session-resume) | Session continues via fingerprint (no session header needed) | 2026-03-29 |
+| D6 | [Droid: Real Binary Basic](#d6-droid-real-binary-basic) | Live `droid exec` → proxy → Claude Max returns correct response | 2026-03-29 |
+| D7 | [Droid: Real Binary Tool Use](#d7-droid-real-binary-tool-use) | Live `droid exec` reads file via `mcp__droid__read` | 2026-03-29 |
+| D8 | [Droid: exec Session Isolation](#d8-droid-exec-session-isolation) | Each `droid exec` call is a fresh session (expected — no history passed) | 2026-03-29 |
+| D9 | [Droid: Streaming SSE](#d9-droid-streaming-sse) | SSE stream correct format with Droid User-Agent | 2026-03-29 |
+| D10 | [Droid: OpenCode Session Unaffected](#d10-droid-opencode-session-unaffected) | OpenCode header-based session tracking still works alongside Droid | 2026-03-29 |
 
 ---
 
@@ -870,7 +882,9 @@ Which proxy modules each E2E test exercises:
 | `session/fingerprint.ts` | E9 |
 | `sessionStore.ts` | E8, E21 |
 | `query.ts` | All (builds SDK options) |
-| `adapter.ts` + `adapters/opencode.ts` | All (session headers, tool config) |
+| `adapter.ts` + `adapters/opencode.ts` | All E-tests, D3, D10 |
+| `adapters/droid.ts` | D1, D2, D4, D5, D6, D7, D8, D9 |
+| `adapters/detect.ts` | D1, D2, D3, D6, D7, D9, D10 |
 | `errors.ts` | E16 |
 | `models.ts` | E14 |
 | `messages.ts` | E4, E5, E6 (content normalization for hashing) |
@@ -880,3 +894,395 @@ Which proxy modules each E2E test exercises:
 | `passthroughTools.ts` | E17 |
 | `mcpTools.ts` | E3, E10 |
 | `telemetry/` | E11 |
+
+---
+
+## Droid (Factory AI) Tests
+
+These tests verify the Droid adapter added in the Droid support release. They require `droid` CLI installed and a Factory AI account.
+
+### Droid BYOK Setup
+
+Droid connects to the proxy via its BYOK (Bring Your Own Key) feature. Configure once before running D6–D8:
+
+```bash
+# 1. Back up Droid settings
+cp ~/.factory/settings.json ~/.factory/settings.json.backup
+
+# 2. Register all model tiers pointing at the proxy
+# Model names drive mapModelToClaudeModel():
+#   "4-6" in name → 1M context for Max users
+#   "haiku" in name → haiku tier (no 1M)
+#   "4-5" in name → base tier (no 1M)
+python3 -c "
+import json
+with open('$HOME/.factory/settings.json') as f:
+    s = json.load(f)
+s['customModels'] = [
+    {'model':'claude-sonnet-4-6',          'name':'Sonnet 4.6 (1M — Claude Max)', 'provider':'anthropic','baseUrl':'http://127.0.0.1:3457','apiKey':'sk-proxy'},
+    {'model':'claude-opus-4-6',            'name':'Opus 4.6 (1M — Claude Max)',   'provider':'anthropic','baseUrl':'http://127.0.0.1:3457','apiKey':'sk-proxy'},
+    {'model':'claude-haiku-4-5-20251001',  'name':'Haiku 4.5 (Claude Max)',       'provider':'anthropic','baseUrl':'http://127.0.0.1:3457','apiKey':'sk-proxy'},
+    {'model':'claude-sonnet-4-5-20250929', 'name':'Sonnet 4.5 (Claude Max)',      'provider':'anthropic','baseUrl':'http://127.0.0.1:3457','apiKey':'sk-proxy'},
+]
+with open('$HOME/.factory/settings.json', 'w') as f:
+    json.dump(s, f, indent=2)
+"
+
+# 3. Verify Droid sees the model
+droid exec --model "custom:claude-sonnet-4-5-20250514" --list-tools 2>&1 | head -3
+# → Available tools for claude-sonnet-4-5-20250514
+
+# After all Droid tests, restore:
+# cp ~/.factory/settings.json.backup ~/.factory/settings.json
+```
+
+### Droid Proxy Quick Start
+
+Use port 3457 to avoid conflicts with any existing proxy service on 3456:
+
+```bash
+# Note: if you have an existing proxy service with CLAUDE_PROXY_PASSTHROUGH=1
+# (e.g., a launchd service), use a different port
+CLAUDE_PROXY_DEBUG=1 CLAUDE_PROXY_PORT=3457 bun run ./bin/cli.ts > /tmp/proxy-droid-e2e.log 2>&1 &
+sleep 5
+curl -s http://127.0.0.1:3457/health | python3 -m json.tool
+# → {"status":"healthy","mode":"internal",...}
+
+# Check logs
+cat /tmp/proxy-droid-e2e.log | grep "\[PROXY\]"
+```
+
+---
+
+## D1: Droid Basic Response
+
+**Verifies:** Proxy detects `factory-cli/` User-Agent, selects droid adapter, returns valid Anthropic-format response.
+
+```bash
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: factory-cli/0.89.0" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 50,
+    "stream": false,
+    "messages": [{"role": "user", "content": "Respond with exactly: DROID_E2E_OK"}]
+  }' | python3 -m json.tool
+```
+
+**Pass criteria:**
+- `"type": "message"`, `"role": "assistant"`
+- Content includes text block with `DROID_E2E_OK`
+- `"stop_reason": "end_turn"`
+- Proxy log: `lineage=new session=new` (no prior session)
+
+---
+
+## D2: Droid MCP Server Name
+
+**Verifies:** When Droid requests a tool execution, the proxy uses `mcp__droid__*` tool names (not `mcp__opencode__*`). Confirmed by observing the tool name in the response content block.
+
+```bash
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: factory-cli/0.89.0" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 200,
+    "stream": false,
+    "messages": [{"role": "user", "content": "List the current directory. Use the Bash tool."}],
+    "tools": [
+      {"name": "Bash", "description": "Run a shell command", "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}}
+    ]
+  }' | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+for block in d['content']:
+    if block['type'] == 'tool_use':
+        print('Tool name in response:', block['name'])
+"
+```
+
+**Pass criteria:**
+- Tool block name is `mcp__droid__bash` (internal SDK MCP name — confirms droid adapter selected)
+- NOT `mcp__opencode__bash`
+
+**What's happening:** The Droid adapter sets `getMcpServerName() = "droid"`, so the SDK registers MCP tools as `mcp__droid__*`. The proxy strips these prefixes before returning to Droid, but the pre-strip name confirms adapter selection.
+
+---
+
+## D3: Droid OpenCode Backward Compat
+
+**Verifies:** Requests without Droid User-Agent still use the OpenCode adapter. All existing OpenCode behavior preserved.
+
+```bash
+# No User-Agent → OpenCode adapter
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "x-opencode-session: d3-compat-001" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 30,
+    "stream": false,
+    "messages": [{"role": "user", "content": "Say: OC_COMPAT_OK"}]
+  }' | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['content'][0]['text'])"
+
+# With opencode User-Agent → still OpenCode adapter
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: opencode/1.0" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 30,
+    "stream": false,
+    "messages": [{"role": "user", "content": "Say: OC_UA_OK"}]
+  }' | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['content'][0]['text'])"
+```
+
+**Pass criteria:**
+- Both responses return valid messages
+- No errors
+- Proxy log: `lineage=new session=new` for both (both are first requests with those sessions)
+
+---
+
+## D4: Droid CWD from system-reminder
+
+**Verifies:** Proxy extracts the working directory from Droid's `<system-reminder>` block in the first user message content, not from a `system` field (which OpenCode uses).
+
+```bash
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: factory-cli/0.89.0" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 30,
+    "stream": false,
+    "messages": [{
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "<system-reminder>\nUser system info\n% pwd\n/Users/dev/my-project\n% ls\nsrc\n</system-reminder>"},
+        {"type": "text", "text": "Say: CWD_EXTRACTED_OK"}
+      ]
+    }]
+  }' | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['content'][-1]['text'])"
+```
+
+**Pass criteria:**
+- Response contains `CWD_EXTRACTED_OK`
+- Proxy log: `msgs=user[text,text]` — multiple content blocks received
+
+**What's happening internally:** `droidAdapter.extractWorkingDirectory()` matches `% pwd\n<path>` inside `<system-reminder>` and returns `/Users/dev/my-project` as the `cwd` passed to the SDK. Different first messages will fingerprint to different sessions.
+
+---
+
+## D5: Droid Fingerprint Session Resume
+
+**Verifies:** Without a session header, Droid sessions are resumed via fingerprint (hash of first user message + CWD). Same first message = same fingerprint = resumed session.
+
+```bash
+# Turn 1: Establish session
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: factory-cli/0.89.0" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 50,
+    "stream": false,
+    "messages": [{
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "<system-reminder>\n% pwd\n/Users/dev/my-project\n</system-reminder>"},
+        {"type": "text", "text": "Remember the code: DROID_FINGERPRINT_88"}
+      ]
+    }]
+  }' > /dev/null
+
+# Turn 2: Same first message → fingerprint resume
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: factory-cli/0.89.0" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 80,
+    "stream": false,
+    "messages": [
+      {"role": "user", "content": [
+        {"type": "text", "text": "<system-reminder>\n% pwd\n/Users/dev/my-project\n</system-reminder>"},
+        {"type": "text", "text": "Remember the code: DROID_FINGERPRINT_88"}
+      ]},
+      {"role": "assistant", "content": [{"type": "text", "text": "Got it — DROID_FINGERPRINT_88."}]},
+      {"role": "user", "content": [{"type": "text", "text": "What was the code?"}]}
+    ]
+  }' | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['content'][-1]['text'][:80])"
+```
+
+**Pass criteria:**
+- Turn 2 proxy log: `lineage=continuation session=<8-char-id>` — fingerprint matched, session resumed
+- Response includes `DROID_FINGERPRINT_88`
+
+---
+
+## D6: Droid Real Binary Basic
+
+**Prerequisites:** Droid BYOK configured (see [Droid BYOK Setup](#droid-byok-setup)). Proxy running on port 3457.
+
+**Verifies:** Live `droid exec` binary successfully routes through the proxy and receives a valid Claude Max response.
+
+```bash
+droid exec \
+  --model "custom:claude-sonnet-4-5-20250514" \
+  --skip-permissions-unsafe \
+  --cwd /tmp \
+  "Reply with exactly: REAL_DROID_OK. Nothing else."
+```
+
+**Pass criteria:**
+- Output: `REAL_DROID_OK` (printed to stdout by droid)
+- Proxy log: `model=sonnet stream=true tools=<n> lineage=new session=new` — request received and processed
+- No `"isByok": false` errors — authentication via BYOK succeeded
+- No 402 Payment Required errors
+
+---
+
+## D7: Droid Real Binary Tool Use
+
+**Prerequisites:** Droid BYOK configured, proxy on port 3457.
+
+**Verifies:** Live `droid exec` can read a file using the `mcp__droid__read` MCP tool registered by the droid adapter.
+
+```bash
+# Setup canary file
+echo "DROID_CANARY_E2E_42" > /tmp/droid-canary.txt
+
+# Droid reads it via proxy
+droid exec \
+  --model "custom:claude-sonnet-4-5-20250514" \
+  --auto medium \
+  --cwd /tmp \
+  "Read the file /tmp/droid-canary.txt and tell me what it contains. Just the content, nothing else."
+
+# Verify
+rm /tmp/droid-canary.txt
+```
+
+**Pass criteria:**
+- Output: `DROID_CANARY_E2E_42` (droid read the file successfully)
+- Proxy log shows `tools=<n>` for the request — Droid sent its tool definitions
+- Multi-turn exchange visible in proxy logs (tool call + result + final response)
+
+---
+
+## D8: Droid exec Session Isolation
+
+**Verifies:** Each `droid exec` invocation is a fresh independent session. This is expected behavior — `droid exec` does not pass previous conversation history (unlike interactive TUI mode). Session continuity in interactive mode works via fingerprint resume (D5).
+
+```bash
+# Turn 1 — set a secret
+droid exec \
+  --model "custom:claude-sonnet-4-5-20250514" \
+  --skip-permissions-unsafe \
+  --cwd /tmp \
+  "Remember the code: DROID_SECRET_99. Just say 'noted'."
+
+# Turn 2 — separate exec, no shared history
+droid exec \
+  --model "custom:claude-sonnet-4-5-20250514" \
+  --skip-permissions-unsafe \
+  --cwd /tmp \
+  "What was the secret code?"
+```
+
+**Pass criteria:**
+- Turn 1 output: `noted` (or similar)
+- Turn 2 output: model says it has no record of any secret code — **this is correct behavior**
+- Proxy log: both show `lineage=new session=new` — each exec is a fresh session
+- No errors or crashes
+
+**Why this is correct:** `droid exec` is a one-shot command that sends only the current prompt as the message. It does not replay prior conversation history. For multi-turn continuity in interactive mode, fingerprint-based resume (D5) kicks in because Droid sends the full message history including the same first-message content.
+
+---
+
+## D9: Droid Streaming SSE
+
+**Verifies:** When Droid requests streaming, the proxy returns correct SSE format with proper event ordering.
+
+```bash
+curl -sN http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: factory-cli/0.89.0" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 50,
+    "stream": true,
+    "messages": [{"role": "user", "content": "Say: STREAM_DROID_OK"}]
+  }' | head -25
+```
+
+**Pass criteria:**
+- First event: `event: message_start` with a valid `message` object
+- At least one `event: content_block_delta` with `type: "text_delta"` containing the response text
+- Final event: `event: message_stop`
+- No `mcp__droid__*` tool blocks leak to the client
+- Proxy log: `stream=true`
+
+---
+
+## D10: Droid OpenCode Session Unaffected
+
+**Verifies:** Adding Droid support does not break OpenCode session tracking. The `x-opencode-session` header is still used by the OpenCode adapter for session continuity.
+
+```bash
+# OpenCode Turn 1
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "x-opencode-session: d10-oc-backcompat-001" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 50,
+    "stream": false,
+    "messages": [{"role": "user", "content": "Remember: OPENCODE_BACKCOMPAT_55"}]
+  }' > /dev/null
+
+# OpenCode Turn 2 — same session header → continuation
+curl -s http://127.0.0.1:3457/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "x-opencode-session: d10-oc-backcompat-001" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250514",
+    "max_tokens": 80,
+    "stream": false,
+    "messages": [
+      {"role": "user", "content": "Remember: OPENCODE_BACKCOMPAT_55"},
+      {"role": "assistant", "content": [{"type": "text", "text": "Got it."}]},
+      {"role": "user", "content": "What was the code?"}
+    ]
+  }' | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['content'][-1]['text'][:80])"
+```
+
+**Pass criteria:**
+- Response includes `OPENCODE_BACKCOMPAT_55`
+- Proxy log Turn 2: `lineage=continuation session=<id>` — OpenCode header session resumed correctly
+- Droid requests in D1–D9 did not corrupt the OpenCode session cache
+
+---
+
+## Droid Cleanup
+
+```bash
+# Restore Droid settings (if BYOK was configured)
+cp ~/.factory/settings.json.backup ~/.factory/settings.json 2>/dev/null
+
+# Kill the test proxy
+kill $(lsof -ti :3457) 2>/dev/null
+```
