@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { startProxyServer } from "../src/proxy/server"
+import { runCopilotLogin, runCopilotStatus } from "../src/proxy/copilot/login"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 
@@ -48,5 +49,13 @@ export async function runCli(
 }
 
 if (import.meta.main) {
-  await runCli()
+  const subcommand = process.argv[2]
+
+  if (subcommand === "copilot-login") {
+    await runCopilotLogin()
+  } else if (subcommand === "copilot-status") {
+    await runCopilotStatus()
+  } else {
+    await runCli()
+  }
 }

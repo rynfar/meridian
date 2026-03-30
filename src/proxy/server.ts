@@ -19,6 +19,8 @@ import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml } fro
 import type { RequestMetric } from "../telemetry"
 import { classifyError, isStaleSessionError, isRateLimitError } from "./errors"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, isClosedControllerError, getClaudeAuthStatusAsync, hasExtendedContext, stripExtendedContext } from "./models"
+import { handleChatCompletions } from "./copilot/handler"
+import { ALL_COPILOT_MODELS } from "./copilot/models"
 import { getLastUserMessage } from "./messages"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -137,7 +139,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         status: "ok",
         service: "meridian",
         format: "anthropic",
-        endpoints: ["/v1/messages", "/messages", "/telemetry", "/health"]
+        endpoints: ["/v1/messages", "/messages", "/v1/chat/completions", "/telemetry", "/health"],
+        copilotModels: ALL_COPILOT_MODELS,
       })
     }
     return c.html(landingHtml)
@@ -1187,6 +1190,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   app.post("/v1/messages", (c) => handleWithQueue(c, "/v1/messages"))
   app.post("/messages", (c) => handleWithQueue(c, "/messages"))
+
+  // GitHub Copilot models via OpenAI-compatible endpoint
+  app.post("/v1/chat/completions", handleChatCompletions)
 
   // Telemetry dashboard and API
   app.route("/telemetry", createTelemetryRoutes())
