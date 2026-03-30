@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.22.0](https://github.com/rynfar/meridian/compare/v1.21.1...v1.22.0) (2026-03-30)
+
+
+### Features
+
+* file change visibility in responses ([#189](https://github.com/rynfar/meridian/issues/189)) ([#192](https://github.com/rynfar/meridian/issues/192)) ([9112d4a](https://github.com/rynfar/meridian/commit/9112d4a01b55c13e0dcb2b6dba4c5ec713f2c65a))
+
+
+### Bug Fixes
+
+* reduce token overhead in passthrough mode ([#191](https://github.com/rynfar/meridian/issues/191)) ([98e8f9b](https://github.com/rynfar/meridian/commit/98e8f9b2689ad9cda4d1db511cb1fd38ee44e919))
+
 ## [1.21.1](https://github.com/rynfar/opencode-claude-max-proxy/compare/v1.21.0...v1.21.1) (2026-03-29)
 
 
