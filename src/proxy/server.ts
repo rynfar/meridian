@@ -413,7 +413,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // PostToolUse hook tracks file changes from MCP tools (internal mode only).
       // Catches write, edit, AND bash redirects (>, >>, tee, sed -i).
       const mcpPrefix = `mcp__${adapter.getMcpServerName()}__`
-      const fileChangeHook = createFileChangeHook(fileChanges, mcpPrefix)
+      const trackFileChanges = !process.env.MERIDIAN_NO_FILE_CHANGES
+      const fileChangeHook = trackFileChanges ? createFileChangeHook(fileChanges, mcpPrefix) : undefined
 
       const sdkHooks = passthrough
         ? {
@@ -434,7 +435,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }
         : {
             ...(adapter.buildSdkHooks?.(body, sdkAgents) ?? {}),
-            PostToolUse: [fileChangeHook],
+            ...(fileChangeHook ? { PostToolUse: [fileChangeHook] } : {}),
           }
 
         if (!stream) {
@@ -623,22 +624,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // Append file change summary:
           // - Internal mode: fileChanges populated by PostToolUse hook
           // - Passthrough mode: scan body.messages for executed tool_use blocks
-          if (passthrough && stopReason === "end_turn" && adapter.extractFileChangesFromToolUse) {
-            const passthroughChanges = extractFileChangesFromMessages(
-              body.messages || [],
-              adapter.extractFileChangesFromToolUse.bind(adapter)
-            )
-            fileChanges.push(...passthroughChanges)
-          }
-          const fileChangeSummary = formatFileChangeSummary(fileChanges)
-          if (fileChangeSummary) {
-            const lastTextBlock = [...contentBlocks].reverse().find((b) => b.type === "text")
-            if (lastTextBlock) {
-              lastTextBlock.text = (lastTextBlock.text as string) + fileChangeSummary
-            } else {
-              contentBlocks.push({ type: "text", text: fileChangeSummary.trimStart() })
+          if (trackFileChanges) {
+            if (passthrough && stopReason === "end_turn" && adapter.extractFileChangesFromToolUse) {
+              const passthroughChanges = extractFileChangesFromMessages(
+                body.messages || [],
+                adapter.extractFileChangesFromToolUse.bind(adapter)
+              )
+              fileChanges.push(...passthroughChanges)
             }
-            claudeLog("response.file_changes", { mode: "non_stream", count: fileChanges.length })
+            const fileChangeSummary = formatFileChangeSummary(fileChanges)
+            if (fileChangeSummary) {
+              const lastTextBlock = [...contentBlocks].reverse().find((b) => b.type === "text")
+              if (lastTextBlock) {
+                lastTextBlock.text = (lastTextBlock.text as string) + fileChangeSummary
+              } else {
+                contentBlocks.push({ type: "text", text: fileChangeSummary.trimStart() })
+              }
+              claudeLog("response.file_changes", { mode: "non_stream", count: fileChanges.length })
+            }
           }
 
           // If no content at all, add a fallback text block
@@ -1058,7 +1061,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 }
 
                 // Passthrough mode: scan body.messages for file changes on end_turn
-                if (passthrough && adapter.extractFileChangesFromToolUse) {
+                if (trackFileChanges && passthrough && adapter.extractFileChangesFromToolUse) {
                   const passthroughChanges = extractFileChangesFromMessages(
                     body.messages || [],
                     adapter.extractFileChangesFromToolUse.bind(adapter)
@@ -1067,30 +1070,32 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 }
 
                 // Emit file change summary as a text block before closing
-                const streamFileChangeSummary = formatFileChangeSummary(fileChanges)
-                if (streamFileChangeSummary && messageStartEmitted) {
-                  const fcBlockIndex = nextClientBlockIndex++
-                  safeEnqueue(encoder.encode(
-                    `event: content_block_start\ndata: ${JSON.stringify({
-                      type: "content_block_start",
-                      index: fcBlockIndex,
-                      content_block: { type: "text", text: "" },
-                    })}\n\n`
-                  ), "file_changes_block_start")
-                  safeEnqueue(encoder.encode(
-                    `event: content_block_delta\ndata: ${JSON.stringify({
-                      type: "content_block_delta",
-                      index: fcBlockIndex,
-                      delta: { type: "text_delta", text: streamFileChangeSummary },
-                    })}\n\n`
-                  ), "file_changes_text_delta")
-                  safeEnqueue(encoder.encode(
-                    `event: content_block_stop\ndata: ${JSON.stringify({
-                      type: "content_block_stop",
-                      index: fcBlockIndex,
-                    })}\n\n`
-                  ), "file_changes_block_stop")
-                  claudeLog("response.file_changes", { mode: "stream", count: fileChanges.length })
+                if (trackFileChanges) {
+                  const streamFileChangeSummary = formatFileChangeSummary(fileChanges)
+                  if (streamFileChangeSummary && messageStartEmitted) {
+                    const fcBlockIndex = nextClientBlockIndex++
+                    safeEnqueue(encoder.encode(
+                      `event: content_block_start\ndata: ${JSON.stringify({
+                        type: "content_block_start",
+                        index: fcBlockIndex,
+                        content_block: { type: "text", text: "" },
+                      })}\n\n`
+                    ), "file_changes_block_start")
+                    safeEnqueue(encoder.encode(
+                      `event: content_block_delta\ndata: ${JSON.stringify({
+                        type: "content_block_delta",
+                        index: fcBlockIndex,
+                        delta: { type: "text_delta", text: streamFileChangeSummary },
+                      })}\n\n`
+                    ), "file_changes_text_delta")
+                    safeEnqueue(encoder.encode(
+                      `event: content_block_stop\ndata: ${JSON.stringify({
+                        type: "content_block_stop",
+                        index: fcBlockIndex,
+                      })}\n\n`
+                    ), "file_changes_block_stop")
+                    claudeLog("response.file_changes", { mode: "stream", count: fileChanges.length })
+                  }
                 }
 
                 // Emit the final message_stop (we skipped all intermediate ones)
