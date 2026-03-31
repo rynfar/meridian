@@ -15,7 +15,14 @@ cd "$SCRIPT_DIR/.."
 if [ -f dist/cli.js ]; then
   PROXY_CMD="node dist/cli.js"
 else
-  PROXY_CMD="bun run ./bin/cli.ts"
+  # bun preferred (native TS execution), tsx fallback (no build step)
+  if command -v bun >/dev/null 2>&1; then
+    PROXY_CMD="bun run ./bin/cli.ts"
+  elif command -v tsx >/dev/null 2>&1; then
+    PROXY_CMD="tsx ./bin/cli.ts"
+  else
+    PROXY_CMD="npx tsx ./bin/cli.ts"
+  fi
 fi
 
 SHUTTING_DOWN=0

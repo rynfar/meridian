@@ -26,6 +26,7 @@
     "prepublishOnly": "bun run build",
     "test": "bun test --path-ignore-patterns '**/*session-store*' && bun test src/__tests__/proxy-session-store.test.ts && bun test src/__tests__/session-store-pruning.test.ts && bun test src/__tests__/proxy-session-store-locking.test.ts",
     "typecheck": "tsc --noEmit",
+    "dev": "tsx ./bin/cli.ts",
     "proxy:direct": "bun run ./bin/cli.ts"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "@types/node": "^22.0.0",
     "glob": "^13.0.0",
     "hono": "^4.11.4",
+    "tsx": "^4.19.0",
     "typescript": "^5.8.2"
   },
   "files": [

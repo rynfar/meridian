@@ -22,24 +22,11 @@ import { passthroughAdapter } from "./passthrough"
  * Note: This detects LiteLLM-style requests, but the adapter is generically
  * named "passthrough" since it describes standard Anthropic API passthrough behavior.
  */
-const LITELLM_HEADER_PREFIX = "x-litellm-"
-
 function hasLiteLLMHeaders(c: Context): boolean {
-  const headersToCheck = [
-    "x-litellm-api-key",
-    "x-litellm-model",
-    "x-litellm-custom",
-    "x-litellm-organization",
-    "x-litellm-user",
-    "x-litellm-batch-write",
-    "x-litellm-success-callback",
-    "x-litellm-failure-callback",
-    "x-litellm-stream-options",
-  ]
-  for (const name of headersToCheck) {
-    if (c.req.header(name)) {
-      return true
-    }
+  if ((c.req.header("user-agent") || "").startsWith("litellm/")) return true
+  const headers = c.req.header()
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase().startsWith("x-litellm-")) return true
   }
   return false
 }

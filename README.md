@@ -39,6 +39,33 @@ ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 opencode
 
 The API key value doesn't matter — Meridian authenticates through your Claude Max session, not API keys.
 
+## Install from Source
+
+```bash
+git clone https://github.com/rynfar/meridian.git
+cd meridian
+npm install
+```
+
+Requires: Node.js >=22. Choose your preferred runtime:
+
+**Option 1: Build + supervisor (Node.js only)**
+```bash
+npm run build && npm start
+```
+
+**Option 2: bun (native TypeScript execution)**
+```bash
+bun install
+bun run dev
+bun run start   # for auto-restart supervisor
+```
+
+**Option 3: tsx (no build step, Node.js only)**
+```bash
+npm run dev
+```
+
 ## Why Meridian?
 
 You're paying for Claude Max. It includes programmatic access through the Claude Code SDK. But your favorite coding tools expect an Anthropic API endpoint and an API key.

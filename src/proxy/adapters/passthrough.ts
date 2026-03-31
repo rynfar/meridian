@@ -157,4 +157,11 @@ export const passthroughAdapter: AgentAdapter = {
   usesPassthrough(): boolean {
     return true
   },
+
+  /**
+   * LiteLLM requires non-streaming responses.
+   */
+  prefersStreaming(_body: any): boolean {
+    return false
+  },
 }

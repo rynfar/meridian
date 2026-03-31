@@ -29,8 +29,6 @@ import {
   computeMessageHashes,
   type LineageResult,
 } from "./session/lineage"
-// Re-export for backwards compatibility (existing tests import from here)
-
 import { lookupSession, storeSession, clearSessionCache, getMaxSessionsLimit, evictSession } from "./session/cache"
 // Re-export for backwards compatibility (existing tests import from here)
 export { computeLineageHash, hashMessage, computeMessageHashes }
@@ -147,7 +145,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // --- Concurrency Control ---
   // Each request spawns an SDK subprocess (cli.js, ~11MB). Spawning multiple
   // simultaneously can crash the process. Serialize SDK queries with a queue.
-  const MAX_CONCURRENT_SESSIONS = parseInt((process.env.MERIDIAN_MAX_CONCURRENT ?? process.env.CLAUDE_PROXY_MAX_CONCURRENT) || "10", 10)
+  const MAX_CONCURRENT_SESSIONS = parseInt((process.env.MERIDIAN_MAX_CONCURRENT ?? process.env.CLAUDE_PROXY_MAX_CONCURRENT) || "50", 10)
   let activeSessions = 0
   const sessionQueue: Array<{ resolve: () => void }> = []
 
@@ -179,9 +177,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
       try {
         const body = await c.req.json()
+        const DEBUG = process.env.DEBUG_PROXY === "true"
+        if (DEBUG) {
+          console.error(`[DEBUG PROXY] Incoming headers: ${JSON.stringify(c.req.header())}`)
+          console.error(`[DEBUG PROXY] body.stream=${body.stream}`)
+        }
         const authStatus = await getClaudeAuthStatusAsync()
         let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType)
-        const stream = body.stream ?? true
+        const hasLiteLLMHeaders = (c.req.header("user-agent") || "").startsWith("litellm/")
+          || Object.keys(c.req.header()).some(k => k.toLowerCase().startsWith("x-litellm-"))
+        const stream = hasLiteLLMHeaders
+          ? false
+          : (body.stream ?? true)
         const adapter = detectAdapter(c)
         const workingDirectory = (process.env.MERIDIAN_WORKDIR ?? process.env.CLAUDE_PROXY_WORKDIR) || adapter.extractWorkingDirectory(body) || process.cwd()
 
@@ -467,9 +474,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             //
             // Rate-limit retry strategy:
             //   1. Strip [1m] context (immediate, different model tier)
-            //   2. Backoff retries on base model (1s, 2s — exponential)
-            const MAX_RATE_LIMIT_RETRIES = 2
-            const RATE_LIMIT_BASE_DELAY_MS = 1000
+            //   2. Backoff retries on base model (2s, 4s, 8s — exponential)
+            const MAX_RATE_LIMIT_RETRIES = 3
+            const RATE_LIMIT_BASE_DELAY_MS = 2000
 
             const response = (async function* () {
               let rateLimitRetries = 0
@@ -494,11 +501,34 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 } catch (error) {
                   const errMsg = error instanceof Error ? error.message : String(error)
 
+                  // Debug: log actual error for diagnosis
+                  const DEBUG = process.env.DEBUG_PROXY === "true"
+                  if (DEBUG) {
+                    console.error(`[DEBUG PROXY] Non-streaming SDK error: ${errMsg}`)
+                    if (error instanceof Error && error.stack) {
+                      console.error(`[DEBUG PROXY] Stack: ${error.stack.split('\n').slice(0, 5).join('\n')}`)
+                    }
+                  }
+
                   // Never retry after response content was yielded — response is committed
-                  if (didYieldContent) throw error
+                  // EXCEPT for rate limit errors, which are transient and safe to retry
+                  if (didYieldContent && !isRateLimitError(errMsg)) {
+                    if (DEBUG) {
+                      console.error(`[DEBUG PROXY] Content already yielded, skipping retry for non-rate-limit error`)
+                    }
+                    throw error
+                  }
+                  if (didYieldContent && isRateLimitError(errMsg)) {
+                    if (DEBUG) {
+                      console.error(`[DEBUG PROXY] Content yielded BUT rate limit detected - will retry anyway`)
+                    }
+                  }
 
                   // Retry: stale undo UUID — evict session and start fresh (one-shot)
                   if (isStaleSessionError(error)) {
+                    if (DEBUG) {
+                      console.error(`[DEBUG PROXY] Stale session error detected, evicting and retrying`)
+                    }
                     claudeLog("session.stale_uuid_retry", {
                       mode: "non_stream",
                       rollbackUuid: undoRollbackUuid,
@@ -519,6 +549,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
                   // Rate-limit retry: first strip [1m] (free, different tier), then backoff
                   if (isRateLimitError(errMsg)) {
+                    if (DEBUG) {
+                      console.error(`[DEBUG PROXY] Rate limit detected, model=${model}, hasExtendedContext=${hasExtendedContext(model)}`)
+                    }
                     if (hasExtendedContext(model)) {
                       const from = model
                       model = stripExtendedContext(model)
@@ -541,6 +574,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         maxAttempts: MAX_RATE_LIMIT_RETRIES,
                         delayMs: delay,
                       })
+                      console.error(`[DEBUG PROXY] Starting backoff retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} with delay ${delay}ms`)
                       console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
                       await new Promise(r => setTimeout(r, delay))
                       continue
@@ -754,9 +788,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // Same transparent retry wrapper as the non-streaming path.
               // Rate-limit retry strategy:
               //   1. Strip [1m] context (immediate, different model tier)
-              //   2. Backoff retries on base model (1s, 2s — exponential)
-              const MAX_RATE_LIMIT_RETRIES = 2
-              const RATE_LIMIT_BASE_DELAY_MS = 1000
+              //   2. Backoff retries on base model (2s, 4s, 8s — exponential)
+              const MAX_RATE_LIMIT_RETRIES = 3
+              const RATE_LIMIT_BASE_DELAY_MS = 2000
 
               const response = (async function* () {
                 let rateLimitRetries = 0
@@ -782,11 +816,34 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   } catch (error) {
                     const errMsg = error instanceof Error ? error.message : String(error)
 
+                    // Debug: log actual error for diagnosis
+                    const DEBUG = process.env.DEBUG_PROXY === "true"
+                    if (DEBUG) {
+                      console.error(`[DEBUG PROXY] Streaming SDK error: ${errMsg}`)
+                      if (error instanceof Error && error.stack) {
+                        console.error(`[DEBUG PROXY] Stack: ${error.stack.split('\n').slice(0, 5).join('\n')}`)
+                      }
+                    }
+
                     // Never retry after client-visible SSE events — response is committed
-                    if (didYieldClientEvent) throw error
+                    // EXCEPT for rate limit errors, which are transient and safe to retry
+                    if (didYieldClientEvent && !isRateLimitError(errMsg)) {
+                      if (DEBUG) {
+                        console.error(`[DEBUG PROXY] Client-visible SSE event already yielded, skipping retry for non-rate-limit error`)
+                      }
+                      throw error
+                    }
+                    if (didYieldClientEvent && isRateLimitError(errMsg)) {
+                      if (DEBUG) {
+                        console.error(`[DEBUG PROXY] Client-visible SSE event yielded BUT rate limit detected - will retry anyway`)
+                      }
+                    }
 
                     // Retry: stale undo UUID — evict and start fresh (one-shot)
                     if (isStaleSessionError(error)) {
+                      if (DEBUG) {
+                        console.error(`[DEBUG PROXY] Stale session error detected, evicting and retrying`)
+                      }
                       claudeLog("session.stale_uuid_retry", {
                         mode: "stream",
                         rollbackUuid: undoRollbackUuid,
@@ -807,6 +864,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
                     // Rate-limit retry: first strip [1m] (free, different tier), then backoff
                     if (isRateLimitError(errMsg)) {
+                      if (DEBUG) {
+                        console.error(`[DEBUG PROXY] Rate limit detected, model=${model}, hasExtendedContext=${hasExtendedContext(model)}`)
+                      }
                       if (hasExtendedContext(model)) {
                         const from = model
                         model = stripExtendedContext(model)
@@ -829,6 +889,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           maxAttempts: MAX_RATE_LIMIT_RETRIES,
                           delayMs: delay,
                         })
+                        console.error(`[DEBUG PROXY] Starting backoff retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} with delay ${delay}ms`)
                         console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
                         await new Promise(r => setTimeout(r, delay))
                         continue
