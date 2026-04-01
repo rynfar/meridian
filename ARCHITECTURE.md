@@ -35,15 +35,23 @@ Agent (OpenCode) ◄── SSE Response ◄────────────�
 
 ```
 src/
+├── index.ts                   ← Public API barrel export (startProxyServer, types)
+├── env.ts                     ← Environment variable resolution (MERIDIAN_* / CLAUDE_PROXY_*)
 ├── proxy/
-│   ├── server.ts              ← HTTP layer: routes, SSE streaming, concurrency, request orchestration
+│   ├── server.ts              ← HTTP layer: routes, SSE streaming, request orchestration
+│   ├── prepareMessages.ts     ← Message-to-prompt conversion (text and multimodal)
+│   ├── retry.ts               ← Transparent retry wrapper (stale session, rate limiting)
 │   ├── adapter.ts             ← AgentAdapter interface (extensibility point for multi-agent support)
 │   ├── adapters/
-│   │   └── opencode.ts        ← OpenCode adapter (session headers, CWD extraction, tool config)
+│   │   ├── opencode.ts        ← OpenCode adapter (session headers, CWD, tools, agent defs, fuzzy match)
+│   │   ├── droid.ts           ← Droid (Factory AI) adapter
+│   │   ├── crush.ts           ← Crush (Charm) adapter
+│   │   ├── passthrough.ts     ← LiteLLM/generic passthrough adapter
+│   │   └── detect.ts          ← Adapter auto-detection from User-Agent
 │   ├── query.ts               ← SDK query options builder (shared between stream/non-stream paths)
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── models.ts              ← Model mapping, Claude executable resolution
-│   ├── tools.ts               ← Tool blocking lists, MCP server name, allowed tools
+│   ├── tools.ts               ← Shared tool blocking lists (used by all adapters)
 │   ├── messages.ts            ← Content normalization, message parsing
 │   ├── types.ts               ← ProxyConfig, ProxyInstance, ProxyServer types
 │   ├── session/
@@ -52,14 +60,13 @@ src/
 │   │   ├── fingerprint.ts     ← Conversation fingerprinting, client CWD extraction
 │   │   └── cache.ts           ← LRU session caches, lookup/store operations
 │   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
-│   ├── agentDefs.ts           ← Subagent definition extraction from tool descriptions
-│   ├── agentMatch.ts          ← Fuzzy agent name matching
 │   └── passthroughTools.ts    ← Tool forwarding mode (agent handles execution)
 ├── fileChanges.ts             ← PostToolUse hook: tracks write/edit ops, formats summary
 ├── mcpTools.ts                ← MCP tool definitions (read, write, edit, bash, glob, grep)
 ├── logger.ts                  ← Logging with AsyncLocalStorage context
 ├── utils/
-│   └── lruMap.ts              ← Generic LRU map with eviction callbacks
+│   ├── lruMap.ts              ← Generic LRU map with eviction callbacks
+│   └── semaphore.ts           ← Counting semaphore for concurrency control
 ├── telemetry/
 │   ├── index.ts               ← Barrel export
 │   ├── store.ts               ← Request metrics storage
@@ -78,21 +85,22 @@ Dependencies flow **downward**. A module may only import from modules at the sam
 ```
 server.ts (HTTP layer)
     │
+    ├── prepareMessages.ts (prompt building)
+    ├── retry.ts ──► errors.ts, models.ts, query.ts, prepareMessages.ts, session/cache.ts
     ├── adapter.ts (interface)
-    ├── adapters/opencode.ts ──► messages.ts, session/fingerprint.ts, tools.ts
+    ├── adapters/opencode.ts ──► messages.ts, session/fingerprint.ts, tools.ts, fileChanges.ts
     ├── query.ts ──► adapter.ts, mcpTools.ts, passthroughTools.ts
     ├── errors.ts
     ├── models.ts
-    ├── tools.ts
+    ├── tools.ts (shared blocking lists)
     ├── messages.ts
     ├── session/cache.ts ──► session/lineage.ts ──► messages.ts
     │                    ──► session/fingerprint.ts
     │                    ──► sessionStore.ts
-    ├── agentDefs.ts
-    ├── agentMatch.ts
     ├── fileChanges.ts
     ├── passthroughTools.ts
     ├── mcpTools.ts
+    ├── utils/semaphore.ts
     └── telemetry/
 ```
 
@@ -138,13 +146,13 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | `getMcpServerName()` | MCP server name for tool registration |
 | `getAllowedMcpTools()` | MCP tools allowed through the proxy |
 
-### Remaining OpenCode-Specific Code (Not Yet in Adapter)
+### Remaining Shared Code
 
 | Logic | Location | Status |
 |-------|----------|--------|
-| `buildAgentDefinitions` | `agentDefs.ts` | Parses OpenCode Task tool format. To be adapter method. |
-| Passthrough mode | `passthroughTools.ts` | Agent-agnostic but OpenCode-motivated. Keep as-is. |
-| `ALLOWED_MCP_TOOLS` usage in `server.ts` | Line ~176 | Used for `buildAgentDefinitions`. Move when adapter handles agent defs. |
+| Passthrough mode | `passthroughTools.ts` | Agent-agnostic. Used by all adapters that support passthrough. |
+
+All agent-specific code (agent definitions, fuzzy matching, MCP tool lists) is now inside individual adapter files.
 
 ## Session Management
 

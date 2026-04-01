@@ -4,14 +4,14 @@
   "description": "Local Anthropic API powered by your Claude Max subscription. One subscription, every agent.",
   "type": "module",
   "main": "./dist/server.js",
-  "types": "./dist/proxy/server.d.ts",
+  "types": "./dist/index.d.ts",
   "bin": {
     "meridian": "./dist/cli.js",
     "claude-max-proxy": "./dist/cli.js"
   },
   "exports": {
     ".": {
-      "types": "./dist/proxy/server.d.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/server.js"
     }
   },
@@ -21,7 +21,7 @@
   "scripts": {
     "start": "bun run ./bin/cli.ts",
     "dev": "bun run ./bin/cli.ts --no-supervisor",
-    "build": "rm -rf dist && bun build bin/cli.ts --outfile dist/cli.js --target bun --external @anthropic-ai/claude-agent-sdk && bun build src/proxy/server.ts --outfile dist/server.js --target bun --external @anthropic-ai/claude-agent-sdk && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && bun build bin/cli.ts --outfile dist/cli.js --target bun --external @anthropic-ai/claude-agent-sdk && bun build src/index.ts --outfile dist/server.js --target bun --external @anthropic-ai/claude-agent-sdk && tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build",
     "test": "bun test --path-ignore-patterns '**/*session-store*' && bun test src/__tests__/proxy-session-store.test.ts && bun test src/__tests__/session-store-pruning.test.ts && bun test src/__tests__/proxy-session-store-locking.test.ts",
     "typecheck": "tsc --noEmit"

@@ -50,20 +50,31 @@ OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Speci
 ## Architecture Quick Reference
 
 ```
-server.ts          → HTTP routes, SSE streaming, concurrency (orchestration only)
-adapter.ts         → AgentAdapter interface (extensibility point)
+index.ts             → Public API barrel export
+env.ts               → Environment variable resolution (MERIDIAN_* / CLAUDE_PROXY_*)
+server.ts            → HTTP routes, SSE streaming (orchestration only)
+prepareMessages.ts   → Message-to-prompt conversion (text + multimodal)
+retry.ts             → Transparent retry wrapper (stale session, rate limiting)
+adapter.ts           → AgentAdapter interface (extensibility point)
 adapters/
-  opencode.ts      → OpenCode-specific: headers, CWD, tool config
-query.ts           → buildQueryOptions (shared stream/non-stream SDK call builder)
-errors.ts          → classifyError (pure)
-models.ts          → mapModelToClaudeModel, resolveClaudeExecutableAsync
-tools.ts           → BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME
-messages.ts        → normalizeContent, getLastUserMessage (pure)
-fileChanges.ts     → PostToolUse hook: file write/edit tracking + summary formatting (pure)
+  opencode.ts        → OpenCode: headers, CWD, tools, agent defs, fuzzy match
+  droid.ts           → Droid (Factory AI) adapter
+  crush.ts           → Crush (Charm) adapter
+  passthrough.ts     → LiteLLM/generic passthrough adapter
+  detect.ts          → Adapter auto-detection from User-Agent
+query.ts             → buildQueryOptions (shared stream/non-stream SDK call builder)
+errors.ts            → classifyError (pure)
+models.ts            → mapModelToClaudeModel, resolveClaudeExecutableAsync
+tools.ts             → BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS (shared)
+messages.ts          → normalizeContent, getLastUserMessage (pure)
+fileChanges.ts       → PostToolUse hook: file write/edit tracking (pure)
 session/
-  lineage.ts       → Hashing, lineage verification (PURE — no I/O)
-  fingerprint.ts   → extractClientCwd, getConversationFingerprint
-  cache.ts         → LRU caches, lookupSession, storeSession (stateful)
+  lineage.ts         → Hashing, lineage verification (PURE — no I/O)
+  fingerprint.ts     → extractClientCwd, getConversationFingerprint
+  cache.ts           → LRU caches, lookupSession, storeSession (stateful)
+utils/
+  semaphore.ts       → Counting semaphore for concurrency control
+  lruMap.ts          → Generic LRU map with eviction callbacks
 ```
 
 ## Stable API Contract
