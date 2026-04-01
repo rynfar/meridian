@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.1](https://github.com/rynfar/meridian/compare/v1.23.0...v1.23.1) (2026-04-01)
+
+
+### Bug Fixes
+
+* capture subprocess stderr to surface real exit-code-1 failures ([#213](https://github.com/rynfar/meridian/issues/213)) ([40eeda7](https://github.com/rynfar/meridian/commit/40eeda7c0219213c29f72ce84b44a2676e7442b3))
+
 ## [1.23.0](https://github.com/rynfar/meridian/compare/v1.22.2...v1.23.0) (2026-04-01)
 
 
