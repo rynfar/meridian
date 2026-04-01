@@ -1,7 +1,5 @@
 import { Hono } from "hono"
 import { cors } from "hono/cors"
-import { serve } from "@hono/node-server"
-import type { Server } from "node:http"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
@@ -1350,42 +1348,25 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
   claudeExecutable = await resolveClaudeExecutableAsync()
   const { app, config: finalConfig } = createProxyServer(config)
 
-  const server = serve({
+  const server = Bun.serve({
     fetch: app.fetch,
     port: finalConfig.port,
     hostname: finalConfig.host,
-    overrideGlobalObjects: false,
-  }, (info) => {
-    if (!finalConfig.silent) {
-      console.log(`Meridian running at http://${finalConfig.host}:${info.port}`)
-      console.log(`Telemetry dashboard: http://${finalConfig.host}:${info.port}/telemetry`)
-      console.log(`\nPoint any Anthropic-compatible tool at this endpoint:`)
-      console.log(`  ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://${finalConfig.host}:${info.port}`)
-    }
-  }) as Server
-
-  const idleMs = finalConfig.idleTimeoutSeconds * 1000
-  server.keepAliveTimeout = idleMs
-  server.headersTimeout = idleMs + 1000
-
-  server.on("error", (error: NodeJS.ErrnoException) => {
-    if (error.code === "EADDRINUSE" && !finalConfig.silent) {
-      console.error(`\nError: Port ${finalConfig.port} is already in use.`)
-      console.error(`\nIs another instance of the proxy already running?`)
-      console.error(`  Check with: lsof -i :${finalConfig.port}`)
-      console.error(`  Kill it with: kill $(lsof -ti :${finalConfig.port})`)
-      console.error(`\nOr use a different port:`)
-      console.error(`  MERIDIAN_PORT=4567 meridian`)
-    }
+    idleTimeout: finalConfig.idleTimeoutSeconds,
   })
+
+  if (!finalConfig.silent) {
+    console.log(`Meridian running at http://${finalConfig.host}:${server.port}`)
+    console.log(`Telemetry dashboard: http://${finalConfig.host}:${server.port}/telemetry`)
+    console.log(`\nPoint any Anthropic-compatible tool at this endpoint:`)
+    console.log(`  ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://${finalConfig.host}:${server.port}`)
+  }
 
   return {
     server,
     config: finalConfig,
     async close() {
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()))
-      })
+      server.stop(true)
     },
   }
 }

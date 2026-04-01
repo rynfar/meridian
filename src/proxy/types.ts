@@ -1,5 +1,3 @@
-import type { Server } from "node:http"
-
 export interface ProxyConfig {
   port: number
   host: string
@@ -9,8 +7,8 @@ export interface ProxyConfig {
 }
 
 export interface ProxyInstance {
-  /** The underlying http.Server */
-  server: Server
+  /** The underlying Bun server */
+  server: ReturnType<typeof Bun.serve>
   /** The resolved proxy configuration */
   config: ProxyConfig
   /** Gracefully shut down the proxy server and clean up resources */
