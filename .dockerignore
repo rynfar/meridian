@@ -1,9 +1,0 @@
-node_modules
-.git
-.github
-*.log
-*.md
-src/__tests__
-.dockerignore
-Dockerfile
-docker-compose.yml

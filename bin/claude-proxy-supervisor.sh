@@ -11,12 +11,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
-# Auto-detect: compiled dist (Docker/npm) or TypeScript source (local dev)
-if [ -f dist/cli.js ]; then
-  PROXY_CMD="node dist/cli.js"
-else
-  PROXY_CMD="bun run ./bin/cli.ts"
-fi
+PROXY_CMD="bun run ./bin/cli.ts"
 
 SHUTTING_DOWN=0
 trap 'SHUTTING_DOWN=1' TERM INT

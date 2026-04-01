@@ -2,13 +2,9 @@
  * Model mapping and Claude executable resolution.
  */
 
-import { exec as execCallback } from "child_process"
 import { existsSync } from "fs"
 import { fileURLToPath } from "url"
 import { join, dirname } from "path"
-import { promisify } from "util"
-
-const exec = promisify(execCallback)
 
 export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku"
 export interface ClaudeAuthStatus {
@@ -83,7 +79,10 @@ export async function getClaudeAuthStatusAsync(): Promise<ClaudeAuthStatus | nul
 
   cachedAuthStatusPromise = (async () => {
     try {
-      const { stdout } = await exec("claude auth status", { timeout: 5000 })
+      const proc = Bun.spawn(["claude", "auth", "status"], { stdout: "pipe", stderr: "pipe" })
+      const timeout = setTimeout(() => proc.kill(), 5000)
+      const stdout = await new Response(proc.stdout).text()
+      clearTimeout(timeout)
       const parsed = JSON.parse(stdout) as ClaudeAuthStatus
       cachedAuthStatus = parsed
       lastKnownGoodAuthStatus = parsed
@@ -116,10 +115,11 @@ let cachedClaudePathPromise: Promise<string> | null = null
 /**
  * Resolve the Claude executable path asynchronously (non-blocking).
  *
- * Uses a three-tier cache:
+ * Resolves the SDK-bundled cli.js path. Requires bun as the runtime.
+ *
+ * Uses a two-tier cache:
  * 1. cachedClaudePath — resolved path, returned immediately on subsequent calls
  * 2. cachedClaudePathPromise — deduplicates concurrent calls during resolution
- * 3. Falls through to resolution logic (SDK cli.js → system `which claude`)
  *
  * The promise is cleared in `finally` to allow retry on failure while
  * cachedClaudePath prevents re-resolution on success.
@@ -129,54 +129,16 @@ export async function resolveClaudeExecutableAsync(): Promise<string> {
   if (cachedClaudePathPromise) return cachedClaudePathPromise
 
   cachedClaudePathPromise = (async () => {
-    // The SDK runs cli.js via bun or node depending on the current runtime:
-    //   getDefaultExecutable() → "bun" if process.versions.bun, else "node"
-    //
-    // When run via node (bun not installed/not the runtime), cli.js + the
-    // --permission-mode bypassPermissions flag exits with code 1. This is
-    // the root cause of issue #203.
-    //
-    // Resolution order:
-    //   1. If running under bun: cli.js works correctly — use it
-    //   2. System claude binary: standalone, no runtime dependency, always safe
-    //   3. Last resort: cli.js via node (may fail for some permission modes)
-    const runningUnderBun = typeof process.versions.bun !== "undefined"
-
-    // 1. SDK bundled cli.js — only when bun is the runtime
-    if (runningUnderBun) {
-      try {
-        const sdkPath = fileURLToPath(import.meta.resolve("@anthropic-ai/claude-agent-sdk"))
-        const sdkCliJs = join(dirname(sdkPath), "cli.js")
-        if (existsSync(sdkCliJs)) {
-          cachedClaudePath = sdkCliJs
-          return sdkCliJs
-        }
-      } catch {}
-    }
-
-    // 2. System-installed claude binary (standalone — no runtime dependency)
     try {
-      const { stdout } = await exec("which claude")
-      const claudePath = stdout.trim()
-      if (claudePath && existsSync(claudePath)) {
-        cachedClaudePath = claudePath
-        return claudePath
+      const sdkPath = fileURLToPath(import.meta.resolve("@anthropic-ai/claude-agent-sdk"))
+      const sdkCliJs = join(dirname(sdkPath), "cli.js")
+      if (existsSync(sdkCliJs)) {
+        cachedClaudePath = sdkCliJs
+        return sdkCliJs
       }
     } catch {}
 
-    // 3. Last resort: SDK cli.js via node (limited — bypassPermissions may fail)
-    if (!runningUnderBun) {
-      try {
-        const sdkPath = fileURLToPath(import.meta.resolve("@anthropic-ai/claude-agent-sdk"))
-        const sdkCliJs = join(dirname(sdkPath), "cli.js")
-        if (existsSync(sdkCliJs)) {
-          cachedClaudePath = sdkCliJs
-          return sdkCliJs
-        }
-      } catch {}
-    }
-
-    throw new Error("Could not find Claude Code executable. Install via: npm install -g @anthropic-ai/claude-code")
+    throw new Error("Could not find Claude Code executable. Ensure bun is installed and run: bun install")
   })()
 
   try {
