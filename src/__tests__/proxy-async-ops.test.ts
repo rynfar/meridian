@@ -9,11 +9,11 @@ describe("proxy async ops", () => {
     const proxyA = await startProxyServer({ port: 0, host: "127.0.0.1" })
     const proxyB = await startProxyServer({ port: 0, host: "127.0.0.1" })
 
+    expect(proxyA.server.port).toBeGreaterThan(0)
+    expect(proxyB.server.port).toBeGreaterThan(0)
+
     await proxyA.close()
     await proxyB.close()
-
-    expect(typeof proxyA.server.keepAliveTimeout).toBe("number")
-    expect(typeof proxyB.server.keepAliveTimeout).toBe("number")
   })
 
   it("serves async health endpoint with unchanged response schema", async () => {
@@ -78,8 +78,7 @@ describe("proxy async ops", () => {
       await runCli(
         async () => {
           startCalled += 1
-          const { EventEmitter } = await import("events")
-          return { server: new EventEmitter(), config: {}, close: async () => {} } as any
+          return { server: {}, config: {}, close: async () => {} } as any
         },
         (() => {
           throw new Error("spawn ENOENT")
