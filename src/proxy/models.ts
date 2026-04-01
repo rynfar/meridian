@@ -129,17 +129,32 @@ export async function resolveClaudeExecutableAsync(): Promise<string> {
   if (cachedClaudePathPromise) return cachedClaudePathPromise
 
   cachedClaudePathPromise = (async () => {
-    // 1. Try the SDK's bundled cli.js (same dir as this module's SDK)
-    try {
-      const sdkPath = fileURLToPath(import.meta.resolve("@anthropic-ai/claude-agent-sdk"))
-      const sdkCliJs = join(dirname(sdkPath), "cli.js")
-      if (existsSync(sdkCliJs)) {
-        cachedClaudePath = sdkCliJs
-        return sdkCliJs
-      }
-    } catch {}
+    // The SDK runs cli.js via bun or node depending on the current runtime:
+    //   getDefaultExecutable() → "bun" if process.versions.bun, else "node"
+    //
+    // When run via node (bun not installed/not the runtime), cli.js + the
+    // --permission-mode bypassPermissions flag exits with code 1. This is
+    // the root cause of issue #203.
+    //
+    // Resolution order:
+    //   1. If running under bun: cli.js works correctly — use it
+    //   2. System claude binary: standalone, no runtime dependency, always safe
+    //   3. Last resort: cli.js via node (may fail for some permission modes)
+    const runningUnderBun = typeof process.versions.bun !== "undefined"
 
-    // 2. Try the system-installed claude binary
+    // 1. SDK bundled cli.js — only when bun is the runtime
+    if (runningUnderBun) {
+      try {
+        const sdkPath = fileURLToPath(import.meta.resolve("@anthropic-ai/claude-agent-sdk"))
+        const sdkCliJs = join(dirname(sdkPath), "cli.js")
+        if (existsSync(sdkCliJs)) {
+          cachedClaudePath = sdkCliJs
+          return sdkCliJs
+        }
+      } catch {}
+    }
+
+    // 2. System-installed claude binary (standalone — no runtime dependency)
     try {
       const { stdout } = await exec("which claude")
       const claudePath = stdout.trim()
@@ -148,6 +163,18 @@ export async function resolveClaudeExecutableAsync(): Promise<string> {
         return claudePath
       }
     } catch {}
+
+    // 3. Last resort: SDK cli.js via node (limited — bypassPermissions may fail)
+    if (!runningUnderBun) {
+      try {
+        const sdkPath = fileURLToPath(import.meta.resolve("@anthropic-ai/claude-agent-sdk"))
+        const sdkCliJs = join(dirname(sdkPath), "cli.js")
+        if (existsSync(sdkCliJs)) {
+          cachedClaudePath = sdkCliJs
+          return sdkCliJs
+        }
+      } catch {}
+    }
 
     throw new Error("Could not find Claude Code executable. Install via: npm install -g @anthropic-ai/claude-code")
   })()
