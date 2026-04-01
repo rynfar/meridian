@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "bun:test"
-import { parseAgentDescriptions, buildAgentDefinitions, mapModelTier } from "../proxy/agentDefs"
+import { parseAgentDescriptions, buildAgentDefinitions, mapModelTier } from "../proxy/adapters/opencode"
 
 const SAMPLE_TASK_DESCRIPTION = `Launch a new agent to handle complex, multistep tasks autonomously.
 

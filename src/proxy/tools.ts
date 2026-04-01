@@ -1,9 +1,8 @@
 /**
- * Tool blocking lists and MCP tool configuration.
+ * Shared tool blocking lists.
  *
- * NOTE: These lists are currently OpenCode-specific. When the adapter pattern
- * is implemented, these will move into the OpenCode adapter and become
- * configurable per-agent. See DEFERRED.md.
+ * These lists are used by multiple adapters (OpenCode, Droid, Crush) to block
+ * SDK built-in tools so Claude uses the agent's MCP equivalents instead.
  */
 
 /**
@@ -17,26 +16,20 @@ export const BLOCKED_BUILTIN_TOOLS = [
 ]
 
 /**
- * Claude Code SDK tools that have NO equivalent in the calling agent (OpenCode).
- * Only block these — everything else either has an agent equivalent
- * or is handled by the agent's own tool system.
- *
- * Tools where the agent has an equivalent but with a DIFFERENT name/schema
- * are blocked so Claude uses the agent's version instead of the SDK's.
+ * Claude Code SDK tools that have NO equivalent in the calling agent.
+ * Block these so Claude doesn't try to use tools the agent can't handle.
  */
 export const CLAUDE_CODE_ONLY_TOOLS = [
   "ToolSearch",        // Claude Code deferred tool loading (internal mechanism)
   "CronCreate",        // Claude Code cron jobs
   "CronDelete",        // Claude Code cron jobs
   "CronList",          // Claude Code cron jobs
-  "EnterPlanMode",     // Claude Code mode switching (OpenCode uses plan agent instead)
+  "EnterPlanMode",     // Claude Code mode switching
   "ExitPlanMode",      // Claude Code mode switching
   "EnterWorktree",     // Claude Code git worktree management
   "ExitWorktree",      // Claude Code git worktree management
   "NotebookEdit",      // Jupyter notebook editing
-  // Schema-incompatible: SDK tool name differs from OpenCode's.
-  // If Claude calls the SDK version, OpenCode won't recognize it.
-  // Block the SDK's so Claude only sees OpenCode's definitions.
+  // Schema-incompatible: SDK tool name differs from the agent's.
   "TodoWrite",         // OpenCode: todowrite (requires 'priority' field)
   "AskUserQuestion",   // OpenCode: question
   "Skill",             // OpenCode: skill / skill_mcp / slashcommand
@@ -44,17 +37,4 @@ export const CLAUDE_CODE_ONLY_TOOLS = [
   "TaskOutput",        // OpenCode: background_output
   "TaskStop",          // OpenCode: background_cancel
   "WebSearch",         // OpenCode: websearch_web_search_exa
-]
-
-/** MCP server name used by the calling agent */
-export const MCP_SERVER_NAME = "opencode"
-
-/** MCP tools that are allowed through the proxy's tool filter */
-export const ALLOWED_MCP_TOOLS = [
-  `mcp__${MCP_SERVER_NAME}__read`,
-  `mcp__${MCP_SERVER_NAME}__write`,
-  `mcp__${MCP_SERVER_NAME}__edit`,
-  `mcp__${MCP_SERVER_NAME}__bash`,
-  `mcp__${MCP_SERVER_NAME}__glob`,
-  `mcp__${MCP_SERVER_NAME}__grep`
 ]

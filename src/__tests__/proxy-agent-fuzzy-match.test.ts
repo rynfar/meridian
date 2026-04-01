@@ -11,7 +11,7 @@
 import { describe, it, expect } from "bun:test"
 
 // Import the matching function directly
-import { fuzzyMatchAgentName } from "../proxy/agentMatch"
+import { fuzzyMatchAgentName } from "../proxy/adapters/opencode"
 
 describe("fuzzyMatchAgentName", () => {
   const validAgents = [

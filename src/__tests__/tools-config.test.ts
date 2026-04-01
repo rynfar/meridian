@@ -3,7 +3,8 @@
  * Guards against accidental changes to tool blocking lists.
  */
 import { describe, it, expect } from "bun:test"
-import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
+import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../proxy/tools"
+import { openCodeAdapter } from "../proxy/adapters/opencode"
 
 describe("tool configuration", () => {
   it("BLOCKED_BUILTIN_TOOLS contains expected core tools", () => {
@@ -28,23 +29,25 @@ describe("tool configuration", () => {
     expect(CLAUDE_CODE_ONLY_TOOLS).toContain("EnterWorktree")
   })
 
-  it("MCP_SERVER_NAME is opencode", () => {
-    expect(MCP_SERVER_NAME).toBe("opencode")
+  it("OpenCode adapter MCP server name is opencode", () => {
+    expect(openCodeAdapter.getMcpServerName()).toBe("opencode")
   })
 
-  it("ALLOWED_MCP_TOOLS uses MCP_SERVER_NAME prefix", () => {
-    for (const tool of ALLOWED_MCP_TOOLS) {
-      expect(tool).toStartWith(`mcp__${MCP_SERVER_NAME}__`)
+  it("OpenCode adapter MCP tools use correct prefix", () => {
+    const mcpTools = openCodeAdapter.getAllowedMcpTools()
+    for (const tool of mcpTools) {
+      expect(tool).toStartWith(`mcp__${openCodeAdapter.getMcpServerName()}__`)
     }
   })
 
-  it("ALLOWED_MCP_TOOLS contains all 6 MCP tools", () => {
-    expect(ALLOWED_MCP_TOOLS).toHaveLength(6)
-    expect(ALLOWED_MCP_TOOLS).toContain("mcp__opencode__read")
-    expect(ALLOWED_MCP_TOOLS).toContain("mcp__opencode__write")
-    expect(ALLOWED_MCP_TOOLS).toContain("mcp__opencode__edit")
-    expect(ALLOWED_MCP_TOOLS).toContain("mcp__opencode__bash")
-    expect(ALLOWED_MCP_TOOLS).toContain("mcp__opencode__glob")
-    expect(ALLOWED_MCP_TOOLS).toContain("mcp__opencode__grep")
+  it("OpenCode adapter MCP tools contains all 6 MCP tools", () => {
+    const mcpTools = openCodeAdapter.getAllowedMcpTools()
+    expect(mcpTools).toHaveLength(6)
+    expect(mcpTools).toContain("mcp__opencode__read")
+    expect(mcpTools).toContain("mcp__opencode__write")
+    expect(mcpTools).toContain("mcp__opencode__edit")
+    expect(mcpTools).toContain("mcp__opencode__bash")
+    expect(mcpTools).toContain("mcp__opencode__glob")
+    expect(mcpTools).toContain("mcp__opencode__grep")
   })
 })
