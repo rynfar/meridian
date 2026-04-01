@@ -376,18 +376,6 @@ See [`examples/opencode-plugin/`](examples/opencode-plugin/) for a reference imp
 | `GET /telemetry/summary` | Aggregate statistics (JSON) |
 | `GET /telemetry/logs` | Diagnostic logs (JSON) |
 
-## Docker
-
-```bash
-docker run -v ~/.claude:/home/claude/.claude -p 3456:3456 meridian
-```
-
-Or with docker-compose:
-
-```bash
-docker compose up -d
-```
-
 ## Testing
 
 ```bash

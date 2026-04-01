@@ -111,19 +111,7 @@ No changes needed. The `baseUrl` in `~/.factory/settings.json` points at `http:/
 ### Cline
 No changes needed. The `anthropicBaseUrl` in `~/.cline/data/globalState.json` points at `http://127.0.0.1:3456` — this hasn't changed.
 
-## 7. Docker
-
-```bash
-# Old
-docker pull opencode-claude-max-proxy
-
-# New
-docker pull meridian
-```
-
-The `docker-compose.yml` image name changes from `claude-max-proxy` to `meridian`.
-
-## 8. GitHub Repository
+## 7. GitHub Repository
 
 The repository URL will change from:
 ```
