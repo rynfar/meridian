@@ -965,6 +965,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     }
                     eventsForwarded += 1
 
+                    // NOTE: agent-specific (passthrough mode) — break immediately when
+                    // the model stops for tool_use so the client can execute the tools
+                    // and send results back. Without this the SDK executes the passthrough
+                    // MCP no-op (→ "passthrough"), feeds that back to the model, and the
+                    // model produces an incorrect fallback response which gets forwarded.
+                    if (
+                      passthrough &&
+                      eventType === "message_delta" &&
+                      (event as any).delta?.stop_reason === "tool_use" &&
+                      streamedToolUseIds.size > 0
+                    ) {
+                      safeEnqueue(
+                        encoder.encode(`event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`),
+                        "passthrough_tool_stream_stop"
+                      )
+                      streamClosed = true
+                      controller.close()
+                      break
+                    }
+
                     if (eventType === "content_block_delta") {
                       const delta = (event as any).delta
                       if (delta?.type === "text_delta") {

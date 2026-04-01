@@ -61,7 +61,12 @@ export function buildQueryOptions(ctx: QueryContext) {
   return {
     prompt,
     options: {
-      maxTurns: passthrough ? 1 : 200,
+      // NOTE: agent-specific (passthrough mode) — 2 turns are required, not 1.
+      // Turn 1: model generates tool_use blocks (captured by PreToolUse hook).
+      // Turn 2: SDK processes the blocked-tool handoff before the generator
+      //         returns. maxTurns: 1 throws "Reached maximum number of turns (1)"
+      //         before the response is complete, causing HTTP 500s.
+      maxTurns: passthrough ? 2 : 200,
       cwd: workingDirectory,
       model,
       pathToClaudeCodeExecutable: claudeExecutable,

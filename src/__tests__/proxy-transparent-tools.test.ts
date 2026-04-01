@@ -2,7 +2,7 @@
  * Phase 2: Transparent Tool Handling Tests
  *
  * The proxy must NOT define its own tools. Instead, it should:
- * 1. Use maxTurns: 1 so Claude returns tool_use to the client (not executing internally)
+ * 1. Use maxTurns: 2 so Claude returns tool_use to the client (not executing internally)
  * 2. Not inject MCP tools or blocked/allowed tool lists
  * 3. Let OpenCode control the tool execution loop
  *
