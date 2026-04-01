@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.2](https://github.com/rynfar/meridian/compare/v1.22.1...v1.22.2) (2026-04-01)
+
+
+### Bug Fixes
+
+* passthrough mode tool_use broken for multi-turn and streaming ([#207](https://github.com/rynfar/meridian/issues/207)) ([ae2e941](https://github.com/rynfar/meridian/commit/ae2e941d0c47ad35b7dcd4b07c114aabb31be3a1))
+
 ## [1.22.1](https://github.com/rynfar/meridian/compare/v1.22.0...v1.22.1) (2026-03-30)
 
 
