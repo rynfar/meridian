@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/rynfar/meridian/compare/v1.22.2...v1.23.0) (2026-04-01)
+
+
+### Features
+
+* add env var to disable file change summaries ([#209](https://github.com/rynfar/meridian/issues/209)) ([374293f](https://github.com/rynfar/meridian/commit/374293feab42d554cf7dd41df377ac9e1d6a2c50))
+
 ## [1.22.2](https://github.com/rynfar/meridian/compare/v1.22.1...v1.22.2) (2026-04-01)
 
 
