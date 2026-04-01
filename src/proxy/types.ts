@@ -23,10 +23,12 @@ export interface ProxyServer {
   config: ProxyConfig
 }
 
+import { envBool } from "../env"
+
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   port: 3456,
   host: "127.0.0.1",
-  debug: (process.env.MERIDIAN_DEBUG ?? process.env.CLAUDE_PROXY_DEBUG) === "1",
+  debug: envBool("DEBUG"),
   idleTimeoutSeconds: 120,
   silent: false,
 }

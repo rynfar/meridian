@@ -5,6 +5,7 @@
 import { existsSync } from "fs"
 import { fileURLToPath } from "url"
 import { join, dirname } from "path"
+import { env } from "../env"
 
 export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku"
 export interface ClaudeAuthStatus {
@@ -44,7 +45,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
 
   if (model.includes("opus")) return use1m ? "opus[1m]" : "opus"
 
-  const sonnetOverride = process.env.MERIDIAN_SONNET_MODEL ?? process.env.CLAUDE_PROXY_SONNET_MODEL
+  const sonnetOverride = env("SONNET_MODEL")
   if (sonnetOverride === "sonnet" || sonnetOverride === "sonnet[1m]") return sonnetOverride
 
   if (!use1m) return "sonnet"
@@ -55,7 +56,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
  * Strip the [1m] suffix from a model, returning the base variant.
  * Used for fallback when the 1M context window is rate-limited.
  */
-export function stripExtendedContext(model: ClaudeModel): ClaudeModel {
+export function stripExtendedContext(model: string): string {
   if (model === "opus[1m]") return "opus"
   if (model === "sonnet[1m]") return "sonnet"
   return model
@@ -64,7 +65,7 @@ export function stripExtendedContext(model: ClaudeModel): ClaudeModel {
 /**
  * Check whether a model is using extended (1M) context.
  */
-export function hasExtendedContext(model: ClaudeModel): boolean {
+export function hasExtendedContext(model: string): boolean {
   return model.endsWith("[1m]")
 }
 

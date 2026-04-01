@@ -150,23 +150,14 @@ describe("Session cache LRU eviction", () => {
 })
 
 describe("Max session env parsing", () => {
-  it("falls back to default and logs warning for invalid values", () => {
+  it("falls back to default for invalid values", () => {
     const original = process.env.CLAUDE_PROXY_MAX_SESSIONS
-    const originalWarn = console.warn
-    const warnings: string[] = []
 
     process.env.CLAUDE_PROXY_MAX_SESSIONS = "not-a-number"
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args.map((arg) => String(arg)).join(" "))
-    }
 
     try {
       expect(getMaxSessionsLimit()).toBe(1000)
-      expect(warnings.length).toBe(1)
-      expect(warnings[0]).toContain("MERIDIAN_MAX_SESSIONS")
-      expect(warnings[0]).toContain("using default 1000")
     } finally {
-      console.warn = originalWarn
       if (original === undefined) delete process.env.CLAUDE_PROXY_MAX_SESSIONS
       else process.env.CLAUDE_PROXY_MAX_SESSIONS = original
     }

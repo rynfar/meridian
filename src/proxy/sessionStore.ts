@@ -23,6 +23,7 @@ import {
 } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { env, envInt } from "../env"
 
 export interface StoredSession {
   claudeSessionId: string
@@ -44,11 +45,7 @@ const DEFAULT_MAX_STORED_SESSIONS = 10_000
 const STALE_LOCK_THRESHOLD_MS = 30_000
 
 function getMaxStoredSessions(): number {
-  const raw = process.env.MERIDIAN_MAX_STORED_SESSIONS ?? process.env.CLAUDE_PROXY_MAX_STORED_SESSIONS
-  if (!raw) return DEFAULT_MAX_STORED_SESSIONS
-  const parsed = Number.parseInt(raw, 10)
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_STORED_SESSIONS
-  return parsed
+  return envInt("MAX_STORED_SESSIONS", DEFAULT_MAX_STORED_SESSIONS)
 }
 
 function acquireLock(lockPath: string): boolean {
@@ -103,8 +100,7 @@ export function setSessionStoreDir(dir: string | null, opts?: { skipLocking?: bo
 
 function getStorePath(): string {
   const dir = sessionDirOverride
-    || process.env.MERIDIAN_SESSION_DIR
-    || process.env.CLAUDE_PROXY_SESSION_DIR
+    || env("SESSION_DIR")
     || getDefaultCacheDir()
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true })

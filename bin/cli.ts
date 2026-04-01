@@ -5,6 +5,7 @@ import { startProxyServer } from "../src/proxy/server"
 import { supervise } from "../src/supervisor"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
+import { envInt, envOr } from "../src/env"
 
 const require = createRequire(import.meta.url)
 const { version } = require("../package.json")
@@ -40,9 +41,9 @@ See https://github.com/rynfar/meridian for full documentation.`)
 
 const exec = promisify(execCallback)
 
-const port = parseInt(process.env.MERIDIAN_PORT ?? process.env.CLAUDE_PROXY_PORT ?? "3456", 10)
-const host = process.env.MERIDIAN_HOST ?? process.env.CLAUDE_PROXY_HOST ?? "127.0.0.1"
-const idleTimeoutSeconds = parseInt(process.env.MERIDIAN_IDLE_TIMEOUT_SECONDS ?? process.env.CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS ?? "120", 10)
+const port = envInt("PORT", 3456)
+const host = envOr("HOST", "127.0.0.1")
+const idleTimeoutSeconds = envInt("IDLE_TIMEOUT_SECONDS", 120)
 
 export async function runCli(
   start = startProxyServer,

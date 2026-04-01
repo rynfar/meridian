@@ -5,6 +5,7 @@
  * coordinates with the shared file store for cross-proxy session resume.
  */
 
+import { envInt } from "../../env"
 import { LRUMap } from "../../utils/lruMap"
 import { lookupSharedSession, storeSharedSession, clearSharedSessions, evictSharedSession } from "../sessionStore"
 import { getConversationFingerprint } from "./fingerprint"
@@ -21,16 +22,7 @@ import {
 const DEFAULT_MAX_SESSIONS = 1000
 
 export function getMaxSessionsLimit(): number {
-  const raw = process.env.MERIDIAN_MAX_SESSIONS ?? process.env.CLAUDE_PROXY_MAX_SESSIONS
-  if (!raw) return DEFAULT_MAX_SESSIONS
-
-  const parsed = Number.parseInt(raw, 10)
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    console.warn(`[PROXY] Invalid MERIDIAN_MAX_SESSIONS value "${raw}"; using default ${DEFAULT_MAX_SESSIONS}`)
-    return DEFAULT_MAX_SESSIONS
-  }
-
-  return parsed
+  return envInt("MAX_SESSIONS", DEFAULT_MAX_SESSIONS)
 }
 
 function removeFingerprintEntriesByClaudeSessionId(claudeSessionId: string): void {
