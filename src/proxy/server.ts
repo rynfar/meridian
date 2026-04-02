@@ -181,6 +181,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
       try {
         const body = await c.req.json()
+
+        // Validate required fields
+        if (!Array.isArray(body.messages)) {
+          return c.json(
+            { type: "error", error: { type: "invalid_request_error", message: "messages: Field required" } },
+            400
+          )
+        }
+
         const authStatus = await getClaudeAuthStatusAsync()
         const agentMode = c.req.header("x-opencode-agent-mode") ?? null
         let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType, agentMode)

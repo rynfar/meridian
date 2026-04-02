@@ -153,4 +153,20 @@ describe("Error classification", () => {
     const res = await post(app, BASIC_REQUEST)
     expect(res.status).toBe(200)
   })
+
+  it("should return 400 for missing messages field", async () => {
+    const app = createTestApp()
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      // Intentionally omit 'messages' field
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.type).toBe("error")
+    expect(body.error.type).toBe("invalid_request_error")
+    expect(body.error.message).toContain("messages")
+  })
 })

@@ -628,7 +628,7 @@ curl -s -w "\n%{http_code}" http://127.0.0.1:3456/v1/messages
 
 **Pass criteria:**
 - Malformed JSON → HTTP 500, `{"type":"error","error":{"type":"api_error",...}}`
-- Missing messages → HTTP 500, structured error
+- Missing messages → HTTP 400, `{"type":"error","error":{"type":"invalid_request_error","message":"messages: Field required"}}`
 - Unknown endpoint → HTTP 404, `{"error":{"type":"not_found",...}}`
 - GET on POST endpoint → HTTP 404, `{"error":{"type":"not_found",...}}`
 - Proxy does NOT crash on any of these
