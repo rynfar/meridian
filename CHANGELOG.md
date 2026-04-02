@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.5](https://github.com/rynfar/meridian/compare/v1.24.4...v1.24.5) (2026-04-02)
+
+
+### Bug Fixes
+
+* run proxy-extra-usage-fallback in isolation to prevent mock leak ([287dd9a](https://github.com/rynfar/meridian/commit/287dd9a87676a642bcc3b87b8474a37dbb6cc5c3))
+
 ## [1.24.4](https://github.com/rynfar/meridian/compare/v1.24.3...v1.24.4) (2026-04-02)
 
 
