@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.2](https://github.com/rynfar/meridian/compare/v1.24.1...v1.24.2) (2026-04-02)
+
+
+### Bug Fixes
+
+* fall back from sonnet[1m] to sonnet when extra usage not enabled ([#228](https://github.com/rynfar/meridian/issues/228)) ([7104d15](https://github.com/rynfar/meridian/commit/7104d156cbdcfb9eff16f949c29df3a26914fe20)), closes [#227](https://github.com/rynfar/meridian/issues/227)
+
 ## [1.24.1](https://github.com/rynfar/meridian/compare/v1.24.0...v1.24.1) (2026-04-01)
 
 
