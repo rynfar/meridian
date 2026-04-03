@@ -76,6 +76,7 @@ kill $(lsof -ti :3456)
 | FC5 | [File Changes: Multiple ops](#fc5-file-changes-multiple-ops) | Multiple writes + edits listed in a single summary | 2026-03-30 |
 | FC6 | [File Changes: Multiple ops (stream)](#fc6-file-changes-multiple-ops-stream) | Multiple file changes emitted as a text block in SSE stream | 2026-03-30 |
 | E22 | [OAuth Token Refresh](#e22-oauth-token-refresh) | Expired access token auto-refreshed inline; request succeeds without manual `claude login` | 2026-04-02 |
+| E23 | [Subagent Model Selection](#e23-subagent-model-selection) | `x-opencode-agent-mode: subagent` header selects base model; primary gets 1M; proxy log shows `agent=subagent` | 2026-04-02 |
 
 ---
 
@@ -964,6 +965,66 @@ curl -s -X POST http://127.0.0.1:3456/auth/refresh
 
 ---
 
+## E23: Subagent Model Selection
+
+**Verifies:** When the `x-opencode-agent-mode: subagent` header is present, the proxy selects the base model (200k) instead of the 1M variant, conserving rate limit budget for the primary agent. The `meridian-agent-mode.ts` plugin sets this header automatically based on the agent's runtime `mode` field.
+
+### Part A — header routing (curl, no plugin needed)
+
+```bash
+# Primary agent → sonnet[1m]
+curl -s http://127.0.0.1:3456/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "x-opencode-agent-mode: primary" \
+  -d '{"model":"claude-sonnet-4-6","max_tokens":10,"stream":false,"messages":[{"role":"user","content":"hi"}]}' > /dev/null
+# Proxy log: model=sonnet[1m] ... agent=primary
+
+# Subagent → sonnet (base)
+curl -s http://127.0.0.1:3456/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "x-opencode-agent-mode: subagent" \
+  -d '{"model":"claude-sonnet-4-6","max_tokens":10,"stream":false,"messages":[{"role":"user","content":"hi"}]}' > /dev/null
+# Proxy log: model=sonnet ... agent=subagent
+```
+
+**Pass criteria (Part A):**
+- Primary request proxy log: `model=sonnet[1m] ... agent=primary`
+- Subagent request proxy log: `model=sonnet ... agent=subagent` — base model, no `[1m]`
+- No header → `model=sonnet[1m]` (default primary behaviour)
+
+### Part B — plugin integration (requires OpenCode)
+
+**Setup:**
+```bash
+# 1. Copy the plugin into your project
+cp /path/to/meridian/examples/opencode-plugin/meridian-agent-mode.ts ./meridian-agent-mode.ts
+
+# 2. Add to opencode.json
+# { "plugin": ["./claude-max-headers.ts", "./meridian-agent-mode.ts"] }
+
+# 3. Create a named agent (e.g. ~/.config/opencode/agents/researcher.md)
+# The agent's frontmatter mode determines primary vs subagent
+```
+
+**Test:**
+```bash
+# Run a task that uses the Task tool to spawn the researcher agent
+opencode run --model anthropic/claude-sonnet-4-6 \
+  "Use the researcher agent to find out what day it is, then summarise."
+```
+
+**Pass criteria (Part B):**
+- Primary session log line: `model=sonnet[1m] agent=primary`
+- Subagent session log line: `model=sonnet agent=subagent`
+- Both requests succeed — no errors
+- Two distinct proxy log entries visible (parent + subagent turn)
+
+**What's being tested:** `mapModelToClaudeModel()` `agentMode` parameter in `models.ts`, `x-opencode-agent-mode` header reading in `server.ts`, and the `meridian-agent-mode.ts` plugin's use of `(incoming.agent as any).mode` to detect subagents without any API calls.
+
+---
+
 ## Adding New E2E Tests
 
 When extending this document:
@@ -1029,7 +1090,7 @@ Which proxy modules each E2E test exercises:
 | *(default adapter — no Cline adapter needed)* | CL1–CL8 |
 | `errors.ts` | E16, E22 |
 | `tokenRefresh.ts` | E22 |
-| `models.ts` | E14 |
+| `models.ts` | E14, E23 |
 | `messages.ts` | E4, E5, E6 (content normalization for hashing) |
 | `tools.ts` | E3, E17, E19 |
 | `agentDefs.ts` | E19 |

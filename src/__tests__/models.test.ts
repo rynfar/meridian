@@ -56,6 +56,39 @@ describe("mapModelToClaudeModel", () => {
     process.env.CLAUDE_PROXY_SONNET_MODEL = "sonnet"
     expect(mapModelToClaudeModel("sonnet", "max")).toBe("sonnet")
   })
+
+  describe("subagent mode", () => {
+    it("gives subagents base sonnet regardless of subscription", () => {
+      expect(mapModelToClaudeModel("claude-sonnet-4-6", "max", "subagent")).toBe("sonnet")
+      expect(mapModelToClaudeModel("sonnet", "max", "subagent")).toBe("sonnet")
+    })
+
+    it("gives subagents base opus regardless of subscription", () => {
+      expect(mapModelToClaudeModel("claude-opus-4-6", "max", "subagent")).toBe("opus")
+      expect(mapModelToClaudeModel("opus", "max", "subagent")).toBe("opus")
+    })
+
+    it("haiku is unaffected by agent mode", () => {
+      expect(mapModelToClaudeModel("claude-haiku-4-5", "max", "subagent")).toBe("haiku")
+    })
+
+    it("primary agents still get 1m models for max subscription", () => {
+      expect(mapModelToClaudeModel("claude-sonnet-4-6", "max", "primary")).toBe("sonnet[1m]")
+      expect(mapModelToClaudeModel("claude-opus-4-6", "max", "primary")).toBe("opus[1m]")
+    })
+
+    it("null or missing agentMode behaves as primary", () => {
+      expect(mapModelToClaudeModel("claude-sonnet-4-6", "max", null)).toBe("sonnet[1m]")
+      expect(mapModelToClaudeModel("claude-sonnet-4-6", "max", undefined)).toBe("sonnet[1m]")
+      expect(mapModelToClaudeModel("claude-sonnet-4-6", "max")).toBe("sonnet[1m]")
+    })
+
+    it("env var override takes priority over subagent mode for sonnet", () => {
+      process.env.CLAUDE_PROXY_SONNET_MODEL = "sonnet[1m]"
+      // Override wins — useful if operator explicitly wants 1m everywhere
+      expect(mapModelToClaudeModel("sonnet", "max", "subagent")).toBe("sonnet[1m]")
+    })
+  })
 })
 
 describe("getClaudeAuthStatusAsync", () => {
