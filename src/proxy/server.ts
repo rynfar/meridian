@@ -19,6 +19,7 @@ import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml } fro
 import type { RequestMetric } from "../telemetry"
 import { classifyError, isStaleSessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
 import { refreshOAuthToken } from "./tokenRefresh"
+import { checkPluginConfigured } from "./setup"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, isClosedControllerError, getClaudeAuthStatusAsync, hasExtendedContext, stripExtendedContext } from "./models"
 import { getLastUserMessage } from "./messages"
 import { detectAdapter } from "./adapters/detect"
@@ -1386,6 +1387,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           subscriptionType: auth.subscriptionType,
         },
         mode: (process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH) ? "passthrough" : "internal",
+        plugin: { opencode: checkPluginConfigured() ? "configured" : "not-configured" },
       })
     } catch {
       return c.json({

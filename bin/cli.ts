@@ -24,6 +24,7 @@ Usage: meridian [command] [options]
 
 Commands:
   (default)        Start the proxy server
+  setup            Configure the OpenCode plugin (run once after install)
   refresh-token    Refresh the Claude Code OAuth token
 
 Options:
@@ -37,6 +38,28 @@ Environment variables:
   MERIDIAN_IDLE_TIMEOUT_SECONDS     Idle timeout in seconds (default: 120)
 
 See https://github.com/rynfar/meridian for full documentation.`)
+  process.exit(0)
+}
+
+if (args[0] === "setup") {
+  const { findPluginPath, runSetup } = await import("../src/proxy/setup")
+  const pluginPath = findPluginPath(import.meta.url)
+  const result = runSetup(pluginPath)
+
+  if (result.alreadyConfigured) {
+    console.log(`\x1b[32m✓ Meridian plugin already configured\x1b[0m`)
+    console.log(`  ${result.configPath}`)
+  } else {
+    if (result.removedStale.length > 0) {
+      console.log(`  Removed ${result.removedStale.length} stale plugin entr${result.removedStale.length === 1 ? "y" : "ies"}`)
+    }
+    console.log(`\x1b[32m✓ Meridian plugin configured\x1b[0m`)
+    console.log(`  Config: ${result.configPath}`)
+    console.log(`  Plugin: ${result.pluginPath}`)
+    if (!result.created) {
+      console.log(`\nRestart OpenCode for the plugin to take effect.`)
+    }
+  }
   process.exit(0)
 }
 
@@ -70,6 +93,20 @@ export async function runCli(
   start = startProxyServer,
   runExec: typeof exec = exec
 ) {
+  // Plugin check — warn if OpenCode config exists but meridian plugin is missing
+  try {
+    const { findOpencodeConfigPath, checkPluginConfigured, findPluginPath } = await import("../src/proxy/setup")
+    const configPath = findOpencodeConfigPath()
+    const { existsSync } = await import("fs")
+    if (existsSync(configPath) && !checkPluginConfigured(configPath)) {
+      const pluginPath = findPluginPath(import.meta.url)
+      console.error("\x1b[33m⚠ Meridian plugin not found in OpenCode config.\x1b[0m")
+      console.error("  Session tracking and subagent model selection won\'t work.")
+      console.error(`  Fix: meridian setup`)
+      console.error("")
+    }
+  } catch { /* non-fatal */ }
+
   // Pre-flight auth check
   try {
     const { stdout } = await runExec("claude auth status", { timeout: 5000 })

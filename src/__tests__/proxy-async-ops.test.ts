@@ -28,7 +28,7 @@ describe("proxy async ops", () => {
     if (body.status === "healthy") {
       expect(typeof body.auth.loggedIn).toBe("boolean")
       expect(body.auth.loggedIn).toBe(true)
-      expect(Object.keys(body).sort()).toEqual(["auth", "mode", "status"])
+      expect(Object.keys(body).sort()).toEqual(["auth", "mode", "plugin", "status"])
     }
 
     if (body.status === "unhealthy") {

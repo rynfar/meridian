@@ -11,9 +11,7 @@
 
 ---
 
-Meridian turns your Claude Max subscription into a local Anthropic API. Any tool that speaks the Anthropic protocol — OpenCode, Crush, Cline, Continue, Aider — connects to Meridian and gets Claude, powered by your existing subscription through the official Claude Code SDK.
-
-Harness Claude, your way.
+Meridian turns your Claude Max subscription into a local Anthropic API. Any tool that speaks the Anthropic protocol — OpenCode, Crush, Cline, Aider — connects to Meridian and gets Claude, powered by your existing subscription through the official Claude Code SDK.
 
 > [!NOTE]
 > **Renamed from `opencode-claude-max-proxy`.** If you're upgrading, see [`MIGRATION.md`](MIGRATION.md) for the checklist. Your existing sessions, env vars, and agent configs all continue to work.
@@ -21,17 +19,20 @@ Harness Claude, your way.
 ## Quick Start
 
 ```bash
-# Install
+# 1. Install
 npm install -g @rynfar/meridian
 
-# Authenticate (one time)
+# 2. Authenticate (one time)
 claude login
 
-# Start
+# 3. Configure OpenCode plugin (one time — OpenCode users only)
+meridian setup
+
+# 4. Start
 meridian
 ```
 
-Meridian starts on `http://127.0.0.1:3456`. Point any Anthropic-compatible tool at it:
+Meridian runs on `http://127.0.0.1:3456`. Point any Anthropic-compatible tool at it:
 
 ```bash
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 opencode
@@ -43,7 +44,7 @@ The API key value doesn't matter — Meridian authenticates through your Claude 
 
 You're paying for Claude Max. It includes programmatic access through the Claude Code SDK. But your favorite coding tools expect an Anthropic API endpoint and an API key.
 
-Meridian bridges that gap. It runs locally, accepts standard Anthropic API requests, and routes them through the SDK using your Max subscription. Claude does the work — Meridian just lets you pick the tool.
+Meridian bridges that gap. It runs locally, accepts standard Anthropic API requests, and routes them through the SDK using your Max subscription.
 
 <p align="center">
   <img src="assets/how-it-works.svg" alt="How Meridian works" width="920"/>
@@ -51,25 +52,45 @@ Meridian bridges that gap. It runs locally, accepts standard Anthropic API reque
 
 ## Features
 
-- **Standard Anthropic API** — drop-in compatible with any tool that supports custom `base_url`
+- **Standard Anthropic API** — drop-in compatible with any tool that supports a custom `base_url`
 - **Session management** — conversations persist across requests, survive compaction and undo, resume after proxy restarts
 - **Streaming** — full SSE streaming with MCP tool filtering
-- **Concurrent sessions** — run parent + subagent requests in parallel
+- **Concurrent sessions** — run parent and subagent requests in parallel
+- **Subagent model selection** — primary agents get 1M context; subagents get 200k, preserving rate-limit budget
+- **Auto token refresh** — expired OAuth tokens are refreshed automatically; requests continue without interruption
 - **Passthrough mode** — forward tool calls to the client instead of executing internally
 - **Multimodal** — images, documents, and file attachments pass through to Claude
 - **Telemetry dashboard** — real-time performance metrics at `/telemetry`
-- **Cross-proxy resume** — sessions persist to disk and survive restarts
-- **Agent adapter pattern** — extensible architecture for supporting new agent protocols
 
 ## Agent Setup
 
 ### OpenCode
 
+**Step 1: Run `meridian setup` (required, one time)**
+
+```bash
+meridian setup
+```
+
+This adds the Meridian plugin to your OpenCode global config (`~/.config/opencode/opencode.json`). The plugin enables:
+
+- **Session tracking** — reliable conversation continuity across requests
+- **Subagent model selection** — primary agents use `sonnet[1m]`; subagents automatically use `sonnet` (200k), preserving your 1M context rate-limit budget
+
+If the plugin is missing, Meridian warns at startup and reports `"plugin": "not-configured"` in the health endpoint.
+
+**Step 2: Start**
+
 ```bash
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 opencode
 ```
 
-For automatic session tracking, use a plugin like [opencode-with-claude](https://github.com/ianjwhite99/opencode-with-claude), or see the [reference plugin](examples/opencode-plugin/claude-max-headers.ts) to build your own.
+Or set these in your shell profile so they're always active:
+
+```bash
+export ANTHROPIC_API_KEY=x
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
+```
 
 ### Crush
 
@@ -94,75 +115,38 @@ Add a provider to `~/.config/crush/crush.json`:
 }
 ```
 
-Then use Meridian models in Crush:
-
 ```bash
 crush run --model meridian/claude-sonnet-4-6 "refactor this function"
 crush --model meridian/claude-opus-4-6       # interactive TUI
 ```
 
-Crush is automatically detected from its `Charm-Crush/` User-Agent — no extra configuration needed. In `crush run` headless mode all tool operations (read, write, bash) execute automatically without prompting.
+Crush is automatically detected from its `Charm-Crush/` User-Agent — no plugin needed.
 
 ### Droid (Factory AI)
 
-Droid connects via its BYOK (Bring Your Own Key) feature. This is a one-time setup.
-
-**1. Add Meridian as a custom model provider** in `~/.factory/settings.json`:
+Add Meridian as a custom model provider in `~/.factory/settings.json`:
 
 ```json
 {
   "customModels": [
-    {
-      "model": "claude-sonnet-4-6",
-      "name": "Sonnet 4.6 (1M — Meridian)",
-      "provider": "anthropic",
-      "baseUrl": "http://127.0.0.1:3456",
-      "apiKey": "x"
-    },
-    {
-      "model": "claude-opus-4-6",
-      "name": "Opus 4.6 (1M — Meridian)",
-      "provider": "anthropic",
-      "baseUrl": "http://127.0.0.1:3456",
-      "apiKey": "x"
-    },
-    {
-      "model": "claude-haiku-4-5-20251001",
-      "name": "Haiku 4.5 (Meridian)",
-      "provider": "anthropic",
-      "baseUrl": "http://127.0.0.1:3456",
-      "apiKey": "x"
-    }
+    { "model": "claude-sonnet-4-6",       "name": "Sonnet 4.6 (Meridian)", "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
+    { "model": "claude-opus-4-6",         "name": "Opus 4.6 (Meridian)",   "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
+    { "model": "claude-haiku-4-5-20251001", "name": "Haiku 4.5 (Meridian)", "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" }
   ]
 }
 ```
 
-The `apiKey` value doesn't matter — Meridian authenticates through your Claude Max session.
-
-**2. In the Droid TUI**, open the model selector (`/model`) and choose any `custom:claude-*` model.
-
-**How models map to Claude Max tiers:**
-
-| Model name in config | Claude Max tier |
-|---|---|
-| `claude-sonnet-4-6` | `sonnet[1m]` — Sonnet 4.6 with 1M context |
-| `claude-opus-4-6` | `opus[1m]` — Opus 4.6 with 1M context |
-| `claude-haiku-4-5-20251001` | `haiku` — Haiku 4.5 |
-| `claude-sonnet-4-5-*` | `sonnet` — Sonnet 4.5, no extended context |
-
-> **Note:** Droid automatically uses Meridian's internal tool execution mode regardless of the global `CLAUDE_PROXY_PASSTHROUGH` setting. No extra configuration needed.
+Then pick any `custom:claude-*` model in the Droid TUI. No plugin needed — Droid is automatically detected.
 
 ### Cline
 
-Cline CLI connects by setting `anthropicBaseUrl` in its config. This is a one-time setup.
-
-**1. Authenticate Cline with the Anthropic provider:**
+**1. Authenticate:**
 
 ```bash
 cline auth --provider anthropic --apikey "dummy" --modelid "claude-sonnet-4-6"
 ```
 
-**2. Add the proxy base URL** to `~/.cline/data/globalState.json`:
+**2. Set the proxy URL** in `~/.cline/data/globalState.json`:
 
 ```json
 {
@@ -172,81 +156,73 @@ cline auth --provider anthropic --apikey "dummy" --modelid "claude-sonnet-4-6"
 }
 ```
 
-**3. Run Cline:**
+**3. Run:**
 
 ```bash
-cline --yolo "refactor the login function"                       # interactive
-cline --yolo --model claude-opus-4-6 "review this codebase"      # opus
-cline --yolo --model claude-haiku-4-5-20251001 "quick question"  # haiku (fastest)
+cline --yolo "refactor the login function"
 ```
 
-No adapter or plugin needed — Cline uses the standard Anthropic SDK and falls through to the default adapter. All models (Sonnet 4.6, Opus 4.6, Haiku 4.5) route to their correct Claude Max tiers automatically.
+No plugin needed — Cline uses the standard Anthropic SDK.
 
 ### Aider
-
-Aider works out of the box — no plugin or config file needed:
 
 ```bash
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 \
   aider --model anthropic/claude-sonnet-4-5-20250929
 ```
 
-All standard aider features work: file editing, repo-map, git integration, multi-file changes.
-
-> **Note:** Aider's `--no-stream` flag is incompatible due to a litellm parsing issue — use the default streaming mode (no flag needed).
+> **Note:** `--no-stream` is incompatible due to a litellm parsing issue — use the default streaming mode.
 
 ### Any Anthropic-compatible tool
 
 ```bash
 export ANTHROPIC_API_KEY=x
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
-# Then start your tool normally
 ```
 
 ## Tested Agents
 
-| Agent | Status | Plugin | Notes |
-|-------|--------|--------|-------|
-| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | [opencode-with-claude](https://github.com/ianjwhite99/opencode-with-claude) | Full tool support, session resume, streaming, subagents |
-| [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see setup above) | Full tool support, session resume, streaming; one-time BYOK setup |
-| [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see setup above) | Full tool support, session resume, streaming, headless `crush run` |
-| [Cline](https://github.com/cline/cline) | ✅ Verified | Config (see setup above) | Full tool support, file read/write/edit, bash, session resume, all models |
-| [Continue](https://github.com/continuedev/continue) | 🔲 Untested | — | Should work — standard Anthropic API |
-| [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars (see setup above) | File editing, streaming; `--no-stream` broken (litellm bug) |
+| Agent | Status | Notes |
+|-------|--------|-------|
+| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | Requires `meridian setup` — full tool support, session resume, streaming, subagents |
+| [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see above) — full tool support, session resume, streaming |
+| [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see above) — full tool support, session resume, headless `crush run` |
+| [Cline](https://github.com/cline/cline) | ✅ Verified | Config (see above) — full tool support, file read/write/edit, bash, session resume |
+| [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars — file editing, streaming; `--no-stream` broken (litellm bug) |
+| [Continue](https://github.com/continuedev/continue) | 🔲 Untested | Should work — standard Anthropic API |
 
 Tested an agent or built a plugin? [Open an issue](https://github.com/rynfar/meridian/issues) and we'll add it.
 
 ## Architecture
 
-Meridian is built as a modular proxy with clean separation of concerns:
-
 ```
 src/proxy/
 ├── server.ts              ← HTTP orchestration (routes, SSE streaming, concurrency)
-├── adapter.ts             ← AgentAdapter interface (extensibility point)
+├── adapter.ts             ← AgentAdapter interface
 ├── adapters/
 │   ├── detect.ts          ← Agent detection from request headers
 │   ├── opencode.ts        ← OpenCode adapter
-│   ├── crush.ts           ← Crush (Charm) adapter
-│   ├── droid.ts           ← Droid (Factory AI) adapter
+│   ├── crush.ts           ← Crush adapter
+│   ├── droid.ts           ← Droid adapter
 │   └── passthrough.ts     ← LiteLLM passthrough adapter
 ├── query.ts               ← SDK query options builder
 ├── errors.ts              ← Error classification
-├── models.ts              ← Model mapping (sonnet/opus/haiku)
-├── tools.ts               ← Tool blocking lists
-├── messages.ts            ← Content normalization
+├── models.ts              ← Model mapping (sonnet/opus/haiku, agentMode)
+├── tokenRefresh.ts        ← Cross-platform OAuth token refresh
+├── setup.ts               ← OpenCode plugin configuration
 ├── session/
 │   ├── lineage.ts         ← Per-message hashing, mutation classification (pure)
 │   ├── fingerprint.ts     ← Conversation fingerprinting
 │   └── cache.ts           ← LRU session caches
 ├── sessionStore.ts        ← Cross-proxy file-based session persistence
-├── agentDefs.ts           ← Subagent definition extraction
 └── passthroughTools.ts    ← Tool forwarding mode
+plugin/
+└── meridian.ts            ← OpenCode plugin (session headers + agent mode)
 ```
 
 ### Session Management
 
-Sessions map agent conversations to Claude SDK sessions. Meridian classifies every incoming request:
+Every incoming request is classified:
 
 | Classification | What Happened | Action |
 |---------------|---------------|--------|
@@ -257,30 +233,9 @@ Sessions map agent conversations to Claude SDK sessions. Meridian classifies eve
 
 Sessions are stored in-memory (LRU) and persisted to `~/.cache/meridian/sessions.json` for cross-proxy resume.
 
-### Adding a New Agent
+### Agent Detection
 
-Implement the `AgentAdapter` interface in `src/proxy/adapters/`:
-
-```typescript
-interface AgentAdapter {
-  // Required
-  getSessionId(c: Context): string | undefined
-  extractWorkingDirectory(body: any): string | undefined
-  normalizeContent(content: any): string
-  getBlockedBuiltinTools(): readonly string[]
-  getAgentIncompatibleTools(): readonly string[]
-  getMcpServerName(): string
-  getAllowedMcpTools(): readonly string[]
-
-  // Optional
-  buildSdkAgents?(body: any, mcpToolNames: readonly string[]): Record<string, any>
-  buildSdkHooks?(body: any, sdkAgents: Record<string, any>): any
-  buildSystemContextAddendum?(body: any, sdkAgents: Record<string, any>): string
-  usesPassthrough?(): boolean  // overrides CLAUDE_PROXY_PASSTHROUGH per-agent
-}
-```
-
-Agent detection is automatic from the `User-Agent` header:
+Agents are identified from request headers automatically:
 
 | User-Agent prefix | Adapter |
 |---|---|
@@ -288,7 +243,9 @@ Agent detection is automatic from the `User-Agent` header:
 | `factory-cli/` | Droid |
 | *(anything else)* | OpenCode (default) |
 
-See [`adapters/detect.ts`](src/proxy/adapters/detect.ts) and [`adapters/opencode.ts`](src/proxy/adapters/opencode.ts) for reference.
+### Adding a New Agent
+
+Implement the `AgentAdapter` interface in `src/proxy/adapters/`. See [`adapters/opencode.ts`](src/proxy/adapters/opencode.ts) for a reference.
 
 ## Configuration
 
@@ -304,81 +261,59 @@ See [`adapters/detect.ts`](src/proxy/adapters/detect.ts) and [`adapters/opencode
 | `MERIDIAN_IDLE_TIMEOUT_SECONDS` | `CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS` | `120` | HTTP keep-alive timeout |
 | `MERIDIAN_TELEMETRY_SIZE` | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size |
 | `MERIDIAN_NO_FILE_CHANGES` | `CLAUDE_PROXY_NO_FILE_CHANGES` | unset | Disable "Files changed" summary in responses |
-| `MERIDIAN_SONNET_MODEL` | `CLAUDE_PROXY_SONNET_MODEL` | `sonnet[1m]`* | Force sonnet tier: `sonnet` (200k) or `sonnet[1m]` (1M). Set to `sonnet` if you hit 1M context rate limits frequently |
+| `MERIDIAN_SONNET_MODEL` | `CLAUDE_PROXY_SONNET_MODEL` | `sonnet[1m]`* | Force sonnet tier: `sonnet` (200k) or `sonnet[1m]` (1M). Set to `sonnet` if you hit 1M context rate limits |
 
-*`sonnet[1m]` only for Max subscribers with Extra Usage enabled; falls back to `sonnet` automatically otherwise.
-
-## Programmatic API
-
-Meridian can be used as a library for building agent plugins and integrations.
-
-```typescript
-import { startProxyServer } from "@rynfar/meridian"
-
-// Start a proxy instance
-const instance = await startProxyServer({
-  port: 3456,
-  host: "127.0.0.1",
-  silent: true,  // suppress console output
-})
-
-// instance.config  — resolved ProxyConfig
-// instance.server  — underlying http.Server
-
-// Shut down cleanly
-await instance.close()
-```
-
-### Session Header Contract
-
-For reliable session tracking, agents should send a session identifier via HTTP header. Without it, the proxy falls back to fingerprint-based matching (hashing the first user message + working directory), which is less reliable.
-
-| Header | Purpose |
-|--------|---------|
-| `x-opencode-session` | Maps agent conversations to Claude SDK sessions for resume, undo, and compaction |
-
-The proxy uses this header to maintain conversation continuity across requests. Plugin authors should inject it on every request to `/v1/messages`.
-
-### Plugin Architecture
-
-Meridian is the proxy. Plugins live in the agent's ecosystem.
-
-```
-┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│  Agent        │  HTTP   │  Meridian    │   SDK   │  Claude Max  │
-│  (OpenCode,   │────────▶│  Proxy       │────────▶│              │
-│   Crush, etc) │◀────────│              │◀────────│              │
-└──────────────┘         └──────────────┘         └──────────────┘
-       │
-       │ plugin injects headers,
-       │ manages proxy lifecycle
-       │
-┌──────────────┐
-│  Agent Plugin │
-│  (optional)   │
-└──────────────┘
-```
-
-A plugin's job is to:
-1. Start/stop a Meridian instance (`startProxyServer` / `instance.close()`)
-2. Inject session headers into outgoing requests
-3. Check proxy health (`GET /health`)
-
-See [`examples/opencode-plugin/`](examples/opencode-plugin/) for a reference implementation.
+*`sonnet[1m]` requires Max subscription with Extra Usage enabled. Falls back to `sonnet` automatically if not available.
 
 ## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | Landing page (HTML) or status JSON (`Accept: application/json`) |
+| `GET /` | Landing page |
 | `POST /v1/messages` | Anthropic Messages API |
 | `POST /messages` | Alias for `/v1/messages` |
-| `GET /health` | Auth status, subscription type, mode |
+| `GET /health` | Auth status, mode, plugin status |
 | `POST /auth/refresh` | Manually refresh the OAuth token |
 | `GET /telemetry` | Performance dashboard |
 | `GET /telemetry/requests` | Recent request metrics (JSON) |
 | `GET /telemetry/summary` | Aggregate statistics (JSON) |
 | `GET /telemetry/logs` | Diagnostic logs (JSON) |
+
+Health response example:
+
+```json
+{
+  "status": "healthy",
+  "auth": { "loggedIn": true, "email": "you@example.com", "subscriptionType": "max" },
+  "mode": "internal",
+  "plugin": { "opencode": "configured" }
+}
+```
+
+`plugin.opencode` is `"configured"` when `meridian setup` has been run, `"not-configured"` otherwise.
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `meridian` | Start the proxy server |
+| `meridian setup` | Configure the OpenCode plugin in `~/.config/opencode/opencode.json` |
+| `meridian refresh-token` | Manually refresh the Claude OAuth token (exits 0/1) |
+
+## Programmatic API
+
+```typescript
+import { startProxyServer } from "@rynfar/meridian"
+
+const instance = await startProxyServer({
+  port: 3456,
+  host: "127.0.0.1",
+  silent: true,
+})
+
+// instance.server — underlying http.Server
+await instance.close()
+```
 
 ## Docker
 
@@ -386,20 +321,12 @@ See [`examples/opencode-plugin/`](examples/opencode-plugin/) for a reference imp
 docker run -v ~/.claude:/home/claude/.claude -p 3456:3456 meridian
 ```
 
-Or with docker-compose:
-
-```bash
-docker compose up -d
-```
-
 ## Testing
 
 ```bash
-npm test          # 522 unit/integration tests (bun test)
-npm run build     # Build with bun + tsc
+npm test       # unit + integration tests
+npm run build  # build with bun + tsc
 ```
-
-Three test tiers:
 
 | Tier | What | Speed |
 |------|------|-------|
@@ -410,30 +337,29 @@ Three test tiers:
 ## FAQ
 
 **Is this allowed by Anthropic's terms?**
-Meridian uses the official Claude Code SDK — the same SDK Anthropic publishes and maintains for programmatic access. It authenticates through your existing Claude Max session using OAuth, not API keys. Nothing is modified, reverse-engineered, or bypassed.
+Meridian uses the official Claude Code SDK — the same SDK Anthropic publishes for programmatic access. It authenticates through your existing Claude Max session using OAuth.
 
 **How is this different from using an API key?**
-API keys are billed per token. Your Max subscription is a flat monthly fee with higher rate limits. Meridian lets you use that subscription from any compatible tool.
+API keys are billed per token. Claude Max is a flat monthly fee. Meridian lets you use that subscription from any compatible tool.
 
-**Does it work with Claude Pro?**
-It works with any Claude subscription that supports the Claude Code SDK. Max is recommended for the best rate limits.
+**What happens if my OAuth token expires?**
+Tokens expire roughly every 8 hours. Meridian detects the expiry, refreshes the token automatically, and retries the request — so requests continue transparently. If the refresh fails (e.g. the refresh token has expired after weeks of inactivity), Meridian returns a clear error telling you to run `claude login`.
 
-**What happens if my session expires?**
-OAuth tokens expire roughly every 8 hours. Meridian detects the expiry on the next request, refreshes the token automatically, and retries — so requests continue to work transparently. If the refresh itself fails (e.g. your refresh token has expired after weeks of inactivity), Meridian returns a clear error telling you to run `claude login`.
-
-**Can I trigger a refresh manually?**
-Yes — two options:
+**Can I trigger a token refresh manually?**
 
 ```bash
-# CLI (works whether the proxy is running or not)
+# CLI — works whether the proxy is running or not
 meridian refresh-token
 
-# HTTP endpoint (while the proxy is running)
-curl -s -X POST http://127.0.0.1:3456/auth/refresh
-# {"success":true,"message":"OAuth token refreshed successfully"}
+# HTTP — while the proxy is running
+curl -X POST http://127.0.0.1:3456/auth/refresh
 ```
 
-The CLI exits 0 on success and 1 on failure, so it integrates cleanly into scripts or health checks.
+**I'm hitting rate limits on 1M context. What do I do?**
+Set `MERIDIAN_SONNET_MODEL=sonnet` to use the 200k model for all requests. If you're using OpenCode with the Meridian plugin, subagents already use 200k automatically — only the primary agent uses 1M.
+
+**Why does the health endpoint show `"plugin": "not-configured"`?**
+You haven't run `meridian setup`. Without the plugin, OpenCode requests won't have session tracking or subagent model selection. Run `meridian setup` and restart OpenCode.
 
 ## Contributing
 
