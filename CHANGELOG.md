@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.26.2](https://github.com/rynfar/meridian/compare/v1.26.1...v1.26.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* use dynamic import for sessionStore in test to share singleton with server ([548ecc1](https://github.com/rynfar/meridian/commit/548ecc1a9336ca02a1d86099c697e855a2393124))
+
 ## [1.26.1](https://github.com/rynfar/meridian/compare/v1.26.0...v1.26.1) (2026-04-03)
 
 
