@@ -23,5 +23,3 @@ jobs:
       - run: bun install
       - run: npm test
       - run: bun run build
-</content>
-</invoke>
