@@ -88,6 +88,18 @@ export function createFileChangeHook(
 }
 
 /**
+ * Returns true if the string looks like a real file path rather than a
+ * comparison operand or code fragment captured by the redirect regex.
+ */
+function isLikelyFilePath(s: string): boolean {
+  if (/[()[\]]/.test(s)) return false   // code expression
+  if (/^-?\d+$/.test(s)) return false   // integer or -N
+  if (/^[{}]$/.test(s)) return false    // bare brace
+  if (!/[\w/.]/.test(s)) return false   // must have at least one path-like char
+  return true
+}
+
+/**
  * Extract file paths from a bash command string by detecting output redirects
  * and common file-mutating commands (sed -i, tee, cp, mv).
  *
@@ -114,11 +126,13 @@ export function extractFileChangesFromBash(command: string): FileChange[] {
 
   // 1. Output redirects: > file or >> file (but not stderr 2> or 2>>)
   //    Match: optional space, then > or >>, then the target path
-  //    Negative lookbehind for digits (to skip 2>, 1>, etc.)
-  const redirectRegex = /(?<![0-9])>{1,2}\s*['"]?([^\s'";&|)]+)['"]?/g
+  //    Negative lookbehind for digits and = (to skip 2>, 1>, and => arrow functions)
+  const redirectRegex = /(?<![0-9=])>{1,2}\s*['"]?([^\s'";&|)]+)['"]?/g
   let match
   while ((match = redirectRegex.exec(command)) !== null) {
-    addChange("wrote", match[1]!)
+    if (isLikelyFilePath(match[1]!)) {
+      addChange("wrote", match[1]!)
+    }
   }
 
   // 2. tee [-a] file

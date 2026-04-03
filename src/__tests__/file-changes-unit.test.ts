@@ -140,6 +140,43 @@ describe("extractFileChangesFromBash", () => {
     expect(extractFileChangesFromBash('printf "content" > /tmp/printf.txt'))
       .toEqual([{ operation: "wrote", path: "/tmp/printf.txt" }])
   })
+
+  it("should not capture integer comparison operand", () => {
+    expect(extractFileChangesFromBash('node -e "arr.length > 40"')).toEqual([])
+  })
+
+  it("should not capture zero comparison operand", () => {
+    expect(extractFileChangesFromBash('node -e "x > 0"')).toEqual([])
+  })
+
+  it("should not capture negative integer comparison operand", () => {
+    expect(extractFileChangesFromBash('node -e "includes(x) > -1"')).toEqual([])
+  })
+
+  it("should not capture code expressions with parens", () => {
+    expect(extractFileChangesFromBash('node -e "console.log(s.trim())"')).toEqual([])
+  })
+
+  it("should not capture bare brace", () => {
+    expect(extractFileChangesFromBash('echo x > {')).toEqual([])
+  })
+
+  it("should still capture real redirect after code comparison", () => {
+    expect(extractFileChangesFromBash('node -e "arr.length > 40" && echo done > out.txt'))
+      .toEqual([{ operation: "wrote", path: "out.txt" }])
+  })
+
+  it("should not capture arrow function with valid-looking path name", () => {
+    expect(extractFileChangesFromBash('items.forEach(item => output)')).toEqual([])
+  })
+
+  it("should not capture arrow function body with braces", () => {
+    expect(extractFileChangesFromBash('items.map(x => { return x; })')).toEqual([])
+  })
+
+  it("should not capture >= comparison operator", () => {
+    expect(extractFileChangesFromBash('if (count >= 10) echo done')).toEqual([])
+  })
 })
 
 describe("formatFileChangeSummary", () => {
