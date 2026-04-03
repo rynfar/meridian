@@ -7,6 +7,9 @@
  * GET /telemetry/logs       — Diagnostic logs (JSON)
  */
 
+import { readFileSync } from "node:fs"
+import { resolve, dirname } from "node:path"
+import { fileURLToPath } from "node:url"
 import { Hono } from "hono"
 import { telemetryStore } from "./store"
 import { diagnosticLog } from "./logStore"
@@ -18,6 +21,16 @@ export function createTelemetryRoutes() {
   // Dashboard
   routes.get("/", (c) => {
     return c.html(dashboardHtml)
+  })
+
+  // Favicon
+  routes.get("/icon.svg", (c) => {
+    const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..")
+    const svg = readFileSync(resolve(root, "assets", "icon.svg"), "utf-8")
+    return c.body(svg, 200, {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "public, max-age=3600",
+    })
   })
 
   // Recent requests

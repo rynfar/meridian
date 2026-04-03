@@ -9,6 +9,7 @@ export const dashboardHtml = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meridian — Telemetry</title>
+<link rel="icon" type="image/svg+xml" href="/telemetry/icon.svg">
 <style>
   :root {
     --bg: #0d1117; --surface: #161b22; --border: #30363d;
