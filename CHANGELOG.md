@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.25.0](https://github.com/rynfar/meridian/compare/v1.24.5...v1.25.0) (2026-04-03)
+
+
+### Features
+
+* add favicon to telemetry dashboard ([#238](https://github.com/rynfar/meridian/issues/238)) ([52d2c09](https://github.com/rynfar/meridian/commit/52d2c0971a90e09c019c9a361f8407101493dad4))
+* add live smoke tests + message validation ([#226](https://github.com/rynfar/meridian/issues/226)) ([8bc83fc](https://github.com/rynfar/meridian/commit/8bc83fc33c8ce0744884b78ba8b6c92f1484e7e3))
+* subagent model selection via x-opencode-agent-mode header ([#235](https://github.com/rynfar/meridian/issues/235)) ([bfcd7a9](https://github.com/rynfar/meridian/commit/bfcd7a97c306b2e5b4b42d0597d32d4486911397))
+
+
+### Bug Fixes
+
+* default to non-streaming (JSON) when stream field is omitted ([#241](https://github.com/rynfar/meridian/issues/241)) ([f9f4b6f](https://github.com/rynfar/meridian/commit/f9f4b6ff3a53a13a09b1cd341b39bf88be8e9fad))
+* prevent false positives in file changes extraction from bash commands ([#236](https://github.com/rynfar/meridian/issues/236)) ([0464024](https://github.com/rynfar/meridian/commit/04640245945870126d1163acaeb4eb29acf52779))
+
 ## [1.24.5](https://github.com/rynfar/meridian/compare/v1.24.4...v1.24.5) (2026-04-02)
 
 
