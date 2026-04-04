@@ -5,6 +5,7 @@ import type { Server } from "node:http"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
+import { envBool } from "../env"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
 export type { ProxyConfig, ProxyInstance, ProxyServer }
 import { claudeLog } from "../logger"
@@ -449,7 +450,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const adapterPassthrough = adapter.usesPassthrough?.()
       const passthrough = adapterPassthrough !== undefined
         ? adapterPassthrough
-        : Boolean((process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH))
+        : envBool("PASSTHROUGH")
       const capturedToolUses: Array<{ id: string; name: string; input: any }> = []
       const fileChanges: FileChange[] = []
 
@@ -1389,7 +1390,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           requestModel: undefined,
           mode: "non-stream",
           isResume: false,
-          isPassthrough: Boolean((process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH)),
+          isPassthrough: envBool("PASSTHROUGH"),
           lineageType: undefined,
           messageCount: undefined,
           sdkSessionId: undefined,
@@ -1439,7 +1440,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         return c.json({
           status: "degraded",
           error: "Could not verify auth status",
-          mode: (process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH) ? "passthrough" : "internal",
+          mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
         })
       }
       if (!auth.loggedIn) {
@@ -1456,14 +1457,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           email: auth.email,
           subscriptionType: auth.subscriptionType,
         },
-        mode: (process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH) ? "passthrough" : "internal",
+        mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
         plugin: { opencode: checkPluginConfigured() ? "configured" : "not-configured" },
       })
     } catch {
       return c.json({
         status: "degraded",
         error: "Could not verify auth status",
-        mode: (process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH) ? "passthrough" : "internal",
+        mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
       })
     }
   })
