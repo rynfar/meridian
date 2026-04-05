@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.1](https://github.com/rynfar/meridian/compare/v1.28.0...v1.28.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* isolate profile-switch-integration tests to prevent mock leakage ([c5e8740](https://github.com/rynfar/meridian/commit/c5e87409405a33bb75bde0534379cbee80cfdca1))
+
 ## [1.27.6](https://github.com/rynfar/meridian/compare/v1.27.5...v1.27.6) (2026-04-05)
 
 
