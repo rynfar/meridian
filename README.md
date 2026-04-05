@@ -13,8 +13,8 @@
 
 Meridian turns your Claude Max subscription into a local Anthropic API. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, OpenClaw, Crush, Cline, Aider, Pi, Droid, Open WebUI — connects to Meridian and gets Claude, powered by your existing subscription through the official Claude Code SDK.
 
-> [!NOTE]
-> **Renamed from `opencode-claude-max-proxy`.** If you're upgrading, see [`MIGRATION.md`](MIGRATION.md) for the checklist. Your existing sessions, env vars, and agent configs all continue to work.
+> [!IMPORTANT]
+> **Extra Usage billing fix (v0.x.x):** Previous versions defaulted Sonnet to `sonnet[1m]` (1M context), which is [always billed as Extra Usage](https://code.claude.com/docs/en/model-config#extended-context) on Max plans — even when regular usage isn't exhausted. Sonnet now defaults to 200k. If you're on an older version, update or set `MERIDIAN_SONNET_MODEL=sonnet` as a workaround. See [#255](https://github.com/rynfar/meridian/issues/255) for details.
 
 ## Quick Start
 
