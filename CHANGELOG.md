@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.3](https://github.com/rynfar/meridian/compare/v1.27.2...v1.27.3) (2026-04-05)
+
+
+### Bug Fixes
+
+* use envBool() for passthrough detection — Boolean('0') was truthy ([#261](https://github.com/rynfar/meridian/issues/261)) ([41d37da](https://github.com/rynfar/meridian/commit/41d37da234f5282020b2bc9915fef3ec453cff8d))
+
 ## [1.27.2](https://github.com/rynfar/meridian/compare/v1.27.1...v1.27.2) (2026-04-05)
 
 
