@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.6](https://github.com/rynfar/meridian/compare/v1.27.5...v1.27.6) (2026-04-05)
+
+
+### Bug Fixes
+
+* support running as root (Docker, Unraid, NAS) ([#256](https://github.com/rynfar/meridian/issues/256)) ([7dd0599](https://github.com/rynfar/meridian/commit/7dd0599e919295e467e7cab28d1716da5fb46dc1))
+
 ## [1.27.5](https://github.com/rynfar/meridian/compare/v1.27.4...v1.27.5) (2026-04-05)
 
 
