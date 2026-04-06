@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.2](https://github.com/rynfar/meridian/compare/v1.29.1...v1.29.2) (2026-04-06)
+
+
+### Bug Fixes
+
+* allow-list safe anthropic-beta headers on claude-max profiles ([#293](https://github.com/rynfar/meridian/issues/293)) ([f28f074](https://github.com/rynfar/meridian/commit/f28f074e24714e6b3912060eb0e9362aebf66947)), closes [#278](https://github.com/rynfar/meridian/issues/278)
+
 ## [1.27.6](https://github.com/rynfar/meridian/compare/v1.27.5...v1.27.6) (2026-04-05)
 
 
