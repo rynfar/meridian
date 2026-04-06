@@ -92,21 +92,16 @@ If you need to modify any of these, open an issue first — breaking changes aff
 
 ## Releasing
 
-**Do NOT run `npm version` or `git push --tags` manually.**
+**Do NOT run `npm version`, `git push --tags`, or `npm publish` manually.**
 
-Releases are handled by a single GitHub Actions workflow:
+Releases are handled automatically by [Release Please](https://github.com/googleapis/release-please):
 
-1. Go to **GitHub → Actions → "Release"**
-2. Click **"Run workflow"**
-3. Pick **patch / minor / major**
-4. Click the green button
+1. Merge PRs to `main` (use [Conventional Commits](https://www.conventionalcommits.org/) — `feat:`, `fix:`, etc.)
+2. Release Please auto-creates/updates a release PR that batches all changes since the last release
+3. Review and merge the release PR when you're ready to ship
+4. Merging the release PR automatically:
+   - Bumps `package.json` and `CHANGELOG.md`
+   - Creates a git tag and GitHub Release
+   - Runs tests, builds, and publishes to npm with provenance
 
-The workflow automatically:
-- Runs tests and builds
-- Bumps `package.json` via `npm version`
-- Commits and tags
-- Pushes to `main`
-- Publishes to npm with provenance
-- Creates a GitHub Release with auto-generated notes
-
-This keeps npm, GitHub Releases, and git tags in sync. Never publish manually.
+Multiple PRs get batched into a single release. Never publish manually.

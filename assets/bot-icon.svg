@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="112" fill="#1C1830"/>
+  
+  <!-- Antenna -->
+  <line x1="256" y1="72" x2="256" y2="115" stroke="#A78BFA" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="256" cy="64" r="14" fill="#C4B5FD"/>
+  <!-- Antenna signal arcs -->
+  <path d="M228 52 A32 32 0 0 1 284 52" fill="none" stroke="#C4B5FD" stroke-width="3" opacity="0.4" stroke-linecap="round"/>
+  <path d="M216 40 A44 44 0 0 1 296 40" fill="none" stroke="#C4B5FD" stroke-width="2.5" opacity="0.25" stroke-linecap="round"/>
+  
+  <!-- Robot head -->
+  <rect x="128" y="115" width="256" height="200" rx="40" fill="#2D2750"/>
+  <rect x="128" y="115" width="256" height="200" rx="40" fill="none" stroke="#8B7CF6" stroke-width="4"/>
+  
+  <!-- Eyes — screens with Meridian purple glow -->
+  <rect x="170" y="165" width="68" height="52" rx="14" fill="#1C1830" stroke="#8B7CF6" stroke-width="3"/>
+  <rect x="274" y="165" width="68" height="52" rx="14" fill="#1C1830" stroke="#8B7CF6" stroke-width="3"/>
+  <!-- Eye glow -->
+  <circle cx="204" cy="191" r="16" fill="#8B7CF6" opacity="0.8"/>
+  <circle cx="308" cy="191" r="16" fill="#8B7CF6" opacity="0.8"/>
+  <!-- Eye highlights -->
+  <circle cx="210" cy="185" r="5" fill="#C4B5FD" opacity="0.6"/>
+  <circle cx="314" cy="185" r="5" fill="#C4B5FD" opacity="0.6"/>
+  
+  <!-- Mouth — friendly LED strip -->
+  <rect x="196" y="248" width="120" height="24" rx="12" fill="#1C1830" stroke="#8B7CF6" stroke-width="2"/>
+  <circle cx="220" cy="260" r="5" fill="#C4B5FD" opacity="0.7"/>
+  <circle cx="244" cy="260" r="5" fill="#8B7CF6"/>
+  <circle cx="268" cy="260" r="5" fill="#C4B5FD" opacity="0.7"/>
+  <circle cx="292" cy="260" r="5" fill="#8B7CF6" opacity="0.5"/>
+  
+  <!-- Ear bolts -->
+  <circle cx="118" cy="200" r="16" fill="#2D2750" stroke="#8B7CF6" stroke-width="3"/>
+  <circle cx="118" cy="200" r="6" fill="#8B7CF6"/>
+  <circle cx="394" cy="200" r="16" fill="#2D2750" stroke="#8B7CF6" stroke-width="3"/>
+  <circle cx="394" cy="200" r="6" fill="#8B7CF6"/>
+  
+  <!-- Neck -->
+  <rect x="228" y="315" width="56" height="28" rx="6" fill="#2D2750" stroke="#8B7CF6" stroke-width="2"/>
+  
+  <!-- Body / chest plate -->
+  <rect x="148" y="343" width="216" height="120" rx="30" fill="#2D2750" stroke="#8B7CF6" stroke-width="4"/>
+  
+  <!-- Meridian logo on chest — the globe axis + arcs -->
+  <line x1="256" y1="365" x2="256" y2="443" stroke="#8B7CF6" stroke-width="6" stroke-linecap="round"/>
+  <!-- Chest latitude arcs -->
+  <path d="M212 382 A48 48 0 0 1 300 382" fill="none" stroke="#C4B5FD" stroke-width="3" opacity="0.5"/>
+  <path d="M212 426 A48 48 0 0 0 300 426" fill="none" stroke="#C4B5FD" stroke-width="3" opacity="0.5"/>
+  <!-- Chest poles -->
+  <circle cx="256" cy="365" r="8" fill="#C4B5FD"/>
+  <circle cx="256" cy="443" r="8" fill="#C4B5FD"/>
+  <!-- Chest center node -->
+  <circle cx="256" cy="404" r="6" fill="#8B7CF6"/>
+</svg>
