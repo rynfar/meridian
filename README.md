@@ -12,27 +12,29 @@
 
 ---
 
-Meridian bridges the Claude Code SDK to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, OpenClaw, Crush, Cline, Aider, Pi, Droid, Open WebUI — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
+Meridian bridges the Claude Code SDK to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, Crush, Cline, Aider, Pi, Droid, Open WebUI — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
 
-> [!IMPORTANT]
-> ### Meridian is unaffected by the April 5, 2025 third-party blocks
+> [!NOTE]
+> ### How Meridian works with Anthropic
 >
-> On April 5, 2025, Anthropic began blocking third-party tools that bypass Claude Code by intercepting OAuth tokens and replaying them against internal API endpoints. Tools that extract `~/.claude/` credentials, proxy raw OAuth bearer tokens, or patch Claude Code binaries to redirect traffic may no longer function.
+> Meridian is built entirely on the [Claude Code SDK](https://docs.anthropic.com/en/docs/claude-code/sdk). Every request flows through `query()` — the same documented function Anthropic provides for programmatic access. No OAuth tokens are extracted, no binaries are patched, nothing is reverse-engineered.
 >
-> **Meridian does not do any of this.** Its architecture is fundamentally different:
+> Because we use the SDK, Anthropic remains in full control of prompt caching, context window management, compaction, rate limiting, and authentication. Meridian doesn't bypass these mechanisms — it depends on them. Max subscription tokens flow through the correct channel, governed by the same guardrails Anthropic built into Claude Code.
 >
-> - **SDK-native.** Every request calls [`query()`](https://docs.anthropic.com/en/docs/claude-code/sdk) from `@anthropic-ai/claude-agent-sdk` — the same function Anthropic documents for programmatic Claude Code access. No OAuth tokens are extracted, intercepted, or replayed.
-> - **Real Claude Code sessions.** The SDK spawns the actual Claude Code process, manages its own authentication, and handles all communication with Anthropic's servers. Meridian's traffic doesn't *look like* Claude Code — it *is* Claude Code.
-> - **Documented API surface only.** Session resume, MCP tool servers, agent definitions, thinking configuration, permission modes, tool blocking — every feature Meridian uses is a published, documented SDK option. Nothing is reverse-engineered or patched.
-> - **Native benefits and controls preserved.** Prompt caching, conversation persistence, context window management, and compaction all function exactly as they do in Claude Code — because the SDK manages them directly. This means Anthropic's engineering investments in efficiency and their rate-limiting controls work as designed. Max subscription tokens flow through the correct channel, governed by the same guardrails Anthropic built into Claude Code. Meridian doesn't bypass these mechanisms; it depends on them.
+> What Meridian adds is a **presentation and interoperability layer**. We translate Claude Code's output into the standard Anthropic API format so developers can connect the editors, terminals, and workflows they prefer. The SDK does the work; Meridian formats the result.
 >
-> A small number of adjustments were made in response to the April 5th changes — notably stripping `anthropic-beta` headers that could trigger unintended Extra Usage billing on Max subscriptions ([#281](https://github.com/rynfar/meridian/issues/281)). We are also evaluating system prompt handling to ensure nothing conflicts with Claude Code's expectations. These are compatibility adjustments, not workarounds. Our philosophy is to let Claude Code be the foundation and never fight the SDK — we work with it and add our own layer on top.
+> If you're looking for a tool that circumvents usage limits or bypasses Anthropic's controls, this project is not for you. We play nice with the SDK because we believe that's how developers can continue to choose their own frontends while respecting Anthropic's platform.
+
+> [!WARNING]
+> ### Why Meridian does not support OpenClaw
 >
-> **Our position is straightforward.** Anthropic asks developers to use Claude Code as the harness for Max subscription access — we do. We call their SDK, respect its authentication flow, use its documented features, and operate within its designed boundaries. We are not circumventing Claude Code; we are building on top of it.
+> There is technically a way to make Meridian work with OpenClaw, but we're not interested in pursuing it.
 >
-> What Meridian adds is a **presentation and interoperability layer**. We translate Claude Code's output into the standard Anthropic API format so developers can connect the editors, terminals, and workflows they prefer. The SDK does the work; Meridian formats the result. Developers should have the right to choose their own interface and integrate with their own tooling — that's not circumvention, it's the reason SDKs exist.
+> The reason Claude Max offers generous usage limits is because Anthropic can justify it through Claude Code — their harness, their optimizations, their control. OpenClaw blows through that with autonomous workflows that Anthropic has little ability to manage or optimize. Using Opus to check an email when a local model would handle it fine isn't efficient use — it's waste that degrades the plan for everyone.
 >
-> For Meridian to stop working, Anthropic would need to restrict the Claude Code SDK itself or remove documented features that legitimate SDK consumers depend on. We don't believe that's the intent. We're building within Anthropic's ecosystem and constraints because we genuinely value their tools and models. We simply want the freedom to choose how we experience them — and we hope Anthropic sees that as the kind of ecosystem engagement their SDK was designed to enable.
+> I built Meridian because I believe developers should have the right to use the frontend of their choice. But that right comes with a responsibility: don't wreck the subscription for the rest of us. Sloppy autonomous agents that burn through Claude Max tokens are directly counter-productive to developers like me who depend on the plan being sustainable.
+>
+> Meridian's philosophy is simple — play nice with the SDK, let Anthropic optimize how they see fit, and use the frontend you want within the constraints of Claude Code. OpenClaw is not just a frontend; it's an autonomous system that abuses the Max plan. We won't be supporting it.
 
 ## Quick Start
 
@@ -291,29 +293,6 @@ MERIDIAN_DEFAULT_AGENT=pi meridian
 
 Pi mimics Claude Code's User-Agent, so automatic detection isn't possible. The `MERIDIAN_DEFAULT_AGENT` env var tells Meridian to use the pi adapter for all unrecognized requests. If you run other agents alongside pi, use the `x-meridian-agent: pi` header instead (requires pi-ai support for custom headers).
 
-### OpenClaw
-
-OpenClaw uses `@mariozechner/pi-ai` under the hood, so the pi adapter handles it with no additional code. Add a provider override in `~/.openclaw/openclaw.json`:
-
-```json
-{
-  "models": {
-    "providers": {
-      "anthropic": {
-        "baseUrl": "http://127.0.0.1:3456",
-        "apiKey": "dummy",
-        "models": [
-          { "id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6 (Meridian)" },
-          { "id": "claude-opus-4-6", "name": "Claude Opus 4.6 (Meridian)" }
-        ]
-      }
-    }
-  }
-}
-```
-
-Then start Meridian with the pi adapter: `MERIDIAN_DEFAULT_AGENT=pi meridian`
-
 ### Any Anthropic-compatible tool
 
 ```bash
@@ -332,7 +311,6 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 | [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars — file editing, streaming; `--no-stream` broken (litellm bug) |
 | [Open WebUI](https://github.com/open-webui/open-webui) | ✅ Verified | OpenAI-compatible endpoints — set base URL to `http://127.0.0.1:3456` |
 | [Pi](https://github.com/mariozechner/pi-coding-agent) | ✅ Verified | models.json config (see above) — requires `MERIDIAN_DEFAULT_AGENT=pi` |
-| [OpenClaw](https://github.com/openclaw/openclaw) | ✅ Verified | Provider config (see above) — uses pi adapter via `MERIDIAN_DEFAULT_AGENT=pi` |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
 
 Tested an agent or built a plugin? [Open an issue](https://github.com/rynfar/meridian/issues) and we'll add it.
