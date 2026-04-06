@@ -105,3 +105,11 @@ Releases are handled automatically by [Release Please](https://github.com/google
    - Runs tests, builds, and publishes to npm with provenance
 
 Multiple PRs get batched into a single release. Never publish manually.
+
+### Release config files
+
+- **`.release-please-manifest.json`** — tracks the current released version. Release Please updates this automatically when a release PR is merged. **Do not edit manually** unless resetting the version anchor.
+- **`release-please-config.json`** — defines the release type (`node`), component name, and changelog section mapping.
+- **`.github/workflows/release-please.yml`** — the workflow that runs on every push to `main`. It creates/updates the release PR and publishes to npm when merged.
+
+There is **no manual release workflow**. The old `release.yml` (workflow_dispatch) was removed because it conflicted with branch protection and duplicated Release Please's job.
