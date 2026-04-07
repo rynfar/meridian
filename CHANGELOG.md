@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.0](https://github.com/rynfar/meridian/compare/meridian-v1.29.2...meridian-v1.30.0) (2026-04-07)
+
+
+### Features
+
+* token telemetry, anomaly detection, passthrough default + thinking blocks ([#306](https://github.com/rynfar/meridian/issues/306)) ([44fcf14](https://github.com/rynfar/meridian/commit/44fcf143b838926a7bc2ce8371b6e04353cf141e))
+
 ## [1.29.2](https://github.com/rynfar/meridian/compare/v1.29.1...v1.29.2) (2026-04-06)
 
 
