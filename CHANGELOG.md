@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.0](https://github.com/rynfar/meridian/compare/meridian-v1.30.1...meridian-v1.31.0) (2026-04-07)
+
+
+### Features
+
+* deferred tool loading with auto-defer for large tool sets ([#310](https://github.com/rynfar/meridian/issues/310)) ([f3c3230](https://github.com/rynfar/meridian/commit/f3c323029054496b6b5cb4e56c78c0ae4c61a62f)), closes [#303](https://github.com/rynfar/meridian/issues/303)
+
 ## [1.30.1](https://github.com/rynfar/meridian/compare/meridian-v1.30.0...meridian-v1.30.1) (2026-04-07)
 
 
