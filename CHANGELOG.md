@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.1](https://github.com/rynfar/meridian/compare/meridian-v1.30.0...meridian-v1.30.1) (2026-04-07)
+
+
+### Bug Fixes
+
+* allow 3 turns in passthrough resume to prevent max-turns error ([#308](https://github.com/rynfar/meridian/issues/308)) ([af4d7e0](https://github.com/rynfar/meridian/commit/af4d7e055ba563ad3e19beb0e237f67574c33dae))
+
 ## [1.30.0](https://github.com/rynfar/meridian/compare/meridian-v1.29.2...meridian-v1.30.0) (2026-04-07)
 
 
