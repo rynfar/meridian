@@ -151,7 +151,11 @@ function logUsage(requestId: string, usage: TokenUsage): void {
 function computeCacheHitRate(usage: TokenUsage | undefined): number | undefined {
   if (!usage) return undefined
   const read = usage.cache_read_input_tokens ?? 0
-  const total = (usage.input_tokens ?? 0)
+  const creation = usage.cache_creation_input_tokens ?? 0
+  const uncached = usage.input_tokens ?? 0
+  // SDK reports input_tokens as only the non-cached portion.
+  // Total input = uncached + cache_read + cache_creation.
+  const total = uncached + read + creation
   if (total === 0) return undefined
   return read / total
 }
