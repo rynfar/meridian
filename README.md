@@ -80,7 +80,7 @@ The Claude Code SDK provides programmatic access to Claude. But your favorite co
 - **Passthrough mode** — forward tool calls to the client instead of executing internally
 - **Multimodal** — images, documents, and file attachments pass through to Claude
 - **Multi-profile** — switch between Claude accounts instantly, no restart needed
-- **Telemetry dashboard** — real-time performance metrics at `/telemetry`
+- **Telemetry dashboard** — real-time performance metrics at `/telemetry`, including token usage and prompt cache efficiency ([`MONITORING.md`](MONITORING.md))
 
 ## Multi-Profile Support
 
@@ -508,7 +508,7 @@ You haven't run `meridian setup`. Without the plugin, OpenCode requests won't ha
 
 ## Contributing
 
-Issues and PRs welcome. Join the [Discord](https://discord.gg/7vNVFYBz) to discuss ideas before opening issues. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for module structure and dependency rules, [`CLAUDE.md`](CLAUDE.md) for coding guidelines, and [`E2E.md`](E2E.md) for end-to-end test procedures.
+Issues and PRs welcome. Join the [Discord](https://discord.gg/7vNVFYBz) to discuss ideas before opening issues. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for module structure and dependency rules, [`CLAUDE.md`](CLAUDE.md) for coding guidelines, [`E2E.md`](E2E.md) for end-to-end test procedures, and [`MONITORING.md`](MONITORING.md) for understanding token usage and prompt cache health.
 
 ## License
 
