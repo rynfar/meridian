@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.31.1](https://github.com/rynfar/meridian/compare/meridian-v1.31.0...meridian-v1.31.1) (2026-04-07)
+
+
+### Bug Fixes
+
+* add missing hasDeferredTools to test helpers for typecheck ([c3c596c](https://github.com/rynfar/meridian/commit/c3c596c7d6e3dbd41289dbc5d09afe43b8b0b319))
+
 ## [1.31.0](https://github.com/rynfar/meridian/compare/meridian-v1.30.1...meridian-v1.31.0) (2026-04-07)
 
 
