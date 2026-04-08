@@ -1,65 +1,113 @@
-import { Hono } from "hono"
-import { cors } from "hono/cors"
-import { serve } from "@hono/node-server"
-import type { Server } from "node:http"
-import { query } from "@anthropic-ai/claude-agent-sdk"
-import type { Context } from "hono"
-import { DEFAULT_PROXY_CONFIG } from "./types"
-import { envBool } from "../env"
-import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
-export type { ProxyConfig, ProxyInstance, ProxyServer }
-import { claudeLog } from "../logger"
-import { exec as execCallback } from "child_process"
-import { promisify } from "util"
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serve } from "@hono/node-server";
+import type { Server } from "node:http";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { Context } from "hono";
+import { DEFAULT_PROXY_CONFIG } from "./types";
+import { envBool } from "../env";
+import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types";
+export type { ProxyConfig, ProxyInstance, ProxyServer };
+import { claudeLog } from "../logger";
+import { exec as execCallback } from "child_process";
+import { promisify } from "util";
 
-import { randomUUID } from "crypto"
-import { withClaudeLogContext } from "../logger"
-import { createPassthroughMcpServer, stripMcpPrefix, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { randomUUID } from "crypto";
+import { withClaudeLogContext } from "../logger";
+import {
+  createPassthroughMcpServer,
+  stripMcpPrefix,
+  PASSTHROUGH_MCP_NAME,
+  PASSTHROUGH_MCP_PREFIX,
+} from "./passthroughTools";
 
-import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml } from "../telemetry"
-import type { RequestMetric } from "../telemetry"
-import { classifyError, isStaleSessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
-import { refreshOAuthToken } from "./tokenRefresh"
-import { checkPluginConfigured } from "./setup"
-import { mapModelToClaudeModel, resolveClaudeExecutableAsync, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
-import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, translateAnthropicSseEvent, buildModelList } from "./openai"
-import { getLastUserMessage } from "./messages"
-import { maybeScrubSystemContext, maybeScrubRequestBody } from "./sanitize"
-import { detectAdapter } from "./adapters/detect"
-import { buildQueryOptions, type QueryContext } from "./query"
-import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile } from "./profiles"
-import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
-import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
-import { detectTokenAnomalies, formatAnomalyAlerts, type TokenSnapshot } from "./tokenHealth"
+import {
+  telemetryStore,
+  diagnosticLog,
+  createTelemetryRoutes,
+  landingHtml,
+} from "../telemetry";
+import type { RequestMetric } from "../telemetry";
+import {
+  classifyError,
+  isStaleSessionError,
+  isRateLimitError,
+  isExtraUsageRequiredError,
+  isExpiredTokenError,
+} from "./errors";
+import { refreshOAuthToken } from "./tokenRefresh";
+import { checkPluginConfigured } from "./setup";
+import {
+  mapModelToClaudeModel,
+  resolveClaudeExecutableAsync,
+  isClosedControllerError,
+  getClaudeAuthStatusAsync,
+  getAuthCacheInfo,
+  hasExtendedContext,
+  stripExtendedContext,
+  recordExtendedContextUnavailable,
+} from "./models";
+import {
+  translateOpenAiToAnthropic,
+  translateAnthropicToOpenAi,
+  translateAnthropicSseEvent,
+  buildModelList,
+} from "./openai";
+import { getLastUserMessage } from "./messages";
+import {
+  maybeScrubSystemContext,
+  maybeScrubRequestBody,
+  maybeUnscrubMessageBody,
+  maybeUnscrubStreamEvent,
+} from "./sanitize";
+import { detectAdapter } from "./adapters/detect";
+import { buildQueryOptions, type QueryContext } from "./query";
+import {
+  resolveProfile,
+  listProfiles,
+  setActiveProfile,
+  getActiveProfileId,
+  getEffectiveProfiles,
+  restoreActiveProfile,
+} from "./profiles";
+import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas";
+import {
+  createFileChangeHook,
+  extractFileChangesFromMessages,
+  formatFileChangeSummary,
+  type FileChange,
+} from "./fileChanges";
+import {
+  detectTokenAnomalies,
+  formatAnomalyAlerts,
+  type TokenSnapshot,
+} from "./tokenHealth";
 import {
   computeLineageHash,
   hashMessage,
   computeMessageHashes,
   type LineageResult,
   type TokenUsage,
-} from "./session/lineage"
+} from "./session/lineage";
 // Re-export for backwards compatibility (existing tests import from here)
 
-import { lookupSession, storeSession, clearSessionCache, getMaxSessionsLimit, evictSession, getSessionByClaudeId } from "./session/cache"
-import { lookupSessionRecovery, listStoredSessions } from "./sessionStore"
+import {
+  lookupSession,
+  storeSession,
+  clearSessionCache,
+  getMaxSessionsLimit,
+  evictSession,
+  getSessionByClaudeId,
+} from "./session/cache";
+import { lookupSessionRecovery, listStoredSessions } from "./sessionStore";
 // Re-export for backwards compatibility (existing tests import from here)
-export { computeLineageHash, hashMessage, computeMessageHashes }
-export { clearSessionCache, getMaxSessionsLimit }
-export type { LineageResult }
+export { computeLineageHash, hashMessage, computeMessageHashes };
+export { clearSessionCache, getMaxSessionsLimit };
+export type { LineageResult };
 
+const exec = promisify(execCallback);
 
-
-
-
-
-
-
-
-
-
-const exec = promisify(execCallback)
-
-let claudeExecutable = ""
+let claudeExecutable = "";
 
 /**
  * Build a prompt from all messages for a fresh (non-resume) session.
@@ -67,98 +115,126 @@ let claudeExecutable = ""
  */
 function buildFreshPrompt(
   messages: Array<{ role: string; content: any }>,
-  stripCacheControl: (content: any) => any
+  stripCacheControl: (content: any) => any,
 ): string | AsyncIterable<any> {
-  const MULTIMODAL_TYPES = new Set(["image", "document", "file"])
-  const hasMultimodal = messages.some((m) =>
-    Array.isArray(m.content) && m.content.some((b: any) => MULTIMODAL_TYPES.has(b.type))
-  )
+  const MULTIMODAL_TYPES = new Set(["image", "document", "file"]);
+  const hasMultimodal = messages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((b: any) => MULTIMODAL_TYPES.has(b.type)),
+  );
 
   if (hasMultimodal) {
-    const structured: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null }> = []
+    const structured: Array<{
+      type: "user";
+      message: { role: string; content: any };
+      parent_tool_use_id: null;
+    }> = [];
     for (const m of messages) {
       if (m.role === "user") {
         structured.push({
           type: "user" as const,
-          message: { role: "user" as const, content: stripCacheControl(m.content) },
+          message: {
+            role: "user" as const,
+            content: stripCacheControl(m.content),
+          },
           parent_tool_use_id: null,
-        })
+        });
       } else {
-        let text: string
+        let text: string;
         if (typeof m.content === "string") {
-          text = `[Assistant: ${m.content}]`
+          text = `[Assistant: ${m.content}]`;
         } else if (Array.isArray(m.content)) {
-          text = m.content.map((b: any) => {
-            if (b.type === "text" && b.text) return `[Assistant: ${b.text}]`
-            if (b.type === "tool_use") return `[Tool Use: ${b.name}(${JSON.stringify(b.input)})]`
-            if (b.type === "tool_result") return `[Tool Result: ${typeof b.content === "string" ? b.content : JSON.stringify(b.content)}]`
-            return ""
-          }).filter(Boolean).join("\n")
+          text = m.content
+            .map((b: any) => {
+              if (b.type === "text" && b.text) return `[Assistant: ${b.text}]`;
+              if (b.type === "tool_use")
+                return `[Tool Use: ${b.name}(${JSON.stringify(b.input)})]`;
+              if (b.type === "tool_result")
+                return `[Tool Result: ${typeof b.content === "string" ? b.content : JSON.stringify(b.content)}]`;
+              return "";
+            })
+            .filter(Boolean)
+            .join("\n");
         } else {
-          text = `[Assistant: ${String(m.content)}]`
+          text = `[Assistant: ${String(m.content)}]`;
         }
         structured.push({
           type: "user" as const,
           message: { role: "user" as const, content: text },
           parent_tool_use_id: null,
-        })
+        });
       }
     }
-    return (async function* () { for (const msg of structured) yield msg })()
+    return (async function* () {
+      for (const msg of structured) yield msg;
+    })();
   }
 
-  return messages
-    .map((m) => {
-      const role = m.role === "assistant" ? "Assistant" : "Human"
-      let content: string
-      if (typeof m.content === "string") {
-        content = m.content
-      } else if (Array.isArray(m.content)) {
-        content = m.content
-          .map((block: any) => {
-            if (block.type === "text" && block.text) return block.text
-            if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
-            if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
-            if (block.type === "image") return "[Image attached]"
-            if (block.type === "document") return "[Document attached]"
-            if (block.type === "file") return "[File attached]"
-            return ""
-          })
-          .filter(Boolean)
-          .join("\n")
-      } else {
-        content = String(m.content)
-      }
-      return `${role}: ${content}`
-    })
-    .join("\n\n") || ""
+  return (
+    messages
+      .map((m) => {
+        const role = m.role === "assistant" ? "Assistant" : "Human";
+        let content: string;
+        if (typeof m.content === "string") {
+          content = m.content;
+        } else if (Array.isArray(m.content)) {
+          content = m.content
+            .map((block: any) => {
+              if (block.type === "text" && block.text) return block.text;
+              if (block.type === "tool_use")
+                return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`;
+              if (block.type === "tool_result")
+                return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`;
+              if (block.type === "image") return "[Image attached]";
+              if (block.type === "document") return "[Document attached]";
+              if (block.type === "file") return "[File attached]";
+              return "";
+            })
+            .filter(Boolean)
+            .join("\n");
+        } else {
+          content = String(m.content);
+        }
+        return `${role}: ${content}`;
+      })
+      .join("\n\n") || ""
+  );
 }
 
 function logUsage(requestId: string, usage: TokenUsage): void {
-  const fmt = (n: number) => n > 1000 ? `${Math.round(n / 1000)}k` : String(n)
-  const cacheRead = usage.cache_read_input_tokens ?? 0
-  const totalInput = usage.input_tokens ?? 0
-  const cacheRate = totalInput > 0 ? Math.round((cacheRead / totalInput) * 100) : 0
-  const cacheTag = totalInput > 0 ? ` cache=${cacheRate}%` : ""
+  const fmt = (n: number) =>
+    n > 1000 ? `${Math.round(n / 1000)}k` : String(n);
+  const cacheRead = usage.cache_read_input_tokens ?? 0;
+  const totalInput = usage.input_tokens ?? 0;
+  const cacheRate =
+    totalInput > 0 ? Math.round((cacheRead / totalInput) * 100) : 0;
+  const cacheTag = totalInput > 0 ? ` cache=${cacheRate}%` : "";
   const parts = [
     `input=${fmt(usage.input_tokens ?? 0)}`,
     `output=${fmt(usage.output_tokens ?? 0)}`,
-    ...(usage.cache_read_input_tokens ? [`cache_read=${fmt(usage.cache_read_input_tokens)}`] : []),
-    ...(usage.cache_creation_input_tokens ? [`cache_write=${fmt(usage.cache_creation_input_tokens)}`] : []),
-  ]
-  console.error(`[PROXY] ${requestId} usage: ${parts.join(" ")}${cacheTag}`)
+    ...(usage.cache_read_input_tokens
+      ? [`cache_read=${fmt(usage.cache_read_input_tokens)}`]
+      : []),
+    ...(usage.cache_creation_input_tokens
+      ? [`cache_write=${fmt(usage.cache_creation_input_tokens)}`]
+      : []),
+  ];
+  console.error(`[PROXY] ${requestId} usage: ${parts.join(" ")}${cacheTag}`);
 }
 
-function computeCacheHitRate(usage: TokenUsage | undefined): number | undefined {
-  if (!usage) return undefined
-  const read = usage.cache_read_input_tokens ?? 0
-  const creation = usage.cache_creation_input_tokens ?? 0
-  const uncached = usage.input_tokens ?? 0
+function computeCacheHitRate(
+  usage: TokenUsage | undefined,
+): number | undefined {
+  if (!usage) return undefined;
+  const read = usage.cache_read_input_tokens ?? 0;
+  const creation = usage.cache_creation_input_tokens ?? 0;
+  const uncached = usage.input_tokens ?? 0;
   // SDK reports input_tokens as only the non-cached portion.
   // Total input = uncached + cache_read + cache_creation.
-  const total = uncached + read + creation
-  if (total === 0) return undefined
-  return read / total
+  const total = uncached + read + creation;
+  if (total === 0) return undefined;
+  return read / total;
 }
 
 function checkTokenHealth(
@@ -167,11 +243,11 @@ function checkTokenHealth(
   usage: TokenUsage | undefined,
   turnNumber: number,
   isResume: boolean,
-  isPassthrough: boolean
+  isPassthrough: boolean,
 ): void {
-  if (!usage || !sdkSessionId) return
+  if (!usage || !sdkSessionId) return;
 
-  const cacheHitRate = computeCacheHitRate(usage) ?? 0
+  const cacheHitRate = computeCacheHitRate(usage) ?? 0;
   const current: TokenSnapshot = {
     requestId,
     turnNumber,
@@ -182,26 +258,28 @@ function checkTokenHealth(
     cacheHitRate,
     isResume,
     isPassthrough,
-  }
+  };
 
-  const prevMetric = telemetryStore.getLastForSession(sdkSessionId)
-  const previous: TokenSnapshot | undefined = prevMetric ? {
-    requestId: prevMetric.requestId,
-    turnNumber: turnNumber - 1,
-    inputTokens: prevMetric.inputTokens ?? 0,
-    outputTokens: prevMetric.outputTokens ?? 0,
-    cacheReadInputTokens: prevMetric.cacheReadInputTokens ?? 0,
-    cacheCreationInputTokens: prevMetric.cacheCreationInputTokens ?? 0,
-    cacheHitRate: prevMetric.cacheHitRate ?? 0,
-    isResume: prevMetric.isResume,
-    isPassthrough: prevMetric.isPassthrough,
-  } : undefined
+  const prevMetric = telemetryStore.getLastForSession(sdkSessionId);
+  const previous: TokenSnapshot | undefined = prevMetric
+    ? {
+        requestId: prevMetric.requestId,
+        turnNumber: turnNumber - 1,
+        inputTokens: prevMetric.inputTokens ?? 0,
+        outputTokens: prevMetric.outputTokens ?? 0,
+        cacheReadInputTokens: prevMetric.cacheReadInputTokens ?? 0,
+        cacheCreationInputTokens: prevMetric.cacheCreationInputTokens ?? 0,
+        cacheHitRate: prevMetric.cacheHitRate ?? 0,
+        isResume: prevMetric.isResume,
+        isPassthrough: prevMetric.isPassthrough,
+      }
+    : undefined;
 
-  const anomalies = detectTokenAnomalies(current, previous)
+  const anomalies = detectTokenAnomalies(current, previous);
   if (anomalies.length > 0) {
-    const alerts = formatAnomalyAlerts(requestId, anomalies)
+    const alerts = formatAnomalyAlerts(requestId, anomalies);
     for (const line of alerts) {
-      console.error(line)
+      console.error(line);
     }
     for (const a of anomalies) {
       diagnosticLog.log({
@@ -209,922 +287,752 @@ function checkTokenHealth(
         category: "token",
         message: `${requestId} ${a.type}: ${a.detail}`,
         requestId,
-      })
+      });
     }
   }
 }
 
-export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServer {
-  const finalConfig = { ...DEFAULT_PROXY_CONFIG, ...config }
+export function createProxyServer(
+  config: Partial<ProxyConfig> = {},
+): ProxyServer {
+  const finalConfig = { ...DEFAULT_PROXY_CONFIG, ...config };
 
   // Restore persisted active profile from last session
-  restoreActiveProfile(finalConfig.profiles)
+  restoreActiveProfile(finalConfig.profiles);
 
-  const app = new Hono()
+  const app = new Hono();
 
-  app.use("*", cors())
+  app.use("*", cors());
 
   app.get("/", (c) => {
     // API clients get JSON, browsers get the landing page
-    const accept = c.req.header("accept") || ""
+    const accept = c.req.header("accept") || "";
     if (accept.includes("application/json") && !accept.includes("text/html")) {
       return c.json({
         status: "ok",
         service: "meridian",
         format: "anthropic",
-        endpoints: ["/v1/messages", "/messages", "/v1/chat/completions", "/v1/models", "/telemetry", "/health"]
-      })
+        endpoints: [
+          "/v1/messages",
+          "/messages",
+          "/v1/chat/completions",
+          "/v1/models",
+          "/telemetry",
+          "/health",
+        ],
+      });
     }
-    return c.html(landingHtml)
-  })
+    return c.html(landingHtml);
+  });
 
   // --- Concurrency Control ---
   // Each request spawns an SDK subprocess (cli.js, ~11MB). Spawning multiple
   // simultaneously can crash the process. Serialize SDK queries with a queue.
-  const MAX_CONCURRENT_SESSIONS = parseInt((process.env.MERIDIAN_MAX_CONCURRENT ?? process.env.CLAUDE_PROXY_MAX_CONCURRENT) || "10", 10)
-  let activeSessions = 0
-  const sessionQueue: Array<{ resolve: () => void }> = []
+  const MAX_CONCURRENT_SESSIONS = parseInt(
+    (process.env.MERIDIAN_MAX_CONCURRENT ??
+      process.env.CLAUDE_PROXY_MAX_CONCURRENT) ||
+      "10",
+    10,
+  );
+  let activeSessions = 0;
+  const sessionQueue: Array<{ resolve: () => void }> = [];
 
   async function acquireSession(): Promise<void> {
     if (activeSessions < MAX_CONCURRENT_SESSIONS) {
-      activeSessions++
-      return
+      activeSessions++;
+      return;
     }
     return new Promise<void>((resolve) => {
-      sessionQueue.push({ resolve })
-    })
+      sessionQueue.push({ resolve });
+    });
   }
 
   function releaseSession(): void {
-    activeSessions--
-    const next = sessionQueue.shift()
+    activeSessions--;
+    const next = sessionQueue.shift();
     if (next) {
-      activeSessions++
-      next.resolve()
+      activeSessions++;
+      next.resolve();
     }
   }
 
   const handleMessages = async (
     c: Context,
-    requestMeta: { requestId: string; endpoint: string; queueEnteredAt: number; queueStartedAt: number }
+    requestMeta: {
+      requestId: string;
+      endpoint: string;
+      queueEnteredAt: number;
+      queueStartedAt: number;
+    },
   ) => {
-    const requestStartAt = Date.now()
+    const requestStartAt = Date.now();
 
-    return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
-      // Hoist adapter detection before try so it's available in the catch block for telemetry
-      const adapter = detectAdapter(c)
-      try {
-        let body = await c.req.json()
+    return withClaudeLogContext(
+      { requestId: requestMeta.requestId, endpoint: requestMeta.endpoint },
+      async () => {
+        // Hoist adapter detection before try so it's available in the catch block for telemetry
+        const adapter = detectAdapter(c);
+        try {
+          let body = await c.req.json();
 
-        // Vendor-string sanitization (fork-only patch for OpenClaw users).
-        // Anthropic fingerprints "OpenClaw" in system/messages/tools.
-        // When MERIDIAN_SCRUB_VENDOR=openclaw is set, recursively rewrite
-        // /openclaw/gi -> AgentSystem across the entire request body.
-        // No-op when env var unset. See src/proxy/sanitize.ts for context.
-        body = maybeScrubRequestBody(body)
+          // Vendor-string sanitization (fork-only patch for OpenClaw users).
+          // Anthropic fingerprints "OpenClaw" in system/messages/tools.
+          // When MERIDIAN_SCRUB_VENDOR=openclaw is set, recursively rewrite
+          // /openclaw/gi -> AgentSystem across the entire request body.
+          // No-op when env var unset. See src/proxy/sanitize.ts for context.
+          body = maybeScrubRequestBody(body);
 
-        // Validate required fields
-        if (!Array.isArray(body.messages)) {
-          return c.json(
-            { type: "error", error: { type: "invalid_request_error", message: "messages: Field required" } },
-            400
-          )
-        }
-
-        // Resolve profile: header > active > default > first configured
-        const profile = resolveProfile(
-          finalConfig.profiles,
-          finalConfig.defaultProfile,
-          c.req.header("x-meridian-profile") || undefined
-        )
-
-        const authStatus = await getClaudeAuthStatusAsync(
-          profile.id !== "default" ? profile.id : undefined,
-          Object.keys(profile.env).length > 0 ? profile.env : undefined
-        )
-        const agentMode = c.req.header("x-opencode-agent-mode") ?? null
-        let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType, agentMode)
-        // Allow adapter to override streaming preference (e.g. LiteLLM requires non-streaming)
-        const adapterStreamPref = adapter.prefersStreaming?.(body)
-        const stream = adapterStreamPref !== undefined ? adapterStreamPref : (body.stream ?? false)
-        const workingDirectory = (process.env.MERIDIAN_WORKDIR ?? process.env.CLAUDE_PROXY_WORKDIR) || adapter.extractWorkingDirectory(body) || process.cwd()
-
-        // Strip env vars that would cause the SDK subprocess to loop back through
-        // the proxy instead of using its native Claude Max auth. Also strip vars
-        // that cause unwanted SDK plugin/feature loading.
-        const {
-          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS,
-          ANTHROPIC_API_KEY: _dropApiKey,
-          ANTHROPIC_BASE_URL: _dropBaseUrl,
-          ANTHROPIC_AUTH_TOKEN: _dropAuthToken,
-          ...cleanEnv
-        } = process.env
-
-        // Overlay profile-specific env vars (e.g. CLAUDE_CONFIG_DIR for multi-account)
-        const profileEnv = { ...cleanEnv, ...profile.env }
-
-        let systemContext = ""
-        if (body.system) {
-          if (typeof body.system === "string") {
-            systemContext = body.system
-          } else if (Array.isArray(body.system)) {
-            systemContext = body.system
-              .filter((b: any) => b.type === "text" && b.text)
-              .map((b: any) => b.text)
-              .join("\n")
+          // Validate required fields
+          if (!Array.isArray(body.messages)) {
+            return c.json(
+              {
+                type: "error",
+                error: {
+                  type: "invalid_request_error",
+                  message: "messages: Field required",
+                },
+              },
+              400,
+            );
           }
-        }
 
-        // --- SDK parameter passthrough ---
-        // Extract effort, thinking, taskBudget from body (standard Anthropic API fields).
-        // Header overrides take precedence over body values.
-        const effortHeader = c.req.header("x-opencode-effort")
-        const thinkingHeader = c.req.header("x-opencode-thinking")
-        const taskBudgetHeader = c.req.header("x-opencode-task-budget")
-        // NOTE: anthropic-beta header filtering is delegated to `filterBetasForProfile`.
-        // Default policy (`allow-safe`) strips only betas known to trigger Extra-Usage
-        // billing (see BILLABLE_BETA_PREFIXES_ON_MAX in betas.ts). Free betas like
-        // prompt-caching, context-1m, fine-grained-tool-streaming, and
-        // interleaved-thinking pass through so the SDK's caching and 1M context
-        // continue to work — blanket stripping caused ~3x TTFB and ~3x token
-        // consumption on long conversations.
-        //
-        // Operators can override the policy at runtime via the MERIDIAN_BETA_POLICY
-        // env var: `strip-all` restores the pre-fix behaviour (kill switch),
-        // `allow-all` forwards everything unconditionally.
-        // See: https://github.com/rynfar/meridian/issues/278
-        const rawBetaHeader = c.req.header("anthropic-beta")
-        const betaFilter = filterBetasForProfile(rawBetaHeader, profile.type, getBetaPolicyFromEnv())
-        if (betaFilter.stripped.length > 0) {
-          console.error(`[PROXY] ${requestMeta.requestId} stripped anthropic-beta(s) for Max profile: ${betaFilter.stripped.join(", ")}`)
-        }
+          // Resolve profile: header > active > default > first configured
+          const profile = resolveProfile(
+            finalConfig.profiles,
+            finalConfig.defaultProfile,
+            c.req.header("x-meridian-profile") || undefined,
+          );
 
-        const effort = effortHeader
-          || body.effort
-          || undefined
-        let thinking: QueryContext['thinking'] | undefined = body.thinking || undefined
-        if (thinkingHeader !== undefined) {
-          try {
-            thinking = JSON.parse(thinkingHeader) as QueryContext["thinking"]
-          } catch (e) {
-            console.error(`[PROXY] ${requestMeta.requestId} ignoring malformed x-opencode-thinking header: ${e instanceof Error ? e.message : String(e)}`)
+          const authStatus = await getClaudeAuthStatusAsync(
+            profile.id !== "default" ? profile.id : undefined,
+            Object.keys(profile.env).length > 0 ? profile.env : undefined,
+          );
+          const agentMode = c.req.header("x-opencode-agent-mode") ?? null;
+          let model = mapModelToClaudeModel(
+            body.model || "sonnet",
+            authStatus?.subscriptionType,
+            agentMode,
+          );
+          // Allow adapter to override streaming preference (e.g. LiteLLM requires non-streaming)
+          const adapterStreamPref = adapter.prefersStreaming?.(body);
+          const stream =
+            adapterStreamPref !== undefined
+              ? adapterStreamPref
+              : (body.stream ?? false);
+          const workingDirectory =
+            (process.env.MERIDIAN_WORKDIR ??
+              process.env.CLAUDE_PROXY_WORKDIR) ||
+            adapter.extractWorkingDirectory(body) ||
+            process.cwd();
+
+          // Strip env vars that would cause the SDK subprocess to loop back through
+          // the proxy instead of using its native Claude Max auth. Also strip vars
+          // that cause unwanted SDK plugin/feature loading.
+          const {
+            CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS,
+            ANTHROPIC_API_KEY: _dropApiKey,
+            ANTHROPIC_BASE_URL: _dropBaseUrl,
+            ANTHROPIC_AUTH_TOKEN: _dropAuthToken,
+            ...cleanEnv
+          } = process.env;
+
+          // Overlay profile-specific env vars (e.g. CLAUDE_CONFIG_DIR for multi-account)
+          const profileEnv = { ...cleanEnv, ...profile.env };
+
+          let systemContext = "";
+          if (body.system) {
+            if (typeof body.system === "string") {
+              systemContext = body.system;
+            } else if (Array.isArray(body.system)) {
+              systemContext = body.system
+                .filter((b: any) => b.type === "text" && b.text)
+                .map((b: any) => b.text)
+                .join("\n");
+            }
           }
-        }
-        const parsedBudget = taskBudgetHeader ? Number.parseInt(taskBudgetHeader, 10) : NaN
-        const taskBudget = Number.isFinite(parsedBudget)
-          ? { total: parsedBudget }
-          : body.task_budget ? { total: body.task_budget.total ?? body.task_budget } : undefined
-        const betas = betaFilter.forwarded
 
-        // Session resume: look up cached Claude SDK session and classify mutation
-        const agentSessionId = adapter.getSessionId(c)
-        // Scope session keys by profile to isolate resume state across accounts.
-        // For agents with session IDs (OpenCode): prefix the key.
-        // For agents without (Pi): pass profile-scoped workingDirectory to fingerprint lookup.
-        const profileSessionId = profile.id !== "default" && agentSessionId
-          ? `${profile.id}:${agentSessionId}` : agentSessionId
-        const profileScopedCwd = profile.id !== "default"
-          ? `${workingDirectory}::profile=${profile.id}` : workingDirectory
-        const lineageResult = lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
-        const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
-        const isUndo = lineageResult.type === "undo"
-        const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
-        const resumeSessionId = cachedSession?.claudeSessionId
-        // For undo: fork the session at the rollback point
-        const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
-
-        // Debug: log request details
-        const msgSummary = body.messages?.map((m: any) => {
-          const contentTypes = Array.isArray(m.content)
-            ? m.content.map((b: any) => b.type).join(",")
-            : "string"
-          return `${m.role}[${contentTypes}]`
-        }).join(" → ")
-        const lineageType = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
-        const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name} model=${model} stream=${stream} tools=${body.tools?.length ?? 0} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
-        console.error(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
-        diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
-
-        // Recovery logging: when a session diverges, check if the store has a
-        // previous session ID that the user can recover via `claude --resume`.
-        if (lineageResult.type === "diverged" && profileSessionId) {
-          const recovery = lookupSessionRecovery(profileSessionId)
-          if (recovery) {
-            const prevId = recovery.previousClaudeSessionId || recovery.claudeSessionId
-            const recoveryMsg = `${requestMeta.requestId} SESSION RECOVERY: previous conversation available. Run: claude --resume ${prevId}`
-            console.error(`[PROXY] ${recoveryMsg}`)
-            diagnosticLog.session(recoveryMsg, requestMeta.requestId)
+          // --- SDK parameter passthrough ---
+          // Extract effort, thinking, taskBudget from body (standard Anthropic API fields).
+          // Header overrides take precedence over body values.
+          const effortHeader = c.req.header("x-opencode-effort");
+          const thinkingHeader = c.req.header("x-opencode-thinking");
+          const taskBudgetHeader = c.req.header("x-opencode-task-budget");
+          // NOTE: anthropic-beta header filtering is delegated to `filterBetasForProfile`.
+          // Default policy (`allow-safe`) strips only betas known to trigger Extra-Usage
+          // billing (see BILLABLE_BETA_PREFIXES_ON_MAX in betas.ts). Free betas like
+          // prompt-caching, context-1m, fine-grained-tool-streaming, and
+          // interleaved-thinking pass through so the SDK's caching and 1M context
+          // continue to work — blanket stripping caused ~3x TTFB and ~3x token
+          // consumption on long conversations.
+          //
+          // Operators can override the policy at runtime via the MERIDIAN_BETA_POLICY
+          // env var: `strip-all` restores the pre-fix behaviour (kill switch),
+          // `allow-all` forwards everything unconditionally.
+          // See: https://github.com/rynfar/meridian/issues/278
+          const rawBetaHeader = c.req.header("anthropic-beta");
+          const betaFilter = filterBetasForProfile(
+            rawBetaHeader,
+            profile.type,
+            getBetaPolicyFromEnv(),
+          );
+          if (betaFilter.stripped.length > 0) {
+            console.error(
+              `[PROXY] ${requestMeta.requestId} stripped anthropic-beta(s) for Max profile: ${betaFilter.stripped.join(", ")}`,
+            );
           }
-        }
 
-        claudeLog("request.received", {
-          model,
-          stream,
-          queueWaitMs: requestMeta.queueStartedAt - requestMeta.queueEnteredAt,
-          messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
-          hasSystemPrompt: Boolean(body.system)
-        })
+          const effort = effortHeader || body.effort || undefined;
+          let thinking: QueryContext["thinking"] | undefined =
+            body.thinking || undefined;
+          if (thinkingHeader !== undefined) {
+            try {
+              thinking = JSON.parse(thinkingHeader) as QueryContext["thinking"];
+            } catch (e) {
+              console.error(
+                `[PROXY] ${requestMeta.requestId} ignoring malformed x-opencode-thinking header: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            }
+          }
+          const parsedBudget = taskBudgetHeader
+            ? Number.parseInt(taskBudgetHeader, 10)
+            : NaN;
+          const taskBudget = Number.isFinite(parsedBudget)
+            ? { total: parsedBudget }
+            : body.task_budget
+              ? { total: body.task_budget.total ?? body.task_budget }
+              : undefined;
+          const betas = betaFilter.forwarded;
 
-      // Build SDK agent definitions and system context hint via adapter.
-      // OpenCode parses the Task tool description; other adapters return empty.
-      const sdkAgents = adapter.buildSdkAgents?.(body, adapter.getAllowedMcpTools()) ?? {}
-      const validAgentNames = Object.keys(sdkAgents)
-      if ((process.env.MERIDIAN_DEBUG ?? process.env.CLAUDE_PROXY_DEBUG) && validAgentNames.length > 0) {
-        claudeLog("debug.agents", { names: validAgentNames, count: validAgentNames.length })
-      }
-      systemContext += adapter.buildSystemContextAddendum?.(body, sdkAgents) ?? ""
+          // Session resume: look up cached Claude SDK session and classify mutation
+          const agentSessionId = adapter.getSessionId(c);
+          // Scope session keys by profile to isolate resume state across accounts.
+          // For agents with session IDs (OpenCode): prefix the key.
+          // For agents without (Pi): pass profile-scoped workingDirectory to fingerprint lookup.
+          const profileSessionId =
+            profile.id !== "default" && agentSessionId
+              ? `${profile.id}:${agentSessionId}`
+              : agentSessionId;
+          const profileScopedCwd =
+            profile.id !== "default"
+              ? `${workingDirectory}::profile=${profile.id}`
+              : workingDirectory;
+          const lineageResult = lookupSession(
+            profileSessionId,
+            body.messages || [],
+            profileScopedCwd,
+          );
+          const isResume =
+            lineageResult.type === "continuation" ||
+            lineageResult.type === "compaction";
+          const isUndo = lineageResult.type === "undo";
+          const cachedSession =
+            lineageResult.type !== "diverged"
+              ? lineageResult.session
+              : undefined;
+          const resumeSessionId = cachedSession?.claudeSessionId;
+          // For undo: fork the session at the rollback point
+          const undoRollbackUuid =
+            isUndo && lineageResult.type === "undo"
+              ? lineageResult.rollbackUuid
+              : undefined;
 
-      // Belt-and-suspenders scrub on systemContext after the adapter
-      // addendum, in case it reintroduced vendor references. No-op when
-      // MERIDIAN_SCRUB_VENDOR is unset or when maybeScrubRequestBody
-      // (above) already cleaned the body.
-      systemContext = maybeScrubSystemContext(systemContext)
+          // Debug: log request details
+          const msgSummary = body.messages
+            ?.map((m: any) => {
+              const contentTypes = Array.isArray(m.content)
+                ? m.content.map((b: any) => b.type).join(",")
+                : "string";
+              return `${m.role}[${contentTypes}]`;
+            })
+            .join(" → ");
+          const lineageType =
+            lineageResult.type === "diverged" && !cachedSession
+              ? "new"
+              : lineageResult.type;
+          const msgCount = Array.isArray(body.messages)
+            ? body.messages.length
+            : 0;
+          const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name} model=${model} stream=${stream} tools=${body.tools?.length ?? 0} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`;
+          console.error(`[PROXY] ${requestLogLine} msgs=${msgSummary}`);
+          diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId);
 
+          // Recovery logging: when a session diverges, check if the store has a
+          // previous session ID that the user can recover via `claude --resume`.
+          if (lineageResult.type === "diverged" && profileSessionId) {
+            const recovery = lookupSessionRecovery(profileSessionId);
+            if (recovery) {
+              const prevId =
+                recovery.previousClaudeSessionId || recovery.claudeSessionId;
+              const recoveryMsg = `${requestMeta.requestId} SESSION RECOVERY: previous conversation available. Run: claude --resume ${prevId}`;
+              console.error(`[PROXY] ${recoveryMsg}`);
+              diagnosticLog.session(recoveryMsg, requestMeta.requestId);
+            }
+          }
 
+          claudeLog("request.received", {
+            model,
+            stream,
+            queueWaitMs:
+              requestMeta.queueStartedAt - requestMeta.queueEnteredAt,
+            messageCount: Array.isArray(body.messages)
+              ? body.messages.length
+              : 0,
+            hasSystemPrompt: Boolean(body.system),
+          });
 
-      // When resuming, only send new messages the SDK doesn't have.
-      const allMessages = body.messages || []
-      let messagesToConvert: typeof allMessages
+          // Build SDK agent definitions and system context hint via adapter.
+          // OpenCode parses the Task tool description; other adapters return empty.
+          const sdkAgents =
+            adapter.buildSdkAgents?.(body, adapter.getAllowedMcpTools()) ?? {};
+          const validAgentNames = Object.keys(sdkAgents);
+          if (
+            (process.env.MERIDIAN_DEBUG ?? process.env.CLAUDE_PROXY_DEBUG) &&
+            validAgentNames.length > 0
+          ) {
+            claudeLog("debug.agents", {
+              names: validAgentNames,
+              count: validAgentNames.length,
+            });
+          }
+          systemContext +=
+            adapter.buildSystemContextAddendum?.(body, sdkAgents) ?? "";
 
-      if ((isResume || isUndo) && cachedSession) {
-        if (isUndo && undoRollbackUuid) {
-          // Undo with SDK rollback: the SDK will fork to the correct point,
-          // so we only need to send the new user message.
-          messagesToConvert = getLastUserMessage(allMessages)
-        } else if (isResume) {
-          const knownCount = cachedSession.messageCount || 0
-          if (knownCount > 0 && knownCount < allMessages.length) {
-            messagesToConvert = allMessages.slice(knownCount)
+          // Belt-and-suspenders scrub on systemContext after the adapter
+          // addendum, in case it reintroduced vendor references. No-op when
+          // MERIDIAN_SCRUB_VENDOR is unset or when maybeScrubRequestBody
+          // (above) already cleaned the body.
+          systemContext = maybeScrubSystemContext(systemContext);
+
+          // When resuming, only send new messages the SDK doesn't have.
+          const allMessages = body.messages || [];
+          let messagesToConvert: typeof allMessages;
+
+          if ((isResume || isUndo) && cachedSession) {
+            if (isUndo && undoRollbackUuid) {
+              // Undo with SDK rollback: the SDK will fork to the correct point,
+              // so we only need to send the new user message.
+              messagesToConvert = getLastUserMessage(allMessages);
+            } else if (isResume) {
+              const knownCount = cachedSession.messageCount || 0;
+              if (knownCount > 0 && knownCount < allMessages.length) {
+                messagesToConvert = allMessages.slice(knownCount);
+              } else {
+                messagesToConvert = getLastUserMessage(allMessages);
+              }
+            } else {
+              // Undo without UUID (legacy session) — fall back to last user message
+              // to avoid the catastrophic flat text replay.
+              messagesToConvert = getLastUserMessage(allMessages);
+            }
           } else {
-            messagesToConvert = getLastUserMessage(allMessages)
+            messagesToConvert = allMessages;
           }
-        } else {
-          // Undo without UUID (legacy session) — fall back to last user message
-          // to avoid the catastrophic flat text replay.
-          messagesToConvert = getLastUserMessage(allMessages)
-        }
-      } else {
-        messagesToConvert = allMessages
-      }
 
-      // Check if any messages contain multimodal content (images, documents, files)
-      const MULTIMODAL_TYPES = new Set(["image", "document", "file"])
-      const hasMultimodal = messagesToConvert?.some((m: any) =>
-        Array.isArray(m.content) && m.content.some((b: any) => MULTIMODAL_TYPES.has(b.type))
-      )
+          // Check if any messages contain multimodal content (images, documents, files)
+          const MULTIMODAL_TYPES = new Set(["image", "document", "file"]);
+          const hasMultimodal = messagesToConvert?.some(
+            (m: any) =>
+              Array.isArray(m.content) &&
+              m.content.some((b: any) => MULTIMODAL_TYPES.has(b.type)),
+          );
 
-      // Strip cache_control from content blocks — the SDK manages its own caching
-      // and OpenCode's ttl='1h' blocks conflict with the SDK's ttl='5m' blocks
-      function stripCacheControl(content: any): any {
-        if (!Array.isArray(content)) return content
-        return content.map((block: any) => {
-          if (block.cache_control) {
-            const { cache_control, ...rest } = block
-            return rest
+          // Strip cache_control from content blocks — the SDK manages its own caching
+          // and OpenCode's ttl='1h' blocks conflict with the SDK's ttl='5m' blocks
+          function stripCacheControl(content: any): any {
+            if (!Array.isArray(content)) return content;
+            return content.map((block: any) => {
+              if (block.cache_control) {
+                const { cache_control, ...rest } = block;
+                return rest;
+              }
+              return block;
+            });
           }
-          return block
-        })
-      }
 
-      // Build the prompt — either structured (multimodal) or text.
-      // Structured prompts are stored as arrays so they can be replayed on retry.
-      let structuredMessages: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null }> | undefined
-      let textPrompt: string | undefined
+          // Build the prompt — either structured (multimodal) or text.
+          // Structured prompts are stored as arrays so they can be replayed on retry.
+          let structuredMessages:
+            | Array<{
+                type: "user";
+                message: { role: string; content: any };
+                parent_tool_use_id: null;
+              }>
+            | undefined;
+          let textPrompt: string | undefined;
 
-      if (hasMultimodal) {
-        // Structured messages preserve image/document/file blocks for Claude to see.
-        // On resume, only send user messages (SDK has assistant context already).
-        // On first request, include everything.
-        structuredMessages = []
+          if (hasMultimodal) {
+            // Structured messages preserve image/document/file blocks for Claude to see.
+            // On resume, only send user messages (SDK has assistant context already).
+            // On first request, include everything.
+            structuredMessages = [];
 
-        if (isResume) {
-          // Resume: only send user messages from the delta (SDK has the rest)
-          for (const m of messagesToConvert) {
-            if (m.role === "user") {
-              structuredMessages.push({
-                type: "user" as const,
-                message: { role: "user" as const, content: stripCacheControl(m.content) },
-                parent_tool_use_id: null,
-              })
-            }
-          }
-        } else {
-          // First request: all messages (system context now passed via appendSystemPrompt)
-          for (const m of messagesToConvert) {
-            if (m.role === "user") {
-              structuredMessages.push({
-                type: "user" as const,
-                message: { role: "user" as const, content: stripCacheControl(m.content) },
-                parent_tool_use_id: null,
-              })
+            if (isResume) {
+              // Resume: only send user messages from the delta (SDK has the rest)
+              for (const m of messagesToConvert) {
+                if (m.role === "user") {
+                  structuredMessages.push({
+                    type: "user" as const,
+                    message: {
+                      role: "user" as const,
+                      content: stripCacheControl(m.content),
+                    },
+                    parent_tool_use_id: null,
+                  });
+                }
+              }
             } else {
-              // Convert assistant messages to text summaries
-              let text: string
-              if (typeof m.content === "string") {
-                text = `[Assistant: ${m.content}]`
-              } else if (Array.isArray(m.content)) {
-                text = m.content.map((b: any) => {
-                  if (b.type === "text" && b.text) return `[Assistant: ${b.text}]`
-                  if (b.type === "tool_use") return `[Tool Use: ${b.name}(${JSON.stringify(b.input)})]`
-                  if (b.type === "tool_result") return `[Tool Result: ${typeof b.content === "string" ? b.content : JSON.stringify(b.content)}]`
-                  return ""
-                }).filter(Boolean).join("\n")
-              } else {
-                text = `[Assistant: ${String(m.content)}]`
-              }
-              structuredMessages.push({
-                type: "user" as const,
-                message: { role: "user" as const, content: text },
-                parent_tool_use_id: null,
-              })
-            }
-          }
-        }
-      } else {
-        // Text prompt — convert messages to string
-        textPrompt = messagesToConvert
-          ?.map((m: { role: string; content: string | Array<{ type: string; text?: string; content?: string; tool_use_id?: string; name?: string; input?: unknown; id?: string }> }) => {
-            const role = m.role === "assistant" ? "Assistant" : "Human"
-            let content: string
-            if (typeof m.content === "string") {
-              content = m.content
-            } else if (Array.isArray(m.content)) {
-              content = m.content
-                .map((block: any) => {
-                  if (block.type === "text" && block.text) return block.text
-                  if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
-                  if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
-                  if (block.type === "image") return "[Image attached]"
-                  if (block.type === "document") return "[Document attached]"
-                  if (block.type === "file") return "[File attached]"
-                  return ""
-                })
-                .filter(Boolean)
-                .join("\n")
-            } else {
-              content = String(m.content)
-            }
-            return `${role}: ${content}`
-          })
-          .join("\n\n") || ""
-      }
-
-      // Create a fresh prompt value — can be called multiple times for retry
-      function makePrompt(): string | AsyncIterable<any> {
-        if (structuredMessages) {
-          const msgs = structuredMessages
-          return (async function* () { for (const msg of msgs) yield msg })()
-        }
-        return textPrompt!
-      }
-
-      // --- Passthrough mode ---
-      // When enabled, ALL tool execution is forwarded to OpenCode instead of
-      // being handled internally. This enables multi-model agent delegation
-      // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
-      // Adapter can override the global passthrough env var per-agent.
-      // Droid always uses internal mode; OpenCode defers to the env var.
-      const adapterPassthrough = adapter.usesPassthrough?.()
-      const passthrough = adapterPassthrough !== undefined
-        ? adapterPassthrough
-        : envBool("PASSTHROUGH")
-      const capturedToolUses: Array<{ id: string; name: string; input: any }> = []
-      const fileChanges: FileChange[] = []
-
-      // In passthrough mode, register OpenCode's tools as MCP tools so Claude
-      // can actually call them (not just see them as text descriptions).
-      let passthroughMcp: ReturnType<typeof createPassthroughMcpServer> | undefined
-      if (passthrough && Array.isArray(body.tools) && body.tools.length > 0) {
-        passthroughMcp = createPassthroughMcpServer(body.tools)
-      }
-
-
-
-      // In passthrough mode: block ALL tools, capture them for forwarding (agent-agnostic).
-      // In normal mode: delegate hook construction to the adapter.
-      // PostToolUse hook tracks file changes from MCP tools (internal mode only).
-      // Catches write, edit, AND bash redirects (>, >>, tee, sed -i).
-      const mcpPrefix = `mcp__${adapter.getMcpServerName()}__`
-      const trackFileChanges = !(process.env.MERIDIAN_NO_FILE_CHANGES ?? process.env.CLAUDE_PROXY_NO_FILE_CHANGES)
-      const fileChangeHook = trackFileChanges ? createFileChangeHook(fileChanges, mcpPrefix) : undefined
-
-      const sdkHooks = passthrough
-        ? {
-            PreToolUse: [{
-              matcher: "",  // Match ALL tools
-              hooks: [async (input: any) => {
-                capturedToolUses.push({
-                  id: input.tool_use_id,
-                  name: stripMcpPrefix(input.tool_name),
-                  input: input.tool_input,
-                })
-                return {
-                  decision: "block" as const,
-                  reason: "Forwarding to client for execution",
-                }
-              }],
-            }],
-          }
-        : {
-            ...(adapter.buildSdkHooks?.(body, sdkAgents) ?? {}),
-            ...(fileChangeHook ? { PostToolUse: [fileChangeHook] } : {}),
-          }
-
-        // Capture subprocess stderr for all paths — used to surface the real
-        // failure message when the Claude subprocess exits with a non-zero code.
-        const stderrLines: string[] = []
-        const onStderr = (data: string) => {
-          stderrLines.push(data.trimEnd())
-          claudeLog("subprocess.stderr", { line: data.trimEnd() })
-        }
-
-        if (!stream) {
-          const contentBlocks: Array<Record<string, unknown>> = []
-          let assistantMessages = 0
-          const upstreamStartAt = Date.now()
-          let firstChunkAt: number | undefined
-          let currentSessionId: string | undefined
-
-          // Build SDK UUID map: start with previously stored UUIDs (if resuming),
-          // then capture new ones from the response. Declared outside try so
-          // storeSession (in the finally/after block) can access it.
-          const sdkUuidMap: Array<string | null> = cachedSession?.sdkMessageUuids
-            ? [...cachedSession.sdkMessageUuids]
-            : new Array(allMessages.length - 1).fill(null)
-          // Pad to current message count (the last user message has no UUID yet)
-          while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
-
-          claudeLog("upstream.start", { mode: "non_stream", model })
-          let lastUsage: TokenUsage | undefined
-
-          try {
-            // Lazy-resolve executable if not already set (e.g. when using createProxyServer directly)
-            if (!claudeExecutable) {
-              claudeExecutable = await resolveClaudeExecutableAsync()
-            }
-
-            // Wrap SDK call with transparent retry for recoverable errors.
-            // Both stale-UUID and rate-limit retries happen inside the generator,
-            // so the message-processing loop doesn't need any retry logic.
-            //
-            // Rate-limit retry strategy:
-            //   1. Strip [1m] context (immediate, different model tier)
-            //   2. Backoff retries on base model (1s, 2s — exponential)
-            const MAX_RATE_LIMIT_RETRIES = 2
-            const RATE_LIMIT_BASE_DELAY_MS = 1000
-
-            const response = (async function* () {
-              let rateLimitRetries = 0
-
-              let tokenRefreshed = false
-              while (true) {
-                // Track whether response content was yielded.
-                // The SDK emits metadata (session_id etc.) before the API call;
-                // only "assistant" messages represent actual response content.
-                let didYieldContent = false
-                try {
-                  for await (const event of query(buildQueryOptions({
-                    prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
-                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv,
-                    resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
-                    effort, thinking, taskBudget, betas,
-                  }))) {
-                    // Only count real assistant content — not SDK error messages
-                    // (which arrive as type:"assistant" with an error field set).
-                    // Counting error assistants as content would prevent retries.
-                    if ((event as any).type === "assistant" && !(event as any).error) {
-                      didYieldContent = true
-                    }
-                    yield event
-                  }
-                  return
-                } catch (error) {
-                  const errMsg = error instanceof Error ? error.message : String(error)
-
-                  // Never retry after response content was yielded — response is committed
-                  if (didYieldContent) throw error
-
-                  // Retry: stale undo UUID — evict session and start fresh (one-shot)
-                  if (isStaleSessionError(error)) {
-                    claudeLog("session.stale_uuid_retry", {
-                      mode: "non_stream",
-                      rollbackUuid: undoRollbackUuid,
-                      resumeSessionId,
-                    })
-                    console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
-                    evictSession(profileSessionId, profileScopedCwd, allMessages)
-                    sdkUuidMap.length = 0
-                    for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                    yield* query(buildQueryOptions({
-                      prompt: buildFreshPrompt(allMessages, stripCacheControl),
-                      model, workingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv,
-                      resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
-                      effort, thinking, taskBudget, betas,
-                    }))
-                    return
-                  }
-
-                  // Extra Usage required: strip [1m] and record 1-hour cooldown.
-                  // mapModelToClaudeModel will skip [1m] for the next hour so
-                  // subsequent requests don't each make one extra failed attempt.
-                  // After the hour expires a single probe fires; if the user has
-                  // enabled Extra Usage in the meantime it succeeds and the flag clears.
-                  if (isExtraUsageRequiredError(errMsg) && hasExtendedContext(model)) {
-                    const from = model
-                    model = stripExtendedContext(model)
-                    recordExtendedContextUnavailable()
-                    claudeLog("upstream.context_fallback", {
-                      mode: "non_stream",
-                      from,
-                      to: model,
-                      reason: "extra_usage_required",
-                    })
-                    console.error(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
-                    continue
-                  }
-
-                  // Expired OAuth token: refresh once and retry
-                  if (isExpiredTokenError(errMsg) && !tokenRefreshed) {
-                    tokenRefreshed = true
-                    const refreshed = await refreshOAuthToken()
-                    if (refreshed) {
-                      claudeLog("token_refresh.retrying", { mode: "non_stream" })
-                      console.error(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
-                      continue
-                    }
-                    // Refresh failed — fall through and surface the error
-                  }
-
-                  // Rate-limit retry: first strip [1m] (free, different tier), then backoff
-                  if (isRateLimitError(errMsg)) {
-                    if (hasExtendedContext(model)) {
-                      const from = model
-                      model = stripExtendedContext(model)
-                      claudeLog("upstream.context_fallback", {
-                        mode: "non_stream",
-                        from,
-                        to: model,
-                        reason: "rate_limit",
-                      })
-                      console.error(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
-                      continue
-                    }
-                    if (rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
-                      rateLimitRetries++
-                      const delay = RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, rateLimitRetries - 1)
-                      claudeLog("upstream.rate_limit_backoff", {
-                        mode: "non_stream",
-                        model,
-                        attempt: rateLimitRetries,
-                        maxAttempts: MAX_RATE_LIMIT_RETRIES,
-                        delayMs: delay,
-                      })
-                      console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
-                      await new Promise(r => setTimeout(r, delay))
-                      continue
-                    }
-                  }
-
-                  throw error
-                }
-              }
-            })()
-
-            for await (const message of response) {
-              // Capture session ID from SDK messages
-              if ((message as any).session_id) {
-                currentSessionId = (message as any).session_id
-              }
-              if (message.type === "assistant") {
-                assistantMessages += 1
-                // Capture SDK assistant UUID for undo rollback
-                if ((message as any).uuid) {
-                  sdkUuidMap.push((message as any).uuid)
-                }
-                if (!firstChunkAt) {
-                  firstChunkAt = Date.now()
-                  claudeLog("upstream.first_chunk", {
-                    mode: "non_stream",
-                    model,
-                    ttfbMs: firstChunkAt - upstreamStartAt
-                  })
-                }
-
-                // Preserve content blocks, with two passthrough-specific guards:
-                //
-                // 1. Stop-after-tool-use: in passthrough mode the SDK runs 2 turns
-                //    (maxTurns:2 is required to avoid SDK crash). Turn 1 is the real
-                //    response containing the client's tool_use blocks. Turn 2 is an
-                //    SDK artefact — Claude receives a blank tool result and generates
-                //    a prose summary ("The edit has been forwarded..."). That Turn 2
-                //    content must NOT be forwarded; it confuses the client into
-                //    showing prose instead of executing + diff-rendering the tool_use.
-                //
-                // 2. Strip thinking blocks: type:"thinking" / type:"redacted_thinking"
-                //    contain an encrypted signature that is only valid inside Claude's
-                //    native context. Non-native clients (OpenCode, GPT-compat) have no
-                //    renderer for them and may misinterpret or choke on the signature.
-                const isPassthroughTurn2 =
-                  passthrough &&
-                  assistantMessages > 1 &&
-                  contentBlocks.some((b) => b.type === "tool_use")
-
-                if (isPassthroughTurn2) {
-                  // Skip all content from Turn 2 onwards in passthrough mode
-                  claudeLog("passthrough.turn2_skipped", { mode: "non_stream", assistantMessages })
+              // First request: all messages (system context now passed via appendSystemPrompt)
+              for (const m of messagesToConvert) {
+                if (m.role === "user") {
+                  structuredMessages.push({
+                    type: "user" as const,
+                    message: {
+                      role: "user" as const,
+                      content: stripCacheControl(m.content),
+                    },
+                    parent_tool_use_id: null,
+                  });
                 } else {
-                  for (const block of message.message.content) {
-                    const b = block as unknown as Record<string, unknown>
-                    // Strip thinking blocks — meaningless to non-native clients
-                    if (passthrough && !adapter.supportsThinking?.() && (b.type === "thinking" || b.type === "redacted_thinking")) {
-                      claudeLog("passthrough.thinking_stripped", { mode: "non_stream", type: b.type })
-                      continue
-                    }
-                    // In passthrough mode, strip MCP prefix from tool names
-                    if (passthrough && b.type === "tool_use" && typeof b.name === "string") {
-                      b.name = stripMcpPrefix(b.name as string)
-                    }
-                    contentBlocks.push(b)
+                  // Convert assistant messages to text summaries
+                  let text: string;
+                  if (typeof m.content === "string") {
+                    text = `[Assistant: ${m.content}]`;
+                  } else if (Array.isArray(m.content)) {
+                    text = m.content
+                      .map((b: any) => {
+                        if (b.type === "text" && b.text)
+                          return `[Assistant: ${b.text}]`;
+                        if (b.type === "tool_use")
+                          return `[Tool Use: ${b.name}(${JSON.stringify(b.input)})]`;
+                        if (b.type === "tool_result")
+                          return `[Tool Result: ${typeof b.content === "string" ? b.content : JSON.stringify(b.content)}]`;
+                        return "";
+                      })
+                      .filter(Boolean)
+                      .join("\n");
+                  } else {
+                    text = `[Assistant: ${String(m.content)}]`;
                   }
+                  structuredMessages.push({
+                    type: "user" as const,
+                    message: { role: "user" as const, content: text },
+                    parent_tool_use_id: null,
+                  });
                 }
-                // Capture token usage from the assistant message
-                const msgUsage = message.message.usage as TokenUsage | undefined
-                if (msgUsage) lastUsage = { ...lastUsage, ...msgUsage }
               }
             }
-
-            claudeLog("upstream.completed", {
-              mode: "non_stream",
-              model,
-              assistantMessages,
-              durationMs: Date.now() - upstreamStartAt
-            })
-            if (lastUsage) logUsage(requestMeta.requestId, lastUsage)
-          } catch (error) {
-            const stderrOutput = stderrLines.join("\n").trim()
-            if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
-              error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
-            }
-            claudeLog("upstream.failed", {
-              mode: "non_stream",
-              model,
-              durationMs: Date.now() - upstreamStartAt,
-              error: error instanceof Error ? error.message : String(error),
-              ...(stderrOutput ? { stderr: stderrOutput } : {})
-            })
-            throw error
+          } else {
+            // Text prompt — convert messages to string
+            textPrompt =
+              messagesToConvert
+                ?.map(
+                  (m: {
+                    role: string;
+                    content:
+                      | string
+                      | Array<{
+                          type: string;
+                          text?: string;
+                          content?: string;
+                          tool_use_id?: string;
+                          name?: string;
+                          input?: unknown;
+                          id?: string;
+                        }>;
+                  }) => {
+                    const role = m.role === "assistant" ? "Assistant" : "Human";
+                    let content: string;
+                    if (typeof m.content === "string") {
+                      content = m.content;
+                    } else if (Array.isArray(m.content)) {
+                      content = m.content
+                        .map((block: any) => {
+                          if (block.type === "text" && block.text)
+                            return block.text;
+                          if (block.type === "tool_use")
+                            return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`;
+                          if (block.type === "tool_result")
+                            return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`;
+                          if (block.type === "image") return "[Image attached]";
+                          if (block.type === "document")
+                            return "[Document attached]";
+                          if (block.type === "file") return "[File attached]";
+                          return "";
+                        })
+                        .filter(Boolean)
+                        .join("\n");
+                    } else {
+                      content = String(m.content);
+                    }
+                    return `${role}: ${content}`;
+                  },
+                )
+                .join("\n\n") || "";
           }
 
-          // In passthrough mode, add captured tool_use blocks from the hook
-          // (the SDK may not include them in content after blocking)
-          if (passthrough && capturedToolUses.length > 0) {
-            for (const tu of capturedToolUses) {
-              // Only add if not already in contentBlocks
-              if (!contentBlocks.some((b) => b.type === "tool_use" && (b as any).id === tu.id)) {
-                contentBlocks.push({
-                  type: "tool_use",
-                  id: tu.id,
-                  name: tu.name,
-                  input: tu.input,
-                })
-              }
+          // Create a fresh prompt value — can be called multiple times for retry
+          function makePrompt(): string | AsyncIterable<any> {
+            if (structuredMessages) {
+              const msgs = structuredMessages;
+              return (async function* () {
+                for (const msg of msgs) yield msg;
+              })();
             }
+            return textPrompt!;
           }
 
-          // Determine stop_reason based on content: tool_use if any tool blocks, else end_turn
-          const hasToolUse = contentBlocks.some((b) => b.type === "tool_use")
-          const stopReason = hasToolUse ? "tool_use" : "end_turn"
+          // --- Passthrough mode ---
+          // When enabled, ALL tool execution is forwarded to OpenCode instead of
+          // being handled internally. This enables multi-model agent delegation
+          // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
+          // Adapter can override the global passthrough env var per-agent.
+          // Droid always uses internal mode; OpenCode defers to the env var.
+          const adapterPassthrough = adapter.usesPassthrough?.();
+          const passthrough =
+            adapterPassthrough !== undefined
+              ? adapterPassthrough
+              : envBool("PASSTHROUGH");
+          const capturedToolUses: Array<{
+            id: string;
+            name: string;
+            input: any;
+          }> = [];
+          const fileChanges: FileChange[] = [];
 
-          // Append file change summary:
-          // - Internal mode: fileChanges populated by PostToolUse hook
-          // - Passthrough mode: scan body.messages for executed tool_use blocks
-          if (trackFileChanges) {
-            if (passthrough && stopReason === "end_turn" && adapter.extractFileChangesFromToolUse) {
-              const passthroughChanges = extractFileChangesFromMessages(
-                body.messages || [],
-                adapter.extractFileChangesFromToolUse.bind(adapter)
-              )
-              fileChanges.push(...passthroughChanges)
-            }
-            const fileChangeSummary = formatFileChangeSummary(fileChanges)
-            if (fileChangeSummary) {
-              const lastTextBlock = [...contentBlocks].reverse().find((b) => b.type === "text")
-              if (lastTextBlock) {
-                lastTextBlock.text = (lastTextBlock.text as string) + fileChangeSummary
-              } else {
-                contentBlocks.push({ type: "text", text: fileChangeSummary.trimStart() })
-              }
-              claudeLog("response.file_changes", { mode: "non_stream", count: fileChanges.length })
-            }
+          // In passthrough mode, register OpenCode's tools as MCP tools so Claude
+          // can actually call them (not just see them as text descriptions).
+          let passthroughMcp:
+            | ReturnType<typeof createPassthroughMcpServer>
+            | undefined;
+          if (
+            passthrough &&
+            Array.isArray(body.tools) &&
+            body.tools.length > 0
+          ) {
+            passthroughMcp = createPassthroughMcpServer(body.tools);
           }
 
-          // If no content at all, add a fallback text block
-          if (contentBlocks.length === 0) {
-            contentBlocks.push({
-              type: "text",
-              text: "I can help with that. Could you provide more details about what you'd like me to do?"
-            })
-            claudeLog("response.fallback_used", { mode: "non_stream", reason: "no_content_blocks" })
-          }
+          // In passthrough mode: block ALL tools, capture them for forwarding (agent-agnostic).
+          // In normal mode: delegate hook construction to the adapter.
+          // PostToolUse hook tracks file changes from MCP tools (internal mode only).
+          // Catches write, edit, AND bash redirects (>, >>, tee, sed -i).
+          const mcpPrefix = `mcp__${adapter.getMcpServerName()}__`;
+          const trackFileChanges = !(
+            process.env.MERIDIAN_NO_FILE_CHANGES ??
+            process.env.CLAUDE_PROXY_NO_FILE_CHANGES
+          );
+          const fileChangeHook = trackFileChanges
+            ? createFileChangeHook(fileChanges, mcpPrefix)
+            : undefined;
 
-          const totalDurationMs = Date.now() - requestStartAt
-
-          claudeLog("response.completed", {
-            mode: "non_stream",
-            model,
-            durationMs: totalDurationMs,
-            contentBlocks: contentBlocks.length,
-            hasToolUse
-          })
-
-          const nonStreamQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
-          checkTokenHealth(
-            requestMeta.requestId,
-            currentSessionId || resumeSessionId,
-            lastUsage,
-            allMessages.length,
-            isResume,
-            passthrough
-          )
-          telemetryStore.record({
-            requestId: requestMeta.requestId,
-            timestamp: Date.now(),
-            adapter: adapter.name,
-            model,
-            requestModel: body.model || undefined,
-            mode: "non-stream",
-            isResume,
-            isPassthrough: passthrough,
-            lineageType,
-            messageCount: allMessages.length,
-            sdkSessionId: currentSessionId || resumeSessionId,
-            status: 200,
-            queueWaitMs: nonStreamQueueWaitMs,
-            proxyOverheadMs: upstreamStartAt - requestStartAt - nonStreamQueueWaitMs,
-            ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
-            upstreamDurationMs: Date.now() - upstreamStartAt,
-            totalDurationMs,
-            contentBlocks: contentBlocks.length,
-            textEvents: 0,
-            error: null,
-            inputTokens: lastUsage?.input_tokens,
-            outputTokens: lastUsage?.output_tokens,
-            cacheReadInputTokens: lastUsage?.cache_read_input_tokens,
-            cacheCreationInputTokens: lastUsage?.cache_creation_input_tokens,
-            cacheHitRate: computeCacheHitRate(lastUsage),
-          })
-
-          // Store session for future resume
-              if (currentSessionId) {
-                storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
+          const sdkHooks = passthrough
+            ? {
+                PreToolUse: [
+                  {
+                    matcher: "", // Match ALL tools
+                    hooks: [
+                      async (input: any) => {
+                        capturedToolUses.push({
+                          id: input.tool_use_id,
+                          name: stripMcpPrefix(input.tool_name),
+                          input: input.tool_input,
+                        });
+                        return {
+                          decision: "block" as const,
+                          reason: "Forwarding to client for execution",
+                        };
+                      },
+                    ],
+                  },
+                ],
               }
+            : {
+                ...(adapter.buildSdkHooks?.(body, sdkAgents) ?? {}),
+                ...(fileChangeHook ? { PostToolUse: [fileChangeHook] } : {}),
+              };
 
-              const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
+          // Capture subprocess stderr for all paths — used to surface the real
+          // failure message when the Claude subprocess exits with a non-zero code.
+          const stderrLines: string[] = [];
+          const onStderr = (data: string) => {
+            stderrLines.push(data.trimEnd());
+            claudeLog("subprocess.stderr", { line: data.trimEnd() });
+          };
 
-              return new Response(JSON.stringify({
-            id: `msg_${Date.now()}`,
-            type: "message",
-            role: "assistant",
-            content: contentBlocks,
-            model: body.model,
-            stop_reason: stopReason,
-            usage: { input_tokens: 0, output_tokens: 0 }
-          }), {
-            headers: {
-              "Content-Type": "application/json",
-              "X-Claude-Session-ID": responseSessionId,
-            }
-          })
-        }
+          if (!stream) {
+            const contentBlocks: Array<Record<string, unknown>> = [];
+            let assistantMessages = 0;
+            const upstreamStartAt = Date.now();
+            let firstChunkAt: number | undefined;
+            let currentSessionId: string | undefined;
 
-        const encoder = new TextEncoder()
-        const readable = new ReadableStream({
-          async start(controller) {
-            const upstreamStartAt = Date.now()
-            let firstChunkAt: number | undefined
-            let heartbeatCount = 0
-            let streamEventsSeen = 0
-            let eventsForwarded = 0
-            let textEventsForwarded = 0
-            let bytesSent = 0
-            let streamClosed = false
+            // Build SDK UUID map: start with previously stored UUIDs (if resuming),
+            // then capture new ones from the response. Declared outside try so
+            // storeSession (in the finally/after block) can access it.
+            const sdkUuidMap: Array<string | null> =
+              cachedSession?.sdkMessageUuids
+                ? [...cachedSession.sdkMessageUuids]
+                : new Array(allMessages.length - 1).fill(null);
+            // Pad to current message count (the last user message has no UUID yet)
+            while (sdkUuidMap.length < allMessages.length)
+              sdkUuidMap.push(null);
 
-            claudeLog("upstream.start", { mode: "stream", model })
-
-            const safeEnqueue = (payload: Uint8Array, source: string): boolean => {
-              if (streamClosed) return false
-              try {
-                controller.enqueue(payload)
-                bytesSent += payload.byteLength
-                return true
-              } catch (error) {
-                if (isClosedControllerError(error)) {
-                  streamClosed = true
-                  claudeLog("stream.client_closed", { source, streamEventsSeen, eventsForwarded })
-                  return false
-                }
-
-                claudeLog("stream.enqueue_failed", {
-                  source,
-                  error: error instanceof Error ? error.message : String(error)
-                })
-                throw error
-              }
-            }
-
-            // Build SDK UUID map for the streaming path (declared before try for storeSession access)
-            const sdkUuidMap: Array<string | null> = cachedSession?.sdkMessageUuids
-              ? [...cachedSession.sdkMessageUuids]
-              : new Array(allMessages.length - 1).fill(null)
-            while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
-
-            let messageStartEmitted = false
-            let lastUsage: TokenUsage | undefined
+            claudeLog("upstream.start", { mode: "non_stream", model });
+            let lastUsage: TokenUsage | undefined;
 
             try {
-              let currentSessionId: string | undefined
-              // Same transparent retry wrapper as the non-streaming path.
+              // Lazy-resolve executable if not already set (e.g. when using createProxyServer directly)
+              if (!claudeExecutable) {
+                claudeExecutable = await resolveClaudeExecutableAsync();
+              }
+
+              // Wrap SDK call with transparent retry for recoverable errors.
+              // Both stale-UUID and rate-limit retries happen inside the generator,
+              // so the message-processing loop doesn't need any retry logic.
+              //
               // Rate-limit retry strategy:
               //   1. Strip [1m] context (immediate, different model tier)
               //   2. Backoff retries on base model (1s, 2s — exponential)
-              const MAX_RATE_LIMIT_RETRIES = 2
-              const RATE_LIMIT_BASE_DELAY_MS = 1000
+              const MAX_RATE_LIMIT_RETRIES = 2;
+              const RATE_LIMIT_BASE_DELAY_MS = 1000;
 
               const response = (async function* () {
-                let rateLimitRetries = 0
-                let tokenRefreshed = false
+                let rateLimitRetries = 0;
 
+                let tokenRefreshed = false;
                 while (true) {
-                  // Track whether client-visible SSE events were yielded.
-                  // The SDK emits metadata events (session_id, internal routing)
-                  // before the API call — those are NOT client-visible and must
-                  // not prevent retry. Only stream_event types become SSE output.
-                  let didYieldClientEvent = false
+                  // Track whether response content was yielded.
+                  // The SDK emits metadata (session_id etc.) before the API call;
+                  // only "assistant" messages represent actual response content.
+                  let didYieldContent = false;
                   try {
-                    for await (const event of query(buildQueryOptions({
-                      prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv,
-                      resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
-                      effort, thinking, taskBudget, betas,
-                    }))) {
-                      if ((event as any).type === "stream_event") {
-                        didYieldClientEvent = true
+                    for await (const event of query(
+                      buildQueryOptions({
+                        prompt: makePrompt(),
+                        model,
+                        workingDirectory,
+                        systemContext,
+                        claudeExecutable,
+                        passthrough,
+                        stream: false,
+                        sdkAgents,
+                        passthroughMcp,
+                        cleanEnv: profileEnv,
+                        resumeSessionId,
+                        isUndo,
+                        undoRollbackUuid,
+                        sdkHooks,
+                        adapter,
+                        onStderr,
+                        effort,
+                        thinking,
+                        taskBudget,
+                        betas,
+                      }),
+                    )) {
+                      // Only count real assistant content — not SDK error messages
+                      // (which arrive as type:"assistant" with an error field set).
+                      // Counting error assistants as content would prevent retries.
+                      if (
+                        (event as any).type === "assistant" &&
+                        !(event as any).error
+                      ) {
+                        didYieldContent = true;
                       }
-                      yield event
+                      yield event;
                     }
-                    return
+                    return;
                   } catch (error) {
-                    const errMsg = error instanceof Error ? error.message : String(error)
+                    const errMsg =
+                      error instanceof Error ? error.message : String(error);
 
-                    // Never retry after client-visible SSE events — response is committed
-                    if (didYieldClientEvent) throw error
+                    // Never retry after response content was yielded — response is committed
+                    if (didYieldContent) throw error;
 
-                    // Retry: stale undo UUID — evict and start fresh (one-shot)
+                    // Retry: stale undo UUID — evict session and start fresh (one-shot)
                     if (isStaleSessionError(error)) {
                       claudeLog("session.stale_uuid_retry", {
-                        mode: "stream",
+                        mode: "non_stream",
                         rollbackUuid: undoRollbackUuid,
                         resumeSessionId,
-                      })
-                      console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
-                      evictSession(profileSessionId, profileScopedCwd, allMessages)
-                      sdkUuidMap.length = 0
-                      for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                      yield* query(buildQueryOptions({
-                        prompt: buildFreshPrompt(allMessages, stripCacheControl),
-                        model, workingDirectory, systemContext, claudeExecutable,
-                        passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv,
-                        resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
-                        effort, thinking, taskBudget, betas,
-                      }))
-                      return
+                      });
+                      console.error(
+                        `[PROXY] Stale session UUID, evicting and retrying as fresh session`,
+                      );
+                      evictSession(
+                        profileSessionId,
+                        profileScopedCwd,
+                        allMessages,
+                      );
+                      sdkUuidMap.length = 0;
+                      for (let i = 0; i < allMessages.length; i++)
+                        sdkUuidMap.push(null);
+                      yield* query(
+                        buildQueryOptions({
+                          prompt: buildFreshPrompt(
+                            allMessages,
+                            stripCacheControl,
+                          ),
+                          model,
+                          workingDirectory,
+                          systemContext,
+                          claudeExecutable,
+                          passthrough,
+                          stream: false,
+                          sdkAgents,
+                          passthroughMcp,
+                          cleanEnv: profileEnv,
+                          resumeSessionId: undefined,
+                          isUndo: false,
+                          undoRollbackUuid: undefined,
+                          sdkHooks,
+                          adapter,
+                          onStderr,
+                          effort,
+                          thinking,
+                          taskBudget,
+                          betas,
+                        }),
+                      );
+                      return;
                     }
 
                     // Extra Usage required: strip [1m] and record 1-hour cooldown.
-                    if (isExtraUsageRequiredError(errMsg) && hasExtendedContext(model)) {
-                      const from = model
-                      model = stripExtendedContext(model)
-                      recordExtendedContextUnavailable()
+                    // mapModelToClaudeModel will skip [1m] for the next hour so
+                    // subsequent requests don't each make one extra failed attempt.
+                    // After the hour expires a single probe fires; if the user has
+                    // enabled Extra Usage in the meantime it succeeds and the flag clears.
+                    if (
+                      isExtraUsageRequiredError(errMsg) &&
+                      hasExtendedContext(model)
+                    ) {
+                      const from = model;
+                      model = stripExtendedContext(model);
+                      recordExtendedContextUnavailable();
                       claudeLog("upstream.context_fallback", {
-                        mode: "stream",
+                        mode: "non_stream",
                         from,
                         to: model,
                         reason: "extra_usage_required",
-                      })
-                      console.error(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
-                      continue
+                      });
+                      console.error(
+                        `[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`,
+                      );
+                      continue;
                     }
 
                     // Expired OAuth token: refresh once and retry
                     if (isExpiredTokenError(errMsg) && !tokenRefreshed) {
-                      tokenRefreshed = true
-                      const refreshed = await refreshOAuthToken()
+                      tokenRefreshed = true;
+                      const refreshed = await refreshOAuthToken();
                       if (refreshed) {
-                        claudeLog("token_refresh.retrying", { mode: "stream" })
-                        console.error(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
-                        continue
+                        claudeLog("token_refresh.retrying", {
+                          mode: "non_stream",
+                        });
+                        console.error(
+                          `[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`,
+                        );
+                        continue;
                       }
                       // Refresh failed — fall through and surface the error
                     }
@@ -1132,564 +1040,1238 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     // Rate-limit retry: first strip [1m] (free, different tier), then backoff
                     if (isRateLimitError(errMsg)) {
                       if (hasExtendedContext(model)) {
-                        const from = model
-                        model = stripExtendedContext(model)
+                        const from = model;
+                        model = stripExtendedContext(model);
                         claudeLog("upstream.context_fallback", {
-                          mode: "stream",
+                          mode: "non_stream",
                           from,
                           to: model,
                           reason: "rate_limit",
-                        })
-                        console.error(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
-                        continue
+                        });
+                        console.error(
+                          `[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`,
+                        );
+                        continue;
                       }
                       if (rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
-                        rateLimitRetries++
-                        const delay = RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, rateLimitRetries - 1)
+                        rateLimitRetries++;
+                        const delay =
+                          RATE_LIMIT_BASE_DELAY_MS *
+                          Math.pow(2, rateLimitRetries - 1);
                         claudeLog("upstream.rate_limit_backoff", {
-                          mode: "stream",
+                          mode: "non_stream",
                           model,
                           attempt: rateLimitRetries,
                           maxAttempts: MAX_RATE_LIMIT_RETRIES,
                           delayMs: delay,
-                        })
-                        console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
-                        await new Promise(r => setTimeout(r, delay))
-                        continue
+                        });
+                        console.error(
+                          `[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`,
+                        );
+                        await new Promise((r) => setTimeout(r, delay));
+                        continue;
                       }
                     }
 
-                    throw error
+                    throw error;
                   }
                 }
-              })()
+              })();
 
-              const heartbeat = setInterval(() => {
-                heartbeatCount += 1
-                try {
-                  const payload = encoder.encode(`: ping\n\n`)
-                  if (!safeEnqueue(payload, "heartbeat")) {
-                    clearInterval(heartbeat)
-                    return
-                  }
-                  if (heartbeatCount % 5 === 0) {
-                    claudeLog("stream.heartbeat", { count: heartbeatCount })
-                  }
-                } catch (error) {
-                  claudeLog("stream.heartbeat_failed", {
-                    count: heartbeatCount,
-                    error: error instanceof Error ? error.message : String(error)
-                  })
-                  clearInterval(heartbeat)
+              for await (const message of response) {
+                // Capture session ID from SDK messages
+                if ((message as any).session_id) {
+                  currentSessionId = (message as any).session_id;
                 }
-              }, 15_000)
-
-              const skipBlockIndices = new Set<number>()
-              const streamedToolUseIds = new Set<string>()
-
-              // Block index remapping: the SDK resets indices on each turn, but
-              // we skip intermediate message_start/stop so the client sees one
-              // message. Without remapping, turn 2's index=0 collides with turn 1's.
-              let nextClientBlockIndex = 0
-              const sdkToClientIndex = new Map<number, number>()
-
-              try {
-                for await (const message of response) {
-                  if (streamClosed) {
-                    break
+                if (message.type === "assistant") {
+                  assistantMessages += 1;
+                  // Capture SDK assistant UUID for undo rollback
+                  if ((message as any).uuid) {
+                    sdkUuidMap.push((message as any).uuid);
+                  }
+                  if (!firstChunkAt) {
+                    firstChunkAt = Date.now();
+                    claudeLog("upstream.first_chunk", {
+                      mode: "non_stream",
+                      model,
+                      ttfbMs: firstChunkAt - upstreamStartAt,
+                    });
                   }
 
-                  // Capture session ID and assistant UUID from any SDK message
-                  if ((message as any).session_id) {
-                    currentSessionId = (message as any).session_id
-                  }
-                  if (message.type === "assistant" && (message as any).uuid) {
-                    sdkUuidMap.push((message as any).uuid)
-                  }
+                  // Preserve content blocks, with two passthrough-specific guards:
+                  //
+                  // 1. Stop-after-tool-use: in passthrough mode the SDK runs 2 turns
+                  //    (maxTurns:2 is required to avoid SDK crash). Turn 1 is the real
+                  //    response containing the client's tool_use blocks. Turn 2 is an
+                  //    SDK artefact — Claude receives a blank tool result and generates
+                  //    a prose summary ("The edit has been forwarded..."). That Turn 2
+                  //    content must NOT be forwarded; it confuses the client into
+                  //    showing prose instead of executing + diff-rendering the tool_use.
+                  //
+                  // 2. Strip thinking blocks: type:"thinking" / type:"redacted_thinking"
+                  //    contain an encrypted signature that is only valid inside Claude's
+                  //    native context. Non-native clients (OpenCode, GPT-compat) have no
+                  //    renderer for them and may misinterpret or choke on the signature.
+                  const isPassthroughTurn2 =
+                    passthrough &&
+                    assistantMessages > 1 &&
+                    contentBlocks.some((b) => b.type === "tool_use");
 
-                  if (message.type === "stream_event") {
-                    streamEventsSeen += 1
-                    if (!firstChunkAt) {
-                      firstChunkAt = Date.now()
-                      claudeLog("upstream.first_chunk", {
-                        mode: "stream",
-                        model,
-                        ttfbMs: firstChunkAt - upstreamStartAt
-                      })
-                    }
-
-                    const event = message.event
-                    const eventType = (event as any).type
-                    const eventIndex = (event as any).index as number | undefined
-
-                    // Track MCP tool blocks (mcp__opencode__*) — these are internal tools
-                    // that the SDK executes. Don't forward them to OpenCode.
-                    if (eventType === "message_start") {
-                      skipBlockIndices.clear()
-                      sdkToClientIndex.clear()
-                      const startUsage = (event as unknown as { message?: { usage?: TokenUsage } }).message?.usage
-                      if (startUsage) lastUsage = { ...lastUsage, ...startUsage }
-                      // Only emit the first message_start — subsequent ones are internal SDK turns.
-                      // In passthrough mode, the second message_start marks Turn 2 beginning
-                      // (SDK processed the blocked tool call and Claude is now summarising).
-                      // Close the stream immediately — before ANY Turn 2 content blocks reach
-                      // the client — and inject a clean message_delta + message_stop so the
-                      // client sees stop_reason:"tool_use" and executes the tool itself.
-                      if (messageStartEmitted) {
-                        if (passthrough && streamedToolUseIds.size > 0) {
-                          safeEnqueue(encoder.encode(
-                            `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
-                          ), "passthrough_turn2_stop")
-                          safeEnqueue(encoder.encode(
-                            `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
-                          ), "passthrough_turn2_stop")
-                          claudeLog("passthrough.turn2_suppressed", { mode: "stream", toolUses: streamedToolUseIds.size })
-                          streamClosed = true
-                          controller.close()
-                          break
-                        }
-                        continue
-                      }
-                      messageStartEmitted = true
-                    }
-
-                    // Skip intermediate message_stop events (SDK will start another turn)
-                    // Only emit message_stop when the final message ends
-                    if (eventType === "message_stop") {
-                      // Peek: if there are more events coming, skip this message_stop
-                      // We handle this by only emitting message_stop at the very end (after the loop)
-                      continue
-                    }
-
-                    if (eventType === "content_block_start") {
-                      const block = (event as any).content_block
-                      // Strip thinking blocks in passthrough mode — non-native clients
-                      // have no renderer for type:"thinking" and may choke on the
-                      // encrypted signature field.
+                  if (isPassthroughTurn2) {
+                    // Skip all content from Turn 2 onwards in passthrough mode
+                    claudeLog("passthrough.turn2_skipped", {
+                      mode: "non_stream",
+                      assistantMessages,
+                    });
+                  } else {
+                    for (const block of message.message.content) {
+                      const b = block as unknown as Record<string, unknown>;
+                      // Strip thinking blocks — meaningless to non-native clients
                       if (
                         passthrough &&
                         !adapter.supportsThinking?.() &&
-                        (block?.type === "thinking" || block?.type === "redacted_thinking")
+                        (b.type === "thinking" ||
+                          b.type === "redacted_thinking")
                       ) {
-                        if (eventIndex !== undefined) skipBlockIndices.add(eventIndex)
-                        claudeLog("passthrough.thinking_stripped", { mode: "stream", type: block.type, index: eventIndex })
-                        continue
+                        claudeLog("passthrough.thinking_stripped", {
+                          mode: "non_stream",
+                          type: b.type,
+                        });
+                        continue;
                       }
-                      if (block?.type === "tool_use" && typeof block.name === "string") {
-                        if (passthrough && block.name.startsWith(PASSTHROUGH_MCP_PREFIX)) {
-                          // Passthrough mode: SDK sent the name WITH the mcp__oc__ prefix.
-                          // Strip it so OpenCode sees the bare tool name.
-                          block.name = stripMcpPrefix(block.name)
-                          if (block.id) streamedToolUseIds.add(block.id)
-                        } else if (block.name.startsWith("mcp__")) {
-                          // Internal MCP tool (mcp__opencode__* etc.) — skip, SDK handles it
-                          if (eventIndex !== undefined) skipBlockIndices.add(eventIndex)
-                          continue
-                        } else if (passthrough && block.id) {
-                          // Passthrough mode: SDK already stripped the mcp__oc__ prefix before
-                          // emitting the stream_event (observed in practice — the SDK normalises
-                          // tool names in stream events). Track the ID so the early-break
-                          // condition fires correctly.
-                          streamedToolUseIds.add(block.id)
-                        }
+                      // In passthrough mode, strip MCP prefix from tool names
+                      if (
+                        passthrough &&
+                        b.type === "tool_use" &&
+                        typeof b.name === "string"
+                      ) {
+                        b.name = stripMcpPrefix(b.name as string);
                       }
-                      // Assign a monotonic client index for this forwarded block
-                      if (eventIndex !== undefined) {
-                        sdkToClientIndex.set(eventIndex, nextClientBlockIndex++)
-                      }
-                    }
-
-                    // Skip deltas and stops for MCP tool blocks
-                    if (eventIndex !== undefined && skipBlockIndices.has(eventIndex)) {
-                      continue
-                    }
-
-                    // Remap block index to monotonic client index
-                    if (eventIndex !== undefined && sdkToClientIndex.has(eventIndex)) {
-                      (event as any).index = sdkToClientIndex.get(eventIndex)
-                    }
-
-                    // Skip intermediate message_delta with stop_reason: tool_use
-                    // (SDK is about to execute MCP tools and continue)
-                    if (eventType === "message_delta") {
-                      const deltaUsage = (event as unknown as { usage?: TokenUsage }).usage
-                      if (deltaUsage) lastUsage = { ...lastUsage, ...deltaUsage }
-                      const stopReason = (event as any).delta?.stop_reason
-                      if (stopReason === "tool_use" && skipBlockIndices.size > 0) {
-                        // All tool_use blocks in this turn were MCP — skip this delta
-                        continue
-                      }
-                    }
-
-                    // Forward all other events (text, non-MCP tool_use like Task, message events)
-                    const payload = encoder.encode(`event: ${eventType}\ndata: ${JSON.stringify(event)}\n\n`)
-                    if (!safeEnqueue(payload, `stream_event:${eventType}`)) {
-                      break
-                    }
-                    eventsForwarded += 1
-
-                    // NOTE: agent-specific (passthrough mode) — break immediately when
-                    // the model stops for tool_use so the client can execute the tools
-                    // and send results back. Without this the SDK executes the passthrough
-                    // MCP no-op (→ "passthrough"), feeds that back to the model, and the
-                    // model produces an incorrect fallback response which gets forwarded.
-                    if (
-                      passthrough &&
-                      eventType === "message_delta" &&
-                      (event as any).delta?.stop_reason === "tool_use" &&
-                      streamedToolUseIds.size > 0
-                    ) {
-                      safeEnqueue(
-                        encoder.encode(`event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`),
-                        "passthrough_tool_stream_stop"
-                      )
-                      streamClosed = true
-                      controller.close()
-                      break
-                    }
-
-                    if (eventType === "content_block_delta") {
-                      const delta = (event as any).delta
-                      if (delta?.type === "text_delta") {
-                        textEventsForwarded += 1
-                      }
+                      contentBlocks.push(b);
                     }
                   }
+                  // Capture token usage from the assistant message
+                  const msgUsage = message.message.usage as
+                    | TokenUsage
+                    | undefined;
+                  if (msgUsage) lastUsage = { ...lastUsage, ...msgUsage };
                 }
-              } finally {
-                clearInterval(heartbeat)
               }
 
               claudeLog("upstream.completed", {
-                mode: "stream",
+                mode: "non_stream",
+                model,
+                assistantMessages,
+                durationMs: Date.now() - upstreamStartAt,
+              });
+              if (lastUsage) logUsage(requestMeta.requestId, lastUsage);
+            } catch (error) {
+              const stderrOutput = stderrLines.join("\n").trim();
+              if (
+                stderrOutput &&
+                error instanceof Error &&
+                !error.message.includes(stderrOutput)
+              ) {
+                error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`;
+              }
+              claudeLog("upstream.failed", {
+                mode: "non_stream",
                 model,
                 durationMs: Date.now() - upstreamStartAt,
-                streamEventsSeen,
-                eventsForwarded,
-                textEventsForwarded
-              })
-              if (lastUsage) logUsage(requestMeta.requestId, lastUsage)
+                error: error instanceof Error ? error.message : String(error),
+                ...(stderrOutput ? { stderr: stderrOutput } : {}),
+              });
+              throw error;
+            }
 
-              // Store session for future resume
-              if (currentSessionId) {
-                storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
-              }
-
-              if (!streamClosed) {
-                // In passthrough mode, emit captured tool_use blocks as stream events
-                // Skip any that were already forwarded during the stream (dedup by ID)
-                const unseenToolUses = capturedToolUses.filter(tu => !streamedToolUseIds.has(tu.id))
-                if (passthrough && unseenToolUses.length > 0 && messageStartEmitted) {
-                  for (let i = 0; i < unseenToolUses.length; i++) {
-                    const tu = unseenToolUses[i]!
-                    const blockIndex = eventsForwarded + i
-
-                    // content_block_start
-                    safeEnqueue(encoder.encode(
-                      `event: content_block_start\ndata: ${JSON.stringify({
-                        type: "content_block_start",
-                        index: blockIndex,
-                        content_block: { type: "tool_use", id: tu.id, name: tu.name, input: {} }
-                      })}\n\n`
-                    ), "passthrough_tool_block_start")
-
-                    // input_json_delta with the full input
-                    safeEnqueue(encoder.encode(
-                      `event: content_block_delta\ndata: ${JSON.stringify({
-                        type: "content_block_delta",
-                        index: blockIndex,
-                        delta: { type: "input_json_delta", partial_json: JSON.stringify(tu.input) }
-                      })}\n\n`
-                    ), "passthrough_tool_input")
-
-                    // content_block_stop
-                    safeEnqueue(encoder.encode(
-                      `event: content_block_stop\ndata: ${JSON.stringify({
-                        type: "content_block_stop",
-                        index: blockIndex
-                      })}\n\n`
-                    ), "passthrough_tool_block_stop")
-                  }
-
-                  // Emit message_delta with stop_reason: "tool_use"
-                  safeEnqueue(encoder.encode(
-                    `event: message_delta\ndata: ${JSON.stringify({
-                      type: "message_delta",
-                      delta: { stop_reason: "tool_use", stop_sequence: null },
-                      usage: { output_tokens: 0 }
-                    })}\n\n`
-                  ), "passthrough_message_delta")
-                }
-
-                // Passthrough mode: scan body.messages for file changes on end_turn
-                if (trackFileChanges && passthrough && adapter.extractFileChangesFromToolUse) {
-                  const passthroughChanges = extractFileChangesFromMessages(
-                    body.messages || [],
-                    adapter.extractFileChangesFromToolUse.bind(adapter)
+            // In passthrough mode, add captured tool_use blocks from the hook
+            // (the SDK may not include them in content after blocking)
+            if (passthrough && capturedToolUses.length > 0) {
+              for (const tu of capturedToolUses) {
+                // Only add if not already in contentBlocks
+                if (
+                  !contentBlocks.some(
+                    (b) => b.type === "tool_use" && (b as any).id === tu.id,
                   )
-                  fileChanges.push(...passthroughChanges)
+                ) {
+                  contentBlocks.push({
+                    type: "tool_use",
+                    id: tu.id,
+                    name: tu.name,
+                    input: tu.input,
+                  });
                 }
+              }
+            }
 
-                // Emit file change summary as a text block before closing
-                if (trackFileChanges) {
-                  const streamFileChangeSummary = formatFileChangeSummary(fileChanges)
-                  if (streamFileChangeSummary && messageStartEmitted) {
-                    const fcBlockIndex = nextClientBlockIndex++
-                    safeEnqueue(encoder.encode(
-                      `event: content_block_start\ndata: ${JSON.stringify({
-                        type: "content_block_start",
-                        index: fcBlockIndex,
-                        content_block: { type: "text", text: "" },
-                      })}\n\n`
-                    ), "file_changes_block_start")
-                    safeEnqueue(encoder.encode(
-                      `event: content_block_delta\ndata: ${JSON.stringify({
-                        type: "content_block_delta",
-                        index: fcBlockIndex,
-                        delta: { type: "text_delta", text: streamFileChangeSummary },
-                      })}\n\n`
-                    ), "file_changes_text_delta")
-                    safeEnqueue(encoder.encode(
-                      `event: content_block_stop\ndata: ${JSON.stringify({
-                        type: "content_block_stop",
-                        index: fcBlockIndex,
-                      })}\n\n`
-                    ), "file_changes_block_stop")
-                    claudeLog("response.file_changes", { mode: "stream", count: fileChanges.length })
+            // Determine stop_reason based on content: tool_use if any tool blocks, else end_turn
+            const hasToolUse = contentBlocks.some((b) => b.type === "tool_use");
+            const stopReason = hasToolUse ? "tool_use" : "end_turn";
+
+            // Append file change summary:
+            // - Internal mode: fileChanges populated by PostToolUse hook
+            // - Passthrough mode: scan body.messages for executed tool_use blocks
+            if (trackFileChanges) {
+              if (
+                passthrough &&
+                stopReason === "end_turn" &&
+                adapter.extractFileChangesFromToolUse
+              ) {
+                const passthroughChanges = extractFileChangesFromMessages(
+                  body.messages || [],
+                  adapter.extractFileChangesFromToolUse.bind(adapter),
+                );
+                fileChanges.push(...passthroughChanges);
+              }
+              const fileChangeSummary = formatFileChangeSummary(fileChanges);
+              if (fileChangeSummary) {
+                const lastTextBlock = [...contentBlocks]
+                  .reverse()
+                  .find((b) => b.type === "text");
+                if (lastTextBlock) {
+                  lastTextBlock.text =
+                    (lastTextBlock.text as string) + fileChangeSummary;
+                } else {
+                  contentBlocks.push({
+                    type: "text",
+                    text: fileChangeSummary.trimStart(),
+                  });
+                }
+                claudeLog("response.file_changes", {
+                  mode: "non_stream",
+                  count: fileChanges.length,
+                });
+              }
+            }
+
+            // If no content at all, add a fallback text block
+            if (contentBlocks.length === 0) {
+              contentBlocks.push({
+                type: "text",
+                text: "I can help with that. Could you provide more details about what you'd like me to do?",
+              });
+              claudeLog("response.fallback_used", {
+                mode: "non_stream",
+                reason: "no_content_blocks",
+              });
+            }
+
+            const totalDurationMs = Date.now() - requestStartAt;
+
+            claudeLog("response.completed", {
+              mode: "non_stream",
+              model,
+              durationMs: totalDurationMs,
+              contentBlocks: contentBlocks.length,
+              hasToolUse,
+            });
+
+            const nonStreamQueueWaitMs =
+              requestMeta.queueStartedAt - requestMeta.queueEnteredAt;
+            checkTokenHealth(
+              requestMeta.requestId,
+              currentSessionId || resumeSessionId,
+              lastUsage,
+              allMessages.length,
+              isResume,
+              passthrough,
+            );
+            telemetryStore.record({
+              requestId: requestMeta.requestId,
+              timestamp: Date.now(),
+              adapter: adapter.name,
+              model,
+              requestModel: body.model || undefined,
+              mode: "non-stream",
+              isResume,
+              isPassthrough: passthrough,
+              lineageType,
+              messageCount: allMessages.length,
+              sdkSessionId: currentSessionId || resumeSessionId,
+              status: 200,
+              queueWaitMs: nonStreamQueueWaitMs,
+              proxyOverheadMs:
+                upstreamStartAt - requestStartAt - nonStreamQueueWaitMs,
+              ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
+              upstreamDurationMs: Date.now() - upstreamStartAt,
+              totalDurationMs,
+              contentBlocks: contentBlocks.length,
+              textEvents: 0,
+              error: null,
+              inputTokens: lastUsage?.input_tokens,
+              outputTokens: lastUsage?.output_tokens,
+              cacheReadInputTokens: lastUsage?.cache_read_input_tokens,
+              cacheCreationInputTokens: lastUsage?.cache_creation_input_tokens,
+              cacheHitRate: computeCacheHitRate(lastUsage),
+            });
+
+            // Store session for future resume
+            if (currentSessionId) {
+              storeSession(
+                profileSessionId,
+                body.messages || [],
+                currentSessionId,
+                profileScopedCwd,
+                sdkUuidMap,
+                lastUsage,
+              );
+            }
+
+            const responseSessionId =
+              currentSessionId || resumeSessionId || `session_${Date.now()}`;
+
+            // Reverse vendor-string scrub on the response body. No-op when
+            // MERIDIAN_SCRUB_BIDIRECTIONAL is unset. See sanitize.ts.
+            const responseBody: Record<string, unknown> = {
+              id: `msg_${Date.now()}`,
+              type: "message",
+              role: "assistant",
+              content: contentBlocks,
+              model: body.model,
+              stop_reason: stopReason,
+              usage: { input_tokens: 0, output_tokens: 0 },
+            };
+            maybeUnscrubMessageBody(responseBody);
+
+            return new Response(JSON.stringify(responseBody), {
+              headers: {
+                "Content-Type": "application/json",
+                "X-Claude-Session-ID": responseSessionId,
+              },
+            });
+          }
+
+          const encoder = new TextEncoder();
+          const readable = new ReadableStream({
+            async start(controller) {
+              const upstreamStartAt = Date.now();
+              let firstChunkAt: number | undefined;
+              let heartbeatCount = 0;
+              let streamEventsSeen = 0;
+              let eventsForwarded = 0;
+              let textEventsForwarded = 0;
+              let bytesSent = 0;
+              let streamClosed = false;
+
+              claudeLog("upstream.start", { mode: "stream", model });
+
+              const safeEnqueue = (
+                payload: Uint8Array,
+                source: string,
+              ): boolean => {
+                if (streamClosed) return false;
+                try {
+                  controller.enqueue(payload);
+                  bytesSent += payload.byteLength;
+                  return true;
+                } catch (error) {
+                  if (isClosedControllerError(error)) {
+                    streamClosed = true;
+                    claudeLog("stream.client_closed", {
+                      source,
+                      streamEventsSeen,
+                      eventsForwarded,
+                    });
+                    return false;
                   }
+
+                  claudeLog("stream.enqueue_failed", {
+                    source,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  });
+                  throw error;
+                }
+              };
+
+              // Build SDK UUID map for the streaming path (declared before try for storeSession access)
+              const sdkUuidMap: Array<string | null> =
+                cachedSession?.sdkMessageUuids
+                  ? [...cachedSession.sdkMessageUuids]
+                  : new Array(allMessages.length - 1).fill(null);
+              while (sdkUuidMap.length < allMessages.length)
+                sdkUuidMap.push(null);
+
+              let messageStartEmitted = false;
+              let lastUsage: TokenUsage | undefined;
+
+              try {
+                let currentSessionId: string | undefined;
+                // Same transparent retry wrapper as the non-streaming path.
+                // Rate-limit retry strategy:
+                //   1. Strip [1m] context (immediate, different model tier)
+                //   2. Backoff retries on base model (1s, 2s — exponential)
+                const MAX_RATE_LIMIT_RETRIES = 2;
+                const RATE_LIMIT_BASE_DELAY_MS = 1000;
+
+                const response = (async function* () {
+                  let rateLimitRetries = 0;
+                  let tokenRefreshed = false;
+
+                  while (true) {
+                    // Track whether client-visible SSE events were yielded.
+                    // The SDK emits metadata events (session_id, internal routing)
+                    // before the API call — those are NOT client-visible and must
+                    // not prevent retry. Only stream_event types become SSE output.
+                    let didYieldClientEvent = false;
+                    try {
+                      for await (const event of query(
+                        buildQueryOptions({
+                          prompt: makePrompt(),
+                          model,
+                          workingDirectory,
+                          systemContext,
+                          claudeExecutable,
+                          passthrough,
+                          stream: true,
+                          sdkAgents,
+                          passthroughMcp,
+                          cleanEnv: profileEnv,
+                          resumeSessionId,
+                          isUndo,
+                          undoRollbackUuid,
+                          sdkHooks,
+                          adapter,
+                          onStderr,
+                          effort,
+                          thinking,
+                          taskBudget,
+                          betas,
+                        }),
+                      )) {
+                        if ((event as any).type === "stream_event") {
+                          didYieldClientEvent = true;
+                        }
+                        yield event;
+                      }
+                      return;
+                    } catch (error) {
+                      const errMsg =
+                        error instanceof Error ? error.message : String(error);
+
+                      // Never retry after client-visible SSE events — response is committed
+                      if (didYieldClientEvent) throw error;
+
+                      // Retry: stale undo UUID — evict and start fresh (one-shot)
+                      if (isStaleSessionError(error)) {
+                        claudeLog("session.stale_uuid_retry", {
+                          mode: "stream",
+                          rollbackUuid: undoRollbackUuid,
+                          resumeSessionId,
+                        });
+                        console.error(
+                          `[PROXY] Stale session UUID, evicting and retrying as fresh session`,
+                        );
+                        evictSession(
+                          profileSessionId,
+                          profileScopedCwd,
+                          allMessages,
+                        );
+                        sdkUuidMap.length = 0;
+                        for (let i = 0; i < allMessages.length; i++)
+                          sdkUuidMap.push(null);
+                        yield* query(
+                          buildQueryOptions({
+                            prompt: buildFreshPrompt(
+                              allMessages,
+                              stripCacheControl,
+                            ),
+                            model,
+                            workingDirectory,
+                            systemContext,
+                            claudeExecutable,
+                            passthrough,
+                            stream: true,
+                            sdkAgents,
+                            passthroughMcp,
+                            cleanEnv: profileEnv,
+                            resumeSessionId: undefined,
+                            isUndo: false,
+                            undoRollbackUuid: undefined,
+                            sdkHooks,
+                            adapter,
+                            onStderr,
+                            effort,
+                            thinking,
+                            taskBudget,
+                            betas,
+                          }),
+                        );
+                        return;
+                      }
+
+                      // Extra Usage required: strip [1m] and record 1-hour cooldown.
+                      if (
+                        isExtraUsageRequiredError(errMsg) &&
+                        hasExtendedContext(model)
+                      ) {
+                        const from = model;
+                        model = stripExtendedContext(model);
+                        recordExtendedContextUnavailable();
+                        claudeLog("upstream.context_fallback", {
+                          mode: "stream",
+                          from,
+                          to: model,
+                          reason: "extra_usage_required",
+                        });
+                        console.error(
+                          `[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`,
+                        );
+                        continue;
+                      }
+
+                      // Expired OAuth token: refresh once and retry
+                      if (isExpiredTokenError(errMsg) && !tokenRefreshed) {
+                        tokenRefreshed = true;
+                        const refreshed = await refreshOAuthToken();
+                        if (refreshed) {
+                          claudeLog("token_refresh.retrying", {
+                            mode: "stream",
+                          });
+                          console.error(
+                            `[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`,
+                          );
+                          continue;
+                        }
+                        // Refresh failed — fall through and surface the error
+                      }
+
+                      // Rate-limit retry: first strip [1m] (free, different tier), then backoff
+                      if (isRateLimitError(errMsg)) {
+                        if (hasExtendedContext(model)) {
+                          const from = model;
+                          model = stripExtendedContext(model);
+                          claudeLog("upstream.context_fallback", {
+                            mode: "stream",
+                            from,
+                            to: model,
+                            reason: "rate_limit",
+                          });
+                          console.error(
+                            `[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`,
+                          );
+                          continue;
+                        }
+                        if (rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
+                          rateLimitRetries++;
+                          const delay =
+                            RATE_LIMIT_BASE_DELAY_MS *
+                            Math.pow(2, rateLimitRetries - 1);
+                          claudeLog("upstream.rate_limit_backoff", {
+                            mode: "stream",
+                            model,
+                            attempt: rateLimitRetries,
+                            maxAttempts: MAX_RATE_LIMIT_RETRIES,
+                            delayMs: delay,
+                          });
+                          console.error(
+                            `[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`,
+                          );
+                          await new Promise((r) => setTimeout(r, delay));
+                          continue;
+                        }
+                      }
+
+                      throw error;
+                    }
+                  }
+                })();
+
+                const heartbeat = setInterval(() => {
+                  heartbeatCount += 1;
+                  try {
+                    const payload = encoder.encode(`: ping\n\n`);
+                    if (!safeEnqueue(payload, "heartbeat")) {
+                      clearInterval(heartbeat);
+                      return;
+                    }
+                    if (heartbeatCount % 5 === 0) {
+                      claudeLog("stream.heartbeat", { count: heartbeatCount });
+                    }
+                  } catch (error) {
+                    claudeLog("stream.heartbeat_failed", {
+                      count: heartbeatCount,
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    });
+                    clearInterval(heartbeat);
+                  }
+                }, 15_000);
+
+                const skipBlockIndices = new Set<number>();
+                const streamedToolUseIds = new Set<string>();
+
+                // Block index remapping: the SDK resets indices on each turn, but
+                // we skip intermediate message_start/stop so the client sees one
+                // message. Without remapping, turn 2's index=0 collides with turn 1's.
+                let nextClientBlockIndex = 0;
+                const sdkToClientIndex = new Map<number, number>();
+
+                try {
+                  for await (const message of response) {
+                    if (streamClosed) {
+                      break;
+                    }
+
+                    // Capture session ID and assistant UUID from any SDK message
+                    if ((message as any).session_id) {
+                      currentSessionId = (message as any).session_id;
+                    }
+                    if (message.type === "assistant" && (message as any).uuid) {
+                      sdkUuidMap.push((message as any).uuid);
+                    }
+
+                    if (message.type === "stream_event") {
+                      streamEventsSeen += 1;
+                      if (!firstChunkAt) {
+                        firstChunkAt = Date.now();
+                        claudeLog("upstream.first_chunk", {
+                          mode: "stream",
+                          model,
+                          ttfbMs: firstChunkAt - upstreamStartAt,
+                        });
+                      }
+
+                      const event = message.event;
+                      const eventType = (event as any).type;
+                      const eventIndex = (event as any).index as
+                        | number
+                        | undefined;
+
+                      // Track MCP tool blocks (mcp__opencode__*) — these are internal tools
+                      // that the SDK executes. Don't forward them to OpenCode.
+                      if (eventType === "message_start") {
+                        skipBlockIndices.clear();
+                        sdkToClientIndex.clear();
+                        const startUsage = (
+                          event as unknown as {
+                            message?: { usage?: TokenUsage };
+                          }
+                        ).message?.usage;
+                        if (startUsage)
+                          lastUsage = { ...lastUsage, ...startUsage };
+                        // Only emit the first message_start — subsequent ones are internal SDK turns.
+                        // In passthrough mode, the second message_start marks Turn 2 beginning
+                        // (SDK processed the blocked tool call and Claude is now summarising).
+                        // Close the stream immediately — before ANY Turn 2 content blocks reach
+                        // the client — and inject a clean message_delta + message_stop so the
+                        // client sees stop_reason:"tool_use" and executes the tool itself.
+                        if (messageStartEmitted) {
+                          if (passthrough && streamedToolUseIds.size > 0) {
+                            safeEnqueue(
+                              encoder.encode(
+                                `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`,
+                              ),
+                              "passthrough_turn2_stop",
+                            );
+                            safeEnqueue(
+                              encoder.encode(
+                                `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
+                              ),
+                              "passthrough_turn2_stop",
+                            );
+                            claudeLog("passthrough.turn2_suppressed", {
+                              mode: "stream",
+                              toolUses: streamedToolUseIds.size,
+                            });
+                            streamClosed = true;
+                            controller.close();
+                            break;
+                          }
+                          continue;
+                        }
+                        messageStartEmitted = true;
+                      }
+
+                      // Skip intermediate message_stop events (SDK will start another turn)
+                      // Only emit message_stop when the final message ends
+                      if (eventType === "message_stop") {
+                        // Peek: if there are more events coming, skip this message_stop
+                        // We handle this by only emitting message_stop at the very end (after the loop)
+                        continue;
+                      }
+
+                      if (eventType === "content_block_start") {
+                        const block = (event as any).content_block;
+                        // Strip thinking blocks in passthrough mode — non-native clients
+                        // have no renderer for type:"thinking" and may choke on the
+                        // encrypted signature field.
+                        if (
+                          passthrough &&
+                          !adapter.supportsThinking?.() &&
+                          (block?.type === "thinking" ||
+                            block?.type === "redacted_thinking")
+                        ) {
+                          if (eventIndex !== undefined)
+                            skipBlockIndices.add(eventIndex);
+                          claudeLog("passthrough.thinking_stripped", {
+                            mode: "stream",
+                            type: block.type,
+                            index: eventIndex,
+                          });
+                          continue;
+                        }
+                        if (
+                          block?.type === "tool_use" &&
+                          typeof block.name === "string"
+                        ) {
+                          if (
+                            passthrough &&
+                            block.name.startsWith(PASSTHROUGH_MCP_PREFIX)
+                          ) {
+                            // Passthrough mode: SDK sent the name WITH the mcp__oc__ prefix.
+                            // Strip it so OpenCode sees the bare tool name.
+                            block.name = stripMcpPrefix(block.name);
+                            if (block.id) streamedToolUseIds.add(block.id);
+                          } else if (block.name.startsWith("mcp__")) {
+                            // Internal MCP tool (mcp__opencode__* etc.) — skip, SDK handles it
+                            if (eventIndex !== undefined)
+                              skipBlockIndices.add(eventIndex);
+                            continue;
+                          } else if (passthrough && block.id) {
+                            // Passthrough mode: SDK already stripped the mcp__oc__ prefix before
+                            // emitting the stream_event (observed in practice — the SDK normalises
+                            // tool names in stream events). Track the ID so the early-break
+                            // condition fires correctly.
+                            streamedToolUseIds.add(block.id);
+                          }
+                        }
+                        // Assign a monotonic client index for this forwarded block
+                        if (eventIndex !== undefined) {
+                          sdkToClientIndex.set(
+                            eventIndex,
+                            nextClientBlockIndex++,
+                          );
+                        }
+                      }
+
+                      // Skip deltas and stops for MCP tool blocks
+                      if (
+                        eventIndex !== undefined &&
+                        skipBlockIndices.has(eventIndex)
+                      ) {
+                        continue;
+                      }
+
+                      // Remap block index to monotonic client index
+                      if (
+                        eventIndex !== undefined &&
+                        sdkToClientIndex.has(eventIndex)
+                      ) {
+                        (event as any).index = sdkToClientIndex.get(eventIndex);
+                      }
+
+                      // Skip intermediate message_delta with stop_reason: tool_use
+                      // (SDK is about to execute MCP tools and continue)
+                      if (eventType === "message_delta") {
+                        const deltaUsage = (
+                          event as unknown as { usage?: TokenUsage }
+                        ).usage;
+                        if (deltaUsage)
+                          lastUsage = { ...lastUsage, ...deltaUsage };
+                        const stopReason = (event as any).delta?.stop_reason;
+                        if (
+                          stopReason === "tool_use" &&
+                          skipBlockIndices.size > 0
+                        ) {
+                          // All tool_use blocks in this turn were MCP — skip this delta
+                          continue;
+                        }
+                      }
+
+                      // Forward all other events (text, non-MCP tool_use like Task, message events)
+                      // Reverse vendor-string scrub on the forwarded stream_event. No-op when
+                      // MERIDIAN_SCRUB_BIDIRECTIONAL is unset. See sanitize.ts.
+                      const eventOut = maybeUnscrubStreamEvent(event);
+                      const payload = encoder.encode(
+                        `event: ${eventType}\ndata: ${JSON.stringify(eventOut)}\n\n`,
+                      );
+                      if (!safeEnqueue(payload, `stream_event:${eventType}`)) {
+                        break;
+                      }
+                      eventsForwarded += 1;
+
+                      // NOTE: agent-specific (passthrough mode) — break immediately when
+                      // the model stops for tool_use so the client can execute the tools
+                      // and send results back. Without this the SDK executes the passthrough
+                      // MCP no-op (→ "passthrough"), feeds that back to the model, and the
+                      // model produces an incorrect fallback response which gets forwarded.
+                      if (
+                        passthrough &&
+                        eventType === "message_delta" &&
+                        (event as any).delta?.stop_reason === "tool_use" &&
+                        streamedToolUseIds.size > 0
+                      ) {
+                        safeEnqueue(
+                          encoder.encode(
+                            `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
+                          ),
+                          "passthrough_tool_stream_stop",
+                        );
+                        streamClosed = true;
+                        controller.close();
+                        break;
+                      }
+
+                      if (eventType === "content_block_delta") {
+                        const delta = (event as any).delta;
+                        if (delta?.type === "text_delta") {
+                          textEventsForwarded += 1;
+                        }
+                      }
+                    }
+                  }
+                } finally {
+                  clearInterval(heartbeat);
                 }
 
-                // Emit the final message_stop (we skipped all intermediate ones)
-                if (messageStartEmitted) {
-                  safeEnqueue(encoder.encode(`event: message_stop\ndata: {"type":"message_stop"}\n\n`), "final_message_stop")
-                }
-
-                try { controller.close() } catch {}
-                streamClosed = true
-
-                claudeLog("stream.ended", {
+                claudeLog("upstream.completed", {
+                  mode: "stream",
                   model,
+                  durationMs: Date.now() - upstreamStartAt,
                   streamEventsSeen,
                   eventsForwarded,
                   textEventsForwarded,
-                  bytesSent,
-                  durationMs: Date.now() - requestStartAt
-                })
-              }
+                });
+                if (lastUsage) logUsage(requestMeta.requestId, lastUsage);
 
-              // Record telemetry for ALL completed streams (including early-close from
-              // passthrough tool_use break and client disconnect during enqueue).
-              // Must be outside the if(!streamClosed) block.
-              {
-                const streamTotalDurationMs = Date.now() - requestStartAt
+                // Store session for future resume
+                if (currentSessionId) {
+                  storeSession(
+                    profileSessionId,
+                    body.messages || [],
+                    currentSessionId,
+                    profileScopedCwd,
+                    sdkUuidMap,
+                    lastUsage,
+                  );
+                }
 
-                claudeLog("response.completed", {
-                  mode: "stream",
-                  model,
-                  durationMs: streamTotalDurationMs,
-                  streamEventsSeen,
-                  eventsForwarded,
-                  textEventsForwarded
-                })
+                if (!streamClosed) {
+                  // In passthrough mode, emit captured tool_use blocks as stream events
+                  // Skip any that were already forwarded during the stream (dedup by ID)
+                  const unseenToolUses = capturedToolUses.filter(
+                    (tu) => !streamedToolUseIds.has(tu.id),
+                  );
+                  if (
+                    passthrough &&
+                    unseenToolUses.length > 0 &&
+                    messageStartEmitted
+                  ) {
+                    for (let i = 0; i < unseenToolUses.length; i++) {
+                      const tu = unseenToolUses[i]!;
+                      const blockIndex = eventsForwarded + i;
 
-                const streamQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
-                checkTokenHealth(
-                  requestMeta.requestId,
-                  currentSessionId || resumeSessionId,
-                  lastUsage,
-                  allMessages.length,
-                  isResume,
-                  passthrough
-                )
-                telemetryStore.record({
-                  requestId: requestMeta.requestId,
-                  timestamp: Date.now(),
-                  adapter: adapter.name,
-                  model,
-                  requestModel: body.model || undefined,
-                  mode: "stream",
-                  isResume,
-                  isPassthrough: passthrough,
-                  lineageType,
-                  messageCount: allMessages.length,
-                  sdkSessionId: currentSessionId || resumeSessionId,
-                  status: 200,
-                  queueWaitMs: streamQueueWaitMs,
-                  proxyOverheadMs: upstreamStartAt - requestStartAt - streamQueueWaitMs,
-                  ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
-                  upstreamDurationMs: Date.now() - upstreamStartAt,
-                  totalDurationMs: streamTotalDurationMs,
-                  contentBlocks: eventsForwarded,
-                  textEvents: textEventsForwarded,
-                  error: null,
-                  inputTokens: lastUsage?.input_tokens,
-                  outputTokens: lastUsage?.output_tokens,
-                  cacheReadInputTokens: lastUsage?.cache_read_input_tokens,
-                  cacheCreationInputTokens: lastUsage?.cache_creation_input_tokens,
-                  cacheHitRate: computeCacheHitRate(lastUsage),
-                })
+                      // content_block_start
+                      safeEnqueue(
+                        encoder.encode(
+                          `event: content_block_start\ndata: ${JSON.stringify({
+                            type: "content_block_start",
+                            index: blockIndex,
+                            content_block: {
+                              type: "tool_use",
+                              id: tu.id,
+                              name: tu.name,
+                              input: {},
+                            },
+                          })}\n\n`,
+                        ),
+                        "passthrough_tool_block_start",
+                      );
 
-                if (textEventsForwarded === 0) {
-                  claudeLog("response.empty_stream", {
+                      // input_json_delta with the full input
+                      safeEnqueue(
+                        encoder.encode(
+                          `event: content_block_delta\ndata: ${JSON.stringify({
+                            type: "content_block_delta",
+                            index: blockIndex,
+                            delta: {
+                              type: "input_json_delta",
+                              partial_json: JSON.stringify(tu.input),
+                            },
+                          })}\n\n`,
+                        ),
+                        "passthrough_tool_input",
+                      );
+
+                      // content_block_stop
+                      safeEnqueue(
+                        encoder.encode(
+                          `event: content_block_stop\ndata: ${JSON.stringify({
+                            type: "content_block_stop",
+                            index: blockIndex,
+                          })}\n\n`,
+                        ),
+                        "passthrough_tool_block_stop",
+                      );
+                    }
+
+                    // Emit message_delta with stop_reason: "tool_use"
+                    safeEnqueue(
+                      encoder.encode(
+                        `event: message_delta\ndata: ${JSON.stringify({
+                          type: "message_delta",
+                          delta: {
+                            stop_reason: "tool_use",
+                            stop_sequence: null,
+                          },
+                          usage: { output_tokens: 0 },
+                        })}\n\n`,
+                      ),
+                      "passthrough_message_delta",
+                    );
+                  }
+
+                  // Passthrough mode: scan body.messages for file changes on end_turn
+                  if (
+                    trackFileChanges &&
+                    passthrough &&
+                    adapter.extractFileChangesFromToolUse
+                  ) {
+                    const passthroughChanges = extractFileChangesFromMessages(
+                      body.messages || [],
+                      adapter.extractFileChangesFromToolUse.bind(adapter),
+                    );
+                    fileChanges.push(...passthroughChanges);
+                  }
+
+                  // Emit file change summary as a text block before closing
+                  if (trackFileChanges) {
+                    const streamFileChangeSummary =
+                      formatFileChangeSummary(fileChanges);
+                    if (streamFileChangeSummary && messageStartEmitted) {
+                      const fcBlockIndex = nextClientBlockIndex++;
+                      safeEnqueue(
+                        encoder.encode(
+                          `event: content_block_start\ndata: ${JSON.stringify({
+                            type: "content_block_start",
+                            index: fcBlockIndex,
+                            content_block: { type: "text", text: "" },
+                          })}\n\n`,
+                        ),
+                        "file_changes_block_start",
+                      );
+                      safeEnqueue(
+                        encoder.encode(
+                          `event: content_block_delta\ndata: ${JSON.stringify({
+                            type: "content_block_delta",
+                            index: fcBlockIndex,
+                            delta: {
+                              type: "text_delta",
+                              text: streamFileChangeSummary,
+                            },
+                          })}\n\n`,
+                        ),
+                        "file_changes_text_delta",
+                      );
+                      safeEnqueue(
+                        encoder.encode(
+                          `event: content_block_stop\ndata: ${JSON.stringify({
+                            type: "content_block_stop",
+                            index: fcBlockIndex,
+                          })}\n\n`,
+                        ),
+                        "file_changes_block_stop",
+                      );
+                      claudeLog("response.file_changes", {
+                        mode: "stream",
+                        count: fileChanges.length,
+                      });
+                    }
+                  }
+
+                  // Emit the final message_stop (we skipped all intermediate ones)
+                  if (messageStartEmitted) {
+                    safeEnqueue(
+                      encoder.encode(
+                        `event: message_stop\ndata: {"type":"message_stop"}\n\n`,
+                      ),
+                      "final_message_stop",
+                    );
+                  }
+
+                  try {
+                    controller.close();
+                  } catch {}
+                  streamClosed = true;
+
+                  claudeLog("stream.ended", {
                     model,
                     streamEventsSeen,
                     eventsForwarded,
-                    reason: "no_text_deltas_forwarded"
-                  })
+                    textEventsForwarded,
+                    bytesSent,
+                    durationMs: Date.now() - requestStartAt,
+                  });
+                }
+
+                // Record telemetry for ALL completed streams (including early-close from
+                // passthrough tool_use break and client disconnect during enqueue).
+                // Must be outside the if(!streamClosed) block.
+                {
+                  const streamTotalDurationMs = Date.now() - requestStartAt;
+
+                  claudeLog("response.completed", {
+                    mode: "stream",
+                    model,
+                    durationMs: streamTotalDurationMs,
+                    streamEventsSeen,
+                    eventsForwarded,
+                    textEventsForwarded,
+                  });
+
+                  const streamQueueWaitMs =
+                    requestMeta.queueStartedAt - requestMeta.queueEnteredAt;
+                  checkTokenHealth(
+                    requestMeta.requestId,
+                    currentSessionId || resumeSessionId,
+                    lastUsage,
+                    allMessages.length,
+                    isResume,
+                    passthrough,
+                  );
+                  telemetryStore.record({
+                    requestId: requestMeta.requestId,
+                    timestamp: Date.now(),
+                    adapter: adapter.name,
+                    model,
+                    requestModel: body.model || undefined,
+                    mode: "stream",
+                    isResume,
+                    isPassthrough: passthrough,
+                    lineageType,
+                    messageCount: allMessages.length,
+                    sdkSessionId: currentSessionId || resumeSessionId,
+                    status: 200,
+                    queueWaitMs: streamQueueWaitMs,
+                    proxyOverheadMs:
+                      upstreamStartAt - requestStartAt - streamQueueWaitMs,
+                    ttfbMs: firstChunkAt
+                      ? firstChunkAt - upstreamStartAt
+                      : null,
+                    upstreamDurationMs: Date.now() - upstreamStartAt,
+                    totalDurationMs: streamTotalDurationMs,
+                    contentBlocks: eventsForwarded,
+                    textEvents: textEventsForwarded,
+                    error: null,
+                    inputTokens: lastUsage?.input_tokens,
+                    outputTokens: lastUsage?.output_tokens,
+                    cacheReadInputTokens: lastUsage?.cache_read_input_tokens,
+                    cacheCreationInputTokens:
+                      lastUsage?.cache_creation_input_tokens,
+                    cacheHitRate: computeCacheHitRate(lastUsage),
+                  });
+
+                  if (textEventsForwarded === 0) {
+                    claudeLog("response.empty_stream", {
+                      model,
+                      streamEventsSeen,
+                      eventsForwarded,
+                      reason: "no_text_deltas_forwarded",
+                    });
+                  }
+                }
+              } catch (error) {
+                if (isClosedControllerError(error)) {
+                  streamClosed = true;
+                  claudeLog("stream.client_closed", {
+                    source: "stream_catch",
+                    streamEventsSeen,
+                    eventsForwarded,
+                    textEventsForwarded,
+                    durationMs: Date.now() - requestStartAt,
+                  });
+                  return;
+                }
+
+                const stderrOutput = stderrLines.join("\n").trim();
+                if (
+                  stderrOutput &&
+                  error instanceof Error &&
+                  !error.message.includes(stderrOutput)
+                ) {
+                  error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`;
+                }
+                const errMsg =
+                  error instanceof Error ? error.message : String(error);
+                claudeLog("upstream.failed", {
+                  mode: "stream",
+                  model,
+                  durationMs: Date.now() - upstreamStartAt,
+                  streamEventsSeen,
+                  textEventsForwarded,
+                  error: errMsg,
+                  ...(stderrOutput ? { stderr: stderrOutput } : {}),
+                });
+                const streamErr = classifyError(errMsg);
+                claudeLog("proxy.anthropic.error", {
+                  error: errMsg,
+                  classified: streamErr.type,
+                });
+
+                // If we already emitted message_start, close the message cleanly so
+                // clients that access usage.input_tokens don't crash on the incomplete response.
+                if (messageStartEmitted) {
+                  safeEnqueue(
+                    encoder.encode(
+                      `event: message_delta\ndata: ${JSON.stringify({
+                        type: "message_delta",
+                        delta: { stop_reason: "end_turn", stop_sequence: null },
+                        usage: { output_tokens: 0 },
+                      })}\n\n`,
+                    ),
+                    "error_message_delta",
+                  );
+                  safeEnqueue(
+                    encoder.encode(
+                      `event: message_stop\ndata: {"type":"message_stop"}\n\n`,
+                    ),
+                    "error_message_stop",
+                  );
+                }
+
+                safeEnqueue(
+                  encoder.encode(
+                    `event: error\ndata: ${JSON.stringify({
+                      type: "error",
+                      error: {
+                        type: streamErr.type,
+                        message: streamErr.message,
+                      },
+                    })}\n\n`,
+                  ),
+                  "error_event",
+                );
+                if (!streamClosed) {
+                  try {
+                    controller.close();
+                  } catch {}
+                  streamClosed = true;
                 }
               }
-            } catch (error) {
-              if (isClosedControllerError(error)) {
-                streamClosed = true
-                claudeLog("stream.client_closed", {
-                  source: "stream_catch",
-                  streamEventsSeen,
-                  eventsForwarded,
-                  textEventsForwarded,
-                  durationMs: Date.now() - requestStartAt
-                })
-                return
-              }
+            },
+          });
 
-              const stderrOutput = stderrLines.join("\n").trim()
-              if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
-                error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
-              }
-              const errMsg = error instanceof Error ? error.message : String(error)
-              claudeLog("upstream.failed", {
-                mode: "stream",
-                model,
-                durationMs: Date.now() - upstreamStartAt,
-                streamEventsSeen,
-                textEventsForwarded,
-                error: errMsg,
-                ...(stderrOutput ? { stderr: stderrOutput } : {})
-              })
-              const streamErr = classifyError(errMsg)
-              claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
+          const streamSessionId = resumeSessionId || `session_${Date.now()}`;
+          return new Response(readable, {
+            headers: {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+              "X-Claude-Session-ID": streamSessionId,
+            },
+          });
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          claudeLog("error.unhandled", {
+            durationMs: Date.now() - requestStartAt,
+            error: errMsg,
+          });
 
-              // If we already emitted message_start, close the message cleanly so
-              // clients that access usage.input_tokens don't crash on the incomplete response.
-              if (messageStartEmitted) {
-                safeEnqueue(encoder.encode(
-                  `event: message_delta\ndata: ${JSON.stringify({
-                    type: "message_delta",
-                    delta: { stop_reason: "end_turn", stop_sequence: null },
-                    usage: { output_tokens: 0 }
-                  })}\n\n`
-                ), "error_message_delta")
-                safeEnqueue(encoder.encode(
-                  `event: message_stop\ndata: {"type":"message_stop"}\n\n`
-                ), "error_message_stop")
-              }
+          // Detect specific error types and return helpful messages
+          const classified = classifyError(errMsg);
 
-              safeEnqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({
-                type: "error",
-                error: { type: streamErr.type, message: streamErr.message }
-              })}\n\n`), "error_event")
-              if (!streamClosed) {
-                try { controller.close() } catch {}
-                streamClosed = true
-              }
-            }
-          }
-        })
+          claudeLog("proxy.error", {
+            error: errMsg,
+            classified: classified.type,
+          });
 
-        const streamSessionId = resumeSessionId || `session_${Date.now()}`
-        return new Response(readable, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            "X-Claude-Session-ID": streamSessionId
-          }
-        })
-      } catch (error) {
-        const errMsg = error instanceof Error ? error.message : String(error)
-        claudeLog("error.unhandled", {
-          durationMs: Date.now() - requestStartAt,
-          error: errMsg
-        })
+          const errorQueueWaitMs =
+            requestMeta.queueStartedAt - requestMeta.queueEnteredAt;
+          telemetryStore.record({
+            requestId: requestMeta.requestId,
+            timestamp: Date.now(),
+            adapter: adapter.name,
+            model: "unknown",
+            requestModel: undefined,
+            mode: "non-stream",
+            isResume: false,
+            isPassthrough: envBool("PASSTHROUGH"),
+            lineageType: undefined,
+            messageCount: undefined,
+            sdkSessionId: undefined,
+            status: classified.status,
+            queueWaitMs: errorQueueWaitMs,
+            proxyOverheadMs: Date.now() - requestStartAt - errorQueueWaitMs,
+            ttfbMs: null,
+            upstreamDurationMs: Date.now() - requestStartAt,
+            totalDurationMs: Date.now() - requestStartAt,
+            contentBlocks: 0,
+            textEvents: 0,
+            error: classified.type,
+          });
 
-        // Detect specific error types and return helpful messages
-        const classified = classifyError(errMsg)
-
-        claudeLog("proxy.error", { error: errMsg, classified: classified.type })
-
-        const errorQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
-        telemetryStore.record({
-          requestId: requestMeta.requestId,
-          timestamp: Date.now(),
-          adapter: adapter.name,
-          model: "unknown",
-          requestModel: undefined,
-          mode: "non-stream",
-          isResume: false,
-          isPassthrough: envBool("PASSTHROUGH"),
-          lineageType: undefined,
-          messageCount: undefined,
-          sdkSessionId: undefined,
-          status: classified.status,
-          queueWaitMs: errorQueueWaitMs,
-          proxyOverheadMs: Date.now() - requestStartAt - errorQueueWaitMs,
-          ttfbMs: null,
-          upstreamDurationMs: Date.now() - requestStartAt,
-          totalDurationMs: Date.now() - requestStartAt,
-          contentBlocks: 0,
-          textEvents: 0,
-          error: classified.type,
-        })
-
-        return new Response(
-          JSON.stringify({ type: "error", error: { type: classified.type, message: classified.message } }),
-          { status: classified.status, headers: { "Content-Type": "application/json" } }
-        )
-      }
-    })
-  }
+          return new Response(
+            JSON.stringify({
+              type: "error",
+              error: { type: classified.type, message: classified.message },
+            }),
+            {
+              status: classified.status,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+      },
+    );
+  };
 
   const handleWithQueue = async (c: Context, endpoint: string) => {
-    const requestId = c.req.header("x-request-id") || randomUUID()
-    const queueEnteredAt = Date.now()
-    claudeLog("request.enter", { requestId, endpoint })
-    await acquireSession()
-    const queueStartedAt = Date.now()
+    const requestId = c.req.header("x-request-id") || randomUUID();
+    const queueEnteredAt = Date.now();
+    claudeLog("request.enter", { requestId, endpoint });
+    await acquireSession();
+    const queueStartedAt = Date.now();
     try {
-      return await handleMessages(c, { requestId, endpoint, queueEnteredAt, queueStartedAt })
+      return await handleMessages(c, {
+        requestId,
+        endpoint,
+        queueEnteredAt,
+        queueStartedAt,
+      });
     } finally {
-      releaseSession()
+      releaseSession();
     }
-  }
+  };
 
-  app.post("/v1/messages", (c) => handleWithQueue(c, "/v1/messages"))
-  app.post("/messages", (c) => handleWithQueue(c, "/messages"))
+  app.post("/v1/messages", (c) => handleWithQueue(c, "/v1/messages"));
+  app.post("/messages", (c) => handleWithQueue(c, "/messages"));
 
   // Telemetry dashboard and API
-  app.route("/telemetry", createTelemetryRoutes())
+  app.route("/telemetry", createTelemetryRoutes());
 
   // Health check endpoint — verifies auth status
   app.get("/health", async (c) => {
     try {
       // Use active profile's auth context for health check
-      const healthProfile = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile)
-      const profileEnvOverrides = Object.keys(healthProfile.env).length > 0 ? healthProfile.env : undefined
+      const healthProfile = resolveProfile(
+        finalConfig.profiles,
+        finalConfig.defaultProfile,
+      );
+      const profileEnvOverrides =
+        Object.keys(healthProfile.env).length > 0
+          ? healthProfile.env
+          : undefined;
       const auth = await getClaudeAuthStatusAsync(
-          healthProfile.id !== "default" ? healthProfile.id : undefined,
-          profileEnvOverrides
-        )
+        healthProfile.id !== "default" ? healthProfile.id : undefined,
+        profileEnvOverrides,
+      );
       if (!auth) {
         return c.json({
           status: "degraded",
           error: "Could not verify auth status",
           mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
-        })
+        });
       }
       if (!auth.loggedIn) {
-        return c.json({
-          status: "unhealthy",
-          error: "Not logged in. Run: claude login",
-          auth: { loggedIn: false }
-        }, 503)
+        return c.json(
+          {
+            status: "unhealthy",
+            error: "Not logged in. Run: claude login",
+            auth: { loggedIn: false },
+          },
+          503,
+        );
       }
       return c.json({
         status: "healthy",
@@ -1699,85 +2281,117 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           subscriptionType: auth.subscriptionType,
         },
         mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
-        plugin: { opencode: checkPluginConfigured() ? "configured" : "not-configured" },
-      })
+        plugin: {
+          opencode: checkPluginConfigured() ? "configured" : "not-configured",
+        },
+      });
     } catch {
       return c.json({
         status: "degraded",
         error: "Could not verify auth status",
         mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
-      })
+      });
     }
-  })
+  });
 
   // --- Profile management routes ---
 
   app.get("/profiles/list", async (c) => {
-    const profiles = listProfiles(finalConfig.profiles, finalConfig.defaultProfile)
+    const profiles = listProfiles(
+      finalConfig.profiles,
+      finalConfig.defaultProfile,
+    );
     // Enrich with live auth status
-    const enriched = await Promise.all(profiles.map(async (p) => {
-      const resolved = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile, p.id)
-      const envOverrides = Object.keys(resolved.env).length > 0 ? resolved.env : undefined
-      const auth = await getClaudeAuthStatusAsync(
-        p.id !== "default" ? p.id : undefined,
-        envOverrides
-      )
-      const cacheInfo = getAuthCacheInfo(p.id !== "default" ? p.id : undefined)
-      return {
-        ...p,
-        email: auth?.email || null,
-        subscriptionType: auth?.subscriptionType || null,
-        loggedIn: auth?.loggedIn ?? false,
-        lastCheckedAt: cacheInfo.lastCheckedAt || null,
-        lastSuccessAt: cacheInfo.lastSuccessAt || null,
-      }
-    }))
+    const enriched = await Promise.all(
+      profiles.map(async (p) => {
+        const resolved = resolveProfile(
+          finalConfig.profiles,
+          finalConfig.defaultProfile,
+          p.id,
+        );
+        const envOverrides =
+          Object.keys(resolved.env).length > 0 ? resolved.env : undefined;
+        const auth = await getClaudeAuthStatusAsync(
+          p.id !== "default" ? p.id : undefined,
+          envOverrides,
+        );
+        const cacheInfo = getAuthCacheInfo(
+          p.id !== "default" ? p.id : undefined,
+        );
+        return {
+          ...p,
+          email: auth?.email || null,
+          subscriptionType: auth?.subscriptionType || null,
+          loggedIn: auth?.loggedIn ?? false,
+          lastCheckedAt: cacheInfo.lastCheckedAt || null,
+          lastSuccessAt: cacheInfo.lastSuccessAt || null,
+        };
+      }),
+    );
     return c.json({
       profiles: enriched,
-      activeProfile: getActiveProfileId() || finalConfig.defaultProfile || profiles[0]?.id || "default",
-    })
-  })
+      activeProfile:
+        getActiveProfileId() ||
+        finalConfig.defaultProfile ||
+        profiles[0]?.id ||
+        "default",
+    });
+  });
 
   app.get("/profiles", async (c) => {
-    const { profilePageHtml } = await import("../telemetry/profilePage")
-    return c.html(profilePageHtml)
-  })
+    const { profilePageHtml } = await import("../telemetry/profilePage");
+    return c.html(profilePageHtml);
+  });
 
   app.post("/profiles/active", async (c) => {
-    let body: { profile?: string }
+    let body: { profile?: string };
     try {
-      body = await c.req.json() as { profile?: string }
+      body = (await c.req.json()) as { profile?: string };
     } catch {
-      return c.json({ error: "Invalid JSON in request body" }, 400)
+      return c.json({ error: "Invalid JSON in request body" }, 400);
     }
     if (!body.profile) {
-      return c.json({ error: "Missing 'profile' in request body" }, 400)
+      return c.json({ error: "Missing 'profile' in request body" }, 400);
     }
-    const effective = getEffectiveProfiles(finalConfig.profiles)
+    const effective = getEffectiveProfiles(finalConfig.profiles);
     if (effective.length === 0) {
-      return c.json({ error: "No profiles configured" }, 400)
+      return c.json({ error: "No profiles configured" }, 400);
     }
-    if (!effective.find(p => p.id === body.profile)) {
-      return c.json({ error: `Unknown profile: ${body.profile}. Available: ${effective.map(p => p.id).join(", ")}` }, 400)
+    if (!effective.find((p) => p.id === body.profile)) {
+      return c.json(
+        {
+          error: `Unknown profile: ${body.profile}. Available: ${effective.map((p) => p.id).join(", ")}`,
+        },
+        400,
+      );
     }
-    setActiveProfile(body.profile!)
+    setActiveProfile(body.profile!);
     // Evict all cached SDK sessions — they were started under the old profile's
     // credentials and cannot be reused with different auth.
-    clearSessionCache()
-    console.error(`[PROXY] Active profile switched to: ${body.profile} (session cache cleared)`)
-    return c.json({ success: true, activeProfile: body.profile })
-  })
+    clearSessionCache();
+    console.error(
+      `[PROXY] Active profile switched to: ${body.profile} (session cache cleared)`,
+    );
+    return c.json({ success: true, activeProfile: body.profile });
+  });
 
   app.post("/auth/refresh", async (c) => {
-    const success = await refreshOAuthToken()
+    const success = await refreshOAuthToken();
     if (success) {
-      return c.json({ success: true, message: "OAuth token refreshed successfully" })
+      return c.json({
+        success: true,
+        message: "OAuth token refreshed successfully",
+      });
     }
     return c.json(
-      { success: false, message: "Token refresh failed. If the problem persists, run 'claude login'." },
-      500
-    )
-  })
+      {
+        success: false,
+        message:
+          "Token refresh failed. If the problem persists, run 'claude login'.",
+      },
+      500,
+    );
+  });
 
   // --- OpenAI Chat Completions Compatibility ---
   // Translates OpenAI /v1/chat/completions requests to Anthropic format and
@@ -1785,14 +2399,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // No network roundtrip — Hono resolves the route in-process.
   // See src/proxy/openai.ts for the translation logic and design rationale.
   app.post("/v1/chat/completions", async (c) => {
-    const rawBody = await c.req.json() as Record<string, unknown>
-    const anthropicBody = translateOpenAiToAnthropic(rawBody)
+    const rawBody = (await c.req.json()) as Record<string, unknown>;
+    const anthropicBody = translateOpenAiToAnthropic(rawBody);
 
     if (!anthropicBody) {
       return c.json(
-        { type: "error", error: { type: "invalid_request_error", message: "messages: Field required" } },
-        400
-      )
+        {
+          type: "error",
+          error: {
+            type: "invalid_request_error",
+            message: "messages: Field required",
+          },
+        },
+        400,
+      );
     }
 
     // Route internally via app.fetch() — no network roundtrip.
@@ -1801,111 +2421,137 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(anthropicBody),
-    })
-    const internalRes = await app.fetch(internalReq)
+    });
+    const internalRes = await app.fetch(internalReq);
 
     if (!internalRes.ok) {
-      const errBody = await internalRes.text()
+      const errBody = await internalRes.text();
       return c.json(
         { type: "error", error: { type: "upstream_error", message: errBody } },
-        internalRes.status as 400 | 401 | 429 | 500
-      )
+        internalRes.status as 400 | 401 | 429 | 500,
+      );
     }
 
-    const completionId = `chatcmpl-${randomUUID()}`
-    const created = Math.floor(Date.now() / 1000)
-    const model = (typeof rawBody.model === "string" && rawBody.model) ? rawBody.model : "claude-sonnet-4-6"
+    const completionId = `chatcmpl-${randomUUID()}`;
+    const created = Math.floor(Date.now() / 1000);
+    const model =
+      typeof rawBody.model === "string" && rawBody.model
+        ? rawBody.model
+        : "claude-sonnet-4-6";
 
     if (!anthropicBody.stream) {
-      const anthropicRes = await internalRes.json() as Record<string, unknown>
-      return c.json(translateAnthropicToOpenAi(anthropicRes, completionId, model, created))
+      const anthropicRes = (await internalRes.json()) as Record<
+        string,
+        unknown
+      >;
+      return c.json(
+        translateAnthropicToOpenAi(anthropicRes, completionId, model, created),
+      );
     }
 
     // Streaming: translate Anthropic SSE events to OpenAI SSE chunks
-    const encoder = new TextEncoder()
+    const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        const reader = internalRes.body?.getReader()
-        if (!reader) { controller.close(); return }
+        const reader = internalRes.body?.getReader();
+        if (!reader) {
+          controller.close();
+          return;
+        }
 
-        const decoder = new TextDecoder()
-        let buffer = ""
-        let streamError: Error | null = null
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let streamError: Error | null = null;
 
         try {
           while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
+            const { done, value } = await reader.read();
+            if (done) break;
 
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split("\n")
-            buffer = lines.pop() ?? ""
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
 
             for (const line of lines) {
-              if (!line.startsWith("data: ")) continue
-              const dataStr = line.slice(6).trim()
-              if (!dataStr) continue
+              if (!line.startsWith("data: ")) continue;
+              const dataStr = line.slice(6).trim();
+              if (!dataStr) continue;
 
-              let event: Record<string, unknown>
-              try { event = JSON.parse(dataStr) as Record<string, unknown> }
-              catch { continue }
-              if (typeof event.type !== "string") continue
+              let event: Record<string, unknown>;
+              try {
+                event = JSON.parse(dataStr) as Record<string, unknown>;
+              } catch {
+                continue;
+              }
+              if (typeof event.type !== "string") continue;
 
-              const chunk = translateAnthropicSseEvent(event as { type: string } & Record<string, unknown>, completionId, model, created)
-              if (chunk) controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+              const chunk = translateAnthropicSseEvent(
+                event as { type: string } & Record<string, unknown>,
+                completionId,
+                model,
+                created,
+              );
+              if (chunk)
+                controller.enqueue(
+                  encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+                );
             }
           }
         } catch (err) {
-          streamError = err instanceof Error ? err : new Error(String(err))
+          streamError = err instanceof Error ? err : new Error(String(err));
         } finally {
-          if (!streamError) controller.enqueue(encoder.encode("data: [DONE]\n\n"))
-          controller.close()
+          if (!streamError)
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
         }
       },
-    })
+    });
 
     return new Response(readable, {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
       },
-    })
-  })
+    });
+  });
 
   // --- Model Discovery ---
   // Returns available Claude models in OpenAI-compatible format.
   // Context window reflects the subscription tier (Max = 1M, others = 200k).
   app.get("/v1/models", async (c) => {
-    const authStatus = await getClaudeAuthStatusAsync()
-    const isMax = authStatus?.subscriptionType === "max"
-    return c.json({ object: "list", data: buildModelList(isMax) })
-  })
+    const authStatus = await getClaudeAuthStatusAsync();
+    const isMax = authStatus?.subscriptionType === "max";
+    return c.json({ object: "list", data: buildModelList(isMax) });
+  });
 
   // Returns the last observed token usage for a session, looked up by the Claude
   // session ID that was returned in a prior /v1/messages response body.
   app.get("/v1/sessions/:claudeSessionId/context-usage", (c) => {
-    const claudeSessionId = c.req.param("claudeSessionId")
-    const session = getSessionByClaudeId(claudeSessionId)
+    const claudeSessionId = c.req.param("claudeSessionId");
+    const session = getSessionByClaudeId(claudeSessionId);
     if (!session) {
-      return c.json({ error: "Session not found" }, 404)
+      return c.json({ error: "Session not found" }, 404);
     }
     if (!session.contextUsage) {
-      return c.json({ error: "No usage data available for this session" }, 404)
+      return c.json({ error: "No usage data available for this session" }, 404);
     }
-    return c.json({ session_id: claudeSessionId, context_usage: session.contextUsage })
-  })
+    return c.json({
+      session_id: claudeSessionId,
+      context_usage: session.contextUsage,
+    });
+  });
 
   // --- Session Recovery ---
   // Returns recovery information for a session, including CLI commands and file paths
   // to locate the conversation if context was lost due to compaction/restart bugs.
   app.get("/v1/sessions/recover", (c) => {
-    const sessions = listStoredSessions()
+    const sessions = listStoredSessions();
     if (sessions.length === 0) {
-      return c.json({ error: "No sessions found in store" }, 404)
+      return c.json({ error: "No sessions found in store" }, 404);
     }
     return c.json({
-      sessions: sessions.map(s => ({
+      sessions: sessions.map((s) => ({
         key: s.key,
         claudeSessionId: s.claudeSessionId,
         previousClaudeSessionId: s.previousClaudeSessionId,
@@ -1913,18 +2559,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         lastUsedAt: new Date(s.lastUsedAt).toISOString(),
         messageCount: s.messageCount,
         recoverCommand: `claude --resume ${s.claudeSessionId}`,
-        ...(s.previousClaudeSessionId ? {
-          recoverPreviousCommand: `claude --resume ${s.previousClaudeSessionId}`,
-        } : {}),
+        ...(s.previousClaudeSessionId
+          ? {
+              recoverPreviousCommand: `claude --resume ${s.previousClaudeSessionId}`,
+            }
+          : {}),
       })),
-    })
-  })
+    });
+  });
 
   app.get("/v1/sessions/:key/recover", (c) => {
-    const key = c.req.param("key")
-    const recovery = lookupSessionRecovery(key)
+    const key = c.req.param("key");
+    const recovery = lookupSessionRecovery(key);
     if (!recovery) {
-      return c.json({ error: "Session not found", key }, 404)
+      return c.json({ error: "Session not found", key }, 404);
     }
     return c.json({
       key,
@@ -1934,85 +2582,110 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       lastUsedAt: new Date(recovery.lastUsedAt).toISOString(),
       messageCount: recovery.messageCount,
       recoverCommand: `claude --resume ${recovery.claudeSessionId}`,
-      ...(recovery.previousClaudeSessionId ? {
-        recoverPreviousCommand: `claude --resume ${recovery.previousClaudeSessionId}`,
-        note: "Previous session was replaced — if your current session has lost context, try the previous session ID.",
-      } : {}),
-    })
-  })
+      ...(recovery.previousClaudeSessionId
+        ? {
+            recoverPreviousCommand: `claude --resume ${recovery.previousClaudeSessionId}`,
+            note: "Previous session was replaced — if your current session has lost context, try the previous session ID.",
+          }
+        : {}),
+    });
+  });
 
   // Catch-all: log unhandled requests
   app.all("*", (c) => {
-    console.error(`[PROXY] UNHANDLED ${c.req.method} ${c.req.url}`)
-    return c.json({ error: { type: "not_found", message: `Endpoint not supported: ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
-  })
+    console.error(`[PROXY] UNHANDLED ${c.req.method} ${c.req.url}`);
+    return c.json(
+      {
+        error: {
+          type: "not_found",
+          message: `Endpoint not supported: ${c.req.method} ${new URL(c.req.url).pathname}`,
+        },
+      },
+      404,
+    );
+  });
 
-  return { app, config: finalConfig }
+  return { app, config: finalConfig };
 }
 
-export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
-  claudeExecutable = await resolveClaudeExecutableAsync()
-  const { app, config: finalConfig } = createProxyServer(config)
+export async function startProxyServer(
+  config: Partial<ProxyConfig> = {},
+): Promise<ProxyInstance> {
+  claudeExecutable = await resolveClaudeExecutableAsync();
+  const { app, config: finalConfig } = createProxyServer(config);
 
-  const server = serve({
-    fetch: app.fetch,
-    port: finalConfig.port,
-    hostname: finalConfig.host,
-    overrideGlobalObjects: false,
-  }, (info) => {
-    if (!finalConfig.silent) {
-      console.log(`Meridian running at http://${finalConfig.host}:${info.port}`)
-      console.log(`Telemetry dashboard: http://${finalConfig.host}:${info.port}/telemetry`)
-      console.log(`\nPoint any Anthropic-compatible tool at this endpoint:`)
-      console.log(`  ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://${finalConfig.host}:${info.port}`)
-    }
-  }) as Server
+  const server = serve(
+    {
+      fetch: app.fetch,
+      port: finalConfig.port,
+      hostname: finalConfig.host,
+      overrideGlobalObjects: false,
+    },
+    (info) => {
+      if (!finalConfig.silent) {
+        console.log(
+          `Meridian running at http://${finalConfig.host}:${info.port}`,
+        );
+        console.log(
+          `Telemetry dashboard: http://${finalConfig.host}:${info.port}/telemetry`,
+        );
+        console.log(`\nPoint any Anthropic-compatible tool at this endpoint:`);
+        console.log(
+          `  ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://${finalConfig.host}:${info.port}`,
+        );
+      }
+    },
+  ) as Server;
 
-  const idleMs = finalConfig.idleTimeoutSeconds * 1000
-  server.keepAliveTimeout = idleMs
-  server.headersTimeout = idleMs + 1000
+  const idleMs = finalConfig.idleTimeoutSeconds * 1000;
+  server.keepAliveTimeout = idleMs;
+  server.headersTimeout = idleMs + 1000;
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EADDRINUSE" && !finalConfig.silent) {
-      console.error(`\nError: Port ${finalConfig.port} is already in use.`)
-      console.error(`\nIs another instance of the proxy already running?`)
-      console.error(`  Check with: lsof -i :${finalConfig.port}`)
-      console.error(`  Kill it with: kill $(lsof -ti :${finalConfig.port})`)
-      console.error(`\nOr use a different port:`)
-      console.error(`  MERIDIAN_PORT=4567 meridian`)
+      console.error(`\nError: Port ${finalConfig.port} is already in use.`);
+      console.error(`\nIs another instance of the proxy already running?`);
+      console.error(`  Check with: lsof -i :${finalConfig.port}`);
+      console.error(`  Kill it with: kill $(lsof -ti :${finalConfig.port})`);
+      console.error(`\nOr use a different port:`);
+      console.error(`  MERIDIAN_PORT=4567 meridian`);
     }
-  })
+  });
 
   // Background auth keepalive: periodically refresh auth status for all
   // configured profiles so switching is instant (no stale token delay).
-  let authKeepaliveInterval: ReturnType<typeof setInterval> | undefined
-  const effectiveProfiles = getEffectiveProfiles(finalConfig.profiles)
+  let authKeepaliveInterval: ReturnType<typeof setInterval> | undefined;
+  const effectiveProfiles = getEffectiveProfiles(finalConfig.profiles);
   if (effectiveProfiles.length > 0) {
-    const AUTH_KEEPALIVE_MS = 45_000 // 45s — well within the 60s TTL
+    const AUTH_KEEPALIVE_MS = 45_000; // 45s — well within the 60s TTL
     authKeepaliveInterval = setInterval(async () => {
       // Re-read effective profiles on each tick (picks up new profiles from disk)
-      const currentProfiles = getEffectiveProfiles(finalConfig.profiles)
+      const currentProfiles = getEffectiveProfiles(finalConfig.profiles);
       for (const profile of currentProfiles) {
-        const resolved = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile, profile.id)
+        const resolved = resolveProfile(
+          finalConfig.profiles,
+          finalConfig.defaultProfile,
+          profile.id,
+        );
         if (Object.keys(resolved.env).length > 0) {
-          getClaudeAuthStatusAsync(resolved.id, resolved.env).catch(() => {})
+          getClaudeAuthStatusAsync(resolved.id, resolved.env).catch(() => {});
         }
       }
       // Also refresh the default (no-override) context
-      getClaudeAuthStatusAsync().catch(() => {})
-    }, AUTH_KEEPALIVE_MS)
+      getClaudeAuthStatusAsync().catch(() => {});
+    }, AUTH_KEEPALIVE_MS);
     // Don't block process exit
-    if (authKeepaliveInterval.unref) authKeepaliveInterval.unref()
+    if (authKeepaliveInterval.unref) authKeepaliveInterval.unref();
   }
 
   return {
     server,
     config: finalConfig,
     async close() {
-      if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
+      if (authKeepaliveInterval) clearInterval(authKeepaliveInterval);
       await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()))
-      })
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
     },
-  }
+  };
 }
