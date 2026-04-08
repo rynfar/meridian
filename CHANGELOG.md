@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.32.0](https://github.com/rynfar/meridian/compare/meridian-v1.31.2...meridian-v1.32.0) (2026-04-08)
+
+
+### Features
+
+* add ForgeCode agent adapter ([#315](https://github.com/rynfar/meridian/issues/315)) ([bb7d8e3](https://github.com/rynfar/meridian/commit/bb7d8e39db00542cda3b2c7b2ab41df302610a3c))
+
+
+### Bug Fixes
+
+* skip labeling in release-please to avoid stale PR node errors ([7212318](https://github.com/rynfar/meridian/commit/72123181228b71ad2cbc6694dfac3989597dac7c))
+
 ## [1.31.2](https://github.com/rynfar/meridian/compare/meridian-v1.31.1...meridian-v1.31.2) (2026-04-07)
 
 
