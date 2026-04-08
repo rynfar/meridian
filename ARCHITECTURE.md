@@ -39,7 +39,8 @@ src/
 │   ├── server.ts              ← HTTP layer: routes, SSE streaming, concurrency, request orchestration
 │   ├── adapter.ts             ← AgentAdapter interface (extensibility point for multi-agent support)
 │   ├── adapters/
-│   │   └── opencode.ts        ← OpenCode adapter (session headers, CWD extraction, tool config)
+│   │   ├── opencode.ts        ← OpenCode adapter (session headers, CWD extraction, tool config)
+│   │   └── forgecode.ts       ← ForgeCode adapter (fingerprint sessions, XML CWD, passthrough)
 │   ├── query.ts               ← SDK query options builder (shared between stream/non-stream paths)
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── models.ts              ← Model mapping, Claude executable resolution
@@ -125,6 +126,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 ### Current Adapters
 
 - **`adapters/opencode.ts`** — OpenCode agent (session headers, `<env>` block parsing, tool mappings)
+- **`adapters/forgecode.ts`** — ForgeCode agent (fingerprint sessions, `<current_working_directory>` parsing, `patch`/`shell` tool mappings)
 
 ### Adding a New Agent
 

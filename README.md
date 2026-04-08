@@ -12,7 +12,7 @@
 
 ---
 
-Meridian bridges the Claude Code SDK to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, Crush, Cline, Aider, Pi, Droid, Open WebUI — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
+Meridian bridges the Claude Code SDK to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Droid, Open WebUI — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
 
 > [!NOTE]
 > ### How Meridian works with Anthropic
@@ -273,6 +273,45 @@ Point any OpenAI-compatible tool at `http://127.0.0.1:3456` with any API key val
 
 > **Note:** Multi-turn conversations work by packing prior turns into the system prompt. Each request is a fresh SDK session — OpenAI clients replay full history themselves and don't use Meridian's session resumption.
 
+### ForgeCode
+
+Add a custom provider to `~/forge/.forge.toml`:
+
+```toml
+[[providers]]
+id            = "meridian"
+url           = "http://127.0.0.1:3456/v1/messages"
+models        = "http://127.0.0.1:3456/v1/models"
+api_key_vars  = "MERIDIAN_API_KEY"
+response_type = "Anthropic"
+auth_methods  = ["api_key"]
+
+[session]
+provider_id = "meridian"
+model_id    = "claude-opus-4-6"
+```
+
+Set the API key env var (any value — Meridian authenticates through the SDK, not API keys):
+
+```bash
+export MERIDIAN_API_KEY=unused
+```
+
+Then log in and select the model:
+
+```bash
+forge provider login meridian    # enter any value when prompted
+forge config set provider meridian --model claude-opus-4-6
+```
+
+Start Meridian with the ForgeCode adapter:
+
+```bash
+MERIDIAN_DEFAULT_AGENT=forgecode meridian
+```
+
+ForgeCode uses reqwest's default User-Agent, so automatic detection isn't possible. The `MERIDIAN_DEFAULT_AGENT` env var tells Meridian to use the ForgeCode adapter for all unrecognized requests. If you run other agents alongside ForgeCode, use the `x-meridian-agent: forgecode` header instead (add `[providers.headers]` to your `.forge.toml`).
+
 ### Pi
 
 Pi uses the `@mariozechner/pi-ai` library which supports a configurable `baseUrl` on the model. Add a provider-level override in `~/.pi/agent/models.json`:
@@ -305,6 +344,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 | Agent | Status | Notes |
 |-------|--------|-------|
 | [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | Requires `meridian setup` — full tool support, session resume, streaming, subagents |
+| [ForgeCode](https://forgecode.dev) | ✅ Verified | Provider config (see above) — passthrough tool execution, session resume, streaming |
 | [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see above) — full tool support, session resume, streaming |
 | [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see above) — full tool support, session resume, headless `crush run` |
 | [Cline](https://github.com/cline/cline) | ✅ Verified | Config (see above) — full tool support, file read/write/edit, bash, session resume |
@@ -324,6 +364,7 @@ src/proxy/
 ├── adapters/
 │   ├── detect.ts          ← Agent detection from request headers
 │   ├── opencode.ts        ← OpenCode adapter
+│   ├── forgecode.ts       ← ForgeCode adapter
 │   ├── crush.ts           ← Crush adapter
 │   ├── droid.ts           ← Droid adapter
 │   ├── pi.ts              ← Pi adapter
@@ -394,7 +435,7 @@ Implement the `AgentAdapter` interface in `src/proxy/adapters/`. See [`adapters/
 | `MERIDIAN_TELEMETRY_SIZE` | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size |
 | `MERIDIAN_NO_FILE_CHANGES` | `CLAUDE_PROXY_NO_FILE_CHANGES` | unset | Disable "Files changed" summary in responses |
 | `MERIDIAN_SONNET_MODEL` | `CLAUDE_PROXY_SONNET_MODEL` | `sonnet` | Sonnet context tier: `sonnet` (200k, default) or `sonnet[1m]` (1M, requires Extra Usage†) |
-| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `pi`, `crush`, `droid`, `passthrough`. Requires restart. |
+| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `crush`, `droid`, `passthrough`. Requires restart. |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](#multi-profile-support). |
 | `MERIDIAN_DEFAULT_PROFILE` | — | *(first profile)* | Default profile ID when no header is sent |
 

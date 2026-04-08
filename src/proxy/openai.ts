@@ -309,7 +309,6 @@ export function translateAnthropicSseEvent(
  * Context windows reflect subscription capabilities.
  */
 export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date.now() / 1000)): OpenAiModel[] {
-  const extendedContext = isMaxSubscription ? 1_000_000 : 200_000
   return [
     {
       id: "claude-sonnet-4-6",
@@ -317,7 +316,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Sonnet 4.6",
-      context_window: extendedContext,
+      context_window: 200_000,
     },
     {
       id: "claude-opus-4-6",
@@ -325,7 +324,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Opus 4.6",
-      context_window: extendedContext,
+      context_window: isMaxSubscription ? 1_000_000 : 200_000,
     },
     {
       id: "claude-haiku-4-5-20251001",

@@ -12,6 +12,7 @@ import { droidAdapter } from "./droid"
 import { crushAdapter } from "./crush"
 import { passthroughAdapter } from "./passthrough"
 import { piAdapter } from "./pi"
+import { forgeCodeAdapter } from "./forgecode"
 
 const ADAPTER_MAP: Record<string, AgentAdapter> = {
   opencode: openCodeAdapter,
@@ -19,6 +20,7 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   crush: crushAdapter,
   passthrough: passthroughAdapter,
   pi: piAdapter,
+  forgecode: forgeCodeAdapter,
 }
 
 const envDefault = process.env.MERIDIAN_DEFAULT_AGENT || ""

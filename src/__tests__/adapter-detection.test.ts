@@ -12,6 +12,7 @@ import { droidAdapter } from "../proxy/adapters/droid"
 import { crushAdapter } from "../proxy/adapters/crush"
 import { piAdapter } from "../proxy/adapters/pi"
 import { passthroughAdapter } from "../proxy/adapters/passthrough"
+import { forgeCodeAdapter } from "../proxy/adapters/forgecode"
 
 function makeContext(userAgent: string, extraHeaders?: Record<string, string>): any {
   const allHeaders: Record<string, string> = {}
@@ -136,11 +137,18 @@ describe("detectAdapter — x-meridian-agent header override", () => {
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "passthrough" }))).toBe(passthroughAdapter)
   })
 
+  it("returns forgeCodeAdapter when x-meridian-agent is 'forgecode'", () => {
+    expect(detectAdapter(makeContext("", { "x-meridian-agent": "forgecode" }))).toBe(forgeCodeAdapter)
+    expect(forgeCodeAdapter.name).toBe("forgecode")
+  })
+
   it("is case-insensitive on header value", () => {
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "Pi" })).name).toBe("pi")
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "PI" })).name).toBe("pi")
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "CRUSH" })).name).toBe("crush")
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "OpenCode" })).name).toBe("opencode")
+    expect(detectAdapter(makeContext("", { "x-meridian-agent": "ForgeCode" })).name).toBe("forgecode")
+    expect(detectAdapter(makeContext("", { "x-meridian-agent": "FORGECODE" })).name).toBe("forgecode")
   })
 
   it("takes precedence over User-Agent detection", () => {
@@ -274,5 +282,29 @@ describe("detectAdapter — adapter contracts", () => {
   it("detected crush adapter has crush MCP server name", () => {
     const adapter = detectAdapter(makeContext("Charm-Crush/v0.51.2"))
     expect(adapter.getMcpServerName()).toBe("crush")
+  })
+
+  it("detected forgecode adapter extracts CWD from XML tag", () => {
+    const adapter = detectAdapter(makeContext("", { "x-meridian-agent": "forgecode" }))
+    const body = {
+      system: "<current_working_directory>/tmp/forge-project</current_working_directory>",
+    }
+    expect(adapter.extractWorkingDirectory(body)).toBe("/tmp/forge-project")
+  })
+
+  it("detected forgecode adapter returns undefined for session ID", () => {
+    const adapter = detectAdapter(makeContext("", { "x-meridian-agent": "forgecode" }))
+    const ctx = { req: { header: () => "any-value" } }
+    expect(adapter.getSessionId(ctx as any)).toBeUndefined()
+  })
+
+  it("detected forgecode adapter has forgecode MCP server name", () => {
+    const adapter = detectAdapter(makeContext("", { "x-meridian-agent": "forgecode" }))
+    expect(adapter.getMcpServerName()).toBe("forgecode")
+  })
+
+  it("detected forgecode adapter has no usesPassthrough — defers to env var", () => {
+    const adapter = detectAdapter(makeContext("", { "x-meridian-agent": "forgecode" }))
+    expect(adapter.usesPassthrough).toBeUndefined()
   })
 })

@@ -54,6 +54,7 @@ server.ts          → HTTP routes, SSE streaming, concurrency (orchestration on
 adapter.ts         → AgentAdapter interface (extensibility point)
 adapters/
   opencode.ts      → OpenCode-specific: headers, CWD, tool config
+  forgecode.ts     → ForgeCode-specific: XML CWD, patch/shell tools, passthrough
 query.ts           → buildQueryOptions (shared stream/non-stream SDK call builder)
 errors.ts          → classifyError (pure)
 models.ts          → mapModelToClaudeModel, resolveClaudeExecutableAsync

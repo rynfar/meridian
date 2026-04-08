@@ -373,11 +373,11 @@ describe("buildModelList", () => {
     expect(buildModelList(false).length).toBe(3)
   })
 
-  it("Max subscription gets 1M context for sonnet and opus", () => {
+  it("Max subscription gets 1M context for opus, 200k for sonnet", () => {
     const models = buildModelList(true)
     const sonnet = models.find(m => m.id === "claude-sonnet-4-6")!
     const opus = models.find(m => m.id === "claude-opus-4-6")!
-    expect(sonnet.context_window).toBe(1_000_000)
+    expect(sonnet.context_window).toBe(200_000)
     expect(opus.context_window).toBe(1_000_000)
   })
 
