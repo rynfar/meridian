@@ -44,9 +44,12 @@ const MeridianPlugin: Plugin = async () => {
       output.headers["x-opencode-agent-mode"] = typeof agent === "object"
         ? (agent.mode ?? "primary")
         : "primary"
-      output.headers["x-opencode-agent-name"] = typeof agent === "object"
+      const rawName = typeof agent === "object"
         ? (agent.name ?? "unknown")
         : String(agent)
+      // Strip non-ASCII characters (e.g. zero-width spaces) that cause
+      // "Header has invalid value" errors in Node.js / undici.
+      output.headers["x-opencode-agent-name"] = rawName.replace(/[^\x20-\x7E]/g, "")
     },
   }
 }
