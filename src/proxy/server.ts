@@ -31,6 +31,7 @@ import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
 import { detectTokenAnomalies, formatAnomalyAlerts, type TokenSnapshot } from "./tokenHealth"
 import { computeCacheHitRate, formatUsageSummary } from "./tokenUsage"
+import { sanitizeTextContent } from "./sanitize"
 import {
   computeLineageHash,
   hashMessage,
@@ -112,11 +113,11 @@ function buildFreshPrompt(
       const role = m.role === "assistant" ? "Assistant" : "Human"
       let content: string
       if (typeof m.content === "string") {
-        content = m.content
+        content = sanitizeTextContent(m.content)
       } else if (Array.isArray(m.content)) {
         content = m.content
           .map((block: any) => {
-            if (block.type === "text" && block.text) return block.text
+            if (block.type === "text" && block.text) return sanitizeTextContent(block.text)
             if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
             if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
             if (block.type === "image") return "[Image attached]"
@@ -521,17 +522,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }
         }
       } else {
-        // Text prompt — convert messages to string
+        // Text prompt — convert messages to string.
+        // Sanitize each text block before flattening to strip orchestration
+        // wrappers (<system-reminder>, <env>, etc.) that harnesses inject.
+        // Per-block sanitization avoids cross-message regex collateral.
         textPrompt = messagesToConvert
           ?.map((m: { role: string; content: string | Array<{ type: string; text?: string; content?: string; tool_use_id?: string; name?: string; input?: unknown; id?: string }> }) => {
             const role = m.role === "assistant" ? "Assistant" : "Human"
             let content: string
             if (typeof m.content === "string") {
-              content = m.content
+              content = sanitizeTextContent(m.content)
             } else if (Array.isArray(m.content)) {
               content = m.content
                 .map((block: any) => {
-                  if (block.type === "text" && block.text) return block.text
+                  if (block.type === "text" && block.text) return sanitizeTextContent(block.text)
                   if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
                   if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
                   if (block.type === "image") return "[Image attached]"
