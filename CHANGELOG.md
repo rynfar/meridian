@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.34.1](https://github.com/rynfar/meridian/compare/meridian-v1.34.0...meridian-v1.34.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* enable thinking token passthrough for Pi adapter ([c58c04e](https://github.com/rynfar/meridian/commit/c58c04e24b7f2dc8ef6fa503e789a304f60ac9ab)), closes [#323](https://github.com/rynfar/meridian/issues/323)
+* fall back to "unknown" when agent name is entirely non-ASCII ([442e84c](https://github.com/rynfar/meridian/commit/442e84c553fc3152f4e65af845340cdc8295c051))
+* sanitize agent name header to strip non-ASCII characters ([#326](https://github.com/rynfar/meridian/issues/326)) ([74bb8f3](https://github.com/rynfar/meridian/commit/74bb8f365a739c0a0951287a6ce6663d524a45a6))
+* strip orchestration wrapper tags before text prompt flattening ([#327](https://github.com/rynfar/meridian/issues/327)) ([ab98af1](https://github.com/rynfar/meridian/commit/ab98af138d82b0df0ae3cc0cbca6cf78b311b6c9)), closes [#167](https://github.com/rynfar/meridian/issues/167) [#317](https://github.com/rynfar/meridian/issues/317)
+
 ## [1.34.0](https://github.com/rynfar/meridian/compare/meridian-v1.33.0...meridian-v1.34.0) (2026-04-08)
 
 
