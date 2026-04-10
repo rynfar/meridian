@@ -166,7 +166,7 @@ export async function runCli(
     enableDiskProfileDiscovery()
   }
 
-  const proxy = await start({ port, host, idleTimeoutSeconds, profiles, defaultProfile })
+  const proxy = await start({ port, host, idleTimeoutSeconds, profiles, defaultProfile, version })
 
   // Handle EADDRINUSE — preserve CLI behavior of exiting on port conflict
   proxy.server.on("error", (error: NodeJS.ErrnoException) => {

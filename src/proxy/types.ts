@@ -11,6 +11,8 @@ export interface ProxyConfig {
   profiles?: ProfileConfig[]
   /** Default profile ID when no header is sent */
   defaultProfile?: string
+  /** Package version, exposed via /health endpoint */
+  version?: string
 }
 
 export interface ProxyInstance {
@@ -38,4 +40,5 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   silent: false,
   profiles: undefined,
   defaultProfile: undefined,
+  version: undefined,
 }

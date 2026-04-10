@@ -16,30 +16,31 @@ describe("proxy async ops", () => {
     expect(typeof proxyB.server.keepAliveTimeout).toBe("number")
   })
 
-  it("serves async health endpoint with unchanged response schema", async () => {
+  it("serves async health endpoint with correct response schema", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
     const response = await app.fetch(new Request("http://localhost/health"))
     const body = await response.json() as any
 
     expect(typeof body.status).toBe("string")
+    expect(typeof body.version).toBe("string")
     expect(typeof body.mode).toBe("string")
     expect(["healthy", "degraded", "unhealthy"]).toContain(body.status)
 
     if (body.status === "healthy") {
       expect(typeof body.auth.loggedIn).toBe("boolean")
       expect(body.auth.loggedIn).toBe(true)
-      expect(Object.keys(body).sort()).toEqual(["auth", "mode", "plugin", "status"])
+      expect(Object.keys(body).sort()).toEqual(["auth", "mode", "plugin", "status", "version"])
     }
 
     if (body.status === "unhealthy") {
       expect(typeof body.error).toBe("string")
       expect(body.auth.loggedIn).toBe(false)
-      expect(Object.keys(body).sort()).toEqual(["auth", "error", "status"])
+      expect(Object.keys(body).sort()).toEqual(["auth", "error", "status", "version"])
     }
 
     if (body.status === "degraded") {
       expect(typeof body.error).toBe("string")
-      expect(Object.keys(body).sort()).toEqual(["error", "mode", "status"])
+      expect(Object.keys(body).sort()).toEqual(["error", "mode", "status", "version"])
     }
 
     expect(response.status).toBe(body.status === "unhealthy" ? 503 : 200)
@@ -48,21 +49,28 @@ describe("proxy async ops", () => {
   it("returns degraded health when auth status command times out", async () => {
     resetCachedClaudeAuthStatus()
     const originalPath = process.env.PATH
+    const originalClaudeProxyPassthrough = process.env.CLAUDE_PROXY_PASSTHROUGH
+    const originalMeridianPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.PATH = ""
+    process.env.CLAUDE_PROXY_PASSTHROUGH = "0"
+    process.env.MERIDIAN_PASSTHROUGH = "0"
 
     try {
       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
       const response = await app.fetch(new Request("http://localhost/health"))
-      const body = await response.json()
+      const body = await response.json() as Record<string, unknown>
 
       expect(response.status).toBe(200)
-      expect(body).toEqual({
-        status: "degraded",
-        error: "Could not verify auth status",
-        mode: "internal",
-      })
+      expect(body.status).toBe("degraded")
+      expect(body.error).toBe("Could not verify auth status")
+      expect(body.mode).toBe("internal")
+      expect(typeof body.version).toBe("string")
     } finally {
       process.env.PATH = originalPath
+      if (originalClaudeProxyPassthrough === undefined) delete process.env.CLAUDE_PROXY_PASSTHROUGH
+      else process.env.CLAUDE_PROXY_PASSTHROUGH = originalClaudeProxyPassthrough
+      if (originalMeridianPassthrough === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+      else process.env.MERIDIAN_PASSTHROUGH = originalMeridianPassthrough
     }
   })
 
