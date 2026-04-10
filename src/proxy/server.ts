@@ -306,6 +306,27 @@ export function createProxyServer(
 
   app.use("*", cors());
 
+  // Optional API key auth — protects proxy endpoints when publicly exposed.
+  // If MERIDIAN_AUTH_KEY is set, all requests except /telemetry and /health
+  // must include a matching x-api-key header or Authorization: Bearer token.
+  // If not set, all requests pass through (backwards compatible).
+  const authKey = process.env.MERIDIAN_AUTH_KEY;
+  if (authKey) {
+    app.use("*", async (c, next) => {
+      const path = new URL(c.req.url).pathname;
+      // Allow telemetry and health without auth (read-only, no sensitive data)
+      if (path.startsWith("/telemetry") || path === "/health") {
+        return next();
+      }
+      const apiKey = c.req.header("x-api-key");
+      const bearer = c.req.header("authorization")?.replace(/^Bearer\s+/i, "");
+      if (apiKey === authKey || bearer === authKey) {
+        return next();
+      }
+      return c.json({ error: "Unauthorized" }, 401);
+    });
+  }
+
   app.get("/", (c) => {
     // API clients get JSON, browsers get the landing page
     const accept = c.req.header("accept") || "";
