@@ -59,6 +59,7 @@ export const profileBarHtml = `
   <div class="spacer"></div>
   <div class="profile-nav">
     <a href="/" id="nav-home">Home</a>
+    <a href="/settings" id="nav-settings">Settings</a>
     <a href="/profiles" id="nav-profiles">Profiles</a>
     <a href="/telemetry" id="nav-telemetry">Telemetry</a>
   </div>

@@ -5,8 +5,10 @@
  * between the streaming and non-streaming paths in server.ts.
  */
 
+import { join } from "node:path"
+import { homedir } from "node:os"
 import type { AgentAdapter } from "./adapter"
-import type { Options, SdkBeta } from "@anthropic-ai/claude-agent-sdk"
+import type { Options, SdkBeta, SettingSource } from "@anthropic-ai/claude-agent-sdk"
 import { createOpencodeMcpServer } from "../mcpTools"
 import { createPassthroughMcpServer, PASSTHROUGH_MCP_NAME } from "./passthroughTools"
 
@@ -53,6 +55,26 @@ export interface QueryContext {
   taskBudget?: { total: number }
   /** Beta features to enable */
   betas?: string[]
+  /** SDK setting sources — controls CLAUDE.md and user settings loading */
+  settingSources?: SettingSource[]
+  /** Use the Claude Code system prompt preset */
+  codeSystemPrompt?: boolean
+  /** Include the client agent's system prompt */
+  clientSystemPrompt?: boolean
+  /** Enable auto-memory (read + write across sessions) */
+  memory?: boolean
+  /** Enable background memory consolidation (dreaming) */
+  dreaming?: boolean
+  /** Share memory directory with Claude Code (~/.claude) */
+  sharedMemory?: boolean
+  /** Per-request cost cap in USD */
+  maxBudgetUsd?: number
+  /** Fallback model when primary fails */
+  fallbackModel?: string
+  /** Enable SDK debug logging */
+  sdkDebug?: boolean
+  /** Additional directories Claude can access */
+  additionalDirectories?: string[]
 }
 
 /**
@@ -65,12 +87,34 @@ export interface BuildQueryResult {
   options: Options
 }
 
+function resolveSystemPrompt(
+  systemContext: string | undefined,
+  passthrough: boolean,
+  settingSources: SettingSource[] | undefined,
+  codeSystemPrompt?: boolean,
+  clientSystemPrompt?: boolean,
+): { systemPrompt?: string | { type: "preset"; preset: "claude_code"; append?: string } } {
+  const hasSettings = settingSources != null && settingSources.length > 0
+  const usePreset = codeSystemPrompt ?? (hasSettings || (!passthrough && !!systemContext))
+  const includeClient = clientSystemPrompt ?? true
+  const clientContext = includeClient ? systemContext : undefined
+
+  if (usePreset) {
+    return clientContext
+      ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: clientContext } }
+      : { systemPrompt: { type: "preset" as const, preset: "claude_code" as const } }
+  }
+  if (clientContext) return { systemPrompt: clientContext }
+  return {}
+}
+
 export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
   const {
     prompt, model, workingDirectory, systemContext, claudeExecutable,
     passthrough, stream, sdkAgents, passthroughMcp, cleanEnv, hasDeferredTools,
     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
-    effort, thinking, taskBudget, betas,
+    effort, thinking, taskBudget, betas, settingSources, codeSystemPrompt, clientSystemPrompt,
+    memory, dreaming, sharedMemory, maxBudgetUsd, fallbackModel, sdkDebug, additionalDirectories,
   } = ctx
 
   const blockedTools = [...adapter.getBlockedBuiltinTools(), ...adapter.getAgentIncompatibleTools()]
@@ -101,11 +145,7 @@ export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
       ...(stream ? { includePartialMessages: true } : {}),
       permissionMode: "bypassPermissions" as const,
       allowDangerouslySkipPermissions: true,
-      ...(systemContext ? {
-        systemPrompt: passthrough
-          ? systemContext
-          : { type: "preset" as const, preset: "claude_code" as const, append: systemContext }
-      } : {}),
+      ...resolveSystemPrompt(systemContext, passthrough, settingSources, codeSystemPrompt, clientSystemPrompt),
       ...(passthrough
         ? {
             disallowedTools: blockedTools,
@@ -120,11 +160,20 @@ export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
             mcpServers: { [mcpServerName]: createOpencodeMcpServer() },
           }),
       plugins: [],
+      ...(settingSources && settingSources.length > 0 ? {
+        settingSources,
+        settings: {
+          autoMemoryEnabled: ctx.memory ?? true,
+          autoDreamEnabled: ctx.dreaming ?? false,
+        },
+      } : {}),
       ...(onStderr ? { stderr: onStderr } : {}),
       env: {
         ...cleanEnv,
         ENABLE_TOOL_SEARCH: hasDeferredTools ? "true" : "false",
         ...(passthrough ? { ENABLE_CLAUDEAI_MCP_SERVERS: "false" } : {}),
+        // Shared memory: point SDK at ~/.claude so memories are shared with Claude Code
+        ...(sharedMemory ? { CLAUDE_CONFIG_DIR: join(homedir(), ".claude") } : {}),
         // When running as root (Docker, Unraid, NAS), set IS_SANDBOX=1 to
         // bypass the SDK's root check. Without this, the SDK exits with:
         // "--dangerously-skip-permissions cannot be used with root/sudo"
@@ -139,6 +188,10 @@ export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
       ...(thinking ? { thinking } : {}),
       ...(taskBudget ? { taskBudget } : {}),
       ...(betas && betas.length > 0 ? { betas: betas as SdkBeta[] } : {}),
+      ...(maxBudgetUsd && maxBudgetUsd > 0 ? { maxBudgetUsd } : {}),
+      ...(fallbackModel ? { fallbackModel } : {}),
+      ...(sdkDebug ? { debug: true } : {}),
+      ...(additionalDirectories && additionalDirectories.length > 0 ? { additionalDirectories } : {}),
     }
   }
 }

@@ -40,6 +40,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     name: "test",
     instance: {},
   }),
+  tool: () => ({}),
 }))
 
 mock.module("../logger", () => ({

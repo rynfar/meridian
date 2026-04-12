@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test"
 
 const { createProxyServer, startProxyServer } = await import("../proxy/server")
-const { resetCachedClaudeAuthStatus } = await import("../proxy/models")
 const { runCli } = await import("../../bin/cli")
 
 describe("proxy async ops", () => {
@@ -46,33 +45,8 @@ describe("proxy async ops", () => {
     expect(response.status).toBe(body.status === "unhealthy" ? 503 : 200)
   })
 
-  it("returns degraded health when auth status command times out", async () => {
-    resetCachedClaudeAuthStatus()
-    const originalPath = process.env.PATH
-    const originalClaudeProxyPassthrough = process.env.CLAUDE_PROXY_PASSTHROUGH
-    const originalMeridianPassthrough = process.env.MERIDIAN_PASSTHROUGH
-    process.env.PATH = ""
-    process.env.CLAUDE_PROXY_PASSTHROUGH = "0"
-    process.env.MERIDIAN_PASSTHROUGH = "0"
-
-    try {
-      const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
-      const response = await app.fetch(new Request("http://localhost/health"))
-      const body = await response.json() as Record<string, unknown>
-
-      expect(response.status).toBe(200)
-      expect(body.status).toBe("degraded")
-      expect(body.error).toBe("Could not verify auth status")
-      expect(body.mode).toBe("internal")
-      expect(typeof body.version).toBe("string")
-    } finally {
-      process.env.PATH = originalPath
-      if (originalClaudeProxyPassthrough === undefined) delete process.env.CLAUDE_PROXY_PASSTHROUGH
-      else process.env.CLAUDE_PROXY_PASSTHROUGH = originalClaudeProxyPassthrough
-      if (originalMeridianPassthrough === undefined) delete process.env.MERIDIAN_PASSTHROUGH
-      else process.env.MERIDIAN_PASSTHROUGH = originalMeridianPassthrough
-    }
-  })
+  // "returns degraded health when auth status is null" moved to
+  // proxy-health-degraded.test.ts — needs mock.module before server import
 
   it("keeps CLI missing-binary warning behavior", async () => {
     const errors: string[] = []

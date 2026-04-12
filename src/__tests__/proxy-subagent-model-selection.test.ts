@@ -31,6 +31,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
+  tool: () => ({}),
 }))
 
 mock.module("../logger", () => ({
@@ -43,13 +44,27 @@ mock.module("../mcpTools", () => ({
 }))
 
 // Fix auth status so mapModelToClaudeModel always picks the max/1m path
-mock.module("../proxy/models", () => {
-  const actual = require("../proxy/models")
-  return {
-    ...actual,
-    getClaudeAuthStatusAsync: async () => ({ loggedIn: true, subscriptionType: "max" }),
-  }
-})
+mock.module("../proxy/models", () => ({
+  mapModelToClaudeModel: (model: string, sub?: string | null, agentMode?: string | null) => {
+    const base = model.toLowerCase()
+    if (base.includes("opus")) return agentMode === "subagent" ? "opus" : "opus[1m]"
+    if (base.includes("haiku")) return "haiku"
+    // Sonnet [1m] requires Extra Usage on Max — default to 200k for all agents
+    return "sonnet"
+  },
+  resolveClaudeExecutableAsync: async () => "claude",
+  getClaudeAuthStatusAsync: async () => ({ loggedIn: true, subscriptionType: "max" }),
+  getAuthCacheInfo: () => ({ lastCheckedAt: 0, lastSuccessAt: 0, isFailure: false }),
+  hasExtendedContext: (m: string) => m.endsWith("[1m]"),
+  stripExtendedContext: (m: string) => m.replace("[1m]", "") as any,
+  isClosedControllerError: (e: unknown) => e instanceof Error && e.message.includes("controller is closed"),
+  recordExtendedContextUnavailable: () => {},
+  isExtendedContextKnownUnavailable: () => false,
+  resetCachedClaudeAuthStatus: () => {},
+  resetCachedClaudePath: () => {},
+  expireAuthStatusCache: () => {},
+  resetExtendedContextUnavailable: () => {},
+}))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 

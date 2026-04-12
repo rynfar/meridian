@@ -178,4 +178,162 @@ describe("buildQueryOptions", () => {
     const env = (result.options as any).env
     expect(env.ENABLE_TOOL_SEARCH).toBe("false")
   })
+
+  // ── systemPrompt × settingSources matrix ──────────────────────────
+
+  it("uses preset with append when systemContext + settingSources both set", () => {
+    const result = buildQueryOptions(makeContext({
+      systemContext: "Be helpful",
+      settingSources: ["user", "project"],
+    }))
+    const sp = (result.options as any).systemPrompt
+    expect(sp.type).toBe("preset")
+    expect(sp.preset).toBe("claude_code")
+    expect(sp.append).toBe("Be helpful")
+  })
+
+  it("uses preset with append in passthrough + settingSources", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      systemContext: "Be helpful",
+      settingSources: ["user", "project"],
+    }))
+    const sp = (result.options as any).systemPrompt
+    expect(sp.type).toBe("preset")
+    expect(sp.preset).toBe("claude_code")
+    expect(sp.append).toBe("Be helpful")
+  })
+
+  it("uses bare preset when settingSources set but no systemContext", () => {
+    const result = buildQueryOptions(makeContext({
+      systemContext: "",
+      settingSources: ["user", "project"],
+    }))
+    const sp = (result.options as any).systemPrompt
+    expect(sp.type).toBe("preset")
+    expect(sp.preset).toBe("claude_code")
+    expect(sp.append).toBeUndefined()
+  })
+
+  it("omits systemPrompt when no systemContext and no settingSources", () => {
+    const result = buildQueryOptions(makeContext({ systemContext: "", settingSources: [] }))
+    expect((result.options as any).systemPrompt).toBeUndefined()
+  })
+
+  it("passes settingSources and memory settings to SDK options", () => {
+    const result = buildQueryOptions(makeContext({
+      settingSources: ["user", "project"],
+      memory: true,
+      dreaming: true,
+    }))
+    const opts = result.options as any
+    expect(opts.settingSources).toEqual(["user", "project"])
+    expect(opts.settings.autoMemoryEnabled).toBe(true)
+    expect(opts.settings.autoDreamEnabled).toBe(true)
+  })
+
+  it("omits settingSources and settings when settingSources empty", () => {
+    const result = buildQueryOptions(makeContext({ settingSources: [] }))
+    const opts = result.options as any
+    expect(opts.settingSources).toBeUndefined()
+    expect(opts.settings).toBeUndefined()
+  })
+
+  it("sets CLAUDE_CONFIG_DIR when sharedMemory is true", () => {
+    const result = buildQueryOptions(makeContext({ sharedMemory: true }))
+    const env = (result.options as any).env
+    expect(env.CLAUDE_CONFIG_DIR).toContain(".claude")
+  })
+
+  it("omits CLAUDE_CONFIG_DIR when sharedMemory is false", () => {
+    const result = buildQueryOptions(makeContext({ sharedMemory: false }))
+    const env = (result.options as any).env
+    expect(env.CLAUDE_CONFIG_DIR).toBeUndefined()
+  })
+
+  // ── codeSystemPrompt / clientSystemPrompt controls ────────────────
+
+  it("forces preset when codeSystemPrompt is true even in passthrough", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      systemContext: "Agent instructions",
+      codeSystemPrompt: true,
+    }))
+    const sp = (result.options as any).systemPrompt
+    expect(sp.type).toBe("preset")
+    expect(sp.preset).toBe("claude_code")
+    expect(sp.append).toBe("Agent instructions")
+  })
+
+  it("skips preset when codeSystemPrompt is false in normal mode", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: false,
+      systemContext: "Agent instructions",
+      codeSystemPrompt: false,
+    }))
+    const sp = (result.options as any).systemPrompt
+    expect(sp).toBe("Agent instructions")
+  })
+
+  it("omits systemPrompt entirely when codeSystemPrompt false and no systemContext", () => {
+    const result = buildQueryOptions(makeContext({
+      systemContext: "",
+      codeSystemPrompt: false,
+    }))
+    expect((result.options as any).systemPrompt).toBeUndefined()
+  })
+
+  it("shows preset without append when codeSystemPrompt true but clientSystemPrompt false", () => {
+    const result = buildQueryOptions(makeContext({
+      systemContext: "Agent instructions",
+      codeSystemPrompt: true,
+      clientSystemPrompt: false,
+    }))
+    const sp = (result.options as any).systemPrompt
+    expect(sp.type).toBe("preset")
+    expect(sp.preset).toBe("claude_code")
+    expect(sp.append).toBeUndefined()
+  })
+
+  it("strips client prompt when clientSystemPrompt is false in passthrough", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      systemContext: "Agent instructions",
+      clientSystemPrompt: false,
+    }))
+    expect((result.options as any).systemPrompt).toBeUndefined()
+  })
+
+  it("includes client prompt when clientSystemPrompt is true (default)", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      systemContext: "Agent instructions",
+      clientSystemPrompt: true,
+    }))
+    expect((result.options as any).systemPrompt).toBe("Agent instructions")
+  })
+
+  it("all three controls work together: preset + client + settingSources", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      systemContext: "Agent instructions",
+      codeSystemPrompt: true,
+      clientSystemPrompt: true,
+      settingSources: ["user", "project"],
+    }))
+    const sp = (result.options as any).systemPrompt
+    expect(sp.type).toBe("preset")
+    expect(sp.append).toBe("Agent instructions")
+    const opts = result.options as any
+    expect(opts.settingSources).toEqual(["user", "project"])
+  })
+
+  it("disabling both prompts produces no systemPrompt", () => {
+    const result = buildQueryOptions(makeContext({
+      systemContext: "Agent instructions",
+      codeSystemPrompt: false,
+      clientSystemPrompt: false,
+    }))
+    expect((result.options as any).systemPrompt).toBeUndefined()
+  })
 })

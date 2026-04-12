@@ -356,6 +356,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             console.error(`[PROXY] ${requestMeta.requestId} ignoring malformed x-opencode-thinking header: ${e instanceof Error ? e.message : String(e)}`)
           }
         }
+        // SDK feature toggles — resolved once per request for use in thinking
+        // defaults, settingSources, and buildQueryOptions below.
+        const { getFeaturesForAdapter } = require("./sdkFeatures") as typeof import("./sdkFeatures")
+        const sdkFeatures = getFeaturesForAdapter(adapter.name)
+
+        // Default thinking from SDK features config when client didn't set it
+        if (!thinking) {
+          if (sdkFeatures.thinking === "adaptive") thinking = { type: "adaptive" }
+          else if (sdkFeatures.thinking === "enabled") thinking = { type: "enabled" }
+        }
         // When the thinking beta is stripped (e.g. strip-all policy), disable thinking
         // at the SDK level to prevent thinking blocks from being generated in the
         // session state. Without this, resumed sessions contain thinking blocks that
@@ -584,6 +594,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const passthrough = adapterPassthrough !== undefined
         ? adapterPassthrough
         : envBool("PASSTHROUGH")
+      // SDK setting sources — controls CLAUDE.md and user settings loading.
+      const settingSources: import("@anthropic-ai/claude-agent-sdk").SettingSource[] =
+        envBool("LOAD_CONTEXT") || sdkFeatures.claudeMd === "full"
+          ? ["user", "project"]
+          : sdkFeatures.claudeMd === "project"
+            ? ["project"]
+            : adapter.getSettingSources?.() ?? []
+
       const capturedToolUses: Array<{ id: string; name: string; input: any }> = []
       const fileChanges: FileChange[] = []
 
@@ -702,7 +720,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
-                    effort, thinking, taskBudget, betas,
+                    effort, thinking, taskBudget, betas, settingSources,
+                    codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                    memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
+                    maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                    sdkDebug: sdkFeatures.sdkDebug,
+                    additionalDirectories: sdkFeatures.additionalDirectories
+                      ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                      : undefined,
                   }))) {
                     // Only count real assistant content — not SDK error messages
                     // (which arrive as type:"assistant" with an error field set).
@@ -735,7 +760,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                       resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
-                      effort, thinking, taskBudget, betas,
+                      effort, thinking, taskBudget, betas, settingSources,
+                      codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                    memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
+                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                      sdkDebug: sdkFeatures.sdkDebug,
+                      additionalDirectories: sdkFeatures.additionalDirectories
+                        ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                        : undefined,
                     }))
                     return
                   }
@@ -857,7 +889,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       continue
                     }
                     // Strip thinking blocks — meaningless to non-native clients
-                    if (passthrough && !adapter.supportsThinking?.() && (b.type === "thinking" || b.type === "redacted_thinking")) {
+                    if (passthrough && !adapter.supportsThinking?.() && !sdkFeatures.thinkingPassthrough && (b.type === "thinking" || b.type === "redacted_thinking")) {
                       claudeLog("passthrough.thinking_stripped", { mode: "non_stream", type: b.type })
                       continue
                     }
@@ -1100,7 +1132,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                       resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
-                      effort, thinking, taskBudget, betas,
+                      effort, thinking, taskBudget, betas, settingSources,
+                      codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                    memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
+                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                      sdkDebug: sdkFeatures.sdkDebug,
+                      additionalDirectories: sdkFeatures.additionalDirectories
+                        ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                        : undefined,
                     }))) {
                       if ((event as any).type === "stream_event") {
                         didYieldClientEvent = true
@@ -1130,7 +1169,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         model, workingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                         resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
-                        effort, thinking, taskBudget, betas,
+                        effort, thinking, taskBudget, betas, settingSources,
+                        codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                    memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
+                        maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                        sdkDebug: sdkFeatures.sdkDebug,
+                        additionalDirectories: sdkFeatures.additionalDirectories
+                          ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                          : undefined,
                       }))
                       return
                     }
@@ -1301,7 +1347,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       // encrypted signature field.
                       if (
                         passthrough &&
-                        !adapter.supportsThinking?.() &&
+                        !adapter.supportsThinking?.() && !sdkFeatures.thinkingPassthrough &&
                         (block?.type === "thinking" || block?.type === "redacted_thinking")
                       ) {
                         if (eventIndex !== undefined) skipBlockIndices.add(eventIndex)
@@ -1722,6 +1768,35 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   // Telemetry dashboard and API
   app.route("/telemetry", createTelemetryRoutes())
+
+  // SDK Features settings page and API
+  app.get("/settings", (c) => {
+    const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
+    return c.html(settingsPageHtml)
+  })
+  app.get("/settings/api/features", (c) => {
+    const { getAllFeatureConfigs } = require("./sdkFeatures") as typeof import("./sdkFeatures")
+    return c.json(getAllFeatureConfigs())
+  })
+  app.patch("/settings/api/features/:adapter", async (c) => {
+    const { validateFeatureUpdate, updateAdapterFeatures } = require("./sdkFeatures") as typeof import("./sdkFeatures")
+    const adapter = c.req.param("adapter")
+    const body = await c.req.json()
+    let validated: ReturnType<typeof validateFeatureUpdate>
+    try {
+      validated = validateFeatureUpdate(body)
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400)
+    }
+    updateAdapterFeatures(adapter, validated)
+    return c.json({ ok: true })
+  })
+  app.delete("/settings/api/features/:adapter", (c) => {
+    const { resetAdapterFeatures } = require("./sdkFeatures") as typeof import("./sdkFeatures")
+    const adapter = c.req.param("adapter")
+    resetAdapterFeatures(adapter)
+    return c.json({ ok: true })
+  })
 
   // Prometheus metrics endpoint
   app.get("/metrics", (c) => {

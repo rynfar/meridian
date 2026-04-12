@@ -19,6 +19,7 @@ import { assistantMessage } from "./helpers"
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (_params: unknown) => (async function* () { yield assistantMessage([{ type: "text", text: "ok" }]) })(),
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
+  tool: () => ({}),
 }))
 
 mock.module("../logger", () => ({

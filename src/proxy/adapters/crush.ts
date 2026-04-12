@@ -92,15 +92,18 @@ export const crushAdapter: AgentAdapter = {
     return ""
   },
 
+  supportsThinking(): boolean {
+    return true
+  },
+
   /**
-   * Crush handles its own tool execution loop (the standard Anthropic
-   * tool_use / tool_result cycle). Passthrough mode is the correct approach:
-   * the proxy returns tool_use blocks to Crush, which executes them and sends
-   * back tool_results. usesPassthrough() is intentionally undefined so the
-   * global CLAUDE_PROXY_PASSTHROUGH env var controls the mode — the same
-   * passthrough=1 setting that serves OpenCode also serves Crush correctly.
+   * Passthrough mode — Crush is a full GUI for Claude Code.
+   *
+   * Claude generates tool_use blocks, Crush executes them locally with
+   * full visibility (diffs, bash output, file reads). CLAUDE.md and
+   * memory are loaded via settingSources. Memory writes happen through
+   * Crush's own write tool targeting the memory directory.
    */
-  // usesPassthrough not defined — defers to CLAUDE_PROXY_PASSTHROUGH env var
 
   /**
    * Crush uses lowercase tool names: write, edit, patch, bash.

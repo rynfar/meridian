@@ -11,13 +11,17 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
 import type { Context, Next } from "hono"
 
-const configuredKey = process.env.MERIDIAN_API_KEY
+function getConfiguredKey(): string | undefined {
+  return process.env.MERIDIAN_API_KEY || undefined
+}
 
 /**
  * Whether API key authentication is enabled.
  * True when MERIDIAN_API_KEY is set to a non-empty value.
  */
-export const authEnabled = Boolean(configuredKey)
+export function authEnabled(): boolean {
+  return Boolean(getConfiguredKey())
+}
 
 /**
  * Constant-time string comparison to prevent timing attacks.
@@ -48,10 +52,11 @@ function extractKey(c: Context): string | undefined {
  * No-op when MERIDIAN_API_KEY is not set.
  */
 export async function requireAuth(c: Context, next: Next) {
-  if (!configuredKey) return next()
+  const key = getConfiguredKey()
+  if (!key) return next()
 
   const provided = extractKey(c)
-  if (!provided || !safeCompare(provided, configuredKey)) {
+  if (!provided || !safeCompare(provided, key)) {
     return c.json({
       type: "error",
       error: {

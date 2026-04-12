@@ -6,6 +6,7 @@
  */
 
 import type { Context } from "hono"
+import type { SettingSource } from "@anthropic-ai/claude-agent-sdk"
 
 /**
  * An agent adapter provides agent-specific configuration to the proxy.
@@ -106,6 +107,23 @@ export interface AgentAdapter {
    * Return undefined to disable auto-defer for this agent.
    */
   getCoreToolNames?(): readonly string[]
+
+  /**
+   * SDK setting sources to load for this agent.
+   *
+   * Controls whether CLAUDE.md files, user settings, and project settings
+   * are loaded by the SDK subprocess. This is what makes Claude "know"
+   * about your project instructions and personal preferences.
+   *
+   * - `['user', 'project']` — load ~/.claude/CLAUDE.md and .claude/CLAUDE.md
+   * - `['project']` — load only project-level CLAUDE.md
+   * - `[]` or undefined — isolation mode (no filesystem settings loaded)
+   *
+   * Agents that manage their own context (OpenCode, ForgeCode) should return
+   * empty/undefined. Agents that want full Claude Code behavior (Crush, Pi)
+   * should return `['user', 'project']`.
+   */
+  getSettingSources?(): SettingSource[]
 
   /**
    * Whether this agent's client can render thinking blocks.

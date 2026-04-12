@@ -44,6 +44,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     name: "test",
     instance: {},
   }),
+  tool: () => ({}),
 }))
 
 // Mock the logger to avoid noise

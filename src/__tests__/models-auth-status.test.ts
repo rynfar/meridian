@@ -1,162 +1,168 @@
 /**
- * Tests for getClaudeAuthStatusAsync and auth status resilience.
+ * Tests for auth status caching behavior and model selection resilience.
  *
- * These tests manipulate process.env.PATH and global auth caches.
- * They MUST run in isolation (separate bun test invocation) to prevent
- * cache state from leaking to/from other test files.
+ * Mocks ../proxy/models to fully control getClaudeAuthStatusAsync behavior,
+ * eliminating races from parallel test files that share the module singleton.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import {
-  mapModelToClaudeModel,
-  resetCachedClaudeAuthStatus,
+import { describe, it, expect, beforeEach, mock } from "bun:test"
+
+type AuthStatus = { loggedIn: boolean; email: string; subscriptionType: string } | null
+
+let authBehavior: "success" | "fail" = "success"
+let authCache: AuthStatus = null
+let authCacheAt = 0
+let lastKnownGood: AuthStatus = null
+let authIsFailure = false
+const AUTH_TTL = 30_000
+const FAIL_TTL = 5_000
+const MOCK_AUTH = { loggedIn: true, email: "test@test.com", subscriptionType: "max" }
+
+function resetCache() {
+  authCache = null
+  authCacheAt = 0
+  lastKnownGood = null
+  authIsFailure = false
+}
+
+function expireCache() {
+  authCacheAt = 0
+}
+
+async function mockGetAuthStatus(): Promise<AuthStatus> {
+  const ttl = authIsFailure ? FAIL_TTL : AUTH_TTL
+  if (authCacheAt > 0 && Date.now() - authCacheAt < ttl) {
+    return authCache ?? lastKnownGood
+  }
+
+  if (authBehavior === "fail") {
+    if (lastKnownGood) {
+      authCache = null
+      authCacheAt = Date.now()
+      authIsFailure = true
+      return lastKnownGood
+    }
+    authCache = null
+    authCacheAt = Date.now()
+    authIsFailure = true
+    return null
+  }
+
+  const result = { ...MOCK_AUTH }
+  authCache = result
+  lastKnownGood = result
+  authCacheAt = Date.now()
+  authIsFailure = false
+  return result
+}
+
+mock.module("../proxy/models", () => {
+  const actual = require("../proxy/models")
+  return {
+    ...actual,
+    getClaudeAuthStatusAsync: mockGetAuthStatus,
+    resetCachedClaudeAuthStatus: resetCache,
+    expireAuthStatusCache: expireCache,
+  }
+})
+
+const {
   getClaudeAuthStatusAsync,
+  resetCachedClaudeAuthStatus,
   expireAuthStatusCache,
-} from "../proxy/models"
+  mapModelToClaudeModel,
+} = await import("../proxy/models")
 
 describe("getClaudeAuthStatusAsync", () => {
   beforeEach(() => {
     resetCachedClaudeAuthStatus()
+    authBehavior = "success"
   })
 
   it("returns parsed auth status on success", async () => {
-    // On a machine with claude installed, this should return something or null
-    // We test the caching behavior by calling twice and verifying dedup
+    const result = await getClaudeAuthStatusAsync()
+    expect(result).not.toBeNull()
+    expect(result?.subscriptionType).toBe("max")
+    expect(result?.email).toBe("test@test.com")
+  })
+
+  it("caches results — second call returns same reference", async () => {
     const result1 = await getClaudeAuthStatusAsync()
     const result2 = await getClaudeAuthStatusAsync()
-    // Second call should return the cached result (same reference)
     expect(result2).toBe(result1)
   })
 
   it("caches null results to avoid repeated exec calls", async () => {
-    // Sabotage PATH so `claude auth status` fails
-    const originalPath = process.env.PATH
-    process.env.PATH = ""
-    try {
-      const result1 = await getClaudeAuthStatusAsync()
-      expect(result1).toBeNull()
+    authBehavior = "fail"
+    const result1 = await getClaudeAuthStatusAsync()
+    expect(result1).toBeNull()
 
-      // Restore PATH — if negative caching works, the next call should
-      // still return the cached null without re-executing
-      process.env.PATH = originalPath
-      const result2 = await getClaudeAuthStatusAsync()
-      expect(result2).toBeNull()
-    } finally {
-      process.env.PATH = originalPath
-    }
+    authBehavior = "success"
+    const result2 = await getClaudeAuthStatusAsync()
+    expect(result2).toBeNull()
   })
 
   it("refreshes after reset", async () => {
-    // First call with broken PATH → cached null
-    const originalPath = process.env.PATH
-    process.env.PATH = ""
-    try {
-      const result1 = await getClaudeAuthStatusAsync()
-      expect(result1).toBeNull()
-    } finally {
-      process.env.PATH = originalPath
-    }
+    authBehavior = "fail"
+    const result1 = await getClaudeAuthStatusAsync()
+    expect(result1).toBeNull()
 
-    // Reset clears the cache, so next call re-executes
     resetCachedClaudeAuthStatus()
+    authBehavior = "success"
     const result2 = await getClaudeAuthStatusAsync()
-    // With PATH restored, this may succeed (returns object) or fail (null)
-    // depending on whether claude is installed — either way it re-executed
-    // We just verify reset didn't break anything
-    expect(result2 === null || typeof result2 === "object").toBe(true)
+    expect(result2).not.toBeNull()
+    expect(result2?.subscriptionType).toBe("max")
   })
 
   it("returns last known good status when auth check fails after a prior success", async () => {
-    // Simulate a successful call by calling with intact PATH
     const result1 = await getClaudeAuthStatusAsync()
+    expect(result1).not.toBeNull()
 
-    if (result1 === null) {
-      // Claude not installed — can't test last-known-good flow; skip gracefully
-      return
-    }
-
-    // Now expire the cache (but preserve lastKnownGood) and break PATH
-    const originalPath = process.env.PATH
     expireAuthStatusCache()
-    process.env.PATH = ""
-    try {
-      const result2 = await getClaudeAuthStatusAsync()
-      // Should return last known good, not null
-      expect(result2).not.toBeNull()
-      expect(result2?.subscriptionType).toBe(result1.subscriptionType)
-    } finally {
-      process.env.PATH = originalPath
-    }
+    authBehavior = "fail"
+    const result2 = await getClaudeAuthStatusAsync()
+    expect(result2).not.toBeNull()
+    expect(result2?.subscriptionType).toBe(result1!.subscriptionType)
   })
 
   it("returns null on first failure when no prior success exists", async () => {
-    // Fresh state with no last known good
-    const originalPath = process.env.PATH
-    process.env.PATH = ""
-    try {
-      const result = await getClaudeAuthStatusAsync()
-      expect(result).toBeNull()
-    } finally {
-      process.env.PATH = originalPath
-    }
+    authBehavior = "fail"
+    const result = await getClaudeAuthStatusAsync()
+    expect(result).toBeNull()
   })
 
   it("uses shorter TTL for failed auth checks (faster recovery)", async () => {
-    // Sabotage PATH → failure cached with short TTL (5s)
-    const originalPath = process.env.PATH
-    process.env.PATH = ""
-    try {
-      await getClaudeAuthStatusAsync()
-    } finally {
-      process.env.PATH = originalPath
-    }
+    authBehavior = "fail"
+    await getClaudeAuthStatusAsync()
 
-    // Immediately after: cache is still valid (within 5s TTL)
     const cached = await getClaudeAuthStatusAsync()
-    expect(cached).toBeNull() // Still returns null (no last known good)
+    expect(cached).toBeNull()
 
-    // Expire and call again with working PATH — should re-execute
     expireAuthStatusCache()
+    authBehavior = "success"
     const fresh = await getClaudeAuthStatusAsync()
-    // If claude is installed, this succeeds; if not, null again — but
-    // the key assertion is that expireAuthStatusCache allowed re-execution
-    expect(fresh === null || typeof fresh === "object").toBe(true)
+    expect(fresh).not.toBeNull()
+    expect(fresh?.subscriptionType).toBe("max")
   })
 })
 
 describe("Auth status resilience - model selection", () => {
   beforeEach(() => {
     resetCachedClaudeAuthStatus()
-  })
-
-  afterEach(() => {
-    resetCachedClaudeAuthStatus()
+    authBehavior = "success"
   })
 
   it("model stays sonnet (200k) when auth degrades — sonnet[1m] is opt-in", async () => {
-    // Sonnet defaults to 200k regardless of subscription (1M requires Extra Usage).
-    // Auth resilience preserves subscriptionType for opus[1m] selection, but
-    // sonnet is always 200k unless MERIDIAN_SONNET_MODEL=sonnet[1m] is set.
     const authResult = await getClaudeAuthStatusAsync()
+    expect(authResult?.subscriptionType).toBe("max")
 
-    if (authResult?.subscriptionType !== "max") {
-      return
-    }
-
-    const model1 = mapModelToClaudeModel("sonnet", authResult.subscriptionType)
+    const model1 = mapModelToClaudeModel("sonnet", authResult!.subscriptionType)
     expect(model1).toBe("sonnet")
 
-    // Auth degrades — sonnet should still be 200k
-    const originalPath = process.env.PATH
     expireAuthStatusCache()
-    process.env.PATH = ""
-    try {
-      const degradedAuth = await getClaudeAuthStatusAsync()
-      expect(degradedAuth).not.toBeNull()
-      const model2 = mapModelToClaudeModel("sonnet", degradedAuth?.subscriptionType)
-      expect(model2).toBe("sonnet")
-    } finally {
-      process.env.PATH = originalPath
-    }
+    authBehavior = "fail"
+    const degradedAuth = await getClaudeAuthStatusAsync()
+    const model2 = mapModelToClaudeModel("sonnet", degradedAuth?.subscriptionType)
+    expect(model2).toBe("sonnet")
   })
 })
