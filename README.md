@@ -72,6 +72,37 @@ The Claude Code SDK provides programmatic access to Claude. But your favorite co
 - **Telemetry dashboard** — real-time performance metrics at `/telemetry`, including token usage and prompt cache efficiency ([`MONITORING.md`](MONITORING.md))
 - **Telemetry persistence** — opt-in SQLite storage for telemetry data that survives proxy restarts, with configurable retention
 - **Prometheus metrics** — `GET /metrics` endpoint for scraping request counters and duration histograms
+- **SDK feature toggles** *(experimental)* — unlock Claude Code features (memory, dreaming, CLAUDE.md) for any connected agent
+
+## SDK Feature Toggles (Experimental)
+
+Meridian can expose Claude Code features to any connected agent. Capabilities like auto-memory, dreaming, and CLAUDE.md — normally exclusive to Claude Code — become available to OpenCode, Crush, Droid, and any other harness routed through Meridian. Each agent keeps its own toolchain while gaining access to these additional features.
+
+Configure per-adapter at **`/settings`** in the Meridian web UI. Changes take effect on the next request — no restart needed. Config is persisted to `~/.config/meridian/sdk-features.json`.
+
+### Available features
+
+| Setting | Options | Description |
+|---|---|---|
+| **Claude Code Prompt** | on / off | Include the SDK's built-in system prompt (tool usage rules, safety guidelines, coding best practices) |
+| **Client Prompt** | on / off | Include the system prompt sent by the connecting agent (e.g. OpenCode or Crush instructions) |
+| **CLAUDE.md** | off / project / full | Load instruction files — `off`: none, `project`: `./CLAUDE.md` only, `full`: `~/.claude/CLAUDE.md` + `./CLAUDE.md` |
+| **Memory** | on / off | Auto-memory: read and write memories across sessions |
+| **Auto-Dream** | on / off | Background memory consolidation between sessions |
+| **Thinking** | disabled / adaptive / enabled | Extended thinking mode for complex reasoning |
+| **Thinking Passthrough** | on / off | Forward thinking blocks to the client for display |
+| **Shared Memory** | on / off | Share memory directory with Claude Code (`~/.claude`) instead of isolated storage |
+
+### System prompts
+
+The system prompt controls are independent — any combination works:
+
+- **Both enabled** (recommended): Claude Code instructions come first, followed by your agent's specific instructions. This gives Claude the full context it needs for features like memory and tool use to work correctly.
+- **Claude Code only**: Just the base Claude Code prompt without agent-specific instructions.
+- **Client only**: Just your agent's prompt, passed through as a raw string.
+- **Neither**: No system prompt at all — Claude operates with just the user message.
+
+> **Note:** For features like memory and dreaming to work well, the Claude Code system prompt should be enabled — it contains the instructions Claude needs to read and write memories correctly.
 
 ## Passthrough Mode and Tool Calling
 
