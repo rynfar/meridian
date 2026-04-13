@@ -139,7 +139,7 @@ describe("File change visibility: PostToolUse hook registration", () => {
     else delete process.env.MERIDIAN_PASSTHROUGH
   })
 
-  it("should register PostToolUse hooks in SDK options", async () => {
+  it("should not register PostToolUse hooks in SDK options for opencode", async () => {
     const app = createTestApp()
     await (await post(app, {
       model: "claude-sonnet-4-5",
@@ -149,11 +149,10 @@ describe("File change visibility: PostToolUse hook registration", () => {
     })).json()
 
     expect(capturedQueryParams.options.hooks).toBeDefined()
-    expect(capturedQueryParams.options.hooks.PostToolUse).toBeDefined()
-    expect(capturedQueryParams.options.hooks.PostToolUse.length).toBeGreaterThan(0)
+    expect(capturedQueryParams.options.hooks.PostToolUse).toBeUndefined()
   })
 
-  it("should register PostToolUse alongside PreToolUse when Task tool is present", async () => {
+  it("should not register PostToolUse alongside PreToolUse when Task tool is present", async () => {
     const TASK_TOOL = {
       name: "task",
       description: "Launch a new agent.\n\nAvailable agent types and the tools they have access to:\n- build: Default agent\n- explore: Explorer",
@@ -174,7 +173,7 @@ describe("File change visibility: PostToolUse hook registration", () => {
     })).json()
 
     expect(capturedQueryParams.options.hooks.PreToolUse).toBeDefined()
-    expect(capturedQueryParams.options.hooks.PostToolUse).toBeDefined()
+    expect(capturedQueryParams.options.hooks.PostToolUse).toBeUndefined()
   })
 
   it("should not register PostToolUse in passthrough mode", async () => {
@@ -223,7 +222,7 @@ describe("File change visibility: non-streaming response", () => {
     else delete process.env.MERIDIAN_PASSTHROUGH
   })
 
-  it("should append file change summary to response when files are written", async () => {
+  it("should not append file change summary to response when files are written", async () => {
     // Simulate SDK executing mcp__opencode__write internally, then returning text
     mockMessages = [
       // First the SDK calls the write tool (internal, won't be in final content)
@@ -244,14 +243,12 @@ describe("File change visibility: non-streaming response", () => {
       messages: [{ role: "user", content: "Create a file" }],
     })).json()
 
-    // The response should include file change summary in the text
     const textBlocks = response.content.filter((b: any) => b.type === "text")
     const allText = textBlocks.map((b: any) => b.text).join("")
-    expect(allText).toContain("Files changed:")
-    expect(allText).toContain("wrote src/new-file.ts")
+    expect(allText).toBe("I created the file for you.")
   })
 
-  it("should append file change summary when files are edited", async () => {
+  it("should not append file change summary when files are edited", async () => {
     mockMessages = [
       assistantMessage([
         { type: "tool_use", id: "toolu_e1", name: "mcp__opencode__edit", input: { path: "src/existing.ts", oldString: "foo", newString: "bar" } },
@@ -271,8 +268,7 @@ describe("File change visibility: non-streaming response", () => {
 
     const textBlocks = response.content.filter((b: any) => b.type === "text")
     const allText = textBlocks.map((b: any) => b.text).join("")
-    expect(allText).toContain("Files changed:")
-    expect(allText).toContain("edited src/existing.ts")
+    expect(allText).toBe("I fixed the bug.")
   })
 
   it("should not include summary when only reads occur", async () => {
@@ -298,7 +294,7 @@ describe("File change visibility: non-streaming response", () => {
     expect(allText).not.toContain("Files changed:")
   })
 
-  it("should show multiple file changes", async () => {
+  it("should not append file change summary when multiple files change", async () => {
     mockMessages = [
       assistantMessage([
         { type: "tool_use", id: "toolu_w1", name: "mcp__opencode__write", input: { path: "src/a.ts", content: "a" } },
@@ -324,9 +320,7 @@ describe("File change visibility: non-streaming response", () => {
 
     const textBlocks = response.content.filter((b: any) => b.type === "text")
     const allText = textBlocks.map((b: any) => b.text).join("")
-    expect(allText).toContain("wrote src/a.ts")
-    expect(allText).toContain("edited src/b.ts")
-    expect(allText).toContain("wrote src/c.ts")
+    expect(allText).toBe("All done.")
   })
 })
 
@@ -346,7 +340,7 @@ describe("File change visibility: streaming response", () => {
     else delete process.env.MERIDIAN_PASSTHROUGH
   })
 
-  it("should emit file change text block before message_stop in stream", async () => {
+  it("should not emit file change text block before message_stop in stream", async () => {
     // Multi-turn: MCP write tool → text response
     mockMessages = [
       messageStart(),
@@ -377,15 +371,12 @@ describe("File change visibility: streaming response", () => {
       messages: [{ role: "user", content: "Create a file" }],
     })
 
-    // Should have a text delta containing the file change summary
     const allTextDeltas = events.filter(
       (e) => e.event === "content_block_delta" && (e.data as any).delta?.type === "text_delta"
     )
     const allText = allTextDeltas.map((e) => (e.data as any).delta.text).join("")
-    expect(allText).toContain("Files changed:")
-    expect(allText).toContain("wrote src/streamed.ts")
+    expect(allText).toBe("File created.")
 
-    // File change block should come BEFORE message_stop
     const lastEvent = events[events.length - 1]
     expect(lastEvent?.event).toBe("message_stop")
   })
@@ -415,8 +406,7 @@ describe("File change visibility: streaming response", () => {
     expect(allText).not.toContain("Files changed:")
   })
 
-  it("should use correct block index for file change text block", async () => {
-    // Text block at index 0, then MCP tool (skipped), then file change block should be index 1
+  it("should not add an extra text block for file changes", async () => {
     mockMessages = [
       messageStart(),
       textBlockStart(0),
@@ -449,20 +439,10 @@ describe("File change visibility: streaming response", () => {
       messages: [{ role: "user", content: "Edit a file" }],
     })
 
-    // Find the file change block start
-    const blockStarts = events.filter((e) => e.event === "content_block_start")
-    const fileChangeBlock = blockStarts.find(
-      (e) => {
-        const text = (e.data as any).content_block?.text
-        return text !== undefined && (e.data as any).content_block?.type === "text"
-      }
+    const textBlockStarts = events.filter(
+      (e) => e.event === "content_block_start" && (e.data as any).content_block?.type === "text"
     )
-
-    // All block indices should be monotonically increasing
-    const indices = blockStarts.map((e) => (e.data as any).index)
-    for (let i = 1; i < indices.length; i++) {
-      expect(indices[i]).toBeGreaterThan(indices[i - 1]!)
-    }
+    expect(textBlockStarts).toHaveLength(2)
   })
 })
 
