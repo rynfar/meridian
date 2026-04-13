@@ -85,11 +85,45 @@ External plugins depend on these interfaces. **Do not change without project own
 
 If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
 
-## Git
+## Git & Workflow
 
-- Commit format: `type: brief description`
+### Commit format
+
+- Format: `type: brief description`
 - Types: feat, fix, refactor, perf, test, docs, chore
 - No AI attribution lines
+
+### Development workflow — NEVER push directly to main
+
+All changes go through this process, no exceptions:
+
+1. **Create a feature branch** from `main`:
+   ```bash
+   git checkout -b feat/my-feature main
+   ```
+
+2. **Make changes, commit, push the branch:**
+   ```bash
+   git add -A && git commit -m "feat: my feature"
+   git push origin feat/my-feature
+   ```
+
+3. **Create a PR** targeting `main`:
+   ```bash
+   gh pr create --title "feat: my feature" --base main
+   ```
+
+4. **Wait for CI** — the `test` job must pass before merging:
+   ```bash
+   gh pr checks <PR_NUMBER>
+   ```
+
+5. **Merge the PR** (squash merge preferred):
+   ```bash
+   gh pr merge <PR_NUMBER> --squash --delete-branch
+   ```
+
+6. **Never** run `git push origin main` directly — all code reaches `main` through merged PRs only.
 
 ## Releasing
 
@@ -97,20 +131,29 @@ If you need to modify any of these, open an issue first — breaking changes aff
 
 Releases are handled automatically by [Release Please](https://github.com/googleapis/release-please):
 
-1. Merge PRs to `main` (use [Conventional Commits](https://www.conventionalcommits.org/) — `feat:`, `fix:`, etc.)
-2. Release Please auto-creates/updates a release PR that batches all changes since the last release
-3. Review and merge the release PR when you're ready to ship
-4. Merging the release PR automatically:
+1. Merge PRs to `main` using [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, etc.)
+2. Release Please auto-creates/updates a release PR that batches all unreleased changes
+3. Review the release PR — the changelog should only show changes since the last release
+4. When ready to ship, merge the release PR:
+   ```bash
+   gh pr merge <RELEASE_PR_NUMBER> --merge
+   ```
+5. Merging the release PR automatically:
    - Bumps `package.json` and `CHANGELOG.md`
-   - Creates a git tag and GitHub Release
+   - Creates a git tag (`meridian-v*`) and GitHub Release
    - Runs tests, builds, and publishes to npm with provenance
 
 Multiple PRs get batched into a single release. Never publish manually.
+
+### Troubleshooting releases
+
+- **Changelog shows entire history?** — Release Please can't find the previous release tag. Check that `meridian-v<version>` tags exist for recent releases: `git tag -l 'meridian-v*' | tail -5`
+- **Release PR not updating?** — It only updates on `push` to `main`. If you closed it, push any commit to main to regenerate.
+- **Publish failed with E403?** — The version was already published. This is safe to ignore; the release is already on npm.
+- **`publish_only` workflow dispatch** — Emergency escape hatch to publish the current version without Release Please. Only use when the normal flow is broken.
 
 ### Release config files
 
 - **`.release-please-manifest.json`** — tracks the current released version. Release Please updates this automatically when a release PR is merged. **Do not edit manually** unless resetting the version anchor.
 - **`release-please-config.json`** — defines the release type (`node`), component name, and changelog section mapping.
 - **`.github/workflows/release-please.yml`** — the workflow that runs on every push to `main`. It creates/updates the release PR and publishes to npm when merged.
-
-There is **no manual release workflow**. The old `release.yml` (workflow_dispatch) was removed because it conflicted with branch protection and duplicated Release Please's job.
