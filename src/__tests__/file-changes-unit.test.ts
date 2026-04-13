@@ -443,6 +443,10 @@ describe("extractFileChangesFromMessages", () => {
 describe("openCodeAdapter.extractFileChangesFromToolUse", () => {
   const { openCodeAdapter } = require("../../src/proxy/adapters/opencode") as typeof import("../proxy/adapters/opencode")
 
+  it("should disable synthetic file change summaries", () => {
+    expect(openCodeAdapter.shouldTrackFileChanges?.()).toBe(false)
+  })
+
   it("should detect lowercase write (opencode native)", () => {
     const result = openCodeAdapter.extractFileChangesFromToolUse!("write", { filePath: "src/new.ts", content: "x" })
     expect(result).toEqual([{ operation: "wrote", path: "src/new.ts" }])
