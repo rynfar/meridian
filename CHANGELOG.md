@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.37.2](https://github.com/rynfar/meridian/compare/meridian-v1.37.1...meridian-v1.37.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* use component-specific output keys in release-please workflow ([#357](https://github.com/rynfar/meridian/issues/357)) ([a38adf1](https://github.com/rynfar/meridian/commit/a38adf17153239aace60a52fb2974a0afd804420))
+
 ## [1.37.1](https://github.com/rynfar/meridian/compare/meridian-v1.37.0...meridian-v1.37.1) (2026-04-13)
 
 
