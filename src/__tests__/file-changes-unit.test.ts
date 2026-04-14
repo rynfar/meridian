@@ -549,3 +549,42 @@ describe("crushAdapter.extractFileChangesFromToolUse", () => {
     expect(result).toEqual([{ operation: "wrote", path: "/tmp/crush.txt" }])
   })
 })
+
+/**
+ * Regression guard: only OpenCode opts out of the synthetic "Files changed:"
+ * summary. Every other adapter must leave the hook undefined so the proxy's
+ * default-true path fires. If someone accidentally adds `shouldTrackFileChanges`
+ * to another adapter, these tests catch it.
+ */
+describe("shouldTrackFileChanges: per-adapter opt-out policy", () => {
+  const { piAdapter } = require("../../src/proxy/adapters/pi") as typeof import("../proxy/adapters/pi")
+  const { crushAdapter } = require("../../src/proxy/adapters/crush") as typeof import("../proxy/adapters/crush")
+  const { droidAdapter } = require("../../src/proxy/adapters/droid") as typeof import("../proxy/adapters/droid")
+  const { forgeCodeAdapter } = require("../../src/proxy/adapters/forgecode") as typeof import("../proxy/adapters/forgecode")
+  const { passthroughAdapter } = require("../../src/proxy/adapters/passthrough") as typeof import("../proxy/adapters/passthrough")
+  const { openCodeAdapter } = require("../../src/proxy/adapters/opencode") as typeof import("../proxy/adapters/opencode")
+
+  it("opencode opts out", () => {
+    expect(openCodeAdapter.shouldTrackFileChanges?.()).toBe(false)
+  })
+
+  it("pi does not opt out (summary stays on)", () => {
+    expect(piAdapter.shouldTrackFileChanges?.()).not.toBe(false)
+  })
+
+  it("crush does not opt out (summary stays on)", () => {
+    expect(crushAdapter.shouldTrackFileChanges?.()).not.toBe(false)
+  })
+
+  it("droid does not opt out (summary stays on)", () => {
+    expect(droidAdapter.shouldTrackFileChanges?.()).not.toBe(false)
+  })
+
+  it("forgecode does not opt out (summary stays on)", () => {
+    expect(forgeCodeAdapter.shouldTrackFileChanges?.()).not.toBe(false)
+  })
+
+  it("passthrough does not opt out (summary stays on)", () => {
+    expect(passthroughAdapter.shouldTrackFileChanges?.()).not.toBe(false)
+  })
+})

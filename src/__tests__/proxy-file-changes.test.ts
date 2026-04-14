@@ -245,7 +245,8 @@ describe("File change visibility: non-streaming response", () => {
 
     const textBlocks = response.content.filter((b: any) => b.type === "text")
     const allText = textBlocks.map((b: any) => b.text).join("")
-    expect(allText).toBe("I created the file for you.")
+    expect(allText).not.toContain("Files changed:")
+    expect(allText).not.toContain("wrote src/new-file.ts")
   })
 
   it("should not append file change summary when files are edited", async () => {
@@ -268,7 +269,8 @@ describe("File change visibility: non-streaming response", () => {
 
     const textBlocks = response.content.filter((b: any) => b.type === "text")
     const allText = textBlocks.map((b: any) => b.text).join("")
-    expect(allText).toBe("I fixed the bug.")
+    expect(allText).not.toContain("Files changed:")
+    expect(allText).not.toContain("edited src/existing.ts")
   })
 
   it("should not include summary when only reads occur", async () => {
@@ -320,7 +322,10 @@ describe("File change visibility: non-streaming response", () => {
 
     const textBlocks = response.content.filter((b: any) => b.type === "text")
     const allText = textBlocks.map((b: any) => b.text).join("")
-    expect(allText).toBe("All done.")
+    expect(allText).not.toContain("Files changed:")
+    expect(allText).not.toContain("wrote src/a.ts")
+    expect(allText).not.toContain("edited src/b.ts")
+    expect(allText).not.toContain("wrote src/c.ts")
   })
 })
 
@@ -375,7 +380,8 @@ describe("File change visibility: streaming response", () => {
       (e) => e.event === "content_block_delta" && (e.data as any).delta?.type === "text_delta"
     )
     const allText = allTextDeltas.map((e) => (e.data as any).delta.text).join("")
-    expect(allText).toBe("File created.")
+    expect(allText).not.toContain("Files changed:")
+    expect(allText).not.toContain("wrote src/streamed.ts")
 
     const lastEvent = events[events.length - 1]
     expect(lastEvent?.event).toBe("message_stop")
@@ -570,5 +576,75 @@ describe("File change visibility: MERIDIAN_NO_FILE_CHANGES opt-out", () => {
       .map((b: any) => b.text)
       .join("")
     expect(allText).not.toContain("Files changed:")
+  })
+})
+
+/**
+ * Regression guard: the OpenCode opt-out must NOT suppress the file change
+ * summary for other adapters. Uses the `x-meridian-agent` header to force
+ * the pi adapter (which does not override shouldTrackFileChanges, so the
+ * default-true path is exercised).
+ */
+describe("File change visibility: other adapters still track", () => {
+  let savedPassthrough: string | undefined
+
+  beforeEach(() => {
+    mockMessages = []
+    capturedQueryParams = null
+    clearSessionCache()
+    savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
+    process.env.MERIDIAN_PASSTHROUGH = "0"
+  })
+
+  afterEach(() => {
+    if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
+    else delete process.env.MERIDIAN_PASSTHROUGH
+  })
+
+  async function postAs(app: any, agent: string, body: any) {
+    return app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-meridian-agent": agent },
+      body: JSON.stringify(body),
+    }))
+  }
+
+  it("pi adapter: PostToolUse hook is registered (summary path is active)", async () => {
+    const app = createTestApp()
+    await (await postAs(app, "pi", {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [{ role: "user", content: "hello" }],
+    })).json()
+
+    expect(capturedQueryParams.options.hooks.PostToolUse).toBeDefined()
+    expect(capturedQueryParams.options.hooks.PostToolUse.length).toBeGreaterThan(0)
+  })
+
+  it("pi adapter: appends file change summary when files are written", async () => {
+    mockMessages = [
+      assistantMessage([
+        { type: "tool_use", id: "toolu_pi1", name: "mcp__pi__write", input: { path: "src/pi-file.ts", content: "export const y = 2" } },
+      ]),
+      assistantMessage([
+        { type: "text", text: "Wrote the file." },
+      ]),
+    ]
+
+    const app = createTestApp()
+    const response = await (await postAs(app, "pi", {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [{ role: "user", content: "Create a file" }],
+    })).json()
+
+    const allText = response.content
+      .filter((b: any) => b.type === "text")
+      .map((b: any) => b.text)
+      .join("")
+    expect(allText).toContain("Files changed:")
+    expect(allText).toContain("wrote src/pi-file.ts")
   })
 })
