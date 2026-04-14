@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.37.3](https://github.com/rynfar/meridian/compare/meridian-v1.37.2...meridian-v1.37.3) (2026-04-14)
+
+
+### Bug Fixes
+
+* return empty object from PreToolUse hook for ToolSearch ([#362](https://github.com/rynfar/meridian/issues/362)) ([f246b8b](https://github.com/rynfar/meridian/commit/f246b8b78c4503481acbbc0f7a3e2affbfa3f35a))
+* stop appending file change summaries for opencode (with regression guards) ([#363](https://github.com/rynfar/meridian/issues/363)) ([921d4f6](https://github.com/rynfar/meridian/commit/921d4f6a517f99a86d98148f1507a71325dd98e5))
+
 ## [1.37.2](https://github.com/rynfar/meridian/compare/meridian-v1.37.1...meridian-v1.37.2) (2026-04-13)
 
 
