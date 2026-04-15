@@ -424,9 +424,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // unaffected — behavior is byte-identical to today.
         const isIndependentSession =
           requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-") || false
-        const lineageResult = isIndependentSession
+        let lineageResult = isIndependentSession
           ? { type: "diverged" as const }
           : lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
+        // NOTE: agent-specific (opencode) — when OpenCode's chat.headers plugin
+        // hook doesn't fire (category-dispatched or title-generation requests),
+        // the request has no session header and falls through to fingerprint
+        // lookup. A new 1-message session can collide with a stored N-message
+        // session and be classified as "undo." Downgrade to "diverged" to
+        // prevent leaking the old session's conversation history.
+        if (lineageResult.type === "undo" && adapter.name === "opencode" && !agentSessionId) {
+          lineageResult = { type: "diverged" }
+        }
         const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
         const isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined

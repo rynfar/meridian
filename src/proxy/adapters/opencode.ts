@@ -18,7 +18,7 @@ export const openCodeAdapter: AgentAdapter = {
   name: "opencode",
 
   getSessionId(c: Context): string | undefined {
-    return c.req.header("x-opencode-session")
+    return c.req.header("x-opencode-session") ?? c.req.header("x-session-affinity")
   },
 
   extractWorkingDirectory(body: any): string | undefined {
