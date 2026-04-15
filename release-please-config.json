@@ -3,6 +3,7 @@
     ".": {
       "release-type": "node",
       "component": "meridian",
+      "include-component-in-tag": true,
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug Fixes" },
