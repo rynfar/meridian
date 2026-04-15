@@ -156,6 +156,32 @@ function shouldAlwaysLoad(
 }
 
 /**
+ * Stable cache key for a tool set — name + input schema, sorted.
+ * Schema is included so silently-updated tool definitions force a rebuild
+ * of the cached MCP server.
+ */
+export function computeToolSetKey(
+  tools: Array<{ name: string; input_schema?: unknown; defer_loading?: boolean }>
+): string {
+  const entries = tools
+    .map(t => ({
+      name: t.name,
+      defer: t.defer_loading === true,
+      schema: stableStringify(t.input_schema ?? null),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return JSON.stringify(entries)
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`
+  const keys = Object.keys(value as Record<string, unknown>).sort()
+  const parts = keys.map(k => `${JSON.stringify(k)}:${stableStringify((value as Record<string, unknown>)[k])}`)
+  return `{${parts.join(",")}}`
+}
+
+/**
  * Strip the MCP prefix from a tool name to get the OpenCode tool name.
  * e.g., "mcp__oc__todowrite" → "todowrite"
  */

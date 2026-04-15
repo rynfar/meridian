@@ -13,7 +13,8 @@ import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
-import { createPassthroughMcpServer, stripMcpPrefix, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { createPassthroughMcpServer, stripMcpPrefix, computeToolSetKey, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { LRUMap } from "../utils/lruMap"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
@@ -205,10 +206,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Cache last-seen tool definitions per agent session to prevent prompt cache
   // invalidation when clients intermittently omit tools on continuation requests.
   const sessionToolCache = new Map<string, any[]>()
-  // Cache the passthrough MCP server per session keyed by sorted tool names.
-  // When the tool set is unchanged, reusing the same server avoids subtle
-  // prompt-cache invalidation from MCP server re-creation.
-  const sessionMcpCache = new Map<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>()
+  // Cache the passthrough MCP server per session. Reusing the same server
+  // across turns (when the tool set is unchanged) avoids subtle prompt-cache
+  // invalidation from MCP server re-creation. Key hashes tool name + schema
+  // so silently-updated tool definitions force a rebuild.
+  const sessionMcpCache = new LRUMap<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>(getMaxSessionsLimit())
 
   const app = new Hono()
 
@@ -627,7 +629,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
       }
       if (passthrough && requestTools.length > 0) {
-        const toolSetKey = requestTools.map((t: any) => t.name).sort().join(",")
+        const toolSetKey = computeToolSetKey(requestTools)
         const cachedMcp = profileSessionId ? sessionMcpCache.get(profileSessionId) : undefined
         if (cachedMcp && cachedMcp.key === toolSetKey) {
           passthroughMcp = cachedMcp.mcp
@@ -636,7 +638,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           if (profileSessionId) {
             sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
             if (cachedMcp) {
-              console.error(`[PROXY] ${requestMeta.requestId} tools_changed: ${cachedMcp.key.split(",").length} → ${requestTools.length} tools — MCP server recreated (prompt cache will invalidate)`)
+              console.error(`[PROXY] ${requestMeta.requestId} tools_changed: MCP server recreated (prompt cache likely invalidates)`)
             }
           }
         }
