@@ -205,6 +205,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Cache last-seen tool definitions per agent session to prevent prompt cache
   // invalidation when clients intermittently omit tools on continuation requests.
   const sessionToolCache = new Map<string, any[]>()
+  // Cache the passthrough MCP server per session keyed by sorted tool names.
+  // When the tool set is unchanged, reusing the same server avoids subtle
+  // prompt-cache invalidation from MCP server re-creation.
+  const sessionMcpCache = new Map<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>()
 
   const app = new Hono()
 
@@ -623,7 +627,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
       }
       if (passthrough && requestTools.length > 0) {
-        passthroughMcp = createPassthroughMcpServer(requestTools, adapter.getCoreToolNames?.())
+        const toolSetKey = requestTools.map((t: any) => t.name).sort().join(",")
+        const cachedMcp = profileSessionId ? sessionMcpCache.get(profileSessionId) : undefined
+        if (cachedMcp && cachedMcp.key === toolSetKey) {
+          passthroughMcp = cachedMcp.mcp
+        } else {
+          passthroughMcp = createPassthroughMcpServer(requestTools, adapter.getCoreToolNames?.())
+          if (profileSessionId) {
+            sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
+            if (cachedMcp) {
+              console.error(`[PROXY] ${requestMeta.requestId} tools_changed: ${cachedMcp.key.split(",").length} → ${requestTools.length} tools — MCP server recreated (prompt cache will invalidate)`)
+            }
+          }
+        }
         if (profileSessionId) sessionToolCache.set(profileSessionId, requestTools)
       }
       const hasDeferredTools = passthroughMcp?.hasDeferredTools ?? false
