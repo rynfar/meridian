@@ -767,9 +767,8 @@ describe("Session lineage: fingerprint fallback", () => {
     }))
     await r2.json()
 
-    // Prefix overlap (Good evening, Hi!) → undo → fork via fingerprint
-    expect(getCaptured()?.options?.resume).toBe("sdk-fp1")
-    expect(getCaptured()?.options?.forkSession).toBe(true)
+    // OpenCode without session header: undo is downgraded to diverged
+    expect(getCaptured()?.options?.resume).toBeUndefined()
   })
 })
 

@@ -403,7 +403,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           ? `${profile.id}:${agentSessionId}` : agentSessionId
         const profileScopedCwd = profile.id !== "default"
           ? `${workingDirectory}::profile=${profile.id}` : workingDirectory
-        const lineageResult = lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
+        let lineageResult = lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
+        // Guard: when OpenCode's chat.headers plugin hook doesn't fire (e.g.
+        // category-dispatched or title-generation requests), the request has
+        // no session header and falls through to fingerprint lookup.  A new
+        // 1-message session can collide with a stored N-message session and
+        // be classified as "undo."  Downgrade to "diverged" to prevent
+        // leaking the old session's conversation history.
+        if (lineageResult.type === "undo" && adapter.name === "opencode" && !agentSessionId) {
+          lineageResult = { type: "diverged" }
+        }
         const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
         const isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined

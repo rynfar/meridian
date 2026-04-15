@@ -250,7 +250,12 @@ export function storeSession(
   // In-memory cache
   if (sessionId) sessionCache.set(sessionId, state)
   const fp = getConversationFingerprint(messages, workingDirectory)
-  if (fp) fingerprintCache.set(fp, state)
+  // Only populate the fingerprint cache for headerless requests. When a
+  // session header is present the session is already tracked by ID; writing
+  // to the fingerprint cache too causes cross-session collisions when a
+  // later headerless request (e.g. OpenCode category-dispatched or title
+  // generation) happens to share the same first-message fingerprint.
+  if (fp && !sessionId) fingerprintCache.set(fp, state)
   // Shared file store (cross-proxy resume)
   const key = sessionId || fp
   if (key) {
