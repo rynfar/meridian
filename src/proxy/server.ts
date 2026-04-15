@@ -68,7 +68,8 @@ let claudeExecutable = ""
  */
 function buildFreshPrompt(
   messages: Array<{ role: string; content: any }>,
-  stripCacheControl: (content: any) => any
+  stripCacheControl: (content: any) => any,
+  sanitizeOpts: import("./sanitize").SanitizeOptions = {}
 ): string | AsyncIterable<any> {
   const MULTIMODAL_TYPES = new Set(["image", "document", "file"])
   const hasMultimodal = messages.some((m) =>
@@ -113,11 +114,11 @@ function buildFreshPrompt(
       const role = m.role === "assistant" ? "Assistant" : "Human"
       let content: string
       if (typeof m.content === "string") {
-        content = sanitizeTextContent(m.content)
+        content = sanitizeTextContent(m.content, sanitizeOpts)
       } else if (Array.isArray(m.content)) {
         content = m.content
           .map((block: any) => {
-            if (block.type === "text" && block.text) return sanitizeTextContent(block.text)
+            if (block.type === "text" && block.text) return sanitizeTextContent(block.text, sanitizeOpts)
             if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
             if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
             if (block.type === "image") return "[Image attached]"
@@ -449,6 +450,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
 
 
+      // Adapter-scoped sanitize options (see sanitize.ts).
+      const sanitizeOpts: import("./sanitize").SanitizeOptions = {
+        stripSystemReminder: adapter.leaksCwdViaSystemReminder?.() ?? false,
+      }
+
       // When resuming, only send new messages the SDK doesn't have.
       const allMessages = body.messages || []
       let messagesToConvert: typeof allMessages
@@ -550,18 +556,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       } else {
         // Text prompt — convert messages to string.
         // Sanitize each text block before flattening to strip orchestration
-        // wrappers (<system-reminder>, <env>, etc.) that harnesses inject.
-        // Per-block sanitization avoids cross-message regex collateral.
+        // wrappers (<env>, <task_metadata>, etc.) that harnesses inject.
+        // `<system-reminder>` is only stripped for adapters that leak CWD
+        // through it (Droid) — preserved otherwise so that harness state
+        // like oh-my-opencode's background-task IDs reaches the model.
         textPrompt = messagesToConvert
           ?.map((m: { role: string; content: string | Array<{ type: string; text?: string; content?: string; tool_use_id?: string; name?: string; input?: unknown; id?: string }> }) => {
             const role = m.role === "assistant" ? "Assistant" : "Human"
             let content: string
             if (typeof m.content === "string") {
-              content = sanitizeTextContent(m.content)
+              content = sanitizeTextContent(m.content, sanitizeOpts)
             } else if (Array.isArray(m.content)) {
               content = m.content
                 .map((block: any) => {
-                  if (block.type === "text" && block.text) return sanitizeTextContent(block.text)
+                  if (block.type === "text" && block.text) return sanitizeTextContent(block.text, sanitizeOpts)
                   if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
                   if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
                   if (block.type === "image") return "[Image attached]"
@@ -775,7 +783,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* query(buildQueryOptions({
-                      prompt: buildFreshPrompt(allMessages, stripCacheControl),
+                      prompt: buildFreshPrompt(allMessages, stripCacheControl, sanitizeOpts),
                       model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                       resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
@@ -1191,7 +1199,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* query(buildQueryOptions({
-                        prompt: buildFreshPrompt(allMessages, stripCacheControl),
+                        prompt: buildFreshPrompt(allMessages, stripCacheControl, sanitizeOpts),
                         model, workingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                         resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,

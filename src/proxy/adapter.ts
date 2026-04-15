@@ -145,6 +145,17 @@ export interface AgentAdapter {
   shouldTrackFileChanges?(): boolean
 
   /**
+   * Whether this agent leaks CWD/env info through `<system-reminder>` blocks
+   * in user messages (Droid). When true, the proxy strips those blocks before
+   * flattening to a text prompt so they don't echo back to the model.
+   *
+   * Most agents (OpenCode, Crush, ForgeCode) use `<system-reminder>` to surface
+   * harness state the model needs to see (e.g. oh-my-opencode background task
+   * IDs), so the default is false — preserve them.
+   */
+  leaksCwdViaSystemReminder?(): boolean
+
+  /**
    * Map a client-side tool_use block to file changes (passthrough mode).
    *
    * In passthrough mode the SDK doesn't execute tools, so PostToolUse

@@ -14,16 +14,25 @@ import { sanitizeTextContent } from "../proxy/sanitize"
 // ── Orchestration tag stripping ──
 
 describe("sanitizeTextContent", () => {
-  // --- Droid ---
+  // --- Droid: <system-reminder> stripping is opt-in ---
 
-  it("strips <system-reminder> blocks (Droid CWD injection)", () => {
+  it("strips <system-reminder> blocks when stripSystemReminder is enabled (Droid)", () => {
     const input = '<system-reminder>\nUser system info\n% pwd\n/home/user\n</system-reminder>\nactual question'
-    expect(sanitizeTextContent(input)).toBe("actual question")
+    expect(sanitizeTextContent(input, { stripSystemReminder: true })).toBe("actual question")
   })
 
-  it("strips multiline <system-reminder> with attributes", () => {
+  it("strips multiline <system-reminder> with attributes when enabled", () => {
     const input = 'hello\n<system-reminder id="sr-1">\nline one\nline two\n</system-reminder>\nworld'
-    expect(sanitizeTextContent(input)).toBe("hello\n\nworld")
+    expect(sanitizeTextContent(input, { stripSystemReminder: true })).toBe("hello\n\nworld")
+  })
+
+  it("PRESERVES <system-reminder> by default (issue #368)", () => {
+    // oh-my-opencode injects <system-reminder> blocks with bg_* task IDs
+    // that Claude must see. Default behavior must not strip them.
+    const input = '<system-reminder>\n[ALL BACKGROUND TASKS COMPLETE]\n- `bg_0aaa50b0`: Find X\n- `bg_8ff9ed0f`: Find Y\n</system-reminder>'
+    const result = sanitizeTextContent(input)
+    expect(result).toContain("bg_0aaa50b0")
+    expect(result).toContain("bg_8ff9ed0f")
   })
 
   // --- OpenCode / Crush ---
@@ -116,14 +125,14 @@ describe("sanitizeTextContent", () => {
 
   // --- Multiple patterns in one block ---
 
-  it("handles multiple patterns in one string", () => {
+  it("handles multiple patterns in one string (Droid mode)", () => {
     const input = '<system-reminder>x</system-reminder>\n<task_metadata>y</task_metadata>\nnormal content'
-    expect(sanitizeTextContent(input)).toBe("normal content")
+    expect(sanitizeTextContent(input, { stripSystemReminder: true })).toBe("normal content")
   })
 
-  it("returns empty string for all-wrapper input", () => {
+  it("returns empty string for all-wrapper input (Droid mode)", () => {
     const input = '<system-reminder>everything is internal</system-reminder>'
-    expect(sanitizeTextContent(input)).toBe("")
+    expect(sanitizeTextContent(input, { stripSystemReminder: true })).toBe("")
   })
 
   // --- False positive safety ---
@@ -179,7 +188,7 @@ describe("sanitizeTextContent", () => {
 
   // --- Regression: the exact scenario from issue #167 ---
 
-  it("strips the compound leakage pattern from #167", () => {
+  it("strips the compound leakage pattern from #167 (Droid mode)", () => {
     const input = [
       '<system-reminder>',
       '  Current dir: /home/user',
@@ -189,6 +198,30 @@ describe("sanitizeTextContent", () => {
       '<!-- OMO_INTERNAL_INITIATOR -->',
       'What is 2+2?',
     ].join("\n")
-    expect(sanitizeTextContent(input)).toBe("What is 2+2?")
+    expect(sanitizeTextContent(input, { stripSystemReminder: true })).toBe("What is 2+2?")
+  })
+
+  // --- Regression: issue #368 (OMO bg_* task IDs disappearing) ---
+
+  it("preserves bg_* task IDs in <system-reminder> by default (issue #368)", () => {
+    const input = [
+      '<system-reminder>',
+      '[ALL BACKGROUND TASKS COMPLETE]',
+      '',
+      '**Completed:**',
+      '- `bg_0aaa50b0`: Find Activity entity and relations',
+      '- `bg_8ff9ed0f`: Find Activity DB schema and migrations',
+      '',
+      'Use `background_output(task_id="<id>")` to retrieve each result.',
+      '</system-reminder>',
+      '<!-- OMO_INTERNAL_INITIATOR -->',
+      '11:41 AM',
+    ].join("\n")
+    const result = sanitizeTextContent(input)
+    expect(result).toContain("bg_0aaa50b0")
+    expect(result).toContain("bg_8ff9ed0f")
+    expect(result).toContain("[ALL BACKGROUND TASKS COMPLETE]")
+    // OMO comment still stripped (unambiguous orchestration marker)
+    expect(result).not.toContain("OMO_INTERNAL_INITIATOR")
   })
 })

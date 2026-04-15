@@ -75,6 +75,13 @@ export const droidAdapter: AgentAdapter = {
     return normalizeContent(content)
   },
 
+  leaksCwdViaSystemReminder(): boolean {
+    // Droid embeds CWD inside <system-reminder> blocks in user messages
+    // (see extractDroidCwd above). Those blocks must be stripped before the
+    // prompt is flattened, or they echo back to the model.
+    return true
+  },
+
   getBlockedBuiltinTools(): readonly string[] {
     // Reuse the same list as OpenCode — Droid sends its own Read/Write/Bash/etc.
     // tools and the SDK's built-ins would conflict.

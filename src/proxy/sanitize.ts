@@ -23,9 +23,12 @@
 // harnesses inject and that never appears in legitimate user content.
 // ---------------------------------------------------------------------------
 
+// Tags stripped unconditionally (every adapter).
+// `system-reminder` is NOT here — it is overloaded: Droid uses it to leak CWD
+// (should strip), but OpenCode's oh-my-opencode harness uses it to surface
+// background-task IDs and other orchestration state the model MUST see. So it
+// is only stripped when the caller opts in via { stripSystemReminder: true }.
 const ORCHESTRATION_TAGS = [
-  // Droid: CWD + env info injected into first user message
-  "system-reminder",
   // OpenCode / Crush: environment context blocks
   "env",
   // ForgeCode: system info wrapper and children
@@ -76,15 +79,32 @@ const ALL_PATTERNS = [
   ...NON_XML_PATTERNS,
 ]
 
+// Opt-in: only used when the adapter reports that it leaks CWD/env through
+// `<system-reminder>` blocks (Droid). Other adapters must preserve these
+// blocks — they carry model-visible harness state (see ORCHESTRATION_TAGS).
+const SYSTEM_REMINDER_PATTERNS: RegExp[] = [
+  /<system-reminder\b[^>]*>[\s\S]*?<\/system-reminder>/gi,
+  /<system-reminder\b[^>]*\/>/gi,
+]
+
+export interface SanitizeOptions {
+  /** Strip `<system-reminder>` blocks. Enable for adapters (Droid) that leak
+   *  CWD/env through this tag. */
+  stripSystemReminder?: boolean
+}
+
 /**
  * Strip orchestration wrappers from a single text string.
  *
  * Designed to be called on individual content blocks (not concatenated
  * prompt strings) to eliminate cross-block regex matching risk.
  */
-export function sanitizeTextContent(text: string): string {
+export function sanitizeTextContent(text: string, opts: SanitizeOptions = {}): string {
   let result = text
-  for (const pattern of ALL_PATTERNS) {
+  const patterns = opts.stripSystemReminder
+    ? [...ALL_PATTERNS, ...SYSTEM_REMINDER_PATTERNS]
+    : ALL_PATTERNS
+  for (const pattern of patterns) {
     // Reset lastIndex for stateful regexes (those with 'g' flag)
     pattern.lastIndex = 0
     result = result.replace(pattern, "")
