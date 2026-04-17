@@ -91,7 +91,6 @@ in
     systemd.user.services.meridian = {
       Unit = {
         Description = "Meridian - Local Anthropic API proxy";
-        After = [ "network.target" ];
       };
 
       Service = {
