@@ -57,15 +57,7 @@
 
             buildPhase = ''
               runHook preBuild
-
-              bun build bin/cli.ts src/proxy/server.ts \
-                --outdir dist \
-                --target node \
-                --splitting \
-                --external @anthropic-ai/claude-agent-sdk \
-                --entry-naming '[name].js'
-              node node_modules/typescript/bin/tsc -p tsconfig.build.json
-
+              bun run build
               runHook postBuild
             '';
 
