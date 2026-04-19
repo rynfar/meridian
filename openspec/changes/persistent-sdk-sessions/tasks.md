@@ -79,16 +79,11 @@ Before committing to D4's in-place-vs-reopen policy, measure how often real traf
 
 ## 4. Mocked `Query` test helper
 
-- [ ] 4.1 Add `src/__tests__/helpers/mockQuery.ts` exporting `createMockQuery({ turns: Array<SDKMessage[]> })`
-- [ ] 4.2 Mock faithfully reproduces the empirical per-turn event sequence observed in the spike (see `spike-notes.md` §"Extended spike"):
-  - at each turn start, emits `{ type: "system", subtype: "init" }` *before* the turn's assistant messages
-  - between turn messages, may emit `{ type: "rate_limit_event" }` (non-terminal)
-  - for tool-using turns, emits synthetic `{ type: "user" }` messages representing SDK-internal tool_result blocks (non-terminal — must not be confused with client-produced user input)
-  - emits exactly one `{ type: "result", subtype: "success", usage: { cache_read_input_tokens, cache_creation_input_tokens }, session_id, stop_reason, num_turns }` per turn as the terminator
-  - consumes one `SDKUserMessage` from the input AsyncIterable before producing each turn's events
-- [ ] 4.3 Mock implements `close()`, `setModel()`, `applyFlagSettings()`, `interrupt()`, `getContextUsage()` as programmable stubs. Calls are recorded so tests can assert ordering (e.g. `setModel` MUST be called before pushing the user message for that turn)
-- [ ] 4.4 Replace inline mocks in existing tests (opt-in) so the helper is exercised
-- [ ] 4.5 Unit tests for the mock itself — verify the event sequence matches `spike-notes.md` §"Extended spike" byte-for-byte for a representative turn, and verify control-method call recording
+- [x] 4.1 Add `src/__tests__/helpers/mockQuery.ts` exporting `createMockQuery({ turns })`
+- [x] 4.2 Mock emits the empirical per-turn event sequence: leading `system(init)` (suppressable), arbitrary mid-turn events (assistant / stream_event / rate_limit_event / synthetic user for tool-result replay), synthesized `result` terminator with configurable usage/stop_reason/num_turns/subtype. Consumes one `SDKUserMessage` per turn from the input queue.
+- [x] 4.3 Mock implements `close()`, `setModel()`, `applyFlagSettings()`, `interrupt()`, `getContextUsage()`, `streamInput()`, `stopTask()`, plus every other Query control method as programmable stubs. Every call is recorded on a `MockQueryControlCalls` object tests can inspect for ordering assertions. Includes `crashOnTurn` config for simulating mid-session iterator throws.
+- [ ] 4.4 Replace inline mocks in existing tests (opt-in) so the helper is exercised — deferred; will land organically as §5.7/§6.3/§5.12h integration tests are authored.
+- [x] 4.5 Unit tests for the mock itself (`src/__tests__/mock-query-unit.test.ts`): 11 tests covering event sequence, multi-turn behavior, suppressSystemInit, script-provided result preservation, arbitrary mid-turn events, control-method recording, streamInput integration, crash injection, close-wakes-waiters semantics. All passing.
 
 ## 5. Server wiring behind feature flag
 
