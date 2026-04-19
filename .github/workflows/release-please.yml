@@ -21,8 +21,15 @@ jobs:
     if: ${{ !inputs.publish_only }}
     runs-on: ubuntu-latest
     outputs:
-      release_created: ${{ steps.release.outputs['meridian--release_created'] }}
-      tag_name: ${{ steps.release.outputs['meridian--tag_name'] }}
+      # Use the unprefixed boolean release-please-action v4 sets for any-path
+      # release. Previous attempts used 'meridian--release_created' (the
+      # component name) but release-please prefixes outputs by PATH, not
+      # component — for our root-path manifest that would be '.--release_created',
+      # not 'meridian--*'. The 'releases_created' boolean is the documented
+      # top-level output that's true whenever any release was created, which
+      # is exactly what we want for a single-package repo.
+      release_created: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.release.outputs['.--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
