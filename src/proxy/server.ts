@@ -111,8 +111,58 @@ function normalizeStructuredUserContent(content: any): any {
   return normalized
 }
 
-function isToolUseOnlyAssistantMessage(content: any): boolean {
-  return Array.isArray(content) && content.length > 0 && content.every((block: any) => block?.type === "tool_use")
+/**
+ * Flatten an assistant message's content to plain text for replay.
+ *
+ * Drops tool_use blocks entirely. The SDK already has them from its own
+ * session state (on resume) or doesn't need them for text-only replay
+ * (on rehydration). Emitting `[Tool Use: name(args)]` strings pollutes
+ * the context — the model reads them as literal user input and starts
+ * inventing fake tool-call patterns back (issue #111, #386).
+ */
+function flattenAssistantContent(content: any): string {
+  if (typeof content === "string") return content
+  if (!Array.isArray(content)) return String(content ?? "")
+  return content
+    .map((b: any) => (b?.type === "text" && b.text ? b.text : ""))
+    .filter(Boolean)
+    .join("\n")
+}
+
+/**
+ * Flatten a user message's content to plain text for replay.
+ *
+ * Unwraps tool_result blocks — emit just the raw result content so the
+ * model sees a natural "here's the output" user turn instead of
+ * `[Tool Result for toolu_xxx: ...]` noise (issue #111, #386).
+ */
+function flattenUserContent(
+  content: any,
+  sanitizeOpts: import("./sanitize").SanitizeOptions = {}
+): string {
+  if (typeof content === "string") return sanitizeTextContent(content, sanitizeOpts)
+  if (!Array.isArray(content)) return String(content ?? "")
+  return content
+    .map((b: any) => {
+      if (b?.type === "text" && b.text) return sanitizeTextContent(b.text, sanitizeOpts)
+      if (b?.type === "tool_result") {
+        const inner = b.content
+        if (typeof inner === "string") return inner
+        if (Array.isArray(inner)) {
+          return inner
+            .map((ib: any) => (ib?.type === "text" && ib.text ? ib.text : ""))
+            .filter(Boolean)
+            .join("\n")
+        }
+        return ""
+      }
+      if (b?.type === "image") return "[Image attached]"
+      if (b?.type === "document") return "[Document attached]"
+      if (b?.type === "file") return "[File attached]"
+      return ""
+    })
+    .filter(Boolean)
+    .join("\n")
 }
 
 /**
@@ -136,27 +186,14 @@ function buildFreshPrompt(
           parent_tool_use_id: null,
         })
       } else {
-        if (isToolUseOnlyAssistantMessage(m.content)) {
-          continue
+        const assistantText = flattenAssistantContent(m.content)
+        if (assistantText) {
+          structured.push({
+            type: "user" as const,
+            message: { role: "user" as const, content: `[Assistant: ${assistantText}]` },
+            parent_tool_use_id: null,
+          })
         }
-        let text: string
-        if (typeof m.content === "string") {
-          text = `[Assistant: ${m.content}]`
-        } else if (Array.isArray(m.content)) {
-          text = m.content.map((b: any) => {
-            if (b.type === "text" && b.text) return `[Assistant: ${b.text}]`
-            if (b.type === "tool_use") return `[Tool Use: ${b.name}(${JSON.stringify(b.input)})]`
-            if (b.type === "tool_result") return `[Tool Result: ${typeof b.content === "string" ? b.content : JSON.stringify(b.content)}]`
-            return ""
-          }).filter(Boolean).join("\n")
-        } else {
-          text = `[Assistant: ${String(m.content)}]`
-        }
-        structured.push({
-          type: "user" as const,
-          message: { role: "user" as const, content: text },
-          parent_tool_use_id: null,
-        })
       }
     }
     return (async function* () { for (const msg of structured) yield msg })()
@@ -165,27 +202,12 @@ function buildFreshPrompt(
   return messages
     .map((m) => {
       const role = m.role === "assistant" ? "Assistant" : "Human"
-      let content: string
-      if (typeof m.content === "string") {
-        content = sanitizeTextContent(m.content, sanitizeOpts)
-      } else if (Array.isArray(m.content)) {
-        content = m.content
-          .map((block: any) => {
-            if (block.type === "text" && block.text) return sanitizeTextContent(block.text, sanitizeOpts)
-            if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
-            if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
-            if (block.type === "image") return "[Image attached]"
-            if (block.type === "document") return "[Document attached]"
-            if (block.type === "file") return "[File attached]"
-            return ""
-          })
-          .filter(Boolean)
-          .join("\n")
-      } else {
-        content = String(m.content)
-      }
-      return `${role}: ${content}`
+      const content = m.role === "assistant"
+        ? flattenAssistantContent(m.content)
+        : flattenUserContent(m.content, sanitizeOpts)
+      return content ? `${role}: ${content}` : ""
     })
+    .filter(Boolean)
     .join("\n\n") || ""
 }
 
@@ -611,28 +633,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 parent_tool_use_id: null,
               })
             } else {
-              if (isToolUseOnlyAssistantMessage(m.content)) {
-                continue
+              // Convert assistant messages to text summaries.
+              // Drop tool_use blocks — see flattenAssistantContent.
+              const assistantText = flattenAssistantContent(m.content)
+              if (assistantText) {
+                structuredMessages.push({
+                  type: "user" as const,
+                  message: { role: "user" as const, content: `[Assistant: ${assistantText}]` },
+                  parent_tool_use_id: null,
+                })
               }
-              // Convert assistant messages to text summaries
-              let text: string
-              if (typeof m.content === "string") {
-                text = `[Assistant: ${m.content}]`
-              } else if (Array.isArray(m.content)) {
-                text = m.content.map((b: any) => {
-                  if (b.type === "text" && b.text) return `[Assistant: ${b.text}]`
-                  if (b.type === "tool_use") return `[Tool Use: ${b.name}(${JSON.stringify(b.input)})]`
-                  if (b.type === "tool_result") return `[Tool Result: ${typeof b.content === "string" ? b.content : JSON.stringify(b.content)}]`
-                  return ""
-                }).filter(Boolean).join("\n")
-              } else {
-                text = `[Assistant: ${String(m.content)}]`
-              }
-              structuredMessages.push({
-                type: "user" as const,
-                message: { role: "user" as const, content: text },
-                parent_tool_use_id: null,
-              })
             }
           }
         }
@@ -644,29 +654,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // through it (Droid) — preserved otherwise so that harness state
         // like oh-my-opencode's background-task IDs reaches the model.
         textPrompt = messagesToConvert
-          ?.map((m: { role: string; content: string | Array<{ type: string; text?: string; content?: string; tool_use_id?: string; name?: string; input?: unknown; id?: string }> }) => {
+          ?.map((m: { role: string; content: any }) => {
             const role = m.role === "assistant" ? "Assistant" : "Human"
-            let content: string
-            if (typeof m.content === "string") {
-              content = sanitizeTextContent(m.content, sanitizeOpts)
-            } else if (Array.isArray(m.content)) {
-              content = m.content
-                .map((block: any) => {
-                  if (block.type === "text" && block.text) return sanitizeTextContent(block.text, sanitizeOpts)
-                  if (block.type === "tool_use") return `[Tool Use: ${block.name}(${JSON.stringify(block.input)})]`
-                  if (block.type === "tool_result") return `[Tool Result for ${block.tool_use_id}: ${typeof block.content === "string" ? block.content : JSON.stringify(block.content)}]`
-                  if (block.type === "image") return "[Image attached]"
-                  if (block.type === "document") return "[Document attached]"
-                  if (block.type === "file") return "[File attached]"
-                  return ""
-                })
-                .filter(Boolean)
-                .join("\n")
-            } else {
-              content = String(m.content)
-            }
-            return `${role}: ${content}`
+            const content = m.role === "assistant"
+              ? flattenAssistantContent(m.content)
+              : flattenUserContent(m.content, sanitizeOpts)
+            return content ? `${role}: ${content}` : ""
           })
+          .filter(Boolean)
           .join("\n\n") || ""
       }
 
