@@ -171,7 +171,6 @@ function flattenUserContent(
  */
 function buildFreshPrompt(
   messages: Array<{ role: string; content: any }>,
-  stripCacheControl: (content: any) => any,
   sanitizeOpts: import("./sanitize").SanitizeOptions = {}
 ): string | AsyncIterable<any> {
   const hasMultimodal = messages.some((m) => hasMultimodalContent(m.content))
@@ -182,7 +181,7 @@ function buildFreshPrompt(
       if (m.role === "user") {
         structured.push({
           type: "user" as const,
-          message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControl(m.content)) },
+          message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControlDeep(m.content)) },
           parent_tool_use_id: null,
         })
       } else {
@@ -597,12 +596,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // Check if any messages contain multimodal content (images, documents, files)
       const hasMultimodal = messagesToConvert?.some((m: any) => hasMultimodalContent(m.content))
 
-      // Strip cache_control from content blocks — the SDK manages its own caching
-      // and OpenCode's ttl='1h' blocks conflict with the SDK's ttl='5m' blocks
-      function stripCacheControl(content: any): any {
-        return stripCacheControlDeep(content)
-      }
-
       // Build the prompt — either structured (multimodal) or text.
       // Structured prompts are stored as arrays so they can be replayed on retry.
       let structuredMessages: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null }> | undefined
@@ -620,7 +613,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             if (m.role === "user") {
               structuredMessages.push({
                 type: "user" as const,
-                message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControl(m.content)) },
+                message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControlDeep(m.content)) },
                 parent_tool_use_id: null,
               })
             }
@@ -631,7 +624,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             if (m.role === "user") {
               structuredMessages.push({
                 type: "user" as const,
-                message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControl(m.content)) },
+                message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControlDeep(m.content)) },
                 parent_tool_use_id: null,
               })
             } else {
@@ -875,7 +868,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* query(buildQueryOptions({
-                      prompt: buildFreshPrompt(allMessages, stripCacheControl, sanitizeOpts),
+                      prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                       resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
@@ -1293,7 +1286,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* query(buildQueryOptions({
-                        prompt: buildFreshPrompt(allMessages, stripCacheControl, sanitizeOpts),
+                        prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                         resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
