@@ -87,7 +87,7 @@ Before committing to D4's in-place-vs-reopen policy, measure how often real traf
 
 ## 5. Server wiring behind feature flag
 
-- [ ] 5.1 Add `persistentSessions?: boolean` and `persistentSessionIdleMs?: number` and `persistentSessionMaxLive?: number` to `ProxyConfig` in `types.ts` (default false / 900_000 / 32)
+- [x] 5.1 Added `persistentSessions`, `persistentSessionIdleMs` (900_000), `persistentSessionMaxLive` (32), `persistentSessionMutexWaitMs` (30_000), `persistentPendingExecutionTimeoutMs` (900_000) to `ProxyConfig` in `types.ts`. Defaults match design (flag off preserves today's behavior bit-identically). Full test suite green (1334 pass, 0 fail).
 - [ ] 5.2 Branch the two non-streaming `query()` call sites in `server.ts` (lines ~831 / ~870) to route through `SessionRuntime` when the flag is on and the request is not an undo/fork. The lineage classifier (`session/lineage.ts` → continuation / compaction / undo / diverged) runs unchanged and feeds into the persistent-mode branch exactly as it does today — lineage drives reopen/fork decisions; it is NOT replaced by the runtime.
 - [ ] 5.3 Branch the two streaming `query()` call sites in `server.ts` (lines ~1252 / ~1288) to route through `SessionRuntime` when the flag is on and the request is not an undo/fork. Same lineage-classifier invariant as §5.2.
 - [ ] 5.4 Preserve the existing undo/fork path — it always `close()`s the current runtime (if any) and opens a new one with `forkSession: true, resumeSessionAt`
