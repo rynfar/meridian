@@ -15,6 +15,8 @@ import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, computeToolSetKey, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { LRUMap } from "../utils/lruMap"
+import { createSessionRuntimeManager, type SessionRuntimeManager } from "./session/runtime"
+import { startTurn, type TurnContext } from "./session/turnRunner"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
@@ -287,6 +289,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // invalidation from MCP server re-creation. Key hashes tool name + schema
   // so silently-updated tool definitions force a rebuild.
   const sessionMcpCache = new LRUMap<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>(getMaxSessionsLimit())
+
+  // Persistent-mode runtime manager (§5.1/§6.1/§6.2). Always constructed so
+  // it's a valid dep for startTurn; only actually populated when
+  // `config.persistentSessions === true`. The periodic sweeper evicts idle
+  // runtimes; the ProxyInstance.close() path tears them all down.
+  const runtimeManager: SessionRuntimeManager = createSessionRuntimeManager({
+    idleMs: finalConfig.persistentSessionIdleMs ?? 900_000,
+    maxLive: finalConfig.persistentSessionMaxLive ?? 32,
+  })
+  const persistentSweepInterval = setInterval(() => {
+    runtimeManager.sweepIdle().catch((err) => {
+      claudeLog("persistent.sweep_error", { err: err instanceof Error ? err.message : String(err) })
+    })
+  }, 60_000)
+  if (persistentSweepInterval.unref) persistentSweepInterval.unref()
 
   const app = new Hono()
 
@@ -783,6 +800,39 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           claudeLog("subprocess.stderr", { line: data.trimEnd() })
         }
 
+        // Persistent-mode locals (§5.2/§5.3). These are unused when
+        // `config.persistentSessions === false` — startTurn will take the
+        // legacy `query(...)` path and yield the same events. Extracting
+        // them up here so all 4 query-call sites share them.
+        const lastUserMsgForPersistent = [...(body.messages || [])].reverse().find((m: any) => m.role === "user") as { content?: unknown } | undefined
+        const persistentUserContent = lastUserMsgForPersistent?.content
+        const persistentPassthroughSpec = passthrough && requestTools.length > 0
+          ? { tools: requestTools as never[], coreToolNames: adapter.getCoreToolNames?.() }
+          : null
+        // Called on first `result` event from the persistent dispatcher so
+        // session/cache.ts learns about the newly-assigned Claude SDK
+        // session id. The warmth of a warm runtime without this hook would
+        // disappear on proxy restart.
+        const persistentOnSessionIdCaptured = (sid: string): void => {
+          try {
+            storeSession(
+              profileSessionId,
+              body.messages || [],
+              sid,
+              profileScopedCwd,
+              [],
+              undefined,
+            )
+          } catch (err) {
+            claudeLog("persistent.storeSession_error", { err: err instanceof Error ? err.message : String(err) })
+          }
+        }
+        const persistentDeps = {
+          config: finalConfig,
+          manager: runtimeManager,
+          onSessionIdCaptured: (_profileSessionId: string, sid: string) => persistentOnSessionIdCaptured(sid),
+        }
+
         if (!stream) {
           const contentBlocks: Array<Record<string, unknown>> = []
           let assistantMessages = 0
@@ -828,7 +878,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // only "assistant" messages represent actual response content.
                 let didYieldContent = false
                 try {
-                  for await (const event of query(buildQueryOptions({
+                  for await (const event of startTurn({
                     prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
@@ -840,7 +890,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     additionalDirectories: sdkFeatures.additionalDirectories
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
-                  }))) {
+                    profileSessionId, userContent: persistentUserContent, passthroughSpec: persistentPassthroughSpec,
+                  } satisfies TurnContext, persistentDeps)) {
                     // Only count real assistant content — not SDK error messages
                     // (which arrive as type:"assistant" with an error field set).
                     // Counting error assistants as content would prevent retries.
@@ -867,7 +918,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     evictSession(profileSessionId, profileScopedCwd, allMessages)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                    yield* query(buildQueryOptions({
+                    yield* startTurn({
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
@@ -880,7 +931,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       additionalDirectories: sdkFeatures.additionalDirectories
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
-                    }))
+                      profileSessionId, userContent: persistentUserContent, passthroughSpec: persistentPassthroughSpec,
+                    } satisfies TurnContext, persistentDeps)
                     return
                   }
 
@@ -1249,7 +1301,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // not prevent retry. Only stream_event types become SSE output.
                   let didYieldClientEvent = false
                   try {
-                    for await (const event of query(buildQueryOptions({
+                    for await (const event of startTurn({
                       prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                       resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
@@ -1261,7 +1313,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       additionalDirectories: sdkFeatures.additionalDirectories
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
-                    }))) {
+                      profileSessionId, userContent: persistentUserContent, passthroughSpec: persistentPassthroughSpec,
+                    } satisfies TurnContext, persistentDeps)) {
                       if ((event as any).type === "stream_event") {
                         didYieldClientEvent = true
                       }
@@ -1285,7 +1338,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       evictSession(profileSessionId, profileScopedCwd, allMessages)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                      yield* query(buildQueryOptions({
+                      yield* startTurn({
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
@@ -1298,7 +1351,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         additionalDirectories: sdkFeatures.additionalDirectories
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
-                      }))
+                        profileSessionId, userContent: persistentUserContent, passthroughSpec: persistentPassthroughSpec,
+                      } satisfies TurnContext, persistentDeps)
                       return
                     }
 
@@ -2213,12 +2267,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return c.json({ error: { type: "not_found", message: `Endpoint not supported: ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
   })
 
-  return { app, config: finalConfig }
+  return {
+    app,
+    config: finalConfig,
+    async cleanup() {
+      clearInterval(persistentSweepInterval)
+      await runtimeManager.closeAll(finalConfig.persistentSessionMutexWaitMs ?? 10_000)
+    },
+  }
 }
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
   claudeExecutable = await resolveClaudeExecutableAsync()
-  const { app, config: finalConfig } = createProxyServer(config)
+  const { app, config: finalConfig, cleanup } = createProxyServer(config)
 
   const server = serve({
     fetch: app.fetch,
@@ -2276,6 +2337,11 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     config: finalConfig,
     async close() {
       if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
+      if (cleanup) {
+        await cleanup().catch((err) => {
+          claudeLog("proxy.cleanup_error", { err: err instanceof Error ? err.message : String(err) })
+        })
+      }
       await new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()))
       })

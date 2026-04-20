@@ -55,6 +55,14 @@ export interface ProxyServer {
   app: { fetch: (request: Request, ...rest: any[]) => Response | Promise<Response> }
   /** The resolved proxy configuration */
   config: ProxyConfig
+  /**
+   * Optional cleanup hook that tears down internal resources held by the
+   * server (live persistent runtimes, periodic sweeper, etc.). Callers that
+   * spin up a raw `createProxyServer()` without `startProxyServer()` should
+   * invoke this on shutdown to avoid leaked timers + orphaned SDK
+   * subprocesses. `startProxyServer().close()` calls this automatically.
+   */
+  cleanup?: () => Promise<void>
 }
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
