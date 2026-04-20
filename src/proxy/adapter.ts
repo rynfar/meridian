@@ -24,10 +24,37 @@ export interface AgentIdentity {
   getSessionId(c: Context): string | undefined
 
   /**
-   * Extract the client's working directory from the request body.
-   * Returns undefined to fall back to CLAUDE_PROXY_WORKDIR or process.cwd().
+   * Extract the SDK subprocess working directory from the request body.
+   *
+   * This path must exist on the proxy host because it becomes the SDK
+   * child_process cwd (passed through as the `cwd` option to the Claude
+   * Agent SDK's query() call). If it doesn't exist, the subprocess spawn
+   * fails or chdirs misbehave.
+   *
+   * Adapters that assume the client runs on the same host as the proxy
+   * (OpenCode, Crush) can return the client-local path here.
+   * Adapters for remote clients pointing at a network-exposed proxy
+   * (Claude Code) should return undefined and override
+   * extractClientWorkingDirectory instead.
+   *
+   * Returns undefined to fall back to MERIDIAN_WORKDIR / CLAUDE_PROXY_WORKDIR
+   * env vars, then process.cwd().
    */
   extractWorkingDirectory(body: any): string | undefined
+
+  /**
+   * Optional: extract the client-local working directory (which may not
+   * exist on the proxy host). This is used for:
+   *  - Conversation fingerprinting (per-client-project bucketing so two
+   *    unrelated projects don't collide on identical first-message hashes).
+   *  - A system prompt addendum so the model reports the correct path
+   *    when asked and uses it for file path references.
+   *
+   * Return undefined to default to the SDK working directory (same machine
+   * assumption). Adapters for remote clients should implement this to parse
+   * the client's own "working directory" hint from the request body.
+   */
+  extractClientWorkingDirectory?(body: any): string | undefined
 
   /**
    * Content normalization — convert message content to a stable string

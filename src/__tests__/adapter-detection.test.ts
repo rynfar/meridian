@@ -13,6 +13,7 @@ import { crushAdapter } from "../proxy/adapters/crush"
 import { piAdapter } from "../proxy/adapters/pi"
 import { passthroughAdapter } from "../proxy/adapters/passthrough"
 import { forgeCodeAdapter } from "../proxy/adapters/forgecode"
+import { claudeCodeAdapter } from "../proxy/adapters/claudecode"
 
 function makeContext(userAgent: string, extraHeaders?: Record<string, string>): any {
   const allHeaders: Record<string, string> = {}
@@ -72,6 +73,25 @@ describe("detectAdapter — Crush detection", () => {
   it("returns crushAdapter for Charm-Crush with extra info", () => {
     const adapter = detectAdapter(makeContext("Charm-Crush/v0.51.2 (https://charm.land/crush)"))
     expect(adapter).toBe(crushAdapter)
+  })
+})
+
+describe("detectAdapter — Claude Code detection", () => {
+  it("returns claudeCodeAdapter for 'claude-cli/2.0.0'", () => {
+    const adapter = detectAdapter(makeContext("claude-cli/2.0.0"))
+    expect(adapter).toBe(claudeCodeAdapter)
+    expect(adapter.name).toBe("claude-code")
+  })
+
+  it("returns claudeCodeAdapter for any 'claude-cli/' prefix", () => {
+    expect(detectAdapter(makeContext("claude-cli/0.1.0")).name).toBe("claude-code")
+    expect(detectAdapter(makeContext("claude-cli/1.0.0")).name).toBe("claude-code")
+    expect(detectAdapter(makeContext("claude-cli/99.99.99")).name).toBe("claude-code")
+  })
+
+  it("returns claudeCodeAdapter for claude-cli with extra info", () => {
+    const adapter = detectAdapter(makeContext("claude-cli/2.0.0 (linux; x64)"))
+    expect(adapter).toBe(claudeCodeAdapter)
   })
 })
 
@@ -140,6 +160,15 @@ describe("detectAdapter — x-meridian-agent header override", () => {
   it("returns forgeCodeAdapter when x-meridian-agent is 'forgecode'", () => {
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "forgecode" }))).toBe(forgeCodeAdapter)
     expect(forgeCodeAdapter.name).toBe("forgecode")
+  })
+
+  it("returns claudeCodeAdapter when x-meridian-agent is 'claude-code'", () => {
+    expect(detectAdapter(makeContext("", { "x-meridian-agent": "claude-code" }))).toBe(claudeCodeAdapter)
+    expect(claudeCodeAdapter.name).toBe("claude-code")
+  })
+
+  it("accepts 'claudecode' as an alias for 'claude-code'", () => {
+    expect(detectAdapter(makeContext("", { "x-meridian-agent": "claudecode" }))).toBe(claudeCodeAdapter)
   })
 
   it("is case-insensitive on header value", () => {

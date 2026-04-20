@@ -16,8 +16,15 @@ export interface QueryContext {
   prompt: string | AsyncIterable<any>
   /** Resolved Claude model name */
   model: string
-  /** Client working directory */
+  /** SDK subprocess working directory — must exist on the proxy host. */
   workingDirectory: string
+  /**
+   * Client-local working directory (as reported in the request). May not
+   * exist on the proxy host. When this differs from workingDirectory the
+   * system prompt is augmented with a note directing the model to refer
+   * to file paths using the client's path rather than the proxy's.
+   */
+  clientWorkingDirectory?: string
   /** System context text (may be empty) */
   systemContext: string
   /** Path to Claude executable */
@@ -119,36 +126,67 @@ function computePassthroughMaxTurns(
   return base + advisorBump
 }
 
+/**
+ * Build an addendum that tells the model which path belongs to the real user.
+ * Applied when the SDK subprocess runs in one directory on the proxy host but
+ * the client is working in a different directory on their own machine
+ * (typical of a remote Claude Code → network-proxy setup). Without this note
+ * the SDK's env block leaks `sdkCwd` into the model's context and Claude
+ * reports that as its working directory.
+ */
+export function buildCwdNote(sdkCwd: string, clientCwd?: string): string {
+  if (!clientCwd || clientCwd === sdkCwd) return ""
+  // Emit in the `<env>Working directory: …</env>` shape the Claude Code
+  // subprocess uses itself, so it doesn't auto-inject a second env block
+  // pointing at its own process.cwd() (which would be the proxy host path).
+  // Placed at the top of the append so it's the first env block the model
+  // sees. The subsequent notice tells the model to prefer this over any
+  // contradictory path that might slip through later in the context.
+  return (
+    `\n\n<env>\n` +
+    `Working directory: ${clientCwd}\n` +
+    `</env>\n` +
+    `<meridian-note>\n` +
+    `You are reached through a proxy. The subprocess running you resides at ` +
+    `"${sdkCwd}" on the proxy host, but that is not the user's working directory. ` +
+    `Always treat "${clientCwd}" as the working directory when referring to files or paths.\n` +
+    `</meridian-note>`
+  )
+}
+
 function resolveSystemPrompt(
   systemContext: string | undefined,
   passthrough: boolean,
   settingSources: SettingSource[] | undefined,
-  codeSystemPrompt?: boolean,
-  clientSystemPrompt?: boolean,
+  codeSystemPrompt: boolean | undefined,
+  clientSystemPrompt: boolean | undefined,
+  cwdNote: string,
 ): { systemPrompt?: string | { type: "preset"; preset: "claude_code"; append?: string } } {
   const hasSettings = settingSources != null && settingSources.length > 0
   const usePreset = codeSystemPrompt ?? (hasSettings || (!passthrough && !!systemContext))
   const includeClient = clientSystemPrompt ?? true
   const clientContext = includeClient ? systemContext : undefined
+  const append = [clientContext, cwdNote].filter(Boolean).join("") || undefined
 
   if (usePreset) {
-    return clientContext
-      ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: clientContext } }
+    return append
+      ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } }
       : { systemPrompt: { type: "preset" as const, preset: "claude_code" as const } }
   }
-  if (clientContext) return { systemPrompt: clientContext }
+  if (append) return { systemPrompt: append }
   return {}
 }
 
 export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
   const {
-    prompt, model, workingDirectory, systemContext, claudeExecutable,
+    prompt, model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
     passthrough, stream, sdkAgents, passthroughMcp, cleanEnv, hasDeferredTools,
     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools, incompatibleTools,
     mcpServerName, allowedMcpTools, onStderr,
     effort, thinking, taskBudget, betas, settingSources, codeSystemPrompt, clientSystemPrompt,
     memory, dreaming, sharedMemory, maxBudgetUsd, fallbackModel, sdkDebug, additionalDirectories,
   } = ctx
+  const cwdNote = buildCwdNote(workingDirectory, clientWorkingDirectory)
 
   const allBlockedTools = [...blockedTools, ...incompatibleTools]
 
@@ -169,7 +207,7 @@ export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
       ...(stream ? { includePartialMessages: true } : {}),
       permissionMode: "bypassPermissions" as const,
       allowDangerouslySkipPermissions: true,
-      ...resolveSystemPrompt(systemContext, passthrough, settingSources, codeSystemPrompt, clientSystemPrompt),
+      ...resolveSystemPrompt(systemContext, passthrough, settingSources, codeSystemPrompt, clientSystemPrompt, cwdNote),
       ...(passthrough
         ? {
             disallowedTools: [...allBlockedTools],
