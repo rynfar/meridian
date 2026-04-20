@@ -384,7 +384,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Allow adapter to override streaming preference (e.g. LiteLLM requires non-streaming)
         const adapterStreamPref = adapter.prefersStreaming?.(body)
         const stream = adapterStreamPref !== undefined ? adapterStreamPref : (body.stream ?? false)
+        // workingDirectory = SDK subprocess cwd (must exist on the proxy host).
+        // clientWorkingDirectory = the client's local path (may not exist here);
+        // used for per-project fingerprint bucketing and a system-prompt hint
+        // so the model reports the user's real path. For same-host clients
+        // (OpenCode, Crush) the adapter can leave extractClientWorkingDirectory
+        // undefined and the two collapse to the same value.
         const workingDirectory = (process.env.MERIDIAN_WORKDIR ?? process.env.CLAUDE_PROXY_WORKDIR) || adapter.extractWorkingDirectory(body) || process.cwd()
+        const clientWorkingDirectory = adapter.extractClientWorkingDirectory?.(body) || workingDirectory
 
         // Strip env vars that would cause the SDK subprocess to loop back through
         // the proxy instead of using its native Claude Max auth. Also strip vars
@@ -481,8 +488,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // For agents without (Pi): pass profile-scoped workingDirectory to fingerprint lookup.
         const profileSessionId = profile.id !== "default" && agentSessionId
           ? `${profile.id}:${agentSessionId}` : agentSessionId
+        // Use the client-local CWD for fingerprint bucketing so that two
+        // independent client projects don't collide on the same first-user-
+        // message hash even when they share an SDK cwd on the proxy host.
         const profileScopedCwd = profile.id !== "default"
-          ? `${workingDirectory}::profile=${profile.id}` : workingDirectory
+          ? `${clientWorkingDirectory}::profile=${profile.id}` : clientWorkingDirectory
         // Clients that run concurrent sub-request flows in the same conversation
         // (e.g. pylon's memory-extract fork or subagent children) share the same
         // (firstUserMessage, cwd) fingerprint as the parent — so meridian's
@@ -829,7 +839,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 let didYieldContent = false
                 try {
                   for await (const event of query(buildQueryOptions({
-                    prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
+                    prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
                     effort, thinking, taskBudget, betas, settingSources,
@@ -869,7 +879,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* query(buildQueryOptions({
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
-                      model, workingDirectory, systemContext, claudeExecutable,
+                      model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                       resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
                       effort, thinking, taskBudget, betas, settingSources,
@@ -1250,7 +1260,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   let didYieldClientEvent = false
                   try {
                     for await (const event of query(buildQueryOptions({
-                      prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
+                      prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                       resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
                       effort, thinking, taskBudget, betas, settingSources,
@@ -1287,7 +1297,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* query(buildQueryOptions({
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
-                        model, workingDirectory, systemContext, claudeExecutable,
+                        model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
                         resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
                         effort, thinking, taskBudget, betas, settingSources,

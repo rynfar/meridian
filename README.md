@@ -12,7 +12,7 @@
 
 ---
 
-Meridian bridges the Claude Code SDK to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Droid, Open WebUI — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
+Meridian bridges the Claude Code SDK to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Droid, Open WebUI, Claude Code — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
 
 > [!NOTE]
 > ### How Meridian works with Anthropic
@@ -483,6 +483,29 @@ Pi uses the `@mariozechner/pi-ai` library which supports a configurable `baseUrl
 
 Pi mimics Claude Code's User-Agent, so automatic detection isn't possible. The `x-meridian-agent: pi` header in the config above tells Meridian to use the Pi adapter. Alternatively, if Pi is your only agent, you can set `MERIDIAN_DEFAULT_AGENT=pi` as an env var instead.
 
+### Claude Code
+
+Claude Code can point at Meridian like any other Anthropic API client. The
+common use case is sharing a single Claude Max subscription from one host
+across other machines on your network — run Meridian on the box that is
+logged into Claude Max, then run Claude Code anywhere else against it.
+
+```bash
+# On another machine (or the same one)
+ANTHROPIC_AUTH_TOKEN=x ANTHROPIC_BASE_URL=http://meridian-host:3456 claude
+```
+
+> **Note:** Use `ANTHROPIC_AUTH_TOKEN` (or `ANTHROPIC_API_KEY`) — Claude Code
+> treats both as bearer credentials. Set the value to your `MERIDIAN_API_KEY`
+> if you've enabled authentication, otherwise any string works.
+
+Claude Code is detected automatically via its `claude-cli/*` User-Agent.
+Requests flow through the Claude Code adapter which:
+
+- Parses the client's real working directory from its `Primary working directory:` system-prompt line so Claude answers path-related questions with your local path, not the proxy host's.
+- Leaves the SDK subprocess cwd on the proxy host (Claude Code's local paths don't exist there).
+- Runs in passthrough mode by default — Claude Code executes its own tools on the machine it runs on; Meridian just forwards tool_use blocks.
+
 ### Any Anthropic-compatible tool
 
 ```bash
@@ -502,6 +525,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 | [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars — file editing, streaming; `--no-stream` broken (litellm bug) |
 | [Open WebUI](https://github.com/open-webui/open-webui) | ✅ Verified | OpenAI-compatible endpoints — set base URL to `http://127.0.0.1:3456` |
 | [Pi](https://github.com/mariozechner/pi-coding-agent) | ✅ Verified | models.json config (see above) — requires `MERIDIAN_DEFAULT_AGENT=pi` |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
 
 Tested an agent or built a plugin? [Open an issue](https://github.com/rynfar/meridian/issues) and we'll add it.
