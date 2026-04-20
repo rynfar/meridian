@@ -262,5 +262,64 @@ This helper replaces the current inline mocks; tests opt in with `createMockQuer
 - **Q2 — options drift rate:** gate waived; will be measured post-rollout. *Non-blocking.*
 - **Q3 — passthrough MCP in-place updates:** obsolete question. The new deferred-handler design (§D11) replaces the MCP wholesale on tool-surface change; no in-place update required. *Resolved by §1d spike.*
 - **Q4 — subprocess crash reattach path:** iterator throw is the canonical signal (wired via `onCrash`); stderr pattern match is not needed. *Resolved in §3 module skeleton.*
-- **Q5 — concurrent-turn queueing:** serialize behind the per-session mutex with a 30 s wait cap; 429 on overflow. *Covered by §5.10 integration test.*
+- **Q5 — concurrent-turn queueing:** serialize behind the per-session mutex with a 30 s wait cap; 429 on overflow. *Covered by §5.10 integration test and verified live (scenario M: HTTP 429 + Retry-After: 2).*
 - **Q6 — fork semantics for live queries:** forks go through close+cold-reattach with `forkSession: true, resumeSessionAt`. Equivalence with today's behavior verified in §5.11 integration test.
+
+## 2026-04-19 late-day addendum — live-validation findings
+
+These additions supplement the original design decisions above based on what we learned executing the refactor end-to-end against real Pi + Claude Max. Full evidence in [[Persistent-Mode Live Validation Results (2026-04-19)]].
+
+### D13. Profile-session-id fingerprint fallback for headerless adapters
+
+**Problem:** The original design assumed `profileSessionId` would always be derivable from an agent-provided session header (e.g. `x-opencode-session`). Pi's adapter returns `undefined` from `getSessionId()` by design — Pi uses fingerprint-based session continuity instead. Without a fix, `turnRunner.startTurn`'s guard (`profileSessionId is a non-empty string`) forces every Pi request into the legacy path regardless of the feature flag.
+
+**Decision:** when `adapter.getSessionId(c)` returns undefined, server.ts derives the persistent-runtime key from `getConversationFingerprint(messages, cwd)` prefixed with `fp:` (or `<profile>:fp:<fingerprint>` when a non-default profile is active). The key is stable across HTTP turns for the same conversation because the fingerprint is derived from the first user message + cwd, both of which are invariant across a session.
+
+**Consequence:** persistent mode works for Pi, ForgeCode, and any future headerless adapter without each adapter needing to implement a synthetic session-id generator. The fingerprint is already computed by `session/cache.ts` for lineage lookup, so we're not adding compute cost.
+
+### D14. maxTurns must be unbounded in persistent mode
+
+**Problem:** The SDK's `Options.maxTurns` applies to the query's entire lifetime, not per HTTP turn. `query.ts:buildQueryOptions` always sets `maxTurns` (3 for passthrough+resume, 2 for passthrough, 200 otherwise). In persistent mode one query serves many HTTP turns, so any finite cap would silently truncate the runtime after that many SDK-internal turns across ALL HTTP requests — a runtime capped at 3 dies after the first tool-use round-trip.
+
+**Decision:** `turnRunner.runPersistent` strips `maxTurns` from the built options before passing to `sdkQuery(...)`. The SDK's own internal default (unbounded in current versions) applies.
+
+**Consequence:** per-HTTP-turn cost is bounded by (a) client usage patterns, (b) `persistentPendingExecutionTimeoutMs` for stuck passthrough tools, (c) Anthropic's `maxBudgetUsd` + rate limits, and (d) `persistentSessionMutexWaitMs` for mutex contention. `error_max_turns` is impossible from the persistent path.
+
+### D15. SSE continuation framing for multi-tool parallel (PARTIAL)
+
+**Problem:** Persistent mode splits ONE SDK message across TWO HTTP responses:
+- Request 1 emits tool_use blocks and synthesizes a tool_use pause result.
+- Request 2 resolves the pending handlers; SDK resumes emitting events for the SAME in-flight assistant message.
+
+The continuation's first events are mid-message `content_block_*` (typically `input_json_delta` closing the pre-pause tool_use block) with no preceding `message_start`. Strict SSE clients (Pi) reject the frame order with `Unexpected event order, got content_block_delta before "message_start"`.
+
+**Decision:** Introduce a `WeakMap<SessionRuntime, boolean>` continuation flag set by `turnRunner` when yielding the pending-pause synthetic result in streaming mode (`markRuntimeContinuation`). Server.ts's streaming layer reads the flag at the start of each turn (`consumeRuntimeContinuation`) and, when set:
+1. On the first SDK stream event, if it's NOT a `message_start`, synthesize a conformant `message_start` frame (fresh UUID, request's model, empty content, zero usage) and reset block-index remapping to 0.
+2. Drop the trailing `content_block_delta` / `content_block_stop` / `message_delta` / `message_stop` events from the pre-pause message — they reference blocks known only to the prior HTTP response.
+
+**Result:** Pi no longer crashes on parallel-tool streaming. The response is now well-formed SSE (synthetic `message_start` → drops → final `message_stop`).
+
+### D16. Layer 2 open: SDK doesn't auto-continue after pending-resolve when message plans no prose
+
+**Problem (discovered live after D15 landed):** With the SSE crash fixed, the continuation response is well-formed but EMPTY. The model's planned response text never arrives.
+
+**Root cause:** The §D11 design assumed the SDK auto-continues generating after handler resolution. In practice, when the model plans its message to close at tool_use (common when the user prompt says "emit tool calls... THEN reply with X" and the model treats that as two distinct messages), the SDK closes `message_stop` after the tool_use and awaits a NEW user message before generating again. The dispatcher resolves pending handlers without pushing any user content (tool_results were diverted to handler-resolves), so the SDK has no trigger for the response turn.
+
+**Single-tool scenarios (C, D, G) don't hit this** because when the model plans a single tool_use followed by text, it keeps the message open (no `message_stop` after tool_use) and handler-resolve naturally continues into text generation within the same message.
+
+**Tried (reverted):** push an empty user message `[{ type: "text", text: "" }]` after resolve to trigger the next turn. SDK accepted the push but produced no output — empty content is probably rejected by Anthropic or treated as a no-op.
+
+**Fix-plan options for follow-up (not in this change):**
+- **Option A:** dispatcher-level state machine detects "model closed message at tool_use" shape and pushes a minimal valid text trigger (e.g. `"continue"`). Costs a small semantic blot in history.
+- **Option B:** hybrid push+resolve — push tool_result blocks as a user message AND resolve pending handlers. Anthropic sees tool_results as user messages, SDK's handler-return aligns. Potential conversation-state divergence risk.
+- **Option C:** fall back to the non-persistent legacy path for parallel-tool streaming. No cache hit on those turns but correctness preserved.
+
+**Non-blocking for rollout.** Single-tool scenarios pass with cache 93-98%. Non-streaming requests (any adapter using `stream: false`) are unaffected. Documented inline in `src/proxy/session/turnRunner.ts` and `src/proxy/session/persistentDispatch.ts`, and in [[Persistent-Mode Live Validation Results (2026-04-19)]] §"E/F two-layer bug".
+
+### D17. SIGTERM/SIGINT graceful-shutdown handler required
+
+**Problem:** The original design's §6.1 said `ProxyInstance.close()` closes all live runtimes and rejects pending handlers. But `ProxyInstance.close()` is a programmatic API — without a signal handler, SIGTERM kills the Node process immediately, skipping the close path. Persistent runtimes' SDK subprocesses get reaped by parent-death rather than a clean `Query.close()`, lifecycle events never emit, and pending handlers never reject.
+
+**Decision:** `bin/cli.ts` installs SIGTERM + SIGINT handlers that await `proxy.close()` before `process.exit(0)`. Emits `[meridian] received SIGTERM, closing gracefully` to stderr; `persistent.lifecycle { lifecycle: "close", ... }` fires for each runtime.
+
+**Verified live (scenario N):** signal → graceful close → process exit within ~1 s, no leaked subprocesses.
