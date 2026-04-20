@@ -215,9 +215,10 @@ describe("Fingerprint resume: cross-project safety via lineage", () => {
       { role: "user", content: "list the project B files" },
     ], "sdk-project-b")
 
-    // Prefix overlap ("hello") → undo/branch detected → forks from project A
-    expect(getCaptured()?.options?.resume).toBe("sdk-project-a")
-    expect(getCaptured()?.options?.forkSession).toBe(true)
+    // OpenCode without session header: undo is downgraded to diverged to
+    // prevent cross-session fingerprint collisions (headerless requests
+    // from category-dispatched or title-generation flows).
+    expect(getCaptured()?.options?.resume).toBeUndefined()
   })
 
   it("resumes correctly after cross-project rejection creates new session", async () => {
@@ -322,9 +323,57 @@ describe("Fingerprint resume: multi-turn with tool_use blocks", () => {
       { role: "user", content: "actually, delete that file instead" },
     ], "sdk-tools-undo-new")
 
-    // Prefix overlap ("create a file", "I'll create that file.") → undo → fork
-    expect(getCaptured()?.options?.resume).toBe("sdk-tools-undo")
-    expect(getCaptured()?.options?.forkSession).toBe(true)
+    // OpenCode without session header: undo is downgraded to diverged
+    expect(getCaptured()?.options?.resume).toBeUndefined()
+  })
+})
+
+describe("Fingerprint isolation: headered sessions must not leak into fingerprint cache", () => {
+  /** Send a request WITH a session header (header-tracked path) */
+  async function postWithSession(
+    app: TestApp,
+    sessionHeader: string,
+    messages: Array<{ role: string; content: string }>,
+    sdkSessionId: string,
+  ) {
+    queuedSessionIds.push(sdkSessionId)
+    const response = await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-opencode-session": sessionHeader,
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-5",
+        max_tokens: 128,
+        stream: false,
+        messages,
+      }),
+    }))
+    await response.json()
+  }
+
+  it("headerless request does not resume a headered session with the same fingerprint", async () => {
+    const app = createTestApp()
+
+    // Session A: tracked by header, builds up a 3-message conversation
+    await postWithSession(app, "sess-A", [
+      { role: "user", content: "ping" },
+    ], "sdk-A")
+    await postWithSession(app, "sess-A", [
+      { role: "user", content: "ping" },
+      { role: "assistant", content: "pong" },
+      { role: "user", content: "how are you?" },
+    ], "sdk-A")
+
+    // Session B: headerless (simulates OpenCode category-dispatched request),
+    // same first message → same fingerprint. Must NOT resume session A.
+    capturedQueryParams = null
+    await postNoSession(app, [
+      { role: "user", content: "ping" },
+    ], "sdk-B")
+
+    expect(getCaptured()?.options?.resume).toBeUndefined()
   })
 })
 
