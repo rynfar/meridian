@@ -167,12 +167,22 @@ async function* runPersistent(ctx: TurnContext & { profileSessionId: string }, d
       }
       const built = buildQueryOptions(adjustedCtx).options
       // Persistent mode reuses one SDK query across many HTTP turns, so
-      // the per-query maxTurns ceiling (passthrough + resume = 3 today)
-      // would cap the whole lifetime of the runtime at 3 internal turns.
-      // Raise it to the non-passthrough default so the runtime can serve
-      // long multi-tool conversations; each HTTP turn's cost is still
-      // bounded by the client's usage patterns.
-      return { ...built, maxTurns: 200 }
+      // a finite per-query maxTurns cap would truncate the runtime's
+      // entire lifetime — a cap of N limits the runtime to at most N
+      // SDK-internal turns across ALL HTTP turns it serves. Unlike the
+      // legacy request-per-process path, we can't re-derive per-HTTP-turn
+      // budgets here because the SDK's internal turn counter is
+      // monotonic across handler-resolutions.
+      //
+      // Strip maxTurns entirely so the SDK applies its own internal
+      // default (unbounded in current versions). Per-HTTP-turn cost is
+      // still bounded by (a) the client's usage pattern, (b) the
+      // persistentPendingExecutionTimeoutMs for stuck passthrough tools,
+      // and (c) Anthropic's maxBudgetUsd / rate limits.
+      //
+      // Matches the SDK type signature: `maxTurns?: number`.
+      const { maxTurns: _dropped, ...unbounded } = built
+      return unbounded
     },
     getPassthroughSpec: () => passthroughSpec,
     buildPassthroughBinding: passthroughSpec
