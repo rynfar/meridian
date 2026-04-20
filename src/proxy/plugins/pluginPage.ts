@@ -87,11 +87,34 @@ export const pluginPageHtml = `<!DOCTYPE html>
     font-size: 12px; background: var(--surface2); padding: 2px 7px;
     border-radius: 4px; color: #a78bfa; }
 
-  .summary-bar { display: flex; gap: 16px; margin-bottom: 20px; font-size: 12px;
-    color: var(--muted); }
-  .summary-count strong { color: var(--text); font-weight: 600; }
-  .summary-count.active strong { color: var(--green); }
-  .summary-count.error strong { color: var(--red); }
+  /* ── Hero panel: aggregate stats at a glance ── */
+  .hero-panel { background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+    border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 24px; margin-bottom: 24px; }
+  .hero-row { display: flex; align-items: center; }
+  .hero-row-top { gap: 28px; flex-wrap: wrap; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+  .hero-metric { flex: 1 1 0; min-width: 110px; }
+  .hero-num { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace;
+    font-size: 28px; font-weight: 600; color: var(--text);
+    line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .hero-num.hero-err { color: var(--red); }
+  .hero-sub { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+  .hero-unit { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; }
+  .hero-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--muted); margin-top: 6px; font-weight: 500; }
+  .hero-row-bottom { gap: 18px; justify-content: space-between; flex-wrap: wrap;
+    font-size: 12px; color: var(--muted); }
+  .hero-status { display: flex; align-items: center; gap: 6px; }
+  .hero-status strong { color: var(--text); font-weight: 600; }
+  .chip-sep { width: 1px; height: 14px; background: var(--border); margin: 0 6px; }
+  .status-chip { font-size: 10px; line-height: 1; }
+  .status-chip-active { color: var(--green); }
+  .status-chip-disabled { color: var(--muted); }
+  .status-chip-error { color: var(--red); }
+  .hero-busiest { color: var(--muted); font-size: 12px; }
+  .hero-busiest strong { color: var(--accent); font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; }
+  .hero-busiest-count { color: var(--muted); font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 11px; }
 
   .plugin-stats { margin-top: 14px; padding-top: 14px;
     border-top: 1px solid var(--border); }
@@ -202,11 +225,68 @@ function render(plugins) {
   var disabled = plugins.filter(function(p) { return p.status === 'disabled'; }).length;
   var errors = plugins.filter(function(p) { return p.status === 'error'; }).length;
 
-  var html = '<div class="summary-bar">'
-    + '<span class="summary-count"><strong>' + plugins.length + '</strong> plugin' + (plugins.length !== 1 ? 's' : '') + '</span>'
-    + '<span class="summary-count active"><strong>' + active + '</strong> active</span>';
-  if (disabled) html += '<span class="summary-count"><strong>' + disabled + '</strong> disabled</span>';
-  if (errors) html += '<span class="summary-count error"><strong>' + errors + '</strong> error' + (errors !== 1 ? 's' : '') + '</span>';
+  // ── Aggregate stats across all active plugins ──
+  var totalCalls = 0, totalErrors = 0, totalMs = 0, lastSeen = 0;
+  var busiestName = null, busiestCount = 0;
+  for (var i = 0; i < plugins.length; i++) {
+    var p = plugins[i];
+    if (p.status !== 'active' || !p.stats) continue;
+    var pluginCalls = 0, pluginErrors = 0, pluginMs = 0;
+    var hookNames = Object.keys(p.stats.hooks || {});
+    for (var j = 0; j < hookNames.length; j++) {
+      var h = p.stats.hooks[hookNames[j]];
+      pluginCalls += h.invocations || 0;
+      pluginErrors += h.errors || 0;
+      pluginMs += h.totalMs || 0;
+    }
+    totalCalls += pluginCalls;
+    totalErrors += pluginErrors;
+    totalMs += pluginMs;
+    if (p.stats.lastInvokedAt && p.stats.lastInvokedAt > lastSeen) {
+      lastSeen = p.stats.lastInvokedAt;
+    }
+    if (pluginCalls > busiestCount) {
+      busiestCount = pluginCalls;
+      busiestName = p.name;
+    }
+  }
+  var aggAvg = totalCalls > 0 ? (totalMs / totalCalls).toFixed(2) : '0.00';
+
+  var html = '<div class="hero-panel">';
+  html += '<div class="hero-row hero-row-top">';
+  html += '<div class="hero-metric">'
+    + '<div class="hero-num">' + active + '<span class="hero-sub">/ ' + plugins.length + '</span></div>'
+    + '<div class="hero-lbl">Active plugins</div>'
+    + '</div>';
+  html += '<div class="hero-metric">'
+    + '<div class="hero-num">' + totalCalls.toLocaleString() + '</div>'
+    + '<div class="hero-lbl">Total invocations</div>'
+    + '</div>';
+  html += '<div class="hero-metric">'
+    + '<div class="hero-num ' + (totalErrors > 0 ? 'hero-err' : '') + '">' + totalErrors.toLocaleString() + '</div>'
+    + '<div class="hero-lbl">Errors</div>'
+    + '</div>';
+  html += '<div class="hero-metric">'
+    + '<div class="hero-num">' + aggAvg + '<span class="hero-unit">ms</span></div>'
+    + '<div class="hero-lbl">Avg latency</div>'
+    + '</div>';
+  html += '<div class="hero-metric">'
+    + '<div class="hero-num">' + (lastSeen ? formatRelative(lastSeen) : '—') + '</div>'
+    + '<div class="hero-lbl">Last request</div>'
+    + '</div>';
+  html += '</div>';
+
+  // Status breakdown + busiest plugin row
+  html += '<div class="hero-row hero-row-bottom">';
+  html += '<div class="hero-status">';
+  html += '<span class="status-chip status-chip-active">●</span> <strong>' + active + '</strong> active';
+  if (disabled) html += '<span class="chip-sep"></span><span class="status-chip status-chip-disabled">●</span> <strong>' + disabled + '</strong> disabled';
+  if (errors) html += '<span class="chip-sep"></span><span class="status-chip status-chip-error">●</span> <strong>' + errors + '</strong> error' + (errors !== 1 ? 's' : '');
+  html += '</div>';
+  if (busiestName) {
+    html += '<div class="hero-busiest">Busiest: <strong>' + esc(busiestName) + '</strong> <span class="hero-busiest-count">(' + busiestCount.toLocaleString() + ' calls)</span></div>';
+  }
+  html += '</div>';
   html += '</div>';
 
   for (var i = 0; i < plugins.length; i++) {

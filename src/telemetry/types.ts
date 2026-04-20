@@ -20,6 +20,11 @@ export interface RequestMetric {
   /** Which agent adapter handled this request */
   adapter?: string
 
+  /** Optional client-stamped source tag (x-meridian-source) for distinguishing
+   *  concurrent flows within the same conversation (e.g. main chat vs.
+   *  memory-extract fork vs. subagent-scout). Truncated to 64 chars. */
+  requestSource?: string
+
   /** Model used for SDK query (sonnet, opus, haiku, sonnet[1m], etc.) */
   model: string
 

@@ -62,6 +62,7 @@ export const profileBarHtml = `
     <a href="/settings" id="nav-settings">Settings</a>
     <a href="/profiles" id="nav-profiles">Profiles</a>
     <a href="/telemetry" id="nav-telemetry">Telemetry</a>
+    <a href="/plugins" id="nav-plugins">Plugins</a>
   </div>
 </div>
 `

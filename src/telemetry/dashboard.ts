@@ -275,9 +275,11 @@ function render(s, reqs, logs) {
     const sessionShort = r.sdkSessionId ? r.sdkSessionId.slice(0, 8) : '—';
     const msgCount = r.messageCount != null ? r.messageCount : '?';
 
+    const sourceBadge = r.requestSource ? '<br><span style="font-size:9px;color:var(--violet);font-family:\'SF Mono\',monospace">' + r.requestSource + '</span>' : '';
+
     html += '<tr>'
       + '<td class="mono">' + ago(r.timestamp) + '</td>'
-      + '<td>' + (r.adapter || '—') + '</td>'
+      + '<td>' + (r.adapter || '—') + sourceBadge + '</td>'
       + '<td>' + (r.requestModel || r.model) + '<br><span style="font-size:10px;color:var(--muted)">' + r.model + '</span></td>'
       + '<td>' + r.mode + (r.hasDeferredTools ? (function() { var sessDisc = r.sessionDiscoveredCount || 0; var loaded = ((r.toolCount || 0) - (r.deferredToolCount || 0)) + sessDisc; var deferred = Math.max(0, (r.deferredToolCount || 0) - sessDisc); var newDisc = r.discoveredTools || []; return '<br><span style="font-size:10px;color:var(--purple)">loaded=' + loaded + ' deferred=' + deferred + '</span>' + (newDisc.length > 0 ? '<br><span style="font-size:10px;color:var(--green)">+' + newDisc.join(', +') + '</span>' : ''); })() : '') + '</td>'
       + '<td class="mono">' + sessionShort + ' ' + lineageBadge + '<br><span style="font-size:10px;color:var(--muted)">' + msgCount + ' msgs</span></td>'

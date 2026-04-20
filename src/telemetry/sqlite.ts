@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS metrics (
   request_id           TEXT    NOT NULL,
   timestamp            INTEGER NOT NULL,
   adapter              TEXT,
+  request_source       TEXT,
   model                TEXT    NOT NULL,
   request_model        TEXT,
   mode                 TEXT    NOT NULL,
@@ -41,6 +42,16 @@ CREATE INDEX IF NOT EXISTS idx_metrics_model ON metrics(model);
 CREATE INDEX IF NOT EXISTS idx_metrics_session_success ON metrics(sdk_session_id, timestamp DESC, id DESC);
 `
 
+/**
+ * Additive column migrations for existing databases. SQLite doesn't fail
+ * the CREATE TABLE IF NOT EXISTS when new columns are added to the schema,
+ * so any DB created before a given column existed needs ALTER TABLE.
+ * Each entry runs at startup; errors (column already exists) are ignored.
+ */
+const METRICS_MIGRATIONS = [
+  "ALTER TABLE metrics ADD COLUMN request_source TEXT",
+]
+
 const LOGS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS diagnostic_logs (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,6 +73,11 @@ function openDatabase(dbPath: string): Database.Database {
   db.pragma("synchronous = NORMAL")
   db.exec(METRICS_SCHEMA)
   db.exec(LOGS_SCHEMA)
+  // Additive schema migrations for existing DBs. Swallow "duplicate column"
+  // errors so this is safe to rerun on every boot.
+  for (const sql of METRICS_MIGRATIONS) {
+    try { db.exec(sql) } catch { /* column already exists */ }
+  }
   return db
 }
 
@@ -78,7 +94,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
 
     this.insertStmt = db.prepare(`
       INSERT INTO metrics (
-        request_id, timestamp, adapter, model, request_model, mode,
+        request_id, timestamp, adapter, request_source, model, request_model, mode,
         is_resume, is_passthrough, lineage_type,
         has_deferred_tools, deferred_tool_count, tool_count, discovered_tools, session_discovered_count,
         message_count, sdk_session_id,
@@ -87,7 +103,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
         input_tokens, output_tokens, cache_read_input_tokens,
         cache_creation_input_tokens, cache_hit_rate
       ) VALUES (
-        @requestId, @timestamp, @adapter, @model, @requestModel, @mode,
+        @requestId, @timestamp, @adapter, @requestSource, @model, @requestModel, @mode,
         @isResume, @isPassthrough, @lineageType,
         @hasDeferredTools, @deferredToolCount, @toolCount, @discoveredTools, @sessionDiscoveredCount,
         @messageCount, @sdkSessionId,
@@ -107,6 +123,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
         requestId: metric.requestId,
         timestamp: metric.timestamp,
         adapter: metric.adapter ?? null,
+        requestSource: metric.requestSource ?? null,
         model: metric.model,
         requestModel: metric.requestModel ?? null,
         mode: metric.mode,
@@ -293,6 +310,7 @@ function rowToMetric(r: Record<string, unknown>): RequestMetric {
     requestId: r.request_id as string,
     timestamp: r.timestamp as number,
     adapter: (r.adapter as string) ?? undefined,
+    requestSource: (r.request_source as string) ?? undefined,
     model: r.model as string,
     requestModel: (r.request_model as string) ?? undefined,
     mode: r.mode as RequestMetric["mode"],
