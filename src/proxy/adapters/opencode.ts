@@ -141,3 +141,6 @@ export const openCodeAdapter: AgentAdapter = {
     return []
   },
 }
+
+import { openCodeTransforms } from "../transforms/opencode"
+export { openCodeTransforms }

@@ -159,3 +159,6 @@ export const forgeCodeAdapter: AgentAdapter = {
     return []
   },
 }
+
+import { forgeCodeTransforms } from "../transforms/forgecode"
+export { forgeCodeTransforms }

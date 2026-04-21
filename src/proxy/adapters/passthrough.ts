@@ -141,3 +141,6 @@ export const passthroughAdapter: AgentAdapter = {
     return body?.stream === true
   },
 }
+
+import { passthroughTransforms } from "../transforms/passthrough"
+export { passthroughTransforms }

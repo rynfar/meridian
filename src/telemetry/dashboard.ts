@@ -3,7 +3,7 @@
  * No framework, no build step, no CDN. Single self-contained page.
  */
 
-import { profileBarCss, profileBarHtml, profileBarJs } from "./profileBar"
+import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
 
 export const dashboardHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -13,13 +13,8 @@ export const dashboardHtml = `<!DOCTYPE html>
 <title>Meridian — Telemetry</title>
 <link rel="icon" type="image/svg+xml" href="/telemetry/icon.svg">
 <style>
-  :root {
-    --bg: #0d1117; --surface: #161b22; --border: #30363d;
-    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
-    --green: #3fb950; --yellow: #d29922; --red: #f85149;
-    --blue: #58a6ff; --purple: #bc8cff;
-    --queue: #d29922; --ttfb: #58a6ff; --upstream: #3fb950; --total: #bc8cff;
-  }
+  ${themeCss}
+  :root { --total: var(--accent); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
          background: var(--bg); color: var(--text); padding: 0; line-height: 1.5; }
@@ -275,9 +270,11 @@ function render(s, reqs, logs) {
     const sessionShort = r.sdkSessionId ? r.sdkSessionId.slice(0, 8) : '—';
     const msgCount = r.messageCount != null ? r.messageCount : '?';
 
+    const sourceBadge = r.requestSource ? '<br><span class="mono" style="font-size:9px;color:var(--violet)">' + r.requestSource + '</span>' : '';
+
     html += '<tr>'
       + '<td class="mono">' + ago(r.timestamp) + '</td>'
-      + '<td>' + (r.adapter || '—') + '</td>'
+      + '<td>' + (r.adapter || '—') + sourceBadge + '</td>'
       + '<td>' + (r.requestModel || r.model) + '<br><span style="font-size:10px;color:var(--muted)">' + r.model + '</span></td>'
       + '<td>' + r.mode + (r.hasDeferredTools ? (function() { var sessDisc = r.sessionDiscoveredCount || 0; var loaded = ((r.toolCount || 0) - (r.deferredToolCount || 0)) + sessDisc; var deferred = Math.max(0, (r.deferredToolCount || 0) - sessDisc); var newDisc = r.discoveredTools || []; return '<br><span style="font-size:10px;color:var(--purple)">loaded=' + loaded + ' deferred=' + deferred + '</span>' + (newDisc.length > 0 ? '<br><span style="font-size:10px;color:var(--green)">+' + newDisc.join(', +') + '</span>' : ''); })() : '') + '</td>'
       + '<td class="mono">' + sessionShort + ' ' + lineageBadge + '<br><span style="font-size:10px;color:var(--muted)">' + msgCount + ' msgs</span></td>'

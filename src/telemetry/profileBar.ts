@@ -6,6 +6,49 @@
  * POST /profiles/active — no page reload needed.
  */
 
+/**
+ * Canonical Meridian theme — purple brand palette.
+ *
+ * Every inline HTML page (landing, telemetry dashboard, profiles,
+ * settings, plugins) prepends this block before its own styles so
+ * `var(--bg)`, `var(--accent)` etc. resolve consistently everywhere.
+ *
+ * Extra variables (--queue, --ttfb, --upstream, --blue, --purple) exist
+ * so the telemetry waterfall and lineage-colored badges keep their
+ * semantic meaning without needing per-page overrides.
+ */
+export const themeCss = `
+  :root {
+    /* Cool-gray neutral palette — matches the original dashboard/profiles/
+       settings look. Better for data-dense dashboards: high contrast,
+       surface/border separation, no color cast muddying the text. Purple
+       accents are retained as secondary brand color for hover states,
+       gradients, and a handful of telemetry badges. */
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --surface2:  #1c2128;
+    --border:    #30363d;
+    /* Text */
+    --text:      #e6edf3;
+    --muted:     #8b949e;
+    /* Brand — blue primary, purple secondary */
+    --accent:    #58a6ff;
+    --accent2:   #bc8cff;
+    --violet:    #bc8cff;
+    --lavender:  #d2a8ff;
+    /* Semantic */
+    --green:     #3fb950;
+    --yellow:    #d29922;
+    --red:       #f85149;
+    /* Telemetry-specific aliases (waterfall + lineage badges) */
+    --blue:      #58a6ff;
+    --purple:    #bc8cff;
+    --queue:     #d29922;
+    --ttfb:      #58a6ff;
+    --upstream:  #3fb950;
+  }
+`
+
 export const profileBarCss = `
   .meridian-profile-bar {
     position: sticky; top: 0; z-index: 100;
@@ -62,6 +105,7 @@ export const profileBarHtml = `
     <a href="/settings" id="nav-settings">Settings</a>
     <a href="/profiles" id="nav-profiles">Profiles</a>
     <a href="/telemetry" id="nav-telemetry">Telemetry</a>
+    <a href="/plugins" id="nav-plugins">Plugins</a>
   </div>
 </div>
 `

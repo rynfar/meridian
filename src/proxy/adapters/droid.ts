@@ -135,3 +135,6 @@ export const droidAdapter: AgentAdapter = {
     return false
   },
 }
+
+import { droidTransforms } from "../transforms/droid"
+export { droidTransforms }

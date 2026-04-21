@@ -2,12 +2,33 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { serve } from "@hono/node-server"
 import type { Server } from "node:http"
+import { homedir } from "node:os"
+import { join } from "node:path"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
 import { envBool } from "../env"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
 export type { ProxyConfig, ProxyInstance, ProxyServer }
+// Public plugin-authoring types. Plugins import these to type their
+// onRequest / onResponse / onTelemetry hooks against.
+export type {
+  Transform,
+  RequestContext,
+  ResponseContext,
+  TelemetryContext,
+  SessionContext,
+  ToolUseContext,
+  ToolResultContext,
+  ErrorContext,
+  TransformHook,
+  ObserveHook,
+} from "./transform"
+// Public plugin-authoring runtime helpers. Plugin authors typically don't
+// need these (just call your onRequest function directly in tests), but
+// they're exposed for integration-style tests that want to chain multiple
+// transforms through the same runner meridian uses internally.
+export { runTransformHook, runObserveHook, buildPipeline, createRequestContext } from "./transform"
 import { claudeLog } from "../logger"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
@@ -27,6 +48,10 @@ import { getLastUserMessage } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
+import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
+import { getAdapterTransforms } from "./transforms/registry"
+import { loadPlugins, getActiveTransforms } from "./plugins/loader"
+import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile } from "./profiles"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
@@ -288,6 +313,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // so silently-updated tool definitions force a rebuild.
   const sessionMcpCache = new LRUMap<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>(getMaxSessionsLimit())
 
+  const pluginDir = finalConfig.pluginDir ?? join(homedir(), ".config", "meridian", "plugins")
+  const pluginConfigPath = finalConfig.pluginConfigPath ?? join(homedir(), ".config", "meridian", "plugins.json")
+  let loadedPlugins: LoadedPlugin[] = []
+  let pluginTransforms: ReturnType<typeof getActiveTransforms> = []
+
   const app = new Hono()
 
   app.use("*", cors())
@@ -301,6 +331,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   app.use("/metrics", requireAuth)
   app.use("/profiles/*", requireAuth)
   app.use("/profiles", requireAuth)
+  app.use("/plugins/*", requireAuth)
+  app.use("/plugins", requireAuth)
   app.use("/auth/*", requireAuth)
 
   app.get("/", (c) => {
@@ -381,9 +413,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Examples: "main", "fork-memory-extract", "subagent-scout".
         const requestSource = c.req.header("x-meridian-source")?.slice(0, 64) || undefined
         let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType, agentMode)
-        // Allow adapter to override streaming preference (e.g. LiteLLM requires non-streaming)
-        const adapterStreamPref = adapter.prefersStreaming?.(body)
-        const stream = adapterStreamPref !== undefined ? adapterStreamPref : (body.stream ?? false)
         const workingDirectory = (process.env.MERIDIAN_WORKDIR ?? process.env.CLAUDE_PROXY_WORKDIR) || adapter.extractWorkingDirectory(body) || process.cwd()
 
         // Strip env vars that would cause the SDK subprocess to loop back through
@@ -411,6 +440,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               .join("\n")
           }
         }
+
+        // Run the transform pipeline — adapter transforms populate SDK configuration
+        const adapterTransforms = getAdapterTransforms(adapter.name)
+        const pipeline = buildPipeline(adapterTransforms, pluginTransforms)
+        const pipelineCtx = runTransformHook(pipeline, "onRequest", createRequestContext({
+          adapter: adapter.name,
+          body,
+          headers: c.req.raw.headers,
+          model,
+          messages: body.messages || [],
+          systemContext,
+          tools: body.tools,
+          stream: body.stream ?? false,
+          workingDirectory,
+        }), adapter.name)
+
+        // Allow transform pipeline to override streaming preference (e.g. LiteLLM requires non-streaming)
+        const stream = pipelineCtx.prefersStreaming !== undefined ? pipelineCtx.prefersStreaming : (body.stream ?? false)
 
         // --- SDK parameter passthrough ---
         // Extract effort, thinking, taskBudget from body (standard Anthropic API fields).
@@ -552,20 +599,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           hasSystemPrompt: Boolean(body.system)
         })
 
-      // Build SDK agent definitions and system context hint via adapter.
-      // OpenCode parses the Task tool description; other adapters return empty.
-      const sdkAgents = adapter.buildSdkAgents?.(body, adapter.getAllowedMcpTools()) ?? {}
+      // SDK agent definitions and system context from the transform pipeline.
+      const sdkAgents = pipelineCtx.sdkAgents
       const validAgentNames = Object.keys(sdkAgents)
       if ((process.env.MERIDIAN_DEBUG ?? process.env.CLAUDE_PROXY_DEBUG) && validAgentNames.length > 0) {
         claudeLog("debug.agents", { names: validAgentNames, count: validAgentNames.length })
       }
-      systemContext += adapter.buildSystemContextAddendum?.(body, sdkAgents) ?? ""
+      systemContext = pipelineCtx.systemContext ?? systemContext
 
 
 
       // Adapter-scoped sanitize options (see sanitize.ts).
       const sanitizeOpts: import("./sanitize").SanitizeOptions = {
-        stripSystemReminder: adapter.leaksCwdViaSystemReminder?.() ?? false,
+        stripSystemReminder: pipelineCtx.leaksCwdViaSystemReminder,
       }
 
       // When resuming, only send new messages the SDK doesn't have.
@@ -675,9 +721,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
       // Adapter can override the global passthrough env var per-agent.
       // Droid always uses internal mode; OpenCode defers to the env var.
-      const adapterPassthrough = adapter.usesPassthrough?.()
-      const passthrough = adapterPassthrough !== undefined
-        ? adapterPassthrough
+      const passthrough = pipelineCtx.passthrough !== undefined
+        ? pipelineCtx.passthrough
         : envBool("PASSTHROUGH")
       // SDK setting sources — controls CLAUDE.md and user settings loading.
       const settingSources: import("@anthropic-ai/claude-agent-sdk").SettingSource[] =
@@ -685,7 +730,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           ? ["user", "project"]
           : sdkFeatures.claudeMd === "project"
             ? ["project"]
-            : adapter.getSettingSources?.() ?? []
+            : pipelineCtx.settingSources ?? []
 
       const capturedToolUses: Array<{ id: string; name: string; input: any }> = []
       const fileChanges: FileChange[] = []
@@ -709,7 +754,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (cachedMcp && cachedMcp.key === toolSetKey) {
           passthroughMcp = cachedMcp.mcp
         } else {
-          passthroughMcp = createPassthroughMcpServer(requestTools, adapter.getCoreToolNames?.())
+          passthroughMcp = createPassthroughMcpServer(requestTools, pipelineCtx.coreToolNames ? [...pipelineCtx.coreToolNames] : undefined)
           if (profileSessionId) {
             sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
             if (cachedMcp) {
@@ -721,7 +766,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       }
       const hasDeferredTools = passthroughMcp?.hasDeferredTools ?? false
       // Count deferred tools: when auto-defer is active, non-core tools are deferred
-      const coreNames = adapter.getCoreToolNames?.()
+      const coreNames = pipelineCtx.coreToolNames ? [...pipelineCtx.coreToolNames] : undefined
       const coreSet = coreNames ? new Set(coreNames.map(n => n.toLowerCase())) : undefined
       const deferredToolCount = hasDeferredTools && requestTools.length > 0
         ? requestTools.filter((t: any) => t.defer_loading === true || (coreSet && !coreSet.has(String(t.name).toLowerCase()))).length
@@ -736,7 +781,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // Catches write, edit, AND bash redirects (>, >>, tee, sed -i).
       const mcpPrefix = `mcp__${adapter.getMcpServerName()}__`
       const trackFileChanges = !(process.env.MERIDIAN_NO_FILE_CHANGES ?? process.env.CLAUDE_PROXY_NO_FILE_CHANGES)
-        && adapter.shouldTrackFileChanges?.() !== false
+        && pipelineCtx.shouldTrackFileChanges
       const fileChangeHook = trackFileChanges ? createFileChangeHook(fileChanges, mcpPrefix) : undefined
 
       // Track tools discovered via ToolSearch (deferred tools that get called)
@@ -771,7 +816,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             }],
           }
         : {
-            ...(adapter.buildSdkHooks?.(body, sdkAgents) ?? {}),
+            ...(pipelineCtx.sdkHooks ?? {}),
             ...(fileChangeHook ? { PostToolUse: [fileChangeHook] } : {}),
           }
 
@@ -831,7 +876,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   for await (const event of query(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
-                    resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
+                    resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -871,7 +916,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
-                      resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
+                      resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -1001,7 +1046,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       continue
                     }
                     // Strip thinking blocks — meaningless to non-native clients
-                    if (passthrough && !adapter.supportsThinking?.() && !sdkFeatures.thinkingPassthrough && (b.type === "thinking" || b.type === "redacted_thinking")) {
+                    if (passthrough && !pipelineCtx.supportsThinking && !sdkFeatures.thinkingPassthrough && (b.type === "thinking" || b.type === "redacted_thinking")) {
                       claudeLog("passthrough.thinking_stripped", { mode: "non_stream", type: b.type })
                       continue
                     }
@@ -1073,10 +1118,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // - Internal mode: fileChanges populated by PostToolUse hook
           // - Passthrough mode: scan body.messages for executed tool_use blocks
           if (trackFileChanges) {
-            if (passthrough && stopReason === "end_turn" && adapter.extractFileChangesFromToolUse) {
+            if (passthrough && stopReason === "end_turn" && pipelineCtx.extractFileChangesFromToolUse) {
               const passthroughChanges = extractFileChangesFromMessages(
                 body.messages || [],
-                adapter.extractFileChangesFromToolUse.bind(adapter)
+                pipelineCtx.extractFileChangesFromToolUse
               )
               fileChanges.push(...passthroughChanges)
             }
@@ -1124,6 +1169,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             requestId: requestMeta.requestId,
             timestamp: Date.now(),
             adapter: adapter.name,
+            requestSource,
             model,
             requestModel: body.model || undefined,
             mode: "non-stream",
@@ -1252,7 +1298,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     for await (const event of query(buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
-                      resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
+                      resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -1289,7 +1335,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
-                        resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, adapter, onStderr,
+                        resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                         effort, thinking, taskBudget, betas, settingSources,
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt ? true : undefined, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -1468,7 +1514,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       // encrypted signature field.
                       if (
                         passthrough &&
-                        !adapter.supportsThinking?.() && !sdkFeatures.thinkingPassthrough &&
+                        !pipelineCtx.supportsThinking && !sdkFeatures.thinkingPassthrough &&
                         (block?.type === "thinking" || block?.type === "redacted_thinking")
                       ) {
                         if (eventIndex !== undefined) skipBlockIndices.add(eventIndex)
@@ -1639,10 +1685,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 }
 
                 // Passthrough mode: scan body.messages for file changes on end_turn
-                if (trackFileChanges && passthrough && adapter.extractFileChangesFromToolUse) {
+                if (trackFileChanges && passthrough && pipelineCtx.extractFileChangesFromToolUse) {
                   const passthroughChanges = extractFileChangesFromMessages(
                     body.messages || [],
-                    adapter.extractFileChangesFromToolUse.bind(adapter)
+                    pipelineCtx.extractFileChangesFromToolUse
                   )
                   fileChanges.push(...passthroughChanges)
                 }
@@ -1722,6 +1768,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   requestId: requestMeta.requestId,
                   timestamp: Date.now(),
                   adapter: adapter.name,
+            requestSource,
                   model,
                   requestModel: body.model || undefined,
                   mode: "stream",
@@ -2034,6 +2081,50 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return c.json({ success: true, activeProfile: body.profile })
   })
 
+  // --- Plugin management routes ---
+
+  app.get("/plugins/list", async (c) => {
+    const { getPluginStats } = await import("./plugins/stats")
+    return c.json({
+      plugins: loadedPlugins.map(p => ({
+        name: p.name,
+        description: p.description,
+        version: p.version,
+        adapters: p.adapters,
+        hooks: p.hooks,
+        status: p.status,
+        path: p.path,
+        ...(p.error ? { error: p.error } : {}),
+        ...(p.status === "active" ? { stats: getPluginStats(p.name) } : {}),
+      })),
+    })
+  })
+
+  app.post("/plugins/reload", async (c) => {
+    try {
+      loadedPlugins = await loadPlugins(pluginDir, pluginConfigPath)
+      pluginTransforms = getActiveTransforms(loadedPlugins)
+      const active = loadedPlugins.filter(p => p.status === "active").length
+      console.error(`[PROXY] Plugins reloaded: ${active} active`)
+      return c.json({
+        success: true,
+        plugins: loadedPlugins.map(p => ({
+          name: p.name,
+          status: p.status,
+          hooks: p.hooks,
+          ...(p.error ? { error: p.error } : {}),
+        })),
+      })
+    } catch (err) {
+      return c.json({ success: false, error: String(err) }, 500)
+    }
+  })
+
+  app.get("/plugins", async (c) => {
+    const { pluginPageHtml } = await import("./plugins/pluginPage")
+    return c.html(pluginPageHtml)
+  })
+
   app.post("/auth/refresh", async (c) => {
     const success = await refreshOAuthToken()
     if (success) {
@@ -2213,12 +2304,28 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return c.json({ error: { type: "not_found", message: `Endpoint not supported: ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
   })
 
-  return { app, config: finalConfig }
+  async function initPluginsAsync(): Promise<void> {
+    try {
+      loadedPlugins = await loadPlugins(pluginDir, pluginConfigPath)
+      pluginTransforms = getActiveTransforms(loadedPlugins)
+      if (loadedPlugins.length > 0) {
+        const active = loadedPlugins.filter(p => p.status === "active").length
+        const disabled = loadedPlugins.filter(p => p.status === "disabled").length
+        const errored = loadedPlugins.filter(p => p.status === "error").length
+        console.error(`[PROXY] Plugins loaded: ${active} active, ${disabled} disabled, ${errored} errors`)
+      }
+    } catch (err) {
+      console.error(`[PROXY] Plugin loading failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  return { app, config: finalConfig, initPlugins: initPluginsAsync }
 }
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
   claudeExecutable = await resolveClaudeExecutableAsync()
-  const { app, config: finalConfig } = createProxyServer(config)
+  const { app, config: finalConfig, initPlugins } = createProxyServer(config)
+  if (initPlugins) await initPlugins()
 
   const server = serve({
     fetch: app.fetch,

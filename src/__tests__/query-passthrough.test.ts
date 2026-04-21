@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from "bun:test"
 import { buildQueryOptions, type QueryContext } from "../proxy/query"
-import { openCodeAdapter } from "../proxy/adapters/opencode"
+import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 
 function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
   return {
@@ -18,7 +18,10 @@ function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
     cleanEnv: {},
     hasDeferredTools: false,
     isUndo: false,
-    adapter: openCodeAdapter,
+    blockedTools: BLOCKED_BUILTIN_TOOLS,
+    incompatibleTools: CLAUDE_CODE_ONLY_TOOLS,
+    mcpServerName: MCP_SERVER_NAME,
+    allowedMcpTools: ALLOWED_MCP_TOOLS,
     ...overrides,
   }
 }

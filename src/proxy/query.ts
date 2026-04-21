@@ -7,7 +7,6 @@
 
 import { join } from "node:path"
 import { homedir } from "node:os"
-import type { AgentAdapter } from "./adapter"
 import type { Options, SdkBeta, SettingSource } from "@anthropic-ai/claude-agent-sdk"
 import { createOpencodeMcpServer } from "../mcpTools"
 import { createPassthroughMcpServer, PASSTHROUGH_MCP_NAME } from "./passthroughTools"
@@ -43,8 +42,14 @@ export interface QueryContext {
   undoRollbackUuid?: string
   /** SDK hooks (PreToolUse etc.) */
   sdkHooks?: any
-  /** The agent adapter providing tool configuration */
-  adapter: AgentAdapter
+  /** Blocked SDK built-in tools (from pipeline) */
+  blockedTools: readonly string[]
+  /** Agent-incompatible tools (from pipeline) */
+  incompatibleTools: readonly string[]
+  /** MCP server name for this adapter */
+  mcpServerName: string
+  /** Allowed MCP tools (from pipeline) */
+  allowedMcpTools: readonly string[]
   /** Callback to receive stderr lines from the Claude subprocess */
   onStderr?: (line: string) => void
   /** Effort level — controls thinking depth (low/medium/high/max) */
@@ -112,14 +117,13 @@ export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
   const {
     prompt, model, workingDirectory, systemContext, claudeExecutable,
     passthrough, stream, sdkAgents, passthroughMcp, cleanEnv, hasDeferredTools,
-    resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, adapter, onStderr,
+    resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools, incompatibleTools,
+    mcpServerName, allowedMcpTools, onStderr,
     effort, thinking, taskBudget, betas, settingSources, codeSystemPrompt, clientSystemPrompt,
     memory, dreaming, sharedMemory, maxBudgetUsd, fallbackModel, sdkDebug, additionalDirectories,
   } = ctx
 
-  const blockedTools = [...adapter.getBlockedBuiltinTools(), ...adapter.getAgentIncompatibleTools()]
-  const mcpServerName = adapter.getMcpServerName()
-  const allowedMcpTools = [...adapter.getAllowedMcpTools()]
+  const allBlockedTools = [...blockedTools, ...incompatibleTools]
 
   return {
     prompt,
@@ -148,15 +152,15 @@ export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
       ...resolveSystemPrompt(systemContext, passthrough, settingSources, codeSystemPrompt, clientSystemPrompt),
       ...(passthrough
         ? {
-            disallowedTools: blockedTools,
+            disallowedTools: [...allBlockedTools],
             ...(passthroughMcp ? {
-              allowedTools: passthroughMcp.toolNames,
+              allowedTools: [...passthroughMcp.toolNames],
               mcpServers: { [PASSTHROUGH_MCP_NAME]: passthroughMcp.server },
             } : {}),
           }
         : {
-            disallowedTools: blockedTools,
-            allowedTools: allowedMcpTools,
+            disallowedTools: [...allBlockedTools],
+            allowedTools: [...allowedMcpTools],
             mcpServers: { [mcpServerName]: createOpencodeMcpServer() },
           }),
       plugins: [],

@@ -9,12 +9,12 @@ import type { Context } from "hono"
 import type { SettingSource } from "@anthropic-ai/claude-agent-sdk"
 
 /**
- * An agent adapter provides agent-specific configuration to the proxy.
- * The proxy calls these methods during request handling to determine
- * how to interact with the calling agent.
+ * Core identity of an agent — detection, session tracking, CWD extraction.
+ * This is the minimal interface for agent recognition. Behavioral customization
+ * (tool filtering, system prompt modifications, hooks) lives in Transform objects.
  */
-export interface AgentAdapter {
-  /** Human-readable name for logging */
+export interface AgentIdentity {
+  /** Human-readable name for logging and transform scoping */
   readonly name: string
 
   /**
@@ -36,6 +36,19 @@ export interface AgentAdapter {
   normalizeContent(content: any): string
 
   /**
+   * The MCP server name used by this agent.
+   * Tools are registered as `mcp__{name}__{tool}`.
+   */
+  getMcpServerName(): string
+}
+
+/**
+ * An agent adapter provides agent-specific configuration to the proxy.
+ * The proxy calls these methods during request handling to determine
+ * how to interact with the calling agent.
+ */
+export interface AgentAdapter extends AgentIdentity {
+  /**
    * SDK built-in tools to block (replaced by MCP equivalents).
    * These are tools where the agent provides its own implementation.
    */
@@ -47,12 +60,6 @@ export interface AgentAdapter {
    * can't handle.
    */
   getAgentIncompatibleTools(): readonly string[]
-
-  /**
-   * The MCP server name used by this agent.
-   * Tools are registered as `mcp__{name}__{tool}`.
-   */
-  getMcpServerName(): string
 
   /**
    * MCP tools that are allowed through the proxy's tool filter.
