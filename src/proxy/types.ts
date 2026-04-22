@@ -32,10 +32,25 @@ export interface ProxyConfig {
    */
   persistentSessionMutexWaitMs?: number
   /**
-   * Idle timeout (ms) for pending deferred-handler promises. When a client
-   * abandons a passthrough tool call (never returns with tool_result), the
-   * handler's promise is rejected after this interval so the SDK unblocks
-   * and the runtime can be cleaned up. Default matches `persistentSessionIdleMs`.
+   * Opt-in per-handler idle timeout (ms) for pending deferred-handler
+   * promises. When set, a pending handler whose `tool_use_id` has not been
+   * resolved within this interval has its promise rejected so the SDK
+   * unblocks.
+   *
+   * **Default: unset (`Infinity`).** Earlier versions defaulted to 900 000
+   * ms, which silently rejected handlers for tools that legitimately ran
+   * long (cargo builds, subagent dispatches, benchmarks). Because the timer
+   * fires on wall-clock elapsed time with no signal from the client, it
+   * cannot distinguish "tool is still working" from "client abandoned the
+   * tool" and so was wrong by default. Session-level abandonment is now
+   * caught by the idle-eviction sweep (`persistentSessionIdleMs`) which is
+   * gated on `pendingCount === 0` so pending-handler runtimes are never
+   * evicted silently; graceful shutdown (`ProxyInstance.close`) rejects all
+   * pending handlers unconditionally within its 10 s budget.
+   *
+   * Operators who want a hard per-handler ceiling (e.g. cost-bounding on
+   * shared deployments) may opt in by setting this field. Leaving it unset
+   * is the correct default for single-user workflows.
    */
   persistentPendingExecutionTimeoutMs?: number
 }
@@ -78,5 +93,7 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   persistentSessionIdleMs: 900_000,      // 15 min
   persistentSessionMaxLive: 32,
   persistentSessionMutexWaitMs: 30_000,  // 30 s
-  persistentPendingExecutionTimeoutMs: 900_000, // matches idle eviction
+  // persistentPendingExecutionTimeoutMs intentionally unset — a pending
+  // handler lives as long as its client is still engaged with the session.
+  // See the field's doc-comment for the full rationale.
 }

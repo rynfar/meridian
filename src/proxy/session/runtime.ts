@@ -350,10 +350,17 @@ export interface SessionRuntimeInit {
   /** Current time source — overridable in tests. */
   now?: () => number
   /**
-   * Idle timeout (ms) for pending deferred-handler promises. When a client
-   * abandons a tool call (never returns with tool_result), the handler
-   * rejects after this interval so the SDK unblocks + runtime can be
-   * recovered or evicted (§5.12f). Default `Infinity` (no timeout).
+   * Opt-in per-handler idle timeout (ms) for pending deferred-handler
+   * promises. Default `Infinity` (no timer). See
+   * `ProxyConfig.persistentPendingExecutionTimeoutMs` for the full rationale
+   * — briefly: wall-clock elapsed time is not a reliable abandonment signal
+   * because tools with unknown durations (subagents, builds, benchmarks)
+   * legitimately run longer than any fixed threshold, and rejecting their
+   * handlers mid-execution poisons the SDK's conversation state. Abandonment
+   * is detected at the session level via the idle-eviction sweep, which is
+   * gated on `pendingCount === 0`; graceful shutdown rejects all pending
+   * handlers unconditionally. Operators can still opt in to a per-handler
+   * ceiling by setting this field.
    */
   pendingExecutionTimeoutMs?: number
 }
@@ -507,6 +514,11 @@ export function createSessionRuntime(init: SessionRuntimeInit): SessionRuntime {
       if (closed) {
         throw new Error(`SessionRuntime ${init.profileSessionId} is closed`)
       }
+      // Registering a pending handler IS activity on this runtime — the SDK
+      // is actively mid-turn and the client is about to execute a tool. Bump
+      // lastActivity so the idle-eviction sweep doesn't misclassify a
+      // slow-but-alive session as abandoned.
+      runtime.lastActivity = Date.now()
       // Fast path: the client's tool_result arrived before this handler
       // fired (parallel tool_use in one assistant message). Serve from the
       // prebound buffer and skip the pending registry entirely.
@@ -553,6 +565,9 @@ export function createSessionRuntime(init: SessionRuntimeInit): SessionRuntime {
 
     prebindPendingResult(toolUseId: string, content: string): void {
       if (closed) return
+      // Prebind is activity — the client has delivered a tool_result for a
+      // handler that hasn't registered yet. Bump lastActivity.
+      runtime.lastActivity = Date.now()
       // If a handler is already pending (rare but possible if classification
       // picked this id up as prebind while a race concurrently registered),
       // resolve it directly instead of buffering.
@@ -567,6 +582,8 @@ export function createSessionRuntime(init: SessionRuntimeInit): SessionRuntime {
     resolvePendingExecution(toolUseId: string, content: string): boolean {
       const entry = pending.get(toolUseId)
       if (!entry) return false
+      // Client delivered a real tool_result — definitive activity signal.
+      runtime.lastActivity = Date.now()
       entry.resolve(content)
       return true
     },
@@ -574,6 +591,10 @@ export function createSessionRuntime(init: SessionRuntimeInit): SessionRuntime {
     rejectPendingExecution(toolUseId: string, err: unknown): boolean {
       const entry = pending.get(toolUseId)
       if (!entry) return false
+      // Explicit rejection (client cancel, adapter error) is activity; the
+      // next HTTP turn should find a healthy runtime, not an idle-evicted
+      // one.
+      runtime.lastActivity = Date.now()
       entry.reject(err)
       return true
     },
@@ -584,7 +605,7 @@ export function createSessionRuntime(init: SessionRuntimeInit): SessionRuntime {
         try { entry.reject(err) } catch { /* ignore */ }
       }
       pending.clear()
-      // Clear any outstanding idle timers so they don't fire post-close.
+      // Clear any outstanding opt-in idle timers so they don't fire post-reject.
       for (const [, h] of pendingTimeouts) clearTimeout(h)
       pendingTimeouts.clear()
       return count
@@ -731,14 +752,32 @@ export function createSessionRuntimeManager(config: SessionRuntimeManagerConfig)
         // close the SDK query out from under the holder. The next sweep
         // pass will catch it once the turn releases.
         if (runtime.turnInFlight) continue
+        // Skip runtimes with pending deferred-handler registrations. A
+        // pending handler means the SDK is mid-turn waiting on the client
+        // to execute a tool and return its result. The client is NOT idle
+        // — it's busy running the tool locally. Evicting here would
+        // (a) reject the pending handler, poisoning the SDK conversation
+        // with a synthetic error tool_result the client never saw, and
+        // (b) make the late tool_result land on a cold-reattached runtime
+        // whose pending registry is empty, producing stale/empty
+        // responses on the next HTTP turn. See
+        // [[Meridian Pending-Handler Timeout RCA (2026-04-21)]] for the
+        // full incident report. Idle eviction only applies to runtimes
+        // that are genuinely idle (no tool in flight, no recent HTTP
+        // activity); pending-handler runtimes are guarded until either
+        // the client returns, `ProxyInstance.close()` fires the
+        // unconditional shutdown reject, or an operator-configured per-
+        // handler ceiling (`persistentPendingExecutionTimeoutMs`) fires.
+        if (runtime.pendingCount > 0) continue
         if (runtime.lastActivity < cutoff) toEvict.push(key)
       }
       for (const key of toEvict) {
         const r = map.get(key)
         if (!r) continue
-        // Re-check turnInFlight just before dropping; a request may have
-        // raced in between the scan and now.
+        // Re-check turnInFlight + pendingCount just before dropping; a
+        // request may have raced in between the scan and now.
         if (r.turnInFlight) continue
+        if (r.pendingCount > 0) continue
         map.delete(key)
         counters.live = Math.max(0, counters.live - 1)
         emit("evict", key)

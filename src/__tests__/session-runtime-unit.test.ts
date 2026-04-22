@@ -654,6 +654,88 @@ describe("SessionRuntimeManager", () => {
     expect(busyStale.closed).toBe(true)
   })
 
+  it("sweepIdle does NOT evict runtimes with pendingCount > 0 even when past the idle cutoff", async () => {
+    // Regression for Meridian Pending-Handler Timeout RCA (2026-04-21). A
+    // runtime with pending deferred handlers is mid-turn waiting on the
+    // client to execute a tool; the client is busy running the tool
+    // locally rather than talking to meridian. `lastActivity` can
+    // therefore stagnate legitimately — but evicting here would reject
+    // the pending handler, poison the SDK conversation, and produce
+    // stale/empty responses on the next HTTP turn.
+    let clock = 1_000_000
+    const mgr = createSessionRuntimeManager({ idleMs: 1000, maxLive: 4, now: () => clock })
+    const longToolRuntime = makeRuntime("long-tool", clock - 10_000) // way past cutoff
+    const idleRuntime = makeRuntime("plain-idle", clock - 10_000)
+    mgr.put(longToolRuntime); mgr.put(idleRuntime)
+
+    // Register a pending handler on the long-tool runtime to simulate a
+    // tool that's still executing on the client side.
+    const pending = longToolRuntime.registerPendingExecution("toolu_long")
+    expect(longToolRuntime.pendingCount).toBe(1)
+
+    const evicted = await mgr.sweepIdle()
+    expect(evicted).toBe(1)
+    expect(mgr.get("plain-idle")).toBeUndefined()
+    expect(mgr.get("long-tool")).toBe(longToolRuntime) // protected
+    expect(longToolRuntime.closed).toBe(false)
+
+    // Client finally returns the tool_result — runtime resolves cleanly
+    // and is now eligible for eviction on a subsequent sweep once the
+    // post-resolve activity ages past the idle cutoff. Simulate that by
+    // pushing lastActivity back into the stale window (the real clock
+    // moves; the mocked manager clock does not).
+    longToolRuntime.resolvePendingExecution("toolu_long", "result")
+    await pending
+    expect(longToolRuntime.pendingCount).toBe(0)
+    longToolRuntime.lastActivity = clock - 10_000
+
+    const evicted2 = await mgr.sweepIdle()
+    expect(evicted2).toBe(1)
+    expect(mgr.get("long-tool")).toBeUndefined()
+    expect(longToolRuntime.closed).toBe(true)
+  })
+
+  it("registerPendingExecution bumps lastActivity so the runtime isn't instantly eligible for eviction", async () => {
+    const runtime = makeRuntime("r", 1) // ancient
+    const before = runtime.lastActivity
+    const pending = runtime.registerPendingExecution("toolu_x")
+    pending.catch(() => {}) // avoid unhandled-rejection when we reject below
+    expect(runtime.lastActivity).toBeGreaterThanOrEqual(before) // never regresses
+    // For a freshly-registered handler the runtime's lastActivity should
+    // be very close to Date.now(), not the 10_000-old value.
+    expect(Date.now() - runtime.lastActivity).toBeLessThan(1000)
+    runtime.rejectPendingExecution("toolu_x", new Error("cleanup"))
+    await pending.catch(() => {})
+  })
+
+  it("resolvePendingExecution + prebindPendingResult each bump lastActivity", () => {
+    const runtime = createSessionRuntime({
+      profileSessionId: "r",
+      query: fakeQuery([]),
+      inputQueue: createAsyncQueue<SDKUserMessage>(),
+    })
+    runtime.lastActivity = 1 // ancient
+    runtime.prebindPendingResult("toolu_pre", "prebound")
+    expect(runtime.lastActivity).toBeGreaterThan(1_000_000) // bumped near Date.now()
+
+    runtime.lastActivity = 1
+    runtime.registerPendingExecution("toolu_r") // registers pending; also bumps
+    runtime.lastActivity = 1 // reset to test resolvePendingExecution explicitly
+    runtime.resolvePendingExecution("toolu_r", "x")
+    expect(runtime.lastActivity).toBeGreaterThan(1_000_000)
+  })
+
+  it("closeAll unconditionally rejects pending handlers (graceful shutdown overrides the pendingCount guard)", async () => {
+    const mgr = createSessionRuntimeManager({ idleMs: 1000, maxLive: 4 })
+    const r = makeRuntime("r", Date.now())
+    mgr.put(r)
+    const pending = r.registerPendingExecution("toolu_shutdown")
+    expect(r.pendingCount).toBe(1)
+    await mgr.closeAll()
+    expect(r.closed).toBe(true)
+    await expect(pending).rejects.toThrow(/closed/)
+  })
+
   it("closeAll closes every runtime and empties the map", async () => {
     const mgr = createSessionRuntimeManager({ idleMs: 1000, maxLive: 4 })
     const a = makeRuntime("a", Date.now())

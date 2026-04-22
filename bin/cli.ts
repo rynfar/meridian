@@ -41,7 +41,9 @@ Environment variables:
   MERIDIAN_PERSISTENT_IDLE_MS       Idle eviction (default: 900000 = 15 min)
   MERIDIAN_PERSISTENT_MAX_LIVE      Hard cap on concurrent live runtimes (default: 32)
   MERIDIAN_PERSISTENT_MUTEX_WAIT_MS Per-turn mutex wait cap → HTTP 429 on timeout (default: 30000)
-  MERIDIAN_PERSISTENT_PENDING_TIMEOUT_MS Deferred-handler idle timeout (default: 900000)
+  MERIDIAN_PERSISTENT_PENDING_TIMEOUT_MS Opt-in per-handler ceiling (default: unset = Infinity).
+                                    Leave unset for correct handling of long tools (subagents, builds);
+                                    set only if you need a hard upper bound on individual tool duration.
 
 See https://github.com/rynfar/meridian for full documentation.`)
   process.exit(0)

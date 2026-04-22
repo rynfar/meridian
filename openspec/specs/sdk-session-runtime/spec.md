@@ -108,13 +108,18 @@ When a request signals an undo or fork operation (existing lineage classificatio
 
 ### Requirement: LRU eviction bounds live-query memory
 
-The system SHALL enforce an LRU eviction policy on the live-query map with two tunable limits: an idle timeout (default 15 min) and a hard cap on concurrent live queries (default 32). On eviction, `liveQuery.close()` SHALL be called; the session SHALL remain resumable from disk.
+The system SHALL enforce an LRU eviction policy on the live-query map with two tunable limits: an idle timeout (default 15 min) and a hard cap on concurrent live queries (default 32). On eviction, `liveQuery.close()` SHALL be called; the session SHALL remain resumable from disk. Idle eviction SHALL NOT fire on runtimes that hold pending deferred-handler registrations — those runtimes are actively waiting on a client-executed tool and are, by protocol definition, "busy" rather than "idle" regardless of how long the tool has been running. See [[Meridian Pending-Handler Timeout RCA (2026-04-21)]] for why a wall-clock idle check against pending-handler runtimes poisoned conversation state in the original implementation.
 
 #### Scenario: Idle eviction after timeout
-- **WHEN** a runtime's `lastActivity` is older than `persistentSessionIdleMs` and no mutex is held
+- **WHEN** a runtime's `lastActivity` is older than `persistentSessionIdleMs`, no mutex is held, **and** `pendingCount === 0`
 - **THEN** the system SHALL call `liveQuery.close()`
 - **AND** the system SHALL remove the runtime from the live-query map
 - **AND** the entry in `sessionStore` SHALL be preserved so the next request can cold-reattach
+
+#### Scenario: Idle sweep skips runtimes with pending deferred handlers
+- **WHEN** a runtime's `lastActivity` is older than `persistentSessionIdleMs` but `pendingCount > 0`
+- **THEN** the system SHALL NOT evict it
+- **AND** the runtime SHALL remain live until either the client resolves the pending handler(s) or `ProxyInstance.close()` fires the unconditional graceful-shutdown reject
 
 #### Scenario: Hard cap eviction when creating a new runtime
 - **WHEN** a new runtime is about to be created and the live-query map is at `persistentSessionMaxLive`
@@ -139,10 +144,16 @@ The system SHALL execute passthrough (client-executed) tools via a deferred-hand
 - **AND** the SDK SHALL produce a final assistant response that combines all tool outputs
 
 #### Scenario: Pending handler rejection does not corrupt the runtime
-- **WHEN** a pending handler's promise is rejected (idle timeout, explicit cancellation, or graceful shutdown)
+- **WHEN** a pending handler's promise is rejected (explicit cancellation, graceful shutdown, or an opt-in per-handler ceiling set by the operator via `persistentPendingExecutionTimeoutMs`)
 - **THEN** the SDK SHALL receive an error tool_result and continue turn processing
 - **AND** the runtime SHALL remain usable for subsequent turns, OR the runtime SHALL be cleanly evicted as part of a timeout policy
 - **AND** the client's subsequent request SHALL either find a healthy runtime or a cold-reattach path
+
+#### Scenario: Pending handlers protect their runtime from wall-clock idle eviction
+- **WHEN** a passthrough tool is executing for longer than `persistentSessionIdleMs` and the runtime has at least one pending deferred handler
+- **THEN** the system SHALL NOT reject the pending handler based on wall-clock elapsed time
+- **AND** the system SHALL NOT evict the runtime via the idle sweep
+- **AND** the runtime SHALL remain live until the client returns the real `tool_result` or an explicit lifecycle event (`ProxyInstance.close`, operator-configured per-handler ceiling, LRU hard-cap pressure) fires
 
 #### Scenario: Tool-surface change across turns reopens the runtime
 - **WHEN** a request's tool set differs from the runtime's snapshot (detected by options hash mismatch)
