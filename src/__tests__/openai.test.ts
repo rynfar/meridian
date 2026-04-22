@@ -449,8 +449,8 @@ describe("buildModelList", () => {
   })
 
   it("haiku is always 200k regardless of subscription", () => {
-    expect(buildModelList(true).find(m => m.id === "claude-haiku-4-5-20251001")!.context_window).toBe(200_000)
-    expect(buildModelList(false).find(m => m.id === "claude-haiku-4-5-20251001")!.context_window).toBe(200_000)
+    expect(buildModelList(true).find(m => m.id === "claude-haiku-4-5")!.context_window).toBe(200_000)
+    expect(buildModelList(false).find(m => m.id === "claude-haiku-4-5")!.context_window).toBe(200_000)
   })
 
   it("all models have correct object type", () => {

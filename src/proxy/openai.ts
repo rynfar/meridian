@@ -423,7 +423,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       context_window: isMaxSubscription ? 1_000_000 : 200_000,
     },
     {
-      id: "claude-haiku-4-5-20251001",
+      id: "claude-haiku-4-5",
       object: "model",
       created: now,
       owned_by: "anthropic",

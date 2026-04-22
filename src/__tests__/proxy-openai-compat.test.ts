@@ -379,14 +379,14 @@ describe("GET /v1/models", () => {
     expect(data.length).toBeGreaterThan(0)
   })
 
-  it("includes claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5-20251001", async () => {
+  it("includes claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5", async () => {
     const app = createTestApp()
     const res = await app.fetch(new Request("http://localhost/v1/models"))
     const body = await res.json() as Record<string, unknown>
     const ids = (body.data as Array<Record<string, unknown>>).map(m => m.id)
     expect(ids).toContain("claude-sonnet-4-6")
     expect(ids).toContain("claude-opus-4-6")
-    expect(ids).toContain("claude-haiku-4-5-20251001")
+    expect(ids).toContain("claude-haiku-4-5")
   })
 
   it("each model has required fields", async () => {
