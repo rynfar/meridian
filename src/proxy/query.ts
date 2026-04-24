@@ -94,6 +94,31 @@ export interface BuildQueryResult {
   options: Options
 }
 
+/**
+ * NOTE: agent-specific (passthrough mode).
+ *
+ * Compute maxTurns based on which SDK features are active. Each phase the SDK
+ * walks before returning control to the host costs a turn:
+ *   - Base (2): turn 1 generates tool_use blocks (captured by PreToolUse hook),
+ *     turn 2 processes the blocked-tool handoff. maxTurns: 1 throws "Reached
+ *     maximum number of turns (1)" before the response completes → HTTP 500.
+ *   - Resume (+1): SDK spends a turn rehydrating session state.
+ *   - Deferred tools (+1): ToolSearch consumes a turn before the real tool call.
+ *   - Both resume and deferred tools: each consumes its own turn, so the base
+ *     budget becomes 4 rather than 3.
+ *   - Advisor (+3): server-side advisor executes call + result + final answer.
+ */
+function computePassthroughMaxTurns(
+  resumeSessionId: string | undefined,
+  hasDeferredTools: boolean,
+  advisorModel: string | undefined,
+): number {
+  const hasResume = !!resumeSessionId
+  const base = hasResume && hasDeferredTools ? 4 : (hasResume || hasDeferredTools) ? 3 : 2
+  const advisorBump = advisorModel ? 3 : 0
+  return base + advisorBump
+}
+
 function resolveSystemPrompt(
   systemContext: string | undefined,
   passthrough: boolean,
@@ -135,24 +160,8 @@ export function buildQueryOptions(ctx: QueryContext): BuildQueryResult {
       // Hosts like OpenCode embed Bun, so the check fires even when `bun`
       // is not in PATH — causing subprocess spawns to fail.
       executable: "node" as const,
-      // NOTE: agent-specific (passthrough mode) — 2 turns minimum, not 1.
-      // Turn 1: model generates tool_use blocks (captured by PreToolUse hook).
-      // Turn 2: SDK processes the blocked-tool handoff before the generator
-      //         returns. maxTurns: 1 throws "Reached maximum number of turns (1)"
-      //         before the response is complete, causing HTTP 500s.
-      // On resume: the SDK may spend a turn rehydrating session state before
-      // the model responds, so allow 3 turns to prevent "max turns (2)" errors.
-      // With deferred tools: ToolSearch consumes a turn before the actual tool
-      // call, so allow 3 turns to give room for search + call + handoff.
-      // With BOTH resume and deferred tools: rehydration + ToolSearch + call +
-      // handoff each need their own turn, so allow 4 turns to prevent
-      // "max turns (3)" errors when both extensions are active simultaneously.
-      // With advisor: the SDK executes the advisor server-side (call + result +
-      // final answer), requiring additional turns beyond the base passthrough limit.
       maxTurns: passthrough
-        ? (resumeSessionId && hasDeferredTools
-            ? 4
-            : (resumeSessionId || hasDeferredTools) ? 3 : 2) + (ctx.advisorModel ? 3 : 0)
+        ? computePassthroughMaxTurns(resumeSessionId, hasDeferredTools, ctx.advisorModel)
         : 200,
       cwd: workingDirectory,
       model,

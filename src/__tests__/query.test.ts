@@ -89,6 +89,16 @@ describe("buildQueryOptions", () => {
     expect(result.options.maxTurns).toBe(6)
   })
 
+  it("sets maxTurns to 7 in passthrough mode with advisor + resume + deferred tools (all three active)", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      advisorModel: "claude-opus-4-7",
+      resumeSessionId: "sess-123",
+      hasDeferredTools: true,
+    }))
+    expect(result.options.maxTurns).toBe(7)
+  })
+
   it("does not bump maxTurns in non-passthrough mode when advisor is set", () => {
     const result = buildQueryOptions(makeContext({ advisorModel: "claude-opus-4-7" }))
     expect(result.options.maxTurns).toBe(200)
