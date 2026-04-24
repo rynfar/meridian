@@ -11,6 +11,39 @@ import { promisify } from "util"
 const exec = promisify(execCallback)
 
 export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku"
+
+/**
+ * Current canonical pins for the `sonnet`/`opus`/`haiku` SDK aliases.
+ *
+ * mapModelToClaudeModel collapses every requested model to one of these
+ * aliases; the Claude Agent SDK then resolves the alias to a concrete
+ * version via ANTHROPIC_DEFAULT_{TYPE}_MODEL env vars. When those env
+ * vars are unset the SDK falls back to its own bundled defaults, which
+ * lag real Claude Max availability — users end up routed to stale
+ * versions (this was the root cause of #419: opus-* requests silently
+ * answering as sonnet-4).
+ *
+ * Meridian now pins these defaults itself at the SDK subprocess boundary
+ * so fresh installs behave correctly out of the box. Users can still
+ * override via MERIDIAN_DEFAULT_{TYPE}_MODEL (proxy-side) or
+ * ANTHROPIC_DEFAULT_{TYPE}_MODEL (shell env, wins over Meridian's pin).
+ */
+export const CANONICAL_OPUS_MODEL = "claude-opus-4-7"
+export const CANONICAL_SONNET_MODEL = "claude-sonnet-4-6"
+export const CANONICAL_HAIKU_MODEL = "claude-haiku-4-5"
+
+/**
+ * Build the ANTHROPIC_DEFAULT_{TYPE}_MODEL env record to apply before the
+ * inherited process env, so user-set shell values still win but unset
+ * variables get Meridian's canonical pins.
+ */
+export function resolveSdkModelDefaults(): Record<string, string> {
+  return {
+    ANTHROPIC_DEFAULT_OPUS_MODEL: process.env.MERIDIAN_DEFAULT_OPUS_MODEL ?? CANONICAL_OPUS_MODEL,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: process.env.MERIDIAN_DEFAULT_SONNET_MODEL ?? CANONICAL_SONNET_MODEL,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: process.env.MERIDIAN_DEFAULT_HAIKU_MODEL ?? CANONICAL_HAIKU_MODEL,
+  }
+}
 export interface ClaudeAuthStatus {
   loggedIn?: boolean
   subscriptionType?: string
