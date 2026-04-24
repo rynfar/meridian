@@ -161,3 +161,64 @@ describe("Environment variable stripping", () => {
     expect(capturedQueryOptions.env.ANTHROPIC_BASE_URL).toBeUndefined()
   })
 })
+
+describe("SDK model pin injection (fixes #419)", () => {
+  const modelEnvKeys = [
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "MERIDIAN_DEFAULT_OPUS_MODEL",
+    "MERIDIAN_DEFAULT_SONNET_MODEL",
+    "MERIDIAN_DEFAULT_HAIKU_MODEL",
+  ]
+  const savedModelEnv: Record<string, string | undefined> = {}
+
+  beforeEach(() => {
+    capturedQueryOptions = null
+    clearSessionCache()
+    for (const k of modelEnvKeys) {
+      savedModelEnv[k] = process.env[k]
+      delete process.env[k]
+    }
+  })
+
+  afterEach(() => {
+    for (const [k, v] of Object.entries(savedModelEnv)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+  })
+
+  it("injects Meridian's canonical model pins when no shell env is set", async () => {
+    const app = createTestApp()
+    await post(app, BASIC_REQUEST)
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-4-7")
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-4-6")
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-4-5")
+  })
+
+  it("shell ANTHROPIC_DEFAULT_* values win over Meridian's pins", async () => {
+    process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = "claude-opus-4-1-20250805"
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-4-20250514"
+    process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "claude-haiku-4-custom"
+    const app = createTestApp()
+    await post(app, BASIC_REQUEST)
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-4-1-20250805")
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-4-20250514")
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-4-custom")
+  })
+
+  it("MERIDIAN_DEFAULT_OPUS_MODEL overrides the canonical pin but not a shell ANTHROPIC_DEFAULT_OPUS_MODEL", async () => {
+    process.env.MERIDIAN_DEFAULT_OPUS_MODEL = "claude-opus-custom"
+    const app = createTestApp()
+    await post(app, BASIC_REQUEST)
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-custom")
+
+    // Now add a shell env — it wins over MERIDIAN_ too.
+    process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = "claude-opus-shell-wins"
+    clearSessionCache()
+    const app2 = createTestApp()
+    await post(app2, BASIC_REQUEST)
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-shell-wins")
+  })
+})

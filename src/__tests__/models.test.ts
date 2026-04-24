@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable } from "../proxy/models"
+import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resolveSdkModelDefaults, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -222,5 +222,59 @@ describe("isClosedControllerError", () => {
     expect(isClosedControllerError(null)).toBe(false)
     expect(isClosedControllerError(undefined)).toBe(false)
     expect(isClosedControllerError(42)).toBe(false)
+  })
+})
+
+describe("resolveSdkModelDefaults", () => {
+  const envKeys = [
+    "MERIDIAN_DEFAULT_OPUS_MODEL",
+    "MERIDIAN_DEFAULT_SONNET_MODEL",
+    "MERIDIAN_DEFAULT_HAIKU_MODEL",
+  ]
+  const originalValues: Record<string, string | undefined> = {}
+
+  beforeEach(() => {
+    for (const k of envKeys) {
+      originalValues[k] = process.env[k]
+      delete process.env[k]
+    }
+  })
+
+  afterEach(() => {
+    for (const k of envKeys) {
+      if (originalValues[k] === undefined) delete process.env[k]
+      else process.env[k] = originalValues[k]
+    }
+  })
+
+  it("returns canonical pins when no overrides set", () => {
+    const pins = resolveSdkModelDefaults()
+    expect(pins.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe(CANONICAL_OPUS_MODEL)
+    expect(pins.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe(CANONICAL_SONNET_MODEL)
+    expect(pins.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe(CANONICAL_HAIKU_MODEL)
+  })
+
+  it("MERIDIAN_DEFAULT_OPUS_MODEL override wins over the canonical default", () => {
+    process.env.MERIDIAN_DEFAULT_OPUS_MODEL = "claude-opus-5-0"
+    expect(resolveSdkModelDefaults().ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5-0")
+  })
+
+  it("MERIDIAN_DEFAULT_SONNET_MODEL override wins over the canonical default", () => {
+    process.env.MERIDIAN_DEFAULT_SONNET_MODEL = "claude-sonnet-5-0"
+    expect(resolveSdkModelDefaults().ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5-0")
+  })
+
+  it("MERIDIAN_DEFAULT_HAIKU_MODEL override wins over the canonical default", () => {
+    process.env.MERIDIAN_DEFAULT_HAIKU_MODEL = "claude-haiku-5-0"
+    expect(resolveSdkModelDefaults().ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-5-0")
+  })
+
+  it("returns only the three ANTHROPIC_DEFAULT_* keys — nothing else", () => {
+    const pins = resolveSdkModelDefaults()
+    expect(Object.keys(pins).sort()).toEqual([
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    ])
   })
 })

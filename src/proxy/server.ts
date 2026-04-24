@@ -43,7 +43,7 @@ import type { RequestMetric } from "../telemetry"
 import { classifyError, isStaleSessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
 import { refreshOAuthToken } from "./tokenRefresh"
 import { checkPluginConfigured } from "./setup"
-import { mapModelToClaudeModel, resolveClaudeExecutableAsync, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
+import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, translateAnthropicSseEvent, buildModelList } from "./openai"
 import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
@@ -437,8 +437,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           ...cleanEnv
         } = process.env
 
+        // Pin ANTHROPIC_DEFAULT_{TYPE}_MODEL before the inherited env. The
+        // Claude Agent SDK resolves the "sonnet"/"opus"/"haiku" aliases
+        // (emitted by mapModelToClaudeModel) via these env vars; when unset
+        // it falls back to its own bundled defaults, which lag real
+        // availability and caused #419 (opus-* requests silently answering
+        // as sonnet-4). Spread order: modelDefaults first, then cleanEnv,
+        // so user-provided ANTHROPIC_DEFAULT_* values still win.
+        const sdkModelDefaults = resolveSdkModelDefaults()
+
         // Overlay profile-specific env vars (e.g. CLAUDE_CONFIG_DIR for multi-account)
-        const profileEnv = { ...cleanEnv, ...profile.env }
+        const profileEnv = { ...sdkModelDefaults, ...cleanEnv, ...profile.env }
 
         let systemContext = ""
         if (body.system) {
@@ -2448,6 +2457,8 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     if (!finalConfig.silent) {
       console.log(`Meridian running at http://${finalConfig.host}:${info.port}`)
       console.log(`Telemetry dashboard: http://${finalConfig.host}:${info.port}/telemetry`)
+      const pins = resolveSdkModelDefaults()
+      console.log(`Model pins: opus=${pins.ANTHROPIC_DEFAULT_OPUS_MODEL} sonnet=${pins.ANTHROPIC_DEFAULT_SONNET_MODEL} haiku=${pins.ANTHROPIC_DEFAULT_HAIKU_MODEL}`)
       console.log(`\nPoint any Anthropic-compatible tool at this endpoint:`)
       console.log(`  ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://${finalConfig.host}:${info.port}`)
     }
