@@ -35,6 +35,7 @@ import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
@@ -817,14 +818,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // built-in tools with snake_case params (file_path), but clients
                 // may use camelCase (filePath). Remap when required fields are missing.
                 const clientTool = requestTools.find((t: any) => t.name === toolName)
-                // NOTE: agent-specific — normalize subagent_type to lowercase.
-                // Claude often sends PascalCase (e.g., "Explore") but OpenCode
-                // validates agent types case-sensitively against its config.
+                // NOTE: agent-specific — normalize subagent_type for the client response.
+                // Claude often sends PascalCase (e.g., "Explore") and aliases
+                // (e.g., "general-purpose") that OpenCode rejects. We send the
+                // canonical lowercase agent name that OpenCode's config declares.
                 let toolInput = normalizeToolInput(input.tool_input, clientTool?.input_schema)
                 if (toolName.toLowerCase() === "task" && toolInput?.subagent_type && typeof toolInput.subagent_type === "string") {
-                  let mapped = toolInput.subagent_type.toLowerCase()
-                  if (mapped === "general-purpose") mapped = "general"
-                  toolInput = { ...toolInput, subagent_type: mapped }
+                  toolInput = { ...toolInput, subagent_type: resolveAgentAlias(toolInput.subagent_type) }
                 }
                 capturedToolUses.push({
                   id: input.tool_use_id,
@@ -1632,8 +1632,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     // NOTE: agent-specific — buffer input_json_delta for Task tool blocks.
                     // Claude sends PascalCase subagent_type (e.g., "Explore") and aliases
                     // like "general-purpose" that OpenCode rejects. input_json_delta sends
-                    // JSON in chunks so we can't regex-replace individual deltas — buffer
-                    // all chunks and emit the fixed JSON at content_block_stop.
+                    // JSON in chunks so we can't normalize individual deltas — buffer
+                    // all chunks, parse the complete JSON, and emit the fixed version
+                    // at content_block_stop.
                     if (
                       passthrough &&
                       eventIndex !== undefined &&
@@ -1650,15 +1651,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (eventType === "content_block_stop") {
                         const buffered = taskToolJsonBuffer.get(eventIndex)
                         if (buffered) {
-                          const fixed = buffered.replace(
-                            /"subagent_type"\s*:\s*"([^"]+)"/,
-                            (_: string, v: string) => {
-                              let mapped = v.toLowerCase()
-                              // Map common Claude-invented aliases to valid OpenCode agents
-                              if (mapped === "general-purpose") mapped = "general"
-                              return `"subagent_type":"${mapped}"`
+                          let fixed = buffered
+                          try {
+                            const parsed = JSON.parse(buffered) as Record<string, unknown>
+                            if (typeof parsed.subagent_type === "string") {
+                              parsed.subagent_type = resolveAgentAlias(parsed.subagent_type)
                             }
-                          )
+                            fixed = JSON.stringify(parsed)
+                          } catch {
+                            // Malformed JSON — forward buffer unchanged rather than drop the block
+                          }
                           const clientIdx = sdkToClientIndex.get(eventIndex) ?? eventIndex
                           safeEnqueue(encoder.encode(
                             `event: content_block_delta\ndata: ${JSON.stringify({

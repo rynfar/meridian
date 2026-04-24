@@ -55,6 +55,20 @@ const KNOWN_ALIASES: Record<string, string> = {
 // Common suffixes to strip
 const STRIP_SUFFIXES = ["-agent", "-tool", "-worker", "-task", " agent", " tool"]
 
+/**
+ * Resolve an agent-name alias to its canonical target, or return the lowercased
+ * input unchanged if no alias applies.
+ *
+ * Used when normalizing a captured `subagent_type` for the client response:
+ * the SDK may validate against registered alias variants (e.g., "general-purpose"
+ * is registered by `addCaseVariants`), but the client expects the canonical
+ * agent name from its config ("general").
+ */
+export function resolveAgentAlias(input: string): string {
+  const lowered = input.toLowerCase()
+  return KNOWN_ALIASES[lowered] ?? lowered
+}
+
 export function fuzzyMatchAgentName(input: string, validAgents: string[]): string {
   if (!input) return input
   if (validAgents.length === 0) return input.toLowerCase()

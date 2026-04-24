@@ -11,7 +11,7 @@
 import { describe, it, expect } from "bun:test"
 
 // Import the matching function directly
-import { fuzzyMatchAgentName } from "../proxy/agentMatch"
+import { fuzzyMatchAgentName, resolveAgentAlias } from "../proxy/agentMatch"
 
 describe("fuzzyMatchAgentName", () => {
   const validAgents = [
@@ -110,5 +110,25 @@ describe("Fallback to generic agent", () => {
     expect(fuzzyMatchAgentName("exp", agents)).toBe("explore")
     // Alias should still work before fallback
     expect(fuzzyMatchAgentName("planner", agents)).toBe("plan")
+  })
+})
+
+describe("resolveAgentAlias", () => {
+  it("returns the canonical target for known aliases", () => {
+    expect(resolveAgentAlias("general-purpose")).toBe("general")
+    expect(resolveAgentAlias("General-Purpose")).toBe("general")
+    expect(resolveAgentAlias("code-reviewer")).toBe("oracle")
+    expect(resolveAgentAlias("planner")).toBe("plan")
+  })
+
+  it("returns the lowercased input when no alias applies", () => {
+    expect(resolveAgentAlias("explore")).toBe("explore")
+    expect(resolveAgentAlias("Explore")).toBe("explore")
+    expect(resolveAgentAlias("custom-agent")).toBe("custom-agent")
+  })
+
+  it("is case-insensitive for alias lookup", () => {
+    expect(resolveAgentAlias("GENERAL-PURPOSE")).toBe("general")
+    expect(resolveAgentAlias("Code-Reviewer")).toBe("oracle")
   })
 })
