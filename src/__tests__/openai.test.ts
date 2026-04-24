@@ -427,25 +427,35 @@ describe("translateAnthropicSseEvent", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildModelList", () => {
-  it("returns 3 models", () => {
-    expect(buildModelList(true).length).toBe(3)
-    expect(buildModelList(false).length).toBe(3)
+  it("returns 4 models", () => {
+    expect(buildModelList(true).length).toBe(4)
+    expect(buildModelList(false).length).toBe(4)
   })
 
-  it("Max subscription gets 1M context for opus, 200k for sonnet", () => {
+  it("includes both opus-4-6 and opus-4-7 for UI pickers", () => {
+    const ids = buildModelList(true).map(m => m.id)
+    expect(ids).toContain("claude-opus-4-6")
+    expect(ids).toContain("claude-opus-4-7")
+  })
+
+  it("Max subscription gets 1M context for both opus variants, 200k for sonnet", () => {
     const models = buildModelList(true)
     const sonnet = models.find(m => m.id === "claude-sonnet-4-6")!
-    const opus = models.find(m => m.id === "claude-opus-4-6")!
+    const opus46 = models.find(m => m.id === "claude-opus-4-6")!
+    const opus47 = models.find(m => m.id === "claude-opus-4-7")!
     expect(sonnet.context_window).toBe(200_000)
-    expect(opus.context_window).toBe(1_000_000)
+    expect(opus46.context_window).toBe(1_000_000)
+    expect(opus47.context_window).toBe(1_000_000)
   })
 
-  it("non-Max gets 200k context for sonnet and opus", () => {
+  it("non-Max gets 200k context for sonnet and both opus variants", () => {
     const models = buildModelList(false)
     const sonnet = models.find(m => m.id === "claude-sonnet-4-6")!
-    const opus = models.find(m => m.id === "claude-opus-4-6")!
+    const opus46 = models.find(m => m.id === "claude-opus-4-6")!
+    const opus47 = models.find(m => m.id === "claude-opus-4-7")!
     expect(sonnet.context_window).toBe(200_000)
-    expect(opus.context_window).toBe(200_000)
+    expect(opus46.context_window).toBe(200_000)
+    expect(opus47.context_window).toBe(200_000)
   })
 
   it("haiku is always 200k regardless of subscription", () => {
