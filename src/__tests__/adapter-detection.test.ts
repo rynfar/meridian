@@ -5,7 +5,7 @@
  * Droid is identified by its User-Agent prefix.
  * Everything else defaults to OpenCode.
  */
-import { describe, it, expect } from "bun:test"
+import { describe, it, expect, afterEach } from "bun:test"
 import { detectAdapter } from "../proxy/adapters/detect"
 import { openCodeAdapter } from "../proxy/adapters/opencode"
 import { droidAdapter } from "../proxy/adapters/droid"
@@ -91,6 +91,64 @@ describe("detectAdapter — Claude Code detection", () => {
 
   it("returns claudeCodeAdapter for claude-cli with extra info", () => {
     const adapter = detectAdapter(makeContext("claude-cli/2.0.0 (linux; x64)"))
+    expect(adapter).toBe(claudeCodeAdapter)
+  })
+})
+
+describe("detectAdapter — claude-cli + MERIDIAN_DEFAULT_AGENT tiebreaker", () => {
+  // Pi (and downstream Pi-based harnesses like pylon) ship with a User-Agent
+  // of `claude-cli/<version>`. When the operator has explicitly set
+  // MERIDIAN_DEFAULT_AGENT, the env var should win for this ambiguous UA.
+  const originalEnv = process.env.MERIDIAN_DEFAULT_AGENT
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.MERIDIAN_DEFAULT_AGENT
+    else process.env.MERIDIAN_DEFAULT_AGENT = originalEnv
+  })
+
+  it("routes claude-cli/* to pi adapter when MERIDIAN_DEFAULT_AGENT=pi", () => {
+    process.env.MERIDIAN_DEFAULT_AGENT = "pi"
+    const adapter = detectAdapter(makeContext("claude-cli/2.0.0"))
+    expect(adapter).toBe(piAdapter)
+  })
+
+  it("is case-insensitive on the env value", () => {
+    process.env.MERIDIAN_DEFAULT_AGENT = "PI"
+    expect(detectAdapter(makeContext("claude-cli/2.0.0")).name).toBe("pi")
+  })
+
+  it("falls through to claudeCodeAdapter when env is unset", () => {
+    delete process.env.MERIDIAN_DEFAULT_AGENT
+    expect(detectAdapter(makeContext("claude-cli/2.0.0"))).toBe(claudeCodeAdapter)
+  })
+
+  it("falls through to claudeCodeAdapter when env is empty string", () => {
+    process.env.MERIDIAN_DEFAULT_AGENT = ""
+    expect(detectAdapter(makeContext("claude-cli/2.0.0"))).toBe(claudeCodeAdapter)
+  })
+
+  it("does NOT override when env is explicitly claude-code (no-op tiebreaker)", () => {
+    process.env.MERIDIAN_DEFAULT_AGENT = "claude-code"
+    expect(detectAdapter(makeContext("claude-cli/2.0.0"))).toBe(claudeCodeAdapter)
+    process.env.MERIDIAN_DEFAULT_AGENT = "claudecode"
+    expect(detectAdapter(makeContext("claude-cli/2.0.0"))).toBe(claudeCodeAdapter)
+  })
+
+  it("falls through to claudeCodeAdapter when env is an unknown adapter name", () => {
+    process.env.MERIDIAN_DEFAULT_AGENT = "nonsense-agent"
+    expect(detectAdapter(makeContext("claude-cli/2.0.0"))).toBe(claudeCodeAdapter)
+  })
+
+  it("does NOT affect other unambiguous UAs (opencode/ still wins over env=pi)", () => {
+    process.env.MERIDIAN_DEFAULT_AGENT = "pi"
+    expect(detectAdapter(makeContext("opencode/1.5.0"))).toBe(openCodeAdapter)
+    expect(detectAdapter(makeContext("factory-cli/0.89.0"))).toBe(droidAdapter)
+    expect(detectAdapter(makeContext("Charm-Crush/1.0.0"))).toBe(crushAdapter)
+  })
+
+  it("explicit x-meridian-agent header still wins over the env tiebreaker", () => {
+    process.env.MERIDIAN_DEFAULT_AGENT = "pi"
+    const adapter = detectAdapter(makeContext("claude-cli/2.0.0", { "x-meridian-agent": "claude-code" }))
     expect(adapter).toBe(claudeCodeAdapter)
   })
 })

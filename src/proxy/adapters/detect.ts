@@ -87,10 +87,20 @@ export function detectAdapter(c: Context): AgentAdapter {
     return crushAdapter
   }
 
-  // Claude Code CLI — `claude-cli/<version>`. Pi mimics this User-Agent so
-  // Pi users must explicitly select via x-meridian-agent header or
-  // MERIDIAN_DEFAULT_AGENT env var (those are matched earlier).
+  // Claude Code CLI — `claude-cli/<version>`. Pi (and downstream Pi-based
+  // harnesses like pylon) mimic this User-Agent, so when the operator has
+  // declared a default via MERIDIAN_DEFAULT_AGENT we treat the env var as
+  // the tiebreaker for this ambiguous UA. Other unambiguous UAs
+  // (opencode/, factory-cli/, Charm-Crush/) still win over the env default
+  // — the env default only resolves the claude-cli collision. Without this,
+  // setting MERIDIAN_DEFAULT_AGENT=pi has no effect because the claude-cli
+  // matcher fires first for Pi traffic. (Read at call time, not module
+  // load, so tests can toggle the env between cases.)
   if (userAgent.startsWith("claude-cli/")) {
+    const claudeCliOverride = (process.env.MERIDIAN_DEFAULT_AGENT || "").toLowerCase()
+    if (claudeCliOverride && ADAPTER_MAP[claudeCliOverride] && claudeCliOverride !== "claude-code" && claudeCliOverride !== "claudecode") {
+      return ADAPTER_MAP[claudeCliOverride]!
+    }
     return claudeCodeAdapter
   }
 
