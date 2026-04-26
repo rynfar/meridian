@@ -2207,9 +2207,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     }
     setActiveProfile(body.profile!)
     // Evict all cached SDK sessions — they were started under the old profile's
-    // credentials and cannot be reused with different auth.
+    // credentials and cannot be reused with different auth. Also drop the
+    // rate-limit snapshot so /v1/usage/quota doesn't return the previous
+    // profile's quotas under the new profile's identity.
     clearSessionCache()
-    console.error(`[PROXY] Active profile switched to: ${body.profile} (session cache cleared)`)
+    rateLimitStore.clear()
+    console.error(`[PROXY] Active profile switched to: ${body.profile} (session + rate-limit caches cleared)`)
     return c.json({ success: true, activeProfile: body.profile })
   })
 
@@ -2260,6 +2263,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   app.post("/auth/refresh", async (c) => {
     const success = await refreshOAuthToken()
     if (success) {
+      // Drop the rate-limit snapshot — old quotas were observed under the
+      // previous credential and may belong to a different account if the
+      // refresh swapped profiles. The next SDK call repopulates.
+      rateLimitStore.clear()
       return c.json({ success: true, message: "OAuth token refreshed successfully" })
     }
     return c.json(
@@ -2384,10 +2391,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Returns 200 with `buckets: []` if no events have been observed yet (first
   // call after proxy restart).
   app.get("/v1/usage/quota", (c) => {
-    const entries = rateLimitStore.getAll()
+    // Filter out the internal "default" bucket — it's a Meridian-side
+    // fallback for SDK events missing `rateLimitType`, not a real Anthropic
+    // bucket that consumers can render.
+    const entries = rateLimitStore.getAll().filter(entry => entry.rateLimitType !== undefined)
     return c.json({
       buckets: entries.map(entry => ({
-        type: entry.rateLimitType ?? "default",
+        type: entry.rateLimitType,
         status: entry.status,
         utilization: entry.utilization ?? null,
         resetsAt: entry.resetsAt ?? null,

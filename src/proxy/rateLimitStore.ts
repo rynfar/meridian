@@ -27,8 +27,13 @@
  * in memory. State resets on proxy restart — that's fine because the SDK will
  * push a fresh event on the next request.
  *
- * Singleton — one Meridian process serves one Claude Max subscription, so
- * all in-flight clients share these counters.
+ * Singleton — one Meridian process holds one snapshot at a time. With
+ * multi-profile setups (`x-meridian-profile` / `POST /profiles/active`)
+ * each profile is a separate Claude Max subscription with separate quotas,
+ * so the store is **cleared on profile switch and on `/auth/refresh`** —
+ * the next SDK call repopulates it for the active profile. Consumers of
+ * `/v1/usage/quota` should treat the snapshot as "the active profile's
+ * latest known state" and re-fetch after switching profiles.
  */
 
 import type { SDKRateLimitInfo } from "@anthropic-ai/claude-agent-sdk"
@@ -70,7 +75,11 @@ class RateLimitStore {
     return this.entries.size
   }
 
-  /** Drop all stored entries. Used by tests and on `/auth/refresh`. */
+  /**
+   * Drop all stored entries. Wired into the `POST /profiles/active` and
+   * `POST /auth/refresh` handlers so quotas can't leak across profiles or
+   * stale credential boundaries. Also used by tests for isolation.
+   */
   clear(): void {
     this.entries.clear()
   }
