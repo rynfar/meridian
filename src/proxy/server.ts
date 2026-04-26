@@ -6,6 +6,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
+import { fetchOAuthUsage } from "./oauthUsage"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
 import { envBool } from "../env"
@@ -2390,14 +2391,42 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   //
   // Returns 200 with `buckets: []` if no events have been observed yet (first
   // call after proxy restart).
-  app.get("/v1/usage/quota", (c) => {
+  app.get("/v1/usage/quota", async (c) => {
+    // Two data sources, merged:
+    //   - OAuth usage API (continuous % via Anthropic's private endpoint)
+    //   - SDK rate_limit_event store (overage info, threshold-gated %)
+    //
+    // Strategy: build a bucket per known type. OAuth-sourced fields
+    // (`utilization`, `resetsAt`) win when present — they're always
+    // populated. SDK fields fill in overage details and any bucket types
+    // OAuth doesn't expose.
+    //
     // Filter out the internal "default" bucket — it's a Meridian-side
     // fallback for SDK events missing `rateLimitType`, not a real Anthropic
     // bucket that consumers can render.
-    const entries = rateLimitStore.getAll().filter(entry => entry.rateLimitType !== undefined)
-    return c.json({
-      buckets: entries.map(entry => ({
-        type: entry.rateLimitType,
+    const sdkEntries = rateLimitStore.getAll().filter(entry => entry.rateLimitType !== undefined)
+    const oauth = await fetchOAuthUsage()
+
+    type Bucket = {
+      type: string
+      status: "allowed" | "allowed_warning" | "rejected"
+      utilization: number | null
+      resetsAt: number | null
+      isUsingOverage: boolean
+      overageStatus: string | null
+      overageResetsAt: number | null
+      overageDisabledReason: string | null
+      surpassedThreshold: number | null
+      observedAt: number
+    }
+
+    const byType = new Map<string, Bucket>()
+
+    // Seed with SDK-sourced buckets (provides overage details).
+    for (const entry of sdkEntries) {
+      const type = entry.rateLimitType as string
+      byType.set(type, {
+        type,
         status: entry.status,
         utilization: entry.utilization ?? null,
         resetsAt: entry.resetsAt ?? null,
@@ -2407,7 +2436,40 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         overageDisabledReason: entry.overageDisabledReason ?? null,
         surpassedThreshold: entry.surpassedThreshold ?? null,
         observedAt: entry.observedAt,
-      })),
+      })
+    }
+
+    // Overlay OAuth-sourced buckets — these always have current % when
+    // available. Keep SDK overage fields if we already have them.
+    if (oauth) {
+      for (const w of oauth.windows) {
+        const existing = byType.get(w.type)
+        const status: Bucket["status"] =
+          (w.utilization ?? 0) >= 1 ? "rejected" :
+          (w.utilization ?? 0) >= 0.8 ? "allowed_warning" :
+          "allowed"
+        byType.set(w.type, {
+          type: w.type,
+          status: existing?.status === "rejected" ? "rejected" : status,
+          utilization: w.utilization ?? existing?.utilization ?? null,
+          resetsAt: w.resetsAt ?? existing?.resetsAt ?? null,
+          isUsingOverage: existing?.isUsingOverage ?? false,
+          overageStatus: existing?.overageStatus ?? null,
+          overageResetsAt: existing?.overageResetsAt ?? null,
+          overageDisabledReason: existing?.overageDisabledReason ?? null,
+          surpassedThreshold: existing?.surpassedThreshold ?? null,
+          observedAt: oauth.fetchedAt,
+        })
+      }
+    }
+
+    return c.json({
+      buckets: Array.from(byType.values()),
+      extraUsage: oauth?.extraUsage ?? null,
+      sources: {
+        oauth: oauth ? { fetchedAt: oauth.fetchedAt } : null,
+        sdk: { entryCount: sdkEntries.length },
+      },
       asOf: Date.now(),
     })
   })

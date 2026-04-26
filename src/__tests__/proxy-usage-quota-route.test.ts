@@ -23,6 +23,13 @@ mock.module("../mcpTools", () => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
+// By default, mock OAuth usage to null so tests exercise the SDK-only path.
+// Tests that exercise OAuth merge override this mock locally.
+mock.module("../proxy/oauthUsage", () => ({
+  fetchOAuthUsage: async () => null,
+  resetOAuthUsageCache: () => {},
+}))
+
 const { createProxyServer } = await import("../proxy/server")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
 
@@ -139,6 +146,61 @@ describe("GET /v1/usage/quota", () => {
     // isUsingOverage defaults to false (not null) so consumers can use the
     // boolean directly without nullish handling.
     expect(bucket.isUsingOverage).toBe(false)
+  })
+
+  it("merges OAuth-sourced buckets onto SDK buckets, OAuth wins for utilization/resetsAt", async () => {
+    // Override the default null mock for this test only.
+    mock.module("../proxy/oauthUsage", () => ({
+      fetchOAuthUsage: async () => ({
+        windows: [
+          { type: "five_hour", utilization: 0.36, resetsAt: 1_730_111_111_111 },
+          { type: "seven_day", utilization: 0.05, resetsAt: 1_730_222_222_222 },
+          { type: "seven_day_omelette", utilization: 0.01, resetsAt: 1_730_333_333_333 },
+        ],
+        extraUsage: { isEnabled: true, monthlyLimit: 0, usedCredits: 23630, utilization: null, currency: "USD" },
+        fetchedAt: 1_730_000_000_000,
+      }),
+      resetOAuthUsageCache: () => {},
+    }))
+    // Re-import server with the new mock
+    const mod = await import("../proxy/server?merge-test")
+    const { app } = mod.createProxyServer({ port: 0, host: "127.0.0.1" })
+
+    // SDK has its own bucket for five_hour with overage info we want preserved.
+    rateLimitStore.record({
+      status: "allowed",
+      rateLimitType: "five_hour",
+      utilization: 0.10,         // OAuth (0.36) should win
+      resetsAt: 999_999_999_999,  // OAuth (1_730_111_111_111) should win
+      isUsingOverage: false,
+      overageStatus: "rejected",  // SDK should win — OAuth doesn't expose this
+      overageDisabledReason: "org_level_disabled_until",
+    })
+
+    const res = await app.fetch(new Request("http://localhost/v1/usage/quota"))
+    expect(res.status).toBe(200)
+    const body = await res.json() as QuotaResponse & { extraUsage?: any; sources?: any }
+
+    const fiveHour = body.buckets.find(b => b.type === "five_hour")!
+    expect(fiveHour.utilization).toBeCloseTo(0.36, 5)
+    expect(fiveHour.resetsAt).toBe(1_730_111_111_111)
+    // SDK overage details preserved through the merge
+    expect(fiveHour.overageStatus).toBe("rejected")
+    expect(fiveHour.overageDisabledReason).toBe("org_level_disabled_until")
+
+    // OAuth-only buckets are appended
+    expect(body.buckets.find(b => b.type === "seven_day")).toBeDefined()
+    expect(body.buckets.find(b => b.type === "seven_day_omelette")).toBeDefined()
+
+    // extra_usage block exposed at top level
+    expect(body.extraUsage).toBeDefined()
+    expect(body.extraUsage!.usedCredits).toBe(23630)
+
+    // Reset module mock for any subsequent tests
+    mock.module("../proxy/oauthUsage", () => ({
+      fetchOAuthUsage: async () => null,
+      resetOAuthUsageCache: () => {},
+    }))
   })
 
   it("preserves overage fields when present", async () => {
