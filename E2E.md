@@ -84,6 +84,7 @@ kill $(lsof -ti :3456)
 | E28 | [SDK Param Passthrough](#e28-sdk-param-passthrough) | Live proxy accepts effort/thinking/task_budget/beta fields without breaking responses | 2026-04-03 |
 | E29 | [Context Usage Endpoint](#e29-context-usage-endpoint) | `/v1/sessions/:claudeSessionId/context-usage` returns live token usage for a completed request | 2026-04-03 |
 | E30 | [Context Usage via Fingerprint + Restart](#e30-context-usage-via-fingerprint--restart) | Context usage lookup works for headerless sessions and survives proxy restart via shared store | 2026-04-03 |
+| E32 | [Tool-use leak (#416) — opencode + opus-4-7](#e32-tool-use-leak-416--opencode--opus-4-7) | Multi-turn opencode rehydration with prior tool_use blocks does not cause opus-4-7 to emit `[Tool Use:` / `H:` / `Human:` text in its response | 2026-04-26 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -2892,3 +2893,167 @@ print(f'Modes seen: {modes}  PASS')
 **Pass criteria:**
 - At least 2 new telemetry request records after the two requests
 - Both streaming and non-streaming modes recorded
+
+---
+
+## E32: Tool-use leak (#416) — opencode + opus-4-7
+
+**Verifies:** When the opencode adapter (User-Agent `opencode/<version>`) sends a multi-turn request whose history contains real `tool_use` and `tool_result` content blocks, opus-4-7's response does **not** contain leaked text patterns like `[Tool Use: name(args)]`, `[Tool Result for toolu_...:]`, `H:`, `Human:` or `Assistant:` line prefixes.
+
+The original report ([#416](https://github.com/rynfar/meridian/issues/416)) saw opus-4-7 emitting these strings as visible chat content while opus-4-6 and sonnet-4-6 did not — opus-4-7 is more sensitive to context patterns, so any leak in the rehydration prompt got mimicked back. The fix landed across SDK upgrade (#431) + cli.js refresh + the existing tool-flatten guard from #386.
+
+**Why opencode-specific:** the opencode-with-claude wrapper hits this path more often because it forwards full message history on every turn — Meridian's `buildFreshPrompt` then runs whenever the SDK session is lost. Other adapters (pi, droid, crush) trigger the same code path but the user only reported it on opencode + opus-4-7.
+
+### Setup
+
+```bash
+# Proxy must be running on port 3456 with personal/working profile auth
+curl -s http://127.0.0.1:3456/health | jq .auth.loggedIn   # → true
+```
+
+### Reproduce the original symptom shape
+
+Send a multi-turn request that mirrors the user's stack: opencode UA, opus-4-7, history containing real `tool_use` blocks (the model has no SDK session for this conversation yet, so `buildFreshPrompt` runs).
+
+```bash
+cat > /tmp/e2e-416-body.json <<'EOF'
+{
+  "model": "claude-opus-4-7",
+  "max_tokens": 800,
+  "stream": false,
+  "messages": [
+    {"role": "user", "content": "create a todo list with 3 items: A, B, C"},
+    {"role": "assistant", "content": [
+      {"type": "text", "text": "I will create the todo list now."},
+      {"type": "tool_use", "id": "toolu_001", "name": "todowrite",
+       "input": {"todos": [
+         {"content": "A", "status": "pending"},
+         {"content": "B", "status": "pending"},
+         {"content": "C", "status": "pending"}
+       ]}}
+    ]},
+    {"role": "user", "content": [
+      {"type": "tool_result", "tool_use_id": "toolu_001", "content": "Wrote 3 todos."}
+    ]},
+    {"role": "assistant", "content": "Done. 3 items added."},
+    {"role": "user", "content": "Reply with the todo names as a JSON array. Just the array, no tool calls."}
+  ]
+}
+EOF
+
+RESP=$(curl -s http://127.0.0.1:3456/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: opencode/1.14.20" \
+  -d @/tmp/e2e-416-body.json)
+
+# Extract assistant text only (ignore tool_use blocks)
+TEXT=$(echo "$RESP" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+parts = [b.get('text','') for b in d.get('content', []) if b.get('type') == 'text']
+print(''.join(parts))
+")
+
+echo "=== model output ==="
+echo "$TEXT"
+echo "=== leak checks ==="
+echo "  [Tool Use:    $(echo "$TEXT" | grep -c '\[Tool Use:')"
+echo "  [Tool Result: $(echo "$TEXT" | grep -c '\[Tool Result')"
+echo "  H: prefix:    $(echo "$TEXT" | grep -cE '(^|\n)H: ')"
+echo "  Human: prefix:$(echo "$TEXT" | grep -cE '(^|\n)Human:')"
+echo "  Assistant: prefix:$(echo "$TEXT" | grep -cE '(^|\n)Assistant:')"
+```
+
+**Pass criteria (all five counts must be 0):**
+- `[Tool Use:` count = 0
+- `[Tool Result` count = 0
+- `H:` line prefix count = 0
+- `Human:` line prefix count = 0
+- `Assistant:` line prefix count = 0
+- Response text is the actual answer (e.g. `["A", "B", "C"]`), not a flattened transcript
+
+### Aggressive variant — long history with multiple tool_use turns
+
+Triggers `buildFreshPrompt` over a longer history that more closely resembles the user's reported scenario (todowrite progression across many turns). Run this if the basic case passes but you suspect leaks under longer rehydration.
+
+```bash
+# Construct an 11-message history with 3 tool_use rounds
+cat > /tmp/e2e-416-aggressive.json <<'EOF'
+{
+  "model": "claude-opus-4-7",
+  "max_tokens": 1500,
+  "stream": false,
+  "messages": [
+    {"role": "user", "content": "Track these 4 tasks via todowrite: locate code, analyze logic, modify file, verify build."},
+    {"role": "assistant", "content": [
+      {"type": "text", "text": "Creating todo list."},
+      {"type": "tool_use", "id": "toolu_a", "name": "todowrite",
+       "input": {"todos": [
+         {"content":"locate code","status":"pending"},
+         {"content":"analyze logic","status":"pending"},
+         {"content":"modify file","status":"pending"},
+         {"content":"verify build","status":"pending"}
+       ]}}
+    ]},
+    {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_a", "content": "Created."}]},
+    {"role": "assistant", "content": [
+      {"type": "text", "text": "Working on the first item."},
+      {"type": "tool_use", "id": "toolu_b", "name": "todowrite",
+       "input": {"todos": [
+         {"content":"locate code","status":"in_progress"},
+         {"content":"analyze logic","status":"pending"},
+         {"content":"modify file","status":"pending"},
+         {"content":"verify build","status":"pending"}
+       ]}}
+    ]},
+    {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_b", "content": "Updated."}]},
+    {"role": "assistant", "content": [
+      {"type": "text", "text": "First item complete, moving on."},
+      {"type": "tool_use", "id": "toolu_c", "name": "todowrite",
+       "input": {"todos": [
+         {"content":"locate code","status":"completed"},
+         {"content":"analyze logic","status":"in_progress"},
+         {"content":"modify file","status":"pending"},
+         {"content":"verify build","status":"pending"}
+       ]}}
+    ]},
+    {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_c", "content": "Updated."}]},
+    {"role": "user", "content": "What status are the four tasks in right now? Reply as a numbered list, no tool calls."}
+  ]
+}
+EOF
+
+RESP=$(curl -s http://127.0.0.1:3456/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -H "User-Agent: opencode/1.14.20" \
+  -d @/tmp/e2e-416-aggressive.json)
+
+TEXT=$(echo "$RESP" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+parts = [b.get('text','') for b in d.get('content', []) if b.get('type') == 'text']
+print(''.join(parts))
+")
+
+echo "=== model output (first 1500 chars) ==="
+echo "${TEXT:0:1500}"
+echo "=== leak checks (all should be 0) ==="
+for pat in '\[Tool Use:' '\[Tool Result' '(^|\n)H: ' '(^|\n)Human:' '(^|\n)Assistant:'; do
+  count=$(echo "$TEXT" | grep -cE "$pat")
+  echo "  $pat: $count"
+done
+```
+
+**Pass criteria:** all five leak counts = 0; the answer is a numbered list of the 4 tasks with their actual statuses (completed / in_progress / pending).
+
+### Cleanup
+
+```bash
+rm -f /tmp/e2e-416-body.json /tmp/e2e-416-aggressive.json
+```
+
+### Why this isn't fully covered by unit tests
+
+The existing regression test in `src/__tests__/proxy-tool-flattening-regression.test.ts` (issue #386) verifies the SDK **prompt** contains no `[Tool Use:` strings. That's necessary but not sufficient for #416 — the symptom there was the **model's response** containing those strings, picked up from context patterns the model imitates. Only a live model can verify that opus-4-7 doesn't mimic the rehydration format. The unit test guards Meridian's prompt construction; this E2E guards the model's actual behavior on the user's stack.
