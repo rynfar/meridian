@@ -6,6 +6,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
+import { fetchOAuthUsage } from "./oauthUsage"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
 import { envBool } from "../env"
@@ -2390,14 +2391,62 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   //
   // Returns 200 with `buckets: []` if no events have been observed yet (first
   // call after proxy restart).
-  app.get("/v1/usage/quota", (c) => {
+  app.get("/v1/usage/quota", async (c) => {
+    // Two data sources, merged:
+    //   - OAuth usage API (continuous % via Anthropic's private endpoint,
+    //     profile-scoped — reads credentials from the active profile's
+    //     CLAUDE_CONFIG_DIR so multi-account setups don't cross-contaminate).
+    //   - SDK rate_limit_event store (overage info, threshold-gated %).
+    //
+    // Strategy: build a bucket per known type. OAuth-sourced fields
+    // (`utilization`, `resetsAt`) win when present — they're always
+    // populated. SDK fields fill in overage details and any bucket types
+    // OAuth doesn't expose.
+    //
     // Filter out the internal "default" bucket — it's a Meridian-side
     // fallback for SDK events missing `rateLimitType`, not a real Anthropic
     // bucket that consumers can render.
-    const entries = rateLimitStore.getAll().filter(entry => entry.rateLimitType !== undefined)
-    return c.json({
-      buckets: entries.map(entry => ({
-        type: entry.rateLimitType,
+    const sdkEntries = rateLimitStore.getAll().filter(entry => entry.rateLimitType !== undefined)
+
+    // Determine which profile we're querying:
+    //   1. Explicit ?profile=<id> query param
+    //   2. Active profile (set via UI / POST /profiles/active)
+    //   3. First configured profile
+    //   4. Default OAuth account (no claudeConfigDir override)
+    const requestedProfile = c.req.query("profile")
+    const profilesList = getEffectiveProfiles(finalConfig.profiles)
+    const targetProfileId = requestedProfile
+      || getActiveProfileId()
+      || finalConfig.defaultProfile
+      || profilesList[0]?.id
+      || null
+    const targetProfile = targetProfileId ? profilesList.find(p => p.id === targetProfileId) : undefined
+
+    const oauth = await fetchOAuthUsage({
+      profileId: targetProfileId ?? undefined,
+      claudeConfigDir: targetProfile?.claudeConfigDir,
+    })
+
+    type Bucket = {
+      type: string
+      status: "allowed" | "allowed_warning" | "rejected"
+      utilization: number | null
+      resetsAt: number | null
+      isUsingOverage: boolean
+      overageStatus: string | null
+      overageResetsAt: number | null
+      overageDisabledReason: string | null
+      surpassedThreshold: number | null
+      observedAt: number
+    }
+
+    const byType = new Map<string, Bucket>()
+
+    // Seed with SDK-sourced buckets (provides overage details).
+    for (const entry of sdkEntries) {
+      const type = entry.rateLimitType as string
+      byType.set(type, {
+        type,
         status: entry.status,
         utilization: entry.utilization ?? null,
         resetsAt: entry.resetsAt ?? null,
@@ -2407,7 +2456,108 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         overageDisabledReason: entry.overageDisabledReason ?? null,
         surpassedThreshold: entry.surpassedThreshold ?? null,
         observedAt: entry.observedAt,
-      })),
+      })
+    }
+
+    // Overlay OAuth-sourced buckets — these always have current % when
+    // available. Keep SDK overage fields if we already have them.
+    if (oauth) {
+      for (const w of oauth.windows) {
+        const existing = byType.get(w.type)
+        const status: Bucket["status"] =
+          (w.utilization ?? 0) >= 1 ? "rejected" :
+          (w.utilization ?? 0) >= 0.8 ? "allowed_warning" :
+          "allowed"
+        byType.set(w.type, {
+          type: w.type,
+          status: existing?.status === "rejected" ? "rejected" : status,
+          utilization: w.utilization ?? existing?.utilization ?? null,
+          resetsAt: w.resetsAt ?? existing?.resetsAt ?? null,
+          isUsingOverage: existing?.isUsingOverage ?? false,
+          overageStatus: existing?.overageStatus ?? null,
+          overageResetsAt: existing?.overageResetsAt ?? null,
+          overageDisabledReason: existing?.overageDisabledReason ?? null,
+          surpassedThreshold: existing?.surpassedThreshold ?? null,
+          observedAt: oauth.fetchedAt,
+        })
+      }
+    }
+
+    return c.json({
+      profile: targetProfileId ?? null,
+      buckets: Array.from(byType.values()),
+      extraUsage: oauth?.extraUsage ?? null,
+      sources: {
+        oauth: oauth ? { fetchedAt: oauth.fetchedAt } : null,
+        sdk: { entryCount: sdkEntries.length },
+      },
+      asOf: Date.now(),
+    })
+  })
+
+  // All-profiles aggregate — returns OAuth usage for every configured profile
+  // in parallel, each with its own per-profile cache. Used by the Meridian
+  // settings UI to render a multi-account usage panel.
+  //
+  // Pylon and other single-profile clients should keep using `/v1/usage/quota`
+  // (which returns only the active profile's data).
+  //
+  // Each profile entry includes the same shape as `/v1/usage/quota`'s top
+  // level (windows + extraUsage), or `error: "no_token" | "upstream_error"`
+  // when the fetch failed for that profile.
+  app.get("/v1/usage/quota/all", async (c) => {
+    const profilesList = getEffectiveProfiles(finalConfig.profiles)
+    const activeId = getActiveProfileId() || finalConfig.defaultProfile || profilesList[0]?.id || null
+
+    if (profilesList.length === 0) {
+      // Single-account mode — just return the default OAuth account's data.
+      const oauth = await fetchOAuthUsage({})
+      return c.json({
+        profiles: [{
+          id: "default",
+          isActive: true,
+          windows: oauth?.windows ?? [],
+          extraUsage: oauth?.extraUsage ?? null,
+          fetchedAt: oauth?.fetchedAt ?? null,
+          error: oauth ? null : "no_token",
+        }],
+        activeProfile: "default",
+        asOf: Date.now(),
+      })
+    }
+
+    const results = await Promise.all(profilesList.map(async (p) => {
+      // Skip API-key profiles — OAuth usage endpoint only applies to Claude Max OAuth.
+      const type = p.type ?? "claude-max"
+      if (type !== "claude-max") {
+        return {
+          id: p.id,
+          isActive: p.id === activeId,
+          type,
+          windows: [] as any[],
+          extraUsage: null,
+          fetchedAt: null,
+          error: "not_oauth" as const,
+        }
+      }
+      const oauth = await fetchOAuthUsage({
+        profileId: p.id,
+        claudeConfigDir: p.claudeConfigDir,
+      })
+      return {
+        id: p.id,
+        isActive: p.id === activeId,
+        type,
+        windows: oauth?.windows ?? [],
+        extraUsage: oauth?.extraUsage ?? null,
+        fetchedAt: oauth?.fetchedAt ?? null,
+        error: oauth ? null : "no_token",
+      }
+    }))
+
+    return c.json({
+      profiles: results,
+      activeProfile: activeId,
       asOf: Date.now(),
     })
   })
