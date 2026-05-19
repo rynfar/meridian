@@ -26,7 +26,9 @@ export const openCodeAdapter: AgentAdapter = {
   },
 
   normalizeContent(content: any): string {
-    return normalizeContent(content)
+    const normalized = normalizeContent(content)
+    // Progressive Disclosure: strip workflow/release docs for CLAUDE.md context
+    return stripWorkflowGuidance(normalized)
   },
 
   getBlockedBuiltinTools(): readonly string[] {
@@ -140,6 +142,31 @@ export const openCodeAdapter: AgentAdapter = {
     }
     return []
   },
+}
+
+/**
+ * NOTE: OpenCode-specific. Progressive Disclosure: strips workflow/release guidance
+ * from CLAUDE.md to reduce context for coding tasks. Removes sections that are rarely
+ * needed during active coding (Git workflow, release process, troubleshooting).
+ * Expected savings: ~500 tokens per request for typical coding tasks.
+ */
+function stripWorkflowGuidance(content: string): string {
+  return content
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim()
+      // Remove header lines for sections we're stripping
+      if (trimmed.match(/^##\s+(Git|Releasing|Release config)/)) {
+        return false
+      }
+      // Remove the entire Releasing section and its subsections
+      if (trimmed.match(/^###\s+(Commit format|Development workflow|Troubleshooting|Release config files)/)) {
+        return false
+      }
+      return true
+    })
+    .join('\n')
+    .trim()
 }
 
 import { openCodeTransforms } from "../transforms/opencode"

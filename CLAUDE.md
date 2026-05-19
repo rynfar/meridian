@@ -2,9 +2,18 @@
 
 Project guidelines for AI agents working in this codebase.
 
+## Context Strategy
+
+This proxy implements md-codebase patterns (2026 best practice):
+- **CLAUDE.md is kept lean (~80 lines)** for stateless LLM sessions
+- **Task-specific guidance** lives in `docs/ARCHITECTURE.md` and `docs/AGENT-GUIDELINES.md`
+- **OpenCode adapter** applies Progressive Disclosure — strips workflow/release docs for coding tasks (~15-20% token reduction)
+
+See `docs/ARCHITECTURE.md` for the full module map, dependency rules, and design patterns.
+
 ## What This Is
 
-A proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK). See `ARCHITECTURE.md` for the full module map and dependency rules.
+A proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK).
 
 ## Commands
 
@@ -25,11 +34,12 @@ npm start         # Start the proxy server
 
 ### Agent-Specific Logic
 
-OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Specific Logic". When modifying these areas:
+When modifying agent-specific behavior, see `docs/AGENT-GUIDELINES.md`:
 
-- Add a `NOTE:` comment marking the code as agent-specific
+- Add a `NOTE: <Agent>-specific.` comment marking the code
 - Do not spread agent-specific logic into new modules
-- Future work will use an adapter pattern — see `DEFERRED.md`
+- Document requirements in AGENT-GUIDELINES.md
+- Future work will use a cleaner plugin architecture — see `DEFERRED.md`
 
 ### Testing
 
@@ -46,26 +56,6 @@ OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Speci
 - No empty catch blocks
 - Match existing patterns — check neighboring code before writing
 - Keep `server.ts` as thin as possible — it should orchestrate, not compute
-
-## Architecture Quick Reference
-
-```
-server.ts          → HTTP routes, SSE streaming, concurrency (orchestration only)
-adapter.ts         → AgentAdapter interface (extensibility point)
-adapters/
-  opencode.ts      → OpenCode-specific: headers, CWD, tool config
-  forgecode.ts     → ForgeCode-specific: XML CWD, patch/shell tools, passthrough
-query.ts           → buildQueryOptions (shared stream/non-stream SDK call builder)
-errors.ts          → classifyError (pure)
-models.ts          → mapModelToClaudeModel, resolveClaudeExecutableAsync
-tools.ts           → BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME
-messages.ts        → normalizeContent, getLastUserMessage (pure)
-fileChanges.ts     → PostToolUse hook: file write/edit tracking + summary formatting (pure)
-session/
-  lineage.ts       → Hashing, lineage verification (PURE — no I/O)
-  fingerprint.ts   → extractClientCwd, getConversationFingerprint
-  cache.ts         → LRU caches, lookupSession, storeSession (stateful)
-```
 
 ## Stable API Contract
 
