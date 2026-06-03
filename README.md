@@ -840,6 +840,21 @@ meridian refresh-token
 curl -X POST http://127.0.0.1:3456/auth/refresh
 ```
 
+**I'm getting `400 You're out of extra usage` only when tools are present. What do I do?**
+First confirm the failure pattern: a tiny no-tool request succeeds, but the same client fails once it sends tool definitions. If that is the case, beta-header stripping and model fallback usually will not help because the request body still contains agentic tool context.
+
+For the affected adapter, try disabling the connecting client's system prompt while keeping the Claude Code prompt enabled:
+
+```bash
+curl -X PATCH http://127.0.0.1:3456/settings/api/features/pi \
+  -H 'Content-Type: application/json' \
+  -d '{"clientSystemPrompt":false,"codeSystemPrompt":true}'
+```
+
+Replace `pi` with the adapter you use (`opencode`, `crush`, `forgecode`, `droid`, or `passthrough`). You can make the same change in the `/settings` UI under **SDK Feature Toggles**.
+
+This keeps the SDK's preset prompt and tool bridge, but removes the external client's large agent prompt from the request. That may help when the error is triggered by the combination of tool definitions plus client prompt context. The tradeoff is that the connected agent may behave more like vanilla Claude Code because its own persona and workflow instructions are no longer included. If it still fails, the remaining options are to use fewer/no tools for that client, enable Extra Usage/API billing, or switch to a local/provider-backed model for that workflow. See [#516](https://github.com/rynfar/meridian/issues/516) for the current debugging thread.
+
 **I'm hitting rate limits on 1M context. What do I do?**
 Meridian defaults Sonnet to 200k context because Sonnet 1M is always billed as Extra Usage on Max plans — even when regular usage isn't exhausted. This is [Anthropic's intended billing model](https://code.claude.com/docs/en/model-config#extended-context), not a bug. Set `MERIDIAN_SONNET_MODEL=sonnet[1m]` to opt in if you have Extra Usage enabled and understand the billing implications. Opus defaults to 1M context, which is included with Max/Team/Enterprise subscriptions at no extra cost. Note: there is a [known upstream bug](https://github.com/anthropics/claude-code/issues/39841) where Claude Code incorrectly gates Opus 1M behind Extra Usage on Max — this is Anthropic's to fix.
 
