@@ -205,7 +205,7 @@ function resolveSystemPrompt(
   // `systemPrompt` undefined and let downstream defaults reintroduce the
   // preset. (#489 follow-up — low impact in practice since most callers
   // send a `system` field; belt-and-suspenders for the empty case.)
-  if (codeSystemPrompt === false) return { systemPrompt: "" }
+  if (codeSystemPrompt === false) return { systemPrompt: clientContext ?? "" }
   return {}
 }
 
