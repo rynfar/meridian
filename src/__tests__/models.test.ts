@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resolveSdkModelDefaults, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resolveSdkModelDefaults, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -257,9 +257,15 @@ describe("resolveSdkModelDefaults", () => {
   // runs files in parallel.
   it("returns canonical pins when no overrides set", () => {
     const pins = resolveSdkModelDefaults({})
+    expect(pins.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe(CANONICAL_FABLE_MODEL)
     expect(pins.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe(CANONICAL_OPUS_MODEL)
     expect(pins.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe(CANONICAL_SONNET_MODEL)
     expect(pins.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe(CANONICAL_HAIKU_MODEL)
+  })
+
+  it("MERIDIAN_DEFAULT_FABLE_MODEL override wins over the canonical default", () => {
+    const pins = resolveSdkModelDefaults({ MERIDIAN_DEFAULT_FABLE_MODEL: "claude-fable-6" })
+    expect(pins.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-6")
   })
 
   it("MERIDIAN_DEFAULT_OPUS_MODEL override wins over the canonical default", () => {
@@ -277,9 +283,10 @@ describe("resolveSdkModelDefaults", () => {
     expect(pins.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-5-0")
   })
 
-  it("returns only the three ANTHROPIC_DEFAULT_* keys — nothing else", () => {
+  it("returns only the four ANTHROPIC_DEFAULT_* keys — nothing else", () => {
     const pins = resolveSdkModelDefaults({})
     expect(Object.keys(pins).sort()).toEqual([
+      "ANTHROPIC_DEFAULT_FABLE_MODEL",
       "ANTHROPIC_DEFAULT_HAIKU_MODEL",
       "ANTHROPIC_DEFAULT_OPUS_MODEL",
       "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -290,6 +297,7 @@ describe("resolveSdkModelDefaults", () => {
     // Smoke test that the no-arg path still works — value is unspecified but
     // shape must be correct.
     const pins = resolveSdkModelDefaults()
+    expect(typeof pins.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("string")
     expect(typeof pins.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("string")
     expect(typeof pins.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("string")
     expect(typeof pins.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("string")

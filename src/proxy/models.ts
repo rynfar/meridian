@@ -39,6 +39,7 @@ export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku
  * override via MERIDIAN_DEFAULT_{TYPE}_MODEL (proxy-side) or
  * ANTHROPIC_DEFAULT_{TYPE}_MODEL (shell env, wins over Meridian's pin).
  */
+export const CANONICAL_FABLE_MODEL = "claude-fable-5"
 export const CANONICAL_OPUS_MODEL = "claude-opus-4-8"
 export const CANONICAL_SONNET_MODEL = "claude-sonnet-4-6"
 export const CANONICAL_HAIKU_MODEL = "claude-haiku-4-5"
@@ -56,6 +57,7 @@ export function resolveSdkModelDefaults(
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
   return {
+    ANTHROPIC_DEFAULT_FABLE_MODEL: env.MERIDIAN_DEFAULT_FABLE_MODEL ?? CANONICAL_FABLE_MODEL,
     ANTHROPIC_DEFAULT_OPUS_MODEL: env.MERIDIAN_DEFAULT_OPUS_MODEL ?? CANONICAL_OPUS_MODEL,
     ANTHROPIC_DEFAULT_SONNET_MODEL: env.MERIDIAN_DEFAULT_SONNET_MODEL ?? CANONICAL_SONNET_MODEL,
     ANTHROPIC_DEFAULT_HAIKU_MODEL: env.MERIDIAN_DEFAULT_HAIKU_MODEL ?? CANONICAL_HAIKU_MODEL,
