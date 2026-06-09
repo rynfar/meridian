@@ -577,7 +577,7 @@ src/proxy/
 │   └── passthrough.ts     ← LiteLLM passthrough adapter
 ├── query.ts               ← SDK query options builder
 ├── errors.ts              ← Error classification
-├── models.ts              ← Model mapping (sonnet/opus/haiku, agentMode)
+├── models.ts              ← Model mapping (fable/sonnet/opus/haiku, agentMode)
 ├── tokenRefresh.ts        ← Cross-platform OAuth token refresh
 ├── openai.ts              ← OpenAI ↔ Anthropic format translation (pure)
 ├── setup.ts               ← OpenCode plugin configuration
