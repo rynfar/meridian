@@ -1156,40 +1156,45 @@ describe("createSseTranslator", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildModelList", () => {
-  it("returns 4 models", () => {
-    expect(buildModelList(true).length).toBe(5)
-    expect(buildModelList(false).length).toBe(5)
+  it("returns 6 models", () => {
+    expect(buildModelList(true).length).toBe(6)
+    expect(buildModelList(false).length).toBe(6)
   })
 
-  it("includes opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
+  it("includes opus-4-6, opus-4-7, opus-4-8, and fable-5 for UI pickers", () => {
     const ids = buildModelList(true).map(m => m.id)
     expect(ids).toContain("claude-opus-4-6")
     expect(ids).toContain("claude-opus-4-7")
     expect(ids).toContain("claude-opus-4-8")
+    expect(ids).toContain("claude-fable-5")
   })
 
-  it("Max subscription gets 1M context for all opus variants, 200k for sonnet", () => {
+  it("Max subscription gets 1M context for all opus variants and fable, 200k for sonnet", () => {
     const models = buildModelList(true)
     const sonnet = models.find(m => m.id === "claude-sonnet-4-6")!
     const opus46 = models.find(m => m.id === "claude-opus-4-6")!
     const opus47 = models.find(m => m.id === "claude-opus-4-7")!
     const opus48 = models.find(m => m.id === "claude-opus-4-8")!
+    const fable5 = models.find(m => m.id === "claude-fable-5")!
     expect(sonnet.context_window).toBe(200_000)
     expect(opus46.context_window).toBe(1_000_000)
     expect(opus47.context_window).toBe(1_000_000)
     expect(opus48.context_window).toBe(1_000_000)
+    expect(fable5.context_window).toBe(1_000_000)
   })
 
-  it("non-Max gets 200k context for sonnet and all opus variants", () => {
+  it("non-Max gets 200k context for sonnet, all opus variants, and fable", () => {
     const models = buildModelList(false)
     const sonnet = models.find(m => m.id === "claude-sonnet-4-6")!
     const opus46 = models.find(m => m.id === "claude-opus-4-6")!
     const opus47 = models.find(m => m.id === "claude-opus-4-7")!
     const opus48 = models.find(m => m.id === "claude-opus-4-8")!
+    const fable5 = models.find(m => m.id === "claude-fable-5")!
     expect(sonnet.context_window).toBe(200_000)
     expect(opus46.context_window).toBe(200_000)
     expect(opus47.context_window).toBe(200_000)
     expect(opus48.context_window).toBe(200_000)
+    expect(fable5.context_window).toBe(200_000)
   })
 
   it("haiku is always 200k regardless of subscription", () => {

@@ -32,6 +32,11 @@ describe("mapModelToClaudeModel", () => {
     expect(mapModelToClaudeModel("haiku")).toBe("haiku")
   })
 
+  it("maps fable models to fable[1m]", () => {
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+    expect(mapModelToClaudeModel("fable")).toBe("fable[1m]")
+  })
+
   it("maps sonnet 4.6 models to sonnet (200k) for max subscriptions by default", () => {
     // Sonnet [1m] requires Extra Usage on Max — default to 200k to avoid charges
     expect(mapModelToClaudeModel("claude-sonnet-4-6", "max")).toBe("sonnet")
@@ -84,6 +89,11 @@ describe("mapModelToClaudeModel", () => {
       expect(mapModelToClaudeModel("opus", "max", "subagent")).toBe("opus")
     })
 
+    it("gives subagents base fable regardless of subscription", () => {
+      expect(mapModelToClaudeModel("claude-fable-5", "max", "subagent")).toBe("fable")
+      expect(mapModelToClaudeModel("fable", "max", "subagent")).toBe("fable")
+    })
+
     it("haiku is unaffected by agent mode", () => {
       expect(mapModelToClaudeModel("claude-haiku-4-5", "max", "subagent")).toBe("haiku")
     })
@@ -122,6 +132,10 @@ describe("stripExtendedContext", () => {
     expect(stripExtendedContext("sonnet[1m]")).toBe("sonnet")
   })
 
+  it("strips [1m] from fable", () => {
+    expect(stripExtendedContext("fable[1m]")).toBe("fable")
+  })
+
   it("returns haiku unchanged", () => {
     expect(stripExtendedContext("haiku")).toBe("haiku")
   })
@@ -129,6 +143,7 @@ describe("stripExtendedContext", () => {
   it("returns base models unchanged", () => {
     expect(stripExtendedContext("opus")).toBe("opus")
     expect(stripExtendedContext("sonnet")).toBe("sonnet")
+    expect(stripExtendedContext("fable")).toBe("fable")
   })
 })
 
@@ -136,12 +151,14 @@ describe("hasExtendedContext", () => {
   it("returns true for [1m] models", () => {
     expect(hasExtendedContext("opus[1m]")).toBe(true)
     expect(hasExtendedContext("sonnet[1m]")).toBe(true)
+    expect(hasExtendedContext("fable[1m]")).toBe(true)
   })
 
   it("returns false for base models", () => {
     expect(hasExtendedContext("opus")).toBe(false)
     expect(hasExtendedContext("sonnet")).toBe(false)
     expect(hasExtendedContext("haiku")).toBe(false)
+    expect(hasExtendedContext("fable")).toBe(false)
   })
 })
 
@@ -161,6 +178,11 @@ describe("Extra Usage cooldown", () => {
   it("mapModelToClaudeModel returns sonnet (not [1m]) during cooldown", () => {
     recordExtendedContextUnavailable()
     expect(mapModelToClaudeModel("claude-sonnet-4-6", "max")).toBe("sonnet")
+  })
+
+  it("mapModelToClaudeModel returns fable (not [1m]) during cooldown", () => {
+    recordExtendedContextUnavailable()
+    expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable")
   })
 
   it("sonnet stays sonnet even when cooldown is cleared (default is 200k)", () => {

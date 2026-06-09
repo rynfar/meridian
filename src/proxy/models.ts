@@ -21,7 +21,7 @@ const execFile = promisify(execFileCallback)
  */
 const STUB_SIZE_THRESHOLD = 4096
 
-export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku"
+export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku" | "fable" | "fable[1m]"
 
 /**
  * Current canonical pins for the `sonnet`/`opus`/`haiku` SDK aliases.
@@ -99,6 +99,14 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // Using the base model preserves rate limit budget for the primary agent.
   const isSubagent = agentMode === "subagent"
 
+  // Fable [1m]: Fable 5 supports the 1M extended context window. Mirrors
+  // the opus handling — [1m] for primary agents, base model for subagents,
+  // honoring the Extra Usage cooldown.
+  if (model.includes("fable")) {
+    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable()) return "fable[1m]"
+    return "fable"
+  }
+
   // Opus [1m]: included with Max, Team, and Enterprise subscriptions per
   // Anthropic docs (https://code.claude.com/docs/en/model-config#extended-context).
   // Safe to default to [1m] for Max users — no Extra Usage charges.
@@ -165,6 +173,7 @@ export function resetExtendedContextUnavailable(): void {
 export function stripExtendedContext(model: ClaudeModel): ClaudeModel {
   if (model === "opus[1m]") return "opus"
   if (model === "sonnet[1m]") return "sonnet"
+  if (model === "fable[1m]") return "fable"
   return model
 }
 
