@@ -21,7 +21,9 @@ const execFile = promisify(execFileCallback)
  */
 const STUB_SIZE_THRESHOLD = 4096
 
-export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku"
+// Fable has no SDK alias (the alias system only covers sonnet/opus/haiku),
+// so it is carried as the concrete model id and passed straight to the SDK.
+export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku" | "claude-fable-5"
 
 /**
  * Current canonical pins for the `sonnet`/`opus`/`haiku` SDK aliases.
@@ -92,6 +94,11 @@ function supports1mContext(model: string): boolean {
 }
 
 export function mapModelToClaudeModel(model: string, subscriptionType?: string | null, agentMode?: string | null): ClaudeModel {
+  // Fable is the top tier above Opus and has no sonnet/opus/haiku SDK alias,
+  // so there is no ANTHROPIC_DEFAULT_*_MODEL slot to pin it through. Pass the
+  // concrete id straight to the SDK; the Claude CLI resolves it directly.
+  if (model.includes("fable")) return "claude-fable-5"
+
   if (model.includes("haiku")) return "haiku"
 
   const use1m = supports1mContext(model)

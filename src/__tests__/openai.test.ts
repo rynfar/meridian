@@ -1156,16 +1156,24 @@ describe("createSseTranslator", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildModelList", () => {
-  it("returns 4 models", () => {
-    expect(buildModelList(true).length).toBe(5)
-    expect(buildModelList(false).length).toBe(5)
+  it("returns 6 models", () => {
+    expect(buildModelList(true).length).toBe(6)
+    expect(buildModelList(false).length).toBe(6)
   })
 
-  it("includes opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
+  it("includes fable-5, opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
     const ids = buildModelList(true).map(m => m.id)
+    expect(ids).toContain("claude-fable-5")
     expect(ids).toContain("claude-opus-4-6")
     expect(ids).toContain("claude-opus-4-7")
     expect(ids).toContain("claude-opus-4-8")
+  })
+
+  it("Max subscription gets 1M context for fable, 200k otherwise", () => {
+    const fableMax = buildModelList(true).find(m => m.id === "claude-fable-5")!
+    const fableFree = buildModelList(false).find(m => m.id === "claude-fable-5")!
+    expect(fableMax.context_window).toBe(1_000_000)
+    expect(fableFree.context_window).toBe(200_000)
   })
 
   it("Max subscription gets 1M context for all opus variants, 200k for sonnet", () => {

@@ -794,6 +794,14 @@ export function translateAnthropicSseEvent(
 export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date.now() / 1000)): OpenAiModel[] {
   return [
     {
+      id: "claude-fable-5",
+      object: "model",
+      created: now,
+      owned_by: "anthropic",
+      display_name: "Claude Fable 5",
+      context_window: isMaxSubscription ? 1_000_000 : 200_000,
+    },
+    {
       id: "claude-sonnet-4-6",
       object: "model",
       created: now,

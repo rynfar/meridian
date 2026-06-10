@@ -55,6 +55,12 @@ describe("mapModelToClaudeModel", () => {
     expect(mapModelToClaudeModel("", undefined)).toBe("sonnet")
   })
 
+  it("passes the concrete fable model straight through (no alias collapse)", () => {
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("claude-fable-5")
+    expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("claude-fable-5")
+    expect(mapModelToClaudeModel("fable")).toBe("claude-fable-5")
+  })
+
   it("respects explicit sonnet[1m] override when opted in", () => {
     process.env.CLAUDE_PROXY_SONNET_MODEL = "sonnet[1m]"
     expect(mapModelToClaudeModel("sonnet", "team")).toBe("sonnet[1m]")
