@@ -85,6 +85,7 @@ kill $(lsof -ti :3456)
 | E29 | [Context Usage Endpoint](#e29-context-usage-endpoint) | `/v1/sessions/:claudeSessionId/context-usage` returns live token usage for a completed request | 2026-04-03 |
 | E30 | [Context Usage via Fingerprint + Restart](#e30-context-usage-via-fingerprint--restart) | Context usage lookup works for headerless sessions and survives proxy restart via shared store | 2026-04-03 |
 | E32 | [Tool-use leak (#416) — opencode + opus-4-7](#e32-tool-use-leak-416--opencode--opus-4-7) | Multi-turn opencode rehydration with prior tool_use blocks does not cause opus-4-7 to emit `[Tool Use:` / `H:` / `Human:` text in its response | 2026-04-26 |
+| E33 | [OpenAI Compat: system prompt, no preset](#e33-openai-compat-system-prompt-no-preset) | `/v1/chat/completions` honours the client's system prompt without injecting the claude_code preset (openai adapter default) | 2026-06-15 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3066,3 +3067,32 @@ rm -f /tmp/e2e-416-body.json /tmp/e2e-416-aggressive.json
 ### Why this isn't fully covered by unit tests
 
 The existing regression test in `src/__tests__/proxy-tool-flattening-regression.test.ts` (issue #386) verifies the SDK **prompt** contains no `[Tool Use:` strings. That's necessary but not sufficient for #416 — the symptom there was the **model's response** containing those strings, picked up from context patterns the model imitates. Only a live model can verify that opus-4-7 doesn't mimic the rehydration format. The unit test guards Meridian's prompt construction; this E2E guards the model's actual behavior on the user's stack.
+
+---
+
+## E33: OpenAI Compat: system prompt, no preset
+
+**Verifies:** A generic OpenAI client (Open WebUI, curl) hitting `POST /v1/chat/completions` with a `system` message has that prompt honoured directly, **without** the ~28KB `claude_code` preset being injected on top. The internal hop is tagged `x-meridian-agent: openai`, selecting the `openai` adapter whose `codeSystemPrompt` defaults OFF (mirrors the passthrough precedent, #190). Regression guard for the #526 investigation.
+
+```bash
+curl -s http://127.0.0.1:3456/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: dummy" \
+  -d '{
+    "model": "claude-haiku-4-5-20251001",
+    "max_tokens": 40,
+    "messages": [
+      {"role": "system", "content": "You are Aristotle, a philosophy tutor. You are NOT a coding assistant. In one short sentence, state who you are."},
+      {"role": "user", "content": "Who are you?"}
+    ]
+  }' | python3 -m json.tool
+```
+
+**Pass criteria:**
+- Response reflects the client system prompt (e.g. "I am Aristotle, a philosophy tutor.")
+- Proxy log shows `adapter=openai` for the inner hop (not `adapter=opencode`)
+- No Claude Code persona / tool-instruction leakage in the reply
+
+**To confirm the preset is actually gone** (the deterministic check), set `codeSystemPrompt` for the `openai` adapter and observe the difference, or rely on the unit test `src/__tests__/proxy-openai-compat.test.ts` → "sends the client system prompt verbatim, without the claude_code preset", which asserts the SDK receives a plain-string `systemPrompt` rather than a `{type: "preset", preset: "claude_code"}` object.
+
+**What's being tested:** `openAiAdapter` (`adapters/openai.ts`), the `x-meridian-agent: openai` tag on the internal hop (`server.ts`), and `ADAPTER_DEFAULTS.openai = { codeSystemPrompt: false }` (`sdkFeatures.ts`).

@@ -53,6 +53,7 @@ import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools } from "./me
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
+import { normalizeEffort } from "./effort"
 import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
 import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
@@ -245,8 +246,18 @@ function buildFreshPrompt(
     .join("\n\n") || ""
 }
 
+// Routine [PROXY] operational logging. Suppressed when config.silent is set so
+// an embedding TUI host (e.g. opencode-with-claude) isn't polluted on its input
+// line (#517 was the token_refresh instance of this). Structured telemetry
+// (claudeLog) and HTTP responses are unaffected. Module-scoped to match the
+// file's existing single-process session caches; createProxyServer sets it.
+let proxyLogSilent = false
+function plog(message: string): void {
+  if (!proxyLogSilent) console.error(message)
+}
+
 function logUsage(requestId: string, usage: TokenUsage): void {
-  console.error(`[PROXY] ${requestId} usage: ${formatUsageSummary(usage)}`)
+  plog(`[PROXY] ${requestId} usage: ${formatUsageSummary(usage)}`)
 }
 
 function checkTokenHealth(
@@ -289,7 +300,7 @@ function checkTokenHealth(
   if (anomalies.length > 0) {
     const alerts = formatAnomalyAlerts(requestId, anomalies)
     for (const line of alerts) {
-      console.error(line)
+      plog(line)
     }
     for (const a of anomalies) {
       diagnosticLog.log({
@@ -304,6 +315,7 @@ function checkTokenHealth(
 
 export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServer {
   const finalConfig = { ...DEFAULT_PROXY_CONFIG, ...config }
+  proxyLogSilent = finalConfig.silent
   const serverVersion = finalConfig.version ?? "unknown"
 
   // Restore persisted active profile from last session
@@ -441,7 +453,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Logged for observability; fork-*/subagent-* values also skip fingerprint cache (see below).
         // Examples: "main", "fork-memory-extract", "subagent-scout".
         const requestSource = c.req.header("x-meridian-source")?.slice(0, 64) || undefined
-        let model = mapModelToClaudeModel(body.model || "sonnet", authStatus?.subscriptionType, agentMode)
+        const requestedModel = typeof body.model === "string" ? body.model : "sonnet"
+        let model = mapModelToClaudeModel(requestedModel, authStatus?.subscriptionType, agentMode)
+        const envOverrides = requestedModel.startsWith("claude-opus-")
+          ? { ANTHROPIC_DEFAULT_OPUS_MODEL: requestedModel }
+          : undefined
         // workingDirectory = SDK subprocess cwd (must exist on the proxy host).
         // clientWorkingDirectory = the client's local path (may not exist here);
         // used for per-project fingerprint bucketing and a system-prompt hint
@@ -552,18 +568,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const rawBetaHeader = c.req.header("anthropic-beta")
         const betaFilter = filterBetasForProfile(rawBetaHeader, profile.type, getBetaPolicyFromEnv())
         if (betaFilter.stripped.length > 0) {
-          console.error(`[PROXY] ${requestMeta.requestId} stripped anthropic-beta(s) for Max profile: ${betaFilter.stripped.join(", ")}`)
+          plog(`[PROXY] ${requestMeta.requestId} stripped anthropic-beta(s) for Max profile: ${betaFilter.stripped.join(", ")}`)
         }
 
-        const effort = effortHeader
+        // Effort can arrive as a header, the Anthropic `effort` field, the
+        // standard OpenAI `reasoning_effort`, or an Anthropic-style
+        // `output_config.effort`. normalizeEffort gates the value to Claude's
+        // vocabulary so an unknown level (e.g. OpenAI's "minimal") falls back to
+        // the model default instead of erroring at the SDK boundary.
+        const effort = normalizeEffort(
+          effortHeader
           || body.effort
-          || undefined
+          || body.reasoning_effort
+          || body.output_config?.effort
+        )
         let thinking: QueryContext['thinking'] | undefined = body.thinking || undefined
         if (thinkingHeader !== undefined) {
           try {
             thinking = JSON.parse(thinkingHeader) as QueryContext["thinking"]
           } catch (e) {
-            console.error(`[PROXY] ${requestMeta.requestId} ignoring malformed x-opencode-thinking header: ${e instanceof Error ? e.message : String(e)}`)
+            plog(`[PROXY] ${requestMeta.requestId} ignoring malformed x-opencode-thinking header: ${e instanceof Error ? e.message : String(e)}`)
           }
         }
         // SDK feature toggles — resolved once per request for use in thinking
@@ -584,7 +608,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (thinkingBetaStripped) {
           thinking = { type: "disabled" }
           if (betaFilter.stripped.length > 0) {
-            console.error(`[PROXY] ${requestMeta.requestId} thinking disabled (thinking beta stripped by ${getBetaPolicyFromEnv()} policy)`)
+            plog(`[PROXY] ${requestMeta.requestId} thinking disabled (thinking beta stripped by ${getBetaPolicyFromEnv()} policy)`)
           }
         }
         const parsedBudget = taskBudgetHeader ? Number.parseInt(taskBudgetHeader, 10) : NaN
@@ -651,7 +675,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
-        console.error(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
+        plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
         // Recovery logging: when a session diverges, check if the store has a
@@ -661,7 +685,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           if (recovery) {
             const prevId = recovery.previousClaudeSessionId || recovery.claudeSessionId
             const recoveryMsg = `${requestMeta.requestId} SESSION RECOVERY: previous conversation available. Run: claude --resume ${prevId}`
-            console.error(`[PROXY] ${recoveryMsg}`)
+            plog(`[PROXY] ${recoveryMsg}`)
             diagnosticLog.session(recoveryMsg, requestMeta.requestId)
           }
         }
@@ -827,7 +851,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const cached = sessionToolCache.get(profileSessionId)
         if (cached && cached.length > 0) {
           requestTools = cached
-          console.error(`[PROXY] ${requestMeta.requestId} tools_restored: client sent 0 tools but session had ${cached.length} — reusing cached tools to preserve prompt cache`)
+          plog(`[PROXY] ${requestMeta.requestId} tools_restored: client sent 0 tools but session had ${cached.length} — reusing cached tools to preserve prompt cache`)
         }
       }
       if (passthrough && requestTools.length > 0) {
@@ -840,7 +864,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           if (profileSessionId) {
             sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
             if (cachedMcp) {
-              console.error(`[PROXY] ${requestMeta.requestId} tools_changed: MCP server recreated (prompt cache likely invalidates)`)
+              plog(`[PROXY] ${requestMeta.requestId} tools_changed: MCP server recreated (prompt cache likely invalidates)`)
             }
           }
         }
@@ -854,7 +878,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         ? requestTools.filter((t: any) => t.defer_loading === true || (coreSet && !coreSet.has(String(t.name).toLowerCase()))).length
         : 0
       if (hasDeferredTools) {
-        console.error(`[PROXY] ${requestMeta.requestId} deferred=${deferredToolCount}/${toolCount} tools (core: ${coreNames?.join(",") ?? "none"})`)
+        plog(`[PROXY] ${requestMeta.requestId} deferred=${deferredToolCount}/${toolCount} tools (core: ${coreNames?.join(",") ?? "none"})`)
       }
 
       // In passthrough mode: block ALL tools, capture them for forwarding (agent-agnostic).
@@ -983,6 +1007,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               await ensureFreshToken().catch(() => { /* reactive path handles */ })
 
               let tokenRefreshed = false
+              let didFreshBaseRetry = false
               while (true) {
                 // Track whether response content was yielded.
                 // The SDK emits metadata (session_id etc.) before the API call;
@@ -991,7 +1016,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 try {
                   for await (const event of query(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
+                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
                     resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -1031,14 +1056,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       rollbackUuid: undoRollbackUuid,
                       resumeSessionId,
                     })
-                    console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
+                    plog(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
                     evictSession(profileSessionId, profileScopedCwd, allMessages)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* query(buildQueryOptions({
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
+                      passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
                       resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -1068,8 +1093,37 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       to: model,
                       reason: "extra_usage_required",
                     })
-                    console.error(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
+                    plog(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
                     continue
+                  }
+
+                  if (isExtraUsageRequiredError(errMsg) && resumeSessionId && !didFreshBaseRetry) {
+                    didFreshBaseRetry = true
+                    claudeLog("upstream.session_fallback", {
+                      mode: "non_stream",
+                      model,
+                      reason: "extra_usage_required_resume",
+                    })
+                    plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
+                    evictSession(profileSessionId, profileScopedCwd, allMessages)
+                    sdkUuidMap.length = 0
+                    for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
+                    yield* query(buildQueryOptions({
+                      prompt: buildFreshPrompt(allMessages, sanitizeOpts),
+                      model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
+                      passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
+                      resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                      effort, thinking, taskBudget, betas, settingSources,
+                      codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                      memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
+                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                      sdkDebug: sdkFeatures.sdkDebug,
+                      additionalDirectories: sdkFeatures.additionalDirectories
+                        ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                        : undefined,
+                      advisorModel,
+                    }))
+                    return
                   }
 
                   // Expired OAuth token: refresh once and retry
@@ -1078,7 +1132,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     const refreshed = await refreshOAuthToken()
                     if (refreshed) {
                       claudeLog("token_refresh.retrying", { mode: "non_stream" })
-                      console.error(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
+                      plog(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
                       continue
                     }
                     // Refresh failed — fall through and surface the error
@@ -1095,7 +1149,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         to: model,
                         reason: "rate_limit",
                       })
-                      console.error(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
+                      plog(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
                       continue
                     }
                     if (rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
@@ -1108,7 +1162,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         maxAttempts: MAX_RATE_LIMIT_RETRIES,
                         delayMs: delay,
                       })
-                      console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
+                      plog(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
                       await new Promise(r => setTimeout(r, delay))
                       continue
                     }
@@ -1217,7 +1271,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
               const newNames = [...discoveredTools].join(", ")
               const allNames = [...sessionDiscoveredTools.get(sessId)!]
-              console.error(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
+              plog(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
             }
           } catch (error) {
             const stderrOutput = stderrLines.join("\n").trim()
@@ -1452,6 +1506,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 await ensureFreshToken().catch(() => { /* reactive path handles */ })
 
                 let tokenRefreshed = false
+                let didFreshBaseRetry = false
 
                 while (true) {
                   // Track whether client-visible SSE events were yielded.
@@ -1462,7 +1517,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   try {
                     for await (const event of query(buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
+                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
                       resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -1497,14 +1552,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         rollbackUuid: undoRollbackUuid,
                         resumeSessionId,
                       })
-                      console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
+                      plog(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
                       evictSession(profileSessionId, profileScopedCwd, allMessages)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* query(buildQueryOptions({
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                        passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, hasDeferredTools,
+                        passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
                         resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                         effort, thinking, taskBudget, betas, settingSources,
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -1530,8 +1585,37 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         to: model,
                         reason: "extra_usage_required",
                       })
-                      console.error(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
+                      plog(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
                       continue
+                    }
+
+                    if (isExtraUsageRequiredError(errMsg) && resumeSessionId && !didFreshBaseRetry) {
+                      didFreshBaseRetry = true
+                      claudeLog("upstream.session_fallback", {
+                        mode: "stream",
+                        model,
+                        reason: "extra_usage_required_resume",
+                      })
+                      plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
+                      evictSession(profileSessionId, profileScopedCwd, allMessages)
+                      sdkUuidMap.length = 0
+                      for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
+                      yield* query(buildQueryOptions({
+                        prompt: buildFreshPrompt(allMessages, sanitizeOpts),
+                        model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
+                        passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
+                        resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                        effort, thinking, taskBudget, betas, settingSources,
+                        codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                        memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
+                        maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                        sdkDebug: sdkFeatures.sdkDebug,
+                        additionalDirectories: sdkFeatures.additionalDirectories
+                          ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                          : undefined,
+                        advisorModel,
+                      }))
+                      return
                     }
 
                     // Expired OAuth token: refresh once and retry
@@ -1540,7 +1624,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       const refreshed = await refreshOAuthToken()
                       if (refreshed) {
                         claudeLog("token_refresh.retrying", { mode: "stream" })
-                        console.error(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
+                        plog(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
                         continue
                       }
                       // Refresh failed — fall through and surface the error
@@ -1557,7 +1641,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           to: model,
                           reason: "rate_limit",
                         })
-                        console.error(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
+                        plog(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
                         continue
                       }
                       if (rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
@@ -1570,7 +1654,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           maxAttempts: MAX_RATE_LIMIT_RETRIES,
                           delayMs: delay,
                         })
-                        console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
+                        plog(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
                         await new Promise(r => setTimeout(r, delay))
                         continue
                       }
@@ -1855,7 +1939,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
                 const newNames = [...discoveredTools].join(", ")
                 const allNames = [...sessionDiscoveredTools.get(sessId)!]
-                console.error(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
+                plog(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
               }
 
               // Store session for future resume.
@@ -2477,7 +2561,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // profile's quotas under the new profile's identity.
     clearSessionCache()
     rateLimitStore.clear()
-    console.error(`[PROXY] Active profile switched to: ${body.profile} (session + rate-limit caches cleared)`)
+    plog(`[PROXY] Active profile switched to: ${body.profile} (session + rate-limit caches cleared)`)
     return c.json({ success: true, activeProfile: body.profile })
   })
 
@@ -2505,7 +2589,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       loadedPlugins = await loadPlugins(pluginDir, pluginConfigPath)
       pluginTransforms = getActiveTransforms(loadedPlugins)
       const active = loadedPlugins.filter(p => p.status === "active").length
-      console.error(`[PROXY] Plugins reloaded: ${active} active`)
+      plog(`[PROXY] Plugins reloaded: ${active} active`)
       return c.json({
         success: true,
         plugins: loadedPlugins.map(p => ({
@@ -2560,7 +2644,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // Hono resolves the path in-process; the URL scheme/host are ignored.
     // Forward the caller's auth headers so requireAuth on /v1/messages accepts
     // the inner hop when MERIDIAN_API_KEY is set (issue #415).
-    const internalHeaders: Record<string, string> = { "Content-Type": "application/json" }
+    // Tag the inner hop as the generic OpenAI endpoint. Without this the
+    // header-less internal request falls through detectAdapter to the default
+    // `opencode` adapter, whose claude_code preset defaults ON — hijacking the
+    // client's own system prompt with the Claude Code persona (#526). The
+    // `openai` adapter mirrors opencode but defaults the preset OFF.
+    const internalHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-meridian-agent": "openai",
+    }
     const xApiKey = c.req.header("x-api-key")
     if (xApiKey) internalHeaders["x-api-key"] = xApiKey
     const authz = c.req.header("authorization")
@@ -2584,10 +2676,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const created = Math.floor(Date.now() / 1000)
     const model = (typeof rawBody.model === "string" && rawBody.model) ? rawBody.model : "claude-sonnet-4-6"
 
-    // Resolve SDK features for this request (thinking passthrough setting)
+    // Resolve SDK features for this request (thinking passthrough setting).
+    // The OpenAI endpoint is unambiguously the `openai` adapter — matching the
+    // x-meridian-agent tag set on the internal hop above — so resolve directly
+    // rather than re-detecting from the (generic) client User-Agent.
     const { getFeaturesForAdapter } = require("./sdkFeatures") as typeof import("./sdkFeatures")
-    const adapter = detectAdapter(c)
-    const sdkFeatures = getFeaturesForAdapter(adapter.name)
+    const sdkFeatures = getFeaturesForAdapter("openai")
 
     if (!anthropicBody.stream) {
       const anthropicRes = await internalRes.json() as Record<string, unknown>
@@ -2903,7 +2997,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   // Catch-all: log unhandled requests
   app.all("*", (c) => {
-    console.error(`[PROXY] UNHANDLED ${c.req.method} ${c.req.url}`)
+    plog(`[PROXY] UNHANDLED ${c.req.method} ${c.req.url}`)
     return c.json({ error: { type: "not_found", message: `Endpoint not supported: ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
   })
 
@@ -2915,20 +3009,48 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const active = loadedPlugins.filter(p => p.status === "active").length
         const disabled = loadedPlugins.filter(p => p.status === "disabled").length
         const errored = loadedPlugins.filter(p => p.status === "error").length
-        console.error(`[PROXY] Plugins loaded: ${active} active, ${disabled} disabled, ${errored} errors`)
+        plog(`[PROXY] Plugins loaded: ${active} active, ${disabled} disabled, ${errored} errors`)
       }
     } catch (err) {
-      console.error(`[PROXY] Plugin loading failed: ${err instanceof Error ? err.message : String(err)}`)
+      plog(`[PROXY] Plugin loading failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
   return { app, config: finalConfig, initPlugins: initPluginsAsync }
 }
 
+/**
+ * Install process-level handlers that log and swallow uncaught exceptions
+ * and unhandled promise rejections instead of crashing the host process.
+ *
+ * Idempotent: safe to call multiple times; only the first invocation attaches
+ * listeners. Exported so library consumers can opt in explicitly without
+ * having to set `installProcessErrorHandlers: true` in `startProxyServer`.
+ */
+let processErrorHandlersInstalled = false
+export function installProxyProcessErrorHandlers(): void {
+  if (processErrorHandlersInstalled) return
+  processErrorHandlersInstalled = true
+  // Prevent SDK subprocess crashes (and downstream socket EPIPE / ECONNRESET
+  // from aborted streaming responses) from killing the proxy. Mirrors the
+  // long-standing behavior of `bin/cli.ts`; lifted here so library consumers
+  // (e.g. era-code's in-process startProxyServer) get the same safety net.
+  process.on("uncaughtException", (err) => {
+    console.error(`[PROXY] Uncaught exception (recovered): ${err.message}`)
+  })
+  process.on("unhandledRejection", (reason) => {
+    console.error(`[PROXY] Unhandled rejection (recovered): ${reason instanceof Error ? reason.message : reason}`)
+  })
+}
+
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
   claudeExecutable = await resolveClaudeExecutableAsync()
   const { app, config: finalConfig, initPlugins } = createProxyServer(config)
   if (initPlugins) await initPlugins()
+
+  if (finalConfig.installProcessErrorHandlers) {
+    installProxyProcessErrorHandlers()
+  }
 
   const server = serve({
     fetch: app.fetch,
