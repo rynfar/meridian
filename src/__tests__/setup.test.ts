@@ -8,7 +8,8 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import { join } from "path"
-import { checkPluginConfigured, findOpencodeConfigPath, runSetup } from "../proxy/setup"
+import { parse as parseJsonc } from "jsonc-parser"
+import { checkPluginConfigured, findOpencodeConfigPath, runSetup, UnparseableConfigError } from "../proxy/setup"
 
 const PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/plugin/meridian.ts"
 
@@ -171,14 +172,48 @@ describe("runSetup", () => {
     expect(count).toBe(1)
   })
 
-  it("handles invalid JSON in existing config gracefully", () => {
+  it("fails safe on an unparseable config — throws and never overwrites (#519)", () => {
     const configPath = join(tmp, "opencode.json")
-    writeFileSync(configPath, "not valid json")
+    const original = '{ "plugin": [ "/keep/this.ts"   // truncated, missing close\n'
+    writeFileSync(configPath, original)
+
+    expect(() => runSetup(PLUGIN_PATH, configPath)).toThrow(UnparseableConfigError)
+    // The user's file must be left exactly as it was — never clobbered.
+    expect(readFileSync(configPath, "utf-8")).toBe(original)
+  })
+
+  it("merges into a JSONC config, preserving comments and other settings (#519)", () => {
+    const configPath = join(tmp, "opencode.json")
+    const original = [
+      "{",
+      '  // my personal opencode config',
+      '  "$schema": "https://opencode.ai/config.json",',
+      '  "theme": "dark",',
+      '  "plugin": [',
+      '    "some-other-plugin", // keep me',
+      "  ],",
+      "}",
+      "",
+    ].join("\n")
+    writeFileSync(configPath, original)
 
     const result = runSetup(PLUGIN_PATH, configPath)
+    const text = readFileSync(configPath, "utf-8")
 
     expect(result.created).toBe(false)
-    const written = JSON.parse(readFileSync(configPath, "utf-8"))
-    expect(written.plugin).toContain(PLUGIN_PATH)
+    // Plugin merged, not replaced (parse tolerantly — output is still JSONC)
+    const parsed = parseJsonc(text, [], { allowTrailingComma: true }) as Record<string, any>
+    expect(parsed.plugin).toContain(PLUGIN_PATH)
+    expect(parsed.plugin).toContain("some-other-plugin")
+    expect(parsed.theme).toBe("dark")
+    expect(parsed.$schema).toBe("https://opencode.ai/config.json")
+    // Comments preserved (non-destructive edit)
+    expect(text).toContain("// my personal opencode config")
+  })
+
+  it("treats a comment-containing config as already-configured in checkPluginConfigured (#519)", () => {
+    const configPath = join(tmp, "opencode.json")
+    writeFileSync(configPath, `{\n  // jsonc\n  "plugin": ["${PLUGIN_PATH}"]\n}\n`)
+    expect(checkPluginConfigured(configPath)).toBe(true)
   })
 })

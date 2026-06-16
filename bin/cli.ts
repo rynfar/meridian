@@ -67,9 +67,21 @@ if (args[0] === "profile") {
 }
 
 if (args[0] === "setup") {
-  const { findPluginPath, runSetup } = await import("../src/proxy/setup")
+  const { findPluginPath, runSetup, UnparseableConfigError } = await import("../src/proxy/setup")
   const pluginPath = findPluginPath(import.meta.url)
-  const result = runSetup(pluginPath)
+  let result
+  try {
+    result = runSetup(pluginPath)
+  } catch (err) {
+    if (err instanceof UnparseableConfigError) {
+      console.error(`\x1b[31m✗ Could not parse ${err.configPath}\x1b[0m`)
+      console.error("  Your config was left untouched. Fix the syntax error, then re-run")
+      console.error(`  'meridian setup' — or add this plugin manually:`)
+      console.error(`    "plugin": ["${pluginPath}"]`)
+      process.exit(1)
+    }
+    throw err
+  }
 
   if (result.alreadyConfigured) {
     console.log(`\x1b[32m✓ Meridian plugin already configured\x1b[0m`)

@@ -12,6 +12,33 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
 import { homedir, platform } from "os"
 import { dirname, join } from "path"
 import { fileURLToPath } from "url"
+import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
+
+/**
+ * Thrown when an existing OpenCode config can't be parsed (even tolerantly).
+ * Setup refuses to overwrite it — losing a user's config is worse than not
+ * configuring the plugin (#519).
+ */
+export class UnparseableConfigError extends Error {
+  constructor(public readonly configPath: string) {
+    super(`Could not parse ${configPath} — it may contain a syntax error.`)
+    this.name = "UnparseableConfigError"
+  }
+}
+
+/**
+ * Parse OpenCode config text tolerantly (JSONC: comments + trailing commas are
+ * valid in OpenCode configs). Returns the object, or null if it can't be parsed
+ * into a plain object — callers must treat null as "do not touch this file".
+ */
+function parseOpencodeConfig(text: string): Record<string, unknown> | null {
+  const errors: ParseError[] = []
+  const parsed = parseJsonc(text, errors, { allowTrailingComma: true })
+  if (errors.length > 0 || parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null
+  }
+  return parsed as Record<string, unknown>
+}
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -67,14 +94,10 @@ function isMeridianEntry(entry: string): boolean {
 export function checkPluginConfigured(configPath?: string): boolean {
   const path = configPath ?? findOpencodeConfigPath()
   if (!existsSync(path)) return false
-  try {
-    const raw = readFileSync(path, "utf-8")
-    const config = JSON.parse(raw)
-    const plugins: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
-    return plugins.some(p => typeof p === "string" && isMeridianEntry(p))
-  } catch {
-    return false
-  }
+  const config = parseOpencodeConfig(readFileSync(path, "utf-8"))
+  if (config === null) return false
+  const plugins: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
+  return plugins.some(p => typeof p === "string" && isMeridianEntry(p))
 }
 
 // ---------------------------------------------------------------------------
@@ -101,18 +124,20 @@ export function runSetup(pluginPath: string, configPath?: string): SetupResult {
   const path = configPath ?? findOpencodeConfigPath()
   const dir = dirname(path)
 
-  let config: Record<string, unknown> = {}
-  let created = false
-
-  if (existsSync(path)) {
-    try {
-      config = JSON.parse(readFileSync(path, "utf-8"))
-    } catch {
-      // Unparseable — start fresh, preserve the file (we'll overwrite)
-    }
-  } else {
-    created = true
+  // New file — write a minimal config.
+  if (!existsSync(path)) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    writeFileSync(path, `${JSON.stringify({ plugin: [pluginPath] }, null, 2)}\n`, "utf-8")
+    return { configPath: path, pluginPath, alreadyConfigured: false, removedStale: [], created: true }
+  }
+
+  // Existing file — parse tolerantly (JSONC). If we can't understand it, FAIL
+  // SAFE: never overwrite a config we couldn't parse (#519). Losing the user's
+  // settings is worse than not configuring the plugin.
+  const text = readFileSync(path, "utf-8")
+  const config = parseOpencodeConfig(text)
+  if (config === null) {
+    throw new UnparseableConfigError(path)
   }
 
   const existing: string[] = Array.isArray(config.plugin)
@@ -123,10 +148,14 @@ export function runSetup(pluginPath: string, configPath?: string): SetupResult {
   const removedStale = existing.filter(isMeridianEntry)
   const others = existing.filter(p => !isMeridianEntry(p))
   const alreadyConfigured = removedStale.some(p => p === pluginPath)
+  const newPlugins = [...others, pluginPath]
 
-  config.plugin = [...others, pluginPath]
+  // Surgically rewrite ONLY the `plugin` key, preserving the rest of the file —
+  // comments, formatting, key order, and every other setting stay intact.
+  const edits = modify(text, ["plugin"], newPlugins, {
+    formattingOptions: { insertSpaces: true, tabSize: 2 },
+  })
+  writeFileSync(path, applyEdits(text, edits), "utf-8")
 
-  writeFileSync(path, JSON.stringify(config, null, 2) + "\n", "utf-8")
-
-  return { configPath: path, pluginPath, alreadyConfigured, removedStale, created }
+  return { configPath: path, pluginPath, alreadyConfigured, removedStale, created: false }
 }
