@@ -855,7 +855,7 @@ curl -X PATCH http://127.0.0.1:3456/settings/api/features/pi \
   -d '{"clientSystemPrompt":false,"codeSystemPrompt":true}'
 ```
 
-Replace `pi` with the adapter you use (`opencode`, `crush`, `forgecode`, `droid`, or `passthrough`). You can make the same change in the `/settings` UI under **SDK Feature Toggles**.
+Replace `pi` with the adapter you use (`opencode`, `crush`, `forgecode`, `droid`, `passthrough`, or `openai`). You can make the same change in the `/settings` UI under **SDK Feature Toggles**. (The `openai` adapter — used by the `/v1/chat/completions` endpoint — already defaults `codeSystemPrompt` to off, so on that one you typically only need `clientSystemPrompt:false`.)
 
 This keeps the SDK's preset prompt and tool bridge, but removes the external client's large agent prompt from the request. That may help when the error is triggered by the combination of tool definitions plus client prompt context. The tradeoff is that the connected agent may behave more like vanilla Claude Code because its own persona and workflow instructions are no longer included. If it still fails, the remaining options are to use fewer/no tools for that client, enable Extra Usage/API billing, or switch to a local/provider-backed model for that workflow. See [#516](https://github.com/rynfar/meridian/issues/516) for the current debugging thread.
 
