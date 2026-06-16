@@ -246,8 +246,18 @@ function buildFreshPrompt(
     .join("\n\n") || ""
 }
 
+// Routine [PROXY] operational logging. Suppressed when config.silent is set so
+// an embedding TUI host (e.g. opencode-with-claude) isn't polluted on its input
+// line (#517 was the token_refresh instance of this). Structured telemetry
+// (claudeLog) and HTTP responses are unaffected. Module-scoped to match the
+// file's existing single-process session caches; createProxyServer sets it.
+let proxyLogSilent = false
+function plog(message: string): void {
+  if (!proxyLogSilent) console.error(message)
+}
+
 function logUsage(requestId: string, usage: TokenUsage): void {
-  console.error(`[PROXY] ${requestId} usage: ${formatUsageSummary(usage)}`)
+  plog(`[PROXY] ${requestId} usage: ${formatUsageSummary(usage)}`)
 }
 
 function checkTokenHealth(
@@ -290,7 +300,7 @@ function checkTokenHealth(
   if (anomalies.length > 0) {
     const alerts = formatAnomalyAlerts(requestId, anomalies)
     for (const line of alerts) {
-      console.error(line)
+      plog(line)
     }
     for (const a of anomalies) {
       diagnosticLog.log({
@@ -305,6 +315,7 @@ function checkTokenHealth(
 
 export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServer {
   const finalConfig = { ...DEFAULT_PROXY_CONFIG, ...config }
+  proxyLogSilent = finalConfig.silent
   const serverVersion = finalConfig.version ?? "unknown"
 
   // Restore persisted active profile from last session
@@ -557,7 +568,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const rawBetaHeader = c.req.header("anthropic-beta")
         const betaFilter = filterBetasForProfile(rawBetaHeader, profile.type, getBetaPolicyFromEnv())
         if (betaFilter.stripped.length > 0) {
-          console.error(`[PROXY] ${requestMeta.requestId} stripped anthropic-beta(s) for Max profile: ${betaFilter.stripped.join(", ")}`)
+          plog(`[PROXY] ${requestMeta.requestId} stripped anthropic-beta(s) for Max profile: ${betaFilter.stripped.join(", ")}`)
         }
 
         // Effort can arrive as a header, the Anthropic `effort` field, the
@@ -576,7 +587,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           try {
             thinking = JSON.parse(thinkingHeader) as QueryContext["thinking"]
           } catch (e) {
-            console.error(`[PROXY] ${requestMeta.requestId} ignoring malformed x-opencode-thinking header: ${e instanceof Error ? e.message : String(e)}`)
+            plog(`[PROXY] ${requestMeta.requestId} ignoring malformed x-opencode-thinking header: ${e instanceof Error ? e.message : String(e)}`)
           }
         }
         // SDK feature toggles — resolved once per request for use in thinking
@@ -597,7 +608,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (thinkingBetaStripped) {
           thinking = { type: "disabled" }
           if (betaFilter.stripped.length > 0) {
-            console.error(`[PROXY] ${requestMeta.requestId} thinking disabled (thinking beta stripped by ${getBetaPolicyFromEnv()} policy)`)
+            plog(`[PROXY] ${requestMeta.requestId} thinking disabled (thinking beta stripped by ${getBetaPolicyFromEnv()} policy)`)
           }
         }
         const parsedBudget = taskBudgetHeader ? Number.parseInt(taskBudgetHeader, 10) : NaN
@@ -664,7 +675,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
-        console.error(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
+        plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
         // Recovery logging: when a session diverges, check if the store has a
@@ -674,7 +685,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           if (recovery) {
             const prevId = recovery.previousClaudeSessionId || recovery.claudeSessionId
             const recoveryMsg = `${requestMeta.requestId} SESSION RECOVERY: previous conversation available. Run: claude --resume ${prevId}`
-            console.error(`[PROXY] ${recoveryMsg}`)
+            plog(`[PROXY] ${recoveryMsg}`)
             diagnosticLog.session(recoveryMsg, requestMeta.requestId)
           }
         }
@@ -840,7 +851,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const cached = sessionToolCache.get(profileSessionId)
         if (cached && cached.length > 0) {
           requestTools = cached
-          console.error(`[PROXY] ${requestMeta.requestId} tools_restored: client sent 0 tools but session had ${cached.length} — reusing cached tools to preserve prompt cache`)
+          plog(`[PROXY] ${requestMeta.requestId} tools_restored: client sent 0 tools but session had ${cached.length} — reusing cached tools to preserve prompt cache`)
         }
       }
       if (passthrough && requestTools.length > 0) {
@@ -853,7 +864,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           if (profileSessionId) {
             sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
             if (cachedMcp) {
-              console.error(`[PROXY] ${requestMeta.requestId} tools_changed: MCP server recreated (prompt cache likely invalidates)`)
+              plog(`[PROXY] ${requestMeta.requestId} tools_changed: MCP server recreated (prompt cache likely invalidates)`)
             }
           }
         }
@@ -867,7 +878,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         ? requestTools.filter((t: any) => t.defer_loading === true || (coreSet && !coreSet.has(String(t.name).toLowerCase()))).length
         : 0
       if (hasDeferredTools) {
-        console.error(`[PROXY] ${requestMeta.requestId} deferred=${deferredToolCount}/${toolCount} tools (core: ${coreNames?.join(",") ?? "none"})`)
+        plog(`[PROXY] ${requestMeta.requestId} deferred=${deferredToolCount}/${toolCount} tools (core: ${coreNames?.join(",") ?? "none"})`)
       }
 
       // In passthrough mode: block ALL tools, capture them for forwarding (agent-agnostic).
@@ -1045,7 +1056,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       rollbackUuid: undoRollbackUuid,
                       resumeSessionId,
                     })
-                    console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
+                    plog(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
                     evictSession(profileSessionId, profileScopedCwd, allMessages)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
@@ -1082,7 +1093,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       to: model,
                       reason: "extra_usage_required",
                     })
-                    console.error(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
+                    plog(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
                     continue
                   }
 
@@ -1093,7 +1104,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       model,
                       reason: "extra_usage_required_resume",
                     })
-                    console.error(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
+                    plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
                     evictSession(profileSessionId, profileScopedCwd, allMessages)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
@@ -1121,7 +1132,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     const refreshed = await refreshOAuthToken()
                     if (refreshed) {
                       claudeLog("token_refresh.retrying", { mode: "non_stream" })
-                      console.error(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
+                      plog(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
                       continue
                     }
                     // Refresh failed — fall through and surface the error
@@ -1138,7 +1149,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         to: model,
                         reason: "rate_limit",
                       })
-                      console.error(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
+                      plog(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
                       continue
                     }
                     if (rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
@@ -1151,7 +1162,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         maxAttempts: MAX_RATE_LIMIT_RETRIES,
                         delayMs: delay,
                       })
-                      console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
+                      plog(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
                       await new Promise(r => setTimeout(r, delay))
                       continue
                     }
@@ -1260,7 +1271,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
               const newNames = [...discoveredTools].join(", ")
               const allNames = [...sessionDiscoveredTools.get(sessId)!]
-              console.error(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
+              plog(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
             }
           } catch (error) {
             const stderrOutput = stderrLines.join("\n").trim()
@@ -1541,7 +1552,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         rollbackUuid: undoRollbackUuid,
                         resumeSessionId,
                       })
-                      console.error(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
+                      plog(`[PROXY] Stale session UUID, evicting and retrying as fresh session`)
                       evictSession(profileSessionId, profileScopedCwd, allMessages)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
@@ -1574,7 +1585,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         to: model,
                         reason: "extra_usage_required",
                       })
-                      console.error(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
+                      plog(`[PROXY] ${requestMeta.requestId} extra usage required for [1m], falling back to ${model} (skipping [1m] for 1h)`)
                       continue
                     }
 
@@ -1585,7 +1596,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         model,
                         reason: "extra_usage_required_resume",
                       })
-                      console.error(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
+                      plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
                       evictSession(profileSessionId, profileScopedCwd, allMessages)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
@@ -1613,7 +1624,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       const refreshed = await refreshOAuthToken()
                       if (refreshed) {
                         claudeLog("token_refresh.retrying", { mode: "stream" })
-                        console.error(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
+                        plog(`[PROXY] ${requestMeta.requestId} OAuth token expired — refreshed, retrying`)
                         continue
                       }
                       // Refresh failed — fall through and surface the error
@@ -1630,7 +1641,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           to: model,
                           reason: "rate_limit",
                         })
-                        console.error(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
+                        plog(`[PROXY] ${requestMeta.requestId} rate-limited on [1m], retrying with ${model}`)
                         continue
                       }
                       if (rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
@@ -1643,7 +1654,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           maxAttempts: MAX_RATE_LIMIT_RETRIES,
                           delayMs: delay,
                         })
-                        console.error(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
+                        plog(`[PROXY] ${requestMeta.requestId} rate-limited on ${model}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES} in ${delay}ms`)
                         await new Promise(r => setTimeout(r, delay))
                         continue
                       }
@@ -1928,7 +1939,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
                 const newNames = [...discoveredTools].join(", ")
                 const allNames = [...sessionDiscoveredTools.get(sessId)!]
-                console.error(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
+                plog(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
               }
 
               // Store session for future resume.
@@ -2550,7 +2561,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // profile's quotas under the new profile's identity.
     clearSessionCache()
     rateLimitStore.clear()
-    console.error(`[PROXY] Active profile switched to: ${body.profile} (session + rate-limit caches cleared)`)
+    plog(`[PROXY] Active profile switched to: ${body.profile} (session + rate-limit caches cleared)`)
     return c.json({ success: true, activeProfile: body.profile })
   })
 
@@ -2578,7 +2589,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       loadedPlugins = await loadPlugins(pluginDir, pluginConfigPath)
       pluginTransforms = getActiveTransforms(loadedPlugins)
       const active = loadedPlugins.filter(p => p.status === "active").length
-      console.error(`[PROXY] Plugins reloaded: ${active} active`)
+      plog(`[PROXY] Plugins reloaded: ${active} active`)
       return c.json({
         success: true,
         plugins: loadedPlugins.map(p => ({
@@ -2986,7 +2997,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   // Catch-all: log unhandled requests
   app.all("*", (c) => {
-    console.error(`[PROXY] UNHANDLED ${c.req.method} ${c.req.url}`)
+    plog(`[PROXY] UNHANDLED ${c.req.method} ${c.req.url}`)
     return c.json({ error: { type: "not_found", message: `Endpoint not supported: ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
   })
 
@@ -2998,10 +3009,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const active = loadedPlugins.filter(p => p.status === "active").length
         const disabled = loadedPlugins.filter(p => p.status === "disabled").length
         const errored = loadedPlugins.filter(p => p.status === "error").length
-        console.error(`[PROXY] Plugins loaded: ${active} active, ${disabled} disabled, ${errored} errors`)
+        plog(`[PROXY] Plugins loaded: ${active} active, ${disabled} disabled, ${errored} errors`)
       }
     } catch (err) {
-      console.error(`[PROXY] Plugin loading failed: ${err instanceof Error ? err.message : String(err)}`)
+      plog(`[PROXY] Plugin loading failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 

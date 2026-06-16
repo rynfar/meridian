@@ -43,7 +43,9 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   host: "127.0.0.1",
   debug: (process.env.MERIDIAN_DEBUG ?? process.env.CLAUDE_PROXY_DEBUG) === "1",
   idleTimeoutSeconds: 120,
-  silent: false,
+  // Suppress routine [PROXY] operational stderr (for embedded/TUI hosts like
+  // opencode-with-claude). Off by default so standalone runs keep full logging.
+  silent: (process.env.MERIDIAN_SILENT ?? process.env.CLAUDE_PROXY_SILENT) === "1",
   profiles: undefined,
   defaultProfile: undefined,
   version: undefined,
