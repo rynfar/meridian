@@ -13,6 +13,10 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   pi: piTransforms,
   forgecode: forgeCodeTransforms,
   passthrough: passthroughTransforms,
+  // The OpenAI-compatible endpoint reuses OpenCode's transforms verbatim so
+  // tool/passthrough behaviour is identical; only the preset default differs
+  // (see sdkFeatures.ADAPTER_DEFAULTS.openai).
+  openai: openCodeTransforms,
 }
 
 export function getAdapterTransforms(adapterName: string): readonly Transform[] {
