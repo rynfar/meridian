@@ -17,6 +17,13 @@ export interface ProxyConfig {
   pluginDir?: string
   /** Plugin config file path. Defaults to ~/.config/meridian/plugins.json. */
   pluginConfigPath?: string
+  /**
+   * Install process-level uncaughtException/unhandledRejection handlers that
+   * log and swallow socket-level errors (EPIPE, ECONNRESET, etc.) instead of
+   * crashing the host process. Defaults to false to preserve any handlers a
+   * library consumer has already installed; the bundled CLI passes `true`.
+   */
+  installProcessErrorHandlers?: boolean
 }
 
 export interface ProxyInstance {
@@ -43,7 +50,9 @@ export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
   host: "127.0.0.1",
   debug: (process.env.MERIDIAN_DEBUG ?? process.env.CLAUDE_PROXY_DEBUG) === "1",
   idleTimeoutSeconds: 120,
-  silent: false,
+  // Suppress routine [PROXY] operational stderr (for embedded/TUI hosts like
+  // opencode-with-claude). Off by default so standalone runs keep full logging.
+  silent: (process.env.MERIDIAN_SILENT ?? process.env.CLAUDE_PROXY_SILENT) === "1",
   profiles: undefined,
   defaultProfile: undefined,
   version: undefined,

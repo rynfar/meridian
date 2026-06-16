@@ -434,7 +434,6 @@ async function scheduleNext(
     const ok = await refreshOAuthToken(store)
     if (!scheduledRefreshActive || gen !== scheduledRefreshGeneration) return
     claudeLog("token_refresh.scheduled", { ok, immediate: true })
-    console.error(`[token_refresh] scheduled refresh (immediate) ok=${ok}`)
     armTimer(ok ? 0 : failureRetryMs, store, bufferMs, failureRetryMs, gen)
     return
   }
@@ -452,9 +451,11 @@ function armTimer(
   scheduledRefreshTimer = setTimeout(async () => {
     if (!scheduledRefreshActive || gen !== scheduledRefreshGeneration) return
     // The dueIn re-check inside scheduleNext distinguishes "fire-now" from
-    // "reschedule-only" ticks: when the disk-state recompute lands inside
-    // the buffer window, scheduleNext emits the immediate-refresh log line;
-    // otherwise it just arms the next timer silently.
+    // "reschedule-only" ticks: when the disk-state recompute lands inside the
+    // buffer window, scheduleNext fires a refresh and emits the debug-gated
+    // `token_refresh.scheduled` telemetry; otherwise it just arms the next
+    // timer. Neither path writes to stderr (the unconditional log was removed
+    // in #518 to stop polluting embedded TUI hosts).
     void scheduleNext(store, bufferMs, failureRetryMs, gen)
   }, delayMs)
   if (scheduledRefreshTimer && (scheduledRefreshTimer as { unref?: () => void }).unref) {

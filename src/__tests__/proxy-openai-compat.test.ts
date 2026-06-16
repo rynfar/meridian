@@ -27,9 +27,11 @@ import {
 
 let mockMessages: unknown[] = []
 let capturedPromptMessages: unknown[] = []
+let capturedOptions: Record<string, unknown> | null = null
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: ({ prompt }: { prompt: string | AsyncIterable<unknown> }) => {
+  query: ({ prompt, options }: { prompt: string | AsyncIterable<unknown>; options?: Record<string, unknown> }) => {
+    capturedOptions = options ?? null
     return (async function* () {
       capturedPromptMessages = []
       if (typeof prompt === "string") {
@@ -160,6 +162,41 @@ describe("POST /v1/chat/completions — non-streaming", () => {
     })
 
     expect(res.status).toBe(200)
+  })
+
+  it("carries reasoning_effort through translation to the SDK effort flag", async () => {
+    // OpenAI SDK clients send the reasoning level as `reasoning_effort`. It must
+    // survive the OpenAI->Anthropic translation and reach the SDK, not get
+    // dropped at the endpoint boundary.
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    await postChatCompletion(app, {
+      stream: false,
+      reasoning_effort: "high",
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(capturedOptions?.effort).toBe("high")
+  })
+
+  it("sends the client system prompt verbatim, without the claude_code preset", async () => {
+    // The OpenAI endpoint serves generic chat clients (Open WebUI, curl).
+    // Their system prompt must reach the SDK as a plain string — NOT wrapped
+    // under the 28KB claude_code preset, which would hijack their intent with
+    // the Claude Code persona. Regression guard for the #526 investigation.
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    await postChatCompletion(app, {
+      stream: false,
+      messages: [
+        { role: "system", content: "You are TestBot. Reply with exactly: ZEBRA-7" },
+        { role: "user", content: "Hello" },
+      ],
+    })
+
+    expect(capturedOptions?.systemPrompt).toBe("You are TestBot. Reply with exactly: ZEBRA-7")
   })
 
   it("response has Content-Type application/json", async () => {

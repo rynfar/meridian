@@ -239,6 +239,20 @@ meridian profile add work
 
 > **⚠ Important:** Claude's OAuth reuses your browser session. Before adding a second account, sign out of claude.ai and sign into the other account first.
 
+#### Headless / SSH: complete Claude OAuth with a pasted code
+
+When you still want a normal Claude Max browser-login profile but the Meridian host cannot open a browser (SSH, WSL, containers, remote servers), use `--headless`. Meridian prints a Claude OAuth URL, prompts for the returned code, exchanges it with PKCE, and saves the resulting credentials into the profile's isolated `CLAUDE_CONFIG_DIR`:
+
+```bash
+meridian profile add work --headless
+```
+
+Open the printed URL in a browser, sign in to the target Claude account, then paste the returned code at Meridian's `Paste code:` prompt. For an existing browser-login profile:
+
+```bash
+meridian profile login work --headless
+```
+
 #### Headless / CI: register an OAuth token
 
 When a browser isn't available (containers, CI runners, remote shells), generate a long-lived OAuth token with `claude setup-token` and register it as a profile:
@@ -269,11 +283,11 @@ You can also switch profiles from the web UI at `http://127.0.0.1:3456/profiles`
 
 | Command | Description |
 |---------|-------------|
-| `meridian profile add <name>` | Add a profile and authenticate via browser |
+| `meridian profile add <name> [--headless]` | Add a profile and authenticate via Claude OAuth; `--headless` prints a URL, prompts for the returned code, and stores the exchanged credentials |
 | `meridian profile add <name> --oauth-token [TOKEN]` | Add a headless profile from a `claude setup-token` value (prompts when `TOKEN` is omitted) |
 | `meridian profile list` | List profiles and auth status |
 | `meridian profile switch <name>` | Switch the active profile (requires running proxy) |
-| `meridian profile login <name>` | Re-authenticate an expired profile (browser-login profiles only) |
+| `meridian profile login <name> [--headless]` | Re-authenticate an expired profile (browser-login profiles only); `--headless` uses the URL/code flow |
 | `meridian profile remove <name>` | Remove a profile and its credentials |
 
 ### How it works
@@ -361,9 +375,11 @@ Add a provider to `~/.config/crush/crush.json`:
       "base_url": "http://127.0.0.1:3456",
       "api_key": "dummy",
       "models": [
-        { "id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6 (1M)", "context_window": 1000000, "default_max_tokens": 64000, "can_reason": true, "supports_attachments": true },
-        { "id": "claude-opus-4-6",   "name": "Claude Opus 4.6 (1M)",   "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
-        { "id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "context_window": 200000, "default_max_tokens": 16384, "can_reason": true, "supports_attachments": true }
+        { "id": "claude-opus-4-8",   "name": "Claude Opus 4.8 (1M)",    "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
+        { "id": "claude-opus-4-7",   "name": "Claude Opus 4.7 (1M)",    "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
+        { "id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6 (1M)",  "context_window": 1000000, "default_max_tokens": 64000, "can_reason": true, "supports_attachments": true },
+        { "id": "claude-opus-4-6",   "name": "Claude Opus 4.6 (1M)",    "context_window": 1000000, "default_max_tokens": 32768, "can_reason": true, "supports_attachments": true },
+        { "id": "claude-haiku-4-5-20251001", "name": "Claude Haiku 4.5", "context_window": 200000,  "default_max_tokens": 16384, "can_reason": true, "supports_attachments": true }
       ]
     }
   }
@@ -384,6 +400,8 @@ Add Meridian as a custom model provider in `~/.factory/settings.json`:
 ```json
 {
   "customModels": [
+    { "model": "claude-opus-4-8",         "name": "Opus 4.8 (Meridian)",   "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
+    { "model": "claude-opus-4-7",         "name": "Opus 4.7 (Meridian)",   "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
     { "model": "claude-sonnet-4-6",       "name": "Sonnet 4.6 (Meridian)", "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
     { "model": "claude-opus-4-6",         "name": "Opus 4.6 (Meridian)",   "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" },
     { "model": "claude-haiku-4-5-20251001", "name": "Haiku 4.5 (Meridian)", "provider": "anthropic", "baseUrl": "http://127.0.0.1:3456", "apiKey": "x" }
@@ -734,11 +752,11 @@ export default {
 |---------|-------------|
 | `meridian` | Start the proxy server |
 | `meridian setup` | Configure the OpenCode plugin in `~/.config/opencode/opencode.json` |
-| `meridian profile add <name>` | Add a profile and authenticate via browser |
+| `meridian profile add <name> [--headless]` | Add a profile and authenticate via Claude OAuth; `--headless` prints a URL, prompts for the returned code, and stores the exchanged credentials |
 | `meridian profile add <name> --oauth-token [TOKEN]` | Add a headless profile from a `claude setup-token` value (prompts when `TOKEN` is omitted) |
 | `meridian profile list` | List all profiles and their auth status |
 | `meridian profile switch <name>` | Switch the active profile (requires running proxy) |
-| `meridian profile login <name>` | Re-authenticate an expired profile (browser-login profiles only) |
+| `meridian profile login <name> [--headless]` | Re-authenticate an expired profile (browser-login profiles only); `--headless` uses the URL/code flow |
 | `meridian profile remove <name>` | Remove a profile and its credentials |
 | `meridian refresh-token` | Manually refresh the Claude OAuth token (exits 0/1) |
 
@@ -839,6 +857,21 @@ meridian refresh-token
 # HTTP — while the proxy is running
 curl -X POST http://127.0.0.1:3456/auth/refresh
 ```
+
+**I'm getting `400 You're out of extra usage` only when tools are present. What do I do?**
+First confirm the failure pattern: a tiny no-tool request succeeds, but the same client fails once it sends tool definitions. If that is the case, beta-header stripping and model fallback usually will not help because the request body still contains agentic tool context.
+
+For the affected adapter, try disabling the connecting client's system prompt while keeping the Claude Code prompt enabled:
+
+```bash
+curl -X PATCH http://127.0.0.1:3456/settings/api/features/pi \
+  -H 'Content-Type: application/json' \
+  -d '{"clientSystemPrompt":false,"codeSystemPrompt":true}'
+```
+
+Replace `pi` with the adapter you use (`opencode`, `crush`, `forgecode`, `droid`, `passthrough`, or `openai`). You can make the same change in the `/settings` UI under **SDK Feature Toggles**. (The `openai` adapter — used by the `/v1/chat/completions` endpoint — already defaults `codeSystemPrompt` to off, so on that one you typically only need `clientSystemPrompt:false`.)
+
+This keeps the SDK's preset prompt and tool bridge, but removes the external client's large agent prompt from the request. That may help when the error is triggered by the combination of tool definitions plus client prompt context. The tradeoff is that the connected agent may behave more like vanilla Claude Code because its own persona and workflow instructions are no longer included. If it still fails, the remaining options are to use fewer/no tools for that client, enable Extra Usage/API billing, or switch to a local/provider-backed model for that workflow. See [#516](https://github.com/rynfar/meridian/issues/516) for the current debugging thread.
 
 **I'm hitting rate limits on 1M context. What do I do?**
 Meridian defaults Sonnet to 200k context because Sonnet 1M is always billed as Extra Usage on Max plans — even when regular usage isn't exhausted. This is [Anthropic's intended billing model](https://code.claude.com/docs/en/model-config#extended-context), not a bug. Set `MERIDIAN_SONNET_MODEL=sonnet[1m]` to opt in if you have Extra Usage enabled and understand the billing implications. Opus defaults to 1M context, which is included with Max/Team/Enterprise subscriptions at no extra cost. Note: there is a [known upstream bug](https://github.com/anthropics/claude-code/issues/39841) where Claude Code incorrectly gates Opus 1M behind Extra Usage on Max — this is Anthropic's to fix.
