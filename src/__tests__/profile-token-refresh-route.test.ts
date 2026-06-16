@@ -38,7 +38,12 @@ describe("profile-scoped token refresh route", () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  it("refreshes the requested profile credentials instead of the default store", async () => {
+  // Skipped on macOS: createPlatformCredentialStore is Keychain-backed on
+  // darwin (file-backed only on Linux/Windows), so this file-based fixture
+  // can't drive the route there without mutating the real login Keychain.
+  // Linux/CI exercises the profile-scoped store selection; the cross-store
+  // dedup logic is covered platform-independently in token-refresh.test.ts.
+  it.skipIf(process.platform === "darwin")("refreshes the requested profile credentials instead of the default store", async () => {
     const personalDir = join(tempDir, "personal")
     const workDir = join(tempDir, "work")
     mkdirSync(personalDir, { recursive: true })
