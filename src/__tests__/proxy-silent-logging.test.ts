@@ -36,8 +36,7 @@ const BASE_BODY = {
   messages: [{ role: "user", content: "hi" }],
 }
 
-function post(app: { fetch: (r: Request) => Response | Promise<Response> }, silent: boolean) {
-  void silent
+function post(app: { fetch: (r: Request) => Response | Promise<Response> }) {
   return app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -45,7 +44,7 @@ function post(app: { fetch: (r: Request) => Response | Promise<Response> }, sile
   }))
 }
 
-async function captureStderr(run: () => Promise<unknown>): Promise<string[]> {
+async function captureStderr(run: () => unknown): Promise<string[]> {
   const original = console.error
   const lines: string[] = []
   console.error = (...args: unknown[]) => { lines.push(args.map(String).join(" ")) }
@@ -65,13 +64,13 @@ describe("silent-mode [PROXY] logging", () => {
 
   it("suppresses [PROXY] operational stderr when config.silent is true", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
-    const stderr = await captureStderr(() => post(app, true))
+    const stderr = await captureStderr(() => post(app))
     expect(stderr.filter(l => l.includes("[PROXY]"))).toHaveLength(0)
   })
 
   it("still emits [PROXY] operational stderr by default (not silent)", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
-    const stderr = await captureStderr(() => post(app, false))
+    const stderr = await captureStderr(() => post(app))
     expect(stderr.some(l => l.includes("[PROXY]"))).toBe(true)
   })
 })
