@@ -164,6 +164,22 @@ describe("POST /v1/chat/completions — non-streaming", () => {
     expect(res.status).toBe(200)
   })
 
+  it("carries reasoning_effort through translation to the SDK effort flag", async () => {
+    // OpenAI SDK clients send the reasoning level as `reasoning_effort`. It must
+    // survive the OpenAI->Anthropic translation and reach the SDK, not get
+    // dropped at the endpoint boundary.
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    await postChatCompletion(app, {
+      stream: false,
+      reasoning_effort: "high",
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(capturedOptions?.effort).toBe("high")
+  })
+
   it("sends the client system prompt verbatim, without the claude_code preset", async () => {
     // The OpenAI endpoint serves generic chat clients (Open WebUI, curl).
     // Their system prompt must reach the SDK as a plain string — NOT wrapped

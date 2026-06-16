@@ -53,6 +53,7 @@ import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools } from "./me
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
+import { normalizeEffort } from "./effort"
 import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
 import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
@@ -559,11 +560,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           console.error(`[PROXY] ${requestMeta.requestId} stripped anthropic-beta(s) for Max profile: ${betaFilter.stripped.join(", ")}`)
         }
 
-        const effort = effortHeader
+        // Effort can arrive as a header, the Anthropic `effort` field, the
+        // standard OpenAI `reasoning_effort`, or an Anthropic-style
+        // `output_config.effort`. normalizeEffort gates the value to Claude's
+        // vocabulary so an unknown level (e.g. OpenAI's "minimal") falls back to
+        // the model default instead of erroring at the SDK boundary.
+        const effort = normalizeEffort(
+          effortHeader
           || body.effort
           || body.reasoning_effort
           || body.output_config?.effort
-          || undefined
+        )
         let thinking: QueryContext['thinking'] | undefined = body.thinking || undefined
         if (thinkingHeader !== undefined) {
           try {

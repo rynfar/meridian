@@ -107,6 +107,30 @@ describe("SDK param passthrough — body fields", () => {
     expect(capturedOptions.taskBudget).toBeUndefined()
     expect(capturedOptions.betas).toBeUndefined()
   })
+
+  it("forwards reasoning_effort from body (standard OpenAI field)", async () => {
+    const app = createTestApp()
+    await post(app, { ...BASE_BODY, reasoning_effort: "high" })
+    expect(capturedOptions.effort).toBe("high")
+  })
+
+  it("forwards output_config.effort from body (Anthropic-style nesting)", async () => {
+    const app = createTestApp()
+    await post(app, { ...BASE_BODY, output_config: { effort: "xhigh" } })
+    expect(capturedOptions.effort).toBe("xhigh")
+  })
+
+  it("body.effort wins over reasoning_effort", async () => {
+    const app = createTestApp()
+    await post(app, { ...BASE_BODY, effort: "low", reasoning_effort: "max" })
+    expect(capturedOptions.effort).toBe("low")
+  })
+
+  it("drops an invalid reasoning_effort (OpenAI 'minimal') instead of forwarding a value the SDK rejects", async () => {
+    const app = createTestApp()
+    await post(app, { ...BASE_BODY, reasoning_effort: "minimal" })
+    expect(capturedOptions.effort).toBeUndefined()
+  })
 })
 
 // ─── header overrides ─────────────────────────────────────────────────────────

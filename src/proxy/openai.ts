@@ -74,6 +74,10 @@ export interface OpenAiChatRequest {
   temperature?: number
   top_p?: number
   tools?: OpenAiChatTool[]
+  /** Standard OpenAI reasoning level (low/medium/high/…). */
+  reasoning_effort?: string
+  /** Anthropic-style nesting some clients use. */
+  output_config?: { effort?: string }
 }
 
 export interface AnthropicTextBlock {
@@ -111,6 +115,10 @@ export interface AnthropicRequestBody {
   temperature?: number
   top_p?: number
   tools?: AnthropicTool[]
+  /** Reasoning effort carried from the OpenAI request so the internal
+   *  /v1/messages hop forwards it to the SDK (value gated by normalizeEffort). */
+  reasoning_effort?: string
+  output_config?: { effort?: string }
 }
 
 export interface AnthropicUsage {
@@ -479,6 +487,12 @@ export function translateOpenAiToAnthropic(body: OpenAiChatRequest): AnthropicRe
   if (systemPrompt) result.system = systemPrompt
   if (body.temperature !== undefined) result.temperature = body.temperature
   if (body.top_p !== undefined) result.top_p = body.top_p
+  // Carry the reasoning level through so the internal /v1/messages hop can
+  // forward it to the SDK. Without this it's dropped at the endpoint boundary
+  // and OpenAI clients always run at the model default. Validation happens
+  // downstream via normalizeEffort.
+  if (body.reasoning_effort !== undefined) result.reasoning_effort = body.reasoning_effort
+  if (body.output_config?.effort !== undefined) result.output_config = { effort: body.output_config.effort }
 
   return result
 }
