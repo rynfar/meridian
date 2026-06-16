@@ -2624,7 +2624,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // Hono resolves the path in-process; the URL scheme/host are ignored.
     // Forward the caller's auth headers so requireAuth on /v1/messages accepts
     // the inner hop when MERIDIAN_API_KEY is set (issue #415).
-    const internalHeaders: Record<string, string> = { "Content-Type": "application/json" }
+    // Tag the inner hop as the generic OpenAI endpoint. Without this the
+    // header-less internal request falls through detectAdapter to the default
+    // `opencode` adapter, whose claude_code preset defaults ON — hijacking the
+    // client's own system prompt with the Claude Code persona (#526). The
+    // `openai` adapter mirrors opencode but defaults the preset OFF.
+    const internalHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-meridian-agent": "openai",
+    }
     const xApiKey = c.req.header("x-api-key")
     if (xApiKey) internalHeaders["x-api-key"] = xApiKey
     const authz = c.req.header("authorization")
@@ -2648,10 +2656,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const created = Math.floor(Date.now() / 1000)
     const model = (typeof rawBody.model === "string" && rawBody.model) ? rawBody.model : "claude-sonnet-4-6"
 
-    // Resolve SDK features for this request (thinking passthrough setting)
+    // Resolve SDK features for this request (thinking passthrough setting).
+    // The OpenAI endpoint is unambiguously the `openai` adapter — matching the
+    // x-meridian-agent tag set on the internal hop above — so resolve directly
+    // rather than re-detecting from the (generic) client User-Agent.
     const { getFeaturesForAdapter } = require("./sdkFeatures") as typeof import("./sdkFeatures")
-    const adapter = detectAdapter(c)
-    const sdkFeatures = getFeaturesForAdapter(adapter.name)
+    const sdkFeatures = getFeaturesForAdapter("openai")
 
     if (!anthropicBody.stream) {
       const anthropicRes = await internalRes.json() as Record<string, unknown>

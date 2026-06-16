@@ -70,6 +70,14 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   passthrough: {
     codeSystemPrompt: false,
   },
+  // The OpenAI-compatible endpoint (/v1/chat/completions) serves generic chat
+  // clients (Open WebUI, LibreChat, curl) that bring their own system prompt.
+  // Default the claude_code preset OFF so their prompt isn't overridden by the
+  // ~28KB Claude Code persona (same rationale as passthrough). Users can flip
+  // it on via the settings UI for explicit opt-in.
+  openai: {
+    codeSystemPrompt: false,
+  },
 }
 
 function getConfigPath(): string {
@@ -133,7 +141,7 @@ export function getFeaturesForAdapter(adapterName: string): AdapterFeatures {
  * Get the full config for all adapters (for the settings UI).
  */
 export function getAllFeatureConfigs(): Record<string, AdapterFeatures> {
-  const adapters = ["opencode", "crush", "forgecode", "pi", "droid", "passthrough"]
+  const adapters = ["opencode", "crush", "forgecode", "pi", "droid", "passthrough", "openai"]
   const result: Record<string, AdapterFeatures> = {}
   for (const name of adapters) {
     result[name] = getFeaturesForAdapter(name)
