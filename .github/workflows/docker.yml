@@ -41,8 +41,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}},prefix=meridian-v
-            type=semver,pattern={{major}}.{{minor}},prefix=meridian-v
+            type=match,pattern=meridian-v(.*),group=1
+            type=match,pattern=meridian-v(\d+\.\d+),group=1
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
