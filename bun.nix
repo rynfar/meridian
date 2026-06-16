@@ -373,6 +373,10 @@
     url = "https://registry.npmjs.org/json-schema-typed/-/json-schema-typed-8.0.2.tgz";
     hash = "sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==";
   };
+  "jsonc-parser@3.3.1" = fetchurl {
+    url = "https://registry.npmjs.org/jsonc-parser/-/jsonc-parser-3.3.1.tgz";
+    hash = "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==";
+  };
   "libsql@0.5.29" = fetchurl {
     url = "https://registry.npmjs.org/libsql/-/libsql-0.5.29.tgz";
     hash = "sha512-8lMP8iMgiBzzoNbAPQ59qdVcj6UaE/Vnm+fiwX4doX4Narook0a4GPKWBEv+CR8a1OwbfkgL18uBfBjWdF0Fzg==";
