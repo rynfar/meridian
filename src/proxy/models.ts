@@ -85,6 +85,7 @@ let cachedAuthStatusPromise: Promise<ClaudeAuthStatus | null> | null = null
  * Older models (4.5 and earlier) do not.
  */
 function supports1mContext(model: string): boolean {
+  if (process.env.MERIDIAN_1M_CONTEXT_SUPPORT === '0') return false
   // Explicit older versions (4-5, 4.5, etc.) do not support 1M
   if (model.includes("4-5") || model.includes("4.5")) return false
   // Everything else (bare names, 4-6, unknown) defaults to latest (1M capable)
