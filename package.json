@@ -86,8 +86,5 @@
   "author": "rynfar",
   "license": "MIT",
   "private": false,
-  "packageManager": "bun@1.3.11",
-  "trustedDependencies": [
-    "@anthropic-ai/claude-code"
-  ]
+  "packageManager": "bun@1.3.11"
 }
