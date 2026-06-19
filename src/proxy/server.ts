@@ -36,6 +36,7 @@ import { claudeLog } from "../logger"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { resolveAgentAlias } from "./agentMatch"
@@ -64,6 +65,7 @@ import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeS
 import { detectTokenAnomalies, formatAnomalyAlerts, type TokenSnapshot } from "./tokenHealth"
 import { computeCacheHitRate, formatUsageSummary } from "./tokenUsage"
 import { sanitizeTextContent } from "./sanitize"
+import { createManualOAuthSession, parseAuthorizationCodeInput, OAUTH_TOKEN_URL, OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI } from "./profileCli"
 import {
   computeLineageHash,
   hashMessage,
@@ -93,6 +95,23 @@ export type { LineageResult }
 
 
 const exec = promisify(execCallback)
+
+const DESIGN_TOKEN_PATH = join(homedir(), ".config", "meridian", "design-token.json")
+const DESIGN_SCOPES = ["user:design:read", "user:design:write"]
+const designOAuthSessions = new Map<string, { codeVerifier: string; expiresAt: number }>()
+
+async function readDesignToken(): Promise<string | null> {
+  try {
+    const raw = await readFile(DESIGN_TOKEN_PATH, "utf-8")
+    const data = JSON.parse(raw) as { accessToken?: string; expiresAt?: number }
+    if (data.accessToken && typeof data.expiresAt === "number" && data.expiresAt > Date.now() + 60_000) {
+      return data.accessToken
+    }
+    return null
+  } catch {
+    return null
+  }
+}
 
 let claudeExecutable = ""
 
@@ -382,6 +401,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   app.use("/settings/*", requireAuth)
   app.use("/settings", requireAuth)
   app.use("/auth/*", requireAuth)
+  app.use("/design-login", requireAuth)
 
   app.get("/", (c) => {
     // API clients get JSON, browsers get the landing page
@@ -2657,6 +2677,84 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     )
   })
 
+  app.get("/design-login", async (c) => {
+    for (const [state, session] of designOAuthSessions) {
+      if (session.expiresAt < Date.now()) designOAuthSessions.delete(state)
+    }
+    const session = createManualOAuthSession(DESIGN_SCOPES)
+    designOAuthSessions.set(session.state, { codeVerifier: session.codeVerifier, expiresAt: Date.now() + 10 * 60 * 1000 })
+    return c.json({
+      authorizeUrl: session.authorizeUrl,
+      instructions: "Open the URL in your browser. After authorizing, POST the code to /design-login with body { \"code\": \"<paste-code-here>\" }",
+    })
+  })
+
+  app.post("/design-login", async (c) => {
+    let body: { code?: string; state?: string }
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ type: "error", error: { type: "invalid_request", message: "Request body must be JSON with a 'code' field." } }, 400)
+    }
+    const parsed = body.code ? parseAuthorizationCodeInput(body.code) : null
+    if (!parsed) {
+      return c.json({ type: "error", error: { type: "invalid_request", message: "Missing or invalid 'code' field." } }, 400)
+    }
+
+    const fallbackState = designOAuthSessions.keys().next().value
+    const stateKey = parsed.state ?? body.state ?? fallbackState
+    if (!stateKey) {
+      return c.json({ type: "error", error: { type: "session_expired", message: "OAuth session expired or not found. Call GET /design-login to start a new session." } }, 400)
+    }
+    const stored = designOAuthSessions.get(stateKey)
+    if (!stored || stored.expiresAt < Date.now()) {
+      return c.json({ type: "error", error: { type: "session_expired", message: "OAuth session expired or not found. Call GET /design-login to start a new session." } }, 400)
+    }
+    designOAuthSessions.delete(stateKey)
+
+    let response: Response
+    try {
+      response = await fetch(OAUTH_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          client_id: OAUTH_CLIENT_ID,
+          code: parsed.code,
+          redirect_uri: OAUTH_REDIRECT_URI,
+          code_verifier: stored.codeVerifier,
+          state: stateKey,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      })
+    } catch (err) {
+      return c.json({ type: "error", error: { type: "upstream_error", message: err instanceof Error ? err.message : String(err) } }, 502)
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "")
+      return c.json({ type: "error", error: { type: "token_exchange_failed", message: `Token exchange failed (${response.status}): ${text.slice(0, 200)}` } }, 502)
+    }
+
+    const tokenData = await response.json() as { access_token?: string; refresh_token?: string; expires_in?: number; expires_at?: number; scope?: string }
+    if (!tokenData.access_token) {
+      return c.json({ type: "error", error: { type: "token_exchange_failed", message: "Token response missing access_token." } }, 502)
+    }
+
+    const expiresAt = tokenData.expires_at ?? Date.now() + (tokenData.expires_in ?? 8 * 60 * 60) * 1000
+    const scopes = tokenData.scope?.split(" ").filter(Boolean) ?? DESIGN_SCOPES
+
+    try {
+      await mkdir(join(homedir(), ".config", "meridian"), { recursive: true })
+      await writeFile(DESIGN_TOKEN_PATH, JSON.stringify({ accessToken: tokenData.access_token, refreshToken: tokenData.refresh_token, expiresAt, scopes }), { mode: 0o600 })
+    } catch (err) {
+      return c.json({ type: "error", error: { type: "storage_error", message: `Failed to store design token: ${err instanceof Error ? err.message : String(err)}` } }, 500)
+    }
+
+    plog(`[PROXY] Design token stored (scopes: ${scopes.join(", ")})`)
+    return c.json({ success: true, scopes })
+  })
+
   // --- OpenAI Chat Completions Compatibility ---
   // Translates OpenAI /v1/chat/completions requests to Anthropic format and
   // routes them through the internal /v1/messages handler via app.fetch().
@@ -3026,6 +3124,91 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         note: "Previous session was replaced — if your current session has lost context, try the previous session ID.",
       } : {}),
     })
+  })
+
+  // --- Claude Design MCP Proxy ---
+  // Transparent reverse proxy for https://api.anthropic.com/v1/design/*
+  // Auth is sourced from the active profile. If the upstream returns 401,
+  // the user needs to run /design-login (adds user:design:read/write scopes).
+  app.all("/v1/design/*", async (c) => {
+    plog(`[PROXY] DESIGN ${c.req.method} ${c.req.url}`)
+    const profile = resolveProfile(
+      finalConfig.profiles,
+      finalConfig.defaultProfile,
+      c.req.header("x-meridian-profile") || undefined
+    )
+
+    const url = new URL(c.req.url)
+    const upstreamUrl = `https://api.anthropic.com${url.pathname}${url.search}`
+
+    const authHeaders: Record<string, string> = {}
+    // Prefer design-specific token (has user:design:read/write scopes) over profile token
+    const designToken = await readDesignToken()
+    if (designToken) {
+      authHeaders["Authorization"] = `Bearer ${designToken}`
+    } else if (profile.type === "api" && profile.env.ANTHROPIC_API_KEY) {
+      authHeaders["x-api-key"] = profile.env.ANTHROPIC_API_KEY
+    } else if (profile.type === "oauth-token" && profile.env.CLAUDE_CODE_OAUTH_TOKEN) {
+      authHeaders["Authorization"] = `Bearer ${profile.env.CLAUDE_CODE_OAUTH_TOKEN}`
+    } else {
+      // claude-max: read OAuth access token from the platform credential store
+      const store = credentialStoreForProfile(profile)
+      if (store) {
+        await ensureFreshToken(store).catch(() => {})
+        const creds = await store.read()
+        const token = creds?.claudeAiOauth?.accessToken
+        if (token) authHeaders["Authorization"] = `Bearer ${token}`
+      }
+    }
+
+    const method = c.req.method
+    const body = method !== "GET" && method !== "HEAD"
+      ? await c.req.arrayBuffer()
+      : undefined
+
+    const forwardHeaders: Record<string, string> = {
+      "anthropic-version": c.req.header("anthropic-version") || "2023-06-01",
+      ...authHeaders,
+    }
+    const contentType = c.req.header("content-type")
+    if (contentType) forwardHeaders["content-type"] = contentType
+    const betaHeader = c.req.header("anthropic-beta")
+    if (betaHeader) forwardHeaders["anthropic-beta"] = betaHeader
+    const mcpSessionId = c.req.header("mcp-session-id")
+    if (mcpSessionId) forwardHeaders["mcp-session-id"] = mcpSessionId
+
+    let upstreamRes: Response
+    try {
+      upstreamRes = await fetch(upstreamUrl, { method, headers: forwardHeaders, body: body ?? undefined })
+    } catch (err) {
+      return c.json(
+        { type: "error", error: { type: "upstream_error", message: err instanceof Error ? err.message : String(err) } },
+        502
+      )
+    }
+
+    // NOTE: agent-specific — Design API returns 404 (not 401) for OAuth tokens that lack
+    // user:design:read/write scopes. Both statuses indicate the user needs to reauthorize.
+    if (upstreamRes.status === 401 || upstreamRes.status === 404) {
+      return c.json(
+        { type: "error", error: { type: "auth_error", message: "Unauthorized. Run /design-login to authorize (adds user:design:read/write)." } },
+        401
+      )
+    }
+
+   // Forward all upstream headers (including mcp-session-id), skipping hop-by-hop headers
+   const HOP_BY_HOP = new Set(["transfer-encoding", "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "upgrade"])
+   const responseHeaders: Record<string, string> = {}
+   for (const [key, value] of upstreamRes.headers.entries()) {
+     if (!HOP_BY_HOP.has(key.toLowerCase())) responseHeaders[key] = value
+   }
+   const responseContentType = responseHeaders["content-type"] || "application/json"
+   if (responseContentType.includes("text/event-stream")) {
+     responseHeaders["cache-control"] = "no-cache"
+     responseHeaders["connection"] = "keep-alive"
+    }
+
+    return new Response(upstreamRes.body, { status: upstreamRes.status, headers: responseHeaders })
   })
 
   // Catch-all: log unhandled requests

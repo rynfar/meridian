@@ -22,9 +22,9 @@ import { createPlatformCredentialStore } from "./tokenRefresh"
 const PROFILES_DIR = join(homedir(), ".config", "meridian", "profiles")
 const CONFIG_FILE = join(homedir(), ".config", "meridian", "profiles.json")
 const OAUTH_AUTHORIZE_URL = "https://claude.com/cai/oauth/authorize"
-const OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
-const OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
-const OAUTH_REDIRECT_URI = "https://platform.claude.com/oauth/code/callback"
+export const OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
+export const OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+export const OAUTH_REDIRECT_URI = "https://platform.claude.com/oauth/code/callback"
 const OAUTH_SCOPES = [
   "org:create_api_key",
   "user:profile",
@@ -79,7 +79,8 @@ function base64Url(bytes: Buffer): string {
   return bytes.toString("base64url")
 }
 
-export function createManualOAuthSession(): ManualOAuthSession {
+export function createManualOAuthSession(scopes?: string[]): ManualOAuthSession {
+  const scopeList = scopes ?? OAUTH_SCOPES
   const codeVerifier = base64Url(randomBytes(32))
   const state = base64Url(randomBytes(32))
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url")
@@ -88,7 +89,7 @@ export function createManualOAuthSession(): ManualOAuthSession {
   url.searchParams.set("client_id", OAUTH_CLIENT_ID)
   url.searchParams.set("response_type", "code")
   url.searchParams.set("redirect_uri", OAUTH_REDIRECT_URI)
-  url.searchParams.set("scope", OAUTH_SCOPES.join(" "))
+  url.searchParams.set("scope", scopeList.join(" "))
   url.searchParams.set("code_challenge", codeChallenge)
   url.searchParams.set("code_challenge_method", "S256")
   url.searchParams.set("state", state)
