@@ -3189,6 +3189,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
     const forwardHeaders: Record<string, string> = {
       "anthropic-version": c.req.header("anthropic-version") || "2023-06-01",
+      // Disable compression so the response body is always plain text/JSON.
+      // Node.js fetch auto-decompresses but doesn't strip content-encoding,
+      // causing MCP SDK clients to double-decompress and fail to parse.
+      "accept-encoding": "identity",
       ...authHeaders,
     }
     const contentType = c.req.header("content-type")
