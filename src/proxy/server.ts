@@ -1,5 +1,6 @@
 import { Hono } from "hono"
 import { cors } from "hono/cors"
+import { stream } from "hono/streaming"
 import { serve } from "@hono/node-server"
 import type { Server } from "node:http"
 import { homedir } from "node:os"
@@ -3130,8 +3131,28 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Transparent reverse proxy for https://api.anthropic.com/v1/design/*
   // Auth is sourced from the active profile. If the upstream returns 401,
   // the user needs to run /design-login (adds user:design:read/write scopes).
-  app.all("/v1/design/*", async (c) => {
-    plog(`[PROXY] DESIGN ${c.req.method} ${c.req.url}`)
+  // GET requests to the design MCP are SSE streams for server-initiated events.
+  // Anthropic's Design API sends 0 bytes over SSE (no active push), so proxying
+  // the GET upstream leaves the connection hanging with no data. Instead return
+  // a lightweight keep-alive stream locally to keep the MCP client happy.
+  app.get("/v1/design/*", async (c) => {
+    c.status(200)
+    c.header("content-type", "text/event-stream")
+    c.header("cache-control", "no-cache")
+    c.header("connection", "keep-alive")
+    c.header("access-control-allow-origin", "*")
+    return stream(c, async (s) => {
+      while (!s.aborted) {
+        await s.write(": keepalive\n\n")
+        await s.sleep(15_000)
+      }
+    })
+  })
+
+  // POST requests proxy the actual MCP JSON-RPC to Anthropic's Design API
+  app.post("/v1/design/*", async (c) => {
+    const reqHeaders = Object.fromEntries(c.req.raw.headers.entries())
+    plog(`[PROXY] DESIGN ${c.req.method} ${c.req.url} headers=${JSON.stringify(reqHeaders)}`)
     const profile = resolveProfile(
       finalConfig.profiles,
       finalConfig.defaultProfile,
@@ -3208,6 +3229,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
      responseHeaders["connection"] = "keep-alive"
     }
 
+    plog(`[PROXY] DESIGN upstream=${upstreamRes.status} ct=${responseContentType}`)
+    if (responseContentType.includes("text/event-stream") && upstreamRes.body) {
+      c.status(upstreamRes.status as any)
+      for (const [key, value] of Object.entries(responseHeaders)) {
+        c.header(key, value)
+      }
+      return stream(c, async (s) => {
+        const reader = upstreamRes.body!.getReader()
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            await s.write(value)
+          }
+        } finally {
+          reader.releaseLock()
+        }
+      })
+    }
     return new Response(upstreamRes.body, { status: upstreamRes.status, headers: responseHeaders })
   })
 
