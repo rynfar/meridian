@@ -2702,8 +2702,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       return c.json({ type: "error", error: { type: "invalid_request", message: "Missing or invalid 'code' field." } }, 400)
     }
 
-    const fallbackState = designOAuthSessions.keys().next().value
-    const stateKey = parsed.state ?? body.state ?? fallbackState
+    const stateKey = parsed.state ?? body.state
     if (!stateKey) {
       return c.json({ type: "error", error: { type: "session_expired", message: "OAuth session expired or not found. Call GET /design-login to start a new session." } }, 400)
     }
@@ -3135,12 +3134,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Anthropic's Design API sends 0 bytes over SSE (no active push), so proxying
   // the GET upstream leaves the connection hanging with no data. Instead return
   // a lightweight keep-alive stream locally to keep the MCP client happy.
-  app.get("/v1/design/*", async (c) => {
+  app.get("/v1/design/*", (c) => {
     c.status(200)
     c.header("content-type", "text/event-stream")
     c.header("cache-control", "no-cache")
     c.header("connection", "keep-alive")
-    c.header("access-control-allow-origin", "*")
     return stream(c, async (s) => {
       while (!s.aborted) {
         await s.write(": keepalive\n\n")
@@ -3151,8 +3149,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   // POST requests proxy the actual MCP JSON-RPC to Anthropic's Design API
   app.post("/v1/design/*", async (c) => {
-    const reqHeaders = Object.fromEntries(c.req.raw.headers.entries())
-    plog(`[PROXY] DESIGN ${c.req.method} ${c.req.url} headers=${JSON.stringify(reqHeaders)}`)
     const profile = resolveProfile(
       finalConfig.profiles,
       finalConfig.defaultProfile,
@@ -3182,10 +3178,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       }
     }
 
-    const method = c.req.method
-    const body = method !== "GET" && method !== "HEAD"
-      ? await c.req.arrayBuffer()
-      : undefined
+    const body = await c.req.arrayBuffer()
 
     const forwardHeaders: Record<string, string> = {
       "anthropic-version": c.req.header("anthropic-version") || "2023-06-01",
@@ -3204,7 +3197,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
     let upstreamRes: Response
     try {
-      upstreamRes = await fetch(upstreamUrl, { method, headers: forwardHeaders, body: body ?? undefined })
+      upstreamRes = await fetch(upstreamUrl, { method: "POST", headers: forwardHeaders, body })
     } catch (err) {
       return c.json(
         { type: "error", error: { type: "upstream_error", message: err instanceof Error ? err.message : String(err) } },
@@ -3227,31 +3220,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    for (const [key, value] of upstreamRes.headers.entries()) {
      if (!HOP_BY_HOP.has(key.toLowerCase())) responseHeaders[key] = value
    }
-   const responseContentType = responseHeaders["content-type"] || "application/json"
-   if (responseContentType.includes("text/event-stream")) {
-     responseHeaders["cache-control"] = "no-cache"
-     responseHeaders["connection"] = "keep-alive"
-    }
-
-    plog(`[PROXY] DESIGN upstream=${upstreamRes.status} ct=${responseContentType}`)
-    if (responseContentType.includes("text/event-stream") && upstreamRes.body) {
-      c.status(upstreamRes.status as any)
-      for (const [key, value] of Object.entries(responseHeaders)) {
-        c.header(key, value)
-      }
-      return stream(c, async (s) => {
-        const reader = upstreamRes.body!.getReader()
-        try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            await s.write(value)
-          }
-        } finally {
-          reader.releaseLock()
-        }
-      })
-    }
+    plog(`[PROXY] DESIGN upstream=${upstreamRes.status}`)
     return new Response(upstreamRes.body, { status: upstreamRes.status, headers: responseHeaders })
   })
 
