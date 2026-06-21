@@ -240,8 +240,24 @@ describe("piAdapter.buildSystemContextAddendum", () => {
 })
 
 describe("piAdapter.usesPassthrough", () => {
-  it("is not defined — defers to CLAUDE_PROXY_PASSTHROUGH env var", () => {
-    expect(piAdapter.usesPassthrough).toBeUndefined()
+  it("defaults to passthrough mode and honors the disable flags", () => {
+    const original = process.env.MERIDIAN_PASSTHROUGH
+    try {
+      delete process.env.MERIDIAN_PASSTHROUGH
+      expect(piAdapter.usesPassthrough!()).toBe(true)
+
+      process.env.MERIDIAN_PASSTHROUGH = "0"
+      expect(piAdapter.usesPassthrough!()).toBe(false)
+
+      process.env.MERIDIAN_PASSTHROUGH = "false"
+      expect(piAdapter.usesPassthrough!()).toBe(false)
+    } finally {
+      if (original === undefined) {
+        delete process.env.MERIDIAN_PASSTHROUGH
+      } else {
+        process.env.MERIDIAN_PASSTHROUGH = original
+      }
+    }
   })
 })
 

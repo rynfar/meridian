@@ -158,6 +158,11 @@ describe("Pi transform parity", () => {
     expect(ctx.extractFileChangesFromToolUse!("write", { filePath: "/a.ts" }))
       .toEqual(piAdapter.extractFileChangesFromToolUse!("write", { filePath: "/a.ts" }))
   })
+
+  it("matches passthrough resolution", () => {
+    const ctx = runTransformHook(piTransforms, "onRequest", makeCtx("pi"), "pi")
+    expect(ctx.passthrough).toBe(piAdapter.usesPassthrough!())
+  })
 })
 
 describe("ForgeCode transform parity", () => {

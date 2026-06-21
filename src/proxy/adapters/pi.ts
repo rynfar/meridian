@@ -156,10 +156,22 @@ export const piAdapter: AgentAdapter = {
    * tool_result cycle). Passthrough mode is appropriate: the proxy returns
    * tool_use blocks to pi, which executes them and sends back tool_results.
    *
-   * Like Crush, defer to CLAUDE_PROXY_PASSTHROUGH env var so the same
-   * global setting controls both agents.
+   * Pi owns its tool execution loop, so passthrough is the correct default:
+   * the proxy returns tool_use blocks to pi and pi executes them. Without it,
+   * pi falls back to internal mode and only the hardcoded MCP tool set
+   * (read/write/edit/bash/glob/grep) is exposed — pi's own tools such as
+   * web_search/web_fetch/batch_web_fetch are silently dropped.
+   *
+   * Mirrors the claudecode/opencode adapters: default ON, opt out via
+   * MERIDIAN_PASSTHROUGH=0 (or CLAUDE_PROXY_PASSTHROUGH=0).
    */
-  // usesPassthrough not defined — defers to CLAUDE_PROXY_PASSTHROUGH env var
+  usesPassthrough(): boolean {
+    const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
+    if (envVal === "0" || envVal === "false" || envVal === "no") {
+      return false
+    }
+    return true
+  },
 
   /**
    * Pi uses lowercase tool names: read, write, edit, bash.

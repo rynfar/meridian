@@ -12,6 +12,19 @@ const PI_ALLOWED_MCP_TOOLS: readonly string[] = [
   `mcp__${PI_MCP_SERVER_NAME}__grep`,
 ]
 
+/**
+ * Resolve passthrough mode for Pi from env. Mirrors the adapter's
+ * `usesPassthrough()` so the transform and adapter agree (transform-parity
+ * test enforces this). Default is ON — pi owns its tool execution loop, so
+ * tool_use blocks must flow back to pi. In internal mode only the hardcoded
+ * MCP tool set is exposed and pi's own tools (web_search/web_fetch/etc.) are
+ * dropped. Opt out via `MERIDIAN_PASSTHROUGH=0`.
+ */
+function resolvePiPassthrough(): boolean {
+  const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
+  return !(envVal === "0" || envVal === "false" || envVal === "no")
+}
+
 export const piTransforms: Transform[] = [
   {
     name: "pi-core",
@@ -32,6 +45,7 @@ export const piTransforms: Transform[] = [
         incompatibleTools: CLAUDE_CODE_ONLY_TOOLS,
         allowedMcpTools: PI_ALLOWED_MCP_TOOLS,
         sdkAgents: {},
+        passthrough: resolvePiPassthrough(),
         supportsThinking: true,
         extractFileChangesFromToolUse,
       }
