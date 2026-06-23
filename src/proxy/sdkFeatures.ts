@@ -138,6 +138,24 @@ export function getFeaturesForAdapter(adapterName: string): AdapterFeatures {
 }
 
 /**
+ * Returns the thinking value the user has *explicitly* configured for an
+ * adapter, or undefined when none is set (i.e. it falls back to defaults).
+ *
+ * The merged result from getFeaturesForAdapter() can't tell an explicit
+ * "disabled" choice apart from the default "disabled" (DEFAULT_FEATURES.thinking
+ * is "disabled"). Those two cases must behave differently: an explicit
+ * "disabled" is an authoritative "no thinking" instruction that overrides client
+ * requests, whereas the default "disabled" is a no-op fallback so clients can
+ * still request thinking per-request. See the thinking resolution in server.ts.
+ */
+export function getExplicitThinking(adapterName: string): AdapterFeatures["thinking"] | undefined {
+  const explicit = readConfig()[adapterName]?.thinking
+  return typeof explicit === "string" && VALID_THINKING_VALUES.has(explicit)
+    ? (explicit as AdapterFeatures["thinking"])
+    : undefined
+}
+
+/**
  * Get the full config for all adapters (for the settings UI).
  */
 export function getAllFeatureConfigs(): Record<string, AdapterFeatures> {
