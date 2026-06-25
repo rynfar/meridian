@@ -29,6 +29,7 @@ import type { AgentAdapter } from "../adapter"
 import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
+import { resolvePassthrough } from "../../env"
 
 const PI_MCP_SERVER_NAME = "pi"
 
@@ -166,11 +167,7 @@ export const piAdapter: AgentAdapter = {
    * MERIDIAN_PASSTHROUGH=0 (or CLAUDE_PROXY_PASSTHROUGH=0).
    */
   usesPassthrough(): boolean {
-    const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
-    if (envVal === "0" || envVal === "false" || envVal === "no") {
-      return false
-    }
-    return true
+    return resolvePassthrough(true)
   },
 
   /**

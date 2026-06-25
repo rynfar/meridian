@@ -1,5 +1,6 @@
 import type { Transform, RequestContext } from "../transform"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
+import { resolvePassthrough } from "../../env"
 
 const DROID_MCP_SERVER_NAME = "droid"
 const DROID_ALLOWED_MCP_TOOLS: readonly string[] = [
@@ -23,8 +24,7 @@ const DROID_ALLOWED_MCP_TOOLS: readonly string[] = [
  * (no env var) or explicitly set `MERIDIAN_PASSTHROUGH=0`.
  */
 function resolveDroidPassthrough(): boolean {
-  const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
-  return envVal === "1" || envVal === "true" || envVal === "yes"
+  return resolvePassthrough(false)
 }
 
 export const droidTransforms: Transform[] = [

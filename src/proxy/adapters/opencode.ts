@@ -13,6 +13,7 @@ import { extractClientCwd } from "../session/fingerprint"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../tools"
 import { buildAgentDefinitionsFromTool } from "../agentDefs"
 import { fuzzyMatchAgentName } from "../agentMatch"
+import { resolvePassthrough } from "../../env"
 
 export const openCodeAdapter: AgentAdapter = {
   name: "opencode",
@@ -51,11 +52,7 @@ export const openCodeAdapter: AgentAdapter = {
   },
 
   usesPassthrough(): boolean {
-    const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
-    if (envVal === "0" || envVal === "false" || envVal === "no") {
-      return false
-    }
-    return true
+    return resolvePassthrough(true)
   },
 
   supportsThinking(): boolean {

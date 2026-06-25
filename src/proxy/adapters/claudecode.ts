@@ -22,6 +22,7 @@ import type { AgentAdapter } from "../adapter"
 import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../tools"
+import { resolvePassthrough } from "../../env"
 
 /**
  * Extract Claude Code's client-local working directory from the request's
@@ -105,11 +106,7 @@ export const claudeCodeAdapter: AgentAdapter = {
   usesPassthrough(): boolean {
     // Claude Code owns its own tool execution client-side; default to
     // passthrough so tool_use blocks flow back to the CLI.
-    const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
-    if (envVal === "0" || envVal === "false" || envVal === "no") {
-      return false
-    }
-    return true
+    return resolvePassthrough(true)
   },
 
   supportsThinking(): boolean {

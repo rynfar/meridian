@@ -3,6 +3,7 @@ import { extractFileChangesFromBash, type FileChange } from "../fileChanges"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, ALLOWED_MCP_TOOLS } from "../tools"
 import { buildAgentDefinitionsFromTool } from "../agentDefs"
 import { fuzzyMatchAgentName } from "../agentMatch"
+import { resolvePassthrough } from "../../env"
 
 export const openCodeTransforms: Transform[] = [
   {
@@ -18,9 +19,8 @@ export const openCodeTransforms: Transform[] = [
       const allowedMcpTools = ALLOWED_MCP_TOOLS
       const coreToolNames: readonly string[] = ["read", "write", "edit", "bash", "glob", "grep"]
 
-      // Passthrough mode (env var, default true)
-      const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
-      const passthrough = !(envVal === "0" || envVal === "false" || envVal === "no")
+      // Passthrough mode (env var, default true). Mirrors opencodeAdapter.usesPassthrough().
+      const passthrough = resolvePassthrough(true)
 
       // SDK agents (parse Task tool description)
       let sdkAgents: Record<string, any> = {}

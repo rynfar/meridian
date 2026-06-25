@@ -1,6 +1,7 @@
 import type { Transform, RequestContext } from "../transform"
 import { extractFileChangesFromBash, type FileChange } from "../fileChanges"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
+import { resolvePassthrough } from "../../env"
 
 const PI_MCP_SERVER_NAME = "pi"
 const PI_ALLOWED_MCP_TOOLS: readonly string[] = [
@@ -21,8 +22,7 @@ const PI_ALLOWED_MCP_TOOLS: readonly string[] = [
  * dropped. Opt out via `MERIDIAN_PASSTHROUGH=0`.
  */
 function resolvePiPassthrough(): boolean {
-  const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
-  return !(envVal === "0" || envVal === "false" || envVal === "no")
+  return resolvePassthrough(true)
 }
 
 export const piTransforms: Transform[] = [

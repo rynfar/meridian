@@ -19,6 +19,7 @@ import type { Context } from "hono"
 import type { AgentAdapter } from "../adapter"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
+import { resolvePassthrough } from "../../env"
 
 const DROID_MCP_SERVER_NAME = "droid"
 
@@ -136,8 +137,7 @@ export const droidAdapter: AgentAdapter = {
    * streaming, no internal SDK loop hallucination on long contexts).
    */
   usesPassthrough(): boolean {
-    const envVal = process.env.MERIDIAN_PASSTHROUGH ?? process.env.CLAUDE_PROXY_PASSTHROUGH
-    return envVal === "1" || envVal === "true" || envVal === "yes"
+    return resolvePassthrough(false)
   },
 }
 
