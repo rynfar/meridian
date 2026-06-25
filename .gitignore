@@ -40,3 +40,7 @@ apps/desktop/src-tauri/target/
 # Local agent tooling (per-developer; never commit)
 .claude/
 .pylon/
+.junie/
+
+# Local spikes / experiments (per-developer; never commit)
+spike/
