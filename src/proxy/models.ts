@@ -7,6 +7,7 @@ import { existsSync, statSync } from "fs"
 import { fileURLToPath } from "url"
 import { join, dirname } from "path"
 import { promisify } from "util"
+import { env } from "../env"
 
 const exec = promisify(execCallback)
 const execFile = promisify(execFileCallback)
@@ -85,6 +86,11 @@ let cachedAuthStatusPromise: Promise<ClaudeAuthStatus | null> | null = null
  * Older models (4.5 and earlier) do not.
  */
 function supports1mContext(model: string): boolean {
+  // Global opt-out: MERIDIAN_1M_CONTEXT_SUPPORT=0 (or false/no) disables 1M
+  // auto-selection entirely, downgrading every model to its base variant.
+  // Accepts the CLAUDE_PROXY_ alias and all falsy spellings via env().
+  const override = env("1M_CONTEXT_SUPPORT")
+  if (override === "0" || override === "false" || override === "no") return false
   // Explicit older versions (4-5, 4.5, etc.) do not support 1M
   if (model.includes("4-5") || model.includes("4.5")) return false
   // Everything else (bare names, 4-6, unknown) defaults to latest (1M capable)

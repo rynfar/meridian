@@ -73,6 +73,41 @@ describe("mapModelToClaudeModel", () => {
     resetExtendedContextUnavailable()
   })
 
+  describe("MERIDIAN_1M_CONTEXT_SUPPORT opt-out", () => {
+    afterEach(() => {
+      delete process.env.MERIDIAN_1M_CONTEXT_SUPPORT
+      delete process.env.CLAUDE_PROXY_1M_CONTEXT_SUPPORT
+      delete process.env.CLAUDE_PROXY_SONNET_MODEL
+    })
+
+    it("downgrades opus[1m] to opus when disabled", () => {
+      process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "0"
+      expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus")
+      expect(mapModelToClaudeModel("opus")).toBe("opus")
+    })
+
+    it("downgrades sonnet[1m] override to sonnet when disabled", () => {
+      process.env.CLAUDE_PROXY_SONNET_MODEL = "sonnet[1m]"
+      process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "0"
+      expect(mapModelToClaudeModel("sonnet", "max")).toBe("sonnet")
+    })
+
+    it("accepts false/no spellings and the CLAUDE_PROXY_ alias", () => {
+      process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "false"
+      expect(mapModelToClaudeModel("opus")).toBe("opus")
+      process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "no"
+      expect(mapModelToClaudeModel("opus")).toBe("opus")
+      delete process.env.MERIDIAN_1M_CONTEXT_SUPPORT
+      process.env.CLAUDE_PROXY_1M_CONTEXT_SUPPORT = "0"
+      expect(mapModelToClaudeModel("opus")).toBe("opus")
+    })
+
+    it("leaves 1M selection intact for other values", () => {
+      process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "1"
+      expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus[1m]")
+    })
+  })
+
   describe("subagent mode", () => {
     it("gives subagents base sonnet regardless of subscription", () => {
       expect(mapModelToClaudeModel("claude-sonnet-4-6", "max", "subagent")).toBe("sonnet")
