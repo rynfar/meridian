@@ -482,7 +482,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         let model = mapModelToClaudeModel(requestedModel, authStatus?.subscriptionType, agentMode)
         const envOverrides = requestedModel.startsWith("claude-opus-")
           ? { ANTHROPIC_DEFAULT_OPUS_MODEL: requestedModel }
-          : undefined
+          : requestedModel.startsWith("claude-fable-")
+            ? { ANTHROPIC_DEFAULT_FABLE_MODEL: requestedModel }
+            : undefined
         // workingDirectory = SDK subprocess cwd (must exist on the proxy host).
         // clientWorkingDirectory = the client's local path (may not exist here);
         // used for per-project fingerprint bucketing and a system-prompt hint
@@ -3121,7 +3123,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
       console.log(`Meridian running at http://${finalConfig.host}:${info.port}`)
       console.log(`Telemetry dashboard: http://${finalConfig.host}:${info.port}/telemetry`)
       const pins = resolveSdkModelDefaults()
-      console.log(`Model pins: opus=${pins.ANTHROPIC_DEFAULT_OPUS_MODEL} sonnet=${pins.ANTHROPIC_DEFAULT_SONNET_MODEL} haiku=${pins.ANTHROPIC_DEFAULT_HAIKU_MODEL}`)
+      console.log(`Model pins: fable=${pins.ANTHROPIC_DEFAULT_FABLE_MODEL} opus=${pins.ANTHROPIC_DEFAULT_OPUS_MODEL} sonnet=${pins.ANTHROPIC_DEFAULT_SONNET_MODEL} haiku=${pins.ANTHROPIC_DEFAULT_HAIKU_MODEL}`)
       // Surface the resolved Claude executable + which step picked it.
       // When users hit "wrong claude got picked" failure modes (e.g. a
       // bun-shimmed `claude` on PATH, see #478), this single line is what

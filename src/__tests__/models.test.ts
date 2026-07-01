@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resolveSdkModelDefaults, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resolveSdkModelDefaults, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -105,6 +105,41 @@ describe("mapModelToClaudeModel", () => {
     it("leaves 1M selection intact for other values", () => {
       process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "1"
       expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus[1m]")
+    })
+  })
+
+  describe("fable 5", () => {
+    afterEach(() => {
+      resetExtendedContextUnavailable()
+      delete process.env.MERIDIAN_1M_CONTEXT_SUPPORT
+    })
+
+    it("maps fable to fable[1m] for primary agents (mirrors opus)", () => {
+      expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("fable")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5", "max", "primary")).toBe("fable[1m]")
+    })
+
+    it("gives subagents base fable regardless of subscription", () => {
+      expect(mapModelToClaudeModel("claude-fable-5", "max", "subagent")).toBe("fable")
+      expect(mapModelToClaudeModel("fable", "max", "subagent")).toBe("fable")
+    })
+
+    it("downgrades fable[1m] to fable during the Extra Usage cooldown", () => {
+      recordExtendedContextUnavailable()
+      expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable")
+    })
+
+    it("downgrades fable[1m] to fable when MERIDIAN_1M_CONTEXT_SUPPORT=0", () => {
+      process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "0"
+      expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable")
+    })
+
+    it("stripExtendedContext and hasExtendedContext handle fable[1m]", () => {
+      expect(stripExtendedContext("fable[1m]")).toBe("fable")
+      expect(hasExtendedContext("fable[1m]")).toBe(true)
+      expect(hasExtendedContext("fable")).toBe(false)
     })
   })
 
@@ -270,6 +305,7 @@ describe("resolveSdkModelDefaults", () => {
   // runs files in parallel.
   it("returns canonical pins when no overrides set", () => {
     const pins = resolveSdkModelDefaults({})
+    expect(pins.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe(CANONICAL_FABLE_MODEL)
     expect(pins.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe(CANONICAL_OPUS_MODEL)
     expect(pins.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe(CANONICAL_SONNET_MODEL)
     expect(pins.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe(CANONICAL_HAIKU_MODEL)
@@ -290,9 +326,15 @@ describe("resolveSdkModelDefaults", () => {
     expect(pins.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-5-0")
   })
 
-  it("returns only the three ANTHROPIC_DEFAULT_* keys — nothing else", () => {
+  it("MERIDIAN_DEFAULT_FABLE_MODEL override wins over the canonical default", () => {
+    const pins = resolveSdkModelDefaults({ MERIDIAN_DEFAULT_FABLE_MODEL: "claude-fable-6" })
+    expect(pins.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-6")
+  })
+
+  it("returns only the four ANTHROPIC_DEFAULT_* keys — nothing else", () => {
     const pins = resolveSdkModelDefaults({})
     expect(Object.keys(pins).sort()).toEqual([
+      "ANTHROPIC_DEFAULT_FABLE_MODEL",
       "ANTHROPIC_DEFAULT_HAIKU_MODEL",
       "ANTHROPIC_DEFAULT_OPUS_MODEL",
       "ANTHROPIC_DEFAULT_SONNET_MODEL",

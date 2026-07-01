@@ -187,9 +187,11 @@ describe("Environment variable stripping", () => {
 
 describe("SDK model pin injection (fixes #419)", () => {
   const modelEnvKeys = [
+    "ANTHROPIC_DEFAULT_FABLE_MODEL",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "MERIDIAN_DEFAULT_FABLE_MODEL",
     "MERIDIAN_DEFAULT_OPUS_MODEL",
     "MERIDIAN_DEFAULT_SONNET_MODEL",
     "MERIDIAN_DEFAULT_HAIKU_MODEL",
@@ -215,6 +217,7 @@ describe("SDK model pin injection (fixes #419)", () => {
   it("injects Meridian's canonical model pins when no shell env is set", async () => {
     const app = createTestApp()
     await post(app, BASIC_REQUEST)
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-4-8")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-4-6")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-4-5")
@@ -224,6 +227,12 @@ describe("SDK model pin injection (fixes #419)", () => {
     const app = createTestApp()
     await post(app, { ...BASIC_REQUEST, model: "claude-opus-4-6" })
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-4-6")
+  })
+
+  it("explicit claude-fable-5 requests pin the SDK env to fable", async () => {
+    const app = createTestApp()
+    await post(app, { ...BASIC_REQUEST, model: "claude-fable-5" })
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5")
   })
 
   it("explicit claude-opus-4-7 requests beat inherited env pins", async () => {
