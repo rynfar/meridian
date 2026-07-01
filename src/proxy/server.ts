@@ -620,11 +620,23 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
         // SDK feature toggles — resolved once per request for use in thinking
         // defaults, settingSources, and buildQueryOptions below.
-        const { getFeaturesForAdapter } = require("./sdkFeatures") as typeof import("./sdkFeatures")
+        const { getFeaturesForAdapter, getExplicitThinking } = require("./sdkFeatures") as typeof import("./sdkFeatures")
         const sdkFeatures = getFeaturesForAdapter(adapter.name)
 
-        // Default thinking from SDK features config when client didn't set it
-        if (!thinking) {
+        // Resolve thinking against the per-adapter setting.
+        //
+        // An *explicitly* configured "disabled" is authoritative: it overrides
+        // any client-supplied thinking (body.thinking / x-opencode-thinking) and
+        // drops effort, since effort only tunes thinking depth. This mirrors the
+        // beta-stripped hard-disable below. We check the raw setting (not the
+        // merged value) because the default is also "disabled" — and that default
+        // must stay a no-op so clients can still request thinking per-request.
+        // "adaptive"/"enabled" act as a default only when the client sent nothing.
+        if (getExplicitThinking(adapter.name) === "disabled") {
+          thinking = { type: "disabled" }
+          effort = undefined
+          plog(`[PROXY] ${requestMeta.requestId} thinking disabled (per-adapter setting)`)
+        } else if (!thinking) {
           if (sdkFeatures.thinking === "adaptive") thinking = { type: "adaptive" }
           else if (sdkFeatures.thinking === "enabled") thinking = { type: "enabled" }
         }
