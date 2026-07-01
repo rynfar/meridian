@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.117",
-    "@anthropic-ai/claude-code": "^2.1.117",
+    "@anthropic-ai/claude-code": "^2.1.198",
     "jsonc-parser": "^3.3.1",
     "libsql": "^0.5.29"
   },
