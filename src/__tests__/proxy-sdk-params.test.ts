@@ -207,6 +207,24 @@ describe("SDK param passthrough — header overrides", () => {
     ])
   })
 
+  it("drops effort when the thinking beta is stripped (strip-all policy)", async () => {
+    // When interleaved-thinking is stripped, thinking is hard-disabled to keep
+    // thinking blocks out of session state. effort only tunes thinking depth, so
+    // it must be dropped too — otherwise it still reaches the SDK (query.ts) and
+    // can re-trigger reasoning, re-introducing the blocks the strip guards against.
+    process.env.MERIDIAN_BETA_POLICY = "strip-all"
+    try {
+      const app = createTestApp()
+      await post(app, { ...BASE_BODY, effort: "high" }, {
+        "anthropic-beta": "interleaved-thinking-2025-05-14",
+      })
+      expect(capturedOptions.thinking).toEqual({ type: "disabled" })
+      expect(capturedOptions.effort).toBeUndefined()
+    } finally {
+      delete process.env.MERIDIAN_BETA_POLICY
+    }
+  })
+
   it("anthropic-beta header is forwarded for api-type profiles", async () => {
     const { app } = createProxyServer({
       port: 0, host: "127.0.0.1",

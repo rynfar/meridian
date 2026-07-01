@@ -602,7 +602,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // `output_config.effort`. normalizeEffort gates the value to Claude's
         // vocabulary so an unknown level (e.g. OpenAI's "minimal") falls back to
         // the model default instead of erroring at the SDK boundary.
-        const effort = normalizeEffort(
+        let effort = normalizeEffort(
           effortHeader
           || body.effort
           || body.reasoning_effort
@@ -633,6 +633,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const thinkingBetaStripped = betaFilter.stripped.some(b => b.startsWith("interleaved-thinking"))
         if (thinkingBetaStripped) {
           thinking = { type: "disabled" }
+          // effort only tunes thinking depth and reaches the SDK independently
+          // (query.ts), so it can re-trigger reasoning even with thinking
+          // disabled — drop it too, keeping thinking blocks out of session state.
+          effort = undefined
           if (betaFilter.stripped.length > 0) {
             plog(`[PROXY] ${requestMeta.requestId} thinking disabled (thinking beta stripped by ${getBetaPolicyFromEnv()} policy)`)
           }
