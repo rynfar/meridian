@@ -82,21 +82,22 @@ describe("GET /v1/usage/quota", () => {
   it("reflects entries written to the rate-limit store, newest first", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
 
+    // Explicit, distinct observedAt values make newest-first ordering
+    // deterministic without racing the real wall clock (a short sleep does
+    // not guarantee a fresh millisecond timestamp under CI load).
     rateLimitStore.record({
       status: "allowed",
       rateLimitType: "five_hour",
       utilization: 0.42,
       resetsAt: 1_730_000_000_000,
-    })
-    // Force monotonic observedAt so newest-first ordering is deterministic
-    await Bun.sleep(2)
+    }, 1_000)
     rateLimitStore.record({
       status: "allowed_warning",
       rateLimitType: "seven_day",
       utilization: 0.91,
       resetsAt: 1_730_500_000_000,
       surpassedThreshold: 0.9,
-    })
+    }, 2_000)
 
     const res = await app.fetch(new Request("http://localhost/v1/usage/quota"))
     expect(res.status).toBe(200)

@@ -53,11 +53,15 @@ class RateLimitStore {
    * Record a rate-limit info snapshot.
    * Last-write-wins per bucket key (rateLimitType). Older entries for the
    * same key are overwritten — clients should treat the latest as canonical.
+   *
+   * `observedAt` defaults to the current wall clock but may be supplied
+   * explicitly so callers (and tests) can control the capture timestamp used
+   * for newest-first ordering in {@link getAll}.
    */
-  record(info: SDKRateLimitInfo | undefined | null): void {
+  record(info: SDKRateLimitInfo | undefined | null, observedAt: number = Date.now()): void {
     if (!info || typeof info !== "object") return
     const key: RateLimitBucketKey = info.rateLimitType ?? "default"
-    this.entries.set(key, { ...info, observedAt: Date.now() })
+    this.entries.set(key, { ...info, observedAt })
   }
 
   /** Snapshot all current entries, newest-first by observedAt. */

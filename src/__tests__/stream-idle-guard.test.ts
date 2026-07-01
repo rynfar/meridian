@@ -1,6 +1,51 @@
 import { describe, expect, it } from "bun:test"
 
 const { guardUpstreamIdle, UpstreamIdleError } = await import("../proxy/streamIdleGuard")
+import type { IdleGuardClock } from "../proxy/streamIdleGuard"
+
+type IdleTimerHandle = ReturnType<typeof setTimeout> | number
+
+// A fully controllable clock for the guard: timers never fire on their own, so
+// real upstream chunks always win their race against the idle deadline. The
+// test fires the idle timer explicitly via advance(), making stall detection
+// deterministic instead of racing the wall clock.
+function makeFakeClock() {
+  let current = 0
+  let nextId = 1
+  let scheduledTotal = 0
+  const pending = new Map<IdleTimerHandle, { fireAt: number; fn: () => void }>()
+  const waiters: Array<{ n: number; resolve: () => void }> = []
+
+  const clock: IdleGuardClock = {
+    now: () => current,
+    setTimeout(fn, ms) {
+      const id = nextId++
+      pending.set(id, { fireAt: current + ms, fn })
+      scheduledTotal++
+      for (let i = waiters.length - 1; i >= 0; i--) {
+        if (scheduledTotal >= waiters[i]!.n) { waiters[i]!.resolve(); waiters.splice(i, 1) }
+      }
+      return id
+    },
+    clearTimeout(handle) { pending.delete(handle) },
+  }
+
+  return {
+    clock,
+    /** Resolves once at least `n` timers have been scheduled in total. */
+    waitForScheduled(n: number): Promise<void> {
+      if (scheduledTotal >= n) return Promise.resolve()
+      return new Promise<void>((resolve) => { waiters.push({ n, resolve }) })
+    },
+    /** Advance time by `ms`, firing every timer whose deadline has passed. */
+    advance(ms: number) {
+      current += ms
+      for (const [id, t] of [...pending]) {
+        if (t.fireAt <= current) { pending.delete(id); t.fn() }
+      }
+    },
+  }
+}
 
 // A controllable async iterable: push() emits a value, stall() just waits.
 function makeSource<T>() {
@@ -38,8 +83,13 @@ describe("guardUpstreamIdle", () => {
   it("throws UpstreamIdleError when the source goes silent even if onStall throws", async () => {
     const src = makeSource<number>()
     const stalls: number[] = []
-    const p = (async () => { for await (const _ of guardUpstreamIdle(src.iterable, 30, (ms) => { stalls.push(ms); throw new Error("observer failed") })) { /* drain */ } })()
+    const clock = makeFakeClock()
+    const p = (async () => { for await (const _ of guardUpstreamIdle(src.iterable, 30, (ms) => { stalls.push(ms); throw new Error("observer failed") }, clock.clock)) { /* drain */ } })()
     src.push(1) // one real chunk, then silence
+    // Chunk 1 is delivered (its idle timer is cleared) and a fresh idle timer
+    // is armed for the silent gap — the second scheduled timer. Fire it.
+    await clock.waitForScheduled(2)
+    clock.advance(30)
     let err: unknown
     try { await p } catch (e) { err = e }
     expect(err).toBeInstanceOf(UpstreamIdleError)
