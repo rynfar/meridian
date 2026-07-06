@@ -1,32 +1,5 @@
 import { describe, it, expect } from "bun:test"
-
-/**
- * Test stripWorkflowGuidance function behavior.
- * This function is used by OpenCode adapter to reduce context tokens
- * by removing workflow/release documentation during coding tasks.
- */
-
-// We need to extract and test the stripWorkflowGuidance function
-// For now, we'll test the behavior by simulating it
-
-function stripWorkflowGuidance(content: string): string {
-  return content
-    .split('\n')
-    .filter(line => {
-      const trimmed = line.trim()
-      // Remove header lines for sections we're stripping
-      if (trimmed.match(/^##\s+(Git|Releasing|Release config)/)) {
-        return false
-      }
-      // Remove the entire Releasing section and its subsections
-      if (trimmed.match(/^###\s+(Commit format|Development workflow|Troubleshooting|Release config files)/)) {
-        return false
-      }
-      return true
-    })
-    .join('\n')
-    .trim()
-}
+import { stripWorkflowGuidance } from "../proxy/adapters/opencode"
 
 describe("OpenCode Progressive Disclosure", () => {
   it("strips Git & Workflow section", () => {
@@ -44,9 +17,13 @@ This stays`
 
     const result = stripWorkflowGuidance(input)
     expect(result).not.toContain("Git & Workflow")
+    expect(result).not.toContain("This should be removed")
     expect(result).not.toContain("Development workflow")
+    expect(result).not.toContain("This too")
     expect(result).toContain("Code Rules")
+    expect(result).toContain("Some important rule")
     expect(result).toContain("Stable API Contract")
+    expect(result).toContain("This stays")
   })
 
   it("strips Releasing section", () => {
@@ -66,10 +43,14 @@ Keep this`
 
     const result = stripWorkflowGuidance(input)
     expect(result).not.toContain("Releasing")
+    expect(result).not.toContain("This should go away")
     expect(result).not.toContain("Troubleshooting")
+    expect(result).not.toContain("Gone")
     expect(result).not.toContain("Release config")
+    expect(result).not.toContain("Also gone")
     expect(result).toContain("Testing")
     expect(result).toContain("References")
+    expect(result).toContain("Keep this")
   })
 
   it("preserves essential sections (Code Rules, API Contract)", () => {
@@ -122,13 +103,15 @@ Keep`
 
 
 Some text
-Remove this:
 ## Releasing
+
+And this release content
 
    `
 
     const result = stripWorkflowGuidance(input)
     expect(result).not.toContain("Releasing")
+    expect(result).not.toContain("And this release content")
     expect(result.endsWith("Some text")).toBe(true)
   })
 

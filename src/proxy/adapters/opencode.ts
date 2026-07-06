@@ -26,9 +26,13 @@ export const openCodeAdapter: AgentAdapter = {
   },
 
   normalizeContent(content: any): string {
-    const normalized = normalizeContent(content)
-    // Progressive Disclosure: strip workflow/release docs for CLAUDE.md context
-    return stripWorkflowGuidance(normalized)
+    return normalizeContent(content)
+  },
+
+  filterSystemContext(systemContext: string): string {
+    // NOTE: OpenCode-specific. Progressive Disclosure: strips workflow/release
+    // guidance from the system prompt to reduce context for coding tasks.
+    return stripWorkflowGuidance(systemContext)
   },
 
   getBlockedBuiltinTools(): readonly string[] {
@@ -150,23 +154,40 @@ export const openCodeAdapter: AgentAdapter = {
  * needed during active coding (Git workflow, release process, troubleshooting).
  * Expected savings: ~500 tokens per request for typical coding tasks.
  */
-function stripWorkflowGuidance(content: string): string {
-  return content
-    .split('\n')
-    .filter(line => {
-      const trimmed = line.trim()
-      // Remove header lines for sections we're stripping
-      if (trimmed.match(/^##\s+(Git|Releasing|Release config)/)) {
-        return false
+export function stripWorkflowGuidance(content: string): string {
+  const STRIPPED_H2 = /^##\s+(Git|Releasing|Release config)/
+  const STRIPPED_H3 = /^###\s+(Commit format|Development workflow|Troubleshooting releases|Release config files)/
+
+  const lines = content.split('\n')
+  const result: string[] = []
+  let strippedLevel: number | null = null // header level (2 or 3) of current stripped section
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    // Check if this is any markdown header
+    const headerMatch = trimmed.match(/^(#{1,6})\s/)
+    if (headerMatch) {
+      const level = headerMatch[1]!.length
+
+      if (STRIPPED_H2.test(trimmed) || STRIPPED_H3.test(trimmed)) {
+        // Start stripping at this header level
+        strippedLevel = level
+        continue
       }
-      // Remove the entire Releasing section and its subsections
-      if (trimmed.match(/^###\s+(Commit format|Development workflow|Troubleshooting|Release config files)/)) {
-        return false
+
+      // A header at the same or higher level (lower number) ends the stripped section
+      if (strippedLevel !== null && level <= strippedLevel) {
+        strippedLevel = null
       }
-      return true
-    })
-    .join('\n')
-    .trim()
+    }
+
+    if (strippedLevel === null) {
+      result.push(line)
+    }
+  }
+
+  return result.join('\n').trim()
 }
 
 import { openCodeTransforms } from "../transforms/opencode"

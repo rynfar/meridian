@@ -113,6 +113,17 @@ export interface AgentAdapter extends AgentIdentity {
   buildSystemContextAddendum?(body: any, sdkAgents: Record<string, any>): string
 
   /**
+   * NOTE: OpenCode-specific. Filter the assembled system context before it is
+   * forwarded to the SDK. Use for Progressive Disclosure: strip sections that
+   * add tokens without benefit for the agent's primary task (e.g. workflow/
+   * release docs for a coding-focused agent).
+   *
+   * Return the filtered string. Return the input unchanged if no filtering
+   * is needed. When undefined, the system context is forwarded as-is.
+   */
+  filterSystemContext?(systemContext: string): string
+
+  /**
    * Whether this agent prefers non-streaming (JSON) responses.
    *
    * When this method is defined and returns false, the proxy forces

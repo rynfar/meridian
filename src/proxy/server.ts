@@ -512,6 +512,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               .join("\n")
           }
         }
+        if (adapter.filterSystemContext) {
+          systemContext = adapter.filterSystemContext(systemContext)
+        }
 
         // Run the transform pipeline — adapter transforms populate SDK configuration
         const adapterTransforms = getAdapterTransforms(adapter.name)
