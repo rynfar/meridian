@@ -1315,7 +1315,35 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               error: error instanceof Error ? error.message : String(error),
               ...(stderrOutput ? { stderr: stderrOutput } : {})
             })
-            throw error
+
+            // Graceful recovery: give the non-streaming path the same
+            // max_turns/aborted recovery the streaming path already has.
+            // When the nested SDK session dies mid-passthrough-loop but we
+            // already captured tool_use blocks via the PreToolUse hook, the
+            // client has actionable content — synthesize a stop_reason:
+            // "tool_use" response instead of a bare 500, and let this fall
+            // through into the existing merge block below (`if (passthrough
+            // && capturedToolUses.length > 0)`) that already knows how to
+            // backfill tool_use content blocks and assemble a normal
+            // chat.completions response.
+            const nonStreamErrMsg = error instanceof Error ? error.message : String(error)
+            const nonStreamSdkTerm = extractSdkTermination(nonStreamErrMsg)
+            const canRecoverAsToolUseNonStream =
+              (nonStreamSdkTerm.reason === "max_turns" || nonStreamSdkTerm.reason === "aborted") &&
+              passthrough &&
+              capturedToolUses.length > 0
+            if (canRecoverAsToolUseNonStream) {
+              plog(`[PROXY] ${requestMeta.requestId} nonstream_toolcalls_recovery reason=${nonStreamSdkTerm.reason} captured=${capturedToolUses.length} — synthesizing tool_use response instead of 500`)
+              claudeLog("passthrough.nonstream_recovered", {
+                mode: "non_stream",
+                model,
+                reason: nonStreamSdkTerm.reason,
+                captured: capturedToolUses.length
+              })
+              lastStopReason = "tool_use"
+            } else {
+              throw error
+            }
           }
 
           // In passthrough mode, merge captured tool_use blocks from the hook.
