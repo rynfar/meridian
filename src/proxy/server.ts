@@ -38,7 +38,7 @@ import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
-import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -687,8 +687,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         //
         // Opt-in via header value: clients that don't set the header are
         // unaffected — behavior is byte-identical to today.
+        // Client-driven passthrough loop: the last message is a tool_result,
+        // i.e. the client executed a forwarded tool and is sending the result
+        // back to continue its own loop. These requests are self-contained
+        // (each carries the full growing conversation), so they need no session
+        // resume — and, being headerless, they would otherwise all collide on
+        // the same (firstUserMessage, cwd) fingerprint when a workflow engine
+        // runs several loops concurrently, causing one run to resume another
+        // run's Claude session and corrupt the conversation (premature
+        // end_turn, dropped tool calls). Treat them as independent: no
+        // fingerprint resume, no cache write. Header-keyed sessions (OpenCode's
+        // x-opencode-session, LiteLLM's x-litellm-session-id) never reach the
+        // fingerprint path, so they are unaffected.
+        const lastMessage = Array.isArray(body.messages) ? body.messages[body.messages.length - 1] : undefined
+        const lastIsToolResult = Array.isArray(lastMessage?.content)
+          && lastMessage.content.some((b: any) => b?.type === "tool_result")
+        const isClientDrivenLoop = !agentSessionId && lastIsToolResult
         const isIndependentSession =
-          requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-") || false
+          requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-") || isClientDrivenLoop || false
         let lineageResult = isIndependentSession
           ? { type: "diverged" as const }
           : lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
@@ -875,7 +891,29 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             ? ["project"]
             : pipelineCtx.settingSources ?? []
 
+      // Passthrough tool_use capture. `capturedToolUses` holds the DISTINCT
+      // tool calls to forward to the client; `capturedSignatures` dedupes them
+      // by (name, input) so an SDK internal continuation turn re-emitting a
+      // blocked call (same args, new id) is dropped instead of concatenated
+      // into the response (fixes #528). `sawDuplicateToolUse` records that such
+      // a re-emit happened — the signal the model has stopped making progress
+      // and started repeating, which the non-streaming loop uses to return the
+      // distinct set immediately rather than burning the whole turn budget.
       const capturedToolUses: Array<{ id: string; name: string; input: any }> = []
+      const capturedSignatures = new Set<string>()
+      const capturedToolNames = new Set<string>()
+      let sawDuplicateToolUse = false
+      // Forced structured output: a `tool_choice` of {type:"tool",...} (or an
+      // explicit disable_parallel_tool_use) means the client — e.g. the AI
+      // SDK's generateObject — wants EXACTLY ONE call to that tool. Claude
+      // Code's nested loop, prodded by the forced choice, re-calls the tool
+      // across internal turns with slightly different arguments; those are
+      // distinct signatures, so signature-dedup alone wouldn't collapse them
+      // and the response would concatenate multiple JSON objects (unparseable).
+      // When the client forces a single tool, keep only the first capture.
+      const toolChoice = body.tool_choice
+      const forceSingleToolUse =
+        !!toolChoice && (toolChoice.type === "tool" || toolChoice.disable_parallel_tool_use === true)
       const fileChanges: FileChange[] = []
 
       // In passthrough mode, register OpenCode's tools as MCP tools so Claude
@@ -965,11 +1003,50 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (toolName.toLowerCase() === "task" && toolInput?.subagent_type && typeof toolInput.subagent_type === "string") {
                   toolInput = { ...toolInput, subagent_type: resolveAgentAlias(toolInput.subagent_type) }
                 }
-                capturedToolUses.push({
-                  id: input.tool_use_id,
-                  name: toolName,
-                  input: toolInput,
-                })
+                // Decide whether to forward this captured tool_use, or drop it
+                // as an artifact of the nested SDK's internal loop. In
+                // passthrough the CLIENT executes tools and returns real
+                // results, so the model should only emit ONE logical step of
+                // tool calls per request — but Claude Code blocks each call and
+                // lets the model keep going, so it fabricates results and loops.
+                // Three cases collapse that loop back to the client-facing set:
+                //   1. Exact re-emit (same name+input, fresh id): a blocked call
+                //      re-surfaced on a later internal turn. Drop it, but keep
+                //      collecting — a genuine parallel call to a DIFFERENT tool
+                //      may still follow (robust to duplicate-before-distinct
+                //      ordering). This is the #528 duplication.
+                //   2. Same tool re-called with NEW args: the model fabricated a
+                //      result for the blocked call and continued (a sequential-
+                //      dependency loop, e.g. fetch→fetch→fetch). Stop after the
+                //      distinct set — the client will supply the real result and
+                //      drive the next call. (Genuine parallel uses DISTINCT tool
+                //      names — get_weather + get_time — which are kept.)
+                //   3. Forced single tool (tool_choice:{type:"tool"} / structured
+                //      output): keep only the first call.
+                // Cases 2 and 3 set sawDuplicateToolUse, the signal the non-
+                // streaming loop uses to return the distinct set immediately
+                // instead of draining the whole turn budget.
+                const signature = toolUseSignature(toolName, toolInput)
+                const isExactDuplicate = capturedSignatures.has(signature)
+                const isSameToolRepeat = !isExactDuplicate && capturedToolNames.has(toolName)
+                const exceedsForcedSingle = forceSingleToolUse && capturedToolUses.length >= 1
+                if (isExactDuplicate) {
+                  claudeLog("passthrough.duplicate_tool_use_dropped", { name: toolName })
+                } else if (isSameToolRepeat || exceedsForcedSingle) {
+                  sawDuplicateToolUse = true
+                  claudeLog("passthrough.extra_tool_use_dropped", {
+                    name: toolName,
+                    reason: exceedsForcedSingle ? "forced_single" : "same_tool_repeat",
+                  })
+                } else {
+                  capturedSignatures.add(signature)
+                  capturedToolNames.add(toolName)
+                  capturedToolUses.push({
+                    id: input.tool_use_id,
+                    name: toolName,
+                    input: toolInput,
+                  })
+                }
                 // The reason text is read by the model as the "tool result" of
                 // a denied call. With a vague reason ("Forwarding to client for
                 // execution") modern Claude tends to retry with a different
@@ -1226,6 +1303,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               if ((message as any).session_id) {
                 currentSessionId = (message as any).session_id
               }
+              // Passthrough single-turn guard: once the model re-emits a call it
+              // already made (detected in the PreToolUse hook between turns), it
+              // has stopped making progress and is looping against the blocked
+              // tool. Every distinct tool_use for this exchange is already in
+              // capturedToolUses, so stop draining the SDK's internal loop —
+              // this returns the full parallel set while avoiding the maxTurns
+              // exhaustion that otherwise 500s a client-driven tool loop.
+              if (passthrough && sawDuplicateToolUse) {
+                claudeLog("passthrough.loop_break", { mode: "non_stream", assistantMessages, captured: capturedToolUses.length })
+                break
+              }
               if (message.type === "assistant") {
                 assistantMessages += 1
                 // Capture SDK assistant UUID for undo rollback
@@ -1326,14 +1414,44 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
               error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
             }
-            claudeLog("upstream.failed", {
-              mode: "non_stream",
-              model,
-              durationMs: Date.now() - upstreamStartAt,
-              error: error instanceof Error ? error.message : String(error),
-              ...(stderrOutput ? { stderr: stderrOutput } : {})
-            })
-            throw error
+            // Graceful recovery — the non-streaming counterpart of the streaming
+            // path's canRecoverAsToolUse branch. If the SDK hit its turn cap (or
+            // was aborted) but the PreToolUse hook already captured tool_use
+            // blocks, the client has everything it needs to run the tools and
+            // drive the next turn. Fall through to the merge + normal response
+            // build below instead of surfacing a 500. Distinct-only captures
+            // that never triggered the loop-break (e.g. wide parallel exceeding
+            // the turn budget) land here.
+            const sdkTerm = extractSdkTermination(error instanceof Error ? error.message : String(error))
+            const canRecoverAsToolUse =
+              passthrough &&
+              capturedToolUses.length > 0 &&
+              (sdkTerm.reason === "max_turns" || sdkTerm.reason === "aborted")
+            if (canRecoverAsToolUse) {
+              diagnosticLog.session(
+                `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
+                  model, requestSource, isResume, hasDeferredTools, sdkSessionId: resumeSessionId,
+                })} captured=${capturedToolUses.length}`,
+                requestMeta.requestId,
+              )
+              claudeLog("passthrough.max_turns_recovered", {
+                mode: "non_stream",
+                reason: sdkTerm.reason,
+                captured: capturedToolUses.length,
+              })
+              // Do not rethrow — execution continues into the merge block, which
+              // backfills contentBlocks from capturedToolUses and builds a clean
+              // stop_reason:"tool_use" response.
+            } else {
+              claudeLog("upstream.failed", {
+                mode: "non_stream",
+                model,
+                durationMs: Date.now() - upstreamStartAt,
+                error: error instanceof Error ? error.message : String(error),
+                ...(stderrOutput ? { stderr: stderrOutput } : {})
+              })
+              throw error
+            }
           }
 
           // In passthrough mode, merge captured tool_use blocks from the hook.

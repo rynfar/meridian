@@ -182,6 +182,21 @@ function stableStringify(value: unknown): string {
 }
 
 /**
+ * Stable semantic signature for a forwarded tool_use: tool name + a
+ * key-order-independent serialization of its input. Two tool calls with the
+ * same name and the same arguments share a signature even if the SDK assigns
+ * them different tool_use ids.
+ *
+ * Used by the passthrough capture path to tell apart genuine parallel calls
+ * (distinct signatures — e.g. get_weather vs get_time) from an SDK internal
+ * continuation turn re-emitting a blocked call (identical signature, new id).
+ * The former are all forwarded; the latter is a duplicate and dropped.
+ */
+export function toolUseSignature(name: string, input: unknown): string {
+  return `${name}::${stableStringify(input ?? null)}`
+}
+
+/**
  * Strip the MCP prefix from a tool name to get the OpenCode tool name.
  * e.g., "mcp__oc__todowrite" → "todowrite"
  */

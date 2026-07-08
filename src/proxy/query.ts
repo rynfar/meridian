@@ -9,6 +9,7 @@ import { join } from "node:path"
 import type { Options, SdkBeta, SettingSource } from "@anthropic-ai/claude-agent-sdk"
 import { createOpencodeMcpServer } from "../mcpTools"
 import { createPassthroughMcpServer, PASSTHROUGH_MCP_NAME } from "./passthroughTools"
+import { envInt } from "../env"
 import type { Effort } from "./effort"
 
 /**
@@ -147,7 +148,16 @@ function computePassthroughMaxTurns(
   advisorModel: string | undefined,
 ): number {
   const hasResume = !!resumeSessionId
-  const base = hasResume && hasDeferredTools ? 4 : 3
+  const defaultBase = hasResume && hasDeferredTools ? 4 : 3
+  // The base is the SDK's internal-loop budget before it must return control.
+  // It's normally enough (the capture path drops re-emitted duplicates and
+  // stops the loop when the model starts repeating), but wide parallel tool
+  // calls — which the SDK surfaces one assistant turn each — can need more
+  // headroom, and orchestration clients hit it on deep chains (#494). Allow
+  // MERIDIAN_PASSTHROUGH_MAX_TURNS / CLAUDE_PROXY_PASSTHROUGH_MAX_TURNS to
+  // raise (or lower) the base; the resume/advisor bumps below are unchanged.
+  const configured = envInt("PASSTHROUGH_MAX_TURNS", defaultBase)
+  const base = configured > 0 ? configured : defaultBase
   const advisorBump = advisorModel ? 3 : 0
   return base + advisorBump
 }
