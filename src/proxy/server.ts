@@ -947,11 +947,31 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (toolName.toLowerCase() === "task" && toolInput?.subagent_type && typeof toolInput.subagent_type === "string") {
                   toolInput = { ...toolInput, subagent_type: resolveAgentAlias(toolInput.subagent_type) }
                 }
-                capturedToolUses.push({
-                  id: input.tool_use_id,
-                  name: toolName,
-                  input: toolInput,
-                })
+                // Dedupe at the source: in passthrough mode, when the nested
+                // SDK session never sees a real tool result for a blocked
+                // call, it can re-emit the exact same semantic call (same
+                // name + same input) on a later turn with a BRAND NEW
+                // tool_use id. Every downstream consumer of capturedToolUses
+                // (the non-stream merge, and both stream normal-path and
+                // stream recovery-path unseenToolUses filters) keys off id,
+                // so a duplicate with a fresh id sails through as a second,
+                // distinct tool_call for an identical action. Guard here,
+                // at the single push site, so all consumers are fixed at
+                // once.
+                const dedupeSig = `${toolName}:${JSON.stringify(toolInput)}`
+                const isDuplicateToolUse = capturedToolUses.some(
+                  (tu) => `${tu.name}:${JSON.stringify(tu.input)}` === dedupeSig,
+                )
+                if (isDuplicateToolUse) {
+                  plog(`[PROXY] passthrough_toolcall_dedupe skipped duplicate name=${toolName} sig=${dedupeSig.slice(0, 120)}`)
+                  claudeLog("passthrough.toolcall_dedupe_skipped", { toolName, toolUseId: input.tool_use_id })
+                } else {
+                  capturedToolUses.push({
+                    id: input.tool_use_id,
+                    name: toolName,
+                    input: toolInput,
+                  })
+                }
                 // The reason text is read by the model as the "tool result" of
                 // a denied call. With a vague reason ("Forwarding to client for
                 // execution") modern Claude tends to retry with a different
