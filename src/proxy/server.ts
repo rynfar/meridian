@@ -958,8 +958,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // tool, burning the maxTurns budget. Be explicit that the call
                 // succeeded externally and that the model should stop here —
                 // see telemetry for the failure mode this addresses.
+                //
+                // `interrupt: true` asks the SDK to end the nested session's
+                // turn immediately after this deny, instead of leaving the
+                // model free to keep retrying/talking until the (much
+                // larger) maxTurns cap kills the session. Without it, a
+                // passthrough call that's already forwarded to the client
+                // can burn many turns before the max_turns/aborted recovery
+                // path (see the non-stream/stream recovery code) even gets
+                // a chance to kick in.
                 return {
                   decision: "block" as const,
+                  interrupt: true,
                   reason:
                     "This tool call has been forwarded to the client for execution. " +
                     "The result will be delivered in a future turn. " +
