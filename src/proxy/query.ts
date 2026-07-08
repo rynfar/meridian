@@ -10,6 +10,7 @@ import type { Options, SdkBeta, SettingSource } from "@anthropic-ai/claude-agent
 import { createOpencodeMcpServer } from "../mcpTools"
 import { createPassthroughMcpServer, PASSTHROUGH_MCP_NAME } from "./passthroughTools"
 import type { Effort } from "./effort"
+import { envInt } from "../env"
 
 /**
  * Return a copy of `env` with `CLAUDE_CONFIG_DIR` removed. Used by the
@@ -140,6 +141,12 @@ export interface BuildQueryResult {
  *   - Both resume and deferred (+1): a second prelude phase pushes one phase
  *     out, so budget becomes 4.
  *   - Advisor (+3): server-side advisor executes call + result + final answer.
+ *
+ * The computed base is only a default — it's configurable via
+ * MERIDIAN_PASSTHROUGH_MAX_TURNS (or the legacy CLAUDE_PROXY_PASSTHROUGH_
+ * MAX_TURNS alias) for deployments whose nested-session turn shape doesn't
+ * match the assumptions above (e.g. an agent-side hook that needs more than
+ * one deny-and-retry round trip before ending its turn).
  */
 function computePassthroughMaxTurns(
   resumeSessionId: string | undefined,
@@ -147,7 +154,8 @@ function computePassthroughMaxTurns(
   advisorModel: string | undefined,
 ): number {
   const hasResume = !!resumeSessionId
-  const base = hasResume && hasDeferredTools ? 4 : 3
+  const defaultBase = hasResume && hasDeferredTools ? 4 : 3
+  const base = envInt("PASSTHROUGH_MAX_TURNS", defaultBase)
   const advisorBump = advisorModel ? 3 : 0
   return base + advisorBump
 }
