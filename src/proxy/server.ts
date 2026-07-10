@@ -51,7 +51,7 @@ import { checkPluginConfigured } from "./setup"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
-import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools } from "./messages"
+import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -2174,7 +2174,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       }
                     }
 
-                    // Forward all other events (text, non-MCP tool_use like Task, message events)
+                    // Forward all other events (text, non-MCP tool_use like Task, message events).
+                    // Strip SDK-only fields (context_management on message_delta) that stock
+                    // Anthropic clients crash on — the real API never returns them (#525).
+                    stripNonStandardStreamFields(event)
                     const payload = encoder.encode(`event: ${eventType}\ndata: ${JSON.stringify(event)}\n\n`)
                     if (!safeEnqueue(payload, `stream_event:${eventType}`)) {
                       break

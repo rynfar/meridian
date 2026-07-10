@@ -80,3 +80,29 @@ export function getLastUserMessage(messages: Array<{ role: string; content: any 
   }
   return messages.slice(-1)
 }
+
+/**
+ * Remove fields the Claude Agent SDK attaches to streamed events that are not
+ * part of the public Anthropic streaming schema.
+ *
+ * The SDK adds `context_management` (advisory metadata about upstream context
+ * edits) to `message_delta`. The real Anthropic API does not return it on a
+ * normal (non-beta) request, and stock clients — e.g. langchain-anthropic —
+ * assume any present field is a typed SDK model and call `.model_dump()` on it,
+ * crashing on the raw dict (#525). The context edit already happened upstream,
+ * so the field is safe to drop.
+ *
+ * Mutates and returns the event for convenient inline use in the SSE forward
+ * path; a no-op when the field is absent, so it is safe to call on every event.
+ */
+export function stripNonStandardStreamFields<T>(event: T): T {
+  if (event && typeof event === "object") {
+    const e = event as Record<string, unknown>
+    delete e.context_management
+    const delta = e.delta
+    if (delta && typeof delta === "object") {
+      delete (delta as Record<string, unknown>).context_management
+    }
+  }
+  return event
+}

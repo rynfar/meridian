@@ -2,7 +2,7 @@
  * Unit tests for message parsing utilities.
  */
 import { describe, it, expect } from "bun:test"
-import { normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools } from "../proxy/messages"
+import { normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields } from "../proxy/messages"
 
 describe("normalizeContent", () => {
   it("returns string content as-is", () => {
@@ -158,5 +158,48 @@ describe("stripAdvisorTools", () => {
 
   it("handles empty array", () => {
     expect(stripAdvisorTools([])).toHaveLength(0)
+  })
+})
+
+describe("stripNonStandardStreamFields (#525)", () => {
+  it("removes context_management from a message_delta event", () => {
+    const event = {
+      type: "message_delta",
+      delta: { stop_reason: "end_turn", stop_sequence: null },
+      usage: { output_tokens: 12 },
+      context_management: { applied_edits: [{ type: "clear_tool_uses_20250919" }] },
+    }
+    const out = stripNonStandardStreamFields(event) as Record<string, unknown>
+    expect(out).not.toHaveProperty("context_management")
+    // Everything else must survive untouched.
+    expect(out.delta).toEqual({ stop_reason: "end_turn", stop_sequence: null })
+    expect(out.usage).toEqual({ output_tokens: 12 })
+  })
+
+  it("removes context_management nested inside delta", () => {
+    const event = {
+      type: "message_delta",
+      delta: { stop_reason: "end_turn", context_management: { foo: 1 } },
+    }
+    const out = stripNonStandardStreamFields(event) as { delta: Record<string, unknown> }
+    expect(out.delta).not.toHaveProperty("context_management")
+    expect(out.delta.stop_reason).toBe("end_turn")
+  })
+
+  it("is a no-op on events without the field (content_block_delta)", () => {
+    const event = { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hi" } }
+    const out = stripNonStandardStreamFields(event)
+    expect(out).toEqual({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "hi" } })
+  })
+
+  it("returns non-object inputs unchanged", () => {
+    expect(stripNonStandardStreamFields(null)).toBeNull()
+    expect(stripNonStandardStreamFields("x" as unknown)).toBe("x")
+  })
+
+  it("mutates and returns the same reference (for inline use)", () => {
+    const event = { type: "message_delta", context_management: {} }
+    expect(stripNonStandardStreamFields(event)).toBe(event)
+    expect(event).not.toHaveProperty("context_management")
   })
 })
