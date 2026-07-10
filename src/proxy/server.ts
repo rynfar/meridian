@@ -1089,9 +1089,35 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // The reason text is read by the model as the "tool result" of
                 // a denied call. With a vague reason ("Forwarding to client for
                 // execution") modern Claude tends to retry with a different
-                // tool, burning the maxTurns budget. Be explicit that the call
-                // succeeded externally and that the model should stop here —
-                // see telemetry for the failure mode this addresses.
+                // tool, burning the maxTurns budget. Be explicit about what
+                // actually happened and that the model should stop here — see
+                // telemetry for the failure mode this addresses.
+                //
+                // The reason MUST match the call's fate (#552): dropped calls
+                // (same-tool repeat / forced single) are NOT forwarded, and a
+                // false "result will be delivered" promise persists in the
+                // resumed session's history — next turn the model remembers a
+                // pending call whose result never arrives and misattributes
+                // the results it does receive ("the read tool is returning
+                // the wrong file").
+                if (isExactDuplicate) {
+                  return {
+                    decision: "block" as const,
+                    reason:
+                      "This exact tool call has already been forwarded to the client — do not repeat it. " +
+                      "Do not call additional tools and do not generate further text — end your turn now.",
+                  }
+                }
+                if (isSameToolRepeat || exceedsForcedSingle) {
+                  return {
+                    decision: "block" as const,
+                    reason:
+                      "This tool call was NOT executed and was not forwarded. Your earlier tool call(s) " +
+                      "are being returned to the client now; their results arrive next turn. Re-issue this " +
+                      "call after that if it is still needed. Do not call additional tools and do not " +
+                      "generate further text — end your turn now.",
+                  }
+                }
                 return {
                   decision: "block" as const,
                   reason:
