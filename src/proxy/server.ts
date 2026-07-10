@@ -1052,6 +1052,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     name: toolName,
                     reason: exceedsForcedSingle ? "forced_single" : "same_tool_repeat",
                   })
+                  // Every distinct tool_use for this exchange is captured and the
+                  // model is now looping against blocked tools — kill the nested
+                  // SDK session immediately instead of letting it generate denied
+                  // retries until the turn budget runs out (#570). Hook-level
+                  // `interrupt: true` / `continue: false` cannot do this: neither
+                  // key exists in the CLI's hook-output schema, so both are
+                  // stripped before the deny is processed (verified against the
+                  // real SDK). Aborting the query's controller SIGTERMs the
+                  // subprocess; the abort-shaped termination is converted into a
+                  // clean stop_reason:"tool_use" response by the recovery paths.
+                  requestAbort.abort("passthrough single-step complete")
                 } else {
                   capturedSignatures.add(signature)
                   capturedToolNames.add(toolName)
@@ -2450,8 +2461,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // tools and drives the next turn (the same outcome as a normal
               // tool-use cycle). Without this, the client sees a 500 even
               // though we already streamed everything it needs.
+              // "aborted" is accepted only for the proxy's own single-step
+              // abort (sawDuplicateToolUse) — a client-disconnect abort must
+              // not be recorded as a recovered success.
               const canRecoverAsToolUse =
-                sdkTerm.reason === "max_turns" &&
+                (sdkTerm.reason === "max_turns" ||
+                  (sdkTerm.reason === "aborted" && sawDuplicateToolUse)) &&
                 passthrough &&
                 capturedToolUses.length > 0 &&
                 messageStartEmitted
