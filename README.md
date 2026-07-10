@@ -748,6 +748,36 @@ export default {
 - **Reload without restart:** `POST /plugins/reload`
 - **Full guide:** See [PLUGINS.md](PLUGINS.md)
 
+### Official plugins
+
+Content-scoped scrubbers maintained alongside Meridian. Core stays a clean
+proxy — anything that rewrites client prompt content ships as one of these
+opt-in plugins instead:
+
+| Plugin | What it does |
+|--------|--------------|
+| [`@rynfar/meridian-plugin-hermes-scrub`](https://github.com/rynfar/meridian-plugin-hermes-scrub) | Strips Hermes Agent's `# Finishing the job` harness block from the system prompt. Fixes empty-stream responses when proxying Hermes, and avoids its coding-harness fingerprint. |
+| [`@rynfar/meridian-plugin-pi-scrub`](https://github.com/rynfar/meridian-plugin-pi-scrub) | Strips Pi's coding-agent-harness prompt line that Anthropic meters as Extra Usage. |
+| [`@rynfar/meridian-plugin-opencode-scrub`](https://github.com/rynfar/meridian-plugin-opencode-scrub) | Strips OpenCode harness boilerplate from the system prompt before it reaches Claude. |
+
+Install into Meridian's config dir and register the built file in
+`~/.config/meridian/plugins.json`:
+
+```bash
+cd ~/.config/meridian
+npm install @rynfar/meridian-plugin-hermes-scrub
+```
+
+```json
+{
+  "plugins": [
+    { "path": "/Users/you/.config/meridian/node_modules/@rynfar/meridian-plugin-hermes-scrub/dist/index.js", "enabled": true }
+  ]
+}
+```
+
+Paths must be absolute — the loader does not expand `~`.
+
 ## CLI Commands
 
 | Command | Description |
