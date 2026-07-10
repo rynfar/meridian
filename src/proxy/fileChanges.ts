@@ -89,14 +89,24 @@ export function createFileChangeHook(
 
 /**
  * Returns true if the string looks like a real file path rather than a
- * comparison operand or code fragment captured by the redirect regex.
+ * comparison operand, HTML fragment, timestamp, or code fragment captured by
+ * the redirect regex.
+ *
+ * The redirect regex (`>{1,2}...`) captures far more than filenames — jq
+ * filters (`> model`), HTML tags (`> </sub>`), timestamps (`>> 2026-...Z`),
+ * and test expressions (`[ $a > $b ]`) all produce captures. We reject shell/
+ * code metacharacters and integers, then require positive evidence of a path:
+ * a `/` separator or a dotted file extension. Bare extensionless words are
+ * dropped (a known false-negative trade-off, #564) — real writes to such files
+ * still surface through the strict write/edit tool allowlist.
  */
 function isLikelyFilePath(s: string): boolean {
-  if (/[()[\]]/.test(s)) return false   // code expression
-  if (/^-?\d+$/.test(s)) return false   // integer or -N
-  if (/^[{}]$/.test(s)) return false    // bare brace
-  if (!/[\w/.]/.test(s)) return false   // must have at least one path-like char
-  return true
+  if (s.length > 4096) return false           // implausible as a path
+  if (/[<>$`\\()[\]{}=]/.test(s)) return false // HTML/shell/code metacharacters
+  if (/^-?\d+$/.test(s)) return false          // integer or -N
+  if (s.includes("/")) return true             // has a path separator
+  if (/\.[A-Za-z0-9]{1,16}$/.test(s)) return true // dotted file extension
+  return false
 }
 
 /**

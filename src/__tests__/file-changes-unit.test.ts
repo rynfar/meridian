@@ -177,6 +177,47 @@ describe("extractFileChangesFromBash", () => {
   it("should not capture >= comparison operator", () => {
     expect(extractFileChangesFromBash('if (count >= 10) echo done')).toEqual([])
   })
+
+  // #564: the redirect regex captured non-path fragments (bare words, HTML
+  // tags, timestamps, shell vars) because isLikelyFilePath was too permissive.
+  // A capture is only a path if it has a `/` or a dotted file extension.
+  it("should not capture a bare word from a jq filter redirect (#564)", () => {
+    expect(extractFileChangesFromBash('jq .model > model')).toEqual([])
+  })
+
+  it("should not capture an ISO-8601 timestamp target (#564)", () => {
+    expect(extractFileChangesFromBash('echo "x" >> 2026-07-02T20:14:00Z')).toEqual([])
+  })
+
+  it("should not capture an HTML closing tag (#564)", () => {
+    expect(extractFileChangesFromBash('cat foo | sed "s/a/b/" > </sub>')).toEqual([])
+  })
+
+  it("should not capture a shell variable from a test expression (#564)", () => {
+    expect(extractFileChangesFromBash('if [ $a > $b ]; then')).toEqual([])
+  })
+
+  it("should capture only the real redirect target amid HTML text (#564)", () => {
+    expect(extractFileChangesFromBash('echo "<sub>foo</sub>" > out.html'))
+      .toEqual([{ operation: "wrote", path: "out.html" }])
+  })
+
+  it("should still capture an extensionless target that has a path separator", () => {
+    expect(extractFileChangesFromBash('echo x > bin/tool'))
+      .toEqual([{ operation: "wrote", path: "bin/tool" }])
+  })
+
+  it("should still capture dotfiles with a dotted name", () => {
+    expect(extractFileChangesFromBash('echo x > .env'))
+      .toEqual([{ operation: "wrote", path: ".env" }])
+  })
+
+  it("does not report a bare extensionless redirect target (accepted trade-off, #564)", () => {
+    // `> Makefile` writes a file, but bare extensionless words are
+    // indistinguishable from shell fragments; real write-tool calls still
+    // surface these via the strict allowlist path.
+    expect(extractFileChangesFromBash('echo x > Makefile')).toEqual([])
+  })
 })
 
 describe("formatFileChangeSummary", () => {
