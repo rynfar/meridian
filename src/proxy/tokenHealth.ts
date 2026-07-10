@@ -26,6 +26,14 @@ export interface TokenAnomaly {
 /** Input token growth threshold (fraction) above which we flag a context spike. */
 const CONTEXT_SPIKE_THRESHOLD = 0.6  // >60% growth
 
+/**
+ * Minimum baseline input tokens before percentage growth is meaningful. In
+ * passthrough, nearly all input is cache-read, so raw inputTokens routinely
+ * sits at 1-2 and any jitter reads as huge % growth ("grew 100% (1 -> 2)").
+ * Only a baseline above this floor can trip the context-spike alert (#496).
+ */
+const CONTEXT_SPIKE_MIN_BASELINE = 1000
+
 /** Cache hit rate below which we flag a cache miss on resume requests. */
 const CACHE_MISS_THRESHOLD = 0.05
 
@@ -44,8 +52,9 @@ export function detectTokenAnomalies(
 ): TokenAnomaly[] {
   const anomalies: TokenAnomaly[] = []
 
-  // Context spike: input tokens grew more than CONTEXT_SPIKE_THRESHOLD
-  if (previous && previous.inputTokens > 0) {
+  // Context spike: input tokens grew more than CONTEXT_SPIKE_THRESHOLD from a
+  // baseline large enough for the percentage to be meaningful.
+  if (previous && previous.inputTokens >= CONTEXT_SPIKE_MIN_BASELINE) {
     const growth = (current.inputTokens - previous.inputTokens) / previous.inputTokens
     if (growth > CONTEXT_SPIKE_THRESHOLD) {
       const pct = Math.round(growth * 100)

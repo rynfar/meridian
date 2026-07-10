@@ -31,6 +31,29 @@ describe("detectTokenAnomalies", () => {
     expect(anomalies.some(a => a.type === "context_spike")).toBe(true)
   })
 
+  // #496: in passthrough, nearly all input is cache-read, so raw inputTokens
+  // sits at 1-2 and any jitter reads as huge % growth ("grew 100% (1 -> 2)").
+  // A tiny baseline must not trip the alert.
+  it("does not flag a context spike when the baseline is tiny (1 -> 2)", () => {
+    const prev = makeSnapshot({ turnNumber: 1, inputTokens: 1 })
+    const curr = makeSnapshot({ turnNumber: 2, inputTokens: 2 })
+    expect(detectTokenAnomalies(curr, prev).some(a => a.type === "context_spike")).toBe(false)
+  })
+
+  it("does not flag a context spike for sub-threshold baselines (100 -> 400)", () => {
+    const prev = makeSnapshot({ turnNumber: 1, inputTokens: 100 })
+    const curr = makeSnapshot({ turnNumber: 2, inputTokens: 400 })
+    expect(detectTokenAnomalies(curr, prev).some(a => a.type === "context_spike")).toBe(false)
+  })
+
+  it("still flags a genuine spike from a meaningful baseline (5000 -> 50000)", () => {
+    const prev = makeSnapshot({ turnNumber: 1, inputTokens: 5000 })
+    const curr = makeSnapshot({ turnNumber: 2, inputTokens: 50000 })
+    const spike = detectTokenAnomalies(curr, prev).find(a => a.type === "context_spike")
+    expect(spike).toBeDefined()
+    expect(spike!.severity).toBe("critical")
+  })
+
   it("detects cache miss on resume as critical when previous metric exists", () => {
     const prev = makeSnapshot({ turnNumber: 1, cacheHitRate: 0.85 })
     const curr = makeSnapshot({
