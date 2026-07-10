@@ -1,4 +1,4 @@
-const KNOWN_ADAPTERS = ["opencode", "crush", "droid", "pi", "forgecode", "passthrough"]
+const KNOWN_ADAPTERS = ["opencode", "openai", "crush", "droid", "pi", "forgecode", "passthrough"]
 const KNOWN_HOOKS = ["onRequest", "onResponse", "onTelemetry", "onSession", "onToolUse", "onToolResult", "onError"]
 
 export interface ValidationResult {

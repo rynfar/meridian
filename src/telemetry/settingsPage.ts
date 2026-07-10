@@ -128,6 +128,7 @@ const FEATURES = [
 
 const ADAPTER_LABELS = {
   opencode: 'OpenCode',
+  openai: 'OpenAI (/v1/chat/completions)',
   crush: 'Crush',
   forgecode: 'ForgeCode',
   pi: 'Pi',

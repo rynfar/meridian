@@ -64,4 +64,15 @@ describe("validateTransform", () => {
     expect(result.valid).toBe(true)
     expect(result.warnings).toContain("unknown-agent")
   })
+
+  // #546: openai is a real adapter; plugins targeting it must not warn.
+  it("accepts 'openai' as a known adapter without warning", () => {
+    const result = validateTransform({
+      name: "scoped",
+      adapters: ["openai"],
+      onRequest: () => {},
+    })
+    expect(result.valid).toBe(true)
+    expect(result.warnings ?? []).not.toContain("openai")
+  })
 })

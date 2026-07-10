@@ -88,6 +88,25 @@ describe("OpenCode transform parity", () => {
   })
 })
 
+// #546: the openai adapter (/v1/chat/completions) reuses openCodeTransforms via
+// registry.ts. Each transform re-filters by its own `adapters` array, so unless
+// "openai" is listed there the opencode-core transform is silently skipped —
+// leaving built-in tools UNBLOCKED and passthrough OFF for OpenAI clients (a
+// full Claude Code agent under bypassPermissions, the opposite of intent).
+describe("OpenAI adapter reuses the OpenCode pipeline (#546)", () => {
+  it("blocks built-in tools for adapterName 'openai' (same as opencode)", () => {
+    const ctx = runTransformHook(openCodeTransforms, "onRequest", makeCtx("openai"), "openai")
+    expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
+    expect(ctx.blockedTools.length).toBeGreaterThan(0)
+  })
+
+  it("applies the same incompatibleTools and allowedMcpTools as opencode", () => {
+    const ctx = runTransformHook(openCodeTransforms, "onRequest", makeCtx("openai"), "openai")
+    expect([...ctx.incompatibleTools]).toEqual([...openCodeAdapter.getAgentIncompatibleTools()])
+    expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
+  })
+})
+
 describe("Crush transform parity", () => {
   it("matches blockedTools", () => {
     const ctx = runTransformHook(crushTransforms, "onRequest", makeCtx("crush"), "crush")
