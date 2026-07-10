@@ -1000,6 +1000,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // rejects undefined ("expected object, received undefined"), which also
                 // cascades into "Reached maximum number of turns (2)". {} is the no-op.
                 if (input.tool_name === "ToolSearch") return {}
+                // StructuredOutput is the SDK-internal tool that implements
+                // native output_config.format — the CLI injects it whenever
+                // outputFormat is set, and schema validation + retry live
+                // inside the nested session. Denying it as a client
+                // passthrough tool blocks the model from ever submitting its
+                // result: the session burns to max_turns and the result
+                // message arrives without structured_output (HTTP 500). Let
+                // the SDK handle it internally, and never capture it as a
+                // client tool_use.
+                if (input.tool_name === "StructuredOutput") return {}
                 // Track deferred tools that were discovered via ToolSearch
                 const toolName = stripMcpPrefix(input.tool_name)
                 if (hasDeferredTools && coreSet && !coreSet.has(toolName.toLowerCase())) {
