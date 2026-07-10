@@ -441,6 +441,9 @@ async function scheduleNext(
   armTimer(dueIn, store, bufferMs, failureRetryMs, gen)
 }
 
+/** Largest delay setTimeout accepts before Node clamps it to 1ms (2^31 - 1). */
+const MAX_TIMEOUT_MS = 2_147_483_647
+
 function armTimer(
   delayMs: number,
   store: CredentialStore,
@@ -448,6 +451,12 @@ function armTimer(
   failureRetryMs: number,
   gen: number,
 ): void {
+  // A token lifetime beyond ~24.8 days produces a delay above the 32-bit
+  // signed max. Node then clamps it to 1ms and emits TimeoutOverflowWarning;
+  // the 1ms timer fires, scheduleNext recomputes the same huge delay, and it
+  // loops forever (#515). Cap the delay — the callback re-runs scheduleNext,
+  // which recomputes the remaining time and arms the next (also-capped) timer.
+  const safeDelayMs = delayMs > MAX_TIMEOUT_MS ? MAX_TIMEOUT_MS : delayMs
   scheduledRefreshTimer = setTimeout(async () => {
     if (!scheduledRefreshActive || gen !== scheduledRefreshGeneration) return
     // The dueIn re-check inside scheduleNext distinguishes "fire-now" from
@@ -457,7 +466,7 @@ function armTimer(
     // timer. Neither path writes to stderr (the unconditional log was removed
     // in #518 to stop polluting embedded TUI hosts).
     void scheduleNext(store, bufferMs, failureRetryMs, gen)
-  }, delayMs)
+  }, safeDelayMs)
   if (scheduledRefreshTimer && (scheduledRefreshTimer as { unref?: () => void }).unref) {
     (scheduledRefreshTimer as { unref: () => void }).unref()
   }

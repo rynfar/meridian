@@ -763,3 +763,61 @@ describe("serializeCredentials", () => {
     expect(compact).not.toContain("\n")
   })
 })
+
+describe("startBackgroundRefresh timer clamping (#515)", () => {
+  // Node clamps setTimeout delays above 2^31-1 ms to 1ms (with a warning). A
+  // token whose expiresAt is >~24.8 days out produces such a delay; without a
+  // clamp the 1ms timer re-fires, recomputes the same huge delay, and loops.
+  const MAX_32BIT = 2_147_483_647
+  let realSetTimeout: typeof globalThis.setTimeout
+  let recordedDelays: number[]
+
+  beforeEach(async () => {
+    const { stopBackgroundRefresh } = await import("../proxy/tokenRefresh")
+    stopBackgroundRefresh()
+    realSetTimeout = globalThis.setTimeout
+    recordedDelays = []
+    globalThis.setTimeout = ((_fn: unknown, delay?: number) => {
+      recordedDelays.push(delay ?? 0)
+      // Do not actually schedule — just record the requested delay.
+      return { unref() {} } as unknown as ReturnType<typeof setTimeout>
+    }) as typeof globalThis.setTimeout
+  })
+
+  afterEach(async () => {
+    globalThis.setTimeout = realSetTimeout
+    const { stopBackgroundRefresh } = await import("../proxy/tokenRefresh")
+    stopBackgroundRefresh()
+  })
+
+  // Let scheduleNext's awaited store.read() settle. Uses the real timer.
+  function flush(): Promise<void> {
+    return new Promise((resolve) => realSetTimeout(resolve, 5))
+  }
+
+  function storeWithExpiry(expiresAt: number) {
+    return makeStore({
+      ...MOCK_CREDENTIALS,
+      claudeAiOauth: { ...MOCK_CREDENTIALS.claudeAiOauth, expiresAt },
+    }).store
+  }
+
+  it("clamps a >24.8-day delay to the 32-bit max instead of overflowing to 1ms", async () => {
+    const { startBackgroundRefresh } = await import("../proxy/tokenRefresh")
+    const far = Date.now() + 40 * 24 * 60 * 60 * 1000 // 40 days out
+    startBackgroundRefresh(storeWithExpiry(far))
+    await flush()
+    expect(recordedDelays.length).toBeGreaterThan(0)
+    expect(recordedDelays[recordedDelays.length - 1]).toBe(MAX_32BIT)
+  })
+
+  it("does not clamp a normal ~8h delay", async () => {
+    const { startBackgroundRefresh } = await import("../proxy/tokenRefresh")
+    const soon = Date.now() + 8 * 60 * 60 * 1000 // 8h out
+    startBackgroundRefresh(storeWithExpiry(soon))
+    await flush()
+    const d = recordedDelays[recordedDelays.length - 1]!
+    expect(d).toBeGreaterThan(0)
+    expect(d).toBeLessThan(MAX_32BIT)
+  })
+})
