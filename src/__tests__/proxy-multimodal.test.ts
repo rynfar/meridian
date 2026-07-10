@@ -190,6 +190,42 @@ describe("Multimodal content", () => {
     expect(multimodalUserMsg.message.content.some((b: any) => b.type === "image")).toBe(true)
   })
 
+  it("consolidates a mid-history image onto the final user turn so the SDK sees it (#553)", async () => {
+    const app = createTestApp()
+    await (await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [
+        { role: "user", content: [{ type: "text", text: "read /tmp/test.png" }] },
+        { role: "assistant", content: [{ type: "tool_use", id: "toolu_1", name: "read", input: { path: "/tmp/test.png" } }] },
+        {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "toolu_1", content: [
+              { type: "text", text: "Read image file [image/png]" },
+              { type: "image", source: { type: "base64", media_type: "image/png", data: "IMGDATA" } },
+            ] },
+          ],
+        },
+        { role: "assistant", content: [{ type: "text", text: "Got it." }] },
+        { role: "user", content: [{ type: "text", text: "describe the image" }] },
+      ],
+    })).json()
+
+    const messages: any[] = []
+    for await (const msg of capturedQueryParams.prompt) messages.push(msg)
+
+    const arrayUserTurns = messages.filter((m: any) => Array.isArray(m.message?.content))
+    const lastArrayTurn = arrayUserTurns[arrayUserTurns.length - 1]
+    // The image must ride on the final user turn (what the SDK surfaces), not
+    // the mid-history tool_result turn where it originally sat.
+    expect(lastArrayTurn.message.content.some((b: any) => b.type === "image" && b.source?.data === "IMGDATA")).toBe(true)
+    // And it must not remain on the earlier turn (no duplication / stranding).
+    const midTurns = arrayUserTurns.slice(0, -1)
+    expect(midTurns.some((m: any) => m.message.content.some((b: any) => b.type === "image"))).toBe(false)
+  })
+
   it("should include all message roles in structured messages", async () => {
     const app = createTestApp()
     await (await post(app, {

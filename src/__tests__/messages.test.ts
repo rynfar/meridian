@@ -2,7 +2,12 @@
  * Unit tests for message parsing utilities.
  */
 import { describe, it, expect } from "bun:test"
-import { normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields } from "../proxy/messages"
+import { normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser } from "../proxy/messages"
+
+const img = (id: string) => ({ type: "image", source: { type: "base64", media_type: "image/png", data: id } })
+function userMsg(content: unknown) {
+  return { type: "user" as const, message: { role: "user" as const, content }, parent_tool_use_id: null }
+}
 
 describe("normalizeContent", () => {
   it("returns string content as-is", () => {
@@ -201,5 +206,61 @@ describe("stripNonStandardStreamFields (#525)", () => {
     const event = { type: "message_delta", context_management: {} }
     expect(stripNonStandardStreamFields(event)).toBe(event)
     expect(event).not.toHaveProperty("context_management")
+  })
+})
+
+describe("consolidateMultimodalOntoLastUser (#553)", () => {
+  it("moves an image from an earlier user turn onto the last user turn", () => {
+    const out = consolidateMultimodalOntoLastUser([
+      userMsg([{ type: "text", text: "here is the file" }, img("A")]),
+      userMsg([{ type: "text", text: "describe it" }]),
+    ])
+    // Earlier turn keeps its text, loses the image.
+    expect(out[0]!.message.content).toEqual([{ type: "text", text: "here is the file" }])
+    // Last turn gains the image, keeps its text.
+    expect(out[1]!.message.content).toEqual([{ type: "text", text: "describe it" }, img("A")])
+  })
+
+  it("targets the last ARRAY-content user turn, not a flattened assistant string", () => {
+    const out = consolidateMultimodalOntoLastUser([
+      userMsg([img("A")]),
+      userMsg([{ type: "text", text: "look" }]),
+      userMsg("[Assistant: sure]"), // flattened assistant turn — string content
+    ])
+    // Image must land on the real user turn (index 1), never appended to a string.
+    expect(out[1]!.message.content).toContainEqual(img("A"))
+    expect(out[2]!.message.content).toBe("[Assistant: sure]")
+    expect(out[0]!.message.content).toEqual([])
+  })
+
+  it("does not duplicate an image already present on the last user turn", () => {
+    const out = consolidateMultimodalOntoLastUser([
+      userMsg([img("A")]),
+      userMsg([{ type: "text", text: "again" }, img("A")]),
+    ])
+    const imgs = (out[1]!.message.content as any[]).filter((b) => b.type === "image")
+    expect(imgs).toHaveLength(1)
+  })
+
+  it("preserves the order of multiple carried images", () => {
+    const out = consolidateMultimodalOntoLastUser([
+      userMsg([img("A")]),
+      userMsg([img("B")]),
+      userMsg([{ type: "text", text: "compare" }]),
+    ])
+    const imgs = (out[2]!.message.content as any[]).filter((b) => b.type === "image").map((b) => b.source.data)
+    expect(imgs).toEqual(["A", "B"])
+  })
+
+  it("is a no-op with fewer than two array-content user turns", () => {
+    const input = [userMsg([{ type: "text", text: "hi" }, img("A")])]
+    expect(consolidateMultimodalOntoLastUser(input)).toEqual(input)
+  })
+
+  it("does not mutate the input array or its messages", () => {
+    const input = [userMsg([img("A")]), userMsg([{ type: "text", text: "x" }])]
+    const snapshot = JSON.parse(JSON.stringify(input))
+    consolidateMultimodalOntoLastUser(input)
+    expect(input).toEqual(snapshot)
   })
 })

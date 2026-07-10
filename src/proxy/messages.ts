@@ -106,3 +106,73 @@ export function stripNonStandardStreamFields<T>(event: T): T {
   }
   return event
 }
+
+/** Content block types that carry non-text data the model must "see". */
+export const MULTIMODAL_TYPES = new Set(["image", "document", "file"])
+
+/**
+ * Consolidate multimodal blocks (image/document/file) from earlier user turns
+ * onto the final user turn of a structured (AsyncIterable) prompt.
+ *
+ * When the Claude Agent SDK is handed multiple user messages as a streaming
+ * iterable, it only surfaces multimodal blocks from the LAST user turn to the
+ * model — images sitting in earlier turns (e.g. an image a `read` tool returned
+ * mid-conversation) are silently dropped, and the model answers "I cannot see
+ * the image" (#553). Moving those blocks onto the final array-content user turn
+ * makes them visible; accompanying text is left in place.
+ *
+ * Notes:
+ *  - The target is the last entry whose `message.content` is an ARRAY. Flattened
+ *    assistant turns are string content and can never hold image blocks, so a
+ *    conversation ending on an assistant turn still lands images on the last
+ *    real user turn.
+ *  - Blocks structurally identical to ones already on the target are not
+ *    re-appended (avoids duplicating a client-re-attached image).
+ *
+ * Pure: returns a new array; the input and its messages are not mutated. No-op
+ * when there are fewer than two array-content user turns or nothing to carry.
+ */
+export function consolidateMultimodalOntoLastUser<
+  T extends { message: { content: unknown } }
+>(structured: T[]): T[] {
+  let targetIdx = -1
+  for (let i = structured.length - 1; i >= 0; i--) {
+    if (Array.isArray(structured[i]!.message.content)) {
+      targetIdx = i
+      break
+    }
+  }
+  if (targetIdx < 0) return structured
+
+  const carried: unknown[] = []
+  const result = structured.map((entry, i) => {
+    const content = entry.message.content
+    if (i === targetIdx || !Array.isArray(content)) return entry
+    const kept = content.filter((block: any) => {
+      if (block && typeof block === "object" && MULTIMODAL_TYPES.has(block.type)) {
+        carried.push(block)
+        return false
+      }
+      return true
+    })
+    if (kept.length === content.length) return entry
+    return { ...entry, message: { ...entry.message, content: kept } }
+  })
+
+  if (carried.length === 0) return structured
+
+  const target = result[targetIdx]!
+  const existing = target.message.content as unknown[]
+  const seen = new Set(existing.map((b) => JSON.stringify(b)))
+  const toAppend = carried.filter((b) => {
+    const key = JSON.stringify(b)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  result[targetIdx] = {
+    ...target,
+    message: { ...target.message, content: [...existing, ...toAppend] },
+  }
+  return result
+}

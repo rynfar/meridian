@@ -51,7 +51,7 @@ import { checkPluginConfigured } from "./setup"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
-import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields } from "./messages"
+import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -122,8 +122,6 @@ async function ensureFreshTokenForProfiles(config: ProxyConfig): Promise<void> {
     if (store) await ensureFreshToken(store).catch(() => {})
   }
 }
-
-const MULTIMODAL_TYPES = new Set(["image", "document", "file"])
 
 function hasMultimodalContent(content: any): boolean {
   if (!Array.isArray(content)) return false
@@ -258,7 +256,9 @@ function buildFreshPrompt(
         }
       }
     }
-    return (async function* () { for (const msg of structured) yield msg })()
+    // See #553 — consolidate earlier-turn multimodal onto the final user turn.
+    const prompt = structured.length > 1 ? consolidateMultimodalOntoLastUser(structured) : structured
+    return (async function* () { for (const msg of prompt) yield msg })()
   }
 
   return messages
@@ -863,6 +863,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }
             }
           }
+        }
+
+        // The SDK only surfaces multimodal blocks from the LAST user turn of a
+        // streamed prompt; images sitting in earlier turns (e.g. a read-tool
+        // result mid-conversation) are otherwise dropped and the model replies
+        // "I cannot see the image" (#553). Move them onto the final user turn.
+        if (structuredMessages.length > 1) {
+          structuredMessages = consolidateMultimodalOntoLastUser(structuredMessages)
         }
       } else {
         // Text prompt — convert messages to string.
