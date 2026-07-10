@@ -1657,7 +1657,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // Store session for future resume.
           // Fork/subagent requests don't write to the cache — see lookupSession
           // block above for rationale (avoids polluting the parent's key).
-              if (currentSessionId && !isIndependentSession) {
+          // Single-step-aborted sessions are never offered for resume: the
+          // SIGTERM lands before the dropped call's deny is persisted, so the
+          // SDK-side history holds a dangling tool_use ("Stream closed") that
+          // diverges from the client's view — resuming it hands the model
+          // memory of a call whose result never arrives (#552). A fresh
+          // session rebuilt from client history is coherent by construction.
+              if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
                 storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
               }
 
@@ -2278,8 +2284,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
               // Store session for future resume.
               // Fork/subagent requests don't write to the cache (see lookupSession
-              // block for rationale).
-              if (currentSessionId && !isIndependentSession) {
+              // block for rationale). Single-step-aborted sessions are never
+              // offered for resume — their history holds a dangling dropped
+              // call that diverges from the client's view (#552); see the
+              // non-stream store above.
+              if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
                 storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
               }
 

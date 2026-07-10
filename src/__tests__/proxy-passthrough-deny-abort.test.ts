@@ -26,6 +26,7 @@ const PASSTHROUGH_PREFIX = "mcp__oc__"
 
 let mockTurns: any[] = []
 let capturedController: AbortController | undefined
+let capturedResume: string | undefined
 
 function toolTurn(toolId: string, toolName: string, input: Record<string, unknown>) {
   return {
@@ -74,6 +75,7 @@ function streamMessageStart() {
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedController = opts?.options?.abortController
+    capturedResume = opts?.options?.resume
     return (async function* () {
       const preHook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
       for (const turn of mockTurns) {
@@ -119,15 +121,19 @@ const tool = (name: string) => ({
   input_schema: { type: "object", properties: {}, additionalProperties: true },
 })
 
-async function post(app: any, stream: boolean): Promise<Response> {
+async function post(
+  app: any,
+  stream: boolean,
+  messages: unknown[] = [{ role: "user", content: "Do the thing." }]
+): Promise<Response> {
   const req = new Request("http://localhost/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-opencode-session": "deny-abort-session" },
     body: JSON.stringify(
       makeRequest({
         stream,
         tools: [tool("get_weather"), tool("get_time")],
-        messages: [{ role: "user", content: "Do the thing." }],
+        messages,
       })
     ),
   })
@@ -154,6 +160,7 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
     process.env.MERIDIAN_PASSTHROUGH = "1"
     mockTurns = []
     capturedController = undefined
+    capturedResume = undefined
     clearSessionCache()
   })
 
@@ -210,5 +217,30 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
       .filter((e: any) => e.event === "content_block_start" && e.data?.content_block?.type === "tool_use")
       .map((e: any) => e.data.content_block.id)
     expect(toolStartIds).toEqual(["toolu_s1"])
+  })
+
+  it("does not offer a single-step-aborted session for resume — the follow-up starts fresh (#552)", async () => {
+    mockTurns = [
+      toolTurn("toolu_1", "get_weather", { city: "SF" }),
+      toolTurn("toolu_2", "get_weather", { city: "LA" }),
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const first = await post(app, false)
+    expect(first.status).toBe(200)
+    expect(capturedController!.signal.aborted).toBe(true)
+
+    // Follow-up turn: client executed the forwarded call and returns its
+    // result. The aborted session's history contains a dangling dropped call
+    // ("Stream closed") — resuming it hands the model diverged memory, the
+    // source of the "read tool is returning the wrong file" confusion.
+    mockTurns = [toolTurn("toolu_3", "get_time", { tz: "UTC" })]
+    const second = await post(app, false, [
+      { role: "user", content: "Do the thing." },
+      { role: "assistant", content: [{ type: "tool_use", id: "toolu_1", name: "get_weather", input: { city: "SF" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "72F" }] },
+    ])
+    expect(second.status).toBe(200)
+    expect(capturedResume).toBeUndefined()
   })
 })
