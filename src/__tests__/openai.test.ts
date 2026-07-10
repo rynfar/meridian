@@ -1228,6 +1228,34 @@ describe("buildModelList", () => {
     expect(opus48.context_window).toBe(200_000)
   })
 
+  // #498: Home Assistant 2026.5's Anthropic integration reads
+  // capabilities.image_input to decide whether image attachments are allowed;
+  // an absent capabilities field rejected all images locally.
+  it("populates capabilities on every model (image_input.supported)", () => {
+    for (const model of buildModelList(true)) {
+      expect(model.capabilities).toBeDefined()
+      expect(model.capabilities!.image_input.supported).toBe(true)
+      expect(model.capabilities!.pdf_input.supported).toBe(true)
+    }
+  })
+
+  it("matches the Anthropic Models API capabilities shape", () => {
+    const caps = buildModelList(true)[0]!.capabilities!
+    // Top-level capability groups present per the /v1/models schema.
+    expect(caps.batch.supported).toBe(true)
+    expect(caps.citations.supported).toBe(true)
+    expect(caps.code_execution.supported).toBe(true)
+    expect(caps.structured_outputs.supported).toBe(true)
+    // Nested groups carry their own `supported` flag plus sub-strategies.
+    expect(caps.context_management.supported).toBe(true)
+    expect(caps.context_management.clear_tool_uses_20250919.supported).toBe(true)
+    expect(caps.effort.supported).toBe(true)
+    expect(caps.effort.high.supported).toBe(true)
+    expect(caps.thinking.supported).toBe(true)
+    expect(caps.thinking.types.adaptive.supported).toBe(true)
+    expect(caps.thinking.types.enabled.supported).toBe(true)
+  })
+
   it("haiku is always 200k regardless of subscription", () => {
     expect(buildModelList(true).find(m => m.id === "claude-haiku-4-5")!.context_window).toBe(200_000)
     expect(buildModelList(false).find(m => m.id === "claude-haiku-4-5")!.context_window).toBe(200_000)

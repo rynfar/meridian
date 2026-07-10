@@ -241,6 +241,47 @@ export interface OpenAiCompletion {
   }
 }
 
+/** A single capability flag, matching the Anthropic Models API. */
+interface CapabilitySupport {
+  supported: boolean
+}
+
+/**
+ * Model capability information, mirroring the Anthropic `GET /v1/models`
+ * `capabilities` object. Clients (e.g. Home Assistant's Anthropic integration)
+ * read these fields — notably `image_input` — to decide which content types a
+ * model accepts (#498).
+ */
+export interface ModelCapabilities {
+  batch: CapabilitySupport
+  citations: CapabilitySupport
+  code_execution: CapabilitySupport
+  context_management: {
+    clear_thinking_20251015: CapabilitySupport
+    clear_tool_uses_20250919: CapabilitySupport
+    compact_20260112: CapabilitySupport
+    supported: boolean
+  }
+  effort: {
+    high: CapabilitySupport
+    low: CapabilitySupport
+    max: CapabilitySupport
+    medium: CapabilitySupport
+    xhigh: CapabilitySupport
+    supported: boolean
+  }
+  image_input: CapabilitySupport
+  pdf_input: CapabilitySupport
+  structured_outputs: CapabilitySupport
+  thinking: {
+    supported: boolean
+    types: {
+      adaptive: CapabilitySupport
+      enabled: CapabilitySupport
+    }
+  }
+}
+
 export interface OpenAiModel {
   id: string
   object: "model"
@@ -248,6 +289,7 @@ export interface OpenAiModel {
   owned_by: string
   display_name: string
   context_window: number
+  capabilities?: ModelCapabilities
 }
 
 // ---------------------------------------------------------------------------
@@ -832,6 +874,32 @@ export function translateAnthropicSseEvent(
 // Model list
 // ---------------------------------------------------------------------------
 
+const yes: CapabilitySupport = { supported: true }
+
+/**
+ * Capability set shared by every model we expose. All are modern Claude
+ * 4.6+/5 models with the full feature set (vision, PDF, tools, thinking,
+ * effort, context management, structured outputs), so the Anthropic Models
+ * API reports every field as supported for them (verified against the live
+ * `GET /v1/models` response). Frozen so callers can't mutate the shared value.
+ */
+const FULL_CAPABILITIES: ModelCapabilities = Object.freeze({
+  batch: yes,
+  citations: yes,
+  code_execution: yes,
+  context_management: {
+    clear_thinking_20251015: yes,
+    clear_tool_uses_20250919: yes,
+    compact_20260112: yes,
+    supported: true,
+  },
+  effort: { high: yes, low: yes, max: yes, medium: yes, xhigh: yes, supported: true },
+  image_input: yes,
+  pdf_input: yes,
+  structured_outputs: yes,
+  thinking: { supported: true, types: { adaptive: yes, enabled: yes } },
+})
+
 /**
  * Return the static list of available Claude models in OpenAI format.
  * Context windows reflect subscription capabilities.
@@ -845,6 +913,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       owned_by: "anthropic",
       display_name: "Claude Sonnet 4.6",
       context_window: 200_000,
+      capabilities: FULL_CAPABILITIES,
     },
     {
       id: "claude-opus-4-6",
@@ -853,6 +922,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       owned_by: "anthropic",
       display_name: "Claude Opus 4.6",
       context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      capabilities: FULL_CAPABILITIES,
     },
     {
       id: "claude-opus-4-7",
@@ -861,6 +931,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       owned_by: "anthropic",
       display_name: "Claude Opus 4.7",
       context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      capabilities: FULL_CAPABILITIES,
     },
     {
       id: "claude-opus-4-8",
@@ -869,6 +940,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       owned_by: "anthropic",
       display_name: "Claude Opus 4.8",
       context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      capabilities: FULL_CAPABILITIES,
     },
     {
       id: "claude-fable-5",
@@ -877,6 +949,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       owned_by: "anthropic",
       display_name: "Claude Fable 5",
       context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      capabilities: FULL_CAPABILITIES,
     },
     {
       id: "claude-haiku-4-5",
@@ -885,6 +958,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       owned_by: "anthropic",
       display_name: "Claude Haiku 4.5",
       context_window: 200_000,
+      capabilities: FULL_CAPABILITIES,
     },
   ]
 }
