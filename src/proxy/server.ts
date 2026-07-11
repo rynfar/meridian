@@ -1766,6 +1766,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // dedupe captured tool_uses against what was already forwarded
             // when recovering gracefully from max_turns (see catch below).
             const streamedToolUseIds = new Set<string>()
+            // Client block indices whose content_block_start was forwarded but
+            // whose content_block_stop hasn't been yet. The single-step abort
+            // (#575) can SIGTERM the subprocess mid-block, leaving the client
+            // with an unterminated tool_use block that renders as an
+            // argument-less aborted call (#552 "red reads") — the recovery
+            // path closes these explicitly before its final frames.
+            const openClientBlocks = new Set<number>()
 
             try {
               let currentSessionId: string | undefined
@@ -2206,6 +2213,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     }
                     eventsForwarded += 1
 
+                    // Track envelope integrity: which forwarded blocks are open.
+                    if (eventType === "content_block_start") {
+                      const idx = (event as any).index
+                      if (typeof idx === "number") openClientBlocks.add(idx)
+                    } else if (eventType === "content_block_stop") {
+                      const idx = (event as any).index
+                      if (typeof idx === "number") openClientBlocks.delete(idx)
+                    }
+
                     // NOTE: agent-specific (passthrough mode) — break immediately when
                     // the model stops for tool_use so the client can execute the tools
                     // and send results back. Without this the SDK executes the passthrough
@@ -2558,6 +2574,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   })} captured=${capturedToolUses.length}`,
                   requestMeta.requestId,
                 )
+
+                // Close any content block whose start was forwarded but whose
+                // stop was lost to the abort (SIGTERM can cut the stream after
+                // a tool_use block's input deltas but before its stop) — an
+                // unterminated block renders client-side as an argument-less
+                // aborted call (#552 "red reads").
+                for (const idx of openClientBlocks) {
+                  safeEnqueue(encoder.encode(
+                    `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: idx })}\n\n`
+                  ), "recover_close_dangling_block")
+                }
+                openClientBlocks.clear()
 
                 // Mirror the success-path emission: send any unseen tool_uses
                 // (dedup against streamedToolUseIds), then a clean

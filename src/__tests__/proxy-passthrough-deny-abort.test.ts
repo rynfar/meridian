@@ -219,6 +219,65 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
     expect(toolStartIds).toEqual(["toolu_s1"])
   })
 
+  it("closes a dangling tool_use content block before the recovery message_stop (#552 red reads)", async () => {
+    // Real SDK sequence captured live: with two parallel same-tool calls in
+    // one assistant turn, call 2's block_start + input deltas stream to the
+    // client, then the same-tool-repeat deny aborts the subprocess BEFORE
+    // call 2's content_block_stop arrives. Without an explicit close the
+    // client is left with an unterminated tool_use block — OpenCode renders
+    // it as an argument-less aborted ("red") tool call.
+    const streamEvent = (event: any) => ({
+      type: "stream_event",
+      event,
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: "test-session",
+    })
+    const twoCallTurn = toolTurn("toolu_p1", "read", { filePath: "a.txt" })
+    // Both tool calls live in ONE assistant message, mirroring the real SDK.
+    ;(twoCallTurn as any).message.content = [
+      { type: "tool_use", id: "toolu_p1", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+      { type: "tool_use", id: "toolu_p2", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "b.txt" } },
+    ]
+    mockTurns = [
+      streamMessageStart(),
+      streamEvent({ type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "toolu_p1", name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+      streamEvent({ type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"filePath":"a.txt"}' } }),
+      streamEvent({ type: "content_block_stop", index: 1 }),
+      streamEvent({ type: "content_block_start", index: 2, content_block: { type: "tool_use", id: "toolu_p2", name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+      streamEvent({ type: "content_block_delta", index: 2, delta: { type: "input_json_delta", partial_json: '{"filePath":"b.txt"}' } }),
+      // No content_block_stop for index 2 — the abort cuts it off here. The
+      // assistant turn below fires the PreToolUse hooks: call 1 captured,
+      // call 2 (same tool, new args) triggers the loop-break abort.
+      twoCallTurn,
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const response = await post(app, true)
+    const events = await readSSE(response)
+    const eventTypes = events.map((e: any) => e.event)
+
+    expect(capturedController!.signal.aborted).toBe(true)
+    expect(eventTypes).not.toContain("error")
+
+    // Every forwarded content_block_start must have a matching stop.
+    const startIdxs = events
+      .filter((e: any) => e.event === "content_block_start")
+      .map((e: any) => e.data.index)
+    const stopIdxs = events
+      .filter((e: any) => e.event === "content_block_stop")
+      .map((e: any) => e.data.index)
+    for (const idx of startIdxs) {
+      expect(stopIdxs).toContain(idx)
+    }
+
+    // And the dangling block's stop must precede message_stop.
+    const lastStopPos = eventTypes.lastIndexOf("content_block_stop")
+    const messageStopPos = eventTypes.indexOf("message_stop")
+    expect(lastStopPos).toBeGreaterThan(-1)
+    expect(lastStopPos).toBeLessThan(messageStopPos)
+  })
+
   it("does not offer a single-step-aborted session for resume — the follow-up starts fresh (#552)", async () => {
     mockTurns = [
       toolTurn("toolu_1", "get_weather", { city: "SF" }),
