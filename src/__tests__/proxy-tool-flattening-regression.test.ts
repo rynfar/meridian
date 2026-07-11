@@ -216,3 +216,54 @@ describe("Issue #386 — tool_use blocks must not leak into SDK prompt as text",
     assertNoFlattenedToolBlocks(getCaptured()?.prompt)
   })
 })
+
+describe("tool-result attribution on full-history replay (#552)", () => {
+  // Fresh replay drops assistant tool_use blocks (per #111/#386), so without
+  // attribution the model sees raw tool outputs as bare user text and denies
+  // having made the calls ("a file I never created"). Each replayed
+  // tool_result must carry a compact [name target] attribution instead.
+  const toolLoopHistory = [
+    { role: "user", content: "create tmp/test2.txt then read tmp/test1.txt" },
+    {
+      role: "assistant",
+      content: [{ type: "tool_use", id: "toolu_w1", name: "write", input: { filePath: "tmp/test2.txt", content: "apple" } }],
+    },
+    {
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: "toolu_w1", content: "Wrote file successfully" }],
+    },
+    {
+      role: "assistant",
+      content: [{ type: "tool_use", id: "toolu_r1", name: "read", input: { filePath: "tmp/test1.txt" } }],
+    },
+    {
+      role: "user",
+      content: [
+        { type: "tool_result", tool_use_id: "toolu_r1", content: "line one\nline two" },
+        { type: "text", text: "what files did you create?" },
+      ],
+    },
+  ]
+
+  beforeEach(() => {
+    clearSessionCache()
+    clearSharedSessions()
+    capturedParams = null
+    mockMessages = [assistantMessage([{ type: "text", text: "You created tmp/test2.txt" }])]
+  })
+
+  it("attributes each replayed tool result to the call that produced it", async () => {
+    const app = createTestApp()
+    await postWithSession(app, "attribution-session-1", toolLoopHistory, "sdk-attr-1")
+
+    const prompt = promptToString(getCaptured()?.prompt)
+    // The write result must be attributed — the model must be able to see IT
+    // wrote tmp/test2.txt, not just an unexplained success string.
+    expect(prompt).toContain("[write tmp/test2.txt]")
+    expect(prompt).toContain("Wrote file successfully")
+    // The read result must be attributed to the right file.
+    expect(prompt).toContain("[read tmp/test1.txt]")
+    // And the banned verbose shapes must stay banned.
+    assertNoFlattenedToolBlocks(getCaptured()?.prompt)
+  })
+})

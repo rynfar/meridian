@@ -51,7 +51,7 @@ import { checkPluginConfigured } from "./setup"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
-import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES } from "./messages"
+import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -190,13 +190,18 @@ function flattenAssistantContent(content: any): string {
 /**
  * Flatten a user message's content to plain text for replay.
  *
- * Unwraps tool_result blocks — emit just the raw result content so the
- * model sees a natural "here's the output" user turn instead of
- * `[Tool Result for toolu_xxx: ...]` noise (issue #111, #386).
+ * Unwraps tool_result blocks — emit the raw result content so the model sees
+ * a natural "here's the output" user turn instead of verbose
+ * `[Tool Result for toolu_xxx: ...]` noise (issue #111, #386). When a
+ * toolIndex is provided, each result is prefixed with a compact
+ * `[name target]` attribution: the replay drops assistant tool_use blocks,
+ * so without this the model sees raw outputs with no cause and denies having
+ * made the calls at all (#552 — "a file I never created").
  */
 function flattenUserContent(
   content: any,
-  sanitizeOpts: import("./sanitize").SanitizeOptions = {}
+  sanitizeOpts: import("./sanitize").SanitizeOptions = {},
+  toolIndex?: Map<string, import("./messages").ToolCallInfo>
 ): string {
   if (typeof content === "string") return sanitizeTextContent(content, sanitizeOpts)
   if (!Array.isArray(content)) return String(content ?? "")
@@ -204,15 +209,19 @@ function flattenUserContent(
     .map((b: any) => {
       if (b?.type === "text" && b.text) return sanitizeTextContent(b.text, sanitizeOpts)
       if (b?.type === "tool_result") {
+        const info = toolIndex?.get(b.tool_use_id)
+        const label = info ? describeToolCall(info) : undefined
         const inner = b.content
-        if (typeof inner === "string") return inner
-        if (Array.isArray(inner)) {
-          return inner
+        let flat = ""
+        if (typeof inner === "string") flat = inner
+        else if (Array.isArray(inner)) {
+          flat = inner
             .map((ib: any) => (ib?.type === "text" && ib.text ? ib.text : ""))
             .filter(Boolean)
             .join("\n")
         }
-        return ""
+        if (label) return flat ? `${label}:\n${flat}` : label
+        return flat
       }
       if (b?.type === "image") return "[Image attached]"
       if (b?.type === "document") return "[Document attached]"
@@ -233,6 +242,7 @@ function buildFreshPrompt(
   sanitizeOpts: import("./sanitize").SanitizeOptions = {}
 ): string | AsyncIterable<any> {
   const hasMultimodal = messages.some((m) => hasMultimodalContent(m.content))
+  const toolIndex = buildToolUseIndex(messages)
 
   if (hasMultimodal) {
     const structured: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null }> = []
@@ -266,7 +276,7 @@ function buildFreshPrompt(
       const role = m.role === "assistant" ? "Assistant" : "Human"
       const content = m.role === "assistant"
         ? flattenAssistantContent(m.content)
-        : flattenUserContent(m.content, sanitizeOpts)
+        : flattenUserContent(m.content, sanitizeOpts, toolIndex)
       return content ? `${role}: ${content}` : ""
     })
     .filter(Boolean)
@@ -879,12 +889,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // `<system-reminder>` is only stripped for adapters that leak CWD
         // through it (Droid) — preserved otherwise so that harness state
         // like oh-my-opencode's background-task IDs reaches the model.
+        // Tool-result attribution is indexed from the FULL history so ids
+        // resolve even when the originating call sits before a resume-delta
+        // boundary (#552).
+        const toolIndex = buildToolUseIndex(allMessages ?? messagesToConvert ?? [])
         textPrompt = messagesToConvert
           ?.map((m: { role: string; content: any }) => {
             const role = m.role === "assistant" ? "Assistant" : "Human"
             const content = m.role === "assistant"
               ? flattenAssistantContent(m.content)
-              : flattenUserContent(m.content, sanitizeOpts)
+              : flattenUserContent(m.content, sanitizeOpts, toolIndex)
             return content ? `${role}: ${content}` : ""
           })
           .filter(Boolean)

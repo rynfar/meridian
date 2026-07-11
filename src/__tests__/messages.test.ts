@@ -2,7 +2,7 @@
  * Unit tests for message parsing utilities.
  */
 import { describe, it, expect } from "bun:test"
-import { normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser } from "../proxy/messages"
+import { normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, buildToolUseIndex, describeToolCall } from "../proxy/messages"
 
 const img = (id: string) => ({ type: "image", source: { type: "base64", media_type: "image/png", data: id } })
 function userMsg(content: unknown) {
@@ -262,5 +262,55 @@ describe("consolidateMultimodalOntoLastUser (#553)", () => {
     const snapshot = JSON.parse(JSON.stringify(input))
     consolidateMultimodalOntoLastUser(input)
     expect(input).toEqual(snapshot)
+  })
+})
+
+describe("buildToolUseIndex / tool-result attribution (#552)", () => {
+  const history = [
+    { role: "user", content: "create tmp/test2.txt" },
+    {
+      role: "assistant",
+      content: [
+        { type: "text", text: "Creating it now." },
+        { type: "tool_use", id: "toolu_w", name: "write", input: { filePath: "tmp/test2.txt", content: "apple" } },
+      ],
+    },
+    {
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: "toolu_w", content: "Wrote file successfully" }],
+    },
+    {
+      role: "assistant",
+      content: [{ type: "tool_use", id: "toolu_r", name: "read", input: { path: "tmp/test1.txt" } }],
+    },
+  ]
+
+  it("indexes every assistant tool_use by id with name and target", () => {
+    const idx = buildToolUseIndex(history)
+    expect(idx.get("toolu_w")).toEqual({ name: "write", target: "tmp/test2.txt" })
+    expect(idx.get("toolu_r")).toEqual({ name: "read", target: "tmp/test1.txt" })
+  })
+
+  it("extracts common target keys and truncates long ones", () => {
+    const idx = buildToolUseIndex([
+      { role: "assistant", content: [
+        { type: "tool_use", id: "t1", name: "bash", input: { command: "echo hi" } },
+        { type: "tool_use", id: "t2", name: "grep", input: { pattern: "x".repeat(200) } },
+        { type: "tool_use", id: "t3", name: "custom", input: { weird: true } },
+      ] },
+    ])
+    expect(idx.get("t1")).toEqual({ name: "bash", target: "echo hi" })
+    expect(idx.get("t2")!.target!.length).toBeLessThanOrEqual(80)
+    expect(idx.get("t3")).toEqual({ name: "custom", target: undefined })
+  })
+
+  it("describeToolCall renders a compact attribution label", () => {
+    expect(describeToolCall({ name: "write", target: "tmp/test2.txt" })).toBe("[write tmp/test2.txt]")
+    expect(describeToolCall({ name: "custom", target: undefined })).toBe("[custom]")
+  })
+
+  it("returns an empty index for non-array and toolless content", () => {
+    expect(buildToolUseIndex([{ role: "user", content: "hi" }]).size).toBe(0)
+    expect(buildToolUseIndex([]).size).toBe(0)
   })
 })

@@ -176,3 +176,59 @@ export function consolidateMultimodalOntoLastUser<
   }
   return result
 }
+
+/** A tool call the assistant made earlier in the conversation. */
+export interface ToolCallInfo {
+  name: string
+  /** Compact human-readable target (file path, command, pattern...), if any. */
+  target: string | undefined
+}
+
+/** Input keys that identify what a tool call operated on, in priority order. */
+const TOOL_TARGET_KEYS = ["filePath", "file_path", "path", "command", "pattern", "query", "url"] as const
+
+/**
+ * Index every assistant tool_use block in a conversation by id.
+ *
+ * Used to attribute tool_result blocks during full-history replay: the
+ * flattened replay drops assistant tool_use blocks (issues #111/#386 — verbose
+ * `[Tool Use: ...]` strings taught the model to imitate fake tool syntax), so
+ * without attribution the model sees raw tool outputs as bare user text with
+ * no cause — it then denies having made the calls at all ("a file I never
+ * created", #552).
+ */
+export function buildToolUseIndex(
+  messages: Array<{ role: string; content: any }>
+): Map<string, ToolCallInfo> {
+  const index = new Map<string, ToolCallInfo>()
+  for (const m of messages) {
+    if (m.role !== "assistant" || !Array.isArray(m.content)) continue
+    for (const block of m.content) {
+      if (block?.type !== "tool_use" || !block.id || typeof block.name !== "string") continue
+      let target: string | undefined
+      const input = block.input
+      if (input && typeof input === "object") {
+        for (const key of TOOL_TARGET_KEYS) {
+          const v = (input as Record<string, unknown>)[key]
+          if (typeof v === "string" && v) {
+            target = v.length > 80 ? v.slice(0, 77) + "..." : v
+            break
+          }
+        }
+      }
+      index.set(block.id, { name: block.name, target })
+    }
+  }
+  return index
+}
+
+/**
+ * Render a compact attribution label for a replayed tool result, e.g.
+ * `[write tmp/test2.txt]` or `[bash echo hi]`. Deliberately terse and
+ * bracket-formatted differently from the banned `[Tool Use: ...]` /
+ * `[Tool Result ...]` shapes (#111/#386) so the model reads it as context,
+ * not as tool-call syntax to imitate.
+ */
+export function describeToolCall(info: ToolCallInfo): string {
+  return info.target ? `[${info.name} ${info.target}]` : `[${info.name}]`
+}
