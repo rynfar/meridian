@@ -10,6 +10,7 @@ import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { linkRequestAbort } from "./requestAbort"
 import { fetchOAuthUsage } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
+import { startWorkspaceAuthorityServer, WorkspaceAuthorityRegistry } from "./workspaceAuthority"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
 import { envBool } from "../env"
@@ -354,6 +355,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   const finalConfig = { ...DEFAULT_PROXY_CONFIG, ...config }
   proxyLogSilent = finalConfig.silent
   const serverVersion = finalConfig.version ?? "unknown"
+  const workspaceAuthorityRegistry = finalConfig.workspaceAuthority
+    ? new WorkspaceAuthorityRegistry(finalConfig.workspaceAuthority)
+    : undefined
 
   // Restore persisted active profile from last session
   restoreActiveProfile(finalConfig.profiles)
@@ -3446,7 +3450,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     }
   }
 
-  return { app, config: finalConfig, initPlugins: initPluginsAsync }
+  return { app, config: finalConfig, initPlugins: initPluginsAsync, workspaceAuthorityRegistry }
 }
 
 /**
@@ -3475,13 +3479,19 @@ export function installProxyProcessErrorHandlers(): void {
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
   claudeExecutable = await resolveClaudeExecutableAsync()
-  const { app, config: finalConfig, initPlugins } = createProxyServer(config)
+  const { app, config: finalConfig, initPlugins, workspaceAuthorityRegistry } = createProxyServer(config)
   if (initPlugins) await initPlugins()
 
   if (finalConfig.installProcessErrorHandlers) {
     installProxyProcessErrorHandlers()
   }
 
+  let resolveListening!: () => void
+  let rejectListening!: (error: unknown) => void
+  const listening = new Promise<void>((resolve, reject) => {
+    resolveListening = resolve
+    rejectListening = reject
+  })
   const server = serve({
     fetch: app.fetch,
     port: finalConfig.port,
@@ -3504,7 +3514,18 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
       console.log(`\nPoint any Anthropic-compatible tool at this endpoint:`)
       console.log(`  ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://${finalConfig.host}:${info.port}`)
     }
+    resolveListening()
   }) as Server
+
+  server.once("error", rejectListening)
+  try {
+    await listening
+  } catch (error) {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    throw error
+  } finally {
+    server.off("error", rejectListening)
+  }
 
   const idleMs = finalConfig.idleTimeoutSeconds * 1000
   server.keepAliveTimeout = idleMs
@@ -3521,14 +3542,8 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     }
   })
 
-  // Background OAuth token refresh: keeps the refresh chain warm even when
-  // the proxy sits idle. Without it, an unused refresh token can be
-  // invalidated server-side after sitting unused for an extended period.
-  // Idempotent — re-calling start() on a hot-reload is a no-op.
-  startBackgroundRefresh()
-
-  // Profile-scoped OAuth token refresh: the default scheduler above only
-  // watches the default Claude credential store. Multi-profile credentials
+  // Profile-scoped OAuth token refresh: the process-global default scheduler
+  // only watches the default Claude credential store. Multi-profile credentials
   // live under each profile's CLAUDE_CONFIG_DIR, so poll the discovered
   // profile list and refresh any browser-login profile that is near expiry.
   const PROFILE_TOKEN_REFRESH_MS = 45_000
@@ -3560,6 +3575,25 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     if (authKeepaliveInterval.unref) authKeepaliveInterval.unref()
   }
 
+  // Start the control plane last. If it cannot bind securely, roll back every
+  // proxy resource created above so embedders never receive a partial server.
+  let workspaceAuthority: Awaited<ReturnType<typeof startWorkspaceAuthorityServer>> | undefined
+  try {
+    workspaceAuthority = finalConfig.workspaceAuthority && workspaceAuthorityRegistry
+      ? await startWorkspaceAuthorityServer(finalConfig.workspaceAuthority, workspaceAuthorityRegistry)
+      : undefined
+  } catch (error) {
+    clearInterval(profileTokenRefreshInterval)
+    if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    throw error
+  }
+
+  // Background OAuth token refresh is process-global and idempotent. Start it
+  // only after every fallible per-instance resource is ready so a failed
+  // secondary proxy cannot stop or perturb an already-running instance.
+  startBackgroundRefresh()
+
   return {
     server,
     config: finalConfig,
@@ -3567,9 +3601,16 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
       clearInterval(profileTokenRefreshInterval)
       if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
       stopBackgroundRefresh()
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()))
-      })
+      const results = await Promise.allSettled([
+        workspaceAuthority?.close() ?? Promise.resolve(),
+        new Promise<void>((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()))
+        }),
+      ])
+      const errors = results
+        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+        .map((result) => result.reason)
+      if (errors.length > 0) throw new AggregateError(errors, "failed to close all Meridian resources")
     },
   }
 }

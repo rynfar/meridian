@@ -1,5 +1,6 @@
 import type { Server } from "node:http"
 import type { ProfileConfig } from "./profiles"
+import type { WorkspaceAuthorityRegistry, WorkspaceAuthorityServerConfig } from "./workspaceAuthority"
 
 export interface ProxyConfig {
   port: number
@@ -24,6 +25,8 @@ export interface ProxyConfig {
    * library consumer has already installed; the bundled CLI passes `true`.
    */
   installProcessErrorHandlers?: boolean
+  /** Disabled unless an explicit private Unix control socket is configured. */
+  workspaceAuthority?: WorkspaceAuthorityServerConfig
 }
 
 export interface ProxyInstance {
@@ -43,6 +46,8 @@ export interface ProxyServer {
   config: ProxyConfig
   /** Load plugins from disk and wire them into the request pipeline */
   initPlugins?(): Promise<void>
+  /** Internal registry used by the optional workspace-authority control server. */
+  workspaceAuthorityRegistry?: WorkspaceAuthorityRegistry
 }
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {
