@@ -41,6 +41,7 @@ import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
+import { createEarlyStopTracker, noteAssistantContent, noteUserContent, shouldEarlyStop } from "./passthroughEarlyStop"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -965,6 +966,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const capturedSignatures = new Set<string>()
       const capturedToolNames = new Set<string>()
       let sawDuplicateToolUse = false
+      // Early stop: the moment every forwarded tool call's deny is persisted
+      // (observed as a `user` tool_result in the stream), abort the query so
+      // the SDK's digest turn — a fully-billed, discarded model invocation
+      // (a whole thinking pass per tool step on always-thinking models) —
+      // never generates. Unlike the duplicate-abort above, the session history
+      // is coherent at that point (deny recorded), so the session is stored
+      // and resumed normally. Kill switch: MERIDIAN_PASSTHROUGH_EARLY_STOP=0.
+      const earlyStopEnabled = passthrough && process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP !== "0"
+      const earlyStop = createEarlyStopTracker()
+      let earlyStopFired = false
       // Forced structured output: a `tool_choice` of {type:"tool",...} (or an
       // explicit disable_parallel_tool_use) means the client — e.g. the AI
       // SDK's generateObject — wants EXACTLY ONE call to that tool. Claude
@@ -1425,6 +1436,23 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 claudeLog("passthrough.loop_break", { mode: "non_stream", assistantMessages, captured: capturedToolUses.length })
                 break
               }
+              // Early stop: abort before the digest turn generates (see the
+              // earlyStop declaration above). The deny tool_results arrive as
+              // `user` messages; when every forwarded call's deny is persisted,
+              // the SDK-side history is coherent and turn 2 hasn't fired yet.
+              if (earlyStopEnabled) {
+                if (message.type === "assistant") {
+                  noteAssistantContent(earlyStop, (message as any).message?.content)
+                } else if (message.type === "user") {
+                  noteUserContent(earlyStop, (message as any).message?.content)
+                  if (shouldEarlyStop(earlyStop)) {
+                    earlyStopFired = true
+                    claudeLog("passthrough.early_stop", { mode: "non_stream", captured: capturedToolUses.length })
+                    requestAbort.abort("passthrough turn complete")
+                    break
+                  }
+                }
+              }
               if (message.type === "assistant") {
                 assistantMessages += 1
                 // Capture SDK assistant UUID for undo rollback
@@ -1715,12 +1743,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // Store session for future resume.
           // Fork/subagent requests don't write to the cache — see lookupSession
           // block above for rationale (avoids polluting the parent's key).
-          // Single-step-aborted sessions are never offered for resume: the
-          // SIGTERM lands before the dropped call's deny is persisted, so the
-          // SDK-side history holds a dangling tool_use ("Stream closed") that
-          // diverges from the client's view — resuming it hands the model
-          // memory of a call whose result never arrives (#552). A fresh
-          // session rebuilt from client history is coherent by construction.
+          // Duplicate-aborted sessions (sawDuplicateToolUse) are never offered
+          // for resume: that SIGTERM lands before the dropped call's deny is
+          // persisted, so the SDK-side history holds a dangling tool_use
+          // ("Stream closed") that diverges from the client's view — resuming
+          // it hands the model memory of a call whose result never arrives
+          // (#552). A fresh session rebuilt from client history is coherent by
+          // construction. Early-stop aborts (earlyStopFired) are different:
+          // they fire only AFTER every forwarded call's deny was observed in
+          // the stream (already persisted), so the history is coherent and the
+          // session is safe to store and resume.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
                 storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
               }
@@ -1761,6 +1793,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let textEventsForwarded = 0
             let bytesSent = 0
             let streamClosed = false
+            // Early-stop drain: after the client stream closes at turn-1's
+            // stop_reason:"tool_use", keep consuming SDK messages (nothing is
+            // forwarded — safeEnqueue no-ops once streamClosed) until every
+            // forwarded call's deny is persisted, then abort the query so the
+            // digest turn never generates. Without this the subprocess keeps
+            // running in the background and turn 2 is fully billed, invisibly.
+            let awaitingEarlyStopDrain = false
 
             claudeLog("upstream.start", { mode: "stream", model })
 
@@ -2034,7 +2073,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               )
               try {
                 for await (const message of guardedResponse) {
-                  if (streamClosed) {
+                  if (streamClosed && !awaitingEarlyStopDrain) {
                     break
                   }
 
@@ -2044,6 +2083,41 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   }
                   if (message.type === "assistant" && (message as any).uuid) {
                     sdkUuidMap.push((message as any).uuid)
+                  }
+                  // Early stop: abort before the digest turn generates (see the
+                  // earlyStop declaration above). By deny time the client has
+                  // already received all turn-1 blocks and the stop_reason
+                  // message_delta, so mirror the turn-2 suppression path's
+                  // clean close (message_delta + message_stop) and abort.
+                  if (earlyStopEnabled) {
+                    if (message.type === "assistant") {
+                      noteAssistantContent(earlyStop, (message as any).message?.content)
+                    } else if (message.type === "user") {
+                      noteUserContent(earlyStop, (message as any).message?.content)
+                      // streamedToolUseIds ≥ 1 guarantees the client actually
+                      // received a tool_use block before we stop the query.
+                      // Normally the client stream is already closed by the
+                      // stop_reason:"tool_use" close above (drain mode) — the
+                      // emissions below only fire in the unusual case where the
+                      // denies arrive first (safeEnqueue no-ops when closed).
+                      if (shouldEarlyStop(earlyStop) && streamedToolUseIds.size > 0) {
+                        earlyStopFired = true
+                        claudeLog("passthrough.early_stop", { mode: "stream", captured: capturedToolUses.length, drained: awaitingEarlyStopDrain })
+                        safeEnqueue(encoder.encode(
+                          `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
+                        ), "early_stop")
+                        safeEnqueue(encoder.encode(
+                          `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
+                        ), "early_stop")
+                        requestAbort.abort("passthrough turn complete")
+                        awaitingEarlyStopDrain = false
+                        if (!streamClosed) {
+                          streamClosed = true
+                          try { controller.close() } catch {}
+                        }
+                        break
+                      }
+                    }
                   }
                   if (message.type === "result") {
                     const resultUsage = (message as { usage?: unknown }).usage as TokenUsage | undefined
@@ -2271,11 +2345,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (typeof idx === "number") openClientBlocks.delete(idx)
                     }
 
-                    // NOTE: agent-specific (passthrough mode) — break immediately when
-                    // the model stops for tool_use so the client can execute the tools
-                    // and send results back. Without this the SDK executes the passthrough
-                    // MCP no-op (→ "passthrough"), feeds that back to the model, and the
-                    // model produces an incorrect fallback response which gets forwarded.
+                    // NOTE: agent-specific (passthrough mode) — close the client stream
+                    // immediately when the model stops for tool_use so the client can
+                    // execute the tools and send results back. Without this the SDK
+                    // executes the passthrough MCP no-op (→ "passthrough"), feeds that
+                    // back to the model, and the model produces an incorrect fallback
+                    // response which gets forwarded.
+                    //
+                    // With early stop enabled, don't break — keep DRAINING the SDK
+                    // stream (nothing forwards after close) until every deny is
+                    // persisted, then abort so the digest turn never generates.
+                    // Without early stop (kill switch), break as before: the
+                    // subprocess finishes turn 2 in the background (billed).
                     if (
                       passthrough &&
                       eventType === "message_delta" &&
@@ -2288,6 +2369,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       )
                       streamClosed = true
                       controller.close()
+                      if (earlyStopEnabled) {
+                        awaitingEarlyStopDrain = true
+                        continue
+                      }
                       break
                     }
 
@@ -2374,10 +2459,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
               // Store session for future resume.
               // Fork/subagent requests don't write to the cache (see lookupSession
-              // block for rationale). Single-step-aborted sessions are never
+              // block for rationale). Duplicate-aborted sessions are never
               // offered for resume — their history holds a dangling dropped
-              // call that diverges from the client's view (#552); see the
-              // non-stream store above.
+              // call that diverges from the client's view (#552). Early-stop
+              // aborts are safe to store: every deny was persisted before the
+              // abort. See the non-stream store above.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
                 storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
               }
@@ -2600,12 +2686,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // tools and drives the next turn (the same outcome as a normal
               // tool-use cycle). Without this, the client sees a 500 even
               // though we already streamed everything it needs.
-              // "aborted" is accepted only for the proxy's own single-step
-              // abort (sawDuplicateToolUse) — a client-disconnect abort must
+              // "aborted" is accepted only for the proxy's own aborts — the
+              // single-step duplicate abort (sawDuplicateToolUse) or the
+              // early stop (earlyStopFired) — a client-disconnect abort must
               // not be recorded as a recovered success.
               const canRecoverAsToolUse =
                 (sdkTerm.reason === "max_turns" ||
-                  (sdkTerm.reason === "aborted" && sawDuplicateToolUse)) &&
+                  (sdkTerm.reason === "aborted" && (sawDuplicateToolUse || earlyStopFired))) &&
                 passthrough &&
                 capturedToolUses.length > 0 &&
                 messageStartEmitted
