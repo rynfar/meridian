@@ -165,7 +165,8 @@ The Claude Code SDK provides programmatic access to Claude. But your favorite co
 - **Auto token refresh** — expired OAuth tokens are refreshed automatically; requests continue without interruption
 - **Passthrough mode** — forward tool calls to the client instead of executing internally
 - **Multimodal** — images, documents, file attachments, and multimodal tool results pass through to Claude
-- **Multi-profile** — switch between Claude accounts instantly, no restart needed
+- **Multi-profile** — switch between Claude accounts instantly, no restart needed; opt-in [sticky session routing](#sticky-session-routing) distributes sessions across accounts while keeping per-account prompt caches warm
+- **Adapter instances** — run several configurations of the same adapter side by side (per-instance thinking, system prompt, passthrough) selected by header or match rules — see [Adapter instances](#adapter-instances)
 - **Telemetry dashboard** — real-time performance metrics at `/telemetry`, including token usage and prompt cache efficiency ([`MONITORING.md`](MONITORING.md))
 - **Telemetry persistence** — opt-in SQLite storage for telemetry data that survives proxy restarts, with configurable retention
 - **Prometheus metrics** — `GET /metrics` endpoint for scraping request counters and duration histograms
@@ -348,6 +349,11 @@ Profile shapes:
 - `oauthToken` — long-lived token from `claude setup-token`; sets `CLAUDE_CODE_OAUTH_TOKEN`, no config dir needed
 
 When `MERIDIAN_PROFILES` is set, it takes precedence over disk-configured profiles. When unset, Meridian auto-discovers profiles from `~/.config/meridian/profiles.json` on each request.
+
+Related environment variables:
+
+- `MERIDIAN_ROUTING=sticky` — enable [sticky session routing](#sticky-session-routing) across profiles (default `active`)
+- `MERIDIAN_ADAPTER_INSTANCES='{...}'` — define [adapter instances](#adapter-instances) inline instead of via `~/.config/meridian/adapter-instances.json`
 
 ## Agent Setup
 
@@ -613,7 +619,7 @@ Run several configurations of the same adapter side by side — e.g. a passthrou
 ```
 
 - **`base`** — which built-in adapter provides the behavior (tool handling, session tracking, transforms). Existing plugins and transforms scoped to the base adapter apply to its instances automatically.
-- **`features`** — per-instance overrides of the SDK feature toggles (thinking, system prompts, memory, ...) layered over the base's settings.
+- **`features`** — per-instance overrides of the [SDK feature toggles](#sdk-feature-toggles-experimental) (thinking, system prompts, memory, ...) layered over the base's settings. Same keys as the settings UI.
 - **`passthrough`** — per-instance passthrough mode, overriding the adapter default and `MERIDIAN_PASSTHROUGH`.
 - **`match`** — optional automatic selection: exact header values and/or a User-Agent prefix. Match rules outrank built-in User-Agent detection (that's their purpose). Without `match`, select the instance per request with `x-meridian-agent: <instance-name>`.
 
