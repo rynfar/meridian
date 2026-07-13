@@ -64,6 +64,8 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, type ResolvedProfile } from "./profiles"
+import { getRoutingMode } from "./routing"
+import { getSetting } from "./settings"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
 import { detectTokenAnomalies, formatAnomalyAlerts, type TokenSnapshot } from "./tokenHealth"
@@ -498,11 +500,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
         const outputFormat = parsedOutputFormat.value
 
-        // Resolve profile: header > active > default > first configured
+        // Resolve profile: header > sticky (routing="sticky" only) > active >
+        // default > first configured. Sticky routing (#383) assigns each
+        // client session to a profile via rendezvous hashing so multi-account
+        // setups keep per-account prompt caches warm; the same session key
+        // Meridian already uses for session tracking is the assignment key,
+        // so a session and its subagent/fork requests land on one account.
+        const routingMode = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))
         const profile = resolveProfile(
           finalConfig.profiles,
           finalConfig.defaultProfile,
-          c.req.header("x-meridian-profile") || undefined
+          c.req.header("x-meridian-profile") || undefined,
+          routingMode === "sticky"
+            ? { routingMode, stickySessionKey: adapter.getSessionId(c, body) }
+            : undefined
         )
 
         const authStatus = await getClaudeAuthStatusAsync(
@@ -785,7 +796,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const lineageType = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
@@ -3080,6 +3091,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return c.json({
       profiles: enriched,
       activeProfile: getActiveProfileId() || finalConfig.defaultProfile || profiles[0]?.id || "default",
+      // Additive (#383): current routing mode so UIs can surface it.
+      routing: getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing")),
     })
   })
 

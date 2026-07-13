@@ -290,6 +290,22 @@ curl -H "x-meridian-profile: work" ...
 
 You can also switch profiles from the web UI at `http://127.0.0.1:3456/profiles` — a dropdown appears in the nav bar on all pages when profiles are configured.
 
+### Sticky session routing
+
+With multiple profiles (e.g. two Claude Max subscriptions), Meridian can distribute sessions across profiles automatically while preserving **session affinity** — Anthropic's prompt caching is per-account, so a session must stay on one account to keep its ~99% cache hit rate:
+
+```bash
+MERIDIAN_ROUTING=sticky meridian     # or set "routing": "sticky" in ~/.config/meridian/settings.json
+```
+
+- Each session is assigned to a profile by rendezvous hashing of its session id — **deterministic and stateless**, so assignments survive proxy restarts with no state to lose
+- Adding/removing a profile only reassigns the sessions belonging to the changed arm — everything else keeps its warm cache
+- A session's subagent/fork requests share its assignment (same session id → same account)
+- The `x-meridian-profile` header still overrides everything, per request
+- Default is `active` (all traffic to the active profile — the pre-existing behavior); sticky is opt-in
+
+Request logs show the assignment (`profile=work(sticky)`), and `GET /profiles/list` reports the current `routing` mode.
+
 ### Profile commands
 
 | Command | Description |

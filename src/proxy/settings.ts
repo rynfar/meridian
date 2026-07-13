@@ -17,6 +17,9 @@ const SETTINGS_FILE = join(homedir(), ".config", "meridian", "settings.json")
 export interface MeridianSettings {
   /** Last active profile ID — restored on proxy startup */
   activeProfile?: string
+  /** Profile routing mode (#383): "active" (default) or "sticky".
+   *  MERIDIAN_ROUTING env var takes precedence when set. */
+  routing?: string
 }
 
 /** Read settings from disk. Returns empty object if file doesn't exist or is invalid. */

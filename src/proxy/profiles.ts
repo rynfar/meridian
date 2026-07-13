@@ -18,6 +18,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
 import { setSetting, getSetting } from "./settings"
+import { pickStickyProfile, type RoutingMode } from "./routing"
 
 const CONFIG_FILE = join(homedir(), ".config", "meridian", "profiles.json")
 
@@ -155,17 +156,33 @@ export function hasProfiles(configProfiles: ProfileConfig[] | undefined): boolea
   return getEffectiveProfiles(configProfiles).length > 0
 }
 
+/** Options for the sticky-routing resolution step (#383). */
+export interface ResolveProfileOptions {
+  /** Session identity for sticky assignment (adapter.getSessionId). */
+  stickySessionKey?: string
+  /** Routing mode — "active" (default, pre-#383 chain) or "sticky". */
+  routingMode?: RoutingMode
+}
+
 /**
  * Resolve a profile from the configuration.
+ *
+ * Priority: header > sticky assignment (routing="sticky" only) > active >
+ * config default > first profile. The sticky step exists so multi-account
+ * setups can distribute sessions across profiles WITHOUT losing per-account
+ * prompt caching — see routing.ts. With routingMode unset/"active" the
+ * chain is exactly the pre-#383 behavior.
  *
  * @param profiles - Configured profiles (from ProxyConfig)
  * @param defaultProfile - Default profile ID (from ProxyConfig)
  * @param requestedId - Explicit profile ID from request header
+ * @param options - Sticky-routing inputs (session key + mode)
  */
 export function resolveProfile(
   profiles: ProfileConfig[] | undefined,
   defaultProfile: string | undefined,
-  requestedId?: string
+  requestedId?: string,
+  options?: ResolveProfileOptions
 ): ResolvedProfile {
   const effective = getEffectiveProfiles(profiles)
 
@@ -174,8 +191,15 @@ export function resolveProfile(
     return { id: DEFAULT_PROFILE_ID, type: "claude-max", env: {} }
   }
 
-  // Priority: header > active > config default > first profile
-  const resolvedId = requestedId || activeProfileId || defaultProfile || effective[0]!.id
+  // Sticky assignment: only in sticky mode, only with a session identity,
+  // and always subordinate to an explicit header override.
+  const stickyId =
+    options?.routingMode === "sticky" && options.stickySessionKey
+      ? pickStickyProfile(options.stickySessionKey, effective.map(p => p.id))
+      : undefined
+
+  // Priority: header > sticky > active > config default > first profile
+  const resolvedId = requestedId || stickyId || activeProfileId || defaultProfile || effective[0]!.id
   const profile = effective.find(p => p.id === resolvedId)
 
   if (!profile) {
