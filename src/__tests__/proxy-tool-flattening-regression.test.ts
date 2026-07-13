@@ -304,3 +304,64 @@ describe("tool-result attribution on full-history replay (#552)", () => {
     assertNoFlattenedToolBlocks(getCaptured()?.prompt)
   })
 })
+
+describe("transcript-format imitation (#496 self-talk regression)", () => {
+  // 'Human:'/'Assistant:' transcript lines in the prompt teach the model the
+  // transcript format — it then completes the pattern itself, emitting
+  // 'Human: ...' turns and self-approving actions (duncanam's report). The
+  // structured/multimodal path already uses the safe convention (user turns
+  // plain, assistant turns as '[Assistant: ...]', resume deltas drop
+  // assistant messages the SDK session already has). The text path must match.
+  const transcriptMarker = /(^|\n)(Human|Assistant): /
+
+  it("resume delta: no transcript markers, assistant delta dropped, results attributed", async () => {
+    const app = createTestApp()
+    // Turn 1 — establish the session
+    await postWithSession(app, "sess-selftalk", [
+      { role: "user", content: "edit the config file" },
+    ], "sdk-selftalk")
+
+    // Turn 2 — client returns the executed tool round-trip
+    capturedParams = null
+    await postWithSession(app, "sess-selftalk", [
+      { role: "user", content: "edit the config file" },
+      { role: "assistant", content: [
+        { type: "text", text: "I'll edit that file now." },
+        { type: "tool_use", id: "tu_st1", name: "edit", input: { filePath: "a.yml", oldString: "x", newString: "y" } },
+      ]},
+      { role: "user", content: [
+        { type: "tool_result", tool_use_id: "tu_st1", content: "Edit applied successfully." },
+      ]},
+    ], "sdk-selftalk")
+
+    expect(getCaptured()?.options?.resume).toBe("sdk-selftalk")
+    const prompt = promptToString(getCaptured()?.prompt)
+    expect(prompt).not.toMatch(transcriptMarker)
+    // The assistant's delta text must NOT be replayed — the resumed SDK
+    // session already contains that turn; re-sending it as user text is the
+    // imitation seed.
+    expect(prompt).not.toContain("I'll edit that file now.")
+    // The tool result (the genuinely new information) must be present + attributed.
+    expect(prompt).toContain("Edit applied successfully.")
+    expect(prompt).toContain("[your edit a.yml")
+  })
+
+  it("fresh multi-turn replay: assistant turns bracketed, no transcript markers", async () => {
+    const app = createTestApp()
+    capturedParams = null
+    // New session header + full history → fresh replay of a text conversation
+    await postWithSession(app, "sess-selftalk-fresh", [
+      { role: "user", content: "what is the capital of France?" },
+      { role: "assistant", content: "Paris." },
+      { role: "user", content: "and of Germany?" },
+    ], "sdk-selftalk-fresh")
+
+    const prompt = promptToString(getCaptured()?.prompt)
+    expect(prompt).not.toMatch(transcriptMarker)
+    // Assistant context survives in the bracketed, non-imitatable shape the
+    // structured path has used since #553.
+    expect(prompt).toContain("[Assistant: Paris.]")
+    expect(prompt).toContain("what is the capital of France?")
+    expect(prompt).toContain("and of Germany?")
+  })
+})

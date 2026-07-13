@@ -275,13 +275,17 @@ function buildFreshPrompt(
     return (async function* () { for (const msg of prompt) yield msg })()
   }
 
+  // Same anti-imitation convention as the structured branch above and the
+  // main prompt builder: user turns plain, assistant turns bracketed.
+  // 'Human:'/'Assistant:' transcript lines teach the model to complete the
+  // transcript itself (#496 self-talk).
   return messages
     .map((m) => {
-      const role = m.role === "assistant" ? "Assistant" : "Human"
-      const content = m.role === "assistant"
-        ? flattenAssistantContent(m.content)
-        : flattenUserContent(m.content, sanitizeOpts, toolIndex)
-      return content ? `${role}: ${content}` : ""
+      if (m.role === "assistant") {
+        const assistantText = flattenAssistantContent(m.content)
+        return assistantText ? `[Assistant: ${assistantText}]` : ""
+      }
+      return flattenUserContent(m.content, sanitizeOpts, toolIndex)
     })
     .filter(Boolean)
     .join("\n\n") || ""
@@ -934,13 +938,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // resolve even when the originating call sits before a resume-delta
         // boundary (#552).
         const toolIndex = buildToolUseIndex(allMessages ?? messagesToConvert ?? [])
+        // NEVER render 'Human:'/'Assistant:' transcript lines — the model
+        // imitates that format, emitting 'Human: ...' turns itself and
+        // self-approving actions (#496 self-talk). Match the structured
+        // path's proven convention instead: user turns plain, assistant
+        // turns bracketed as '[Assistant: ...]'. On resume, drop assistant
+        // messages entirely — the resumed SDK session already contains
+        // those turns; replaying them as user text is the imitation seed.
         textPrompt = messagesToConvert
           ?.map((m: { role: string; content: any }) => {
-            const role = m.role === "assistant" ? "Assistant" : "Human"
-            const content = m.role === "assistant"
-              ? flattenAssistantContent(m.content)
-              : flattenUserContent(m.content, sanitizeOpts, toolIndex)
-            return content ? `${role}: ${content}` : ""
+            if (m.role === "assistant") {
+              if (isResume) return ""
+              const assistantText = flattenAssistantContent(m.content)
+              return assistantText ? `[Assistant: ${assistantText}]` : ""
+            }
+            return flattenUserContent(m.content, sanitizeOpts, toolIndex)
           })
           .filter(Boolean)
           .join("\n\n") || ""
