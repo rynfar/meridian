@@ -30,9 +30,6 @@ jobs:
       # is exactly what we want for a single-package repo.
       release_created: ${{ steps.release.outputs.releases_created }}
       tag_name: ${{ steps.release.outputs['.--tag_name'] }}
-      # Bare semver (e.g. "1.45.4") for Docker tags — the '.--version' output
-      # is prefixed by manifest path ('.'), same convention as '.--tag_name'.
-      version: ${{ steps.release.outputs['.--version'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -116,14 +113,23 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Derive the bare semver from the release tag. release-please's own
+      # `.--version` output came through empty at job scope, but `.--tag_name`
+      # (used above for checkout) is reliable — strip its `meridian-v` prefix.
+      - name: Derive version from tag
+        id: ver
+        run: echo "version=${TAG#meridian-v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.version }}
+            type=semver,pattern={{version}},value=${{ steps.ver.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.ver.outputs.version }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
