@@ -40,6 +40,7 @@ import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -471,6 +472,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (body.messages.length === 0) {
           return c.json(
             { type: "error", error: { type: "invalid_request_error", message: "messages: Cannot be empty — at least one message is required" } },
+            400
+          )
+        }
+
+        // Native Anthropic server tools (web_search_*, web_fetch_*) can't run
+        // through the Max/SDK path — fail fast with an actionable message
+        // instead of silently bouncing an unrunnable tool back to the agent.
+        // See #488 (opencode-websearch) / #481 (Cherry Studio).
+        const serverTools = detectServerTools(body.tools)
+        if (serverTools.length > 0) {
+          return c.json(
+            { type: "error", error: { type: "invalid_request_error", message: serverToolErrorMessage(serverTools) } },
             400
           )
         }

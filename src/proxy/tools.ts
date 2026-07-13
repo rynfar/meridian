@@ -49,6 +49,54 @@ export const CLAUDE_CODE_ONLY_TOOLS = [
   "WebSearch",         // OpenCode: websearch_web_search_exa
 ]
 
+/**
+ * Native Anthropic *server* tools carry a dated `type` marker (e.g.
+ * `web_search_20250305`, `web_fetch_20260209`). Unlike custom/passthrough
+ * tools — which have a `name` + `input_schema` and are executed by the client
+ * — these run on Anthropic's servers and emit `server_tool_use` /
+ * `web_search_tool_result` blocks. Meridian bridges to Claude Max via the
+ * Agent SDK, which has no such server tools and cannot produce those blocks,
+ * so a request carrying one can never succeed through the proxy. Match the
+ * web_search/web_fetch families (any date suffix) so we catch future variants.
+ * See #488 (opencode-websearch plugin) and #481 (Cherry Studio).
+ */
+const SERVER_TOOL_TYPE = /^web_(search|fetch)_\d+$/
+
+/**
+ * Return the distinct native-server-tool `type`s present in a request's `tools`
+ * array, in first-seen order. Empty when there are none (the common case) or
+ * when `tools` isn't an array. Pure — no I/O.
+ */
+export function detectServerTools(tools: unknown): string[] {
+  if (!Array.isArray(tools)) return []
+  const found: string[] = []
+  for (const tool of tools) {
+    const type = (tool as { type?: unknown })?.type
+    if (typeof type === "string" && SERVER_TOOL_TYPE.test(type) && !found.includes(type)) {
+      found.push(type)
+    }
+  }
+  return found
+}
+
+/**
+ * Build the actionable error returned when a request carries native server
+ * tools. It tells the user to route that specific call at the real Anthropic
+ * API (with their own key) rather than through Meridian — the plugin already
+ * supports a separate per-provider baseURL, so this is a config fix on their
+ * side, not something Meridian can execute on the Max subscription.
+ */
+export function serverToolErrorMessage(types: string[]): string {
+  const list = types.join(", ")
+  return (
+    `Anthropic server tools (${list}) can't run through Meridian. ` +
+    `Server-side web search/fetch is a raw Anthropic API feature (billed to an API key) ` +
+    `that produces server_tool_use / web_search_tool_result blocks the Claude Max / Agent SDK path cannot emit. ` +
+    `Point the plugin making this call at the real API instead — configure it with a separate provider using ` +
+    `baseURL "https://api.anthropic.com" and your own ANTHROPIC_API_KEY, rather than routing it through Meridian.`
+  )
+}
+
 /** MCP server name used by the calling agent */
 export const MCP_SERVER_NAME = "opencode"
 

@@ -398,3 +398,59 @@ describe("Integration: Non-stream usage propagation", () => {
     expect(body.usage.output_tokens).toBe(0)
   })
 })
+
+// ============================================================
+// NATIVE SERVER-TOOL FAIL-FAST (#488 / #481)
+// ============================================================
+
+describe("Integration: native server tools fail fast", () => {
+  let app: any
+  let savedPassthrough: string | undefined
+
+  beforeAll(() => {
+    app = createTestApp()
+  })
+
+  beforeEach(() => {
+    savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
+    process.env.MERIDIAN_PASSTHROUGH = "0"
+    mockMessages = []
+  })
+
+  afterEach(() => {
+    if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
+    else delete process.env.MERIDIAN_PASSTHROUGH
+  })
+
+  it("rejects a request carrying the native web_search server tool with an actionable 400", async () => {
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [{ role: "user", content: "search the web" }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }],
+    })
+
+    const body = await response.json() as any
+    expect(response.status).toBe(400)
+    expect(body.error.type).toBe("invalid_request_error")
+    expect(body.error.message).toContain("web_search_20250305")
+    expect(body.error.message).toContain("api.anthropic.com")
+    expect(body.error.message).toContain("ANTHROPIC_API_KEY")
+  })
+
+  it("does not reject ordinary custom/passthrough tools", async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [{ role: "user", content: "read a file" }],
+      tools: [{ name: "web-search", description: "opencode custom tool", input_schema: { type: "object", properties: { query: { type: "string" } } } }],
+    })
+
+    // The custom tool must not trip the server-tool fail-fast (it's a client tool, not a server tool).
+    expect(response.status).not.toBe(400)
+  })
+})
