@@ -108,3 +108,64 @@ export function formatExtraUsage(eu: {
     status: classifyUtilization(utilization),
   }
 }
+
+/**
+ * Weekly-pace comparison for the 7-day usage window.
+ *
+ * Compares how much of the weekly allowance has been consumed against how much
+ * *time* has elapsed in the window — the "am I burning it too fast?" question.
+ * The window resets at `resetsAt` and started 7 days earlier, so the elapsed
+ * fraction gives the expected (even-pace) utilization.
+ *
+ * Returns null when there isn't enough data to compute a meaningful pace
+ * (missing utilization or reset time) — callers should hide the widget then.
+ *
+ * `now` is injectable for tests; production callers omit it.
+ */
+export interface WeeklyPace {
+  /** Actual utilization, rounded to a percent (may exceed 100). */
+  actualPct: number
+  /** Expected utilization at this point in the window, 0..100. */
+  expectedPct: number
+  /** actualPct − expectedPct; positive means ahead of (faster than) pace. */
+  deltaPct: number
+  /** Extrapolated end-of-window utilization at the current rate; null if it's
+   *  too early in the window to project without wild swings. */
+  projectedPct: number | null
+  /** Consumption relative to even pace. */
+  status: "under" | "on" | "ahead"
+  /** Position in the window, 0..1 (fraction of the 7 days elapsed). */
+  elapsedFraction: number
+}
+
+const SEVEN_DAYS_MS = 7 * 86_400_000
+/** Delta (percentage points) within which pace is considered "on track". */
+const PACE_ON_BAND = 7
+/** Don't extrapolate a projection until this fraction of the window elapsed. */
+const PROJECT_MIN_ELAPSED = 0.1
+
+export function computeWeeklyPace(
+  utilization: number | null | undefined,
+  resetsAt: number | null | undefined,
+  now: number = Date.now(),
+): WeeklyPace | null {
+  if (utilization == null || !Number.isFinite(utilization)) return null
+  if (resetsAt == null || !Number.isFinite(resetsAt)) return null
+
+  const windowStart = resetsAt - SEVEN_DAYS_MS
+  const elapsedFraction = Math.max(0, Math.min(1, (now - windowStart) / SEVEN_DAYS_MS))
+
+  const actualPct = Math.round(Math.max(0, utilization) * 100)
+  const expectedPct = Math.round(elapsedFraction * 100)
+  const deltaPct = actualPct - expectedPct
+
+  const status: WeeklyPace["status"] =
+    deltaPct > PACE_ON_BAND ? "ahead" : deltaPct < -PACE_ON_BAND ? "under" : "on"
+
+  const projectedPct =
+    elapsedFraction >= PROJECT_MIN_ELAPSED
+      ? Math.round((Math.max(0, utilization) / elapsedFraction) * 100)
+      : null
+
+  return { actualPct, expectedPct, deltaPct, projectedPct, status, elapsedFraction }
+}

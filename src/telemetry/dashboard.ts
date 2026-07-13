@@ -76,6 +76,27 @@ export const dashboardHtml = `<!DOCTYPE html>
                 transition: all 0.15s; }
   .log-filter:hover { border-color: var(--accent); color: var(--text); }
   .log-filter.active { background: rgba(88,166,255,0.1); border-color: var(--accent); color: var(--accent); }
+
+  /* Usage tab */
+  .usage-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .ucard { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+  .ucard-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .ucard-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .ucard-reset { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .ucard-pct { font-size: 32px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 8px; color: var(--green); }
+  .ucard.warn .ucard-pct { color: var(--yellow); }
+  .ucard.high .ucard-pct { color: var(--red); }
+  .ucard-sub { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+  .ubar { position: relative; height: 8px; border-radius: 4px; background: var(--border); overflow: visible; margin-top: 12px; }
+  .ubar-fill { height: 100%; border-radius: 4px; background: var(--green); transition: width 0.4s ease; max-width: 100%; }
+  .ucard.warn .ubar-fill { background: var(--yellow); }
+  .ucard.high .ubar-fill { background: var(--red); }
+  .ubar-marker { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.55; border-radius: 1px; }
+  .pace-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .pace-pill.on, .pace-pill.under { background: rgba(63,185,80,0.15); color: var(--green); }
+  .pace-pill.ahead { background: rgba(210,153,34,0.18); color: var(--yellow); }
+  .pace-pill.over { background: rgba(248,81,73,0.15); color: var(--red); }
+  .usage-note { font-size: 11px; color: var(--muted); }
 ` + profileBarCss + `
 </style>
 </head>
@@ -150,20 +171,22 @@ function setLogFilter(filter) {
 async function refresh() {
   const w = $('#window').value;
   try {
-    const [summary, reqs, logs] = await Promise.all([
+    const [summary, reqs, logs, quota] = await Promise.all([
       fetch('/telemetry/summary?window=' + w).then(r => r.json()),
       fetch('/telemetry/requests?limit=50&since=' + (Date.now() - Number(w))).then(r => r.json()),
       fetch('/telemetry/logs?limit=200&since=' + (Date.now() - Number(w))).then(r => r.json()),
+      fetch('/v1/usage/quota').then(r => r.json()).catch(() => null),
     ]);
-    render(summary, reqs, logs);
+    render(summary, reqs, logs, quota);
     $('#lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
   } catch (e) {
     $('#content').innerHTML = '<div class="empty">Failed to load telemetry</div>';
   }
 }
 
-function render(s, reqs, logs) {
-  if (s.totalRequests === 0 && (!logs || logs.length === 0)) {
+function render(s, reqs, logs, quota) {
+  const hasUsage = quota && quota.buckets && quota.buckets.some(b => b.utilization != null);
+  if (s.totalRequests === 0 && (!logs || logs.length === 0) && !hasUsage) {
     $('#content').innerHTML = '<div class="empty">No requests recorded yet. Send a request through the proxy to see telemetry.</div>';
     return;
   }
@@ -181,6 +204,7 @@ function render(s, reqs, logs) {
     +   'Requests<span class="tab-badge">' + reqs.length + '</span></div>'
     + '<div class="tab' + (activeTab === 'logs' ? ' active' : '') + '" data-tab="logs" onclick="switchTab(&apos;logs&apos;)">'
     +   'Logs<span class="tab-badge">' + logs.length + '</span></div>'
+    + '<div class="tab' + (activeTab === 'usage' ? ' active' : '') + '" data-tab="usage" onclick="switchTab(&apos;usage&apos;)">Usage</div>'
     + '</div>';
 
   // ==================== Overview tab ====================
@@ -330,6 +354,11 @@ function render(s, reqs, logs) {
   }
   html += '</div>'; // end logs panel
 
+  // ==================== Usage tab ====================
+  html += '<div id="panel-usage" class="tab-panel' + (activeTab === 'usage' ? ' active' : '') + '">';
+  html += renderUsage(quota);
+  html += '</div>'; // end usage panel
+
   $('#content').innerHTML = html;
 }
 
@@ -338,6 +367,101 @@ function card(label, value, detail) {
     + '<div class="card-value">' + value + '</div>'
     + (detail ? '<div class="card-detail">' + detail + '</div>' : '')
     + '</div>';
+}
+
+// ---- Usage tab helpers (mirror src/telemetry/profileUsage.ts; unit-tested there) ----
+function classifyUtil(u) {
+  if (u == null || !isFinite(u)) return '';
+  if (u >= 0.85) return 'high';
+  if (u >= 0.6) return 'warn';
+  return '';
+}
+function resetIn(resetsAt) {
+  if (resetsAt == null || !isFinite(resetsAt)) return '';
+  var ms = resetsAt - Date.now();
+  if (ms <= 0) return 'resetting…';
+  var m = Math.floor(ms / 60000);
+  if (m < 60) return 'resets in ' + Math.max(1, m) + 'm';
+  var h = Math.floor(m / 60), rm = m % 60;
+  if (h < 24) return 'resets in ' + h + 'h' + (rm ? ' ' + rm + 'm' : '');
+  var d = Math.floor(h / 24), rh = h % 24;
+  return 'resets in ' + d + 'd' + (rh ? ' ' + rh + 'h' : '');
+}
+function pct(u) { return Math.round(Math.max(0, u) * 100); }
+
+function usageCard(title, bucket) {
+  if (!bucket || bucket.utilization == null) {
+    return '<div class="ucard"><div class="ucard-head"><span class="ucard-title">' + title + '</span></div>'
+      + '<div class="ucard-pct" style="color:var(--muted)">—</div>'
+      + '<div class="ucard-sub">No data yet</div></div>';
+  }
+  var u = bucket.utilization;
+  var cls = classifyUtil(u);
+  var fill = Math.min(100, pct(u));
+  return '<div class="ucard ' + cls + '">'
+    + '<div class="ucard-head"><span class="ucard-title">' + title + '</span>'
+    +   '<span class="ucard-reset">' + resetIn(bucket.resetsAt) + '</span></div>'
+    + '<div class="ucard-pct">' + pct(u) + '<span style="font-size:16px;font-weight:500;color:var(--muted)">%</span></div>'
+    + '<div class="ubar"><div class="ubar-fill" style="width:' + fill + '%"></div></div>'
+    + '<div class="ucard-sub">of your ' + title.split('·')[1].trim() + ' allowance used</div>'
+    + '</div>';
+}
+
+// Weekly pace: actual vs. expected (even) consumption at this point in the 7-day window.
+function paceCard(weekly) {
+  if (!weekly || weekly.utilization == null || weekly.resetsAt == null) {
+    return '<div class="ucard"><div class="ucard-head"><span class="ucard-title">Weekly Pace</span></div>'
+      + '<div class="ucard-pct" style="color:var(--muted)">—</div>'
+      + '<div class="ucard-sub">Needs weekly usage data</div></div>';
+  }
+  var WEEK = 7 * 86400000;
+  var start = weekly.resetsAt - WEEK;
+  var elapsed = Math.max(0, Math.min(1, (Date.now() - start) / WEEK));
+  var actual = pct(weekly.utilization);
+  var expected = Math.round(elapsed * 100);
+  var delta = actual - expected;
+  var projected = elapsed >= 0.1 ? Math.round((Math.max(0, weekly.utilization) / elapsed) * 100) : null;
+
+  var pill, label;
+  if (delta > 7) { pill = 'ahead'; label = '+' + delta + '% ahead of pace'; }
+  else if (delta < -7) { pill = 'under'; label = Math.abs(delta) + '% under pace'; }
+  else { pill = 'on'; label = 'On pace'; }
+  if (projected != null && projected >= 100) { pill = 'over'; label = 'On track to run out'; }
+
+  var fill = Math.min(100, actual);
+  var mark = Math.min(100, expected);
+  var proj = projected == null ? '—' : projected + '%';
+  return '<div class="ucard">'
+    + '<div class="ucard-head"><span class="ucard-title">Weekly Pace</span>'
+    +   '<span class="ucard-reset">' + Math.round(elapsed * 100) + '% through week</span></div>'
+    + '<div style="margin-top:8px"><span class="pace-pill ' + pill + '">' + label + '</span></div>'
+    + '<div class="ubar"><div class="ubar-fill" style="width:' + fill + '%;background:' + (pill === 'over' ? 'var(--red)' : pill === 'ahead' ? 'var(--yellow)' : 'var(--green)') + '"></div>'
+    +   '<div class="ubar-marker" style="left:' + mark + '%" title="Expected at even pace"></div></div>'
+    + '<div class="ucard-sub">' + actual + '% used vs ' + expected + '% expected · at this rate ~' + proj + ' by reset</div>'
+    + '</div>';
+}
+
+function renderUsage(quota) {
+  if (!quota || !quota.buckets) {
+    return '<div class="empty">Usage data unavailable.</div>';
+  }
+  var by = {};
+  quota.buckets.forEach(function (b) { by[b.type] = b; });
+  var session = by['five_hour'], weekly = by['seven_day'];
+  if ((!session || session.utilization == null) && (!weekly || weekly.utilization == null)) {
+    return '<div class="empty">No usage data yet — Anthropic reports it after your first request through Meridian.</div>';
+  }
+  var h = '<div class="usage-cards">'
+    + usageCard('Session · 5h', session)
+    + usageCard('Weekly · 7d', weekly)
+    + paceCard(weekly)
+    + '</div>';
+  var asOf = quota.asOf ? new Date(quota.asOf).toLocaleTimeString() : '';
+  h += '<div class="usage-note">'
+    + (quota.profile ? 'Profile: ' + quota.profile + ' · ' : '')
+    + 'Reported by Anthropic' + (asOf ? ' · as of ' + asOf : '')
+    + '</div>';
+  return h;
 }
 
 $('#autoRefresh').addEventListener('change', function() {

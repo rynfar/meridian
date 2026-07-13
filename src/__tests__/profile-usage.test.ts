@@ -8,7 +8,11 @@ import {
   classifyUtilization,
   formatResetCountdown,
   formatExtraUsage,
+  computeWeeklyPace,
 } from "../telemetry/profileUsage"
+
+const DAY = 86_400_000
+const WEEK = 7 * DAY
 
 describe("labelForWindow", () => {
   it("maps every documented Anthropic window type", () => {
@@ -181,5 +185,61 @@ describe("formatExtraUsage", () => {
     })
     expect(overshoot!.utilizationPct).toBe(100)
     expect(overshoot!.status).toBe("high")
+  })
+})
+
+describe("computeWeeklyPace", () => {
+  // Window resets at `reset`; it started 7 days earlier. `now` sits somewhere
+  // inside that window, giving an expected (even-pace) utilization.
+  const reset = 10 * WEEK // arbitrary fixed epoch
+
+  it("returns null when utilization or resetsAt is missing", () => {
+    expect(computeWeeklyPace(null, reset, reset - 3 * DAY)).toBeNull()
+    expect(computeWeeklyPace(0.5, null, reset - 3 * DAY)).toBeNull()
+    expect(computeWeeklyPace(undefined, reset, reset - 3 * DAY)).toBeNull()
+  })
+
+  it("computes expected % from the position in the 7-day window", () => {
+    // Halfway through the window → expected 50%.
+    const p = computeWeeklyPace(0.5, reset, reset - 3.5 * DAY)!
+    expect(p.expectedPct).toBe(50)
+    expect(p.actualPct).toBe(50)
+    expect(p.deltaPct).toBe(0)
+    expect(p.status).toBe("on")
+  })
+
+  it("flags burning ahead of pace when actual exceeds expected", () => {
+    // 25% through the window (expected 25%) but 60% used.
+    const p = computeWeeklyPace(0.6, reset, reset - 5.25 * DAY)!
+    expect(p.expectedPct).toBe(25)
+    expect(p.actualPct).toBe(60)
+    expect(p.deltaPct).toBe(35)
+    expect(p.status).toBe("ahead")
+  })
+
+  it("flags comfortably under pace when actual trails expected", () => {
+    // 75% through the window (expected 75%) but only 30% used.
+    const p = computeWeeklyPace(0.3, reset, reset - 1.75 * DAY)!
+    expect(p.expectedPct).toBe(75)
+    expect(p.actualPct).toBe(30)
+    expect(p.status).toBe("under")
+  })
+
+  it("projects end-of-window usage at the current rate", () => {
+    // Halfway, 30% used → at this rate ~60% by reset.
+    const p = computeWeeklyPace(0.3, reset, reset - 3.5 * DAY)!
+    expect(p.projectedPct).toBe(60)
+  })
+
+  it("does not project too early in the window (avoids wild extrapolation)", () => {
+    // 2% into the window — extrapolating from a sliver is meaningless.
+    const p = computeWeeklyPace(0.02, reset, reset - WEEK + 0.02 * WEEK)!
+    expect(p.projectedPct).toBeNull()
+  })
+
+  it("clamps elapsed position to the window bounds", () => {
+    // now past reset → treated as full window elapsed (expected 100%).
+    const p = computeWeeklyPace(0.9, reset, reset + DAY)!
+    expect(p.expectedPct).toBe(100)
   })
 })
