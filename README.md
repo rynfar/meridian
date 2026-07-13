@@ -598,6 +598,27 @@ Requests flow through the Claude Code adapter which:
 - Leaves the SDK subprocess cwd on the proxy host (Claude Code's local paths don't exist there).
 - Runs in passthrough mode by default — Claude Code executes its own tools on the machine it runs on; Meridian just forwards tool_use blocks.
 
+### Adapter instances
+
+Run several configurations of the same adapter side by side — e.g. a passthrough variant with thinking enabled and one without, or a dedicated config for a specific client. Define instances in `~/.config/meridian/adapter-instances.json` (or the `MERIDIAN_ADAPTER_INSTANCES` env var as a JSON string):
+
+```jsonc
+{
+  "oc-thinky":  { "base": "opencode", "features": { "thinking": "enabled" } },
+  "lite-plain": { "base": "passthrough", "passthrough": true,
+                  "match": { "userAgentPrefix": "litellm/" } },
+  "team-webui": { "base": "opencode", "features": { "codeSystemPrompt": false },
+                  "match": { "header": { "x-team": "alpha" } } }
+}
+```
+
+- **`base`** — which built-in adapter provides the behavior (tool handling, session tracking, transforms). Existing plugins and transforms scoped to the base adapter apply to its instances automatically.
+- **`features`** — per-instance overrides of the SDK feature toggles (thinking, system prompts, memory, ...) layered over the base's settings.
+- **`passthrough`** — per-instance passthrough mode, overriding the adapter default and `MERIDIAN_PASSTHROUGH`.
+- **`match`** — optional automatic selection: exact header values and/or a User-Agent prefix. Match rules outrank built-in User-Agent detection (that's their purpose). Without `match`, select the instance per request with `x-meridian-agent: <instance-name>`.
+
+Built-in adapter names are reserved and can't be shadowed. With no instances configured, detection is exactly the built-in chain. Config file changes apply within ~5s, no restart needed.
+
 ### Any Anthropic-compatible tool
 
 ```bash

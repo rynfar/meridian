@@ -614,11 +614,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }
         }
 
-        // Run the transform pipeline — adapter transforms populate SDK configuration
-        const adapterTransforms = getAdapterTransforms(adapter.name)
+        // Run the transform pipeline — adapter transforms populate SDK configuration.
+        // INVARIANT (#476): behavior keyed by adapter name — transforms, plugin
+        // scoping, and agent-specific branches — resolves via the BASE name so
+        // existing transforms and ecosystem plugins keep applying to adapter
+        // instances. Only features and telemetry labels use the instance name.
+        const adapterBase = adapter.baseName ?? adapter.name
+        const adapterTransforms = getAdapterTransforms(adapterBase)
         const pipeline = buildPipeline(adapterTransforms, pluginTransforms)
         const pipelineCtx = runTransformHook(pipeline, "onRequest", createRequestContext({
-          adapter: adapter.name,
+          adapter: adapterBase,
           body,
           headers: c.req.raw.headers,
           model,
@@ -627,7 +632,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           tools: body.tools,
           stream: body.stream ?? false,
           workingDirectory,
-        }), adapter.name)
+        }), adapterBase)
 
         // Allow transform pipeline to override streaming preference (e.g. LiteLLM requires non-streaming)
         const stream = pipelineCtx.prefersStreaming !== undefined ? pipelineCtx.prefersStreaming : (body.stream ?? false)
@@ -679,7 +684,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // SDK feature toggles — resolved once per request for use in thinking
         // defaults, settingSources, and buildQueryOptions below.
         const { getFeaturesForAdapter, getExplicitThinking } = require("./sdkFeatures") as typeof import("./sdkFeatures")
-        const sdkFeatures = getFeaturesForAdapter(adapter.name)
+        // Instances (#476): base-resolved features with the instance's own
+        // overrides layered on top.
+        const sdkFeatures = { ...getFeaturesForAdapter(adapterBase), ...(adapter.instanceFeatures ?? {}) }
 
         // Resolve thinking against the per-adapter setting.
         //
@@ -690,7 +697,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // merged value) because the default is also "disabled" — and that default
         // must stay a no-op so clients can still request thinking per-request.
         // "adaptive"/"enabled" act as a default only when the client sent nothing.
-        if (getExplicitThinking(adapter.name) === "disabled") {
+        if ((adapter.instanceFeatures?.thinking ?? getExplicitThinking(adapterBase)) === "disabled") {
           thinking = { type: "disabled" }
           effort = undefined
           plog(`[PROXY] ${requestMeta.requestId} thinking disabled (per-adapter setting)`)
@@ -764,7 +771,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // resume the backing SDK session. Older clients may omit metadata, so
         // preserve fingerprint resume instead of treating their tool results
         // as unrelated headerless workflow requests.
-        const isClientDrivenLoop = adapter.name !== "claude-code" && !agentSessionId && lastIsToolResult
+        const isClientDrivenLoop = adapterBase !== "claude-code" && !agentSessionId && lastIsToolResult
         const isIndependentSession =
           requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-") || isClientDrivenLoop || false
         let lineageResult = isIndependentSession
@@ -776,7 +783,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // lookup. A new 1-message session can collide with a stored N-message
         // session and be classified as "undo." Downgrade to "diverged" to
         // prevent leaking the old session's conversation history.
-        if (lineageResult.type === "undo" && adapter.name === "opencode" && !agentSessionId) {
+        if (lineageResult.type === "undo" && adapterBase === "opencode" && !agentSessionId) {
           lineageResult = { type: "diverged" }
         }
         const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
@@ -954,9 +961,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
       // Adapter can override the global passthrough env var per-agent.
       // Droid always uses internal mode; OpenCode defers to the env var.
-      const passthrough = pipelineCtx.passthrough !== undefined
-        ? pipelineCtx.passthrough
-        : envBool("PASSTHROUGH")
+      // Instance passthrough override (#476) beats the adapter transform's
+      // default, which beats the global env var.
+      const passthrough = adapter.instancePassthrough !== undefined
+        ? adapter.instancePassthrough
+        : pipelineCtx.passthrough !== undefined
+          ? pipelineCtx.passthrough
+          : envBool("PASSTHROUGH")
       // SDK setting sources — controls CLAUDE.md and user settings loading.
       const settingSources: import("@anthropic-ai/claude-agent-sdk").SettingSource[] =
         envBool("LOAD_CONTEXT") || sdkFeatures.claudeMd === "full"

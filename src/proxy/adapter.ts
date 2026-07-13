@@ -76,6 +76,21 @@ export interface AgentIdentity {
  */
 export interface AgentAdapter extends AgentIdentity {
   /**
+   * For adapter INSTANCES (#476): the base adapter's name. Behavior keyed by
+   * adapter name — transforms, plugin scoping, agent-specific branches —
+   * must resolve via `baseName ?? name` so existing transforms/plugins keep
+   * applying to instances. Features resolve by instance definition instead.
+   * Undefined for built-in adapters.
+   */
+  readonly baseName?: string
+
+  /** Instance feature overrides, layered over the base's resolved features. */
+  readonly instanceFeatures?: Partial<import("./sdkFeatures").AdapterFeatures>
+
+  /** Instance passthrough override — beats the adapter transform's default. */
+  readonly instancePassthrough?: boolean
+
+  /**
    * SDK built-in tools to block (replaced by MCP equivalents).
    * These are tools where the agent provides its own implementation.
    */

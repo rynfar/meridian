@@ -411,3 +411,73 @@ describe("detectAdapter — adapter contracts", () => {
     expect(adapter.usesPassthrough).toBeUndefined()
   })
 })
+
+describe("adapter instances (#476)", () => {
+  const INSTANCES = JSON.stringify({
+    "oc-thinky": { base: "opencode", features: { thinking: "enabled" } },
+    "lite-plain": { base: "passthrough", passthrough: true, match: { userAgentPrefix: "litellm/" } },
+    "team-webui": { base: "opencode", match: { header: { "x-team": "alpha" } } },
+    "broken": { base: "no-such-adapter" },
+  })
+
+  afterEach(() => {
+    delete process.env.MERIDIAN_ADAPTER_INSTANCES
+  })
+
+  it("GOLDEN: with instances configured, non-matching traffic detects identically", () => {
+    process.env.MERIDIAN_ADAPTER_INSTANCES = INSTANCES
+    expect(detectAdapter(makeContext("opencode/1.17.18")).name).toBe("opencode")
+    expect(detectAdapter(makeContext("factory-cli/1.0")).name).toBe("droid")
+    expect(detectAdapter(makeContext("Charm-Crush/0.9")).name).toBe("crush")
+    expect(detectAdapter(makeContext("claude-cli/2.0")).name).toBe("claude-code")
+    expect(detectAdapter(makeContext("", { "x-opencode-session": "s1" })).name).toBe("opencode")
+    expect(detectAdapter(makeContext("curl/8")).name).toBe("opencode") // default
+  })
+
+  it("selects an instance via x-meridian-agent and carries base behavior + overrides", () => {
+    process.env.MERIDIAN_ADAPTER_INSTANCES = INSTANCES
+    const a = detectAdapter(makeContext("anything/1.0", { "x-meridian-agent": "oc-thinky" }))
+    expect(a.name).toBe("oc-thinky")
+    expect(a.baseName).toBe("opencode")
+    expect(a.instanceFeatures).toEqual({ thinking: "enabled" })
+    // Base behavior is inherited (blocked tools come from opencode).
+    expect(a.getBlockedBuiltinTools()).toEqual(openCodeAdapter.getBlockedBuiltinTools())
+  })
+
+  it("built-in adapter names cannot be shadowed by instances", () => {
+    process.env.MERIDIAN_ADAPTER_INSTANCES = JSON.stringify({
+      opencode: { base: "passthrough", passthrough: true },
+    })
+    const a = detectAdapter(makeContext("x/1", { "x-meridian-agent": "opencode" }))
+    expect(a.name).toBe("opencode")
+    expect(a.baseName).toBeUndefined() // the built-in, not an instance
+  })
+
+  it("matches an instance via User-Agent prefix rule (outranks built-in heuristics)", () => {
+    process.env.MERIDIAN_ADAPTER_INSTANCES = INSTANCES
+    const a = detectAdapter(makeContext("litellm/1.2.3"))
+    expect(a.name).toBe("lite-plain")
+    expect(a.baseName).toBe("passthrough")
+    expect(a.instancePassthrough).toBe(true)
+  })
+
+  it("matches an instance via header rule", () => {
+    process.env.MERIDIAN_ADAPTER_INSTANCES = INSTANCES
+    const a = detectAdapter(makeContext("opencode/1.0", { "x-team": "alpha" }))
+    expect(a.name).toBe("team-webui")
+    expect(a.baseName).toBe("opencode")
+  })
+
+  it("instance with unknown base falls through to built-in detection", () => {
+    process.env.MERIDIAN_ADAPTER_INSTANCES = INSTANCES
+    const a = detectAdapter(makeContext("opencode/1.0", { "x-meridian-agent": "broken" }))
+    expect(a.name).toBe("opencode") // UA heuristic wins after the broken instance is skipped
+  })
+
+  it("explicit x-meridian-agent instance selection beats match rules", () => {
+    process.env.MERIDIAN_ADAPTER_INSTANCES = INSTANCES
+    // UA would match lite-plain; the explicit header picks oc-thinky.
+    const a = detectAdapter(makeContext("litellm/1.2.3", { "x-meridian-agent": "oc-thinky" }))
+    expect(a.name).toBe("oc-thinky")
+  })
+})

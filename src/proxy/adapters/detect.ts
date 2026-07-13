@@ -16,6 +16,7 @@ import { forgeCodeAdapter } from "./forgecode"
 import { claudeCodeAdapter } from "./claudecode"
 import { openAiAdapter } from "./openai"
 import { cherryAdapter } from "./cherry"
+import { loadAdapterInstances, matchesInstance, type AdapterInstanceDef } from "../adapterInstances"
 
 const ADAPTER_MAP: Record<string, AgentAdapter> = {
   opencode: openCodeAdapter,
@@ -69,10 +70,54 @@ function isLiteLLMRequest(c: Context): boolean {
  * 7. litellm/* UA or x-litellm-* headers   → LiteLLM passthrough adapter
  * 8. Default                                → MERIDIAN_DEFAULT_AGENT env var, or OpenCode
  */
+/**
+ * Materialize an adapter INSTANCE (#476): the base adapter's behavior under
+ * the instance's name, carrying its feature/passthrough overrides. Behavior
+ * keyed by adapter name resolves via baseName (see adapter.ts). Returns
+ * undefined (fall through to built-in detection) when the base is unknown —
+ * a config typo must never break detection.
+ */
+function makeInstanceAdapter(name: string, def: AdapterInstanceDef): AgentAdapter | undefined {
+  const base = ADAPTER_MAP[def.base.toLowerCase()]
+  if (!base) {
+    console.warn(`[meridian] adapter instance "${name}" references unknown base "${def.base}" — ignoring`)
+    return undefined
+  }
+  return {
+    ...base,
+    name,
+    baseName: base.name,
+    ...(def.features ? { instanceFeatures: def.features } : {}),
+    ...(def.passthrough !== undefined ? { instancePassthrough: def.passthrough } : {}),
+  }
+}
+
 export function detectAdapter(c: Context): AgentAdapter {
   const agentOverride = c.req.header("x-meridian-agent")?.toLowerCase()
   if (agentOverride && ADAPTER_MAP[agentOverride]) {
     return ADAPTER_MAP[agentOverride]!
+  }
+
+  // Adapter instances (#476). Loaded per request (env / TTL-cached file);
+  // {} when unconfigured — the common case, adding zero behavior change.
+  // Precedence: explicit x-meridian-agent (built-in names reserved, checked
+  // above) > instance selected by name > instance match rules > the
+  // built-in heuristic chain below. Match rules outrank built-in User-Agent
+  // heuristics on purpose — redirecting a known client to a custom
+  // configuration is exactly what they exist for.
+  const instances = loadAdapterInstances()
+  const instanceNames = Object.keys(instances)
+  if (instanceNames.length > 0) {
+    if (agentOverride && instances[agentOverride]) {
+      const inst = makeInstanceAdapter(agentOverride, instances[agentOverride]!)
+      if (inst) return inst
+    }
+    for (const name of instanceNames) {
+      if (matchesInstance(instances[name]!, (h) => c.req.header(h))) {
+        const inst = makeInstanceAdapter(name, instances[name]!)
+        if (inst) return inst
+      }
+    }
   }
 
   // OpenCode: plugin injects x-opencode-session; newer versions use x-session-affinity
