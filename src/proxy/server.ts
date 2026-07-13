@@ -1470,6 +1470,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       claudeLog("passthrough.toolsearch_filtered", { mode: "non_stream" })
                       continue
                     }
+                    // Internal chat clients (Cherry Studio): the SDK executed
+                    // WebSearch/WebFetch itself. Hide the internal tool_use (the
+                    // client can't run it and would loop) and strip thinking the
+                    // client can't render — leave only the final grounded answer.
+                    if (pipelineCtx.hidesInternalTools) {
+                      if (b.type === "tool_use") {
+                        claudeLog("internal_tool.hidden", { mode: "non_stream", name: (b as any).name })
+                        continue
+                      }
+                      if ((b.type === "thinking" || b.type === "redacted_thinking") && !sdkFeatures.thinkingPassthrough) {
+                        claudeLog("internal_tool.thinking_stripped", { mode: "non_stream", type: b.type })
+                        continue
+                      }
+                    }
                     // Strip thinking blocks — meaningless to non-native clients
                     if (passthrough && !pipelineCtx.supportsThinking && !sdkFeatures.thinkingPassthrough && (b.type === "thinking" || b.type === "redacted_thinking")) {
                       claudeLog("passthrough.thinking_stripped", { mode: "non_stream", type: b.type })
@@ -2110,6 +2124,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
                     if (eventType === "content_block_start") {
                       const block = (event as any).content_block
+                      // Internal chat clients (Cherry Studio): the SDK executes
+                      // WebSearch/WebFetch itself. Skip the internal tool_use
+                      // block (client can't run it) and the thinking blocks it
+                      // can't render, so the stream carries only the final answer.
+                      if (
+                        pipelineCtx.hidesInternalTools &&
+                        (block?.type === "tool_use" ||
+                          ((block?.type === "thinking" || block?.type === "redacted_thinking") && !sdkFeatures.thinkingPassthrough))
+                      ) {
+                        if (eventIndex !== undefined) skipBlockIndices.add(eventIndex)
+                        claudeLog("internal_tool.hidden", { mode: "stream", type: block?.type, name: block?.name, index: eventIndex })
+                        continue
+                      }
                       // Strip thinking blocks in passthrough mode — non-native clients
                       // have no renderer for type:"thinking" and may choke on the
                       // encrypted signature field.

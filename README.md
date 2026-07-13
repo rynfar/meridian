@@ -474,6 +474,20 @@ Point any OpenAI-compatible tool at `http://127.0.0.1:3456` with any API key val
 
 > **Note:** Multi-turn conversations work by packing prior turns into the system prompt. Each request is a fresh SDK session — OpenAI clients replay full history themselves and don't use Meridian's session resumption.
 
+### Cherry Studio
+
+[Cherry Studio](https://github.com/CherryHQ/cherry-studio) is a desktop chat client. Point it at Meridian by setting the Anthropic API base URL to `http://127.0.0.1:3456` (any API key value works).
+
+Because Cherry Studio is a chat client rather than a coding agent, select the `cherry` adapter so Claude's **built-in web search** is available (coding-agent adapters block it in favour of their own):
+
+```bash
+MERIDIAN_DEFAULT_AGENT=cherry meridian
+```
+
+The `cherry` adapter runs in internal mode: Claude executes `WebSearch`/`WebFetch` itself and Meridian returns the grounded answer — the internal tool calls are hidden from the client. This resolves the "no WebSearch/WebFetch tool exposed" error (#481).
+
+> Cherry Studio doesn't send a Meridian-specific header, so set `MERIDIAN_DEFAULT_AGENT=cherry` on a Meridian dedicated to it, or send `x-meridian-agent: cherry` if your setup allows custom headers.
+
 ### ForgeCode
 
 Add a custom provider to `~/forge/.forge.toml`:

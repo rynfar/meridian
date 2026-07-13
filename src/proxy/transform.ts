@@ -68,6 +68,16 @@ export interface RequestContext {
   supportsThinking: boolean
   shouldTrackFileChanges: boolean
   leaksCwdViaSystemReminder: boolean
+  /**
+   * The client is a pure chat client (no tool-execution loop) that runs the
+   * SDK in internal mode purely to reach Claude's own built-in tools (e.g.
+   * Cherry Studio using WebSearch). The SDK executes those tools itself, so the
+   * proxy must NOT surface the internal tool_use blocks — the client can't run
+   * them and would loop or choke — and should strip thinking blocks it can't
+   * render. Default false: normal internal-mode agents (Droid) keep current
+   * behaviour (their internal tools are mcp__-prefixed and already hidden).
+   */
+  hidesInternalTools?: boolean
   prefersStreaming?: boolean
   extractFileChangesFromToolUse?: (toolName: string, toolInput: unknown) => FileChange[]
 

@@ -454,3 +454,73 @@ describe("Integration: native server tools fail fast", () => {
     expect(response.status).not.toBe(400)
   })
 })
+
+// ============================================================
+// CHERRY STUDIO ADAPTER — web search unblocked (#481)
+// ============================================================
+
+async function postAs(app: any, agent: string, body: any) {
+  return app.fetch(new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": "dummy", "x-meridian-agent": agent },
+    body: JSON.stringify(body),
+  }))
+}
+
+describe("Integration: Cherry Studio web search", () => {
+  let app: any
+
+  beforeAll(() => {
+    app = createTestApp()
+  })
+
+  beforeEach(() => {
+    mockMessages = [assistantMessage([{ type: "text", text: "Node.js 24 is the latest LTS." }])]
+    capturedQueryParams = null
+  })
+
+  it("invokes the SDK with WebSearch/WebFetch ALLOWED and NOT disallowed", async () => {
+    const response = await postAs(app, "cherry", {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [{ role: "user", content: "search the web for the latest node LTS" }],
+    })
+
+    expect(response.status).toBe(200)
+    const opts = capturedQueryParams.options
+    // Web tools are in the allowlist...
+    expect(opts.allowedTools).toContain("WebSearch")
+    expect(opts.allowedTools).toContain("WebFetch")
+    // ...and NOT blocked.
+    expect(opts.disallowedTools).not.toContain("WebSearch")
+    expect(opts.disallowedTools).not.toContain("WebFetch")
+    // Other built-ins stay blocked.
+    expect(opts.disallowedTools).toContain("Bash")
+  })
+
+  it("hides the SDK's internal WebSearch tool_use + thinking, returning only the final answer", async () => {
+    // Simulate the SDK's internal loop: turn 1 thinks + calls WebSearch, turn 2
+    // returns the grounded text. The client must see only the text.
+    mockMessages = [
+      assistantMessage([
+        { type: "thinking", thinking: "Let me search.", signature: "sig" },
+        { type: "tool_use", id: "srch1", name: "WebSearch", input: { query: "node lts" } },
+      ]),
+      assistantMessage([{ type: "text", text: "Node.js 24 is the latest LTS." }]),
+    ]
+
+    const response = await postAs(app, "cherry", {
+      model: "claude-sonnet-4-5",
+      max_tokens: 512,
+      stream: false,
+      messages: [{ role: "user", content: "latest node LTS?" }],
+    })
+
+    const body = await response.json() as any
+    expect(response.status).toBe(200)
+    expect(body.content.map((b: any) => b.type)).toEqual(["text"])
+    expect(body.content[0].text).toContain("Node.js 24")
+    expect(body.stop_reason).toBe("end_turn")
+  })
+})

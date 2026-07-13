@@ -15,6 +15,7 @@ import { piAdapter } from "./pi"
 import { forgeCodeAdapter } from "./forgecode"
 import { claudeCodeAdapter } from "./claudecode"
 import { openAiAdapter } from "./openai"
+import { cherryAdapter } from "./cherry"
 
 const ADAPTER_MAP: Record<string, AgentAdapter> = {
   opencode: openCodeAdapter,
@@ -25,6 +26,9 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   forgecode: forgeCodeAdapter,
   "claude-code": claudeCodeAdapter,
   claudecode: claudeCodeAdapter,
+  // Cherry Studio chat client — unblocks the SDK's built-in web search (#481).
+  cherry: cherryAdapter,
+  cherrystudio: cherryAdapter,
   // Generic OpenAI-compatible endpoint (/v1/chat/completions). Selected via
   // the x-meridian-agent: openai tag the handler sets on the internal hop.
   openai: openAiAdapter,
