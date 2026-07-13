@@ -182,10 +182,55 @@ export interface ToolCallInfo {
   name: string
   /** Compact human-readable target (file path, command, pattern...), if any. */
   target: string | undefined
+  /**
+   * For mutating tools (edit/write/multiedit): a truncated summary of the
+   * content the call produced. On fresh replay the assistant's tool_use
+   * blocks are dropped, so without this the model knows THAT it edited a
+   * file but not WHAT it wrote — it then re-derives near-duplicate edits
+   * and confabulates a parallel editor when it doesn't recognize its own
+   * wording (#496 follow-up, stefanpartheym's transcript).
+   */
+  contentSummary: string | undefined
 }
 
 /** Input keys that identify what a tool call operated on, in priority order. */
 const TOOL_TARGET_KEYS = ["filePath", "file_path", "path", "command", "pattern", "query", "url"] as const
+
+/** Max length of a replayed content summary (before the "..." marker). */
+const CONTENT_SUMMARY_MAX = 120
+
+/** Collapse whitespace runs to single spaces and truncate. */
+function summarizeContent(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined
+  const collapsed = value.replace(/\s+/g, " ").trim()
+  if (!collapsed) return undefined
+  return collapsed.length > CONTENT_SUMMARY_MAX ? collapsed.slice(0, CONTENT_SUMMARY_MAX) + "..." : collapsed
+}
+
+/**
+ * Extract a content summary for mutating tools. Non-mutating tools (read,
+ * bash, grep, ...) return undefined — their target alone identifies the call.
+ */
+function extractContentSummary(name: string, input: unknown): string | undefined {
+  if (!input || typeof input !== "object") return undefined
+  const rec = input as Record<string, unknown>
+  switch (name.toLowerCase()) {
+    case "edit":
+      return summarizeContent(rec.newString ?? rec.new_string)
+    case "write":
+      return summarizeContent(rec.content)
+    case "multiedit": {
+      const edits = rec.edits
+      if (!Array.isArray(edits) || edits.length === 0) return undefined
+      const first = edits[0] as Record<string, unknown> | null | undefined
+      const firstSummary = summarizeContent(first?.newString ?? first?.new_string)
+      if (!firstSummary) return undefined
+      return edits.length > 1 ? `${edits.length} edits; first: ${firstSummary}` : firstSummary
+    }
+    default:
+      return undefined
+  }
+}
 
 /**
  * Index every assistant tool_use block in a conversation by id.
@@ -216,7 +261,11 @@ export function buildToolUseIndex(
           }
         }
       }
-      index.set(block.id, { name: block.name, target })
+      index.set(block.id, {
+        name: block.name,
+        target,
+        contentSummary: extractContentSummary(block.name, input),
+      })
     }
   }
   return index
@@ -224,11 +273,18 @@ export function buildToolUseIndex(
 
 /**
  * Render a compact attribution label for a replayed tool result, e.g.
- * `[write tmp/test2.txt]` or `[bash echo hi]`. Deliberately terse and
- * bracket-formatted differently from the banned `[Tool Use: ...]` /
- * `[Tool Result ...]` shapes (#111/#386) so the model reads it as context,
- * not as tool-call syntax to imitate.
+ * `[write tmp/test2.txt]`, `[bash echo hi]`, or — for mutating tools —
+ * `[edit a.yml → "# Ignore major bumps..."]` so the model can recognize its
+ * own prior work product on replay. Deliberately terse and bracket-formatted
+ * differently from the banned `[Tool Use: ...]` / `[Tool Result ...]` shapes
+ * (#111/#386) so the model reads it as context, not as tool-call syntax to
+ * imitate.
  */
 export function describeToolCall(info: ToolCallInfo): string {
-  return info.target ? `[${info.name} ${info.target}]` : `[${info.name}]`
+  // "your" marks agency: the replay drops the assistant turn that made the
+  // call, so the attribution sits inside a USER turn — without an explicit
+  // owner the model reads it as someone else's action and answers
+  // "I haven't made any edits in this conversation" (verified live).
+  const head = info.target ? `your ${info.name} ${info.target}` : `your ${info.name}`
+  return info.contentSummary ? `[${head} → "${info.contentSummary}"]` : `[${head}]`
 }

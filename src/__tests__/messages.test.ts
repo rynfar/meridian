@@ -287,8 +287,10 @@ describe("buildToolUseIndex / tool-result attribution (#552)", () => {
 
   it("indexes every assistant tool_use by id with name and target", () => {
     const idx = buildToolUseIndex(history)
-    expect(idx.get("toolu_w")).toEqual({ name: "write", target: "tmp/test2.txt" })
-    expect(idx.get("toolu_r")).toEqual({ name: "read", target: "tmp/test1.txt" })
+    // write is a mutating tool → carries a content summary so the model can
+    // recognize its own work product on replay (#496 follow-up)
+    expect(idx.get("toolu_w")).toEqual({ name: "write", target: "tmp/test2.txt", contentSummary: "apple" })
+    expect(idx.get("toolu_r")).toEqual({ name: "read", target: "tmp/test1.txt", contentSummary: undefined })
   })
 
   it("extracts common target keys and truncates long ones", () => {
@@ -299,18 +301,111 @@ describe("buildToolUseIndex / tool-result attribution (#552)", () => {
         { type: "tool_use", id: "t3", name: "custom", input: { weird: true } },
       ] },
     ])
-    expect(idx.get("t1")).toEqual({ name: "bash", target: "echo hi" })
+    expect(idx.get("t1")).toEqual({ name: "bash", target: "echo hi", contentSummary: undefined })
     expect(idx.get("t2")!.target!.length).toBeLessThanOrEqual(80)
-    expect(idx.get("t3")).toEqual({ name: "custom", target: undefined })
+    expect(idx.get("t3")).toEqual({ name: "custom", target: undefined, contentSummary: undefined })
   })
 
   it("describeToolCall renders a compact attribution label", () => {
-    expect(describeToolCall({ name: "write", target: "tmp/test2.txt" })).toBe("[write tmp/test2.txt]")
-    expect(describeToolCall({ name: "custom", target: undefined })).toBe("[custom]")
+    expect(describeToolCall({ name: "write", target: "tmp/test2.txt", contentSummary: undefined })).toBe("[your write tmp/test2.txt]")
+    expect(describeToolCall({ name: "custom", target: undefined, contentSummary: undefined })).toBe("[your custom]")
   })
 
   it("returns an empty index for non-array and toolless content", () => {
     expect(buildToolUseIndex([{ role: "user", content: "hi" }]).size).toBe(0)
     expect(buildToolUseIndex([]).size).toBe(0)
+  })
+
+  // #496 follow-up: on fresh replay the assistant's tool_use blocks are dropped,
+  // so without a content summary the model knows THAT it edited a file but not
+  // WHAT it wrote — it then re-derives near-duplicate edits and confabulates a
+  // parallel editor ("the first variant of the comments isn't mine").
+  describe("content summaries for mutating tools", () => {
+    it("edit: summarizes newString", () => {
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [
+          { type: "tool_use", id: "e1", name: "edit", input: { filePath: "a.yml", oldString: "old", newString: "# Ignore major bumps\n  - dependency-name: foo" } },
+        ] },
+      ])
+      expect(idx.get("e1")!.contentSummary).toBe("# Ignore major bumps - dependency-name: foo")
+    })
+
+    it("edit: accepts snake_case new_string and PascalCase tool names", () => {
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [
+          { type: "tool_use", id: "e2", name: "Edit", input: { file_path: "a.ts", new_string: "const x = 1" } },
+        ] },
+      ])
+      expect(idx.get("e2")!.contentSummary).toBe("const x = 1")
+    })
+
+    it("write: summarizes content", () => {
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [
+          { type: "tool_use", id: "w1", name: "write", input: { filePath: "b.txt", content: "hello\nworld" } },
+        ] },
+      ])
+      expect(idx.get("w1")!.contentSummary).toBe("hello world")
+    })
+
+    it("multiedit: summarizes the first edit and notes the count", () => {
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [
+          { type: "tool_use", id: "m1", name: "multiedit", input: { filePath: "c.ts", edits: [
+            { oldString: "a", newString: "first new text" },
+            { oldString: "b", newString: "second" },
+            { oldString: "c", newString: "third" },
+          ] } },
+        ] },
+      ])
+      expect(idx.get("m1")!.contentSummary).toBe("3 edits; first: first new text")
+    })
+
+    it("collapses whitespace and truncates long content", () => {
+      const long = ("line one\n\n  line two\t" + "x".repeat(300))
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [
+          { type: "tool_use", id: "e3", name: "edit", input: { filePath: "d.ts", newString: long } },
+        ] },
+      ])
+      const s = idx.get("e3")!.contentSummary!
+      expect(s.startsWith("line one line two")).toBe(true)
+      expect(s.length).toBeLessThanOrEqual(123)
+      expect(s.endsWith("...")).toBe(true)
+      expect(s).not.toContain("\n")
+    })
+
+    it("non-mutating tools get no summary (read/bash/grep)", () => {
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [
+          { type: "tool_use", id: "r1", name: "read", input: { filePath: "a.ts" } },
+          { type: "tool_use", id: "b1", name: "bash", input: { command: "rm -rf /tmp/x" } },
+          { type: "tool_use", id: "g1", name: "grep", input: { pattern: "foo" } },
+        ] },
+      ])
+      expect(idx.get("r1")!.contentSummary).toBeUndefined()
+      expect(idx.get("b1")!.contentSummary).toBeUndefined()
+      expect(idx.get("g1")!.contentSummary).toBeUndefined()
+    })
+
+    it("describeToolCall includes the summary when present", () => {
+      expect(describeToolCall({ name: "edit", target: "a.yml", contentSummary: "# Ignore major bumps" }))
+        .toBe('[your edit a.yml → "# Ignore major bumps"]')
+      expect(describeToolCall({ name: "write", target: undefined, contentSummary: "hello" }))
+        .toBe('[your write → "hello"]')
+    })
+
+    it("tolerates malformed inputs without crashing", () => {
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [
+          { type: "tool_use", id: "x1", name: "edit", input: { filePath: "a", newString: 42 } },
+          { type: "tool_use", id: "x2", name: "multiedit", input: { filePath: "b", edits: "not-an-array" } },
+          { type: "tool_use", id: "x3", name: "write", input: null },
+        ] },
+      ])
+      expect(idx.get("x1")!.contentSummary).toBeUndefined()
+      expect(idx.get("x2")!.contentSummary).toBeUndefined()
+      expect(idx.get("x3")!.contentSummary).toBeUndefined()
+    })
   })
 })

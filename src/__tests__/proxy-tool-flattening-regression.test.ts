@@ -257,13 +257,50 @@ describe("tool-result attribution on full-history replay (#552)", () => {
     await postWithSession(app, "attribution-session-1", toolLoopHistory, "sdk-attr-1")
 
     const prompt = promptToString(getCaptured()?.prompt)
-    // The write result must be attributed — the model must be able to see IT
-    // wrote tmp/test2.txt, not just an unexplained success string.
-    expect(prompt).toContain("[write tmp/test2.txt]")
+    // The write result must be attributed WITH its content — the model must be
+    // able to recognize its own work product, not just an unexplained success
+    // string (#552 gave it the target; the #496 follow-up adds the content, so
+    // it stops re-deriving near-duplicate edits and blaming a phantom co-editor).
+    expect(prompt).toContain('[your write tmp/test2.txt → "apple"]')
     expect(prompt).toContain("Wrote file successfully")
-    // The read result must be attributed to the right file.
-    expect(prompt).toContain("[read tmp/test1.txt]")
+    // The read result must be attributed to the right file (no content summary
+    // for non-mutating tools).
+    expect(prompt).toContain("[your read tmp/test1.txt]")
     // And the banned verbose shapes must stay banned.
+    assertNoFlattenedToolBlocks(getCaptured()?.prompt)
+  })
+
+  it("replays edit calls with a truncated summary of what changed (#496 follow-up)", async () => {
+    const app = createTestApp()
+    const editHistory = [
+      { role: "user", content: "add ignore rules to dependabot config" },
+      {
+        role: "assistant",
+        content: [{
+          type: "tool_use", id: "toolu_e1", name: "edit",
+          input: {
+            filePath: ".github/dependabot.yml",
+            oldString: "    open-pull-requests-limit: 10",
+            newString: "    open-pull-requests-limit: 10\n    ignore:\n      # Major bumps need manual review\n      - dependency-name: \"*\"",
+          },
+        }],
+      },
+      {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_e1", content: "Edit applied successfully." },
+          { type: "text", text: "now validate the file" },
+        ],
+      },
+    ]
+    await postWithSession(app, "attribution-session-2", editHistory, "sdk-attr-2")
+
+    const prompt = promptToString(getCaptured()?.prompt)
+    // The model must see WHAT it inserted, whitespace-collapsed, so it can
+    // recognize its own wording later instead of concluding "the first
+    // variant of the comments isn't mine" (stefanpartheym's #496 transcript).
+    expect(prompt).toContain('[your edit .github/dependabot.yml → "open-pull-requests-limit: 10 ignore: # Major bumps need manual review')
+    expect(prompt).toContain("Edit applied successfully.")
     assertNoFlattenedToolBlocks(getCaptured()?.prompt)
   })
 })
