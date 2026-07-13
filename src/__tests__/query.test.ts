@@ -69,12 +69,12 @@ describe("buildQueryOptions", () => {
     expect(result.options.maxTurns).toBe(3)
   })
 
-  it("sets maxTurns to 3 in passthrough mode with deferred tools (ToolSearch fits within base budget)", () => {
+  it("sets maxTurns to 4 in passthrough mode with deferred tools (+1 for the ToolSearch discovery turn, #547)", () => {
     const result = buildQueryOptions(makeContext({ passthrough: true, hasDeferredTools: true }))
-    expect(result.options.maxTurns).toBe(3)
+    expect(result.options.maxTurns).toBe(4)
   })
 
-  it("sets maxTurns to 4 in passthrough mode when resume AND deferred tools are both active", () => {
+  it("sets maxTurns to 4 in passthrough mode when resume AND deferred tools are both active (resume rehydration is inline; only the discovery turn adds)", () => {
     const result = buildQueryOptions(makeContext({
       passthrough: true,
       resumeSessionId: "sess-123",
@@ -93,9 +93,9 @@ describe("buildQueryOptions", () => {
     expect(result.options.maxTurns).toBe(6)
   })
 
-  it("sets maxTurns to 6 in passthrough mode with advisor + deferred tools", () => {
+  it("sets maxTurns to 7 in passthrough mode with advisor + deferred tools (base 3 + discovery 1 + advisor 3)", () => {
     const result = buildQueryOptions(makeContext({ passthrough: true, advisorModel: "claude-opus-4-7", hasDeferredTools: true }))
-    expect(result.options.maxTurns).toBe(6)
+    expect(result.options.maxTurns).toBe(7)
   })
 
   it("sets maxTurns to 7 in passthrough mode with advisor + resume + deferred tools (all three active)", () => {

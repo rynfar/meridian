@@ -242,7 +242,7 @@ describe("auto-defer — threshold-based deferral via HTTP", () => {
     expect(capturedQueryParams.options.env.ENABLE_TOOL_SEARCH).toBe("false")
   })
 
-  it("sets maxTurns to 3 when deferred tools are present", async () => {
+  it("sets maxTurns to 4 when deferred tools are present (+1 for the ToolSearch discovery turn, #547)", async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "Hello" }])]
 
     await app().fetch(new Request("http://localhost/v1/messages", {
@@ -255,7 +255,7 @@ describe("auto-defer — threshold-based deferral via HTTP", () => {
       })),
     }))
 
-    expect(capturedQueryParams.options.maxTurns).toBe(3)
+    expect(capturedQueryParams.options.maxTurns).toBe(4)
   })
 
   it("sets maxTurns to 3 when no deferred tools (passthrough base budget)", async () => {

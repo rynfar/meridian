@@ -138,26 +138,29 @@ export interface BuildQueryResult {
  *     thinking + tool_use exhausting the 2-turn budget mid-handoff and returning
  *     500s on fresh (non-resume) requests. See errors.ts sdk_termination
  *     diagnostic + telemetry.
- *   - Resume / deferred (no extra turn over base): both fit within the 3-turn
- *     budget. Resume rehydration and ToolSearch lookups complete inside turn 1.
- *   - Both resume and deferred (+1): a second prelude phase pushes one phase
- *     out, so budget becomes 4.
+ *   - Deferred tools (+1): a ToolSearch discovery is a real model round-trip
+ *     that consumes a turn before the model can emit the real tool_use. The
+ *     old model wrongly assumed a lone deferred set fit in base 3, so the
+ *     discovery ate into the tool-call budget — deferred sessions hit max_turns
+ *     prematurely, forcing cold-cache retries and churn (#547).
+ *   - Resume (+0): rehydration completes inline within turn 1, so it adds no
+ *     turn — a resumed deferred session is 4, same as a fresh deferred one.
  *   - Advisor (+3): server-side advisor executes call + result + final answer.
  */
 function computePassthroughMaxTurns(
-  resumeSessionId: string | undefined,
   hasDeferredTools: boolean,
   advisorModel: string | undefined,
 ): number {
-  const hasResume = !!resumeSessionId
-  const defaultBase = hasResume && hasDeferredTools ? 4 : 3
+  const deferredBump = hasDeferredTools ? 1 : 0
+  const defaultBase = 3 + deferredBump
   // The base is the SDK's internal-loop budget before it must return control.
   // It's normally enough (the capture path drops re-emitted duplicates and
   // stops the loop when the model starts repeating), but wide parallel tool
   // calls — which the SDK surfaces one assistant turn each — can need more
   // headroom, and orchestration clients hit it on deep chains (#494). Allow
   // MERIDIAN_PASSTHROUGH_MAX_TURNS / CLAUDE_PROXY_PASSTHROUGH_MAX_TURNS to
-  // raise (or lower) the base; the resume/advisor bumps below are unchanged.
+  // raise (or lower) the base (incl. the deferred bump); the advisor bump
+  // below is added on top and is unaffected by the override.
   const configured = envInt("PASSTHROUGH_MAX_TURNS", defaultBase)
   const base = configured > 0 ? configured : defaultBase
   const advisorBump = advisorModel ? 3 : 0
@@ -244,7 +247,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       // is not in PATH — causing subprocess spawns to fail.
       executable: "node" as const,
       maxTurns: passthrough
-        ? computePassthroughMaxTurns(resumeSessionId, hasDeferredTools, ctx.advisorModel)
+        ? computePassthroughMaxTurns(hasDeferredTools, ctx.advisorModel)
         : 200,
       cwd: workingDirectory,
       model,
