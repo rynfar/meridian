@@ -63,8 +63,6 @@
           };
 
         flake = {
-          homeManagerModules = self.homeModules;
-
           homeModules = {
             default = self.homeModules.meridian;
             meridian = moduleWithSystem (

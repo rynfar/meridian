@@ -130,6 +130,12 @@ Then in `~/.config/opencode/opencode.json`:
 
 The service starts automatically on login. Manage it with `systemctl --user {start,stop,restart,status} meridian`.
 
+The module manages only the systemd user service — it does **not** put the `meridian` CLI on your `$PATH`. If you also want to run `meridian` from a shell, add the package yourself:
+
+```nix
+home.packages = [ config.services.meridian.package ];
+```
+
 The plugin path is also available as `config.services.meridian.opencode.pluginPath` for use in your OpenCode config:
 
 ```nix
