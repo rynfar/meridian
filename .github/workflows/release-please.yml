@@ -96,9 +96,9 @@ jobs:
       contents: read
       packages: write
     steps:
+      # No ref: the workflow was triggered by the release-PR merge, so the
+      # checked-out commit IS the release commit (version bump + changelog).
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -113,14 +113,12 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Derive the bare semver from the release tag. release-please's own
-      # `.--version` output came through empty at job scope, but `.--tag_name`
-      # (used above for checkout) is reliable — strip its `meridian-v` prefix.
-      - name: Derive version from tag
+      # Read the semver straight from the just-bumped package.json. Both of
+      # release-please's `.--tag_name` / `.--version` outputs resolved empty at
+      # job scope (twice — v1.46.0 and v1.47.0), so don't depend on them.
+      - name: Read version
         id: ver
-        run: echo "version=${TAG#meridian-v}" >> "$GITHUB_OUTPUT"
-        env:
-          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Docker metadata
         id: meta
