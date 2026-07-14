@@ -496,3 +496,84 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     expect(capturedResume).toBeUndefined()
   })
 })
+
+describe("dropped calls must not leak to the client (truth-divergence guard)", () => {
+  // The hook can still DROP calls with early stop on: exact duplicates
+  // ("do not repeat") and forced-single overflow (tool_choice:{type:"tool"} —
+  // generateObject needs EXACTLY one call). The model is told those calls
+  // were NOT forwarded — so the client must never see them. Before this
+  // guard, the merge block only added/normalized captured blocks and never
+  // removed dropped ones: a forced-single parallel emission returned BOTH
+  // tool_use blocks (unparseable for generateObject), and the model/client
+  // views diverged — the #552 misattribution seed.
+  let origEnv: string | undefined
+  let origEarlyStop: string | undefined
+
+  beforeEach(() => {
+    origEnv = process.env.MERIDIAN_PASSTHROUGH
+    origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    mockTurns = []
+    capturedController = undefined
+    capturedResume = undefined
+    clearSessionCache()
+  })
+
+  afterEach(() => {
+    if (origEnv === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+    else process.env.MERIDIAN_PASSTHROUGH = origEnv
+    if (origEarlyStop === undefined) delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    else process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
+  })
+
+  it("forced single: parallel emission in ONE message returns exactly one tool_use", async () => {
+    const turn = toolTurn("toolu_j1", "json", { answer: "first" })
+    ;(turn as any).message.content = [
+      { type: "tool_use", id: "toolu_j1", name: `${PASSTHROUGH_PREFIX}json`, input: { answer: "first" } },
+      { type: "tool_use", id: "toolu_j2", name: `${PASSTHROUGH_PREFIX}json`, input: { answer: "second" } },
+    ]
+    mockTurns = [turn]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const req = new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-opencode-session": "forced-single-session" },
+      body: JSON.stringify(makeRequest({
+        stream: false,
+        tools: [tool("json")],
+        tool_choice: { type: "tool", name: "json", disable_parallel_tool_use: true },
+        messages: [{ role: "user", content: "Give me the answer." }],
+      })),
+    })
+    const body = await (await app.fetch(req)).json() as any
+
+    const toolUses = body.content.filter((b: any) => b.type === "tool_use")
+    expect(toolUses.length).toBe(1)
+    expect(toolUses[0].id).toBe("toolu_j1")
+    expect(toolUses[0].input).toEqual({ answer: "first" })
+  })
+
+  it("exact duplicate in ONE message is not delivered twice", async () => {
+    const turn = toolTurn("toolu_d1", "read", { filePath: "a.txt" })
+    ;(turn as any).message.content = [
+      { type: "tool_use", id: "toolu_d1", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+      // Same name + same input, fresh id — the hook drops it ("do not repeat").
+      { type: "tool_use", id: "toolu_d2", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+    ]
+    mockTurns = [turn, {
+      type: "user",
+      message: { role: "user", content: [
+        { type: "tool_result", tool_use_id: "toolu_d1", is_error: true, content: "forwarded" },
+        { type: "tool_result", tool_use_id: "toolu_d2", is_error: true, content: "already forwarded" },
+      ]},
+      parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session",
+    }]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const response = await post(app, false)
+    const body = await response.json() as any
+    const toolUses = body.content.filter((b: any) => b.type === "tool_use")
+    expect(toolUses.map((t: any) => t.id)).toEqual(["toolu_d1"])
+  })
+})

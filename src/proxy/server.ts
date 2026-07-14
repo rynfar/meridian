@@ -999,6 +999,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const capturedToolUses: Array<{ id: string; name: string; input: any }> = []
       const capturedSignatures = new Set<string>()
       const capturedToolNames = new Set<string>()
+      // Calls the hook DROPPED (exact duplicate / forced-single overflow /
+      // legacy same-tool repeat). The model was told these were NOT forwarded,
+      // so the client must never see them — the merge strips them from the
+      // response. Without this, a forced-single parallel emission returned
+      // BOTH tool_use blocks (unparseable for generateObject) and the
+      // model/client views diverged (#552 misattribution family).
+      const droppedToolUseIds = new Set<string>()
       let sawDuplicateToolUse = false
       // Early stop: the moment every forwarded tool call's deny is persisted
       // (observed as a `user` tool_result in the stream), abort the query so
@@ -1156,8 +1163,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 const isSameToolRepeat = !earlyStopEnabled && !isExactDuplicate && capturedToolNames.has(toolName)
                 const exceedsForcedSingle = forceSingleToolUse && capturedToolUses.length >= 1
                 if (isExactDuplicate) {
+                  droppedToolUseIds.add(input.tool_use_id)
                   claudeLog("passthrough.duplicate_tool_use_dropped", { name: toolName })
                 } else if (isSameToolRepeat || exceedsForcedSingle) {
+                  droppedToolUseIds.add(input.tool_use_id)
                   sawDuplicateToolUse = true
                   claudeLog("passthrough.extra_tool_use_dropped", {
                     name: toolName,
@@ -1669,6 +1678,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // its content blocks, replace the input with the normalized version.
           // If the SDK omitted it (blocked tools may not appear), add it.
           if (passthrough && capturedToolUses.length > 0) {
+            // Strip calls the hook dropped — the model was told they were NOT
+            // forwarded ("do not repeat" / forced-single overflow), so
+            // delivering them anyway diverges the client's view from the
+            // session history (#552) and hands generateObject multiple
+            // structured calls where it requires exactly one.
+            if (droppedToolUseIds.size > 0) {
+              for (let i = contentBlocks.length - 1; i >= 0; i--) {
+                const b = contentBlocks[i]!
+                if (b.type === "tool_use" && droppedToolUseIds.has((b as any).id)) {
+                  contentBlocks.splice(i, 1)
+                }
+              }
+            }
             const capturedById = new Map(capturedToolUses.map(tu => [tu.id, tu]))
             for (const block of contentBlocks) {
               if (block.type === "tool_use" && capturedById.has((block as any).id)) {
