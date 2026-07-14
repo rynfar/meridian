@@ -154,10 +154,20 @@ async function readSSE(response: Response) {
 
 describe("Passthrough deny aborts the nested SDK session on loop detection", () => {
   let origEnv: string | undefined
+  let origEarlyStop: string | undefined
 
+  // These tests pin the LEGACY single-step semantics (#571): same-tool
+  // repeats are dropped and abort the query mid-hook. With early stop
+  // enabled (the default since the digest-turn elimination), same-tool
+  // calls are captured as genuine parallelism instead — see the
+  // "parallel same-tool calls" describe below. The legacy path remains
+  // reachable via the MERIDIAN_PASSTHROUGH_EARLY_STOP=0 kill switch and
+  // must keep working for operators who disable early stop.
   beforeEach(() => {
     origEnv = process.env.MERIDIAN_PASSTHROUGH
+    origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
+    process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = "0"
     mockTurns = []
     capturedController = undefined
     capturedResume = undefined
@@ -167,6 +177,8 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
   afterEach(() => {
     if (origEnv === undefined) delete process.env.MERIDIAN_PASSTHROUGH
     else process.env.MERIDIAN_PASSTHROUGH = origEnv
+    if (origEarlyStop === undefined) delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    else process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
   })
 
   it("non-stream: aborts the SDK query when a same-tool repeat is detected and still returns the distinct tool_use", async () => {
@@ -300,6 +312,187 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
       { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "72F" }] },
     ])
     expect(second.status).toBe(200)
+    expect(capturedResume).toBeUndefined()
+  })
+})
+
+describe("parallel same-tool calls are captured and forwarded (#552 kabo regression)", () => {
+  // Root cause of kabo's v1.49.0 'read {} → Tool execution aborted' loop:
+  // 'read multiple files' makes the model emit TWO parallel read calls in ONE
+  // assistant message. The legacy #571 rule assumed genuine parallelism uses
+  // DISTINCT tool names, so call 2 was dropped + the query SIGTERMed mid-hook
+  // — cutting call 2's already-streamed block (red read), skipping the session
+  // store, and forcing a fresh replay whose '[your read ...]: Tool execution
+  // aborted' lines the model then disowns ("calls I did not make").
+  //
+  // With early stop, the fabricated-loop turns #571 guarded against never
+  // generate (the query stops at deny-persistence), so same-tool-new-args
+  // calls are genuine parallelism and must be captured and forwarded.
+  let origEnv: string | undefined
+  let origEarlyStop: string | undefined
+
+  beforeEach(() => {
+    origEnv = process.env.MERIDIAN_PASSTHROUGH
+    origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP // early stop ON (default)
+    mockTurns = []
+    capturedController = undefined
+    capturedResume = undefined
+    clearSessionCache()
+  })
+
+  afterEach(() => {
+    if (origEnv === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+    else process.env.MERIDIAN_PASSTHROUGH = origEnv
+    if (origEarlyStop === undefined) delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    else process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
+  })
+
+  function parallelReadTurn() {
+    const turn = toolTurn("toolu_pa", "read", { filePath: "a.txt" })
+    ;(turn as any).message.content = [
+      { type: "tool_use", id: "toolu_pa", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+      { type: "tool_use", id: "toolu_pb", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "b.txt" } },
+    ]
+    return turn
+  }
+
+  function denyUser(ids: string[]) {
+    return {
+      type: "user",
+      message: {
+        role: "user",
+        content: ids.map((id) => ({
+          type: "tool_result",
+          tool_use_id: id,
+          is_error: true,
+          content: "This tool call has been forwarded to the client for execution.",
+        })),
+      },
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: "test-session",
+    }
+  }
+
+  it("non-stream: both parallel reads are captured with full inputs; digest turn never consumed", async () => {
+    mockTurns = [
+      parallelReadTurn(),
+      denyUser(["toolu_pa", "toolu_pb"]),
+      // Digest/fabrication turn — early stop must abort before this is consumed.
+      toolTurn("toolu_garbage", "get_time", { tz: "UTC" }),
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const response = await post(app, false)
+    const body = await response.json() as any
+
+    expect(response.status).toBe(200)
+    expect(body.stop_reason).toBe("tool_use")
+    const toolUses = body.content.filter((b: any) => b.type === "tool_use")
+    expect(toolUses.map((t: any) => t.id).sort()).toEqual(["toolu_pa", "toolu_pb"])
+    // Full inputs — no argument-less 'red read'.
+    expect(toolUses.find((t: any) => t.id === "toolu_pa").input).toEqual({ filePath: "a.txt" })
+    expect(toolUses.find((t: any) => t.id === "toolu_pb").input).toEqual({ filePath: "b.txt" })
+    // Early stop aborted the query after the denies were persisted.
+    expect(capturedController!.signal.aborted).toBe(true)
+  })
+
+  it("the parallel-capture session is stored — the follow-up RESUMES instead of fresh-replaying", async () => {
+    mockTurns = [parallelReadTurn(), denyUser(["toolu_pa", "toolu_pb"])]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    const first = await post(app, false)
+    expect(first.status).toBe(200)
+
+    mockTurns = [
+      {
+        type: "assistant",
+        message: {
+          id: "msg_final", type: "message", role: "assistant",
+          content: [{ type: "text", text: "Both files read successfully." }],
+          model: "claude-sonnet-4-5-20250929", stop_reason: "end_turn",
+          usage: { input_tokens: 10, output_tokens: 10 },
+        },
+        parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session",
+      },
+    ]
+    capturedResume = undefined
+    const second = await post(app, false, [
+      { role: "user", content: "Do the thing." },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "toolu_pa", name: "read", input: { filePath: "a.txt" } },
+        { type: "tool_use", id: "toolu_pb", name: "read", input: { filePath: "b.txt" } },
+      ]},
+      { role: "user", content: [
+        { type: "tool_result", tool_use_id: "toolu_pa", content: "contents of a" },
+        { type: "tool_result", tool_use_id: "toolu_pb", content: "contents of b" },
+      ]},
+    ])
+    expect(second.status).toBe(200)
+    // The stored session is resumed — this is what kills the fresh-replay
+    // '[your read ...]: Tool execution aborted' confusion loop.
+    // (?? guard defeats TS narrowing from the `= undefined` reset above —
+    // the mock closure reassigns it during the request.)
+    expect(capturedResume ?? "(not resumed)").toBe("test-session")
+  })
+
+  it("stream: both parallel read blocks reach the client fully terminated, no error", async () => {
+    const streamEvent = (event: any) => ({
+      type: "stream_event", event, parent_tool_use_id: null,
+      uuid: crypto.randomUUID(), session_id: "test-session",
+    })
+    mockTurns = [
+      streamMessageStart(),
+      streamEvent({ type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "toolu_pa", name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+      streamEvent({ type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"filePath":"a.txt"}' } }),
+      streamEvent({ type: "content_block_stop", index: 1 }),
+      streamEvent({ type: "content_block_start", index: 2, content_block: { type: "tool_use", id: "toolu_pb", name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+      streamEvent({ type: "content_block_delta", index: 2, delta: { type: "input_json_delta", partial_json: '{"filePath":"b.txt"}' } }),
+      streamEvent({ type: "content_block_stop", index: 2 }),
+      parallelReadTurn(),
+      denyUser(["toolu_pa", "toolu_pb"]),
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const response = await post(app, true)
+    const events = await readSSE(response)
+    const eventTypes = events.map((e: any) => e.event)
+
+    expect(eventTypes).not.toContain("error")
+    expect(eventTypes).toContain("message_stop")
+    const toolStartIds = events
+      .filter((e: any) => e.event === "content_block_start" && e.data?.content_block?.type === "tool_use")
+      .map((e: any) => e.data.content_block.id)
+    expect(toolStartIds.sort()).toEqual(["toolu_pa", "toolu_pb"])
+    // Every started block terminates — no dangling 'red read'.
+    const startIdxs = events.filter((e: any) => e.event === "content_block_start").map((e: any) => e.data.index)
+    const stopIdxs = events.filter((e: any) => e.event === "content_block_stop").map((e: any) => e.data.index)
+    for (const idx of startIdxs) expect(stopIdxs).toContain(idx)
+    expect(capturedController!.signal.aborted).toBe(true)
+  })
+
+  it("kill switch restores the legacy semantics: mid-hook abort + session NOT stored", async () => {
+    process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = "0"
+    mockTurns = [parallelReadTurn(), denyUser(["toolu_pa", "toolu_pb"])]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const first = await post(app, false)
+    expect(first.status).toBe(200)
+    expect(capturedController!.signal.aborted).toBe(true)
+
+    // Legacy: sawDuplicateToolUse skips the store — the follow-up must NOT resume.
+    mockTurns = [toolTurn("toolu_next", "get_time", { tz: "UTC" })]
+    capturedResume = undefined
+    await post(app, false, [
+      { role: "user", content: "Do the thing." },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "toolu_pa", name: "read", input: { filePath: "a.txt" } },
+      ]},
+      { role: "user", content: [
+        { type: "tool_result", tool_use_id: "toolu_pa", content: "contents of a" },
+      ]},
+    ])
     expect(capturedResume).toBeUndefined()
   })
 })

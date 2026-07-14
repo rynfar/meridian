@@ -1132,12 +1132,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 //      collecting — a genuine parallel call to a DIFFERENT tool
                 //      may still follow (robust to duplicate-before-distinct
                 //      ordering). This is the #528 duplication.
-                //   2. Same tool re-called with NEW args: the model fabricated a
-                //      result for the blocked call and continued (a sequential-
-                //      dependency loop, e.g. fetch→fetch→fetch). Stop after the
-                //      distinct set — the client will supply the real result and
-                //      drive the next call. (Genuine parallel uses DISTINCT tool
-                //      names — get_weather + get_time — which are kept.)
+                //   2. Same tool re-called with NEW args — LEGACY (kill switch
+                //      only). #571 assumed genuine parallelism uses DISTINCT
+                //      tool names, but "read three files" makes the model emit
+                //      parallel same-tool calls in ONE assistant message; the
+                //      drop + mid-hook SIGTERM cut the already-streamed second
+                //      block (#552 "red reads": `read {}` aborted), skipped the
+                //      session store, and pushed the follow-up onto a fresh
+                //      replay full of "[your read ...]: Tool execution aborted"
+                //      lines the model then disowned. With early stop, the
+                //      fabricated-loop turns this rule guarded against never
+                //      generate (the query stops the moment every deny is
+                //      persisted), so same-tool-new-args calls are genuine
+                //      parallelism and are captured. The drop remains only
+                //      when the operator disables early stop.
                 //   3. Forced single tool (tool_choice:{type:"tool"} / structured
                 //      output): keep only the first call.
                 // Cases 2 and 3 set sawDuplicateToolUse, the signal the non-
@@ -1145,7 +1153,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // instead of draining the whole turn budget.
                 const signature = toolUseSignature(toolName, toolInput)
                 const isExactDuplicate = capturedSignatures.has(signature)
-                const isSameToolRepeat = !isExactDuplicate && capturedToolNames.has(toolName)
+                const isSameToolRepeat = !earlyStopEnabled && !isExactDuplicate && capturedToolNames.has(toolName)
                 const exceedsForcedSingle = forceSingleToolUse && capturedToolUses.length >= 1
                 if (isExactDuplicate) {
                   claudeLog("passthrough.duplicate_tool_use_dropped", { name: toolName })

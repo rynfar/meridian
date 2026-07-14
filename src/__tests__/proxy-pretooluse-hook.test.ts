@@ -407,9 +407,17 @@ describe("PreToolUse hook: deny reasons must not promise delivery for dropped ca
   // delivered in a future turn". That promise persists in the resumed SDK
   // session's history, so next turn the model remembers a pending call whose
   // result never arrives and misattributes the results it does receive.
+  //
+  // Runs under the early-stop kill switch: with early stop ON (default),
+  // same-tool re-calls are captured as genuine parallelism and get the
+  // normal forwarded reason — the dropped-call reason only applies in
+  // legacy mode (and to forced-single, which is mode-independent).
+  let savedEarlyStop: string | undefined
   beforeEach(() => {
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
+    savedEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
+    process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = "0"
     mockMessages = [assistantMessage([{ type: "text", text: "Done" }])]
     capturedQueryParams = null
     clearSessionCache()
@@ -418,6 +426,8 @@ describe("PreToolUse hook: deny reasons must not promise delivery for dropped ca
   afterEach(() => {
     if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
     else delete process.env.MERIDIAN_PASSTHROUGH
+    if (savedEarlyStop !== undefined) process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = savedEarlyStop
+    else delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
   })
 
   async function getHook(body: Record<string, unknown> = {}) {

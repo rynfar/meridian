@@ -117,17 +117,29 @@ function toolBlocks(body: any): Array<{ name: string; id: string; input: any }> 
 
 describe("Passthrough non-streaming: client-driven single-step semantics", () => {
   let origEnv: string | undefined
+  let origEarlyStop: string | undefined
 
+  // Pins the LEGACY (#571) single-step semantics: same-tool re-calls across
+  // internal turns are dropped. With early stop ON (default), same-tool calls
+  // are captured as genuine parallelism and the fabrication turns these
+  // fixtures simulate never generate — see proxy-passthrough-deny-abort's
+  // "parallel same-tool calls" describe for the current-default coverage.
+  // The legacy path stays reachable via MERIDIAN_PASSTHROUGH_EARLY_STOP=0
+  // and must keep working.
   beforeEach(() => {
     mockTurns = []
     origEnv = process.env.MERIDIAN_PASSTHROUGH
+    origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
+    process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = "0"
     clearSessionCache()
   })
 
   afterEach(() => {
     if (origEnv !== undefined) process.env.MERIDIAN_PASSTHROUGH = origEnv
     else delete process.env.MERIDIAN_PASSTHROUGH
+    if (origEarlyStop !== undefined) process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
+    else delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     mockTurns = []
   })
 
