@@ -72,14 +72,20 @@ export function noteAssistantContent(tracker: EarlyStopTracker, content: unknown
 }
 
 /**
- * Record persisted tool_results from a user message's content. Only results
- * matching an expected id count — unrelated results are ignored.
+ * Record persisted tool_results from a user message's content.
+ *
+ * Records EVERY tool_result id, not just already-expected ones: the CLI
+ * dispatches hooks per-block while later blocks are still streaming, and it
+ * emits per-block assistant messages — so a deny's tool_result can reach the
+ * iterator BEFORE the assistant message that arms its id in `expected`
+ * (observed live, MERIDIAN_TRACE_STREAM). Unmatched ids are harmless:
+ * shouldEarlyStop only ever checks ids that are in `expected`.
  */
 export function noteUserContent(tracker: EarlyStopTracker, content: unknown): void {
   if (!Array.isArray(content)) return
   for (const block of content) {
     const b = block as { type?: unknown; tool_use_id?: unknown } | null | undefined
-    if (b?.type === "tool_result" && typeof b.tool_use_id === "string" && tracker.expected.has(b.tool_use_id)) {
+    if (b?.type === "tool_result" && typeof b.tool_use_id === "string") {
       tracker.resolved.add(b.tool_use_id)
     }
   }

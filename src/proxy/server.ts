@@ -378,6 +378,32 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // so silently-updated tool definitions force a rebuild.
   const sessionMcpCache = new LRUMap<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>(getMaxSessionsLimit())
 
+  // In-flight session stores. The streaming drain design ends the client's
+  // response at the turn boundary (fast), while deny persistence + the early
+  // stop + storeSession continue in the background for ~a second. A client
+  // that executes its tools quickly (small file reads) can send the follow-up
+  // BEFORE the store lands — its lookup misses and the conversation falls to
+  // a fresh replay. Follow-ups briefly await their session's pending store.
+  const PENDING_STORE_WAIT_MS = 3000
+  const PENDING_STORE_AUTO_RESOLVE_MS = 10000
+  const pendingSessionStores = new Map<string, { promise: Promise<void>; resolve: () => void }>()
+  const registerPendingStore = (key: string): (() => void) => {
+    let resolveFn: () => void = () => {}
+    const promise = new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, PENDING_STORE_AUTO_RESOLVE_MS)
+      resolveFn = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+    })
+    const entry = { promise, resolve: resolveFn }
+    pendingSessionStores.set(key, entry)
+    return () => {
+      entry.resolve()
+      if (pendingSessionStores.get(key) === entry) pendingSessionStores.delete(key)
+    }
+  }
+
   const pluginDir = finalConfig.pluginDir ?? join(homedir(), ".config", "meridian", "plugins")
   const pluginConfigPath = finalConfig.pluginConfigPath ?? join(homedir(), ".config", "meridian", "plugins.json")
   let loadedPlugins: LoadedPlugin[] = []
@@ -778,6 +804,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const isClientDrivenLoop = adapterBase !== "claude-code" && !agentSessionId && lastIsToolResult
         const isIndependentSession =
           requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-") || isClientDrivenLoop || false
+        // If the previous turn's background drain is still persisting this
+        // session (streaming early stop), wait briefly so the lookup below
+        // sees the stored session instead of falling to a fresh replay.
+        if (!isIndependentSession && profileSessionId) {
+          const pendingStore = pendingSessionStores.get(profileSessionId)
+          if (pendingStore) {
+            const waitStart = Date.now()
+            await Promise.race([
+              pendingStore.promise,
+              new Promise((resolve) => setTimeout(resolve, PENDING_STORE_WAIT_MS)),
+            ])
+            claudeLog("session.pending_store_awaited", { waitedMs: Date.now() - waitStart })
+          }
+        }
         let lineageResult = isIndependentSession
           ? { type: "diverged" as const }
           : lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
@@ -1017,6 +1057,42 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const earlyStopEnabled = passthrough && process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP !== "0"
       const earlyStop = createEarlyStopTracker()
       let earlyStopFired = false
+      // Deny-hold: the CLI dispatches each tool's PreToolUse hook AS SOON AS
+      // that block finishes streaming — while later parallel blocks are still
+      // generating — and a deny landing mid-generation makes the CLI CANCEL
+      // the in-flight API request (observed live via scripts/e2e-stream-parallel.mjs:
+      // bash's deny arrived between glob's input deltas; glob's block never
+      // received its stop and turn 2 regenerated it). That cancel is what
+      // beheads trailing parallel calls (#552 red reads: `glob {}` aborted)
+      // and re-loops the model. Fix: hold every deny response until turn-1
+      // generation completes (message_delta observed), so the cancel can
+      // never land mid-generation. Timeout is a deadlock backstop in case a
+      // CLI version serializes hook-then-stream.
+      const DENY_HOLD_TIMEOUT_MS = 8000
+      const pendingDenyReleases: Array<() => void> = []
+      // True while a model turn is actively generating (message_start seen,
+      // no message_delta/message_stop yet). Hooks dispatched AFTER generation
+      // completes (the CLI runs tool dispatch semi-sequentially, so later
+      // hooks can fire post-turn) must NOT hold — there is no in-flight
+      // request left to protect, and holding would only add dead time.
+      let turnGenerating = false
+      const releaseHeldDenies = (reason: string): void => {
+        turnGenerating = false
+        if (pendingDenyReleases.length === 0) return
+        claudeLog("passthrough.deny_hold_released", { reason, count: pendingDenyReleases.length })
+        for (const release of pendingDenyReleases.splice(0)) release()
+      }
+      const holdDenyUntilTurnEnd = (): Promise<void> =>
+        new Promise<void>((resolve) => {
+          const timer = setTimeout(() => {
+            claudeLog("passthrough.deny_hold_timeout", { afterMs: DENY_HOLD_TIMEOUT_MS })
+            resolve()
+          }, DENY_HOLD_TIMEOUT_MS)
+          pendingDenyReleases.push(() => {
+            clearTimeout(timer)
+            resolve()
+          })
+        })
       // Forced structured output: a `tool_choice` of {type:"tool",...} (or an
       // explicit disable_parallel_tool_use) means the client — e.g. the AI
       // SDK's generateObject — wants EXACTLY ONE call to that tool. Claude
@@ -1206,6 +1282,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // pending call whose result never arrives and misattributes
                 // the results it does receive ("the read tool is returning
                 // the wrong file").
+                // Hold the deny until turn-1 generation completes (streaming
+                // only — see holdDenyUntilTurnEnd above). Returning it
+                // immediately lets the CLI cancel the in-flight generation and
+                // behead any parallel call still streaming after this one.
+                // Skip when the query is already aborted (forced-single fired
+                // requestAbort above — the subprocess is dying; holding would
+                // only delay until the timeout).
+                if (stream && earlyStopEnabled && turnGenerating && !requestAbort.controller.signal.aborted) {
+                  await holdDenyUntilTurnEnd()
+                }
                 if (isExactDuplicate) {
                   return {
                     decision: "block" as const,
@@ -1913,6 +1999,32 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // path closes these explicitly before its final frames.
             const openClientBlocks = new Set<number>()
 
+            // Announce this request's eventual storeSession to follow-ups: the
+            // drain design ends the client response before the store lands, so
+            // a fast follow-up must await it (see pendingSessionStores).
+            const resolvePendingStore = passthrough && earlyStopEnabled && !isIndependentSession && profileSessionId
+              ? registerPendingStore(profileSessionId)
+              : () => {}
+
+            // Envelope integrity: every path that ends the client stream must
+            // first terminate any content block whose start was forwarded but
+            // whose stop hasn't been — an unterminated block renders
+            // client-side as an argument-less aborted ("red") tool call
+            // (#552). The error-recovery path already does this; this helper
+            // extends the guarantee to ALL close paths (early stop, turn-2
+            // suppression, drain-close). With the deny-hold in place blocks
+            // normally complete before any close — this is the backstop.
+            const flushOpenClientBlocks = (source: string): void => {
+              if (openClientBlocks.size === 0) return
+              claudeLog("stream.dangling_blocks_closed", { source, count: openClientBlocks.size })
+              for (const idx of openClientBlocks) {
+                safeEnqueue(encoder.encode(
+                  `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: idx })}\n\n`
+                ), `${source}_close_dangling`)
+              }
+              openClientBlocks.clear()
+            }
+
             try {
               let currentSessionId: string | undefined
               // Same transparent retry wrapper as the non-streaming path.
@@ -2167,6 +2279,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (shouldEarlyStop(earlyStop) && streamedToolUseIds.size > 0) {
                         earlyStopFired = true
                         claudeLog("passthrough.early_stop", { mode: "stream", captured: capturedToolUses.length, drained: awaitingEarlyStopDrain })
+                        flushOpenClientBlocks("early_stop")
                         safeEnqueue(encoder.encode(
                           `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
                         ), "early_stop")
@@ -2207,6 +2320,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     const eventType = (event as any).type
                     const eventIndex = (event as any).index as number | undefined
 
+                    // Turn-generation boundary: release held deny responses.
+                    // message_delta/message_stop = the turn finished cleanly;
+                    // a SECOND message_start = the turn ended some other way
+                    // (belt-and-suspenders so holds can't leak across turns).
+                    if (
+                      eventType === "message_delta" ||
+                      eventType === "message_stop" ||
+                      (eventType === "message_start" && messageStartEmitted)
+                    ) {
+                      releaseHeldDenies(eventType)
+                    }
+                    if (eventType === "message_start") {
+                      turnGenerating = true
+                    }
+
                     // Native structured output is validated only on the SDK's
                     // final result message. Buffer its partial wire events and
                     // emit one valid Anthropic SSE message after validation.
@@ -2236,6 +2364,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       // client sees stop_reason:"tool_use" and executes the tool itself.
                       if (messageStartEmitted) {
                         if (passthrough && streamedToolUseIds.size > 0) {
+                          flushOpenClientBlocks("turn2_suppression")
                           safeEnqueue(encoder.encode(
                             `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
                           ), "passthrough_turn2_stop")
@@ -2427,6 +2556,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       (event as any).delta?.stop_reason === "tool_use" &&
                       streamedToolUseIds.size > 0
                     ) {
+                      flushOpenClientBlocks("drain_close")
                       safeEnqueue(
                         encoder.encode(`event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`),
                         "passthrough_tool_stream_stop"
@@ -2450,6 +2580,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 }
               } finally {
                 clearInterval(heartbeat)
+                // Never leak a held deny: if the loop exits for any reason
+                // (abort, error, natural end), unblock pending hook responses.
+                releaseHeldDenies("stream_loop_exit")
               }
 
               if (outputFormat) {
@@ -2531,6 +2664,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
                 storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
               }
+              resolvePendingStore()
 
               if (!streamClosed) {
                 // In passthrough mode, emit captured tool_use blocks as stream events
@@ -2714,6 +2848,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 return
               }
 
+              resolvePendingStore()
               const stderrOutput = stderrLines.join("\n").trim()
               if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
                 error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`

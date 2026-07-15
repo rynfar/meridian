@@ -86,6 +86,7 @@ kill $(lsof -ti :3456)
 | E30 | [Context Usage via Fingerprint + Restart](#e30-context-usage-via-fingerprint--restart) | Context usage lookup works for headerless sessions and survives proxy restart via shared store | 2026-04-03 |
 | E32 | [Tool-use leak (#416) — opencode + opus-4-7](#e32-tool-use-leak-416--opencode--opus-4-7) | Multi-turn opencode rehydration with prior tool_use blocks does not cause opus-4-7 to emit `[Tool Use:` / `H:` / `Human:` text in its response | 2026-04-26 |
 | E33 | [OpenAI Compat: system prompt, no preset](#e33-openai-compat-system-prompt-no-preset) | `/v1/chat/completions` honours the client's system prompt without injecting the claude_code preset (openai adapter default) | 2026-06-15 |
+| E34 | [Streaming parallel tool calls (#552)](#e34-streaming-parallel-tool-calls-552) | **Automated**: `bun scripts/e2e-stream-parallel.mjs` — real CLI, SSE mode: parallel tool calls stream intact (no dangling `{}` blocks), denies held past generation, fast follow-up resumes. **Run before any release touching the passthrough tool loop** — mocked suites cannot catch CLI dispatch-ordering bugs (two shipped regressions proved it) | 2026-07-15 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3096,3 +3097,33 @@ curl -s http://127.0.0.1:3456/v1/chat/completions \
 **To confirm the preset is actually gone** (the deterministic check), set `codeSystemPrompt` for the `openai` adapter and observe the difference, or rely on the unit test `src/__tests__/proxy-openai-compat.test.ts` → "sends the client system prompt verbatim, without the claude_code preset", which asserts the SDK receives a plain-string `systemPrompt` rather than a `{type: "preset", preset: "claude_code"}` object.
 
 **What's being tested:** `openAiAdapter` (`adapters/openai.ts`), the `x-meridian-agent: openai` tag on the internal hop (`server.ts`), and `ADAPTER_DEFAULTS.openai = { codeSystemPrompt: false }` (`sdkFeatures.ts`).
+
+
+## E34: Streaming parallel tool calls (#552)
+
+**Automated** — the one E2E that is a single command:
+
+```bash
+bun scripts/e2e-stream-parallel.mjs        # 3 attempts (default)
+E2E_ATTEMPTS=5 bun scripts/e2e-stream-parallel.mjs
+```
+
+**Why this exists:** the CLI dispatches PreToolUse hooks per-block while later
+parallel blocks are still generating, and a deny landing mid-generation makes
+the CLI cancel the in-flight request — beheading trailing parallel calls. The
+client renders the cut block as an argument-less `tool {}` "Tool execution
+aborted" (the #552 "red read"), the session store is skipped, and the model
+loops. No mocked suite reproduced this dispatch ordering: v1.49.0 and v1.49.1
+both shipped with "verified" fixes that failed in the field within hours.
+This script runs the REAL CLI through the REAL proxy in SSE mode and asserts
+the actual client contract.
+
+**Pass criteria** (all attempts):
+- ≥2 parallel tool_use blocks reach the client, every block terminated
+- every tool input is complete, parseable JSON (no `{}`)
+- exactly one `message_stop`
+- the instant follow-up does not re-issue identical calls (session resumed)
+
+**What's being tested:** deny-hold (`holdDenyUntilTurnEnd`), early stop +
+drain, `flushOpenClientBlocks`, `pendingSessionStores` (`server.ts`);
+`passthroughEarlyStop.ts`.

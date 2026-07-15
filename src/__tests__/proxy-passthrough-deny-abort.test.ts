@@ -450,6 +450,9 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
       streamEvent({ type: "content_block_start", index: 2, content_block: { type: "tool_use", id: "toolu_pb", name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
       streamEvent({ type: "content_block_delta", index: 2, delta: { type: "input_json_delta", partial_json: '{"filePath":"b.txt"}' } }),
       streamEvent({ type: "content_block_stop", index: 2 }),
+      // The turn's message_delta always precedes the denies (real CLI order) —
+      // it also releases the deny-hold so the hooks below don't block.
+      streamEvent({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 30 } }),
       parallelReadTurn(),
       denyUser(["toolu_pa", "toolu_pb"]),
     ]
@@ -469,6 +472,12 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     const startIdxs = events.filter((e: any) => e.event === "content_block_start").map((e: any) => e.data.index)
     const stopIdxs = events.filter((e: any) => e.event === "content_block_stop").map((e: any) => e.data.index)
     for (const idx of startIdxs) expect(stopIdxs).toContain(idx)
+    // The response ends at the turn boundary; the early-stop abort lands in
+    // the background drain a moment later — poll briefly.
+    const deadline = Date.now() + 1500
+    while (!capturedController!.signal.aborted && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 10))
+    }
     expect(capturedController!.signal.aborted).toBe(true)
   })
 
