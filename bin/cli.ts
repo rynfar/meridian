@@ -38,6 +38,8 @@ Environment variables:
   MERIDIAN_HOST                     Host to bind to (default: 127.0.0.1)
   MERIDIAN_PASSTHROUGH              Enable passthrough mode (tools forwarded to client)
   MERIDIAN_IDLE_TIMEOUT_SECONDS     Idle timeout in seconds (default: 120)
+  MERIDIAN_PLUGIN_DIR               Plugin auto-discovery directory (default: ~/.config/meridian/plugins)
+  MERIDIAN_PLUGIN_CONFIG            Plugin manifest path (default: ~/.config/meridian/plugins.json)
 
 See https://github.com/rynfar/meridian for full documentation.`)
   process.exit(0)
@@ -123,6 +125,8 @@ const execFile = promisify(execFileCallback)
 const port = parseInt(process.env.MERIDIAN_PORT ?? process.env.CLAUDE_PROXY_PORT ?? "3456", 10)
 const host = process.env.MERIDIAN_HOST ?? process.env.CLAUDE_PROXY_HOST ?? "127.0.0.1"
 const idleTimeoutSeconds = parseInt(process.env.MERIDIAN_IDLE_TIMEOUT_SECONDS ?? process.env.CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS ?? "120", 10)
+const pluginDir = process.env.MERIDIAN_PLUGIN_DIR
+const pluginConfigPath = process.env.MERIDIAN_PLUGIN_CONFIG
 
 // Load profile configuration:
 //   1. MERIDIAN_PROFILES env var (JSON array) — takes precedence
@@ -200,7 +204,7 @@ export async function runCli(
     enableDiskProfileDiscovery()
   }
 
-  const proxy = await start({ port, host, idleTimeoutSeconds, profiles, defaultProfile, version, installProcessErrorHandlers: true })
+  const proxy = await start({ port, host, idleTimeoutSeconds, pluginDir, pluginConfigPath, profiles, defaultProfile, version, installProcessErrorHandlers: true })
 
   // Handle EADDRINUSE — preserve CLI behavior of exiting on port conflict
   proxy.server.on("error", (error: NodeJS.ErrnoException) => {
