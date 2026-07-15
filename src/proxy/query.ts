@@ -313,6 +313,20 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
         ...(sharedMemory ? stripConfigDir(cleanEnv) : cleanEnv),
         ENABLE_TOOL_SEARCH: hasDeferredTools ? "true" : "false",
         ...(passthrough ? { ENABLE_CLAUDEAI_MCP_SERVERS: "false" } : {}),
+        // Passthrough: suppress the CLI's "# Scratchpad Directory" context
+        // block (#627). It advertises a PROXY-HOST path, but the CLIENT
+        // executes the tools — OpenCode 1.18+ permission-blocks writes to
+        // that alien path (external_directory), dead-ending headless runs.
+        // The CLI skips the block when CLAUDE_CODE_SESSION_KIND=bg — its own
+        // headless-background mode, which is semantically what this
+        // subprocess is. All other "bg" effects are TUI rendering (no TUI
+        // here) or CLAUDE_JOB_DIR-gated bookkeeping (we don't set it) —
+        // audited against the bundled CLI. Kill switch:
+        // MERIDIAN_SUPPRESS_SCRATCHPAD=0. Profile envOverrides spread below
+        // and win if the operator sets an explicit value.
+        ...(passthrough && process.env.MERIDIAN_SUPPRESS_SCRATCHPAD !== "0"
+          ? { CLAUDE_CODE_SESSION_KIND: "bg" }
+          : {}),
         // When running as root (Docker, Unraid, NAS), set IS_SANDBOX=1 to
         // bypass the SDK's root check. Without this, the SDK exits with:
         // "--dangerously-skip-permissions cannot be used with root/sudo"
