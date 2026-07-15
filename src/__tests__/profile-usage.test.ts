@@ -20,6 +20,7 @@ describe("labelForWindow", () => {
     expect(labelForWindow("seven_day")).toBe("7d")
     expect(labelForWindow("seven_day_opus")).toBe("7d Opus")
     expect(labelForWindow("seven_day_sonnet")).toBe("7d Sonnet")
+    expect(labelForWindow("seven_day_fable")).toBe("7d Fable")
     expect(labelForWindow("seven_day_oauth_apps")).toBe("7d Apps")
     expect(labelForWindow("seven_day_cowork")).toBe("7d Cowork")
     expect(labelForWindow("seven_day_omelette")).toBe("7d Omelette")

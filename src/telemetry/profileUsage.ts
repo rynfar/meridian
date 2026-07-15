@@ -18,6 +18,7 @@ export const WINDOW_LABELS: Record<string, string> = {
   seven_day: "7d",
   seven_day_opus: "7d Opus",
   seven_day_sonnet: "7d Sonnet",
+  seven_day_fable: "7d Fable",
   seven_day_oauth_apps: "7d Apps",
   seven_day_cowork: "7d Cowork",
   seven_day_omelette: "7d Omelette",

@@ -85,6 +85,53 @@ describe("oauthUsage", () => {
     expect(sevenDay!.utilization).toBeCloseTo(0.05, 5)
   })
 
+  test("parses model-scoped weekly limits without duplicating aggregate windows", async () => {
+    const resetsAt = "2026-07-20T12:00:00Z"
+    const fetchImpl = fixedFetch(() => new Response(JSON.stringify({
+      five_hour: { utilization: 15, resets_at: "2026-07-15T18:00:00Z" },
+      seven_day: { utilization: 56, resets_at: "2026-07-20T12:00:00Z" },
+      limits: [
+        {
+          kind: "session",
+          group: "session",
+          percent: 15,
+          resets_at: "2026-07-15T18:00:00Z",
+          scope: { model: null, surface: null },
+        },
+        {
+          kind: "weekly_all",
+          group: "weekly",
+          percent: 56,
+          resets_at: resetsAt,
+          scope: { model: null, surface: null },
+        },
+        {
+          kind: "weekly_scoped",
+          group: "weekly",
+          percent: 57,
+          resets_at: resetsAt,
+          scope: { model: { id: null, display_name: "Fable" }, surface: null },
+        },
+        {
+          kind: "weekly_scoped",
+          group: "weekly",
+          percent: 20,
+          resets_at: resetsAt,
+          scope: { model: null, surface: "api" },
+        },
+      ],
+    }), { status: 200 }))
+
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), fetchImpl })
+
+    expect(result!.windows).toHaveLength(3)
+    expect(result!.windows.find(w => w.type === "seven_day_fable")).toEqual({
+      type: "seven_day_fable",
+      utilization: 0.57,
+      resetsAt: Date.parse(resetsAt),
+    })
+  })
+
   test("normalizes utilization from 0..100 to 0..1", async () => {
     const fetchImpl = fixedFetch(() => new Response(JSON.stringify({
       five_hour: { utilization: 87.5, resets_at: "2026-04-26T22:30:00Z" },

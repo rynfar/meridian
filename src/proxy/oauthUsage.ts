@@ -40,6 +40,18 @@ interface RawOAuthExtraUsage {
   currency?: string
 }
 
+interface RawOAuthLimit {
+  kind?: string
+  percent?: number | null
+  resets_at?: string | null
+  scope?: {
+    model?: {
+      id?: string | null
+      display_name?: string | null
+    } | null
+  } | null
+}
+
 interface RawOAuthUsageResponse {
   five_hour?: RawOAuthWindow | null
   seven_day?: RawOAuthWindow | null
@@ -50,6 +62,7 @@ interface RawOAuthUsageResponse {
   seven_day_omelette?: RawOAuthWindow | null
   iguana_necktie?: RawOAuthWindow | null
   omelette_promotional?: RawOAuthWindow | null
+  limits?: RawOAuthLimit[] | null
   extra_usage?: RawOAuthExtraUsage | null
 }
 
@@ -102,6 +115,21 @@ function normalizeUtilization(raw: number | null | undefined): number | null {
   return Math.max(0, raw / 100)
 }
 
+function modelScopedWindowType(limit: RawOAuthLimit): string | null {
+  if (limit.kind !== "weekly_scoped") return null
+
+  const model = limit.scope?.model
+  const name = model?.display_name?.trim() || model?.id?.trim()
+  if (!name) return null
+
+  const slug = name
+    .toLowerCase()
+    .replace(/^claude[\s_-]+/, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+  return slug ? `seven_day_${slug}` : null
+}
+
 function buildSnapshot(raw: RawOAuthUsageResponse): OAuthUsageSnapshot {
   const windows: OAuthUsageWindow[] = []
   for (const key of WINDOW_TYPES) {
@@ -111,6 +139,19 @@ function buildSnapshot(raw: RawOAuthUsageResponse): OAuthUsageSnapshot {
     const resetsAt = parseIsoToMs(w.resets_at)
     if (utilization === null && resetsAt === null) continue
     windows.push({ type: key as string, utilization, resetsAt })
+  }
+
+  const windowTypes = new Set(windows.map(window => window.type))
+  for (const limit of raw.limits ?? []) {
+    const type = modelScopedWindowType(limit)
+    if (!type || windowTypes.has(type)) continue
+
+    const utilization = normalizeUtilization(limit.percent)
+    const resetsAt = parseIsoToMs(limit.resets_at)
+    if (utilization === null && resetsAt === null) continue
+
+    windows.push({ type, utilization, resetsAt })
+    windowTypes.add(type)
   }
 
   const extra = raw.extra_usage
