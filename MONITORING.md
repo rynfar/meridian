@@ -34,6 +34,27 @@ The SDK uses 5-minute TTL prompt caching. On each turn, the system prompt + tool
 
 Meridian sorts tools alphabetically before registration to keep the prefix stable. If you see cache misses on continuations, something is changing the prefix between turns.
 
+## Estimated Cost
+
+The Overview tab shows an **Estimated Cost** section: a headline card with the window's total, per-model cards, and a table breaking down input/output/cache-read/cache-write tokens with the estimated USD per model. The same data is available on the API as `costEstimate` in `GET /telemetry/summary`.
+
+What the number means:
+
+- It is the **equivalent Anthropic API list price** for the window's token usage. Claude Max requests are covered by the subscription and are never billed per token. Use it to gauge how much value the subscription is delivering, not as a bill.
+- Rates are a static table in [`src/telemetry/pricing.ts`](./src/telemetry/pricing.ts) (cache reads at 0.1x input, cache writes at the 5-minute TTL rate of 1.25x input, the TTL the SDK uses). Verify against [claude.com/pricing](https://claude.com/pricing) after model launches or price changes.
+- Models without a pricing entry are **excluded from the total** and flagged "no pricing" in the table rather than silently counted as $0.
+- The landing page also shows an **Est. Cost (24h)** card next to Median TTFB and Error Rate.
+
+### Overriding rates
+
+The **Model Pricing** section on the Settings page (`/settings`) edits the rates without code changes:
+
+- Edit any built-in model's rates to override them (marked "Override" with a Reset button).
+- Add models the built-in table doesn't know about; they are priced immediately and stop showing as "no pricing".
+- Cache read/write rates are optional when adding a model; they default to 0.1x and 1.25x of the input rate.
+
+Overrides persist to `~/.config/meridian/model-pricing.json` (override the path with `MERIDIAN_PRICING_CONFIG`) and take effect on the next dashboard refresh, no restart needed. The API surface is `GET /settings/api/pricing`, `PUT /settings/api/pricing/:model`, and `DELETE /settings/api/pricing/:model`.
+
 ## Quick Health Check
 
 ```bash

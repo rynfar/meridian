@@ -1,6 +1,7 @@
 import Database from "libsql"
 import type { RequestMetric, TelemetrySummary, ITelemetryStore, IDiagnosticLogStore, DiagnosticLog } from "./types"
 import { computeSummary } from "./percentiles"
+import { getPricingOverrides } from "./pricingStore"
 
 const METRICS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS metrics (
@@ -208,7 +209,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
   summarize(windowMs: number = 60 * 60 * 1000): TelemetrySummary {
     const since = Date.now() - windowMs
     const metrics = this.getRecent({ limit: 100_000, since })
-    return computeSummary(metrics, windowMs)
+    return computeSummary(metrics, windowMs, getPricingOverrides())
   }
 
   clear(): void {

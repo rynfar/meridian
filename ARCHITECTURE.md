@@ -69,6 +69,8 @@ src/
 │   ├── routes.ts              ← Telemetry API endpoints
 │   ├── logStore.ts            ← Diagnostic log ring buffer
 │   ├── dashboard.ts           ← HTML dashboard
+│   ├── pricing.ts             ← Static API list prices + cost estimation (pure)
+│   ├── pricingStore.ts        ← User pricing overrides (persisted JSON)
 │   ├── profileBar.ts          ← Shared profile switcher bar (injected into HTML pages)
 │   ├── profilePage.ts         ← Profile management page HTML
 │   └── types.ts               ← Telemetry types

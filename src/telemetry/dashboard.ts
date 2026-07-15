@@ -142,6 +142,17 @@ function ago(ts) {
   return Math.floor(s/3600) + 'h ago';
 }
 
+function fmtTok(n) {
+  return n > 1000000 ? (n/1000000).toFixed(1) + 'M' : n > 1000 ? Math.round(n/1000) + 'k' : String(n);
+}
+
+function usd(v) {
+  if (v == null) return '—';
+  if (v > 0 && v < 0.01) return '$' + v.toFixed(4);
+  if (v < 100) return '$' + v.toFixed(2);
+  return '$' + Math.round(v).toLocaleString();
+}
+
 function pctRow(label, color, phase) {
   return '<tr>'
     + '<td><span class="phase-dot" style="background:' + color + '"></span>' + label + '</td>'
@@ -223,7 +234,6 @@ function render(s, reqs, logs, quota) {
   // Token usage cards
   if (s.tokenUsage) {
     const t = s.tokenUsage;
-    const fmtTok = n => n > 1000000 ? (n/1000000).toFixed(1) + 'M' : n > 1000 ? Math.round(n/1000) + 'k' : String(n);
     html += '<div class="section"><div class="section-title">Token Usage</div></div>';
     html += '<div class="cards">'
       + card('Input Tokens', fmtTok(t.totalInputTokens), '')
@@ -232,6 +242,45 @@ function render(s, reqs, logs, quota) {
       + card('Cache Write', fmtTok(t.totalCacheCreationTokens), '')
       + card('Avg Cache Hit', (t.avgCacheHitRate * 100).toFixed(0) + '%', t.cacheMissOnResumeCount > 0 ? t.cacheMissOnResumeCount + ' cache miss on resume' : '')
       + '</div>';
+  }
+
+  // Estimated cost: static API list pricing applied to the window's token usage
+  if (s.costEstimate && Object.keys(s.costEstimate.byModel).length > 0) {
+    const ce = s.costEstimate;
+    const costRows = Object.entries(ce.byModel)
+      .sort((a, b) => (b[1].estimatedUsd || 0) - (a[1].estimatedUsd || 0));
+
+    html += '<div class="section"><div class="section-title">Estimated Cost</div></div>';
+    html += '<div class="cards">'
+      + card('Est. API Cost', usd(ce.totalUsd), 'window total at API list prices');
+    for (const [model, m] of costRows) {
+      html += card(model, usd(m.estimatedUsd), m.requests + ' req' + (m.requests === 1 ? '' : 's'));
+    }
+    html += '</div>';
+
+    html += '<div class="section">'
+      + '<table><thead><tr><th>Model</th><th>Requests</th><th>Input</th><th>Output</th>'
+      + '<th>Cache Read</th><th>Cache Write</th><th>Est. Cost</th></tr></thead><tbody>';
+    for (const [model, m] of costRows) {
+      html += '<tr>'
+        + '<td>' + model + (m.estimatedUsd == null ? ' <span style="font-size:10px;color:var(--yellow)">no pricing</span>' : '') + '</td>'
+        + '<td class="mono">' + m.requests + '</td>'
+        + '<td class="mono">' + fmtTok(m.inputTokens) + '</td>'
+        + '<td class="mono">' + fmtTok(m.outputTokens) + '</td>'
+        + '<td class="mono">' + fmtTok(m.cacheReadTokens) + '</td>'
+        + '<td class="mono">' + fmtTok(m.cacheCreationTokens) + '</td>'
+        + '<td class="mono">' + usd(m.estimatedUsd) + '</td>'
+        + '</tr>';
+    }
+    html += '</tbody></table>'
+      + '<div class="usage-note" style="margin-top:8px">Estimated at static Anthropic API list prices'
+      + ' (cache writes at the 5-minute TTL rate). Claude Max usage is covered by your subscription'
+      + ' (equivalent API cost, not a charge).'
+      + (ce.unpricedRequestCount > 0
+          ? ' ' + ce.unpricedRequestCount + ' request' + (ce.unpricedRequestCount === 1 ? '' : 's') + ' from unrecognized models excluded.'
+          : '')
+      + ' Rates are editable in <a href="/settings" style="color:var(--accent)">Settings</a>.'
+      + '</div></div>';
   }
 
   // Model breakdown

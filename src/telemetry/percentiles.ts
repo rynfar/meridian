@@ -3,6 +3,7 @@
  */
 
 import type { RequestMetric, PhaseTiming, TelemetrySummary } from "./types"
+import { computeCostEstimate, type ModelPricing } from "./pricing"
 
 export function computePercentiles(values: number[]): PhaseTiming {
   if (values.length === 0) return { p50: 0, p95: 0, p99: 0, min: 0, max: 0, avg: 0 }
@@ -24,8 +25,15 @@ export function computePercentiles(values: number[]): PhaseTiming {
  * Compute a TelemetrySummary from an array of RequestMetric.
  * Both MemoryTelemetryStore and SqliteTelemetryStore use this
  * to guarantee identical output.
+ *
+ * pricingOverrides: user-defined model rates (from pricingStore) applied
+ * to the cost estimate; omit for built-in pricing only.
  */
-export function computeSummary(metrics: RequestMetric[], windowMs: number): TelemetrySummary {
+export function computeSummary(
+  metrics: RequestMetric[],
+  windowMs: number,
+  pricingOverrides?: Record<string, ModelPricing>,
+): TelemetrySummary {
   if (metrics.length === 0) {
     const emptyPhase: PhaseTiming = { p50: 0, p95: 0, p99: 0, min: 0, max: 0, avg: 0 }
     return {
@@ -48,6 +56,7 @@ export function computeSummary(metrics: RequestMetric[], windowMs: number): Tele
         avgCacheHitRate: 0,
         cacheMissOnResumeCount: 0,
       },
+      costEstimate: { totalUsd: 0, byModel: {}, unpricedRequestCount: 0 },
     }
   }
 
@@ -127,5 +136,6 @@ export function computeSummary(metrics: RequestMetric[], windowMs: number): Tele
         : 0,
       cacheMissOnResumeCount,
     },
+    costEstimate: computeCostEstimate(metrics, pricingOverrides),
   }
 }

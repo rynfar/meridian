@@ -90,6 +90,28 @@ export const settingsPageHtml = `<!DOCTYPE html>
     border-radius: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer;
   }
   .reset-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* Model pricing */
+  .pricing-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pricing-table th { text-align: left; padding: 8px 10px; color: var(--muted); font-weight: 500;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  .pricing-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .pricing-table tr:last-child td { border-bottom: none; }
+  .pricing-model { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px; word-break: break-all; }
+  .pricing-input { background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px; font-size: 12px; width: 84px; text-align: right;
+    font-variant-numeric: tabular-nums; }
+  .pricing-input:focus { border-color: var(--accent); outline: none; }
+  .pricing-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  .badge-override { background: rgba(210, 153, 34, 0.15); color: var(--yellow); }
+  .badge-builtin { background: rgba(139, 148, 158, 0.15); color: var(--muted); }
+  .pricing-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px;
+    padding-top: 14px; border-top: 1px solid var(--border); }
+  .pricing-add input[type="text"] { width: 240px; text-align: left; }
+  .add-btn { background: var(--accent); border: none; color: #fff; border-radius: 6px;
+    padding: 5px 14px; font-size: 12px; font-weight: 500; cursor: pointer; }
+  .pricing-note { font-size: 11px; color: var(--muted); margin-top: 12px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -106,6 +128,32 @@ ${profileBarHtml}
   </p>
 
   <div id="adapters"></div>
+
+  <h1 style="margin-top:40px">Model Pricing</h1>
+  <p class="subtitle" style="max-width:720px;line-height:1.6">
+    Rates used by the telemetry cost estimate, in USD per million tokens. Edit a value to override the
+    built-in rate, or add models the built-in table doesn't know about (they show as "no pricing" on the
+    dashboard until defined here). Changes apply on the next dashboard refresh.
+  </p>
+  <div class="adapter-card">
+    <table class="pricing-table">
+      <thead><tr><th>Model</th><th>Input</th><th>Output</th><th>Cache Read</th><th>Cache Write</th><th>Source</th><th></th></tr></thead>
+      <tbody id="pricingRows"></tbody>
+    </table>
+    <div class="pricing-add">
+      <input type="text" class="pricing-input" id="newModelName" placeholder="model id (e.g. claude-opus-9)">
+      <input type="number" class="pricing-input" id="newModelInput" placeholder="input" min="0" step="0.01">
+      <input type="number" class="pricing-input" id="newModelOutput" placeholder="output" min="0" step="0.01">
+      <input type="number" class="pricing-input" id="newModelCacheRead" placeholder="cache read" min="0" step="0.01">
+      <input type="number" class="pricing-input" id="newModelCacheWrite" placeholder="cache write" min="0" step="0.01">
+      <button class="add-btn" onclick="addPricingModel()">Add Model</button>
+    </div>
+    <div class="pricing-note">
+      Cache read and cache write are optional; when left blank they default to 0.1x and 1.25x of the
+      input rate (the 5-minute cache TTL multipliers). Verify current list prices at
+      <a href="https://claude.com/pricing" target="_blank" rel="noreferrer" style="color:var(--accent)">claude.com/pricing</a>.
+    </div>
+  </div>
 </div>
 
 <div class="save-indicator" id="saveIndicator">Saved</div>
@@ -240,7 +288,127 @@ function render() {
   }
 }
 
+// ---- Model pricing (telemetry cost estimate) ----
+let pricingData = { builtin: {}, overrides: {} };
+
+function fmtRate(v) { return String(Math.round(v * 10000) / 10000); }
+
+async function loadPricing() {
+  const res = await fetch('/settings/api/pricing');
+  pricingData = await res.json();
+  renderPricing();
+}
+
+async function putPricing(model, rates) {
+  const res = await fetch('/settings/api/pricing/' + encodeURIComponent(model), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rates),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(function () { return {}; });
+    alert('Could not save pricing: ' + (err.error || ('HTTP ' + res.status)));
+    return false;
+  }
+  showSaved();
+  return true;
+}
+
+async function removePricing(model) {
+  await fetch('/settings/api/pricing/' + encodeURIComponent(model), { method: 'DELETE' });
+  showSaved();
+  await loadPricing();
+}
+
+function rateCell(value, onCommit) {
+  const td = document.createElement('td');
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '0';
+  input.step = '0.01';
+  input.className = 'pricing-input';
+  input.value = fmtRate(value);
+  input.addEventListener('change', onCommit);
+  td.appendChild(input);
+  return { td: td, input: input };
+}
+
+function renderPricing() {
+  const tbody = document.getElementById('pricingRows');
+  tbody.innerHTML = '';
+  const models = Array.from(new Set(
+    Object.keys(pricingData.builtin).concat(Object.keys(pricingData.overrides))
+  )).sort();
+
+  for (const model of models) {
+    const override = pricingData.overrides[model];
+    const effective = override || pricingData.builtin[model];
+    const tr = document.createElement('tr');
+
+    const nameTd = document.createElement('td');
+    nameTd.className = 'pricing-model';
+    nameTd.textContent = model;
+    tr.appendChild(nameTd);
+
+    const cells = [];
+    const commit = async function () {
+      const rates = {
+        inputPerMTok: parseFloat(cells[0].input.value),
+        outputPerMTok: parseFloat(cells[1].input.value),
+        cacheReadPerMTok: parseFloat(cells[2].input.value),
+        cacheWritePerMTok: parseFloat(cells[3].input.value),
+      };
+      for (const k in rates) { if (!isFinite(rates[k]) || rates[k] < 0) return; }
+      if (await putPricing(model, rates)) await loadPricing();
+    };
+    ['inputPerMTok', 'outputPerMTok', 'cacheReadPerMTok', 'cacheWritePerMTok'].forEach(function (key) {
+      const cell = rateCell(effective[key], commit);
+      cells.push(cell);
+      tr.appendChild(cell.td);
+    });
+
+    const badgeTd = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'pricing-badge ' + (override ? 'badge-override' : 'badge-builtin');
+    badge.textContent = override ? 'Override' : 'Built-in';
+    badgeTd.appendChild(badge);
+    tr.appendChild(badgeTd);
+
+    const actionTd = document.createElement('td');
+    if (override) {
+      const btn = document.createElement('button');
+      btn.className = 'reset-btn';
+      btn.textContent = pricingData.builtin[model] ? 'Reset' : 'Remove';
+      btn.addEventListener('click', function () { removePricing(model); });
+      actionTd.appendChild(btn);
+    }
+    tr.appendChild(actionTd);
+
+    tbody.appendChild(tr);
+  }
+}
+
+async function addPricingModel() {
+  const name = document.getElementById('newModelName').value.trim();
+  const inputRate = parseFloat(document.getElementById('newModelInput').value);
+  const outputRate = parseFloat(document.getElementById('newModelOutput').value);
+  if (!name) { alert('Enter a model id'); return; }
+  if (!isFinite(inputRate) || !isFinite(outputRate)) { alert('Enter input and output rates (USD per million tokens)'); return; }
+  const rates = { inputPerMTok: inputRate, outputPerMTok: outputRate };
+  const cacheRead = parseFloat(document.getElementById('newModelCacheRead').value);
+  const cacheWrite = parseFloat(document.getElementById('newModelCacheWrite').value);
+  if (isFinite(cacheRead)) rates.cacheReadPerMTok = cacheRead;
+  if (isFinite(cacheWrite)) rates.cacheWritePerMTok = cacheWrite;
+  if (await putPricing(name, rates)) {
+    ['newModelName', 'newModelInput', 'newModelOutput', 'newModelCacheRead', 'newModelCacheWrite'].forEach(function (id) {
+      document.getElementById(id).value = '';
+    });
+    await loadPricing();
+  }
+}
+
 loadConfig();
+loadPricing();
 ${profileBarJs}
 </script>
 </body>

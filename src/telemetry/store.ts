@@ -7,6 +7,7 @@
 
 import type { RequestMetric, TelemetrySummary, ITelemetryStore } from "./types"
 import { computeSummary } from "./percentiles"
+import { getPricingOverrides } from "./pricingStore"
 
 const DEFAULT_CAPACITY = 1000
 
@@ -84,7 +85,7 @@ export class MemoryTelemetryStore implements ITelemetryStore {
   summarize(windowMs: number = 60 * 60 * 1000): TelemetrySummary {
     const since = Date.now() - windowMs
     const metrics = this.getRecent({ limit: this.capacity, since })
-    return computeSummary(metrics, windowMs)
+    return computeSummary(metrics, windowMs, getPricingOverrides())
   }
 
   /** Clear all stored metrics. */

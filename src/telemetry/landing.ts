@@ -92,6 +92,7 @@ export const landingHtml = `<!DOCTYPE html>
 </div>
 <script>
 function ms(v){if(v==null||v===0)return '\u2014';return v<1000?v+'ms':(v/1000).toFixed(1)+'s'}
+function usd(v){if(v==null)return '\u2014';if(v>0&&v<0.01)return '$'+v.toFixed(4);if(v<100)return '$'+v.toFixed(2);return '$'+Math.round(v).toLocaleString()}
 function card(l,v,d,c){return '<div class="card"><div class="card-label">'+l+'</div><div class="card-value '+(c||'')+'">'+v+'</div>'+(d?'<div class="card-detail">'+d+'</div>':'')+'</div>'}
 
 async function refresh(){
@@ -106,7 +107,7 @@ function render(h,s){
   let o='';
   o+='<div class="status-banner"><div class="status-dot '+dot+'"></div><span class="status-text">'+(st==='healthy'?'Operational':st==='degraded'?'Degraded':'Offline')+'</span><span class="status-detail">Port '+location.port+' \u00b7 '+(h.mode||'internal')+' mode</span></div>';
   const er=s.totalRequests>0?((s.errorCount/s.totalRequests)*100).toFixed(1):'0';
-  o+='<div class="grid">'+card('Requests (24h)',s.totalRequests,'','violet')+card('Median Response',ms(s.totalDuration?.p50),'p95: '+ms(s.totalDuration?.p95),'')+card('Median TTFB',ms(s.ttfb?.p50),'p95: '+ms(s.ttfb?.p95),'')+card('Error Rate',er+'%',s.errorCount+' errors',parseFloat(er)>5?'':'green')+'</div>';
+  o+='<div class="grid">'+card('Requests (24h)',s.totalRequests,'','violet')+card('Median Response',ms(s.totalDuration?.p50),'p95: '+ms(s.totalDuration?.p95),'')+card('Median TTFB',ms(s.ttfb?.p50),'p95: '+ms(s.ttfb?.p95),'')+card('Error Rate',er+'%',s.errorCount+' errors',parseFloat(er)>5?'':'green')+card('Est. Cost (24h)',usd(s.costEstimate?.totalUsd),'API list prices','violet')+'</div>';
   o+='<div class="section"><div class="section-title">Account</div>';
   if(h.auth?.loggedIn){o+='<div class="info-grid"><span class="info-label">Email</span><span class="info-value">'+(h.auth.email||'\u2014')+'</span><span class="info-label">Subscription</span><span class="info-value">'+(h.auth.subscriptionType||'\u2014')+'</span><span class="info-label">Mode</span><span class="info-value">'+(h.mode||'internal')+'</span><span class="info-label">Endpoint</span><span class="info-value">http://'+location.host+'</span></div>'}
   else{o+='<div class="info-grid"><span class="info-label">Status</span><span class="info-value" style="color:var(--yellow)">'+(h.error||'Not authenticated')+'</span></div>'}

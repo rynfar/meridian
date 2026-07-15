@@ -3192,6 +3192,33 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return c.json({ ok: true })
   })
 
+  // Model pricing for the telemetry cost estimate: built-in table + user overrides
+  app.get("/settings/api/pricing", (c) => {
+    const { BUILTIN_MODEL_PRICING } = require("../telemetry/pricing") as typeof import("../telemetry/pricing")
+    const { getPricingOverrides } = require("../telemetry/pricingStore") as typeof import("../telemetry/pricingStore")
+    return c.json({ builtin: BUILTIN_MODEL_PRICING, overrides: getPricingOverrides() })
+  })
+  app.put("/settings/api/pricing/:model", async (c) => {
+    const { validatePricingUpdate, setPricingOverride } = require("../telemetry/pricingStore") as typeof import("../telemetry/pricingStore")
+    const model = c.req.param("model")
+    const body = await c.req.json()
+    try {
+      setPricingOverride(model, validatePricingUpdate(body))
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400)
+    }
+    return c.json({ ok: true })
+  })
+  app.delete("/settings/api/pricing/:model", (c) => {
+    const { deletePricingOverride } = require("../telemetry/pricingStore") as typeof import("../telemetry/pricingStore")
+    try {
+      deletePricingOverride(c.req.param("model"))
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 400)
+    }
+    return c.json({ ok: true })
+  })
+
   // Prometheus metrics endpoint
   app.get("/metrics", (c) => {
     const body = renderPrometheusMetrics(telemetryStore)

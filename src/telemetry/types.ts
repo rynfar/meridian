@@ -124,6 +124,28 @@ export interface PhaseTiming {
   avg: number
 }
 
+/** Per-model token totals and estimated cost at static API list prices. */
+export interface ModelCostBreakdown {
+  requests: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  /** Estimated USD for this model's requests; null when the model has no pricing entry */
+  estimatedUsd: number | null
+}
+
+/** Aggregate cost estimate across a window. Estimates only: Claude Max
+ *  usage is covered by the subscription; this is the equivalent API cost. */
+export interface CostEstimate {
+  /** Sum across all priced models (unpriced models excluded) */
+  totalUsd: number
+  /** Keyed by requestModel || model, matching TelemetrySummary.byModel */
+  byModel: Record<string, ModelCostBreakdown>
+  /** Requests whose model had no pricing entry, excluded from totalUsd */
+  unpricedRequestCount: number
+}
+
 export interface TelemetrySummary {
   /** Time window these stats cover */
   windowMs: number
@@ -156,6 +178,9 @@ export interface TelemetrySummary {
     /** Requests where cache hit rate was 0 despite being a resume */
     cacheMissOnResumeCount: number
   }
+
+  /** Estimated cost of the window's usage at static API list prices */
+  costEstimate: CostEstimate
 }
 
 /** Storage backend for request metrics. */
