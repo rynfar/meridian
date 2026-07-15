@@ -12,6 +12,7 @@ let
   inherit (lib.meta) getExe;
   inherit (lib.modules) mkIf;
   inherit (lib.options)
+    literalExpression
     mkEnableOption
     mkOption
     mkPackageOption
@@ -27,11 +28,16 @@ let
     attrsOf
     bool
     int
+    listOf
     nullOr
+    path
     port
     str
+    submodule
     ;
   cfg = config.services.meridian;
+  mkPluginFile = plugins: toString (pluginFormat.generate "plugins.json" { inherit plugins; });
+  pluginFormat = pkgs.formats.json { };
 in
 {
   options.services.meridian = {
@@ -76,6 +82,33 @@ in
         type = nullOr str;
         default = null;
         description = "Sonnet context tier: `sonnet` (200k) or `sonnet[1m]` (1M, requires Extra Usage).";
+      };
+
+      pluginConfig = mkOption {
+        type = listOf (submodule {
+          options = {
+            enabled = mkOption {
+              type = bool;
+              default = true;
+              description = "Whether Meridian loads this plugin. Disabled entries stay in the manifest but are marked disabled.";
+            };
+
+            path = mkOption {
+              type = path;
+              example = literalExpression ''"''${plugin}/lib/index.js"'';
+              description = "Path to the plugin's ESM entry file.";
+            };
+          };
+        });
+        default = [ ];
+        apply = mkPluginFile;
+        description = "Plugins to load, in list order, rendered to a `plugins.json` manifest passed as `MERIDIAN_PLUGIN_CONFIG`.";
+      };
+
+      pluginDir = mkOption {
+        type = nullOr path;
+        default = null;
+        description = "Directory Meridian auto-discovers plugins from. `null` uses Meridian's default (`~/.config/meridian/plugins`).";
       };
 
       telemetry = {
