@@ -32,6 +32,7 @@ export function computeSummary(metrics: RequestMetric[], windowMs: number): Tele
       windowMs,
       totalRequests: 0,
       errorCount: 0,
+      envelopeViolationCount: 0,
       requestsPerMinute: 0,
       queueWait: emptyPhase,
       proxyOverhead: emptyPhase,
@@ -52,6 +53,7 @@ export function computeSummary(metrics: RequestMetric[], windowMs: number): Tele
   }
 
   const errorCount = metrics.filter(m => m.error !== null).length
+  const envelopeViolationCount = metrics.reduce((sum, m) => sum + (m.envelopeViolations?.length ?? 0), 0)
 
   const oldest = metrics[metrics.length - 1]!.timestamp
   const newest = metrics[0]!.timestamp
@@ -105,6 +107,7 @@ export function computeSummary(metrics: RequestMetric[], windowMs: number): Tele
     windowMs,
     totalRequests: metrics.length,
     errorCount,
+    envelopeViolationCount,
     requestsPerMinute: Math.round(requestsPerMinute * 100) / 100,
     queueWait: computePercentiles(queueWaits),
     proxyOverhead: computePercentiles(overheads),

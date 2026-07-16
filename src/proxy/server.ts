@@ -42,6 +42,7 @@ import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { createEarlyStopTracker, noteAssistantContent, noteUserContent, shouldEarlyStop } from "./passthroughEarlyStop"
+import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -1068,6 +1069,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // generation completes (message_delta observed), so the cancel can
       // never land mid-generation. Timeout is a deadlock backstop in case a
       // CLI version serializes hook-then-stream.
+      // Envelope integrity: violations of the proxy's own output contract
+      // (dangling blocks, undelivered captured calls, empty required tool
+      // inputs). Logged loudly + counted on /telemetry so #552-family
+      // regressions trip an alarm in OUR logs instead of user transcripts.
+      const envelopeViolations: string[] = []
+      const recordEnvelopeViolations = (violations: EnvelopeViolation[]): void => {
+        for (const v of violations) {
+          envelopeViolations.push(v.type)
+          claudeLog("envelope.violation", { type: v.type, detail: v.detail })
+          diagnosticLog.error(`${requestMeta.requestId} ENVELOPE VIOLATION [${v.type}] ${v.detail}`, requestMeta.requestId)
+        }
+      }
       const DENY_HOLD_TIMEOUT_MS = 8000
       const pendingDenyReleases: Array<() => void> = []
       // True while a model turn is actively generating (message_start seen,
@@ -1888,7 +1901,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             cacheReadInputTokens: lastUsage?.cache_read_input_tokens,
             cacheCreationInputTokens: lastUsage?.cache_creation_input_tokens,
             cacheHitRate: computeCacheHitRate(lastUsage),
+            ...(envelopeViolations.length > 0 ? { envelopeViolations: [...envelopeViolations] } : {}),
           })
+
+          // Envelope integrity (non-stream): the response must not contain
+          // beheaded calls (empty required inputs) or silently drop captured
+          // calls the model was told were forwarded.
+          if (passthrough) {
+            const deliveredIds = new Set<string>(
+              contentBlocks.filter((b) => b.type === "tool_use" && typeof (b as any).id === "string").map((b) => (b as any).id as string)
+            )
+            recordEnvelopeViolations([
+              ...checkEmptyToolInputs(contentBlocks, requestTools),
+              ...checkUndeliveredToolUses(capturedToolUses, deliveredIds),
+            ])
+          }
 
           // Store session for future resume.
           // Fork/subagent requests don't write to the cache — see lookupSession
@@ -2016,6 +2043,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // normally complete before any close — this is the backstop.
             const flushOpenClientBlocks = (source: string): void => {
               if (openClientBlocks.size === 0) return
+              recordEnvelopeViolations([...openClientBlocks].map((idx) => ({
+                type: "dangling_block" as const,
+                detail: `content block ${idx} still open at ${source} close`,
+              })))
               claudeLog("stream.dangling_blocks_closed", { source, count: openClientBlocks.size })
               for (const idx of openClientBlocks) {
                 safeEnqueue(encoder.encode(
@@ -2635,6 +2666,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 textEventsForwarded += 1
               }
 
+              if (passthrough) {
+                recordEnvelopeViolations(checkUndeliveredToolUses(capturedToolUses, streamedToolUseIds))
+              }
               claudeLog("upstream.completed", {
                 mode: "stream",
                 model,
@@ -2674,6 +2708,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   for (let i = 0; i < unseenToolUses.length; i++) {
                     const tu = unseenToolUses[i]!
                     const blockIndex = eventsForwarded + i
+                    streamedToolUseIds.add(tu.id)
 
                     // content_block_start
                     safeEnqueue(encoder.encode(
@@ -2824,6 +2859,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   cacheReadInputTokens: lastUsage?.cache_read_input_tokens,
                   cacheCreationInputTokens: lastUsage?.cache_creation_input_tokens,
                   cacheHitRate: computeCacheHitRate(lastUsage),
+                  ...(envelopeViolations.length > 0 ? { envelopeViolations: [...envelopeViolations] } : {}),
                 })
 
                 if (textEventsForwarded === 0) {
@@ -2915,12 +2951,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // a tool_use block's input deltas but before its stop) — an
                 // unterminated block renders client-side as an argument-less
                 // aborted call (#552 "red reads").
-                for (const idx of openClientBlocks) {
-                  safeEnqueue(encoder.encode(
-                    `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: idx })}\n\n`
-                  ), "recover_close_dangling_block")
-                }
-                openClientBlocks.clear()
+                flushOpenClientBlocks("recovery")
 
                 // Mirror the success-path emission: send any unseen tool_uses
                 // (dedup against streamedToolUseIds), then a clean
@@ -2929,6 +2960,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 for (let i = 0; i < unseenToolUses.length; i++) {
                   const tu = unseenToolUses[i]!
                   const blockIndex = eventsForwarded + i
+                  streamedToolUseIds.add(tu.id)
                   safeEnqueue(encoder.encode(
                     `event: content_block_start\ndata: ${JSON.stringify({
                       type: "content_block_start",
@@ -2961,6 +2993,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   `event: message_stop\ndata: {"type":"message_stop"}\n\n`
                 ), "recover_message_stop")
 
+                recordEnvelopeViolations(checkUndeliveredToolUses(capturedToolUses, streamedToolUseIds))
                 // Record as success — the client got a usable response.
                 const recoverTotalMs = Date.now() - requestStartAt
                 const recoverQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
@@ -2989,6 +3022,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   contentBlocks: eventsForwarded + unseenToolUses.length,
                   textEvents: textEventsForwarded,
                   error: null,
+                  ...(envelopeViolations.length > 0 ? { envelopeViolations: [...envelopeViolations] } : {}),
                 })
 
                 if (!streamClosed) {

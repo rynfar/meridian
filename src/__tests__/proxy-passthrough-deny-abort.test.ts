@@ -586,3 +586,81 @@ describe("dropped calls must not leak to the client (truth-divergence guard)", (
     expect(toolUses.map((t: any) => t.id)).toEqual(["toolu_d1"])
   })
 })
+
+describe("envelope integrity tripwire", () => {
+  // The proxy asserts its own wire contract on every response. The kill-switch
+  // dangling fixture below genuinely produces a red read (block 2 cut before
+  // its stop) — the tripwire must count it in /telemetry so the next
+  // #552-family regression fires in OUR logs, not a user transcript.
+  let origEnv: string | undefined
+  let origEarlyStop: string | undefined
+
+  beforeEach(() => {
+    origEnv = process.env.MERIDIAN_PASSTHROUGH
+    origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    mockTurns = []
+    capturedController = undefined
+    clearSessionCache()
+  })
+
+  afterEach(() => {
+    if (origEnv === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+    else process.env.MERIDIAN_PASSTHROUGH = origEnv
+    if (origEarlyStop === undefined) delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    else process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
+  })
+
+  it("counts a dangling-block violation when a stream cuts a block (legacy fixture)", async () => {
+    process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = "0" // legacy mid-hook abort → real dangling block
+    const streamEvent = (event: any) => ({
+      type: "stream_event", event, parent_tool_use_id: null,
+      uuid: crypto.randomUUID(), session_id: "test-session",
+    })
+    const twoCallTurn = toolTurn("toolu_ev1", "read", { filePath: "a.txt" })
+    ;(twoCallTurn as any).message.content = [
+      { type: "tool_use", id: "toolu_ev1", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+      { type: "tool_use", id: "toolu_ev2", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "b.txt" } },
+    ]
+    mockTurns = [
+      streamMessageStart(),
+      streamEvent({ type: "content_block_start", index: 1, content_block: { type: "tool_use", id: "toolu_ev1", name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+      streamEvent({ type: "content_block_delta", index: 1, delta: { type: "input_json_delta", partial_json: '{"filePath":"a.txt"}' } }),
+      streamEvent({ type: "content_block_stop", index: 1 }),
+      streamEvent({ type: "content_block_start", index: 2, content_block: { type: "tool_use", id: "toolu_ev2", name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+      // No stop for index 2 — abort cuts it (the red read).
+      twoCallTurn,
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    // The telemetry store is process-wide — assert the DELTA from this request.
+    const before = (await (await app.fetch(new Request("http://localhost/telemetry/summary"))).json() as any).envelopeViolationCount ?? 0
+    await readSSE(await post(app, true))
+
+    const after = (await (await app.fetch(new Request("http://localhost/telemetry/summary"))).json() as any).envelopeViolationCount ?? 0
+    expect(after - before).toBeGreaterThanOrEqual(1)
+  })
+
+  it("clean early-stop parallel run records ZERO violations", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    const turn = toolTurn("toolu_ok1", "read", { filePath: "a.txt" })
+    ;(turn as any).message.content = [
+      { type: "tool_use", id: "toolu_ok1", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+      { type: "tool_use", id: "toolu_ok2", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "b.txt" } },
+    ]
+    mockTurns = [turn, {
+      type: "user",
+      message: { role: "user", content: [
+        { type: "tool_result", tool_use_id: "toolu_ok1", is_error: true, content: "forwarded" },
+        { type: "tool_result", tool_use_id: "toolu_ok2", is_error: true, content: "forwarded" },
+      ]},
+      parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session",
+    }]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    const before = (await (await app.fetch(new Request("http://localhost/telemetry/summary"))).json() as any).envelopeViolationCount ?? 0
+    const body = await (await post(app, false)).json() as any
+    expect(body.content.filter((b: any) => b.type === "tool_use")).toHaveLength(2)
+
+    const after = (await (await app.fetch(new Request("http://localhost/telemetry/summary"))).json() as any).envelopeViolationCount ?? 0
+    expect(after - before).toBe(0)
+  })
+})

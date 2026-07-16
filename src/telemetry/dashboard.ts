@@ -214,6 +214,7 @@ function render(s, reqs, logs, quota) {
   html += '<div class="cards">'
     + card('Requests', s.totalRequests, s.requestsPerMinute.toFixed(1) + ' req/min')
     + card('Errors', s.errorCount, s.totalRequests > 0 ? ((s.errorCount/s.totalRequests)*100).toFixed(1) + '% error rate' : '')
+    + '<div class="card"><div class="card-label">Envelope</div><div class="card-value" style="color:' + ((s.envelopeViolationCount || 0) > 0 ? 'var(--red)' : 'var(--green)') + '">' + (s.envelopeViolationCount || 0) + '</div><div class="card-detail">' + ((s.envelopeViolationCount || 0) > 0 ? 'wire-contract violations — check logs' : 'wire contract clean') + '</div></div>'
     + card('Median Total', ms(s.totalDuration.p50), 'p95: ' + ms(s.totalDuration.p95))
     + card('Median TTFB', ms(s.ttfb.p50), 'p95: ' + ms(s.ttfb.p95))
     + card('Proxy Overhead', ms(s.proxyOverhead.p50), 'p95: ' + ms(s.proxyOverhead.p95))
@@ -291,6 +292,7 @@ function render(s, reqs, logs, quota) {
     const respW = Math.max((r.upstreamDurationMs - (r.ttfbMs || 0)) * scale, 2);
 
     const lineageBadge = r.lineageType ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + ({continuation:'var(--green)',compaction:'var(--yellow)',undo:'var(--purple)',diverged:'var(--red)',new:'var(--muted)'}[r.lineageType] || 'var(--muted)') + ';color:var(--bg)">' + r.lineageType + '</span>' : '';
+    const envBadge = (r.envelopeViolations && r.envelopeViolations.length > 0) ? ' <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--red);color:var(--bg)" title="' + r.envelopeViolations.join(', ') + '">envelope×' + r.envelopeViolations.length + '</span>' : '';
     const sessionShort = r.sdkSessionId ? r.sdkSessionId.slice(0, 8) : '—';
     const msgCount = r.messageCount != null ? r.messageCount : '?';
 
@@ -301,7 +303,7 @@ function render(s, reqs, logs, quota) {
       + '<td>' + (r.adapter || '—') + sourceBadge + '</td>'
       + '<td>' + (r.requestModel || r.model) + '<br><span style="font-size:10px;color:var(--muted)">' + r.model + '</span></td>'
       + '<td>' + r.mode + (r.hasDeferredTools ? (function() { var sessDisc = r.sessionDiscoveredCount || 0; var loaded = ((r.toolCount || 0) - (r.deferredToolCount || 0)) + sessDisc; var deferred = Math.max(0, (r.deferredToolCount || 0) - sessDisc); var newDisc = r.discoveredTools || []; return '<br><span style="font-size:10px;color:var(--purple)">loaded=' + loaded + ' deferred=' + deferred + '</span>' + (newDisc.length > 0 ? '<br><span style="font-size:10px;color:var(--green)">+' + newDisc.join(', +') + '</span>' : ''); })() : '') + '</td>'
-      + '<td class="mono">' + sessionShort + ' ' + lineageBadge + '<br><span style="font-size:10px;color:var(--muted)">' + msgCount + ' msgs</span></td>'
+      + '<td class="mono">' + sessionShort + ' ' + lineageBadge + envBadge + '<br><span style="font-size:10px;color:var(--muted)">' + msgCount + ' msgs</span></td>'
       + '<td class="' + statusClass + '">' + statusText + '</td>'
       + '<td class="mono">' + ms(r.queueWaitMs) + '</td>'
       + '<td class="mono">' + ms(r.proxyOverheadMs) + '</td>'
