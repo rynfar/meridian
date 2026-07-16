@@ -84,6 +84,54 @@
         "type": "github"
       }
     },
+    "meridian-plugin-hermes-scrub": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783706868,
+        "narHash": "sha256-NZ5jpEEShJPHWhpY/lqU81dkui2CgWf3GhOPKyqNKAM=",
+        "owner": "rynfar",
+        "repo": "meridian-plugin-hermes-scrub",
+        "rev": "d3a28e5465fee9eb8ffdde340f4f973fa9d450b3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rynfar",
+        "repo": "meridian-plugin-hermes-scrub",
+        "type": "github"
+      }
+    },
+    "meridian-plugin-opencode-scrub": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783706886,
+        "narHash": "sha256-OhIYu4aZP+6RvlnDxraXfbh3Fez0QZ9pkaekmHkfBzY=",
+        "owner": "rynfar",
+        "repo": "meridian-plugin-opencode-scrub",
+        "rev": "59a1bfce767d1994a4bb6a700373e4c11aef3633",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rynfar",
+        "repo": "meridian-plugin-opencode-scrub",
+        "type": "github"
+      }
+    },
+    "meridian-plugin-pi-scrub": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783706871,
+        "narHash": "sha256-S3QdJQvSR3claesMgSPZvVFosuuDeYDgpMwBRR+3zM0=",
+        "owner": "rynfar",
+        "repo": "meridian-plugin-pi-scrub",
+        "rev": "65fe302e570044f6f115805d82b619277a8e538f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rynfar",
+        "repo": "meridian-plugin-pi-scrub",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1776169885,
@@ -105,6 +153,9 @@
         "bun2nix": "bun2nix",
         "flake-parts": "flake-parts",
         "home-manager": "home-manager",
+        "meridian-plugin-hermes-scrub": "meridian-plugin-hermes-scrub",
+        "meridian-plugin-opencode-scrub": "meridian-plugin-opencode-scrub",
+        "meridian-plugin-pi-scrub": "meridian-plugin-pi-scrub",
         "nixpkgs": "nixpkgs",
         "systems": "systems"
       }

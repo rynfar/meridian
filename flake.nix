@@ -18,6 +18,18 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    meridian-plugin-hermes-scrub = {
+      url = "github:rynfar/meridian-plugin-hermes-scrub";
+      flake = false;
+    };
+    meridian-plugin-opencode-scrub = {
+      url = "github:rynfar/meridian-plugin-opencode-scrub";
+      flake = false;
+    };
+    meridian-plugin-pi-scrub = {
+      url = "github:rynfar/meridian-plugin-pi-scrub";
+      flake = false;
+    };
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
   };
@@ -46,10 +58,16 @@
         perSystem =
           {
             config,
+            lib,
             pkgs,
             system,
             ...
           }:
+          let
+            inherit (lib.attrsets) filterAttrs mapAttrs' nameValuePair;
+            inherit (lib.strings) hasPrefix removePrefix;
+            inherit (lib.trivial) pipe;
+          in
           {
             _module.args.pkgs = import nixpkgs {
               inherit system;
@@ -60,6 +78,16 @@
               default = config.packages.meridian;
               meridian = pkgs.callPackage ./nix/package.nix { };
             };
+
+            legacyPackages.meridianPlugins = pipe inputs [
+              (filterAttrs (pname: _: hasPrefix "meridian-plugin-" pname))
+              (mapAttrs' (
+                pname: src:
+                nameValuePair (removePrefix "meridian-plugin-" pname) (
+                  pkgs.callPackage ./nix/plugin.nix { inherit pname src; }
+                )
+              ))
+            ];
           };
 
         flake = {
@@ -74,7 +102,13 @@
             default = self.overlays.meridian;
             meridian =
               _: prev:
-              withSystem prev.stdenv.hostPlatform.system ({ self', ... }: { inherit (self'.packages) meridian; });
+              withSystem prev.stdenv.hostPlatform.system (
+                { self', ... }:
+                {
+                  inherit (self'.packages) meridian;
+                  inherit (self'.legacyPackages) meridianPlugins;
+                }
+              );
           };
         };
       }
