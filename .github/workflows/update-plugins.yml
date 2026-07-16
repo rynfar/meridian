@@ -1,0 +1,27 @@
+name: Update plugin inputs
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+
+      - name: Bump plugin inputs and verify each still builds
+        run: |
+          for input in $(nix flake metadata --json | jq -r '.locks.nodes.root.inputs | keys[] | select(startswith("meridian-plugin-"))'); do
+            nix flake update "$input"
+            nix build ".#meridianPlugins.${input#meridian-plugin-}" --no-link --print-out-paths
+          done
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update plugin flake inputs"
+          file_pattern: flake.lock
