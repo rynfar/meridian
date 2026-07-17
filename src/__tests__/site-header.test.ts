@@ -77,6 +77,22 @@ describe("landing page layout", () => {
   test("has a friendly how-it-works intro pointing at the endpoint", () => {
     expect(landingHtml).toContain("ANTHROPIC_BASE_URL")
   })
+
+  test("stats strip shows meaningful telemetry, not fillers", () => {
+    // Token + cache signals are in; TTFB stays on the /telemetry page
+    expect(landingHtml).toContain("tokenUsage")
+    expect(landingHtml).toContain("Cache Hit")
+    expect(landingHtml).not.toContain("Median TTFB")
+    // Envelope violations render only when noteworthy
+    expect(landingHtml).toContain("envelopeViolationCount>0")
+  })
+
+  test("account cards come from configured profiles, not synthetic cost buckets", () => {
+    // With profiles configured, only pl.profiles render (no "default" card);
+    // the single-account fallback labels the card with the login email.
+    expect(landingHtml).toContain("configured.length>0")
+    expect(landingHtml).toContain("k==='default'?(email||'account')")
+  })
 })
 
 describe("per-page titles do not repeat the brand", () => {

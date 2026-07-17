@@ -109,17 +109,24 @@ function introSection(h){
     +'</div>';
 }
 
-function profileSection(q,s,pl){
+function profileSection(q,s,pl,h){
   var byProfile=(s&&s.costEstimate&&s.costEstimate.byProfile)||{};
   var quotaByProfile={};
   if(q&&Array.isArray(q.profiles))for(var i=0;i<q.profiles.length;i++){var qid=q.profiles[i].id||q.profiles[i].profile||'default';quotaByProfile[qid]=q.profiles[i].windows||[]}
-  // Configured profiles first (they carry isActive), then any extra ids seen in cost/quota data
   var profs=[];var seen={};
   var configured=(pl&&Array.isArray(pl.profiles))?pl.profiles:[];
   var multi=configured.length>1;
-  for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,type:p.type,isActive:!!p.isActive,configured:true});seen[p.id]=1}
-  for(var k in quotaByProfile){if(!seen[k]){profs.push({id:k,configured:false});seen[k]=1}}
-  for(var k in byProfile){if(!seen[k]){profs.push({id:k,configured:false});seen[k]=1}}
+  if(configured.length>0){
+    // Real profiles exist: show exactly those. Traffic that predates
+    // per-profile attribution (the synthetic "default" bucket) still
+    // counts in the totals strip but doesn't render as a fake account.
+    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,configured:true});seen[p.id]=1}
+  }else{
+    // Single-account setup: one card, labeled with the logged-in email.
+    var email=(h&&h.auth&&h.auth.loggedIn&&h.auth.email)||'';
+    for(var k in quotaByProfile){profs.push({id:k,label:k==='default'?(email||'account'):k,configured:false});seen[k]=1}
+    for(var k in byProfile){if(!seen[k])profs.push({id:k,label:k==='default'?(email||'account'):k,configured:false});seen[k]=1}
+  }
   if(profs.length===0)return '';
   var cards='';
   for(var i=0;i<profs.length;i++){
@@ -138,9 +145,9 @@ function profileSection(q,s,pl){
     var switchable=multi&&p.configured&&!p.isActive;
     var badge=p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
     cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
-      +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.id)+' '+badge+'</span>'
-      +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:null)+'</span></div>'
-      +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic in window')+'</div>'
+      +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'
+      +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
+      +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
       +rows+'</div>';
   }
   if(!cards)return '';
@@ -167,24 +174,28 @@ async function refresh(){
   }catch(e){document.getElementById('content').innerHTML='<div style="color:var(--red);padding:40px;text-align:center">Could not connect</div>'}
 }
 
+function tokens(v){if(v==null)return '—';if(v>=1e6)return (v/1e6).toFixed(1)+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'k';return String(v)}
+
 function render(h,s,q,pl){
   let o='';
   o+=introSection(h);
 
   // Accounts — per-profile usage + est cost; click a card to switch
-  o+=profileSection(q,s,pl);
+  o+=profileSection(q,s,pl,h);
 
-  // Traffic (24h) — one compact strip; envelope integrity only when noteworthy
-  const er=s.totalRequests>0?((s.errorCount/s.totalRequests)*100).toFixed(1):'0';
+  // Last 24 hours — meaningful signals only. Errors and envelope
+  // violations appear only when there is something to report.
+  var tu=s.tokenUsage||{};
+  var cache=tu.avgCacheHitRate!=null?Math.round(tu.avgCacheHitRate*100)+'%':'—';
   var items=[
-    ['Requests',String(s.totalRequests),'',''],
+    ['Requests',String(s.totalRequests),s.errorCount>0?'red':'',s.errorCount>0?s.errorCount+' error'+(s.errorCount===1?'':'s'):'no errors'],
+    ['Tokens Out',tokens(tu.totalOutputTokens),'',tokens(tu.totalInputTokens)+' in'],
+    ['Cache Hit',cache,tu.avgCacheHitRate>=0.5?'green':'','prompt cache'],
     ['Est. API Value',usd(s.costEstimate?.totalUsd),'','list prices'],
-    ['Median Response',ms(s.totalDuration?.p50),'','p95 '+ms(s.totalDuration?.p95)],
-    ['Median TTFB',ms(s.ttfb?.p50),'','p95 '+ms(s.ttfb?.p95)],
-    ['Errors',er+'%',parseFloat(er)>5?'red':'green',s.errorCount+' of '+s.totalRequests]
+    ['Median Response',ms(s.totalDuration?.p50),'','p95 '+ms(s.totalDuration?.p95)]
   ];
   if(s.envelopeViolationCount>0)items.push(['Envelope',String(s.envelopeViolationCount),'red','wire-contract violations']);
-  o+='<div class="section"><div class="section-title">Traffic (24h)</div>'+strip(items)+'</div>';
+  o+='<div class="section"><div class="section-title">Last 24 Hours</div>'+strip(items)+'</div>';
 
   o+='<div class="footer">Meridian · <a href="https://github.com/rynfar/meridian">GitHub</a> · Built on the <a href="https://github.com/anthropics/claude-agent-sdk-typescript">Claude Agent SDK</a></div>';
   document.getElementById('content').innerHTML=o;
