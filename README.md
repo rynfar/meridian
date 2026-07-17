@@ -497,6 +497,30 @@ ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 \
 
 > **Note:** `--no-stream` is incompatible due to a litellm parsing issue — use the default streaming mode.
 
+### Codex CLI
+
+Codex CLI ≥ 0.96 dropped `wire_api = "chat"` and speaks only the OpenAI **Responses API** (`/v1/responses`), which Meridian serves. Add a provider to `~/.codex/config.toml`:
+
+```toml
+model = "claude-sonnet-5"
+model_provider = "meridian"
+
+[model_providers.meridian]
+name = "Meridian"
+base_url = "http://127.0.0.1:3456/v1"
+wire_api = "responses"
+env_key = "MERIDIAN_KEY"    # any value unless MERIDIAN_API_KEY is set
+```
+
+```bash
+MERIDIAN_KEY=x codex "refactor this function"
+MERIDIAN_KEY=x codex exec "run the tests and summarize failures"   # non-interactive
+```
+
+Codex is a tool-driving agent — Meridian runs the `/v1/responses` endpoint in **passthrough** mode automatically (Codex executes its own shell/apply-patch tools), so no `MERIDIAN_PASSTHROUGH` change is needed. A harmless `Model metadata for 'claude-sonnet-5' not found` warning from Codex is expected — it doesn't recognize non-OpenAI model ids but works regardless.
+
+`model_reasoning_effort` is supported and won't stall the CLI, but Claude's private thinking isn't yet carried **across** turns — the Responses API's encrypted-reasoning envelope is OpenAI-specific and incompatible with Claude's signed thinking blocks, so cross-turn reasoning continuity is deferred (each turn still reasons with full context including tool results). Verified on Codex 0.144 with plain, tool-driving, and reasoning-enabled turns.
+
 ### OpenAI-compatible tools (Open WebUI, Continue, etc.)
 
 Meridian speaks the OpenAI protocol natively — no LiteLLM or translation proxy needed.
@@ -664,6 +688,7 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 | [Pi](https://github.com/mariozechner/pi-coding-agent) | ✅ Verified | models.json config (see above) — full tool support via passthrough; detected via `x-meridian-agent: pi` header |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
 | [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see above) — chat client with Claude's built-in web search via internal mode |
+| [Codex CLI](https://github.com/openai/codex) | ✅ Verified | `/v1/responses` (see above) — Responses-API provider, passthrough tool execution; verified on 0.144 (plain + tool-driving turns) |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
 
 Tested an agent or built a plugin? [Open an issue](https://github.com/rynfar/meridian/issues) and we'll add it.
@@ -684,12 +709,14 @@ src/proxy/
 │   ├── cherry.ts          ← Cherry Studio adapter (internal mode + web search)
 │   ├── claudecode.ts      ← Claude Code adapter (remote clients sharing a Max host)
 │   ├── openai.ts          ← OpenAI-endpoint adapter (/v1/chat/completions)
+│   ├── codex.ts           ← Codex CLI adapter (/v1/responses, forced passthrough)
 │   └── passthrough.ts     ← LiteLLM passthrough adapter
 ├── query.ts               ← SDK query options builder
 ├── errors.ts              ← Error classification
 ├── models.ts              ← Model mapping (sonnet/opus/haiku, agentMode)
 ├── tokenRefresh.ts        ← Cross-platform OAuth token refresh
 ├── openai.ts              ← OpenAI ↔ Anthropic format translation (pure)
+├── openaiResponses.ts     ← OpenAI Responses API ↔ Anthropic translation (pure)
 ├── setup.ts               ← OpenCode plugin configuration
 ├── session/
 │   ├── lineage.ts         ← Per-message hashing, mutation classification (pure)
@@ -805,6 +832,7 @@ ANTHROPIC_API_KEY=your-secret-key ANTHROPIC_BASE_URL=http://meridian-host:3456 o
 | `POST /v1/messages` | Anthropic Messages API |
 | `POST /messages` | Alias for `/v1/messages` |
 | `POST /v1/chat/completions` | OpenAI-compatible chat completions |
+| `POST /v1/responses` | OpenAI Responses API (Codex CLI ≥ 0.96) |
 | `GET /v1/models` | OpenAI-compatible model list |
 | `GET /health` | Auth status, mode, plugin status |
 | `POST /auth/refresh` | Manually refresh the OAuth token |

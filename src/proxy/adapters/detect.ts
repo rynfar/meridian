@@ -15,6 +15,7 @@ import { piAdapter } from "./pi"
 import { forgeCodeAdapter } from "./forgecode"
 import { claudeCodeAdapter } from "./claudecode"
 import { openAiAdapter } from "./openai"
+import { codexAdapter } from "./codex"
 import { cherryAdapter } from "./cherry"
 import { loadAdapterInstances, matchesInstance, type AdapterInstanceDef } from "../adapterInstances"
 
@@ -33,6 +34,9 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   // Generic OpenAI-compatible endpoint (/v1/chat/completions). Selected via
   // the x-meridian-agent: openai tag the handler sets on the internal hop.
   openai: openAiAdapter,
+  // Codex CLI endpoint (/v1/responses). Forces passthrough — Codex executes
+  // its own tools. Selected via the x-meridian-agent: codex internal tag.
+  codex: codexAdapter,
 }
 
 const envDefault = process.env.MERIDIAN_DEFAULT_AGENT || ""

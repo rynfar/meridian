@@ -8,10 +8,12 @@ import { resolvePassthrough } from "../../env"
 export const openCodeTransforms: Transform[] = [
   {
     name: "opencode-core",
-    // "openai" (/v1/chat/completions) reuses this pipeline via the transform
-    // registry; it must be listed here or the transform is skipped and OpenAI
-    // clients get built-in tools unblocked + passthrough off (#546).
-    adapters: ["opencode", "openai"],
+    // "openai" (/v1/chat/completions) and "codex" (/v1/responses) reuse this
+    // pipeline via the transform registry; each must be listed here or the
+    // transform is skipped and clients get built-in tools unblocked +
+    // passthrough off (#546). Codex additionally FORCES passthrough on via a
+    // follow-on transform (#475).
+    adapters: ["opencode", "openai", "codex"],
 
     onRequest(ctx: RequestContext): RequestContext {
       const body = ctx.body

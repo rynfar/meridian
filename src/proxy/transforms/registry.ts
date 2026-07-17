@@ -6,6 +6,7 @@ import { piTransforms } from "./pi"
 import { forgeCodeTransforms } from "./forgecode"
 import { passthroughTransforms } from "./passthrough"
 import { cherryTransforms } from "./cherry"
+import { codexTransforms } from "./codex"
 
 const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   opencode: openCodeTransforms,
@@ -19,6 +20,9 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   // tool/passthrough behaviour is identical; only the preset default differs
   // (see sdkFeatures.ADAPTER_DEFAULTS.openai).
   openai: openCodeTransforms,
+  // Codex (/v1/responses): OpenCode's tool config + a follow-on transform
+  // that forces passthrough (Codex executes its own tools). See #475.
+  codex: [...openCodeTransforms, ...codexTransforms],
 }
 
 export function getAdapterTransforms(adapterName: string): readonly Transform[] {

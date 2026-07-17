@@ -85,6 +85,12 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   cherry: {
     codeSystemPrompt: false,
   },
+  // Codex CLI endpoint (/v1/responses). Codex ships its own ~21KB harness
+  // instructions; keep the Claude Code preset OFF so they aren't overridden
+  // (same rationale as openai). Passthrough is forced in the adapter itself.
+  codex: {
+    codeSystemPrompt: false,
+  },
 }
 
 function getConfigPath(): string {
@@ -166,7 +172,7 @@ export function getExplicitThinking(adapterName: string): AdapterFeatures["think
  * Get the full config for all adapters (for the settings UI).
  */
 export function getAllFeatureConfigs(): Record<string, AdapterFeatures> {
-  const adapters = ["opencode", "crush", "forgecode", "pi", "droid", "passthrough", "openai"]
+  const adapters = ["opencode", "crush", "forgecode", "pi", "droid", "passthrough", "openai", "codex"]
   const result: Record<string, AdapterFeatures> = {}
   for (const name of adapters) {
     result[name] = getFeaturesForAdapter(name)

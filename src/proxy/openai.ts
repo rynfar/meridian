@@ -118,6 +118,8 @@ export interface AnthropicRequestBody {
   temperature?: number
   top_p?: number
   tools?: AnthropicTool[]
+  /** Tool selection constraint (carried from Responses `tool_choice`, #475). */
+  tool_choice?: { type: "auto" | "any" | "tool"; name?: string }
   /** Reasoning effort carried from the OpenAI request so the internal
    *  /v1/messages hop forwards it to the SDK (value gated by normalizeEffort). */
   reasoning_effort?: string
