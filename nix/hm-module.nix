@@ -95,13 +95,13 @@ in
 
             path = mkOption {
               type = path;
-              example = literalExpression ''"''${plugin}/lib/index.js"'';
+              example = literalExpression "pkgs.meridianPlugins.opencode-scrub.path";
               description = ''
-                Path to the plugin's ESM entry file. Reference an entry
-                *inside a packaged derivation* (e.g. `"''${plugin}/lib/index.js"`)
-                so the plugin's dependencies land in the store next to it — a
-                bare `./file.js` path literal copies only that one file, which
-                breaks plugins that import sibling `node_modules`.
+                Path to the plugin's ESM entry file.
+                Reference an entry *inside a packaged derivation*
+                so the plugin's dependencies land in the store next to it.
+                A bare `./file.js` path literal copies only that one file,
+                which breaks plugins that import sibling `node_modules`.
               '';
             };
           };
