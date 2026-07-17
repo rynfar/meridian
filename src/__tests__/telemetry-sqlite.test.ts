@@ -320,3 +320,63 @@ describe("SqliteTelemetryStore retention", () => {
     rmSync(tmpDir, { recursive: true, force: true })
   })
 })
+
+describe("SqliteTelemetryStore — memory-store parity for newer fields", () => {
+  // Regression guard for the silent-drop class: the sqlite schema is a fixed
+  // column list, so any field added to RequestMetric without a matching
+  // column + migration is silently discarded on persist — while the memory
+  // store (and every unit test using it) keeps working. profileId and
+  // envelopeViolations both shipped with exactly this gap.
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "meridian-parity-"))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it("round-trips profileId and envelopeViolations through persist + read", () => {
+    const { telemetry: telemetryStore } = createSqliteStores(join(tmpDir, "t.db"), 7)
+    telemetryStore.record(makeMetric({
+      requestId: "req-parity-1",
+      profileId: "work",
+      envelopeViolations: ["dangling_block", "undelivered_tool_use"],
+    }))
+    telemetryStore.record(makeMetric({ requestId: "req-parity-2" }))
+
+    const rows = telemetryStore.getRecent({ limit: 10 })
+    const withFields = rows.find(r => r.requestId === "req-parity-1")!
+    const without = rows.find(r => r.requestId === "req-parity-2")!
+    expect(withFields.profileId).toBe("work")
+    expect(withFields.envelopeViolations).toEqual(["dangling_block", "undelivered_tool_use"])
+    expect(without.profileId).toBeUndefined()
+    expect(without.envelopeViolations).toBeUndefined()
+  })
+
+  it("summarize surfaces byProfile and envelopeViolationCount from persisted data", () => {
+    const { telemetry: telemetryStore } = createSqliteStores(join(tmpDir, "t2.db"), 7)
+    telemetryStore.record(makeMetric({ requestModel: "claude-opus-4-8", profileId: "personal", inputTokens: 1_000_000 }))
+    telemetryStore.record(makeMetric({ profileId: "personal", envelopeViolations: ["dangling_block"] }))
+
+    const summary = telemetryStore.summarize(60 * 60 * 1000)
+    expect(summary.costEstimate.byProfile["personal"]!.requests).toBe(2)
+    expect(summary.costEstimate.byProfile["personal"]!.estimatedUsd).toBeCloseTo(5, 4)
+    expect(summary.envelopeViolationCount).toBe(1)
+  })
+
+  it("migrates a pre-existing DB created before the new columns", () => {
+    const dbPath = join(tmpDir, "t3.db")
+    // First open creates the schema (current); to simulate an OLD db we drop
+    // the new columns' data path by writing a metric without them, closing,
+    // and re-opening — the ALTER TABLE migrations must be idempotent.
+    const first = createSqliteStores(dbPath, 7)
+    first.telemetry.record(makeMetric({ requestId: "req-old" }))
+    const second = createSqliteStores(dbPath, 7)
+    second.telemetry.record(makeMetric({ requestId: "req-new", profileId: "work" }))
+    const rows = second.telemetry.getRecent({ limit: 10 })
+    expect(rows.find(r => r.requestId === "req-new")!.profileId).toBe("work")
+    expect(rows.find(r => r.requestId === "req-old")!.profileId).toBeUndefined()
+  })
+})

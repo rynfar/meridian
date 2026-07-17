@@ -57,7 +57,7 @@ export function computeSummary(
         avgCacheHitRate: 0,
         cacheMissOnResumeCount: 0,
       },
-      costEstimate: { totalUsd: 0, byModel: {}, unpricedRequestCount: 0 },
+      costEstimate: { totalUsd: 0, byModel: {}, unpricedRequestCount: 0, byProfile: {} },
     }
   }
 

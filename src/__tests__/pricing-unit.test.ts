@@ -182,10 +182,32 @@ describe("computeCostEstimate", () => {
   })
 })
 
+describe("computeCostEstimate byProfile (multi-account rollup)", () => {
+  it("aggregates cost and request count per profile", () => {
+    const metrics = [
+      makeMetric({ requestModel: "claude-opus-4-8", profileId: "personal", inputTokens: 1_000_000 }),
+      makeMetric({ requestModel: "claude-opus-4-8", profileId: "personal", inputTokens: 1_000_000 }),
+      makeMetric({ requestModel: "claude-opus-4-8", profileId: "work", outputTokens: 1_000_000 }),
+      makeMetric({ requestModel: "claude-opus-4-8" }), // no profileId → "default"
+    ]
+    const estimate = computeCostEstimate(metrics)
+    expect(estimate.byProfile["personal"]).toEqual({ requests: 2, estimatedUsd: 10 })
+    expect(estimate.byProfile["work"]).toEqual({ requests: 1, estimatedUsd: 25 })
+    expect(estimate.byProfile["default"]!.requests).toBe(1)
+  })
+
+  it("counts unpriced-model requests in the profile's request count without cost", () => {
+    const estimate = computeCostEstimate([
+      makeMetric({ requestModel: "mystery-model", profileId: "personal", inputTokens: 1_000_000 }),
+    ])
+    expect(estimate.byProfile["personal"]).toEqual({ requests: 1, estimatedUsd: 0 })
+  })
+})
+
 describe("computeSummary costEstimate integration", () => {
   it("includes a zeroed costEstimate in the empty summary", () => {
     const summary = computeSummary([], 3_600_000)
-    expect(summary.costEstimate).toEqual({ totalUsd: 0, byModel: {}, unpricedRequestCount: 0 })
+    expect(summary.costEstimate).toEqual({ totalUsd: 0, byModel: {}, unpricedRequestCount: 0, byProfile: {} })
   })
 
   it("exposes the window's cost estimate on the summary", () => {

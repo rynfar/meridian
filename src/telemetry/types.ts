@@ -31,6 +31,10 @@ export interface RequestMetric {
   /** Original model string from the client request (e.g. "claude-sonnet-4-6-20250312") */
   requestModel?: string
 
+  /** Profile that served the request (multi-account); absent on early
+   *  parse-error records where profile resolution never ran. */
+  profileId?: string
+
   /** Streaming or non-streaming */
   mode: "stream" | "non-stream"
 
@@ -149,6 +153,9 @@ export interface CostEstimate {
   byModel: Record<string, ModelCostBreakdown>
   /** Requests whose model had no pricing entry, excluded from totalUsd */
   unpricedRequestCount: number
+  /** Per-profile rollup (multi-account): estimated USD + request count.
+   *  Keyed by RequestMetric.profileId, "default" when absent. */
+  byProfile: Record<string, { requests: number; estimatedUsd: number }>
 }
 
 export interface TelemetrySummary {

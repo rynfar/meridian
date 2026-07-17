@@ -154,12 +154,15 @@ export function computeCostEstimate(
   overrides?: Record<string, ModelPricing>,
 ): CostEstimate {
   const byModel: Record<string, ModelCostBreakdown> = {}
+  const byProfile: Record<string, { requests: number; estimatedUsd: number }> = {}
   let totalUsd = 0
   let unpricedRequestCount = 0
 
   for (const metric of metrics) {
     const modelKey = metric.requestModel || metric.model
     const pricing = resolveModelPricing(modelKey, overrides)
+    const profileEntry = byProfile[metric.profileId ?? "default"] ??= { requests: 0, estimatedUsd: 0 }
+    profileEntry.requests++
     const entry = byModel[modelKey] ??= {
       requests: 0,
       inputTokens: 0,
@@ -181,12 +184,17 @@ export function computeCostEstimate(
     }
     const cost = estimateRequestCostUsd(metric, pricing)
     entry.estimatedUsd = (entry.estimatedUsd ?? 0) + cost
+    profileEntry.estimatedUsd += cost
     totalUsd += cost
+  }
+
+  for (const entry of Object.values(byProfile)) {
+    entry.estimatedUsd = roundUsd(entry.estimatedUsd)
   }
 
   for (const entry of Object.values(byModel)) {
     if (entry.estimatedUsd !== null) entry.estimatedUsd = roundUsd(entry.estimatedUsd)
   }
 
-  return { totalUsd: roundUsd(totalUsd), byModel, unpricedRequestCount }
+  return { totalUsd: roundUsd(totalUsd), byModel, unpricedRequestCount, byProfile }
 }

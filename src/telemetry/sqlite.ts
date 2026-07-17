@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS metrics (
   output_tokens        INTEGER,
   cache_read_input_tokens INTEGER,
   cache_creation_input_tokens INTEGER,
-  cache_hit_rate       REAL
+  cache_hit_rate       REAL,
+  profile_id           TEXT,
+  envelope_violations  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_metrics_ts    ON metrics(timestamp);
 CREATE INDEX IF NOT EXISTS idx_metrics_model ON metrics(model);
@@ -51,6 +53,8 @@ CREATE INDEX IF NOT EXISTS idx_metrics_session_success ON metrics(sdk_session_id
  */
 const METRICS_MIGRATIONS = [
   "ALTER TABLE metrics ADD COLUMN request_source TEXT",
+  "ALTER TABLE metrics ADD COLUMN profile_id TEXT",
+  "ALTER TABLE metrics ADD COLUMN envelope_violations TEXT",
 ]
 
 const LOGS_SCHEMA = `
@@ -102,7 +106,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
         status, queue_wait_ms, proxy_overhead_ms, ttfb_ms,
         upstream_duration_ms, total_duration_ms, content_blocks, text_events, error,
         input_tokens, output_tokens, cache_read_input_tokens,
-        cache_creation_input_tokens, cache_hit_rate
+        cache_creation_input_tokens, cache_hit_rate, profile_id, envelope_violations
       ) VALUES (
         @requestId, @timestamp, @adapter, @requestSource, @model, @requestModel, @mode,
         @isResume, @isPassthrough, @lineageType,
@@ -111,7 +115,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
         @status, @queueWaitMs, @proxyOverheadMs, @ttfbMs,
         @upstreamDurationMs, @totalDurationMs, @contentBlocks, @textEvents, @error,
         @inputTokens, @outputTokens, @cacheReadInputTokens,
-        @cacheCreationInputTokens, @cacheHitRate
+        @cacheCreationInputTokens, @cacheHitRate, @profileId, @envelopeViolations
       )
     `)
 
@@ -152,6 +156,11 @@ class SqliteTelemetryStore implements ITelemetryStore {
         cacheReadInputTokens: metric.cacheReadInputTokens ?? null,
         cacheCreationInputTokens: metric.cacheCreationInputTokens ?? null,
         cacheHitRate: metric.cacheHitRate ?? null,
+        profileId: metric.profileId ?? null,
+        // JSON text; the common clean case stays NULL.
+        envelopeViolations: metric.envelopeViolations && metric.envelopeViolations.length > 0
+          ? JSON.stringify(metric.envelopeViolations)
+          : null,
       })
     } catch (err) {
       console.error("[telemetry] SQLite write failed, skipping:", err)
@@ -306,6 +315,16 @@ class SqliteDiagnosticLogStore implements IDiagnosticLogStore {
   }
 }
 
+function parseEnvelopeViolations(raw: unknown): string[] | undefined {
+  if (typeof raw !== "string" || raw.length === 0) return undefined
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function rowToMetric(r: Record<string, unknown>): RequestMetric {
   return {
     requestId: r.request_id as string,
@@ -339,6 +358,8 @@ function rowToMetric(r: Record<string, unknown>): RequestMetric {
     cacheReadInputTokens: (r.cache_read_input_tokens as number) ?? undefined,
     cacheCreationInputTokens: (r.cache_creation_input_tokens as number) ?? undefined,
     cacheHitRate: (r.cache_hit_rate as number) ?? undefined,
+    profileId: (r.profile_id as string) ?? undefined,
+    envelopeViolations: parseEnvelopeViolations(r.envelope_violations),
   }
 }
 
