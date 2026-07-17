@@ -1,15 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Meridian axis -->
-  <line x1="256" y1="40" x2="256" y2="472" stroke="#8B7CF6" stroke-width="12" stroke-linecap="round"/>
-  <!-- Latitude arcs — outer pair -->
-  <path d="M110 130 A166 166 0 0 1 402 130" fill="none" stroke="#C4B5FD" stroke-width="7" opacity="0.4"/>
-  <path d="M110 382 A166 166 0 0 0 402 382" fill="none" stroke="#C4B5FD" stroke-width="7" opacity="0.4"/>
-  <!-- Latitude arcs — inner pair -->
-  <path d="M132 210 A136 136 0 0 1 380 210" fill="none" stroke="#C4B5FD" stroke-width="5" opacity="0.25"/>
-  <path d="M132 302 A136 136 0 0 0 380 302" fill="none" stroke="#C4B5FD" stroke-width="5" opacity="0.25"/>
+  <defs>
+    <linearGradient id="mGrad" x1="256" y1="32" x2="256" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#bc8cff"/>
+    </linearGradient>
+  </defs>
+  <!-- Globe -->
+  <circle cx="256" cy="256" r="200" stroke="url(#mGrad)" stroke-width="28"/>
+  <!-- Prime meridian -->
+  <ellipse cx="256" cy="256" rx="84" ry="200" stroke="url(#mGrad)" stroke-width="20" opacity="0.8"/>
+  <!-- Equator -->
+  <path d="M56 256h400" stroke="url(#mGrad)" stroke-width="16" opacity="0.4"/>
   <!-- Poles -->
-  <circle cx="256" cy="40" r="22" fill="#C4B5FD"/>
-  <circle cx="256" cy="472" r="22" fill="#C4B5FD"/>
-  <!-- Center node -->
-  <circle cx="256" cy="256" r="20" fill="#8B7CF6"/>
+  <circle cx="256" cy="56" r="36" fill="#58a6ff"/>
+  <circle cx="256" cy="456" r="36" fill="#bc8cff"/>
 </svg>

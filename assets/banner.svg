@@ -1,15 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" fill="none">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f0b1a"/>
-      <stop offset="100%" stop-color="#1a1030"/>
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
     </linearGradient>
+    <linearGradient id="mGrad" x1="0" y1="0" x2="0" y2="190" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58a6ff"/>
+      <stop offset="1" stop-color="#bc8cff"/>
+    </linearGradient>
+    <radialGradient id="glowBlue" cx="0.25" cy="0.1" r="0.6">
+      <stop stop-color="#58a6ff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#58a6ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowViolet" cx="0.85" cy="0.95" r="0.6">
+      <stop stop-color="#bc8cff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#bc8cff" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 
   <rect width="1200" height="400" rx="16" fill="url(#bg)"/>
+  <rect width="1200" height="400" rx="16" fill="url(#glowBlue)"/>
+  <rect width="1200" height="400" rx="16" fill="url(#glowViolet)"/>
+  <rect x="0.5" y="0.5" width="1199" height="399" rx="15.5" stroke="#30363d"/>
 
   <!-- Subtle dot grid -->
-  <g opacity="0.05" fill="#a78bfa">
+  <g opacity="0.06" fill="#58a6ff">
     <circle cx="100" cy="100" r="1.5"/><circle cx="200" cy="100" r="1.5"/><circle cx="300" cy="100" r="1.5"/>
     <circle cx="100" cy="200" r="1.5"/><circle cx="200" cy="200" r="1.5"/><circle cx="300" cy="200" r="1.5"/>
     <circle cx="100" cy="300" r="1.5"/><circle cx="200" cy="300" r="1.5"/><circle cx="300" cy="300" r="1.5"/>
@@ -18,29 +33,21 @@
     <circle cx="900" cy="300" r="1.5"/><circle cx="1000" cy="300" r="1.5"/><circle cx="1100" cy="300" r="1.5"/>
   </g>
 
-  <!-- Logo mark — V2 full globe -->
-  <g transform="translate(380, 90)">
-    <!-- Meridian axis -->
-    <line x1="80" y1="8" x2="80" y2="192" stroke="#8B7CF6" stroke-width="5" stroke-linecap="round"/>
-    <!-- Latitude arcs — outer -->
-    <path d="M28 50 A60 60 0 0 1 132 50" fill="none" stroke="#C4B5FD" stroke-width="2.5" opacity="0.4"/>
-    <path d="M28 150 A60 60 0 0 0 132 150" fill="none" stroke="#C4B5FD" stroke-width="2.5" opacity="0.4"/>
-    <!-- Latitude arcs — inner -->
-    <path d="M38 78 A46 46 0 0 1 122 78" fill="none" stroke="#C4B5FD" stroke-width="1.5" opacity="0.2"/>
-    <path d="M38 122 A46 46 0 0 0 122 122" fill="none" stroke="#C4B5FD" stroke-width="1.5" opacity="0.2"/>
-    <!-- Poles -->
-    <circle cx="80" cy="8" r="8" fill="#C4B5FD"/>
-    <circle cx="80" cy="192" r="8" fill="#C4B5FD"/>
-    <!-- Center node -->
-    <circle cx="80" cy="100" r="8" fill="#8B7CF6"/>
+  <!-- Logo mark — gradient globe -->
+  <g transform="translate(365, 105)">
+    <circle cx="95" cy="95" r="75" stroke="url(#mGrad)" stroke-width="10"/>
+    <ellipse cx="95" cy="95" rx="31" ry="75" stroke="url(#mGrad)" stroke-width="7" opacity="0.8"/>
+    <path d="M20 95h150" stroke="url(#mGrad)" stroke-width="6" opacity="0.4"/>
+    <circle cx="95" cy="20" r="13" fill="#58a6ff"/>
+    <circle cx="95" cy="170" r="13" fill="#bc8cff"/>
   </g>
 
   <!-- Wordmark -->
-  <text x="540" y="195" font-family="Inter, -apple-system, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="#e0e7ff" letter-spacing="10">MERIDIAN</text>
+  <text x="600" y="195" font-family="Inter, -apple-system, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="72" font-weight="700" fill="#e6edf3" letter-spacing="10">MERIDIAN</text>
 
   <!-- Tagline -->
-  <text x="543" y="240" font-family="Inter, -apple-system, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#8B7CF6" letter-spacing="3">HARNESS CLAUDE, YOUR WAY.</text>
+  <text x="603" y="240" font-family="Inter, -apple-system, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#58a6ff" letter-spacing="3">HARNESS CLAUDE, YOUR WAY.</text>
 
   <!-- Subtitle -->
-  <text x="543" y="278" font-family="Inter, -apple-system, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="300" fill="rgba(255,255,255,0.35)">Local Anthropic API powered by the Claude Code SDK</text>
+  <text x="603" y="278" font-family="Inter, -apple-system, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="300" fill="#8b949e">Local Anthropic API powered by the Claude Agent SDK</text>
 </svg>

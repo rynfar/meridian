@@ -1,24 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 310" fill="none">
   <style>
-    .title { font-family: 'Inter', -apple-system, sans-serif; font-size: 20px; font-weight: 700; fill: #C4B5FD; }
-    .box-label { font-family: 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 600; fill: #F5F5F7; }
-    .box-sub { font-family: 'JetBrains Mono', 'SF Mono', monospace; font-size: 10px; fill: #8B7CF6; }
-    .box-detail { font-family: 'Inter', -apple-system, sans-serif; font-size: 10px; fill: #9898B4; }
-    .tag { font-family: 'Inter', -apple-system, sans-serif; font-size: 9px; font-weight: 600; fill: #5E5B72; letter-spacing: 1px; }
+    .title { font-family: 'Inter', -apple-system, sans-serif; font-size: 20px; font-weight: 700; fill: #58a6ff; }
+    .box-label { font-family: 'Inter', -apple-system, sans-serif; font-size: 13px; font-weight: 600; fill: #e6edf3; }
+    .box-sub { font-family: 'JetBrains Mono', 'SF Mono', monospace; font-size: 10px; fill: #58a6ff; }
+    .box-detail { font-family: 'Inter', -apple-system, sans-serif; font-size: 10px; fill: #8b949e; }
+    .tag { font-family: 'Inter', -apple-system, sans-serif; font-size: 9px; font-weight: 600; fill: #6e7681; letter-spacing: 1px; }
     .step-num { font-family: 'Inter', -apple-system, sans-serif; font-size: 10px; font-weight: 700; }
-    .footer { font-family: 'Inter', -apple-system, sans-serif; font-size: 11px; fill: #5E5B72; }
-    .arrow-label { font-family: 'Inter', -apple-system, sans-serif; font-size: 9px; fill: #5E5B72; text-anchor: middle; }
+    .footer { font-family: 'Inter', -apple-system, sans-serif; font-size: 11px; fill: #6e7681; }
+    .arrow-label { font-family: 'Inter', -apple-system, sans-serif; font-size: 9px; fill: #6e7681; text-anchor: middle; }
   </style>
 
-  <rect width="920" height="310" rx="16" fill="#13111C"/>
-  <rect x="0.5" y="0.5" width="919" height="309" rx="15.5" stroke="#2A2740" stroke-width="1" fill="none"/>
+  <rect width="920" height="310" rx="16" fill="#0d1117"/>
+  <rect x="0.5" y="0.5" width="919" height="309" rx="15.5" stroke="#30363d" stroke-width="1" fill="none"/>
 
   <text class="title" x="460" y="38" text-anchor="middle">How it works</text>
 
   <!-- ═══ STEP 1: YOUR TOOLS ═══ -->
-  <rect x="32" y="64" width="156" height="140" rx="12" fill="#1C1930" stroke="#2A2740" stroke-width="1"/>
-  <rect x="44" y="54" width="18" height="18" rx="9" fill="#8B7CF6"/>
-  <text class="step-num" x="53" y="67" text-anchor="middle" fill="#13111C">1</text>
+  <rect x="32" y="64" width="156" height="140" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <rect x="44" y="54" width="18" height="18" rx="9" fill="#58a6ff"/>
+  <text class="step-num" x="53" y="67" text-anchor="middle" fill="#0d1117">1</text>
   <text class="box-label" x="110" y="100" text-anchor="middle">Your tools</text>
   <text class="box-detail" x="110" y="122" text-anchor="middle">OpenCode, Cline</text>
   <text class="box-detail" x="110" y="136" text-anchor="middle">Continue, Crush, aider</text>
@@ -26,62 +26,62 @@
   <text class="tag" x="110" y="192" text-anchor="middle">ANTHROPIC API FORMAT</text>
 
   <!-- ═══ ARROWS 1 ↔ 2 ═══ -->
-  <line x1="200" y1="122" x2="250" y2="122" stroke="#8B7CF6" stroke-width="1.5"/>
-  <polygon points="248,118 256,122 248,126" fill="#8B7CF6"/>
+  <line x1="200" y1="122" x2="250" y2="122" stroke="#58a6ff" stroke-width="1.5"/>
+  <polygon points="248,118 256,122 248,126" fill="#58a6ff"/>
   <text class="arrow-label" x="226" y="114">request</text>
-  <line x1="250" y1="142" x2="200" y2="142" stroke="#3D3858" stroke-width="1"/>
-  <polygon points="202,138 194,142 202,146" fill="#3D3858"/>
+  <line x1="250" y1="142" x2="200" y2="142" stroke="#484f58" stroke-width="1"/>
+  <polygon points="202,138 194,142 202,146" fill="#484f58"/>
   <text class="arrow-label" x="226" y="162">response</text>
 
   <!-- ═══ STEP 2: MERIDIAN ═══ -->
-  <rect x="264" y="64" width="156" height="140" rx="12" fill="#1C1930" stroke="#8B7CF6" stroke-width="1.5"/>
-  <rect x="276" y="54" width="18" height="18" rx="9" fill="#8B7CF6"/>
-  <text class="step-num" x="285" y="67" text-anchor="middle" fill="#13111C">2</text>
+  <rect x="264" y="64" width="156" height="140" rx="12" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+  <rect x="276" y="54" width="18" height="18" rx="9" fill="#58a6ff"/>
+  <text class="step-num" x="285" y="67" text-anchor="middle" fill="#0d1117">2</text>
   <text class="box-label" x="342" y="100" text-anchor="middle">Meridian</text>
   <text class="box-sub" x="342" y="118" text-anchor="middle">localhost:3456</text>
   <text class="box-detail" x="342" y="140" text-anchor="middle">Local proxy server</text>
   <text class="box-detail" x="342" y="154" text-anchor="middle">Translates API calls</text>
-  <text class="box-detail" x="342" y="168" text-anchor="middle">to Claude Code SDK</text>
+  <text class="box-detail" x="342" y="168" text-anchor="middle">to the Claude Agent SDK</text>
   <text class="tag" x="342" y="192" text-anchor="middle">BRIDGES THE GAP</text>
 
   <!-- ═══ ARROWS 2 ↔ 3 ═══ -->
-  <line x1="432" y1="122" x2="482" y2="122" stroke="#8B7CF6" stroke-width="1.5"/>
-  <polygon points="480,118 488,122 480,126" fill="#8B7CF6"/>
+  <line x1="432" y1="122" x2="482" y2="122" stroke="#58a6ff" stroke-width="1.5"/>
+  <polygon points="480,118 488,122 480,126" fill="#58a6ff"/>
   <text class="arrow-label" x="458" y="114">SDK call</text>
-  <line x1="482" y1="142" x2="432" y2="142" stroke="#3D3858" stroke-width="1"/>
-  <polygon points="434,138 426,142 434,146" fill="#3D3858"/>
+  <line x1="482" y1="142" x2="432" y2="142" stroke="#484f58" stroke-width="1"/>
+  <polygon points="434,138 426,142 434,146" fill="#484f58"/>
   <text class="arrow-label" x="458" y="162">result</text>
 
-  <!-- ═══ STEP 3: CLAUDE CODE SDK ═══ -->
-  <rect x="496" y="64" width="172" height="140" rx="12" fill="#1C1930" stroke="#2A2740" stroke-width="1"/>
-  <rect x="508" y="54" width="18" height="18" rx="9" fill="#8B7CF6"/>
-  <text class="step-num" x="517" y="67" text-anchor="middle" fill="#13111C">3</text>
-  <text class="box-label" x="582" y="100" text-anchor="middle">Claude Code SDK</text>
-  <text class="box-sub" x="582" y="118" text-anchor="middle">@anthropic-ai/claude-code</text>
+  <!-- ═══ STEP 3: CLAUDE AGENT SDK ═══ -->
+  <rect x="496" y="64" width="172" height="140" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <rect x="508" y="54" width="18" height="18" rx="9" fill="#58a6ff"/>
+  <text class="step-num" x="517" y="67" text-anchor="middle" fill="#0d1117">3</text>
+  <text class="box-label" x="582" y="100" text-anchor="middle">Claude Agent SDK</text>
+  <text class="box-sub" x="582" y="118" text-anchor="middle">@anthropic-ai/claude-agent-sdk</text>
   <text class="box-detail" x="582" y="140" text-anchor="middle">Official Anthropic SDK</text>
   <text class="box-detail" x="582" y="154" text-anchor="middle">Handles auth + sessions</text>
   <text class="tag" x="582" y="192" text-anchor="middle">ANTHROPIC'S OWN SDK</text>
 
   <!-- ═══ ARROWS 3 ↔ 4 ═══ -->
-  <line x1="680" y1="122" x2="726" y2="122" stroke="#8B7CF6" stroke-width="1.5"/>
-  <polygon points="724,118 732,122 724,126" fill="#8B7CF6"/>
+  <line x1="680" y1="122" x2="726" y2="122" stroke="#58a6ff" stroke-width="1.5"/>
+  <polygon points="724,118 732,122 724,126" fill="#58a6ff"/>
   <text class="arrow-label" x="704" y="114">API call</text>
-  <line x1="726" y1="142" x2="680" y2="142" stroke="#3D3858" stroke-width="1"/>
-  <polygon points="682,138 674,142 682,146" fill="#3D3858"/>
+  <line x1="726" y1="142" x2="680" y2="142" stroke="#484f58" stroke-width="1"/>
+  <polygon points="682,138 674,142 682,146" fill="#484f58"/>
   <text class="arrow-label" x="704" y="162">stream</text>
 
   <!-- ═══ STEP 4: CLAUDE ═══ -->
-  <rect x="740" y="64" width="140" height="140" rx="12" fill="#1C1930" stroke="#2A2740" stroke-width="1"/>
-  <rect x="752" y="54" width="18" height="18" rx="9" fill="#8B7CF6"/>
-  <text class="step-num" x="761" y="67" text-anchor="middle" fill="#13111C">4</text>
+  <rect x="740" y="64" width="140" height="140" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <rect x="752" y="54" width="18" height="18" rx="9" fill="#58a6ff"/>
+  <text class="step-num" x="761" y="67" text-anchor="middle" fill="#0d1117">4</text>
   <text class="box-label" x="810" y="100" text-anchor="middle">Claude</text>
   <text class="box-sub" x="810" y="118" text-anchor="middle">api.anthropic.com</text>
-  <text class="box-detail" x="810" y="140" text-anchor="middle">Opus, Sonnet, Haiku</text>
-  <text class="box-detail" x="810" y="154" text-anchor="middle">Extended thinking</text>
+  <text class="box-detail" x="810" y="140" text-anchor="middle">Fable, Opus, Sonnet</text>
+  <text class="box-detail" x="810" y="154" text-anchor="middle">Haiku, extended thinking</text>
   <text class="tag" x="810" y="192" text-anchor="middle">YOUR SUBSCRIPTION</text>
 
   <!-- ═══ BOTTOM ═══ -->
-  <line x1="60" y1="246" x2="860" y2="246" stroke="#2A2740" stroke-width="1"/>
+  <line x1="60" y1="246" x2="860" y2="246" stroke="#30363d" stroke-width="1"/>
   <text class="footer" x="460" y="274" text-anchor="middle">No API keys needed — authenticates through your existing Claude Code / Max subscription</text>
 
 </svg>

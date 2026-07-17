@@ -16,7 +16,7 @@ export const settingsPageHtml = `<!DOCTYPE html>
   ${themeCss}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-         background: var(--bg); color: var(--text); padding: 0; line-height: 1.5; }
+         color: var(--text); padding: 0; line-height: 1.5; }
   ${profileBarCss}
   .content { max-width: 900px; margin: 0 auto; padding: 24px; }
   h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }

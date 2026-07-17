@@ -16,12 +16,8 @@ export const pluginPageHtml = `<!DOCTYPE html>
   ${themeCss}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-         background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
+         color: var(--text); line-height: 1.6; min-height: 100vh; }
   .container { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
-
-  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted);
-    text-decoration: none; font-size: 13px; margin-bottom: 24px; transition: color 0.15s; }
-  .back-link:hover { color: var(--text); }
 
   .page-header { display: flex; align-items: flex-start; justify-content: space-between;
     gap: 16px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -31,7 +27,7 @@ export const pluginPageHtml = `<!DOCTYPE html>
   .reload-btn { padding: 8px 18px; font-size: 13px; font-weight: 500;
     background: var(--surface2); color: var(--accent); border: 1px solid var(--accent);
     border-radius: 8px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-  .reload-btn:hover { background: rgba(139,92,246,0.15); }
+  .reload-btn:hover { background: rgba(88,166,255,0.12); }
   .reload-btn:disabled { opacity: 0.5; cursor: default; }
   .reload-btn.loading { opacity: 0.7; }
 
@@ -81,7 +77,7 @@ export const pluginPageHtml = `<!DOCTYPE html>
   .empty-state p { font-size: 13px; line-height: 1.7; }
   .empty-state code { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace;
     font-size: 12px; background: var(--surface2); padding: 2px 7px;
-    border-radius: 4px; color: #a78bfa; }
+    border-radius: 4px; color: var(--accent2); }
 
   /* ── Hero panel: aggregate stats at a glance ── */
   .hero-panel { background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
@@ -142,8 +138,6 @@ export const pluginPageHtml = `<!DOCTYPE html>
 <body>
 ` + profileBarHtml + `
 <div class="container">
-  <a href="/" class="back-link">&#8592; Back to Meridian</a>
-
   <div class="page-header">
     <div>
       <h1>Plugins</h1>
