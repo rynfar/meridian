@@ -40,6 +40,18 @@ export const landingHtml = `<!DOCTYPE html>
   .card-value.violet { color: var(--violet); }
   .card-detail { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
+  .usage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .usage-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+  .usage-profile { font-size: 12px; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; }
+  .usage-profile .prof-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--violet); }
+  .usage-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 4px 0; }
+  .usage-row .w-label { color: var(--muted); width: 64px; flex-shrink: 0; }
+  .usage-row .w-bar { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .usage-row .w-fill { height: 100%; border-radius: 3px; }
+  .usage-row .w-pct { width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .usage-row .w-reset { color: var(--muted); font-size: 11px; width: 76px; text-align: right; }
+
   .section { margin-bottom: 24px; }
   .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase;
     letter-spacing: 1px; margin-bottom: 12px; }
@@ -96,19 +108,44 @@ function esc(s){return String(s).replace(/[&<>"']/g,function(ch){return {'&':'&a
 function usd(v){if(v==null)return '\u2014';if(v>0&&v<0.01)return '$'+v.toFixed(4);if(v<100)return '$'+v.toFixed(2);return '$'+Math.round(v).toLocaleString()}
 function card(l,v,d,c){return '<div class="card"><div class="card-label">'+l+'</div><div class="card-value '+(c||'')+'">'+v+'</div>'+(d?'<div class="card-detail">'+d+'</div>':'')+'</div>'}
 
+var WIN_LABELS={five_hour:'5h',seven_day:'7d',seven_day_opus:'7d Opus',seven_day_sonnet:'7d Sonnet',seven_day_fable:'7d Fable',seven_day_oauth_apps:'7d Apps',seven_day_cowork:'7d Cowork',seven_day_omelette:'7d Omelette'};
+function winLabel(t){if(WIN_LABELS[t])return WIN_LABELS[t];return t.replace(/^seven_day_/,'7d ').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()})}
+function utilColor(u){return u>=0.85?'var(--red)':u>=0.6?'var(--yellow)':'var(--green)'}
+function resetIn(ts){if(ts==null)return '';var d=ts-Date.now();if(d<=0)return 'resetting\u2026';var m=Math.ceil(d/60000);if(m<60)return 'in '+m+'m';var h=Math.floor(m/60);if(h<24)return 'in '+h+'h'+(m%60?' '+(m%60)+'m':'');var days=Math.floor(h/24);return 'in '+days+'d'+(h%24?' '+(h%24)+'h':'')}
+function usageSection(q){
+  if(!q||!Array.isArray(q.profiles))return '';
+  var cards='';
+  for(var i=0;i<q.profiles.length;i++){
+    var p=q.profiles[i];var wins=(p.windows||[]).filter(function(w){return w.utilization!=null});
+    if(wins.length===0)continue;
+    var rows='';
+    for(var j=0;j<wins.length;j++){
+      var w=wins[j];var pct=Math.round(w.utilization*100);
+      rows+='<div class="usage-row"><span class="w-label">'+esc(winLabel(w.type))+'</span>'
+        +'<div class="w-bar"><div class="w-fill" style="width:'+Math.min(pct,100)+'%;background:'+utilColor(w.utilization)+'"></div></div>'
+        +'<span class="w-pct" style="color:'+utilColor(w.utilization)+'">'+pct+'%</span>'
+        +'<span class="w-reset">'+resetIn(w.resetsAt)+'</span></div>';
+    }
+    cards+='<div class="usage-card"><div class="usage-profile"><span class="prof-dot"></span>'+esc(p.id||p.profile||'default')+'</div>'+rows+'</div>';
+  }
+  if(!cards)return '';
+  return '<div class="section"><div class="section-title">Usage</div><div class="usage-grid">'+cards+'</div></div>';
+}
+
 async function refresh(){
   try{
-    const [health,stats]=await Promise.all([fetch('/health').then(r=>r.json()),fetch('/telemetry/summary?window=86400000').then(r=>r.json())]);
-    render(health,stats);
+    const [health,stats,quota]=await Promise.all([fetch('/health').then(r=>r.json()),fetch('/telemetry/summary?window=86400000').then(r=>r.json()),fetch('/v1/usage/quota/all').then(r=>r.json()).catch(function(){return null})]);
+    render(health,stats,quota);
   }catch(e){document.getElementById('content').innerHTML='<div style="color:var(--red);padding:40px;text-align:center">Could not connect</div>'}
 }
 
-function render(h,s){
+function render(h,s,q){
   const st=h.status||'unknown',dot=st==='healthy'?'healthy':st==='degraded'?'degraded':'unhealthy';
   let o='';
   o+='<div class="status-banner"><div class="status-dot '+dot+'"></div><span class="status-text">'+(st==='healthy'?'Operational':st==='degraded'?'Degraded':'Offline')+'</span><span class="status-detail">Port '+location.port+' \u00b7 '+(h.mode||'internal')+' mode</span></div>';
   const er=s.totalRequests>0?((s.errorCount/s.totalRequests)*100).toFixed(1):'0';
   o+='<div class="grid">'+card('Requests (24h)',s.totalRequests,'','violet')+card('Median Response',ms(s.totalDuration?.p50),'p95: '+ms(s.totalDuration?.p95),'')+card('Median TTFB',ms(s.ttfb?.p50),'p95: '+ms(s.ttfb?.p95),'')+card('Error Rate',er+'%',s.errorCount+' errors',parseFloat(er)>5?'':'green')+card('Est. Cost (24h)',usd(s.costEstimate?.totalUsd),'API list prices','violet')+'</div>';
+  o+=usageSection(q);
   o+='<div class="section"><div class="section-title">Account</div>';
   if(h.auth?.loggedIn){o+='<div class="info-grid"><span class="info-label">Email</span><span class="info-value">'+(h.auth.email||'\u2014')+'</span><span class="info-label">Subscription</span><span class="info-value">'+(h.auth.subscriptionType||'\u2014')+'</span><span class="info-label">Mode</span><span class="info-value">'+(h.mode||'internal')+'</span><span class="info-label">Endpoint</span><span class="info-value">http://'+location.host+'</span></div>'}
   else{o+='<div class="info-grid"><span class="info-label">Status</span><span class="info-value" style="color:var(--yellow)">'+(h.error||'Not authenticated')+'</span></div>'}
