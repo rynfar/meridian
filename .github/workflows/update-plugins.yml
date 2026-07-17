@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
+  # Event-driven bumps (#650): each meridian-plugin-* repo fires this on
+  # push to its default branch, so a plugin change lands here immediately
+  # instead of up to 24h late. The cron stays as a safety net.
+  repository_dispatch:
+    types: [plugin-updated]
 
 jobs:
   update:
