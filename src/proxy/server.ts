@@ -48,7 +48,7 @@ import { LRUMap } from "../utils/lruMap"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
-import { classifyError, extractSdkTermination, formatSdkTermination, isStaleSessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
+import { classifyError, extractSdkTermination, formatSdkTermination, isStaleSessionError, isBusySessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, type CredentialStore } from "./tokenRefresh"
 import { checkPluginConfigured } from "./setup"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
@@ -387,6 +387,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // a fresh replay. Follow-ups briefly await their session's pending store.
   const PENDING_STORE_WAIT_MS = 3000
   const PENDING_STORE_AUTO_RESOLVE_MS = 10000
+
+  // #630: a --resume spawned while the session's previous subprocess is
+  // still exiting is refused ("currently running as a background agent",
+  // a consequence of #628's CLAUDE_CODE_SESSION_KIND=bg). The stale
+  // process exits within ~a second — retry the same resume with linear
+  // backoff, then fork the session as a last resort. Delay is overridable
+  // so tests don't sleep for real.
+  const BUSY_SESSION_MAX_RETRIES = 3
+  const BUSY_SESSION_RETRY_DELAY_MS = parseInt(process.env.MERIDIAN_BUSY_RETRY_DELAY_MS ?? "500", 10)
   const pendingSessionStores = new Map<string, { promise: Promise<void>; resolve: () => void }>()
   const registerPendingStore = (key: string): (() => void) => {
     let resolveFn: () => void = () => {}
@@ -1403,16 +1412,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
               let tokenRefreshed = false
               let didFreshBaseRetry = false
+              let busySessionRetries = 0
+              let busySessionFork = false
               while (true) {
                 // Track whether response content was yielded.
                 // The SDK emits metadata (session_id etc.) before the API call;
                 // only "assistant" messages represent actual response content.
                 let didYieldContent = false
+                // stderr emitted by THIS attempt's subprocess only — retries
+                // must not re-match a previous attempt's refusal text.
+                const attemptStderrStart = stderrLines.length
                 try {
                   for await (const event of query(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                    resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                    resumeSessionId, isUndo, undoRollbackUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, outputFormat, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -1443,6 +1457,29 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
                   // Never retry after response content was yielded — response is committed
                   if (didYieldContent) throw error
+
+                  // Retry: session still registered as a running bg agent (#630).
+                  // The previous subprocess for this session (early-stop drain or
+                  // slow exit) hasn't finished dying, so the CLI refused --resume
+                  // with exit 1. Surfacing that would be a deterministic failure —
+                  // the client's identical retry hits the same window. Wait for
+                  // the stale process to exit and retry the SAME resume; if the
+                  // session stays busy, fork it (full history, fresh id).
+                  if (resumeSessionId && isBusySessionError(error, stderrLines.slice(attemptStderrStart).join("\n"))) {
+                    if (busySessionRetries < BUSY_SESSION_MAX_RETRIES) {
+                      busySessionRetries++
+                      claudeLog("session.busy_retry", { mode: "non_stream", attempt: busySessionRetries, resumeSessionId })
+                      plog(`[PROXY] ${requestMeta.requestId} session busy (bg agent), retrying resume ${busySessionRetries}/${BUSY_SESSION_MAX_RETRIES}`)
+                      await new Promise((resolve) => setTimeout(resolve, BUSY_SESSION_RETRY_DELAY_MS * busySessionRetries))
+                      continue
+                    }
+                    if (!busySessionFork) {
+                      busySessionFork = true
+                      claudeLog("session.busy_fork", { mode: "non_stream", resumeSessionId })
+                      plog(`[PROXY] ${requestMeta.requestId} session still busy after ${BUSY_SESSION_MAX_RETRIES} retries — forking session`)
+                      continue
+                    }
+                  }
 
                   // Retry: stale undo UUID — evict session and start fresh (one-shot)
                   if (isStaleSessionError(error)) {
@@ -2076,6 +2113,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
                 let tokenRefreshed = false
                 let didFreshBaseRetry = false
+                let busySessionRetries = 0
+                let busySessionFork = false
 
                 while (true) {
                   // Track whether client-visible SSE events were yielded.
@@ -2083,11 +2122,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // before the API call — those are NOT client-visible and must
                   // not prevent retry. Only stream_event types become SSE output.
                   let didYieldClientEvent = false
+                  // stderr emitted by THIS attempt's subprocess only — retries
+                  // must not re-match a previous attempt's refusal text.
+                  const attemptStderrStart = stderrLines.length
                   try {
                     for await (const event of query(buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                      resumeSessionId, isUndo, undoRollbackUuid, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                      resumeSessionId, isUndo, undoRollbackUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -2113,6 +2155,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
                     // Never retry after client-visible SSE events — response is committed
                     if (didYieldClientEvent) throw error
+
+                    // Retry: session still registered as a running bg agent (#630)
+                    // — see the non-stream branch above for the full rationale.
+                    if (resumeSessionId && isBusySessionError(error, stderrLines.slice(attemptStderrStart).join("\n"))) {
+                      if (busySessionRetries < BUSY_SESSION_MAX_RETRIES) {
+                        busySessionRetries++
+                        claudeLog("session.busy_retry", { mode: "stream", attempt: busySessionRetries, resumeSessionId })
+                        plog(`[PROXY] ${requestMeta.requestId} session busy (bg agent), retrying resume ${busySessionRetries}/${BUSY_SESSION_MAX_RETRIES}`)
+                        await new Promise((resolve) => setTimeout(resolve, BUSY_SESSION_RETRY_DELAY_MS * busySessionRetries))
+                        continue
+                      }
+                      if (!busySessionFork) {
+                        busySessionFork = true
+                        claudeLog("session.busy_fork", { mode: "stream", resumeSessionId })
+                        plog(`[PROXY] ${requestMeta.requestId} session still busy after ${BUSY_SESSION_MAX_RETRIES} retries — forking session`)
+                        continue
+                      }
+                    }
 
                     // Retry: stale undo UUID — evict and start fresh (one-shot)
                     if (isStaleSessionError(error)) {

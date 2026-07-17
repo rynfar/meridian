@@ -167,6 +167,20 @@ export function isStaleSessionError(error: unknown): boolean {
 }
 
 /**
+ * Detect the CLI's bg-agent resume refusal (#630). With
+ * CLAUDE_CODE_SESSION_KIND=bg (#628 scratchpad suppression) every SDK
+ * session is registered as a running background agent; a --resume spawned
+ * while the previous subprocess for that session is still exiting is
+ * refused with exit 1. The refusal text arrives on stderr — the SDK error
+ * itself only carries the exit code — so callers pass captured stderr too.
+ */
+export function isBusySessionError(error: unknown, stderr?: string): boolean {
+  const needle = "is currently running as a background agent"
+  const msg = error instanceof Error ? error.message : String(error)
+  return msg.includes(needle) || (stderr?.includes(needle) ?? false)
+}
+
+/**
  * Quick check whether an error message indicates a rate limit.
  * Used by server.ts to decide whether to retry with a smaller context window.
  */

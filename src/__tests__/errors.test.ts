@@ -2,7 +2,7 @@
  * Unit tests for classifyError — pure function, no mocks needed.
  */
 import { describe, it, expect } from "bun:test"
-import { classifyError, isStaleSessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination } from "../proxy/errors"
+import { classifyError, isStaleSessionError, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination } from "../proxy/errors"
 
 describe("classifyError", () => {
   describe("authentication errors", () => {
@@ -145,6 +145,28 @@ describe("classifyError", () => {
     it("detects 'overloaded' keyword", () => {
       const result = classifyError("service overloaded")
       expect(result.status).toBe(503)
+    })
+  })
+
+  describe("busy session (bg agent) detection — #630", () => {
+    const busyLine =
+      "Error: Session 3cff857d-114e-4be3-8a12-99842ad2326e is currently running as a background agent (bg). Use `claude agents` to find and attach to it, or add --fork-session to branch off a copy."
+
+    it("detects the refusal in the error message", () => {
+      expect(isBusySessionError(new Error(busyLine))).toBe(true)
+    })
+
+    it("detects the refusal on captured stderr when the error only carries the exit code", () => {
+      expect(isBusySessionError(new Error("Claude Code process exited with code 1"), busyLine)).toBe(true)
+    })
+
+    it("ignores unrelated exit-1 failures", () => {
+      expect(isBusySessionError(new Error("Claude Code process exited with code 1"))).toBe(false)
+      expect(isBusySessionError(new Error("Claude Code process exited with code 1"), "Warning: Custom betas are only available for API key users.")).toBe(false)
+    })
+
+    it("ignores non-Error values without the needle", () => {
+      expect(isBusySessionError("some string", undefined)).toBe(false)
     })
   })
 
