@@ -54,7 +54,7 @@ import { checkPluginConfigured } from "./setup"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
-import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall } from "./messages"
+import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -279,17 +279,18 @@ function buildFreshPrompt(
   // Same anti-imitation convention as the structured branch above and the
   // main prompt builder: user turns plain, assistant turns bracketed.
   // 'Human:'/'Assistant:' transcript lines teach the model to complete the
-  // transcript itself (#496 self-talk).
-  return messages
-    .map((m) => {
+  // transcript itself (#496 self-talk). frameReplayTurns then wraps the
+  // history in the #619 context-only envelope with the live user message
+  // separated as the actual prompt.
+  return frameReplayTurns(
+    messages.map((m) => {
       if (m.role === "assistant") {
         const assistantText = flattenAssistantContent(m.content)
-        return assistantText ? `[Assistant: ${assistantText}]` : ""
+        return { role: "assistant", text: assistantText ? `[Assistant: ${assistantText}]` : "" }
       }
-      return flattenUserContent(m.content, sanitizeOpts, toolIndex)
+      return { role: "user", text: flattenUserContent(m.content, sanitizeOpts, toolIndex) }
     })
-    .filter(Boolean)
-    .join("\n\n") || ""
+  )
 }
 
 // Routine [PROXY] operational logging. Suppressed when config.silent is set so
@@ -986,17 +987,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // turns bracketed as '[Assistant: ...]'. On resume, drop assistant
         // messages entirely — the resumed SDK session already contains
         // those turns; replaying them as user text is the imitation seed.
-        textPrompt = messagesToConvert
-          ?.map((m: { role: string; content: any }) => {
+        const promptTurns = (messagesToConvert ?? [])
+          .map((m: { role: string; content: any }) => {
             if (m.role === "assistant") {
-              if (isResume) return ""
+              if (isResume) return { role: "assistant", text: "" }
               const assistantText = flattenAssistantContent(m.content)
-              return assistantText ? `[Assistant: ${assistantText}]` : ""
+              return { role: "assistant", text: assistantText ? `[Assistant: ${assistantText}]` : "" }
             }
-            return flattenUserContent(m.content, sanitizeOpts, toolIndex)
+            return { role: "user", text: flattenUserContent(m.content, sanitizeOpts, toolIndex) }
           })
-          .filter(Boolean)
-          .join("\n\n") || ""
+        // Fresh (non-resume) replays get the #619 anti-self-play envelope:
+        // history framed as context-only, the live user message terminal.
+        // Resume deltas are tail-only and stay bare.
+        textPrompt = isResume
+          ? promptTurns.map((t: { text: string }) => t.text).filter(Boolean).join("\n\n") || ""
+          : frameReplayTurns(promptTurns)
       }
 
       // Create a fresh prompt value — can be called multiple times for retry

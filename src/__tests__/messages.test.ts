@@ -2,7 +2,7 @@
  * Unit tests for message parsing utilities.
  */
 import { describe, it, expect } from "bun:test"
-import { normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, buildToolUseIndex, describeToolCall } from "../proxy/messages"
+import { frameReplayTurns, normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, buildToolUseIndex, describeToolCall } from "../proxy/messages"
 
 const img = (id: string) => ({ type: "image", source: { type: "base64", media_type: "image/png", data: id } })
 function userMsg(content: unknown) {
@@ -407,5 +407,50 @@ describe("buildToolUseIndex / tool-result attribution (#552)", () => {
       expect(idx.get("x2")!.contentSummary).toBeUndefined()
       expect(idx.get("x3")!.contentSummary).toBeUndefined()
     })
+  })
+})
+
+describe("frameReplayTurns (#619)", () => {
+  const t = (role: string, text: string) => ({ role, text })
+
+  it("wraps replayed history in an envelope and separates the final user message", () => {
+    const out = frameReplayTurns([
+      t("user", "read the config file"),
+      t("assistant", "[Assistant: I read it, it contains X]"),
+      t("user", "now update the port"),
+    ])
+    expect(out).toStartWith("<conversation_history>\n")
+    expect(out).toContain("read the config file")
+    expect(out).toContain("[Assistant: I read it, it contains X]")
+    expect(out).toContain("</conversation_history>")
+    // Anti-imitation instruction between envelope and live message
+    expect(out).toContain("context only")
+    // The live user message is terminal, outside the envelope
+    expect(out).toEndWith("now update the port")
+    expect(out.indexOf("</conversation_history>")).toBeLessThan(out.indexOf("now update the port"))
+  })
+
+  it("leaves single-turn prompts bare — no envelope for fresh conversations", () => {
+    expect(frameReplayTurns([t("user", "hello")])).toBe("hello")
+  })
+
+  it("falls back to a plain join when the final turn is not a user turn", () => {
+    const out = frameReplayTurns([
+      t("user", "do a thing"),
+      t("assistant", "[Assistant: done]"),
+    ])
+    expect(out).toBe("do a thing\n\n[Assistant: done]")
+  })
+
+  it("skips empty turns and never emits Human: markers", () => {
+    const out = frameReplayTurns([
+      t("user", "first"),
+      t("assistant", ""),
+      t("user", "[your bash ls]:\nfile.txt"),
+      t("user", "final question"),
+    ])
+    expect(out).not.toContain("Human:")
+    expect(out).toEndWith("final question")
+    expect(out).toContain("[your bash ls]:")
   })
 })

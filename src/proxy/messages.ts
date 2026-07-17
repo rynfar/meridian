@@ -82,6 +82,39 @@ export function getLastUserMessage(messages: Array<{ role: string; content: any 
 }
 
 /**
+ * Frame a fresh-session replay so the model cannot pattern-continue it (#619).
+ *
+ * When a conversation falls off the resume path, its full history is
+ * flattened into one text prompt. Even with the anti-imitation turn markers
+ * (plain user turns, bracketed `[Assistant: ...]` — the #496 fix), a long
+ * replayed transcript still invites the model to continue the *format*
+ * rather than answer the user: self-played turns, confabulated tool output.
+ *
+ * This wraps everything before the final user turn in an explicit
+ * `<conversation_history>` envelope with a context-only instruction, and
+ * presents the final user message separately as the live prompt — mirroring
+ * the structure the OpenAI-compat path has always used. Single-turn prompts
+ * and histories that don't end with a user turn are returned as a plain
+ * join (nothing to separate).
+ */
+export function frameReplayTurns(turns: Array<{ role: string; text: string }>): string {
+  const nonEmpty = turns.filter((t) => t.text)
+  const joined = nonEmpty.map((t) => t.text).join("\n\n")
+  if (nonEmpty.length < 2) return joined
+  const last = nonEmpty[nonEmpty.length - 1]!
+  if (last.role !== "user") return joined
+  const history = nonEmpty.slice(0, -1).map((t) => t.text).join("\n\n")
+  return (
+    `<conversation_history>\n${history}\n</conversation_history>\n\n` +
+    `The above is a replay of your prior conversation with this user — the original session could not be resumed. ` +
+    `It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, ` +
+    `and never invent tool output — use your actual tools when action is needed. ` +
+    `Respond only as the assistant to the user's message below.\n\n` +
+    last.text
+  )
+}
+
+/**
  * Remove fields the Claude Agent SDK attaches to streamed events that are not
  * part of the public Anthropic streaming schema.
  *
