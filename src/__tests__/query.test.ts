@@ -372,11 +372,32 @@ describe("buildQueryOptions", () => {
     expect(opts.settings.autoDreamEnabled).toBe(true)
   })
 
-  it("omits settingSources and settings when settingSources empty", () => {
-    const result = buildQueryOptions(makeContext({ settingSources: [] }))
+  // #634: settings (the --settings flag domain) is independent of
+  // settingSources (file domains). Empty sources must still send the memory
+  // controls — otherwise memory:false is silently ignored and the SDK's
+  // built-in default injects MEMORY.md into every session.
+  it("sends settings even when settingSources is empty (#634)", () => {
+    const result = buildQueryOptions(makeContext({ settingSources: [], memory: false, dreaming: false }))
     const opts = result.options as any
-    expect(opts.settingSources).toBeUndefined()
-    expect(opts.settings).toBeUndefined()
+    expect(opts.settings.autoMemoryEnabled).toBe(false)
+    expect(opts.settings.autoDreamEnabled).toBe(false)
+  })
+
+  it("emits an explicit empty settingSources so the subprocess loads nothing (#634/#490)", () => {
+    const result = buildQueryOptions(makeContext({ settingSources: [] }))
+    expect((result.options as any).settingSources).toEqual([])
+  })
+
+  it("emits explicit empty settingSources when the caller passes none at all", () => {
+    const result = buildQueryOptions(makeContext({ settingSources: undefined }))
+    expect((result.options as any).settingSources).toEqual([])
+  })
+
+  it("honors memory:false in passthrough mode too (#634)", () => {
+    const result = buildQueryOptions(makeContext({ passthrough: true, settingSources: [], memory: false }))
+    const opts = result.options as any
+    expect(opts.settings.autoMemoryEnabled).toBe(false)
+    expect(opts.settingSources).toEqual([])
   })
 
   // sharedMemory env handling — see issue #453 (and upstream

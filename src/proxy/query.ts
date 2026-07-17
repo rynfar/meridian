@@ -272,18 +272,6 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
             // catalog from the request body. Closes #489 (diagnosis by
             // @albe-jj).
             tools: [],
-            // Explicitly disable claude-code's default settings loading.
-            // Without this, claude-code falls back to its built-in default
-            // (load user + project + local) and slurps CLAUDE.md from the
-            // proxy host's cwd into the system prompt — ~hundreds-to-
-            // thousands of tokens of unintended context that has no
-            // business in chat-style passthrough requests (LiteLLM, custom
-            // chat apps, etc.). Empty array → SDK emits `--setting-sources=`
-            // → subprocess loads nothing. The lower-down `settingSources &&
-            // settingSources.length > 0` block still wins when the user
-            // sets `claudeMd` to "project" or "full" because object spread
-            // order gives the later assignment the final word.
-            settingSources: [],
             disallowedTools: [...allBlockedTools],
             ...(passthroughMcp ? {
               allowedTools: [...passthroughMcp.toolNames],
@@ -296,13 +284,22 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
             mcpServers: { [mcpServerName]: createOpencodeMcpServer() },
           }),
       plugins: [],
-      ...(settingSources && settingSources.length > 0 ? {
-        settingSources,
-        settings: {
-          autoMemoryEnabled: ctx.memory ?? true,
-          autoDreamEnabled: ctx.dreaming ?? false,
-        },
-      } : {}),
+      // #634: `settings` (the --settings flag domain) is independent of
+      // `settingSources` (file domains) — never couple them. The memory
+      // controls must reach the SDK even when no setting files are loaded;
+      // gating them on settingSources silently re-enabled auto-memory (the
+      // SDK's built-in default) whenever claudeMd was "off".
+      settings: {
+        autoMemoryEnabled: ctx.memory ?? true,
+        autoDreamEnabled: ctx.dreaming ?? false,
+      },
+      // #634/#490: always explicit. Empty array → SDK emits
+      // `--setting-sources=` → subprocess loads nothing. Omitting the key
+      // makes claude-code fall back to its built-in default (user + project
+      // + local) and slurp CLAUDE.md from the PROXY HOST's cwd into the
+      // system prompt regardless of claudeMd:"off" — #490 fixed this for
+      // passthrough; this extends the same guarantee to every adapter.
+      settingSources: settingSources ?? [],
       ...(onStderr ? { stderr: onStderr } : {}),
       env: {
         // sharedMemory: the user wants the SDK to use Claude Code's default
