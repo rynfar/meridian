@@ -1300,14 +1300,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // pending call whose result never arrives and misattributes
                 // the results it does receive ("the read tool is returning
                 // the wrong file").
-                // Hold the deny until turn-1 generation completes (streaming
-                // only — see holdDenyUntilTurnEnd above). Returning it
+                // Hold the deny until turn-1 generation completes — BOTH
+                // modes (see holdDenyUntilTurnEnd above). Returning it
                 // immediately lets the CLI cancel the in-flight generation and
-                // behead any parallel call still streaming after this one.
+                // behead any parallel call still generating after this one
+                // (#625 streaming; #592 proved non-stream identically). The
+                // streaming path flags turnGenerating from message_start; the
+                // non-stream path pre-sets it per attempt and releases when
+                // the turn's assistant message arrives in the iterator.
                 // Skip when the query is already aborted (forced-single fired
                 // requestAbort above — the subprocess is dying; holding would
                 // only delay until the timeout).
-                if (stream && earlyStopEnabled && turnGenerating && !requestAbort.controller.signal.aborted) {
+                if (earlyStopEnabled && turnGenerating && !requestAbort.controller.signal.aborted) {
                   await holdDenyUntilTurnEnd()
                 }
                 if (isExactDuplicate) {
@@ -1418,6 +1422,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // stderr emitted by THIS attempt's subprocess only — retries
                 // must not re-match a previous attempt's refusal text.
                 const attemptStderrStart = stderrLines.length
+                // #592: non-stream has no message_start signal — turn 1 is by
+                // definition generating from query start until its assistant
+                // message arrives (release sites: assistant arrival in the
+                // consumer loop, attempt error, loop exit).
+                turnGenerating = true
                 try {
                   for await (const event of query(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
@@ -1450,6 +1459,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   return
                 } catch (error) {
                   const errMsg = error instanceof Error ? error.message : String(error)
+
+                  // #592: the attempt's subprocess is gone — release any deny
+                  // still held for it so retries don't inherit dead holds.
+                  releaseHeldDenies("non_stream_attempt_error")
 
                   // Never retry after response content was yielded — response is committed
                   if (didYieldContent) throw error
@@ -1637,6 +1650,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 }
               }
               if (message.type === "assistant") {
+                // #592: the turn's generation is complete — held denies can
+                // return without the CLI cancelling anything in flight.
+                releaseHeldDenies("assistant_message")
                 assistantMessages += 1
                 // Capture SDK assistant UUID for undo rollback
                 if ((message as any).uuid) {
@@ -1733,6 +1749,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }
             }
 
+            // #592: safety net — any deny still held at loop exit belongs to
+            // a turn that is no longer generating.
+            releaseHeldDenies("non_stream_loop_exit")
+
             claudeLog("upstream.completed", {
               mode: "non_stream",
               model,
@@ -1750,6 +1770,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               plog(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
             }
           } catch (error) {
+            // #592: mirror the loop-exit release on the failure path.
+            releaseHeldDenies("non_stream_error")
             const stderrOutput = stderrLines.join("\n").trim()
             if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
               error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
