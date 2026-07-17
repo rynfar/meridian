@@ -935,6 +935,8 @@ docker run -v ~/.claude:/home/claude/.claude -p 3456:3456 meridian
 
 Meridian refreshes OAuth tokens automatically — once the credentials are mounted, no further browser access is needed.
 
+> **macOS hosts:** mounting `~/.claude` does **not** carry credentials into the container — on macOS the CLI stores OAuth tokens in the Keychain, not in files, so the container sees an empty credential store and requests fail with an authentication error. Use an [OAuth-token profile](#oauth-token-profiles-in-docker-no-volume-mount) instead (recommended), or run `claude login` once inside the container (`docker exec -it <name> claude login`).
+
 ### Multiple profiles in Docker
 
 Authenticate each profile locally, then pass them to Docker via the `MERIDIAN_PROFILES` environment variable:
