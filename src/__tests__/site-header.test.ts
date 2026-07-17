@@ -95,6 +95,32 @@ describe("landing page layout", () => {
   })
 })
 
+describe("design-system conformance (DESIGN.md)", () => {
+  const pageSources = [
+    "src/telemetry/landing.ts",
+    "src/telemetry/dashboard.ts",
+    "src/telemetry/settingsPage.ts",
+    "src/telemetry/profilePage.ts",
+    "src/proxy/plugins/pluginPage.ts",
+  ]
+
+  test("pages contain no hardcoded hex colors — tokens only", async () => {
+    for (const path of pageSources) {
+      const src = await Bun.file(path).text()
+      const hexes = src.match(/#[0-9a-fA-F]{6}\b/g) ?? []
+      expect(hexes, `${path} must use theme tokens, found: ${hexes.join(", ")}`).toEqual([])
+    }
+  })
+
+  test("pages do not set their own body background (backsplash is shared)", async () => {
+    for (const path of pageSources) {
+      const src = await Bun.file(path).text()
+      const bodyRule = src.match(/body \{[^}]*\}/)?.[0] ?? ""
+      expect(bodyRule.includes("background"), `${path} body rule must not set background`).toBe(false)
+    }
+  })
+})
+
 describe("per-page titles do not repeat the brand", () => {
   test("dashboard h1 is the page name, not the brand", () => {
     expect(dashboardHtml).not.toContain("<h1>Meridian</h1>")

@@ -4,7 +4,7 @@ Project guidelines for AI agents working in this codebase.
 
 ## What This Is
 
-A proxy that bridges OpenCode (Anthropic API format) to Codex Max (Agent SDK). See `ARCHITECTURE.md` for the full module map and dependency rules.
+A proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK). See `ARCHITECTURE.md` for the full module map and dependency rules.
 
 ## Commands
 
@@ -38,7 +38,7 @@ OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Speci
 - Integration tests go through the HTTP layer with mocked SDK
 - **All tests must pass before any change is considered complete**
 - New test files go in `src/__tests__/`
-- **E2E tests** are documented in [`E2E.md`](./E2E.md) — run manually before releases or after major refactors (requires Codex Max subscription)
+- **E2E tests** are documented in [`E2E.md`](./E2E.md) — run manually before releases or after major refactors (requires Claude Max subscription)
 
 ### Style
 
@@ -46,6 +46,13 @@ OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Speci
 - No empty catch blocks
 - Match existing patterns — check neighboring code before writing
 - Keep `server.ts` as thin as possible — it should orchestrate, not compute
+
+### Design (web UI + brand assets)
+
+- **All user-facing surfaces follow [`DESIGN.md`](./DESIGN.md)** — the full design language (palette, chrome, components, principles).
+- Color tokens come from `themeCss` in `src/telemetry/profileBar.ts`; never hardcode hex colors in page CSS.
+- Every page embeds the shared site header (`profileBarCss/Html/Js`) and must not set its own `body` background.
+- Blue (`--accent`) = interactive/active; violet (`--accent2`) = code/meta/brand-secondary — never swap these roles.
 
 ## Architecture Quick Reference
 

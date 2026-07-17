@@ -29,7 +29,7 @@ export const landingHtml = `<!DOCTYPE html>
   .intro p { font-size: 13px; color: var(--muted); max-width: 640px; }
   .intro code { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 5px;
-    padding: 1px 6px; color: var(--accent); white-space: nowrap; }
+    padding: 1px 6px; color: var(--accent2); white-space: nowrap; }
   .intro a { color: var(--accent); text-decoration: none; }
   .intro a:hover { text-decoration: underline; }
   .intro-meta { font-size: 12px; color: var(--muted); margin-top: 8px; }

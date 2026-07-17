@@ -68,7 +68,7 @@ export const profilePageHtml = `<!DOCTYPE html>
   .guide li { margin-bottom: 8px; }
   .guide code {
     font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
-    background: var(--bg); padding: 2px 6px; border-radius: 4px; color: var(--purple);
+    background: var(--bg); padding: 2px 6px; border-radius: 4px; color: var(--accent2);
   }
   .guide .warn {
     margin-top: 12px; padding: 12px 16px; background: rgba(210,153,34,0.1);
@@ -79,7 +79,7 @@ export const profilePageHtml = `<!DOCTYPE html>
   .mono { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px; }
   .copy-cmd {
     font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
-    background: var(--bg); padding: 4px 10px; border-radius: 4px; color: var(--purple);
+    background: var(--bg); padding: 4px 10px; border-radius: 4px; color: var(--accent2);
     cursor: pointer; border: 1px solid var(--border); transition: border-color 0.15s;
   }
   .copy-btn {
