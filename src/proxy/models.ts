@@ -42,7 +42,7 @@ export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku
  */
 export const CANONICAL_FABLE_MODEL = "claude-fable-5"
 export const CANONICAL_OPUS_MODEL = "claude-opus-4-8"
-export const CANONICAL_SONNET_MODEL = "claude-sonnet-4-6"
+export const CANONICAL_SONNET_MODEL = "claude-sonnet-5"
 export const CANONICAL_HAIKU_MODEL = "claude-haiku-4-5"
 
 /**
@@ -63,6 +63,28 @@ export function resolveSdkModelDefaults(
     ANTHROPIC_DEFAULT_SONNET_MODEL: env.MERIDIAN_DEFAULT_SONNET_MODEL ?? CANONICAL_SONNET_MODEL,
     ANTHROPIC_DEFAULT_HAIKU_MODEL: env.MERIDIAN_DEFAULT_HAIKU_MODEL ?? CANONICAL_HAIKU_MODEL,
   }
+}
+
+/**
+ * Per-request tier pin for explicitly versioned model ids (#631).
+ *
+ * mapModelToClaudeModel collapses every family request to a tier alias
+ * ("sonnet"/"opus"/...) that the SDK resolves via ANTHROPIC_DEFAULT_*_MODEL.
+ * With canonical pins alone, an explicit `claude-sonnet-5` silently resolved
+ * to the canonical sonnet — a proxy must never substitute models, so a
+ * fully-versioned id overrides its tier's pin for that request only.
+ *
+ * Bare aliases ("sonnet", "opus[1m]") and unversioned family names return
+ * undefined and keep the canonical pins. Mythos rides the fable tier
+ * (claude-mythos-5 shares it — see mapModelToClaudeModel). A trailing [1m]
+ * suffix is stripped; extended context stays alias-level.
+ */
+export function explicitModelPin(requestedModel: string): Record<string, string> | undefined {
+  const base = requestedModel.trim().toLowerCase().replace(/\[1m\]$/, "")
+  const match = /^claude-(sonnet|opus|haiku|fable|mythos)-\d[\w.-]*$/.exec(base)
+  if (!match) return undefined
+  const tier = match[1] === "mythos" ? "FABLE" : match[1]!.toUpperCase()
+  return { [`ANTHROPIC_DEFAULT_${tier}_MODEL`]: base }
 }
 export interface ClaudeAuthStatus {
   loggedIn?: boolean

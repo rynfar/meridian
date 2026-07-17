@@ -114,11 +114,11 @@ describe("translateOpenAiToAnthropic", () => {
     expect(result!.system).toContain("<conversation_history>")
   })
 
-  it("defaults model to claude-sonnet-4-6", () => {
+  it("defaults model to the canonical Sonnet", () => {
     const result = translateOpenAiToAnthropic({
       messages: [{ role: "user", content: "Hi" }],
     })
-    expect(result!.model).toBe("claude-sonnet-4-6")
+    expect(result!.model).toBe("claude-sonnet-5")
   })
 
   it("passes through specified model", () => {
@@ -1184,13 +1184,14 @@ describe("createSseTranslator", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildModelList", () => {
-  it("returns 6 models", () => {
-    expect(buildModelList(true).length).toBe(6)
-    expect(buildModelList(false).length).toBe(6)
+  it("returns 7 models", () => {
+    expect(buildModelList(true).length).toBe(7)
+    expect(buildModelList(false).length).toBe(7)
   })
 
-  it("includes fable-5, opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
+  it("includes sonnet-5, fable-5, opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
     const ids = buildModelList(true).map(m => m.id)
+    expect(ids).toContain("claude-sonnet-5")
     expect(ids).toContain("claude-fable-5")
     expect(ids).toContain("claude-opus-4-6")
     expect(ids).toContain("claude-opus-4-7")

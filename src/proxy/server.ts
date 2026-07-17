@@ -51,7 +51,7 @@ import type { RequestMetric } from "../telemetry"
 import { classifyError, extractSdkTermination, formatSdkTermination, isStaleSessionError, isBusySessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, type CredentialStore } from "./tokenRefresh"
 import { checkPluginConfigured } from "./setup"
-import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
+import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall } from "./messages"
@@ -568,20 +568,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const requestSource = c.req.header("x-meridian-source")?.slice(0, 64) || undefined
         const requestedModel = typeof body.model === "string" ? body.model : "sonnet"
         let model = mapModelToClaudeModel(requestedModel, authStatus?.subscriptionType, agentMode)
-        const envOverrides = requestedModel.startsWith("claude-opus-")
-          ? { ANTHROPIC_DEFAULT_OPUS_MODEL: requestedModel }
-          : requestedModel.startsWith("claude-fable-")
-            ? { ANTHROPIC_DEFAULT_FABLE_MODEL: requestedModel }
-            // Mythos shares the fable SDK alias (no separate mythos alias
-            // exists), so an explicit claude-mythos-* id resolves through
-            // ANTHROPIC_DEFAULT_FABLE_MODEL and reaches the API verbatim.
-            : requestedModel.startsWith("claude-mythos-")
-              ? { ANTHROPIC_DEFAULT_FABLE_MODEL: requestedModel }
-              : requestedModel.startsWith("claude-sonnet-")
-                ? { ANTHROPIC_DEFAULT_SONNET_MODEL: requestedModel }
-                : requestedModel.startsWith("claude-haiku-")
-                  ? { ANTHROPIC_DEFAULT_HAIKU_MODEL: requestedModel }
-                  : undefined
+        // Explicitly versioned ids override their tier's canonical pin for
+        // this request (spread last in query.ts env, so they also beat
+        // operator env) — a proxy must never substitute models. Bare aliases
+        // keep the canonical pins. See explicitModelPin for the rules.
+        const envOverrides = explicitModelPin(requestedModel)
         // workingDirectory = SDK subprocess cwd (must exist on the proxy host).
         // clientWorkingDirectory = the client's local path (may not exist here);
         // used for per-project fingerprint bucketing and a system-prompt hint
@@ -3559,7 +3550,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
     const completionId = `chatcmpl-${randomUUID()}`
     const created = Math.floor(Date.now() / 1000)
-    const model = (typeof rawBody.model === "string" && rawBody.model) ? rawBody.model : "claude-sonnet-4-6"
+    const model = (typeof rawBody.model === "string" && rawBody.model) ? rawBody.model : CANONICAL_SONNET_MODEL
 
     // Resolve SDK features for this request (thinking passthrough setting).
     // The OpenAI endpoint is unambiguously the `openai` adapter — matching the
