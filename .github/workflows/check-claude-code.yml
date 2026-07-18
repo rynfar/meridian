@@ -1,0 +1,29 @@
+name: Check claude-code availability
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - bun.lock
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+
+      - name: nixpkgs must provide a claude-code satisfying the floor
+        run: |
+          satisfies() { nix eval .#packages.x86_64-linux.meridian.drvPath >/dev/null 2>&1; }
+          if satisfies; then
+            echo "current nixpkgs claude-code satisfies the @anthropic-ai/claude-code floor"
+            exit 0
+          fi
+          nix flake update nixpkgs
+          if satisfies; then
+            echo "::error::the @anthropic-ai/claude-code floor outpaces the pinned nixpkgs; a bump satisfies it, so run 'nix flake update nixpkgs' and include the flake.lock change in this PR"
+            exit 1
+          fi
+          echo "::error::no released nixpkgs claude-code satisfies the @anthropic-ai/claude-code floor yet; hold this bump until nixpkgs packages it"
+          exit 1
