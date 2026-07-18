@@ -99,7 +99,7 @@ Then in `~/.config/opencode/opencode.json`:
 
 > **Important:** Do not use `meridian setup` on NixOS. It writes an absolute Nix store path (e.g. `/nix/store/...-meridian-1.x.x/lib/...`) into your OpenCode config, which will break on the next `nixos-rebuild switch` or `home-manager switch` when the store path changes. Use one of the approaches above instead.
 
-> **Note:** The bundled Claude Code binary (`claude.exe`) is patched with `autoPatchelfHook` at build time, so it runs on NixOS out of the box. If you previously enabled `programs.nix-ld.enable = true` as a workaround for `Could not start dynamically linked executable` (#501), that is no longer required for Meridian.
+> **Note:** Meridian's package depends on the unfree `claude-code` from nixpkgs instead of bundling its own binary. The flake accepts the unfree license when it builds the package and exports the finished derivation, so consuming it through the overlay or `packages.<system>.meridian` does not re-run nixpkgs' unfree check and needs no `allowUnfree` setting.
 
 **Home Manager service** -- run Meridian as a user systemd service:
 
