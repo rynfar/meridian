@@ -14,13 +14,17 @@
  *   { "plugin": ["/absolute/path/to/plugin/meridian.ts"] }
  */
 
+type AgentInput = string | { name?: string; mode?: string }
+
 type Plugin = (input: any) => Promise<{
+  config?: (cfg: { agent?: Record<string, { mode?: string } | undefined> }) => Promise<void> | void
   "chat.headers"?: (
     input: {
       sessionID: string
-      // Typed as string in the SDK types but is actually the full agent
-      // object at runtime: { name: string; mode: "primary" | "subagent" | "all" }
-      agent: string | { name?: string; mode?: string }
+      // Older OpenCode versions pass the full agent object
+      // ({ name, mode: "primary" | "subagent" | "all" }); OpenCode >= 1.17
+      // passes just the agent NAME as a string. Handle both.
+      agent: AgentInput
       model: { providerID: string }
       message: { id: string }
     },
@@ -28,8 +32,49 @@ type Plugin = (input: any) => Promise<{
   ) => Promise<void>
 }>
 
+/**
+ * Modes of OpenCode's built-in agents (they are not listed in the merged
+ * config unless the user overrides them, so the `config` hook alone can't
+ * see them). User-defined agents and built-in overrides are layered on top
+ * from the config hook.
+ */
+const BUILTIN_AGENT_MODES: Record<string, string> = {
+  build: "primary",
+  plan: "primary",
+  general: "subagent",
+  explore: "subagent",
+  // Hidden internal agents. These usually route to small_model (a
+  // non-Anthropic provider) but are mapped defensively.
+  title: "subagent",
+  summary: "subagent",
+  compaction: "subagent",
+}
+
 const MeridianPlugin: Plugin = async () => {
+  // name -> mode, per plugin instance
+  const agentModes: Record<string, string> = { ...BUILTIN_AGENT_MODES }
+
+  const resolve = (agent: AgentInput): { name: string; mode: string } => {
+    if (typeof agent === "object" && agent !== null) {
+      // Legacy runtime shape: full agent object with an explicit mode.
+      return { name: agent.name ?? "unknown", mode: agent.mode ?? "primary" }
+    }
+    // OpenCode >= 1.17: agent is the name string. Resolve the mode from the
+    // merged config (captured in the config hook) + built-in defaults.
+    const name = String(agent)
+    return { name, mode: agentModes[name] ?? "primary" }
+  }
+
   return {
+    // Runs once on init with the merged OpenCode config. Captures the mode
+    // of user-defined agents and built-in overrides so chat.headers can
+    // classify string agent names.
+    config: (cfg) => {
+      for (const [name, def] of Object.entries(cfg?.agent ?? {})) {
+        if (typeof def?.mode === "string") agentModes[name] = def.mode
+      }
+    },
+
     "chat.headers": async (incoming, output) => {
       // Only inject headers for Anthropic provider requests
       if (incoming.model.providerID !== "anthropic") return
@@ -38,18 +83,15 @@ const MeridianPlugin: Plugin = async () => {
       output.headers["x-opencode-session"] = incoming.sessionID
       output.headers["x-opencode-request"] = incoming.message.id
 
-      // Agent mode — runtime value is the full agent object even though
-      // the TypeScript type says string. Read .mode directly.
-      const agent = incoming.agent as { name?: string; mode?: string } | string
-      output.headers["x-opencode-agent-mode"] = typeof agent === "object"
-        ? (agent.mode ?? "primary")
-        : "primary"
-      const rawName = typeof agent === "object"
-        ? (agent.name ?? "unknown")
-        : String(agent)
+      const { name, mode } = resolve(incoming.agent)
+
+      // The proxy expects primary|subagent. "all" agents can act as either;
+      // without per-request context, treat them as primary (full tier) to
+      // preserve capability.
+      output.headers["x-opencode-agent-mode"] = mode === "subagent" ? "subagent" : "primary"
       // Strip non-ASCII characters (e.g. zero-width spaces) that cause
       // "Header has invalid value" errors in Node.js / undici.
-      output.headers["x-opencode-agent-name"] = rawName.replace(/[^\x20-\x7E]/g, "").trim() || "unknown"
+      output.headers["x-opencode-agent-name"] = name.replace(/[^\x20-\x7E]/g, "").trim() || "unknown"
     },
   }
 }
