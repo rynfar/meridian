@@ -71,6 +71,7 @@
           {
             _module.args.pkgs = import nixpkgs {
               inherit system;
+              config.allowUnfreePredicate = pkg: lib.getName pkg == "claude-code";
               overlays = [ bun2nix.overlays.default ];
             };
 

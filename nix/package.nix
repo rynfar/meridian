@@ -1,43 +1,38 @@
 {
-  autoPatchelfHook,
   bun,
   bun2nix,
+  claude-code,
   lib,
   makeWrapper,
   nodejs_22,
-  stdenv,
   stdenvNoCC,
 }:
-stdenvNoCC.mkDerivation {
-  inherit (lib.importJSON ../package.json) version;
+let
+  inherit (lib.cli) toCommandLineGNU;
+  inherit (lib.meta) getExe;
+  inherit (lib.sources) cleanSource;
+  inherit (lib.strings) removePrefix versionOlder;
+  inherit (lib.trivial) importJSON;
+  package = importJSON ../package.json;
+in
+stdenvNoCC.mkDerivation (finalAttrs: {
+  inherit (package) version;
   pname = "meridian";
 
-  src = lib.cleanSource ../.;
+  src = cleanSource ../.;
 
   nativeBuildInputs = [
-    bun2nix.hook
     bun
-    nodejs_22
+    bun2nix.hook
     makeWrapper
-  ]
-  # node_modules vendors native ELF binaries — most importantly
-  # @anthropic-ai/claude-code/bin/claude.exe (the Claude Code CLI the SDK
-  # spawns) and its bundled ripgrep. They are dynamically linked against a
-  # generic-Linux loader path (/lib64/ld-linux-*), which does not exist on
-  # NixOS — every query died with exit=127 "Could not start dynamically
-  # linked executable" (#501). autoPatchelfHook rewrites their interpreter
-  # and rpaths to Nix store paths at build time, so users don't need the
-  # nix-ld escape hatch.
-  ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
-
-  # Runtime libraries autoPatchelfHook links the vendored ELFs against.
-  buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
-    stdenv.cc.cc.lib # libstdc++ / libgcc_s for the bun-compiled claude.exe
+    nodejs_22
   ];
 
   bunDeps = bun2nix.fetchBunDeps { bunNix = ../bun.nix; };
-
-  bunInstallFlags = [ "--linker=hoisted" ];
+  bunInstallFlags = toCommandLineGNU { } {
+    ignore-scripts = true;
+    linker = "hoisted";
+  };
 
   buildPhase = ''
     runHook preBuild
@@ -51,28 +46,25 @@ stdenvNoCC.mkDerivation {
     mkdir -p $out/lib/meridian
     cp -r dist node_modules plugin package.json $out/lib/meridian/
 
-    makeWrapper ${lib.getExe nodejs_22} $out/bin/meridian \
-      --add-flags "$out/lib/meridian/dist/cli.js"
+    rm -rf $out/lib/meridian/node_modules/@anthropic-ai/{claude-code,claude-code-*,claude-agent-sdk-*} \
+      $out/lib/meridian/node_modules/.bin/claude
+
+    makeWrapper ${getExe nodejs_22} $out/bin/${finalAttrs.meta.mainProgram} \
+      --add-flags "$out/lib/meridian/dist/cli.js" \
+      --set MERIDIAN_CLAUDE_PATH ${getExe claude-code}
 
     runHook postInstall
   '';
 
-  # claude.exe is a bun single-file executable: the JS payload is embedded in
-  # the binary. Stripping would discard it and corrupt the CLI, so only the
-  # patchelf part of fixup may touch it.
-  dontStrip = true;
-
-  # Vendored prebuilt binaries may reference optional libs we don't provide
-  # (autoPatchelfHook fails the build on ANY missing dep otherwise). The
-  # loader only needs the ones actually used at runtime; claude.exe's hard
-  # deps (glibc, libstdc++) are covered above.
-  autoPatchelfIgnoreMissingDeps = [ "*" ];
-
   meta = {
-    description = "Local Anthropic API powered by your Claude Max subscription";
-    homepage = "https://github.com/rynfar/meridian";
+    inherit (package) description;
+    broken = versionOlder claude-code.version (
+      removePrefix "^" package.dependencies."@anthropic-ai/claude-code"
+    );
+    homepage = "https://github.com/rynfar/${finalAttrs.pname}";
     license = lib.licenses.mit;
-    mainProgram = "meridian";
+    mainProgram = finalAttrs.pname;
     platforms = lib.platforms.unix;
+    sourceProvenance = with lib.sourceTypes; [ fromSource ];
   };
-}
+})
