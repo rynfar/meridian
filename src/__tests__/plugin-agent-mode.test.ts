@@ -104,4 +104,18 @@ describe("plugin/meridian.ts agent-mode header", () => {
     expect((await headersFor(a, "shared"))["x-opencode-agent-mode"]).toBe("subagent")
     expect((await headersFor(b, "shared"))["x-opencode-agent-mode"]).toBe("primary")
   })
+
+  it("config hook re-fire drops agents removed from config", async () => {
+    const hooks = await instance({ temp: { mode: "subagent" } })
+    expect((await headersFor(hooks, "temp"))["x-opencode-agent-mode"]).toBe("subagent")
+    await hooks.config?.({ agent: {} })
+    expect((await headersFor(hooks, "temp"))["x-opencode-agent-mode"]).toBe("primary")
+  })
+
+  it("config hook re-fire restores built-in mode when an override is removed", async () => {
+    const hooks = await instance({ general: { mode: "primary" } })
+    expect((await headersFor(hooks, "general"))["x-opencode-agent-mode"]).toBe("primary")
+    await hooks.config?.({ agent: {} })
+    expect((await headersFor(hooks, "general"))["x-opencode-agent-mode"]).toBe("subagent")
+  })
 })

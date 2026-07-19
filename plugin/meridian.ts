@@ -51,8 +51,9 @@ const BUILTIN_AGENT_MODES: Record<string, string> = {
 }
 
 const MeridianPlugin: Plugin = async () => {
-  // name -> mode, per plugin instance
-  const agentModes: Record<string, string> = { ...BUILTIN_AGENT_MODES }
+  // Modes from the merged config, per plugin instance. Replaced wholesale on
+  // every config-hook fire so a reload can't leave stale entries behind.
+  let configModes: Record<string, string> = {}
 
   const resolve = (agent: AgentInput): { name: string; mode: string } => {
     if (typeof agent === "object" && agent !== null) {
@@ -62,17 +63,19 @@ const MeridianPlugin: Plugin = async () => {
     // OpenCode >= 1.17: agent is the name string. Resolve the mode from the
     // merged config (captured in the config hook) + built-in defaults.
     const name = String(agent)
-    return { name, mode: agentModes[name] ?? "primary" }
+    return { name, mode: configModes[name] ?? BUILTIN_AGENT_MODES[name] ?? "primary" }
   }
 
   return {
-    // Runs once on init with the merged OpenCode config. Captures the mode
-    // of user-defined agents and built-in overrides so chat.headers can
-    // classify string agent names.
+    // Runs with the merged OpenCode config (on init, and again on config
+    // reload). Captures the mode of user-defined agents and built-in
+    // overrides so chat.headers can classify string agent names.
     config: (cfg) => {
+      const next: Record<string, string> = {}
       for (const [name, def] of Object.entries(cfg?.agent ?? {})) {
-        if (typeof def?.mode === "string") agentModes[name] = def.mode
+        if (typeof def?.mode === "string") next[name] = def.mode
       }
+      configModes = next
     },
 
     "chat.headers": async (incoming, output) => {
