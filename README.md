@@ -669,13 +669,33 @@ Built-in adapter names are reserved and can't be shadowed. With no instances con
 
 ### Claude Design MCP
 
-Meridian proxies the Claude Design MCP API (`api.anthropic.com/v1/design/*`), so MCP clients can use Claude Design tools through your local endpoint. Point your MCP client at:
+Meridian proxies the Claude Design MCP API (`api.anthropic.com/v1/design/*`), so MCP clients can use Claude Design tools through your local endpoint.
 
-```
-http://127.0.0.1:3456/v1/design/mcp
+**1. Add the MCP server.** For Claude Code:
+
+```bash
+claude mcp add -s user --transport http claude-design http://127.0.0.1:3456/v1/design/mcp
 ```
 
-The Design API requires OAuth scopes (`user:design:read`/`user:design:write`) that Meridian's standard login does not carry, so authorize once with the dedicated flow:
+Any other MCP client: point it at `http://127.0.0.1:3456/v1/design/mcp` (streamable HTTP).
+
+**2. Grant Claude Design consent (one time, per Anthropic account).** Tool calls return a `needs_consent` error until you enable it: open [claude.ai/design/settings](https://claude.ai/design/settings), find **"Claude product access"** ("Let other Claude products, like Claude Code, read and edit your Design projects"), and switch it **On**. This is a setting on the Anthropic account itself — with multiple Meridian profiles, the account behind the *profile handling the request* is the one that needs the toggle.
+
+That's it — your existing Claude Max login covers auth (`initialize`, `tools/list`, and tool calls are all verified working with a plain Max token). Verify with a quick handshake:
+
+```bash
+curl -s -X POST http://127.0.0.1:3456/v1/design/mcp -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+**Multiple profiles:** design requests use the active profile by default. To pin design traffic to a specific profile regardless of which is active, register the server with a profile header:
+
+```bash
+claude mcp add -s user --transport http --header "x-meridian-profile: personal" \
+  claude-design http://127.0.0.1:3456/v1/design/mcp
+```
+
+**Fallback OAuth flow:** if the upstream ever rejects your token with an `auth_error` (scope enforcement has varied over time), `/design-login` obtains a dedicated token with the `user:design:read`/`user:design:write` scopes:
 
 ```bash
 curl http://127.0.0.1:3456/design-login          # returns an authorize URL — open it in your browser
@@ -684,7 +704,7 @@ curl -X POST http://127.0.0.1:3456/design-login \
   -d '{"code": "<code-from-browser>"}'           # paste the code you were shown
 ```
 
-The design token is stored at `~/.config/meridian/design-token.json` (mode `0600`, global across profiles) and refreshed automatically when it expires. If a design request returns `auth_error`, re-run the login flow.
+The design token is stored at `~/.config/meridian/design-token.json` (mode `0600`, global across profiles) and refreshed automatically when it expires.
 
 > Contributed by [@sittitep](https://github.com/sittitep) (#543).
 
