@@ -27,4 +27,14 @@ export const codexAdapter: AgentAdapter = {
   usesPassthrough() {
     return true
   },
+  // Codex sends a per-conversation `prompt_cache_key` (mirrored in its
+  // client_metadata as session_id); the /v1/responses route forwards it as
+  // this header so consecutive turns resume the same SDK session (#655) —
+  // which both preserves Claude's signed thinking across turns and keeps
+  // the prompt cache warm. Keyed sessions also bypass the headerless
+  // client-driven-loop guard (see server.ts) safely: distinct conversations
+  // carry distinct keys, so concurrent runs can't collide.
+  getSessionId(c) {
+    return c.req.header("x-codex-session")
+  },
 }

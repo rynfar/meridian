@@ -153,3 +153,50 @@ describe("/v1/responses (#475)", () => {
     expect(body.endpoints).toContain("/v1/responses")
   })
 })
+
+describe("/v1/responses session continuity via prompt_cache_key (#655)", () => {
+  beforeEach(() => {
+    clearSessionCache()
+    capturedOptions = []
+  })
+
+  const userItem = {
+    type: "message",
+    role: "user",
+    content: [{ type: "input_text", text: "Read data.txt and count the lines." }],
+  }
+  // A mid-loop turn: same user item plus the echoed tool call and its output.
+  // The last translated message is a tool_result — exactly the shape the
+  // headerless client-driven-loop guard excludes from fingerprint resume.
+  const loopTurnInput = [
+    userItem,
+    { type: "function_call", name: "exec_command", arguments: '{"cmd":"wc -l data.txt"}', call_id: "toolu_test_1" },
+    { type: "function_call_output", call_id: "toolu_test_1", output: "3 data.txt" },
+  ]
+
+  it("resumes the prior SDK session when prompt_cache_key is stable", async () => {
+    const app = createTestApp()
+    const key = "019f7945-b6ff-77a2-85a7-8875ef953a68"
+    const r1 = await postResponses(app, { model: "claude-sonnet-5", input: [userItem], stream: false, prompt_cache_key: key })
+    expect(r1.status).toBe(200)
+    const r2 = await postResponses(app, { model: "claude-sonnet-5", input: loopTurnInput, stream: false, prompt_cache_key: key })
+    expect(r2.status).toBe(200)
+    expect(capturedOptions).toHaveLength(2)
+    expect(capturedOptions[0].resume).toBeUndefined()
+    expect(capturedOptions[1].resume).toBe("sdk-1")
+  })
+
+  it("does not resume across different prompt_cache_keys", async () => {
+    const app = createTestApp()
+    await postResponses(app, { model: "claude-sonnet-5", input: [userItem], stream: false, prompt_cache_key: "conv-a" })
+    await postResponses(app, { model: "claude-sonnet-5", input: loopTurnInput, stream: false, prompt_cache_key: "conv-b" })
+    expect(capturedOptions[1].resume).toBeUndefined()
+  })
+
+  it("without prompt_cache_key, tool-loop turns stay independent (pre-#655 behavior)", async () => {
+    const app = createTestApp()
+    await postResponses(app, { model: "claude-sonnet-5", input: [userItem], stream: false })
+    await postResponses(app, { model: "claude-sonnet-5", input: loopTurnInput, stream: false })
+    expect(capturedOptions[1].resume).toBeUndefined()
+  })
+})

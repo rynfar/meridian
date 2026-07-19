@@ -3698,6 +3698,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       "Content-Type": "application/json",
       "x-meridian-agent": "codex",
     }
+    // NOTE: agent-specific (Codex) — prompt_cache_key is Codex's stable
+    // per-conversation id (mirrored as session_id in its client_metadata).
+    // Forward it as the codex adapter's session header so consecutive turns
+    // resume the same SDK session: Claude's signed thinking then persists
+    // across turns natively and the prompt cache stays warm (#655).
+    const promptCacheKey = (rawBody as { prompt_cache_key?: unknown }).prompt_cache_key
+    if (typeof promptCacheKey === "string" && promptCacheKey.length > 0) {
+      internalHeaders["x-codex-session"] = promptCacheKey
+    }
     const xApiKey = c.req.header("x-api-key")
     if (xApiKey) internalHeaders["x-api-key"] = xApiKey
     const authz = c.req.header("authorization")
