@@ -54,3 +54,17 @@ npm install @rynfar/meridian-plugin-hermes-scrub
 Paths must be absolute — the loader does not expand `~`.
 
 Both plugin locations are configurable for the standalone CLI: `MERIDIAN_PLUGIN_DIR` overrides the auto-discovery directory and `MERIDIAN_PLUGIN_CONFIG` the manifest path (useful for Nix, containers, or running several instances with different plugin sets).
+
+### Docker
+
+Set `MERIDIAN_PLUGINS` to a comma-separated list of npm package specs (`name` or `name@version`) and the container installs and registers them on startup — no custom image build required:
+
+```yaml
+services:
+  proxy:
+    build: .
+    environment:
+      MERIDIAN_PLUGINS: "@rynfar/meridian-plugin-hermes-scrub,@rynfar/meridian-plugin-opencode-scrub"
+```
+
+The entrypoint runs `npm install` into `~/.config/meridian` inside the container and writes the resulting entries to `plugins.json` (or `MERIDIAN_PLUGIN_CONFIG` if set). This runs on every container start and isn't backed by a volume, so plugin installs don't persist across `docker compose down && up` — only across plain restarts of the same container. If you want plugins baked into a reproducible image instead, install them in a custom `Dockerfile` layer at build time rather than via this env var.

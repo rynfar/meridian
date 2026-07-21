@@ -21,4 +21,9 @@ elif [ -f "$CLAUDE_JSON" ] && [ ! -L "$CLAUDE_JSON" ] && [ -w "$CLAUDE_DIR" ]; t
   ln -sf "$CLAUDE_JSON_VOL" "$CLAUDE_JSON"
 fi
 
+if [ -n "$MERIDIAN_PLUGINS" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  node "$SCRIPT_DIR/docker-install-plugins.mjs"
+fi
+
 exec "$@"

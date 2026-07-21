@@ -49,8 +49,8 @@ RUN node /app/node_modules/@anthropic-ai/claude-code/install.cjs
 RUN mkdir -p /app/bin/shims \
     && ln -sf /app/node_modules/@anthropic-ai/claude-code/bin/claude.exe /app/bin/shims/claude
 ENV PATH="/app/bin/shims:$PATH"
-COPY --chown=claude:claude bin/docker-entrypoint.sh bin/claude-proxy-supervisor.sh ./bin/
-RUN chmod +x ./bin/docker-entrypoint.sh ./bin/claude-proxy-supervisor.sh
+COPY --chown=claude:claude bin/docker-entrypoint.sh bin/claude-proxy-supervisor.sh bin/docker-install-plugins.mjs ./bin/
+RUN chmod +x ./bin/docker-entrypoint.sh ./bin/claude-proxy-supervisor.sh ./bin/docker-install-plugins.mjs
 
 EXPOSE 3456
 
