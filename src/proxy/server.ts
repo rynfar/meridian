@@ -817,8 +817,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // preserve fingerprint resume instead of treating their tool results
         // as unrelated headerless workflow requests.
         const isClientDrivenLoop = adapterBase !== "claude-code" && !agentSessionId && lastIsToolResult
+        // The fork/subagent independence guard protects HEADERLESS flows from
+        // colliding on the shared (firstUserMessage, cwd) fingerprint. An
+        // explicit session key can't collide — distinct flows carry distinct
+        // keys — so keyed requests resume normally even when marked as a
+        // fork/subagent source. Without this, pylon's long-lived subagent
+        // workers fresh-replayed every turn: prompt-cache hits decayed to the
+        // static-prefix floor and turn latency grew with conversation length.
         const isIndependentSession =
-          requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-") || isClientDrivenLoop || false
+          (!agentSessionId && (requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-"))) ||
+          isClientDrivenLoop || false
         // If the previous turn's background drain is still persisting this
         // session (streaming early stop), wait briefly so the lookup below
         // sees the stored session instead of falling to a fresh replay.

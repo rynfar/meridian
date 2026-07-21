@@ -70,11 +70,15 @@ export const piAdapter: AgentAdapter = {
   name: "pi",
 
   /**
-   * Pi sends no session header.
-   * Session continuity is maintained via fingerprint-based cache lookup.
+   * Pi itself sends no session header — continuity normally comes from the
+   * fingerprint cache. Orchestrators driving the pi runtime (pylon) can opt
+   * into explicit, collision-proof session keys via x-session-affinity;
+   * an explicit key also overrides the fork/subagent independence guard so
+   * long-lived subagent conversations resume instead of fresh-replaying
+   * every turn (which decayed prompt-cache hits to the static-prefix floor).
    */
-  getSessionId(_c: Context): string | undefined {
-    return undefined
+  getSessionId(c: Context): string | undefined {
+    return c.req.header("x-session-affinity")
   },
 
   extractWorkingDirectory(body: any): string | undefined {

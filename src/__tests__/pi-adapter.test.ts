@@ -11,14 +11,24 @@ describe("piAdapter — identity", () => {
 })
 
 describe("piAdapter.getSessionId", () => {
-  it("always returns undefined — Pi sends no session header", () => {
+  it("returns x-session-affinity when present (orchestrator-supplied session key)", () => {
     const ctx = {
-      req: { header: () => "any-value" },
+      req: {
+        header: (name: string) =>
+          name === "x-session-affinity" ? "worker-run-1" : undefined,
+      },
+    }
+    expect(piAdapter.getSessionId(ctx as any)).toBe("worker-run-1")
+  })
+
+  it("returns undefined without the affinity header — bare pi sends no session header", () => {
+    const ctx = {
+      req: { header: () => undefined },
     }
     expect(piAdapter.getSessionId(ctx as any)).toBeUndefined()
   })
 
-  it("returns undefined even when x-opencode-session is present", () => {
+  it("ignores x-opencode-session (opencode's header is not pi's)", () => {
     const ctx = {
       req: {
         header: (name: string) =>
