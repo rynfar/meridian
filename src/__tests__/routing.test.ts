@@ -8,7 +8,7 @@
  * to the removed arm (minimal cache disruption).
  */
 import { describe, it, expect } from "bun:test"
-import { pickStickyProfile, getRoutingMode, RENDEZVOUS_STABLE_GUARD } from "../proxy/routing"
+import { pickStickyProfile, getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, RENDEZVOUS_STABLE_GUARD } from "../proxy/routing"
 
 const PROFILES = ["personal", "work"]
 
@@ -102,5 +102,76 @@ describe("getRoutingMode", () => {
   it("falls back to 'active' for unknown values (never crashes routing)", () => {
     expect(getRoutingMode("round-robin")).toBe("active")
     expect(getRoutingMode("STICKY")).toBe("sticky") // case-insensitive
+  })
+})
+
+describe("priority routing (#priority-spec)", () => {
+  it("getRoutingMode accepts 'priority'", () => {
+    expect(getRoutingMode("priority")).toBe("priority")
+    expect(getRoutingMode("PRIORITY")).toBe("priority")
+  })
+
+  it("resolvePriorityOrder honors the configured order and appends unlisted profiles", () => {
+    const { order, unknown } = resolvePriorityOrder(["personal", "work", "ci"], ["work", "personal"])
+    expect(order).toEqual(["work", "personal", "ci"])
+    expect(unknown).toEqual([])
+  })
+
+  it("resolvePriorityOrder reports unknown ids and ignores them", () => {
+    const { order, unknown } = resolvePriorityOrder(["personal", "work"], ["work", "ghost"])
+    expect(order).toEqual(["work", "personal"])
+    expect(unknown).toEqual(["ghost"])
+  })
+
+  it("resolvePriorityOrder without a setting uses config order", () => {
+    const { order } = resolvePriorityOrder(["personal", "work"], undefined)
+    expect(order).toEqual(["personal", "work"])
+  })
+
+  it("choosePriorityProfile picks the first non-exhausted profile", () => {
+    const pick = choosePriorityProfile(["work", "personal"], (id) => id === "work")
+    expect(pick).toEqual({ id: "personal", allExhausted: false })
+  })
+
+  it("choosePriorityProfile returns the preferred profile when all are exhausted", () => {
+    const pick = choosePriorityProfile(["work", "personal"], () => true)
+    expect(pick).toEqual({ id: "work", allExhausted: true })
+  })
+
+  it("choosePriorityProfile handles an empty pool", () => {
+    expect(choosePriorityProfile([], () => false)).toBeUndefined()
+  })
+})
+
+describe("ProfileExhaustion tracker", () => {
+  const T0 = 1_800_000_000_000
+
+  it("marks and reports exhaustion until expiry", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 60_000, "rate_limit_error")
+    expect(ex.isExhausted("work")).toBe(true)
+    expect(ex.isExhausted("personal")).toBe(false)
+  })
+
+  it("expires marks and self-heals", () => {
+    let now = T0
+    const ex = new ProfileExhaustion(() => now)
+    ex.mark("work", T0 + 60_000, "rate_limit_error")
+    now = T0 + 60_001
+    expect(ex.isExhausted("work")).toBe(false)
+    expect(ex.snapshot()).toEqual([])
+  })
+
+  it("snapshot exposes entries for observability", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 120_000, "rate_limit_error")
+    expect(ex.snapshot()).toEqual([{ id: "work", until: T0 + 120_000, reason: "rate_limit_error" }])
+  })
+
+  it("a later mark extends but an earlier one never shortens", () => {
+    const ex = new ProfileExhaustion(() => T0)
+    ex.mark("work", T0 + 120_000, "rate_limit_error")
+    ex.mark("work", T0 + 30_000, "rate_limit_error")
+    expect(ex.snapshot()[0]!.until).toBe(T0 + 120_000)
   })
 })
