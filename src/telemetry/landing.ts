@@ -71,6 +71,7 @@ export const landingHtml = `<!DOCTYPE html>
   .strip-value.green { color: var(--green); }
   .strip-value.red { color: var(--red); }
   .strip-detail { font-size: 11px; color: var(--muted); }
+  .strip-detail.red { color: var(--red); }
 
   .section { margin-bottom: 24px; }
   .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase;
@@ -157,7 +158,7 @@ function profileSection(q,s,pl,h){
 function strip(items){
   var o='<div class="strip">';
   for(var i=0;i<items.length;i++){var it=items[i];
-    o+='<div class="strip-item"><div class="strip-label">'+it[0]+'</div><div class="strip-value '+(it[2]||'')+'">'+it[1]+'</div>'+(it[3]?'<div class="strip-detail">'+it[3]+'</div>':'')+'</div>';
+    o+='<div class="strip-item"><div class="strip-label">'+it[0]+'</div><div class="strip-value '+(it[2]||'')+'">'+it[1]+'</div>'+(it[3]?'<div class="strip-detail '+(it[4]||'')+'">'+it[3]+'</div>':'')+'</div>';
   }
   return o+'</div>';
 }
@@ -188,7 +189,9 @@ function render(h,s,q,pl){
   var tu=s.tokenUsage||{};
   var cache=tu.avgCacheHitRate!=null?Math.round(tu.avgCacheHitRate*100)+'%':'—';
   var items=[
-    ['Requests',String(s.totalRequests),s.errorCount>0?'red':'',s.errorCount>0?s.errorCount+' error'+(s.errorCount===1?'':'s'):'no errors'],
+    // The big number is the TOTAL — never error-colored (a red 1714 reads as
+    // 1714 failures). The error signal lives on the detail line only.
+    ['Requests',String(s.totalRequests),'',s.errorCount>0?s.errorCount+' error'+(s.errorCount===1?'':'s'):'no errors',s.errorCount>0?'red':''],
     ['Tokens Out',tokens(tu.totalOutputTokens),'',tokens(tu.totalInputTokens)+' in'],
     ['Cache Hit',cache,tu.avgCacheHitRate>=0.5?'green':'','prompt cache'],
     ['Est. API Value',usd(s.costEstimate?.totalUsd),'','list prices'],
