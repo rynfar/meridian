@@ -3472,6 +3472,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     if (!effective.find(p => p.id === body.profile)) {
       return c.json({ error: `Unknown profile: ${body.profile}. Available: ${effective.map(p => p.id).join(", ")}` }, 400)
     }
+    const previousProfile = getActiveProfileId() ?? null
     setActiveProfile(body.profile!)
     // Evict all cached SDK sessions — they were started under the old profile's
     // credentials and cannot be reused with different auth. Also drop the
@@ -3479,7 +3480,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // profile's quotas under the new profile's identity.
     clearSessionCache()
     rateLimitStore.clear()
-    plog(`[PROXY] Active profile switched to: ${body.profile} (session + rate-limit caches cleared)`)
+    // Attribute the switch: multiple surfaces can POST here (the meridian UI,
+    // the CLI, pylon's provider switcher, the iOS companion) and the active
+    // profile is GLOBAL state — an unexplained flip should be answerable from
+    // the logs, not an investigation.
+    claudeLog("profile.switched", {
+      from: previousProfile,
+      to: body.profile,
+      userAgent: c.req.header("user-agent")?.slice(0, 120) ?? null,
+      origin: c.req.header("origin") ?? c.req.header("referer")?.slice(0, 120) ?? null,
+    })
+    plog(`[PROXY] Active profile switched to: ${body.profile} (from ${previousProfile ?? "unset"}, ua: ${(c.req.header("user-agent") || "unknown").slice(0, 60)}) (session + rate-limit caches cleared)`)
     return c.json({ success: true, activeProfile: body.profile })
   })
 
