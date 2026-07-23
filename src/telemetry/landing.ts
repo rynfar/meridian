@@ -57,6 +57,8 @@ export const landingHtml = `<!DOCTYPE html>
   .usage-row .w-label { color: var(--muted); width: 64px; flex-shrink: 0; }
   .usage-row .w-bar { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
   .usage-row .w-fill { height: 100%; border-radius: 3px; }
+  .pace-row { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
+  .pace-row .pace-text { flex: 1; font-weight: 600; font-size: 11px; }
   .usage-row .w-pct { width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
   .usage-row .w-reset { color: var(--muted); font-size: 11px; width: 76px; text-align: right; }
   .no-usage { font-size: 12px; color: var(--muted); padding: 4px 0; }
@@ -96,6 +98,29 @@ function usd(v){if(v==null)return '—';if(v>0&&v<0.01)return '$'+v.toFixed(4);i
 var WIN_LABELS={five_hour:'5h',seven_day:'7d',seven_day_opus:'7d Opus',seven_day_sonnet:'7d Sonnet',seven_day_fable:'7d Fable',seven_day_oauth_apps:'7d Apps',seven_day_cowork:'7d Cowork',seven_day_omelette:'7d Omelette'};
 function winLabel(t){if(WIN_LABELS[t])return WIN_LABELS[t];return t.replace(/^seven_day_/,'7d ').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()})}
 function utilColor(u){return u>=0.85?'var(--red)':u>=0.6?'var(--yellow)':'var(--green)'}
+// Mirrors computeWeeklyPace in src/telemetry/profileUsage.ts (unit-tested
+// there): actual vs expected (even) consumption at this point in the 7-day
+// window, with the dashboard's over-promotion when the projection hits 100%.
+function weeklyPace(u,resetsAt){
+  var WEEK=7*86400000;
+  if(u==null||resetsAt==null)return null;
+  var el=Math.max(0,Math.min(1,(Date.now()-(resetsAt-WEEK))/WEEK));
+  var actual=Math.round(Math.max(0,u)*100);
+  var expected=Math.round(el*100);
+  var delta=actual-expected;
+  var proj=el>=0.1?Math.round((Math.max(0,u)/el)*100):null;
+  var st=delta>7?'ahead':delta<-7?'under':'on';
+  if(proj!=null&&proj>=100)st='over';
+  return {actual:actual,expected:expected,delta:delta,proj:proj,status:st};
+}
+function paceText(pc){
+  if(pc.status==='over')return 'on track to run out';
+  if(pc.status==='ahead')return '+'+pc.delta+'% ahead of pace';
+  if(pc.status==='under')return Math.abs(pc.delta)+'% under pace';
+  return 'on pace';
+}
+function paceColor(pc){return pc.status==='over'?'var(--red)':pc.status==='ahead'?'var(--yellow)':'var(--green)'}
+
 function resetIn(ts){if(ts==null)return '';var d=ts-Date.now();if(d<=0)return 'resetting…';var m=Math.ceil(d/60000);if(m<60)return 'in '+m+'m';var h=Math.floor(m/60);if(h<24)return 'in '+h+'h'+(m%60?' '+(m%60)+'m':'');var days=Math.floor(h/24);return 'in '+days+'d'+(h%24?' '+(h%24)+'h':'')}
 
 function introSection(h){
@@ -142,6 +167,12 @@ function profileSection(q,s,pl,h){
         +'<span class="w-pct" style="color:'+utilColor(w.utilization)+'">'+pct+'%</span>'
         +'<span class="w-reset">'+resetIn(w.resetsAt)+'</span></div>';
     }
+    var weekly=null;
+    for(var j=0;j<wins.length;j++){if(wins[j].type==='seven_day')weekly=wins[j]}
+    var pc=weekly?weeklyPace(weekly.utilization,weekly.resetsAt):null;
+    if(pc)rows+='<div class="usage-row pace-row"><span class="w-label">pace</span>'
+      +'<span class="pace-text" style="color:'+paceColor(pc)+'">'+paceText(pc)+'</span>'
+      +'<span class="w-reset">'+(pc.proj!=null?'~'+pc.proj+'% by reset':'')+'</span></div>';
     if(!rows)rows='<div class="no-usage">no usage data yet</div>';
     var switchable=multi&&p.configured&&!p.isActive;
     var badge=p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
