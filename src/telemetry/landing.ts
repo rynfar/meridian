@@ -58,7 +58,9 @@ export const landingHtml = `<!DOCTYPE html>
   .usage-row .w-bar { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
   .usage-row .w-fill { height: 100%; border-radius: 3px; }
   .pace-row { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
-  .pace-row .pace-text { flex: 1; font-weight: 600; font-size: 11px; }
+  .pace-row .w-bar { overflow: visible; position: relative; }
+  .pace-marker { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.55; border-radius: 1px; }
+  .pace-row .w-pct { font-weight: 600; }
   .pool-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface2); color: var(--muted); margin-left: 6px; vertical-align: middle; }
   .pool-chip.exhausted { color: var(--red); background: rgba(248,81,73,0.12); }
   .usage-row .w-pct { width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -172,9 +174,17 @@ function profileSection(q,s,pl,h){
     var weekly=null;
     for(var j=0;j<wins.length;j++){if(wins[j].type==='seven_day')weekly=wins[j]}
     var pc=weekly?weeklyPace(weekly.utilization,weekly.resetsAt):null;
-    if(pc)rows+='<div class="usage-row pace-row"><span class="w-label">pace</span>'
-      +'<span class="pace-text" style="color:'+paceColor(pc)+'">'+paceText(pc)+'</span>'
-      +'<span class="w-reset">'+(pc.proj!=null?'~'+pc.proj+'% by reset':'')+'</span></div>';
+    if(pc){
+      // Visual actual-vs-expected: fill = actual usage (status-colored),
+      // tick marker = where even pace would be. The gap IS the pace.
+      var paceTip=paceText(pc)+' \u00b7 '+pc.actual+'% used vs '+pc.expected+'% expected'+(pc.proj!=null?' \u00b7 ~'+pc.proj+'% by reset':'');
+      var deltaLabel=pc.status==='over'?(pc.proj!=null?pc.proj+'%':'100%'):(pc.delta>=0?'+':'\u2212')+Math.abs(pc.delta)+'%';
+      rows+='<div class="usage-row pace-row" title="'+paceTip+'"><span class="w-label">pace</span>'
+        +'<div class="w-bar"><div class="w-fill" style="width:'+Math.min(pc.actual,100)+'%;background:'+paceColor(pc)+'"></div>'
+        +'<div class="pace-marker" style="left:'+Math.min(pc.expected,100)+'%" title="expected at even pace ('+pc.expected+'%)"></div></div>'
+        +'<span class="w-pct" style="color:'+paceColor(pc)+'">'+deltaLabel+'</span>'
+        +'<span class="w-reset">'+(pc.status==='over'?'runs out before reset':pc.proj!=null?'~'+pc.proj+'% by reset':'')+'</span></div>';
+    }
     if(!rows)rows='<div class="no-usage">no usage data yet</div>';
     var isPriority=pl&&pl.routing==='priority';
     var switchable=multi&&p.configured&&!p.isActive&&!isPriority;
