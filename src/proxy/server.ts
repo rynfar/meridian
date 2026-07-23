@@ -77,7 +77,7 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, type ResolvedProfile } from "./profiles"
-import { getRoutingMode } from "./routing"
+import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion } from "./routing"
 import { getSetting } from "./settings"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
@@ -458,6 +458,127 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   app.use("/settings/*", requireAuth)
   app.use("/settings", requireAuth)
   app.use("/design-login", requireAuth)
+
+  // --- Priority routing (opt-in, routing="priority") ---
+  // Ordered account pool with per-request failover. The /v1/messages handler
+  // becomes a thin dispatcher in this mode: it re-enters itself with a pinned
+  // x-meridian-profile header per candidate (the same internal-hop pattern as
+  // /v1/chat/completions), so ALL failover logic lives here — no changes to
+  // the deep request machinery. State is per proxy instance.
+  const priorityExhaustion = new ProfileExhaustion()
+  const priorityAssignments = new Map<string, string>() // sessionKey -> profileId
+  const PRIORITY_ASSIGNMENTS_MAX = 5000
+  const PRIORITY_DEFAULT_COOLDOWN_MS = 10 * 60_000
+  const PRIORITY_COOLDOWN_CAP_MS = 6 * 60 * 60_000
+
+  function priorityProfileOrderSetting(): string[] | undefined {
+    const env = process.env.MERIDIAN_PROFILE_ORDER
+    if (env && env.trim()) return env.split(",").map(s => s.trim()).filter(Boolean)
+    const setting = getSetting("profileOrder")
+    return Array.isArray(setting) && setting.length > 0 ? setting : undefined
+  }
+
+  function priorityCooldownUntil(now: number): number {
+    // Best-available reset signal: the SDK rate-limit store's five_hour reset
+    // when known; conservative default otherwise so a mis-mark self-heals.
+    const fiveHour = rateLimitStore.getAll().find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now)
+    const until = fiveHour?.resetsAt ?? now + PRIORITY_DEFAULT_COOLDOWN_MS
+    return Math.min(until, now + PRIORITY_COOLDOWN_CAP_MS)
+  }
+
+  /** Inspect an inner response for a quota failure without destroying it.
+   *  Non-stream: a 429 body. Stream: an `event: error` frame with
+   *  rate_limit_error BEFORE any content frame (mid-content errors pass
+   *  through — never yank a stream a client is already consuming). */
+  async function sniffQuotaFailure(res: Response): Promise<{ failed: boolean; errorPayload: unknown; response: Response }> {
+    const contentType = res.headers.get("content-type") ?? ""
+    if (!contentType.includes("text/event-stream")) {
+      if (res.status === 429) {
+        const body = await res.clone().json().catch(() => null) as { error?: { type?: string } } | null
+        if (body?.error?.type === "rate_limit_error") return { failed: true, errorPayload: body, response: res }
+      }
+      return { failed: false, errorPayload: null, response: res }
+    }
+    const reader = res.body?.getReader()
+    if (!reader) return { failed: false, errorPayload: null, response: res }
+    const decoder = new TextDecoder()
+    const consumed: Uint8Array[] = []
+    let text = ""
+    let failedPayload: unknown = null
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      consumed.push(value)
+      text += decoder.decode(value, { stream: true })
+      const frameEnd = text.indexOf("\n\n")
+      if (frameEnd === -1) continue
+      const frame = text.slice(0, frameEnd)
+      if (/^event: error$/m.test(frame)) {
+        const dataLine = frame.split("\n").find(l => l.startsWith("data: "))
+        try {
+          const parsed = dataLine ? JSON.parse(dataLine.slice(6)) as { error?: { type?: string } } : null
+          if (parsed?.error?.type === "rate_limit_error") {
+            failedPayload = parsed
+          }
+        } catch { /* not a quota frame — pass through below */ }
+      }
+      break // first complete frame decides
+    }
+    if (failedPayload) {
+      await reader.cancel().catch(() => {})
+      return { failed: true, errorPayload: failedPayload, response: res }
+    }
+    const rest = new ReadableStream<Uint8Array>({
+      start(ctrl) { for (const chunk of consumed) ctrl.enqueue(chunk) },
+      async pull(ctrl) {
+        const { done, value } = await reader.read()
+        if (done) ctrl.close()
+        else ctrl.enqueue(value)
+      },
+      cancel(reason) { void reader.cancel(reason).catch(() => {}) },
+    })
+    return { failed: false, errorPayload: null, response: new Response(rest, { status: res.status, headers: res.headers }) }
+  }
+
+  async function dispatchPriority(c: Context, orderedCandidateIds: string[], sessionKey: string | null, wantsStream: boolean): Promise<Response> {
+    const bodyBuf = await c.req.arrayBuffer()
+    let lastError: unknown = null
+    let previous: string | null = null
+    for (const candidate of orderedCandidateIds) {
+      const headers = new Headers(c.req.raw.headers)
+      headers.set("x-meridian-profile", candidate)
+      const inner = await app.fetch(new Request(c.req.url, { method: "POST", headers, body: bodyBuf }))
+      const { failed, errorPayload, response } = await sniffQuotaFailure(inner)
+      if (!failed) {
+        if (sessionKey) {
+          priorityAssignments.set(sessionKey, candidate)
+          if (priorityAssignments.size > PRIORITY_ASSIGNMENTS_MAX) {
+            const oldest = priorityAssignments.keys().next().value
+            if (oldest !== undefined) priorityAssignments.delete(oldest)
+          }
+        }
+        if (previous) {
+          claudeLog("profile.failover", { from: previous, to: candidate, reason: "rate_limit_error", sessionKey })
+          plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate}`)
+        }
+        return response
+      }
+      priorityExhaustion.mark(candidate, priorityCooldownUntil(Date.now()), "rate_limit_error")
+      claudeLog("priority.exhausted", { profile: candidate, until: priorityCooldownUntil(Date.now()) })
+      lastError = errorPayload
+      previous = candidate
+    }
+    // Every candidate failed: surface the LAST tried profile's error (owner
+    // decision). Stream sniff consumed the inner body, so reconstruct the
+    // exact frame for SSE requests; non-stream errors pass through as JSON.
+    if (wantsStream) {
+      return new Response(`event: error\ndata: ${JSON.stringify(lastError)}\n\n`, {
+        status: 200,
+        headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" },
+      })
+    }
+    return new Response(JSON.stringify(lastError), { status: 429, headers: { "content-type": "application/json" } })
+  }
   app.use("/auth/*", requireAuth)
 
   app.get("/", (c) => {
@@ -561,6 +682,31 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Meridian already uses for session tracking is the assignment key,
         // so a session and its subagent/fork requests land on one account.
         const routingMode = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))
+        // Priority mode (opt-in): unpinned requests are dispatched across the
+        // ordered pool with per-request failover. Pinned requests (explicit
+        // x-meridian-profile — including our own internal hops) bypass the
+        // pool entirely and take the normal path below.
+        if (routingMode === "priority" && !c.req.header("x-meridian-profile")) {
+          const effectivePool = getEffectiveProfiles(finalConfig.profiles)
+          if (effectivePool.length > 1) {
+            const { order, unknown } = resolvePriorityOrder(effectivePool.map(p => p.id), priorityProfileOrderSetting())
+            if (unknown.length > 0) claudeLog("priority.unknown_order_ids", { unknown })
+            const sessionKey = adapter.getSessionId(c, body) || null
+            const assigned = sessionKey ? priorityAssignments.get(sessionKey) : undefined
+            // Assignment affinity: an existing conversation stays on its
+            // account while that account is healthy (protects warm prompt
+            // caches). Only NEW sessions drain back after a reset.
+            let first: string
+            if (assigned && order.includes(assigned) && !priorityExhaustion.isExhausted(assigned)) {
+              first = assigned
+            } else {
+              const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
+              first = pick?.id ?? order[0]!
+            }
+            const candidates = [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
+            return dispatchPriority(c, candidates, sessionKey, body.stream === true)
+          }
+        }
         const profile = resolveProfile(
           finalConfig.profiles,
           finalConfig.defaultProfile,
