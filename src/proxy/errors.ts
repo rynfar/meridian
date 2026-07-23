@@ -33,8 +33,13 @@ export function classifyError(errMsg: string): ClassifiedError {
     }
   }
 
-  // Rate limiting
-  if (lower.includes("429") || lower.includes("rate limit") || lower.includes("too many requests")) {
+  // Rate limiting. The CLI phrases 5h-window exhaustion as "You've hit your
+  // session limit · resets <time>" (live-observed) and weekly caps as
+  // "usage limit reached" — both ARE quota exhaustion and must classify as
+  // rate_limit_error (429), not generic api_error: clients back off correctly
+  // and priority routing's failover keys off this class.
+  if (lower.includes("429") || lower.includes("rate limit") || lower.includes("too many requests")
+    || lower.includes("hit your session limit") || lower.includes("usage limit reached")) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? " If you're frequently hitting this, set MERIDIAN_SONNET_MODEL=sonnet to use the 200k model instead."
       : ""

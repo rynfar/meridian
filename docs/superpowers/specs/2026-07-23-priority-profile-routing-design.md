@@ -1,6 +1,6 @@
 # Priority Profile Routing (`routing: "priority"`) — Design
 
-**Status:** Draft for owner review — no code yet.
+**Status:** Approved (owner decisions: only-new-session drain-back; last-tried error surfaced; pool order editable in /settings) and implemented — live-verified against real account exhaustion (non-stream and streaming failover).
 **Owner ask:** "Use my work account first to consume its usage, then auto-switch when it runs out." Explicitly **opt-in**: several users have said they do not want automatic account switching; nothing changes for anyone who doesn't enable it.
 
 ## Summary
@@ -77,8 +77,12 @@ New sessions avoid a profile already at ≥ 97% of `five_hour` (from the usage c
 - **Integration (mocked SDK):** limit-error on profile A → request retried once on B, response OK, session reassigned; second failure on B → original error surfaced; pinned header never rerouted; mode off → byte-identical current behavior (regression gate).
 - **Live (E34-style, mandatory before merge):** the streaming path's failover retry touches the tool-loop seam — verify against the live harness. Real-world case available: the owner's `work` profile regularly saturates its 5h window, giving an authentic exhausted-account fixture; verify a real conversation fails over mid-stream and continues, and that telemetry shows `profile.failover` with correct attribution.
 
-## Open questions for the owner
+## Owner decisions (2026-07-23)
 
-1. Should a **failed-over session return** to the preferred profile after reset *mid-conversation* (cheaper money-wise if work is the paid-priority account, but costs its warm cache), or only new sessions (this spec's position: only new)?
-2. When **every** pool profile is exhausted: surface the error from the *last* profile tried (spec's position), or from the *preferred* one?
-3. Is `profileOrder` in settings.json editable from the `/settings` UI in v1, or env/file-only first?
+1. **Only new sessions drain back** after reset — never migrate a conversation mid-flight; caches break only when necessary (failover), never for preference.
+2. **The last-tried profile's error surfaces** when the whole pool is exhausted.
+3. **Pool order and mode are editable in the `/settings` UI** (GET/PUT `/settings/api/routing`), with env overrides reported.
+
+## Live-verification record
+
+The classifier gap this feature's live smoke caught: the CLI phrases real 5h exhaustion as "You've hit your session limit · resets <time>", which classified as generic `api_error` — failover never triggered on real exhaustion until `classifyError` learned the phrasing (now 429/rate_limit_error for every meridian path). Verified against a genuinely exhausted account: non-stream and streaming requests both failed over work → personal with a single clean message, `profile.failover` logged, exhaustion visible in `/profiles/list` with the real reset time.
