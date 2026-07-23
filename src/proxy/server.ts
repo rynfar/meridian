@@ -1240,7 +1240,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // canonical lowercase agent name that OpenCode's config declares.
                 let toolInput = normalizeToolInput(input.tool_input, clientTool?.input_schema)
                 if (toolName.toLowerCase() === "task" && toolInput?.subagent_type && typeof toolInput.subagent_type === "string") {
-                  toolInput = { ...toolInput, subagent_type: resolveAgentAlias(toolInput.subagent_type) }
+                  toolInput = { ...toolInput, subagent_type: resolveAgentAlias(toolInput.subagent_type, validAgentNames) }
                 }
                 // Decide whether to forward this captured tool_use, or drop it
                 // as an artifact of the nested SDK's internal loop. In
@@ -2630,7 +2630,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           try {
                             const parsed = JSON.parse(buffered) as Record<string, unknown>
                             if (typeof parsed.subagent_type === "string") {
-                              parsed.subagent_type = resolveAgentAlias(parsed.subagent_type)
+                              parsed.subagent_type = resolveAgentAlias(parsed.subagent_type, validAgentNames)
                             }
                             fixed = JSON.stringify(parsed)
                           } catch {

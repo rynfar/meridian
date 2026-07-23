@@ -114,21 +114,43 @@ describe("Fallback to generic agent", () => {
 })
 
 describe("resolveAgentAlias", () => {
-  it("returns the canonical target for known aliases", () => {
-    expect(resolveAgentAlias("general-purpose")).toBe("general")
-    expect(resolveAgentAlias("General-Purpose")).toBe("general")
-    expect(resolveAgentAlias("code-reviewer")).toBe("oracle")
-    expect(resolveAgentAlias("planner")).toBe("plan")
+  it("never renames a name that is already a registered agent (#671)", () => {
+    // A user's real `code-review` agent must not be renamed to "oracle".
+    expect(resolveAgentAlias("code-review", ["code-review", "build"])).toBe("code-review")
+    expect(resolveAgentAlias("reviewer", ["reviewer"])).toBe("reviewer")
+    expect(resolveAgentAlias("analyzer", ["analyzer", "general"])).toBe("analyzer")
+  })
+
+  it("preserves the canonical config casing on exact match", () => {
+    expect(resolveAgentAlias("Code-Review", ["code-review"])).toBe("code-review")
+    expect(resolveAgentAlias("EXPLORE", ["explore"])).toBe("explore")
+  })
+
+  it("applies an alias only when its target is a registered agent", () => {
+    // OMO setups: oracle exists, so the alias repair still works.
+    expect(resolveAgentAlias("code-reviewer", ["oracle", "build"])).toBe("oracle")
+    expect(resolveAgentAlias("general-purpose", ["general"])).toBe("general")
+    expect(resolveAgentAlias("planner", ["plan", "build"])).toBe("plan")
+  })
+
+  it("returns the lowercased original when the alias target is not registered", () => {
+    // Renaming to a nonexistent agent can only ever fail — keep the original.
+    expect(resolveAgentAlias("code-reviewer", ["build", "plan"])).toBe("code-reviewer")
+    expect(resolveAgentAlias("research", ["build"])).toBe("research")
+  })
+
+  it("never invents names when no agents are registered", () => {
+    expect(resolveAgentAlias("code-review", [])).toBe("code-review")
+    expect(resolveAgentAlias("general-purpose", [])).toBe("general-purpose")
   })
 
   it("returns the lowercased input when no alias applies", () => {
-    expect(resolveAgentAlias("explore")).toBe("explore")
-    expect(resolveAgentAlias("Explore")).toBe("explore")
-    expect(resolveAgentAlias("custom-agent")).toBe("custom-agent")
+    expect(resolveAgentAlias("custom-agent", ["build"])).toBe("custom-agent")
+    expect(resolveAgentAlias("Explore", [])).toBe("explore")
   })
 
   it("is case-insensitive for alias lookup", () => {
-    expect(resolveAgentAlias("GENERAL-PURPOSE")).toBe("general")
-    expect(resolveAgentAlias("Code-Reviewer")).toBe("oracle")
+    expect(resolveAgentAlias("GENERAL-PURPOSE", ["general"])).toBe("general")
+    expect(resolveAgentAlias("Code-Reviewer", ["oracle"])).toBe("oracle")
   })
 })

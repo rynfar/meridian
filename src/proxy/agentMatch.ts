@@ -63,10 +63,19 @@ const STRIP_SUFFIXES = ["-agent", "-tool", "-worker", "-task", " agent", " tool"
  * the SDK may validate against registered alias variants (e.g., "general-purpose"
  * is registered by `addCaseVariants`), but the client expects the canonical
  * agent name from its config ("general").
+ *
+ * The alias table exists to REPAIR invalid names, never to remap valid ones
+ * (#671): a name that already matches a registered agent is returned in the
+ * config's canonical casing, and an alias is applied only when its target is
+ * itself registered — renaming to a nonexistent agent can only ever fail.
  */
-export function resolveAgentAlias(input: string): string {
+export function resolveAgentAlias(input: string, validAgents: string[]): string {
   const lowered = input.toLowerCase()
-  return KNOWN_ALIASES[lowered] ?? lowered
+  const exact = validAgents.find(a => a.toLowerCase() === lowered)
+  if (exact) return exact
+  const alias = KNOWN_ALIASES[lowered]
+  if (alias && validAgents.includes(alias)) return alias
+  return lowered
 }
 
 export function fuzzyMatchAgentName(input: string, validAgents: string[]): string {
