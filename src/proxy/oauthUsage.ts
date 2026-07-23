@@ -84,9 +84,16 @@ export interface OAuthUsageSnapshot {
   windows: OAuthUsageWindow[]
   extraUsage: OAuthExtraUsageInfo | null
   fetchedAt: number
+  /** Set when this is a previous snapshot served because a fresh fetch
+   *  failed transiently (credential-read blip, upstream error). */
+  stale?: boolean
 }
 
 const CACHE_TTL_MS_DEFAULT = 30_000
+// A transiently failing fetch serves the last-good snapshot instead of
+// blanking the consumer ("no usage data yet" flapping) — but only within
+// this bound, so genuinely dead credentials still surface as missing data.
+const STALE_MAX_MS_DEFAULT = 15 * 60_000
 
 /** Per-profile cache. Key = profileId (or DEFAULT_KEY for the unscoped default). */
 const cacheByProfile = new Map<string, OAuthUsageSnapshot>()
@@ -196,6 +203,8 @@ async function callAnthropic(
 
 export interface FetchOAuthUsageOpts {
   ttlMs?: number
+  /** Max age of a last-good snapshot served on fetch failure (default 15 min). */
+  staleMaxMs?: number
   force?: boolean
   store?: CredentialStore
   profileId?: string | null
@@ -265,10 +274,29 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
 
   const store = opts?.store ?? createPlatformCredentialStore({ claudeConfigDir: opts?.claudeConfigDir })
 
+  const staleMaxMs = opts?.staleMaxMs ?? STALE_MAX_MS_DEFAULT
+  // On transient failure, serve the last-good snapshot (bounded) instead of
+  // null — a credential-read blip or upstream 5xx should not blank the
+  // consumer's usage display until the next successful fetch.
+  const staleOr = (reason: string): OAuthUsageSnapshot | null => {
+    const last = cacheByProfile.get(cacheKey)
+    if (last && Date.now() - last.fetchedAt < staleMaxMs) {
+      claudeLog("oauth_usage.serving_stale", { profile: cacheKey, reason, ageMs: Date.now() - last.fetchedAt })
+      return { ...last, stale: true }
+    }
+    return null
+  }
+
   const promise = (async () => {
     try {
       const token = await readAccessToken(store)
-      if (!token) return null
+      if (!token) {
+        // This read failing intermittently (e.g. a Keychain entry racing a
+        // token-refresh rewrite) was previously silent — log it so flapping
+        // usage displays are diagnosable.
+        claudeLog("oauth_usage.no_token", { profile: cacheKey })
+        return staleOr("no_token")
+      }
 
       let result = await callAnthropic(token, fetchImpl)
       if ("__status" in result && result.__status === 401) {
@@ -276,15 +304,15 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
         const refreshed = await refreshOAuthToken(store)
         if (!refreshed) {
           claudeLog("oauth_usage.refresh_failed", { profile: cacheKey })
-          return null
+          return staleOr("refresh_failed")
         }
         const newToken = await readAccessToken(store)
-        if (!newToken) return null
+        if (!newToken) return staleOr("no_token_after_refresh")
         result = await callAnthropic(newToken, fetchImpl)
       }
       if ("__status" in result) {
         claudeLog("oauth_usage.upstream_error", { profile: cacheKey, status: result.__status })
-        return null
+        return staleOr(`upstream_${result.__status}`)
       }
 
       const snapshot = buildSnapshot(result)
@@ -292,7 +320,7 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
       return snapshot
     } catch (err) {
       claudeLog("oauth_usage.fetch_failed", { profile: cacheKey, error: err instanceof Error ? err.message : String(err) })
-      return null
+      return staleOr("exception")
     } finally {
       inflightByProfile.delete(cacheKey)
     }

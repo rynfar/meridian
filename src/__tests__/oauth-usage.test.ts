@@ -221,6 +221,55 @@ describe("oauthUsage", () => {
     expect(getCalls()).toBe(2)
   })
 
+  test("serves the last-good snapshot (marked stale) when a later fetch fails upstream", async () => {
+    const { fetchImpl } = countingFetch((calls) =>
+      calls === 1
+        ? new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+        : new Response("boom", { status: 500 }))
+    const store = makeStore("t")
+    const first = await fetchOAuthUsage({ force: true, store, profileId: "flappy", fetchImpl })
+    expect(first?.stale).toBeUndefined()
+    const second = await fetchOAuthUsage({ force: true, store, profileId: "flappy", fetchImpl })
+    expect(second).not.toBeNull()
+    expect(second!.stale).toBe(true)
+    expect(second!.windows).toEqual(first!.windows)
+  })
+
+  test("serves the last-good snapshot when the credential read starts failing", async () => {
+    const fetchImpl = fixedFetch(() => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+    let token: string | null = "t"
+    const store: CredentialStore = {
+      async read() {
+        if (!token) return null
+        return { claudeAiOauth: { accessToken: token, refreshToken: "rt", expiresAt: Date.now() + 60_000 } } as any
+      },
+      async write() { return true },
+    }
+    const first = await fetchOAuthUsage({ force: true, store, profileId: "keyblip", fetchImpl })
+    expect(first).not.toBeNull()
+    token = null // Keychain read blip
+    const second = await fetchOAuthUsage({ force: true, store, profileId: "keyblip", fetchImpl })
+    expect(second).not.toBeNull()
+    expect(second!.stale).toBe(true)
+  })
+
+  test("stale fallback is bounded by staleMaxMs", async () => {
+    const { fetchImpl } = countingFetch((calls) =>
+      calls === 1
+        ? new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+        : new Response("boom", { status: 500 }))
+    const store = makeStore("t")
+    await fetchOAuthUsage({ force: true, store, profileId: "aged", fetchImpl })
+    const second = await fetchOAuthUsage({ force: true, store, profileId: "aged", fetchImpl, staleMaxMs: 0 })
+    expect(second).toBeNull()
+  })
+
+  test("failure with no prior snapshot still returns null", async () => {
+    const fetchImpl = fixedFetch(() => new Response("boom", { status: 500 }))
+    const result = await fetchOAuthUsage({ force: true, store: makeStore("t"), profileId: "nofirst", fetchImpl })
+    expect(result).toBeNull()
+  })
+
   test("ISO date with timezone parses correctly to UTC ms", async () => {
     const iso = "2026-04-26T22:30:00.221857+00:00"
     const fetchImpl = fixedFetch(() => new Response(JSON.stringify({
