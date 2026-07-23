@@ -129,6 +129,19 @@ ${profileBarHtml}
 
   <div id="adapters"></div>
 
+  <h1 style="margin-top:40px">Routing</h1>
+  <p class="subtitle" style="max-width:720px;line-height:1.6">
+    How unpinned requests choose an account. <strong style="color:var(--text)">Active</strong> uses the manually
+    selected profile. <strong style="color:var(--text)">Sticky</strong> distributes sessions across profiles evenly
+    (cache-affine). <strong style="color:var(--text)">Priority</strong> drains the pool in order — highest first —
+    and fails over per request when an account runs out; conversations keep their account, and new sessions
+    return to the preferred account after its window resets. An explicit <code>x-meridian-profile</code> header
+    always overrides. Changes apply to the next request — no restart needed.
+  </p>
+  <div class="adapter-card" id="routing-card">
+    <div id="routing-body">Loading…</div>
+  </div>
+
   <h1 style="margin-top:40px">Model Pricing</h1>
   <p class="subtitle" style="max-width:720px;line-height:1.6">
     Rates used by the telemetry cost estimate, in USD per million tokens. Edit a value to override the
@@ -407,8 +420,45 @@ async function addPricingModel() {
   }
 }
 
+async function loadRouting() {
+  const res = await fetch('/settings/api/routing');
+  const cfg = await res.json();
+  const el = document.getElementById('routing-body');
+  const envNote = (on) => on ? ' <span style="font-size:11px;color:var(--yellow)">(env override active — setting saved but env wins)</span>' : '';
+  let h = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'
+    + '<label style="color:var(--muted);font-size:13px;width:90px">Mode</label>'
+    + '<select id="routing-mode" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
+    + ['active','sticky','priority'].map(m => '<option value="'+m+'"'+(cfg.routing===m?' selected':'')+'>'+m+'</option>').join('')
+    + '</select>' + envNote(cfg.envOverride.routing) + '</div>';
+  h += '<div id="routing-order-wrap" style="'+(cfg.routing==='priority'?'':'display:none')+'">'
+    + '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">Pool order — highest priority first. Drained top to bottom.'
+    + envNote(cfg.envOverride.profileOrder) + '</div>'
+    + '<ol id="routing-order" style="margin:0;padding-left:22px">'
+    + cfg.profileOrder.map((id, i) =>
+        '<li style="padding:4px 0;color:var(--text)">'
+        + '<span style="font-family:var(--mono, monospace)">'+id+'</span>'
+        + ' <button data-move="up" data-i="'+i+'" style="margin-left:10px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 8px;cursor:pointer"'+(i===0?' disabled':'')+'>&uarr;</button>'
+        + ' <button data-move="down" data-i="'+i+'" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:1px 8px;cursor:pointer"'+(i===cfg.profileOrder.length-1?' disabled':'')+'>&darr;</button>'
+        + '</li>').join('')
+    + '</ol></div>';
+  el.innerHTML = h;
+  document.getElementById('routing-mode').addEventListener('change', async (e) => {
+    await fetch('/settings/api/routing', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ routing: e.target.value }) });
+    await loadRouting();
+  });
+  el.querySelectorAll('button[data-move]').forEach(btn => btn.addEventListener('click', async () => {
+    const i = Number(btn.dataset.i);
+    const j = btn.dataset.move === 'up' ? i - 1 : i + 1;
+    const order = cfg.profileOrder.slice();
+    const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+    await fetch('/settings/api/routing', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileOrder: order }) });
+    await loadRouting();
+  }));
+}
+
 loadConfig();
 loadPricing();
+loadRouting();
 ${profileBarJs}
 </script>
 </body>

@@ -78,7 +78,7 @@ import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, type ResolvedProfile } from "./profiles"
 import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion } from "./routing"
-import { getSetting } from "./settings"
+import { getSetting, setSetting } from "./settings"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
 import { detectTokenAnomalies, formatAnomalyAlerts, type TokenSnapshot } from "./tokenHealth"
@@ -547,6 +547,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     for (const candidate of orderedCandidateIds) {
       const headers = new Headers(c.req.raw.headers)
       headers.set("x-meridian-profile", candidate)
+      headers.set("x-meridian-priority-dispatch", "1")
       const inner = await app.fetch(new Request(c.req.url, { method: "POST", headers, body: bodyBuf }))
       const { failed, errorPayload, response } = await sniffQuotaFailure(inner)
       if (!failed) {
@@ -1016,7 +1017,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const lineageType = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : c.req.header("x-meridian-priority-dispatch") ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
@@ -3476,6 +3477,43 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   })
 
   // Model pricing for the telemetry cost estimate: built-in table + user overrides
+  // Routing configuration (priority spec): mode + pool order, editable from
+  // the /settings UI. MERIDIAN_ROUTING / MERIDIAN_PROFILE_ORDER env vars
+  // still take precedence when set (reported so the UI can say so).
+  app.get("/settings/api/routing", (c) => {
+    const profiles = listProfiles(finalConfig.profiles, finalConfig.defaultProfile)
+    return c.json({
+      routing: getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing")),
+      profileOrder: resolvePriorityOrder(profiles.map(p => p.id), priorityProfileOrderSetting()).order,
+      profiles: profiles.map(p => p.id),
+      envOverride: {
+        routing: Boolean(process.env.MERIDIAN_ROUTING),
+        profileOrder: Boolean(process.env.MERIDIAN_PROFILE_ORDER),
+      },
+    })
+  })
+  app.put("/settings/api/routing", async (c) => {
+    let body: { routing?: unknown; profileOrder?: unknown }
+    try { body = await c.req.json() } catch { return c.json({ error: "Invalid JSON" }, 400) }
+    if (body.routing !== undefined) {
+      if (typeof body.routing !== "string" || !["active", "sticky", "priority"].includes(body.routing)) {
+        return c.json({ error: 'routing must be "active", "sticky", or "priority"' }, 400)
+      }
+      setSetting("routing", body.routing)
+    }
+    if (body.profileOrder !== undefined) {
+      if (!Array.isArray(body.profileOrder) || body.profileOrder.some(x => typeof x !== "string")) {
+        return c.json({ error: "profileOrder must be an array of profile ids" }, 400)
+      }
+      const known = new Set(listProfiles(finalConfig.profiles, finalConfig.defaultProfile).map(p => p.id))
+      const unknown = (body.profileOrder as string[]).filter(id => !known.has(id))
+      if (unknown.length > 0) return c.json({ error: `Unknown profiles: ${unknown.join(", ")}` }, 400)
+      setSetting("profileOrder", body.profileOrder as string[])
+    }
+    plog(`[PROXY] Routing settings updated: routing=${getSetting("routing") ?? "active"} order=${(getSetting("profileOrder") ?? []).join(",") || "(config order)"}`)
+    return c.json({ success: true })
+  })
+
   app.get("/settings/api/pricing", (c) => {
     const { BUILTIN_MODEL_PRICING } = require("../telemetry/pricing") as typeof import("../telemetry/pricing")
     const { getPricingOverrides } = require("../telemetry/pricingStore") as typeof import("../telemetry/pricingStore")
@@ -3588,11 +3626,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         lastSuccessAt: cacheInfo.lastSuccessAt || null,
       }
     }))
+    const routingModeNow = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))
+    // Additive (priority spec): pool order + live exhaustion state so UIs
+    // (meridian home, pylon's switcher) can render the pool.
+    const priorityInfo = routingModeNow === "priority"
+      ? {
+          profileOrder: resolvePriorityOrder(profiles.map(p => p.id), priorityProfileOrderSetting()).order,
+          exhausted: priorityExhaustion.snapshot(),
+        }
+      : {}
     return c.json({
       profiles: enriched,
       activeProfile: getActiveProfileId() || finalConfig.defaultProfile || profiles[0]?.id || "default",
       // Additive (#383): current routing mode so UIs can surface it.
-      routing: getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing")),
+      routing: routingModeNow,
+      ...priorityInfo,
     })
   })
 

@@ -73,6 +73,23 @@ MERIDIAN_ROUTING=sticky meridian     # or set "routing": "sticky" in ~/.config/m
 
 Request logs show the assignment (`profile=work(sticky)`), and `GET /profiles/list` reports the current `routing` mode.
 
+### Priority failover routing
+
+**Opt-in.** With multiple profiles, `routing = "priority"` drains an ordered account pool: unpinned requests prefer the highest-priority account, and when it runs out (rate-limit/quota errors), the request **fails over automatically** to the next account in the order — usually before the client sees any error:
+
+```bash
+MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
+# or set "routing": "priority" and "profileOrder": ["work","personal"] in
+# ~/.config/meridian/settings.json — both editable live at /settings
+```
+
+- **Conversations keep their account** while it's healthy — a session never flips accounts just because the pool preference changed (protects per-account prompt caches). A session on an exhausted account fails over and then stays on its new account.
+- **Drain-back is new-sessions-only**: when the preferred account's window resets, new sessions prefer it again immediately; existing conversations finish where they are.
+- **Exhaustion is tracked in-memory** with the reported reset time (conservative 10-minute default when unknown) — the home page shows `#n in pool` and `exhausted · resets in …` badges per account.
+- When **every** account is exhausted, the last-tried account's error is surfaced unchanged.
+- An explicit `x-meridian-profile` header always bypasses the pool (per-session pinning keeps working).
+- Failovers are logged (`profile.failover` in the diagnostic stream; `profile=<id>(priority)` in request lines).
+
 ### Profile commands
 
 | Command | Description |

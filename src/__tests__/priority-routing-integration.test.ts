@@ -48,6 +48,7 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { resetActiveProfile } = await import("../proxy/profiles")
 
 const PROFILES = [
   { id: "work", claudeConfigDir: "/tmp/meridian-test-prof-work" },
@@ -79,6 +80,10 @@ describe("priority routing", () => {
     capturedEnvs = []
     failingDirs = new Set()
     clearSessionCache()
+    // The active profile is process-global module state; other test files
+    // (profile-switch integration) set it. This suite's expectations are
+    // relative to defaultProfile, so reset it explicitly.
+    resetActiveProfile()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
     process.env.MERIDIAN_ROUTING = "priority"
@@ -94,7 +99,7 @@ describe("priority routing", () => {
 
   it("routes unpinned requests to the highest-priority profile", async () => {
     const app = createTestApp()
-    const res = await post(app)
+    const res = await post(app, {}, "priority routes preferred unique message")
     expect(res.status).toBe(200)
     expect(capturedEnvs).toHaveLength(1)
     expect(capturedEnvs[0]).toContain("prof-work")
@@ -184,7 +189,7 @@ describe("priority routing", () => {
     delete process.env.MERIDIAN_ROUTING
     failingDirs.add("prof-work")
     const app = createTestApp()
-    const res = await post(app)
+    const res = await post(app, {}, "mode-off unique message")
     expect(res.status).toBe(429)
     expect(capturedEnvs.every((e) => e.includes("prof-work"))).toBe(true)
   }, 20_000)

@@ -59,6 +59,8 @@ export const landingHtml = `<!DOCTYPE html>
   .usage-row .w-fill { height: 100%; border-radius: 3px; }
   .pace-row { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
   .pace-row .pace-text { flex: 1; font-weight: 600; font-size: 11px; }
+  .pool-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface2); color: var(--muted); margin-left: 6px; vertical-align: middle; }
+  .pool-chip.exhausted { color: var(--red); background: rgba(248,81,73,0.12); }
   .usage-row .w-pct { width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
   .usage-row .w-reset { color: var(--muted); font-size: 11px; width: 76px; text-align: right; }
   .no-usage { font-size: 12px; color: var(--muted); padding: 4px 0; }
@@ -174,8 +176,15 @@ function profileSection(q,s,pl,h){
       +'<span class="pace-text" style="color:'+paceColor(pc)+'">'+paceText(pc)+'</span>'
       +'<span class="w-reset">'+(pc.proj!=null?'~'+pc.proj+'% by reset':'')+'</span></div>';
     if(!rows)rows='<div class="no-usage">no usage data yet</div>';
-    var switchable=multi&&p.configured&&!p.isActive;
-    var badge=p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
+    var isPriority=pl&&pl.routing==='priority';
+    var switchable=multi&&p.configured&&!p.isActive&&!isPriority;
+    var badge=isPriority?'':p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
+    if(isPriority){
+      var orderIdx=(pl.profileOrder||[]).indexOf(p.id);
+      if(orderIdx>=0)badge+='<span class="pool-chip">#'+(orderIdx+1)+' in pool</span>';
+      var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];
+      if(exh)badge+=' <span class="pool-chip exhausted">exhausted · resets '+resetIn(exh.until)+'</span>';
+    }
     cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'
       +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
