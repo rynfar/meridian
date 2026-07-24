@@ -11,6 +11,8 @@
  * (docs/superpowers/specs/2026-07-08-codex-responses-api-design.md): text +
  * function tool-calling, streaming and non-streaming, forced passthrough.
  * Reasoning items are omitted (verified working against real Codex 0.143).
+ * Also handles base64 data-URL image input and maps a `max_tokens` stop to an
+ * `incomplete` Responses status.
  *
  * NOTE: agent-specific (Codex). Kept isolated per ARCHITECTURE.md — this
  * module owns the Responses wire format; no Responses logic leaks elsewhere.
@@ -20,6 +22,7 @@ import type {
   AnthropicRequestBody,
   AnthropicMessage,
   AnthropicContentBlock,
+  AnthropicImageBlock,
   AnthropicTool,
 } from "./openai"
 
@@ -28,8 +31,9 @@ import type {
 // ---------------------------------------------------------------------------
 
 interface ResponsesContentPart {
-  type: "input_text" | "output_text" | string
+  type: "input_text" | "output_text" | "input_image" | string
   text?: string
+  image_url?: string
 }
 
 interface ResponsesMessageItem {
@@ -93,6 +97,38 @@ function partsToText(content: ResponsesContentPart[] | string): string {
     .join("")
 }
 
+/** Parse a base64 data URL into an Anthropic image block (data URLs only). */
+function parseDataUrlImage(url: string): AnthropicImageBlock | null {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s.exec(url)
+  if (!match) return null
+  const mediaType = match[1]
+  const data = match[2]
+  if (!mediaType || !data) return null
+  return { type: "image", source: { type: "base64", media_type: mediaType, data } }
+}
+
+/**
+ * Content blocks for a message with image parts. Returns null when there are
+ * no images so the caller keeps the plain-text path. Remote (non-data-URL)
+ * images become an omission note, matching the chat-completions adapter.
+ */
+function partsToBlocks(content: ResponsesContentPart[] | string): AnthropicContentBlock[] | null {
+  if (typeof content === "string") return null
+  const hasImage = content.some((p) => p.type === "input_image")
+  if (!hasImage) return null
+
+  const blocks: AnthropicContentBlock[] = []
+  for (const part of content) {
+    if (typeof part.text === "string") {
+      blocks.push({ type: "text", text: part.text })
+    } else if (part.type === "input_image") {
+      const image = typeof part.image_url === "string" ? parseDataUrlImage(part.image_url) : null
+      blocks.push(image ?? { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" })
+    }
+  }
+  return blocks
+}
+
 /**
  * Map a Responses `tool_choice` to Anthropic's. Codex sends `"auto"`,
  * `"required"`, `"none"`, or `{type:"function", name}`. `"none"` maps to
@@ -147,8 +183,14 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
           if (t) systemParts.push(t)
           break
         }
+        const role = msg.role === "assistant" ? "assistant" : "user"
+        const imageBlocks = partsToBlocks(msg.content)
+        if (imageBlocks) {
+          for (const block of imageBlocks) pushBlock(role, block)
+          break
+        }
         const text = partsToText(msg.content)
-        if (text) pushBlock(msg.role === "assistant" ? "assistant" : "user", { type: "text", text })
+        if (text) pushBlock(role, { type: "text", text })
         break
       }
       case "function_call": {
@@ -235,6 +277,14 @@ function mapUsage(usage: { input_tokens?: number; output_tokens?: number } | und
 }
 
 /**
+ * A `max_tokens` stop means truncation — report `incomplete` so the client
+ * can tell a cut-off answer from a finished one.
+ */
+function toResponsesStatus(stopReason: string | undefined): "completed" | "incomplete" {
+  return stopReason === "max_tokens" ? "incomplete" : "completed"
+}
+
+/**
  * Assemble a complete Responses `response` object from an Anthropic response.
  * Text blocks become a single `message` item with `output_text` parts;
  * tool_use blocks become `function_call` items. Thinking blocks are dropped.
@@ -283,12 +333,14 @@ export function translateAnthropicToResponses(res: AnthropicResponseLike, ctx: R
     })
   }
 
+  const status = toResponsesStatus(res.stop_reason)
   return {
     id: ctx.responseId,
     object: "response",
     created_at: ctx.created,
     model: ctx.model,
-    status: "completed",
+    status,
+    ...(status === "incomplete" ? { incomplete_details: { reason: "max_output_tokens" } } : {}),
     output,
     usage: mapUsage(res.usage),
     parallel_tool_calls: true,
@@ -325,6 +377,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
   let inputTokens = 0
   let outputTokens = 0
   let createdEmitted = false
+  let stopReason: string | undefined
 
   // Per-open-block state, keyed by Anthropic block index.
   interface BlockState {
@@ -469,17 +522,20 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
 
       case "message_delta": {
         if (typeof event.usage?.output_tokens === "number") outputTokens = event.usage.output_tokens
+        if (typeof event.delta?.stop_reason === "string") stopReason = event.delta.stop_reason
         break
       }
 
       case "message_stop": {
-        out.push(emit("response.completed", {
-          response: responseEnvelope("completed", {
+        const status = toResponsesStatus(stopReason)
+        out.push(emit(status === "incomplete" ? "response.incomplete" : "response.completed", {
+          response: responseEnvelope(status, {
             output: finalOutput,
             usage: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
             parallel_tool_calls: true,
             tool_choice: "auto",
             tools: [],
+            ...(status === "incomplete" ? { incomplete_details: { reason: "max_output_tokens" } } : {}),
           }),
         }))
         break

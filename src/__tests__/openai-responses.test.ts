@@ -11,6 +11,7 @@ import {
   translateAnthropicToResponses,
   createResponsesSseTranslator,
 } from "../proxy/openaiResponses"
+import type { AnthropicContentBlock } from "../proxy/openai"
 
 describe("translateResponsesToAnthropic", () => {
   it("returns null without input", () => {
@@ -37,6 +38,51 @@ describe("translateResponsesToAnthropic", () => {
     expect(r.system).toContain("House rules.")
     expect(r.messages).toHaveLength(1)
     expect(r.messages[0]!.role).toBe("user")
+  })
+
+  it("maps input_image data URLs to Anthropic image blocks", () => {
+    const dataUrl = "data:image/png;base64,iVBORw0KGgo="
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: "what is this?" },
+            { type: "input_image", image_url: dataUrl },
+          ],
+        },
+      ],
+    })!
+    expect(r.messages).toHaveLength(1)
+    const content = r.messages[0]!.content as AnthropicContentBlock[]
+    expect(content[0]).toEqual({ type: "text", text: "what is this?" })
+    expect(content[1]).toEqual({
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" },
+    })
+  })
+
+  it("replaces non-data-URL images with an omission note, keeping the text", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        {
+          type: "message",
+          role: "user",
+          content: [
+            { type: "input_text", text: "look" },
+            { type: "input_image", image_url: "https://example.com/x.png" },
+          ],
+        },
+      ],
+    })!
+    const content = r.messages[0]!.content as AnthropicContentBlock[]
+    expect(content).toEqual([
+      { type: "text", text: "look" },
+      { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" },
+    ])
   })
 
   it("maps the codex tool round-trip: function_call + function_call_output", () => {
@@ -146,6 +192,16 @@ describe("translateAnthropicToResponses (non-stream)", () => {
     }, ctx) as any
     expect(JSON.stringify(out.output)).not.toContain("hmm")
     expect(out.output.find((o: any) => o.type === "message").content[0].text).toBe("Answer.")
+  })
+
+  it("reports incomplete status on a max_tokens stop", () => {
+    const out = translateAnthropicToResponses({
+      content: [{ type: "text", text: "truncated..." }],
+      stop_reason: "max_tokens",
+      usage: { input_tokens: 4, output_tokens: 8 },
+    }, ctx) as any
+    expect(out.status).toBe("incomplete")
+    expect(out.incomplete_details).toEqual({ reason: "max_output_tokens" })
   })
 })
 
@@ -268,6 +324,24 @@ describe("createResponsesSseTranslator (stream)", () => {
     )
     expect(noReasoning).toBeUndefined()
     void plain
+  })
+
+  it("emits response.incomplete on a max_tokens stop", () => {
+    const out = run([
+      { type: "message_start", message: { id: "m1", usage: { input_tokens: 3 } } },
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "cut" } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "max_tokens" }, usage: { output_tokens: 9 } },
+      { type: "message_stop" },
+    ])
+    const types = out.map((e) => e.event)
+    expect(types).toContain("response.incomplete")
+    expect(types).not.toContain("response.completed")
+    const incomplete = out.find((e) => e.event === "response.incomplete")!
+    const resp = (incomplete.data as any).response
+    expect(resp.status).toBe("incomplete")
+    expect(resp.incomplete_details).toEqual({ reason: "max_output_tokens" })
   })
 
   it("embeds a `type` field in every data payload matching the event name", () => {
