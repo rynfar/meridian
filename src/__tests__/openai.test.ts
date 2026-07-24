@@ -1184,15 +1184,16 @@ describe("createSseTranslator", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildModelList", () => {
-  it("returns 7 models", () => {
-    expect(buildModelList(true).length).toBe(7)
-    expect(buildModelList(false).length).toBe(7)
+  it("returns 8 models", () => {
+    expect(buildModelList(true).length).toBe(8)
+    expect(buildModelList(false).length).toBe(8)
   })
 
-  it("includes sonnet-5, fable-5, opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
+  it("includes sonnet-5, fable-5, opus-5, opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
     const ids = buildModelList(true).map(m => m.id)
     expect(ids).toContain("claude-sonnet-5")
     expect(ids).toContain("claude-fable-5")
+    expect(ids).toContain("claude-opus-5")
     expect(ids).toContain("claude-opus-4-6")
     expect(ids).toContain("claude-opus-4-7")
     expect(ids).toContain("claude-opus-4-8")

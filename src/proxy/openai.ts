@@ -929,6 +929,15 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       capabilities: FULL_CAPABILITIES,
     },
     {
+      id: "claude-opus-5",
+      object: "model",
+      created: now,
+      owned_by: "anthropic",
+      display_name: "Claude Opus 5",
+      context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      capabilities: FULL_CAPABILITIES,
+    },
+    {
       id: "claude-opus-4-6",
       object: "model",
       created: now,

@@ -219,7 +219,7 @@ describe("SDK model pin injection (fixes #419)", () => {
     // Bare alias: no envOverride kicks in, so the canonical pin is exercised.
     await post(app, { ...BASIC_REQUEST, model: "sonnet" })
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5")
-    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-4-8")
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-4-5")
   })

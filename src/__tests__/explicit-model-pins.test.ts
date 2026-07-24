@@ -13,7 +13,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test"
 
 // ---------- unit: explicitModelPin + canonical bump ----------
 
-const { explicitModelPin, CANONICAL_SONNET_MODEL } = await import("../proxy/models")
+const { explicitModelPin, CANONICAL_SONNET_MODEL, CANONICAL_OPUS_MODEL } = await import("../proxy/models")
 
 describe("explicitModelPin (#631)", () => {
   it("pins fully-versioned sonnet ids", () => {
@@ -22,6 +22,7 @@ describe("explicitModelPin (#631)", () => {
   })
 
   it("pins fully-versioned opus and date-suffixed haiku ids", () => {
+    expect(explicitModelPin("claude-opus-5")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-5" })
     expect(explicitModelPin("claude-opus-4-7")).toEqual({ ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-7" })
     expect(explicitModelPin("claude-haiku-4-5-20251001")).toEqual({ ANTHROPIC_DEFAULT_HAIKU_MODEL: "claude-haiku-4-5-20251001" })
   })
@@ -48,6 +49,12 @@ describe("explicitModelPin (#631)", () => {
 describe("canonical sonnet pin (#631)", () => {
   it("bare sonnet means the current Sonnet", () => {
     expect(CANONICAL_SONNET_MODEL).toBe("claude-sonnet-5")
+  })
+})
+
+describe("canonical opus pin", () => {
+  it("bare opus means the current Opus", () => {
+    expect(CANONICAL_OPUS_MODEL).toBe("claude-opus-5")
   })
 })
 
@@ -113,7 +120,7 @@ describe("explicit model pins reach the subprocess env (#631)", () => {
     expect(queryEnvs[0]!.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5")
   })
 
-  it("claude-opus-4-7 pins the opus tier instead of canonical 4.8", async () => {
+  it("claude-opus-4-7 pins the opus tier instead of canonical 5", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
     const res = await post(app, "claude-opus-4-7")
     expect(res.status).toBe(200)
@@ -125,5 +132,12 @@ describe("explicit model pins reach the subprocess env (#631)", () => {
     const res = await post(app, "sonnet")
     expect(res.status).toBe(200)
     expect(queryEnvs[0]!.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5")
+  })
+
+  it("bare opus resolves via the canonical pin (now Opus 5)", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, "opus")
+    expect(res.status).toBe(200)
+    expect(queryEnvs[0]!.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5")
   })
 })
