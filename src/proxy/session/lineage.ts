@@ -37,6 +37,15 @@ export function normalizeContextUsage(usage: TokenUsage): TokenUsageIteration {
  *  required to classify a mutation as compaction rather than a branch. */
 export const MIN_SUFFIX_FOR_COMPACTION = 2
 
+/** Maximum number of new messages (incoming minus stored) a modified
+ *  continuation may append and still resume the stored session. A clean
+ *  conversational turn appends at most one exchange: the previous assistant
+ *  reply plus the new user message. A larger gap means the stored lineage
+ *  missed intervening rounds (client-driven tool loops never persist back
+ *  to the store, #689), and resuming would slice those messages out of the
+ *  SDK context. */
+export const MAX_CONTINUATION_GAP = 2
+
 export interface SessionState {
   claudeSessionId: string
   lastAccess: number
@@ -208,8 +217,9 @@ export interface SessionCacheLike {
  * Decision matrix:
  *   Full prefix match (fast-path)          → continuation (resume normally)
  *   Suffix overlap >= MIN_SUFFIX           → compaction   (resume normally)
- *   Prefix overlap > 0, no suffix          → undo         (fork at rollback point)
- *   No overlap                             → diverged     (start fresh)
+ *   Prefix overlap > 0, no suffix, shrank  → undo         (fork at rollback point)
+ *   Prefix overlap > 0, grew within bound  → continuation (modified continuation)
+ *   Anything else                          → diverged     (start fresh)
  */
 export function verifyLineage(
   cached: SessionState,
@@ -293,17 +303,32 @@ export function verifyLineage(
     return { type: "undo", session: cached, prefixOverlap, rollbackUuid }
   }
 
-  // Modified continuation: most prefix matches but a message was modified
-  // (e.g., cache_control added) and new messages were appended. Treat as
-  // continuation — update stored hashes and resume normally.
+  // Modified continuation: the prefix matches except for benign churn on
+  // the last stored slot (e.g., cache_control added) and new messages were
+  // appended. Resume only when the stored lineage is actually current:
+  //   prefixOverlap >= stored - 1   (only the last stored slot may differ)
+  //   gap <= MAX_CONTINUATION_GAP   (at most one new exchange appended)
+  // A stored session further behind is missing intervening messages (#689:
+  // client-driven tool rounds never persist back to the store), and the
+  // resume slice would drop them from the SDK context. Treat that as
+  // diverged instead: a fresh full-history replay is always correct, and
+  // the store re-adopts the full history at end of turn.
   if (prefixOverlap > 0 && messages.length > cached.messageCount) {
-    const modifiedMsg = `Modified continuation (key=${cacheKey.slice(0, 8)}…): prefix overlap ${prefixOverlap}/${cached.messageHashes.length}, incoming ${messages.length} msgs. Allowing resume.`
-    console.error(`[PROXY] ${modifiedMsg}`)
-    diagnosticLog.lineage(modifiedMsg)
-    cached.lineageHash = computeLineageHash(messages.slice(0, messages.length))
-    cached.messageHashes = incomingHashes
-    cached.messageCount = messages.length
-    return { type: "continuation", session: cached }
+    const gap = messages.length - cached.messageCount
+    if (prefixOverlap >= cached.messageCount - 1 && gap <= MAX_CONTINUATION_GAP) {
+      const modifiedMsg = `Modified continuation (key=${cacheKey.slice(0, 8)}…): prefix overlap ${prefixOverlap}/${cached.messageHashes.length}, incoming ${messages.length} msgs. Allowing resume.`
+      console.error(`[PROXY] ${modifiedMsg}`)
+      diagnosticLog.lineage(modifiedMsg)
+      cached.lineageHash = computeLineageHash(messages.slice(0, messages.length))
+      cached.messageHashes = incomingHashes
+      cached.messageCount = messages.length
+      return { type: "continuation", session: cached }
+    }
+    const staleMsg = `Stale modified continuation (key=${cacheKey.slice(0, 8)}…): prefix overlap ${prefixOverlap}/${cached.messageHashes.length}, incoming ${messages.length} msgs, gap ${gap}. Treating as diverged.`
+    console.error(`[PROXY] ${staleMsg}`)
+    diagnosticLog.lineage(staleMsg)
+    cache.delete(cacheKey)
+    return { type: "diverged" }
   }
 
   // No meaningful overlap — completely different conversation.

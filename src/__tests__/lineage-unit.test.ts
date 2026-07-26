@@ -12,6 +12,7 @@ import {
   verifyLineage,
   normalizeContextUsage,
   MIN_SUFFIX_FOR_COMPACTION,
+  MAX_CONTINUATION_GAP,
   type SessionState,
 } from "../proxy/session/lineage"
 
@@ -377,6 +378,97 @@ describe("verifyLineage", () => {
     const result = verifyLineage(session, incoming, "key", mockCache)
     // Must NOT be compaction — the suffix is at the wrong position
     expect(result.type).not.toBe("compaction")
+    expect(result.type).toBe("diverged")
+  })
+})
+
+describe("verifyLineage modified-continuation gap bound (#689)", () => {
+  // Client-driven tool loops run on throwaway sessions that never persist
+  // back to the lineage store, so the stored session can be many messages
+  // behind the incoming conversation. Resuming such a session sends only
+  // the last user message and drops the intervening tool_use/tool_result
+  // pairs from the SDK context. The bound only allows resume when at most
+  // the last stored slot churned and at most one exchange was appended;
+  // anything further behind must replay fresh (diverged).
+
+  /** Alternating user/assistant conversation: m0, m1, ... m(n-1). */
+  function conversation(n: number) {
+    return Array.from({ length: n }, (_, i) =>
+      msg(i % 2 === 0 ? "user" : "assistant", `m${i}`))
+  }
+
+  function sessionFor(msgs: Array<{ role: string; content: string }>): SessionState {
+    return makeSession({
+      lineageHash: computeLineageHash(msgs),
+      messageCount: msgs.length,
+      messageHashes: computeMessageHashes(msgs),
+    })
+  }
+
+  /** Copy of msgs with the message at `index` replaced by churned content. */
+  function churn(msgs: Array<{ role: string; content: string }>, index: number) {
+    return msgs.map((m, i) => (i === index ? msg(m.role, `${m.content}-churned`) : m))
+  }
+
+  it("resumes when only the last stored slot churned and one exchange was appended", () => {
+    // Mirrors the healthy capture in #689: overlap 5/6, incoming 8, gap 2.
+    const stored = conversation(6)
+    const session = sessionFor(stored)
+    const incoming = [
+      ...churn(stored, 5),
+      msg("assistant", "round 1 summary"),
+      msg("user", "thanks"),
+    ]
+    const result = verifyLineage(session, incoming, "key", mockCache)
+    expect(result.type).toBe("continuation")
+    if (result.type === "continuation") {
+      // The store must adopt the incoming history so the next turn resumes cleanly.
+      expect(result.session.messageCount).toBe(incoming.length)
+      expect(result.session.lineageHash).toBe(computeLineageHash(incoming))
+    }
+  })
+
+  it("treats a stored lineage behind by a tool round as diverged (issue repro)", () => {
+    // Mirrors the failing capture in #689: overlap 7/8, incoming 13, gap 5.
+    // The 5 unseen messages are a client-driven tool round the stored
+    // session never saw; resuming would drop them from the SDK context.
+    const stored = conversation(8)
+    const session = sessionFor(stored)
+    const incoming = [
+      ...churn(stored, 7),
+      msg("assistant", "tool_use GREEN-33 + GOLD-44"),
+      msg("user", "tool_result GREEN-33"),
+      msg("user", "tool_result GOLD-44"),
+      msg("assistant", "both commands succeeded"),
+      msg("user", "nice"),
+    ]
+    expect(incoming.length - stored.length).toBeGreaterThan(MAX_CONTINUATION_GAP)
+    const deleted: string[] = []
+    const spyCache = { delete: (key: string) => { deleted.push(key); return true } }
+    const result = verifyLineage(session, incoming, "stale-key", spyCache)
+    expect(result.type).toBe("diverged")
+    // The stale entry must be evicted so the fresh replay re-adopts the
+    // full history and the store self-heals.
+    expect(deleted).toEqual(["stale-key"])
+  })
+
+  it("treats a gap just over the bound as diverged", () => {
+    const stored = conversation(6)
+    const session = sessionFor(stored)
+    const appended = Array.from({ length: MAX_CONTINUATION_GAP + 1 }, (_, i) =>
+      msg(i % 2 === 0 ? "assistant" : "user", `new${i}`))
+    const incoming = [...churn(stored, 5), ...appended]
+    const result = verifyLineage(session, incoming, "key", mockCache)
+    expect(result.type).toBe("diverged")
+  })
+
+  it("treats churn deeper than the last stored slot as diverged even with a small gap", () => {
+    // The stored SDK session holds the old content of the churned message;
+    // resuming would keep stale context the client no longer has.
+    const stored = conversation(4)
+    const session = sessionFor(stored)
+    const incoming = [...churn(stored, 1), msg("user", "one more")]
+    const result = verifyLineage(session, incoming, "key", mockCache)
     expect(result.type).toBe("diverged")
   })
 })
