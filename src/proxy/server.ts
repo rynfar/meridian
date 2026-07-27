@@ -1678,7 +1678,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     advisorModel,
                   }, requestAbort.controller))) {
                     // Capture Claude Max subscription quota updates emitted by
-                    // the SDK as rate_limit_event. We snapshot them in a process-wide
+                    // the SDK as rate_limit_event. We snapshot them in this
+                    // profile's slot of the (per-profile-scoped) rate limit
                     // store so /v1/usage/quota can return the latest live state.
                     if ((event as any).type === "rate_limit_event") {
                       rateLimitStore.record(profile.id, (event as any).rate_limit_info)

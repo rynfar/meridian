@@ -34,10 +34,9 @@
  * scoped. Every read names its profile explicitly; single-profile setups
  * simply use the literal `"default"` key.
  *
- * State resets on proxy restart — that's fine because the SDK pushes a fresh
- * event on the next request. `clear(profileId)` drops one account (wired into
- * `POST /auth/refresh`, which re-authenticates one credential); `clear()`
- * drops everything and is used by tests.
+ * `clear(profileId)` drops one account (wired into `POST /auth/refresh`,
+ * which re-authenticates one credential); `clear()` drops everything and is
+ * used by tests.
  */
 
 import type { SDKRateLimitInfo } from "@anthropic-ai/claude-agent-sdk"

@@ -85,7 +85,7 @@ MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
 
 - **Conversations keep their account** while it's healthy — a session never flips accounts just because the pool preference changed (protects per-account prompt caches). A session on an exhausted account fails over and then stays on its new account.
 - **Drain-back is new-sessions-only**: when the preferred account's window resets, new sessions prefer it again immediately; existing conversations finish where they are.
-- **Exhaustion is tracked in-memory** with the reported reset time (conservative 10-minute default when unknown) — the home page shows `#n in pool` and `exhausted · resets in …` badges per account.
+- **Exhaustion is tracked in-memory** using that account's own reported reset time (conservative 10-minute default when unknown), refined shortly after by an authoritative check against the usage API that can extend — never shorten — the cooldown once that account's five-hour window is confirmed exhausted. The home page shows `#n in pool` and `exhausted · resets in …` badges per account.
 - When **every** account is exhausted, the last-tried account's error is surfaced unchanged.
 - An explicit `x-meridian-profile` header always bypasses the pool (per-session pinning keeps working).
 - Failovers are logged (`profile.failover` in the diagnostic stream; `profile=<id>(priority)` in request lines).
