@@ -492,14 +492,28 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    *  burned one failed request and must not also wait on a network call.
    *  `ProfileExhaustion.mark` ignores an `until` that isn't later than the
    *  existing one, so a late refinement can only EXTEND a cooldown, never
-   *  un-suppress a profile early. A null/failed fetch changes nothing. */
+   *  un-suppress a profile early. A null/failed fetch changes nothing.
+   *
+   *  Gated on actual exhaustion: a healthy account always has a `five_hour`
+   *  window with a future `resetsAt` — that boundary exists regardless of
+   *  consumption. The OAuth snapshot is only authoritative about *when* the
+   *  five-hour window resets if that window is actually exhausted
+   *  (`utilization >= 1`); otherwise the triggering error was not five-hour
+   *  exhaustion (upstream overload, a seven_day cap, etc.) and the
+   *  conservative tier-3 default must stand rather than being extended out
+   *  to a boundary that has nothing to do with the failure. A missing/null
+   *  `utilization` is treated as NOT exhausted — under-suppressing is the
+   *  safe direction; over-suppressing a healthy profile is the bug this
+   *  gate exists to prevent. */
   function refinePriorityCooldown(profileId: string): void {
     const target = getEffectiveProfiles(finalConfig.profiles).find(p => p.id === profileId)
     void fetchOAuthUsage({ profileId, claudeConfigDir: target?.claudeConfigDir })
       .then(usage => {
         if (!usage) return
+        const fiveHour = usage.windows.find(w => w.type === "five_hour")
+        if (!fiveHour || (fiveHour.utilization ?? 0) < 1) return
         const now = Date.now()
-        const resetsAt = usage.windows.find(w => w.type === "five_hour")?.resetsAt
+        const resetsAt = fiveHour.resetsAt
         if (!resetsAt || resetsAt <= now) return
         const until = Math.min(resetsAt, now + PRIORITY_COOLDOWN_CAP_MS)
         priorityExhaustion.mark(profileId, until, "rate_limit_error")

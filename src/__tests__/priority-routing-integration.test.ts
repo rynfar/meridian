@@ -308,7 +308,7 @@ describe("priority cooldown resolution", () => {
     expect(marks.map(m => m.until)).toEqual([WORK_RESET])
   }, 20_000)
 
-  it("leaves the mark unchanged when the OAuth fetch returns null or rejects", async () => {
+  it("leaves the mark unchanged when the OAuth fetch rejects", async () => {
     __setFetchOAuthUsageOverride(async () => { throw new Error("upstream 503") })
     failingDirs.add("prof-work")
     const app = createTestApp()
@@ -321,6 +321,86 @@ describe("priority cooldown resolution", () => {
     const until = marks.map(m => m.until)
     expect(until).toHaveLength(1)
     expect(until.every(u => u <= before + 10 * 60_000 + 5_000)).toBe(true)
+  }, 20_000)
+
+  it("leaves the mark unchanged when the OAuth fetch returns null", async () => {
+    // The null path is the one that actually happens in production:
+    // fetchOAuthUsage swallows its own failures and returns null.
+    __setFetchOAuthUsageOverride(async () => null)
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    const res = await post(app)
+    await Bun.sleep(20)
+
+    expect(res.status).toBe(200) // failover still succeeded
+    const marks = await exhaustedMarks(app)
+    const until = marks.map(m => m.until)
+    expect(until).toHaveLength(1)
+    expect(until.every(u => u <= before + 10 * 60_000 + 5_000)).toBe(true)
+  }, 20_000)
+
+  it("does not extend the mark when the OAuth five_hour window is healthy (utilization < 1)", async () => {
+    // A healthy account always has a five_hour window with a future
+    // resetsAt — the rolling window boundary exists regardless of
+    // consumption. Only utilization >= 1 means that window is the actual
+    // cause of exhaustion; otherwise the conservative 10-minute default
+    // (tier 3) must stand.
+    const futureReset = Date.now() + 3 * 60 * 60_000 // comfortably in the future, well under the 6h cap
+    __setFetchOAuthUsageOverride(async (opts) => {
+      if (opts?.profileId !== "work") return null
+      return { windows: [{ type: "five_hour", utilization: 0.2, resetsAt: futureReset }], extraUsage: null, fetchedAt: Date.now() }
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    await post(app)
+    await Bun.sleep(20)
+    const after = Date.now()
+
+    const marks = await exhaustedMarks(app)
+    const until = marks.map(m => m.until)
+    expect(until).toHaveLength(1)
+    expect(until.every(u => u >= before + 10 * 60_000 && u <= after + 10 * 60_000)).toBe(true)
+  }, 20_000)
+
+  it("clamps the synchronous mark to the 6-hour cap even when the profile's own reset is far beyond it", async () => {
+    const farReset = Date.now() + 12 * 60 * 60_000 // 12h out — beyond the 6h cap
+    rateLimitStore.record("work", {
+      status: "rejected",
+      rateLimitType: "five_hour",
+      utilization: 1,
+      resetsAt: farReset,
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    await post(app)
+    const after = Date.now()
+
+    const marks = await exhaustedMarks(app)
+    const until = marks.map(m => m.until)
+    expect(until).toHaveLength(1)
+    expect(until.every(u => u >= before + 6 * 60 * 60_000 && u <= after + 6 * 60 * 60_000)).toBe(true)
+  }, 20_000)
+
+  it("clamps the refinement mark to the 6-hour cap even when OAuth reports a reset far beyond it", async () => {
+    const farReset = Date.now() + 12 * 60 * 60_000 // 12h out — beyond the 6h cap
+    __setFetchOAuthUsageOverride(async (opts) => {
+      if (opts?.profileId !== "work") return null
+      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: farReset }], extraUsage: null, fetchedAt: Date.now() }
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    await post(app)
+    await Bun.sleep(20)
+    const after = Date.now()
+
+    const marks = await exhaustedMarks(app)
+    const until = marks.map(m => m.until)
+    expect(until).toHaveLength(1)
+    expect(until.every(u => u >= before + 6 * 60 * 60_000 && u <= after + 6 * 60 * 60_000)).toBe(true)
   }, 20_000)
 
   it("does not block failover on the OAuth fetch", async () => {

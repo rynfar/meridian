@@ -88,10 +88,15 @@ sources, most authoritative first:
 1. **Scoped store** — that profile's own live `five_hour.resetsAt`, when the SDK
    emitted one.
 2. **`fetchOAuthUsage({ profileId, claudeConfigDir })`** — authoritative for that
-   specific account, straight from Anthropic. Already profile-scoped, already
-   cached per profile (30s TTL) with in-flight sharing, already returns `null`
-   gracefully on failure. This source was anticipated by the original priority
-   routing spec (`2026-07-23-priority-profile-routing-design.md` §2).
+   specific account, straight from Anthropic, but used only when the returned
+   `five_hour` window reports `utilization >= 1`. A healthy account always has
+   a `five_hour` window with a future `resetsAt` — the rolling window boundary
+   exists regardless of consumption — so an ungated read would extend a
+   healthy profile's mark out to that boundary on any transient or
+   non-five-hour error. Already profile-scoped, already cached per profile
+   (30s TTL) with in-flight sharing, already returns `null` gracefully on
+   failure. This source was anticipated by the original priority routing spec
+   (`2026-07-23-priority-profile-routing-design.md` §2).
 3. **10-minute default** — unchanged last resort.
 
 The result is clamped by `PRIORITY_COOLDOWN_CAP_MS` (6h) exactly as today.
