@@ -32,6 +32,7 @@ mock.module("../mcpTools", () => ({
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
 const { createProxyServer } = await import("../proxy/server")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
+const { resetActiveProfile } = await import("../proxy/profiles")
 
 interface QuotaResponseBucket {
   type: string
@@ -54,6 +55,11 @@ interface QuotaResponse {
 describe("GET /v1/usage/quota", () => {
   beforeEach(() => {
     rateLimitStore.clear()
+    // The quota route resolves its target profile from global active-profile state,
+    // which is set by other test files (e.g., profile-switch-integration.test.ts).
+    // Resetting here ensures a leftover active profile id does not make these
+    // fixtures unreadable.
+    resetActiveProfile()
     // Default: no OAuth data merged in. Individual tests override.
     __setFetchOAuthUsageOverride(async () => null)
   })
