@@ -54,3 +54,35 @@ export function getConversationFingerprint(messages: Array<{ role: string; conte
   const seed = workingDirectory ? `${workingDirectory}\n${text.slice(0, 2000)}` : text.slice(0, 2000)
   return createHash("sha256").update(seed).digest("hex").slice(0, 16)
 }
+
+/**
+ * Key a conversation for priority-pool assignment.
+ *
+ * An explicit session id always wins — keyed clients behave exactly as before.
+ * Without one, the conversation fingerprint stands in, which is what gives
+ * keyless clients pool affinity: Pylon's main process deliberately sends no
+ * session key (its provider headers are per-process, so one key would merge
+ * every open chat into a single meridian session), and without a fallback
+ * such a conversation re-picks its account every turn — bouncing back to the
+ * preferred profile the moment its cooldown expires and replaying its whole
+ * history against a cold cache.
+ *
+ * The `fp:` prefix namespaces fingerprint-derived keys so they can never
+ * collide with a real session id. An empty fingerprint returns null rather
+ * than inventing a key, preserving today's no-affinity behavior for requests
+ * we cannot identify.
+ *
+ * NOTE: this is only ever an ACCOUNT key, never a session key. Two unrelated
+ * conversations that share a first message and working directory will share
+ * an assignment — that costs nothing, because it selects a profile and never
+ * a resumable SDK session.
+ */
+export function getPriorityAssignmentKey(
+  sessionId: string | undefined,
+  messages: Array<{ role: string; content: any }>,
+  workingDirectory?: string,
+): string | null {
+  if (sessionId) return sessionId
+  const fingerprint = getConversationFingerprint(messages, workingDirectory)
+  return fingerprint ? `fp:${fingerprint}` : null
+}
