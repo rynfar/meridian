@@ -4038,13 +4038,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // (`utilization`, `resetsAt`) win when present — they're always
     // populated. SDK fields fill in overage details and any bucket types
     // OAuth doesn't expose.
-    //
-    // Filter out the internal "default" bucket — it's a Meridian-side
-    // fallback for SDK events missing `rateLimitType`, not a real Anthropic
-    // bucket that consumers can render.
-    // Entries are read for the resolved target profile only — a multi-account
-    // setup must never render one account's SDK buckets under another's
-    // identity.
 
     // Determine which profile we're querying:
     //   1. Explicit ?profile=<id> query param
@@ -4060,6 +4053,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       || null
     const targetProfile = targetProfileId ? profilesList.find(p => p.id === targetProfileId) : undefined
 
+    // Filter out the internal "default" bucket — it's a Meridian-side
+    // fallback for SDK events missing `rateLimitType`, not a real Anthropic
+    // bucket that consumers can render.
+    // Entries are read for the resolved target profile only — a multi-account
+    // setup must never render one account's SDK buckets under another's
+    // identity.
     const sdkEntries = rateLimitStore.getAll(targetProfileId ?? "default")
       .filter(entry => entry.rateLimitType !== undefined)
 
