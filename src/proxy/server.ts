@@ -478,12 +478,39 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return Array.isArray(setting) && setting.length > 0 ? setting : undefined
   }
 
+  /** Tier 1 + 3: this profile's own observed five_hour reset, else a
+   *  conservative default so a mis-mark self-heals. Never blocks. */
   function priorityCooldownUntil(profileId: string, now: number): number {
-    // Best-available reset signal: the SDK rate-limit store's five_hour reset
-    // when known; conservative default otherwise so a mis-mark self-heals.
-    const fiveHour = rateLimitStore.getAll(profileId).find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now)
+    const fiveHour = rateLimitStore.getAll(profileId)
+      .find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now)
     const until = fiveHour?.resetsAt ?? now + PRIORITY_DEFAULT_COOLDOWN_MS
     return Math.min(until, now + PRIORITY_COOLDOWN_CAP_MS)
+  }
+
+  /** Tier 2: the authoritative per-account reset from Anthropic's usage
+   *  endpoint. Deliberately fire-and-forget — the failover path has already
+   *  burned one failed request and must not also wait on a network call.
+   *  `ProfileExhaustion.mark` ignores an `until` that isn't later than the
+   *  existing one, so a late refinement can only EXTEND a cooldown, never
+   *  un-suppress a profile early. A null/failed fetch changes nothing. */
+  function refinePriorityCooldown(profileId: string): void {
+    const target = getEffectiveProfiles(finalConfig.profiles).find(p => p.id === profileId)
+    void fetchOAuthUsage({ profileId, claudeConfigDir: target?.claudeConfigDir })
+      .then(usage => {
+        if (!usage) return
+        const now = Date.now()
+        const resetsAt = usage.windows.find(w => w.type === "five_hour")?.resetsAt
+        if (!resetsAt || resetsAt <= now) return
+        const until = Math.min(resetsAt, now + PRIORITY_COOLDOWN_CAP_MS)
+        priorityExhaustion.mark(profileId, until, "rate_limit_error")
+        claudeLog("priority.cooldown_refined", { profile: profileId, until, source: "oauth_usage" })
+      })
+      .catch(err => {
+        claudeLog("priority.cooldown_refine_failed", {
+          profile: profileId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
   }
 
   /** Inspect an inner response for a quota failure without destroying it.
@@ -567,6 +594,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const cooldownUntil = priorityCooldownUntil(candidate, Date.now())
       priorityExhaustion.mark(candidate, cooldownUntil, "rate_limit_error")
       claudeLog("priority.exhausted", { profile: candidate, until: cooldownUntil })
+      refinePriorityCooldown(candidate)
       lastError = errorPayload
       previous = candidate
     }

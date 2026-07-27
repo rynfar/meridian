@@ -49,6 +49,8 @@ mock.module("../mcpTools", () => ({
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
+const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
+const { rateLimitStore } = await import("../proxy/rateLimitStore")
 
 const PROFILES = [
   { id: "work", claudeConfigDir: "/tmp/meridian-test-prof-work" },
@@ -71,6 +73,12 @@ async function post(app: any, headers: Record<string, string> = {}, content = "h
       messages: [{ role: "user", content }],
     }),
   }))
+}
+
+async function exhaustedMarks(app: { fetch: (r: Request) => Response | Promise<Response> }) {
+  const res = await app.fetch(new Request("http://localhost/profiles/list"))
+  const body = await res.json() as { exhausted?: Array<{ id: string; until: number; reason: string }> }
+  return body.exhausted ?? []
 }
 
 const savedEnv: Record<string, string | undefined> = {}
@@ -192,5 +200,139 @@ describe("priority routing", () => {
     const res = await post(app, {}, "mode-off unique message")
     expect(res.status).toBe(429)
     expect(capturedEnvs.every((e) => e.includes("prof-work"))).toBe(true)
+  }, 20_000)
+})
+
+describe("priority cooldown resolution", () => {
+  const WORK_RESET = Date.now() + 4 * 60 * 60_000      // 4h out
+  const PERSONAL_RESET = Date.now() + 30 * 60_000      // 30m out
+
+  beforeEach(() => {
+    capturedEnvs = []
+    failingDirs = new Set()
+    clearSessionCache()
+    resetActiveProfile()
+    savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
+    savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    process.env.MERIDIAN_ROUTING = "priority"
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    rateLimitStore.clear()
+    __setFetchOAuthUsageOverride(async () => null)
+  })
+
+  afterEach(() => {
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k]
+      else process.env[k] = v
+    }
+    rateLimitStore.clear()
+    __setFetchOAuthUsageOverride(null)
+  })
+
+  it("uses the failing profile's OWN five_hour reset, not another profile's", async () => {
+    // personal has a much later reset on record. work is the one that fails.
+    // The old global-singleton bug would hand work personal's number.
+    rateLimitStore.record("personal", {
+      status: "allowed",
+      rateLimitType: "five_hour",
+      utilization: 0.5,
+      resetsAt: Date.now() + 5 * 60 * 60_000,
+    })
+    rateLimitStore.record("work", {
+      status: "rejected",
+      rateLimitType: "five_hour",
+      utilization: 1,
+      resetsAt: WORK_RESET,
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    await post(app)
+
+    const marks = await exhaustedMarks(app)
+    expect(marks.map(m => m.id)).toEqual(["work"])
+    expect(marks.map(m => m.until)).toEqual([WORK_RESET])
+  }, 20_000)
+
+  it("falls back to the 10-minute default when the profile has no entry of its own", async () => {
+    rateLimitStore.record("personal", {
+      status: "allowed",
+      rateLimitType: "five_hour",
+      utilization: 0.5,
+      resetsAt: Date.now() + 5 * 60 * 60_000,
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    await post(app)
+    const after = Date.now()
+
+    const marks = await exhaustedMarks(app)
+    const until = marks.map(m => m.until)
+    expect(until).toHaveLength(1)
+    expect(until.every(u => u >= before + 10 * 60_000 && u <= after + 10 * 60_000)).toBe(true)
+  }, 20_000)
+
+  it("refines a default-length mark with the authoritative OAuth reset", async () => {
+    __setFetchOAuthUsageOverride(async (opts) => {
+      if (opts?.profileId !== "work") return null
+      return { windows: [{ type: "five_hour", utilization: 1, resetsAt: WORK_RESET }], extraUsage: null, fetchedAt: Date.now() }
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    await post(app)
+    // The refinement is deliberately not awaited by the request path.
+    await Bun.sleep(20)
+
+    const marks = await exhaustedMarks(app)
+    expect(marks.map(m => m.until)).toEqual([WORK_RESET])
+  }, 20_000)
+
+  it("never shortens an existing mark with an earlier OAuth reset", async () => {
+    rateLimitStore.record("work", {
+      status: "rejected",
+      rateLimitType: "five_hour",
+      utilization: 1,
+      resetsAt: WORK_RESET,
+    })
+    __setFetchOAuthUsageOverride(async () => ({
+      windows: [{ type: "five_hour", utilization: 1, resetsAt: PERSONAL_RESET }],
+      extraUsage: null,
+      fetchedAt: Date.now(),
+    }))
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    await post(app)
+    await Bun.sleep(20)
+
+    const marks = await exhaustedMarks(app)
+    expect(marks.map(m => m.until)).toEqual([WORK_RESET])
+  }, 20_000)
+
+  it("leaves the mark unchanged when the OAuth fetch returns null or rejects", async () => {
+    __setFetchOAuthUsageOverride(async () => { throw new Error("upstream 503") })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    const res = await post(app)
+    await Bun.sleep(20)
+
+    expect(res.status).toBe(200) // failover still succeeded
+    const marks = await exhaustedMarks(app)
+    const until = marks.map(m => m.until)
+    expect(until).toHaveLength(1)
+    expect(until.every(u => u <= before + 10 * 60_000 + 5_000)).toBe(true)
+  }, 20_000)
+
+  it("does not block failover on the OAuth fetch", async () => {
+    // A fetch that never settles must not stall the request. The explicit
+    // type parameter matters: a bare `new Promise(() => {})` infers
+    // `Promise<unknown>`, which does not satisfy the override's signature
+    // and fails `tsc --noEmit`.
+    __setFetchOAuthUsageOverride(() => new Promise<null>(() => {}))
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const res = await post(app)
+    expect(res.status).toBe(200)
+    expect(capturedEnvs.some(e => e.includes("prof-personal"))).toBe(true)
   }, 20_000)
 })
