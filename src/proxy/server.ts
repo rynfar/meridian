@@ -478,10 +478,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return Array.isArray(setting) && setting.length > 0 ? setting : undefined
   }
 
-  function priorityCooldownUntil(now: number): number {
+  function priorityCooldownUntil(profileId: string, now: number): number {
     // Best-available reset signal: the SDK rate-limit store's five_hour reset
     // when known; conservative default otherwise so a mis-mark self-heals.
-    const fiveHour = rateLimitStore.getAll().find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now)
+    const fiveHour = rateLimitStore.getAll(profileId).find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now)
     const until = fiveHour?.resetsAt ?? now + PRIORITY_DEFAULT_COOLDOWN_MS
     return Math.min(until, now + PRIORITY_COOLDOWN_CAP_MS)
   }
@@ -564,8 +564,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
         return response
       }
-      priorityExhaustion.mark(candidate, priorityCooldownUntil(Date.now()), "rate_limit_error")
-      claudeLog("priority.exhausted", { profile: candidate, until: priorityCooldownUntil(Date.now()) })
+      const cooldownUntil = priorityCooldownUntil(candidate, Date.now())
+      priorityExhaustion.mark(candidate, cooldownUntil, "rate_limit_error")
+      claudeLog("priority.exhausted", { profile: candidate, until: cooldownUntil })
       lastError = errorPayload
       previous = candidate
     }
@@ -1614,7 +1615,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     // the SDK as rate_limit_event. We snapshot them in a process-wide
                     // store so /v1/usage/quota can return the latest live state.
                     if ((event as any).type === "rate_limit_event") {
-                      rateLimitStore.record((event as any).rate_limit_info)
+                      rateLimitStore.record(profile.id, (event as any).rate_limit_info)
                     }
                     // Only count real assistant content — not SDK error messages
                     // (which arrive as type:"assistant" with an error field set).
@@ -2328,7 +2329,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     }, requestAbort.controller))) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
-                        rateLimitStore.record((event as any).rate_limit_info)
+                        rateLimitStore.record(profile.id, (event as any).rate_limit_info)
                       }
                       if ((event as any).type === "stream_event") {
                         didYieldClientEvent = true
@@ -3669,11 +3670,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const previousProfile = getActiveProfileId() ?? null
     setActiveProfile(body.profile!)
     // Evict all cached SDK sessions — they were started under the old profile's
-    // credentials and cannot be reused with different auth. Also drop the
-    // rate-limit snapshot so /v1/usage/quota doesn't return the previous
-    // profile's quotas under the new profile's identity.
+    // credentials and cannot be reused with different auth. The rate-limit
+    // store is NOT cleared: entries are profile-scoped, so the new profile
+    // can no longer read the old one's quotas, and other profiles' snapshots
+    // stay valid (consumers judge staleness from `observedAt`).
     clearSessionCache()
-    rateLimitStore.clear()
     // Attribute the switch: multiple surfaces can POST here (the meridian UI,
     // the CLI, pylon's provider switcher, the iOS companion) and the active
     // profile is GLOBAL state — an unexplained flip should be answerable from
@@ -3741,10 +3742,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const store = credentialStoreForProfile(profile)
     const success = store ? await refreshOAuthToken(store) : false
     if (success) {
-      // Drop the rate-limit snapshot — old quotas were observed under the
-      // previous credential and may belong to a different account if the
-      // refresh swapped profiles. The next SDK call repopulates.
-      rateLimitStore.clear()
+      // Drop this profile's rate-limit snapshot — its quotas were observed
+      // under the previous credential. Scoped to the profile actually
+      // refreshed; other accounts' snapshots are untouched. The next SDK
+      // call repopulates.
+      rateLimitStore.clear(profile.id)
       return c.json({ success: true, message: "OAuth token refreshed successfully", profile: profile.id })
     }
     return c.json(
@@ -4040,7 +4042,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // Filter out the internal "default" bucket — it's a Meridian-side
     // fallback for SDK events missing `rateLimitType`, not a real Anthropic
     // bucket that consumers can render.
-    const sdkEntries = rateLimitStore.getAll().filter(entry => entry.rateLimitType !== undefined)
+    // Entries are read for the resolved target profile only — a multi-account
+    // setup must never render one account's SDK buckets under another's
+    // identity.
 
     // Determine which profile we're querying:
     //   1. Explicit ?profile=<id> query param
@@ -4055,6 +4059,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       || profilesList[0]?.id
       || null
     const targetProfile = targetProfileId ? profilesList.find(p => p.id === targetProfileId) : undefined
+
+    const sdkEntries = rateLimitStore.getAll(targetProfileId ?? "default")
+      .filter(entry => entry.rateLimitType !== undefined)
 
     const oauth = await fetchOAuthUsage({
       profileId: targetProfileId ?? undefined,

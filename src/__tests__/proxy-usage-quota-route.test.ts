@@ -85,13 +85,13 @@ describe("GET /v1/usage/quota", () => {
     // Explicit, distinct observedAt values make newest-first ordering
     // deterministic without racing the real wall clock (a short sleep does
     // not guarantee a fresh millisecond timestamp under CI load).
-    rateLimitStore.record({
+    rateLimitStore.record("default", {
       status: "allowed",
       rateLimitType: "five_hour",
       utilization: 0.42,
       resetsAt: 1_730_000_000_000,
     }, 1_000)
-    rateLimitStore.record({
+    rateLimitStore.record("default", {
       status: "allowed_warning",
       rateLimitType: "seven_day",
       utilization: 0.91,
@@ -123,8 +123,8 @@ describe("GET /v1/usage/quota", () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
 
     // SDK event without rateLimitType — store buckets it under "default"
-    rateLimitStore.record({ status: "allowed", utilization: 0.1 })
-    rateLimitStore.record({
+    rateLimitStore.record("default", { status: "allowed", utilization: 0.1 })
+    rateLimitStore.record("default", {
       status: "allowed",
       rateLimitType: "five_hour",
       utilization: 0.5,
@@ -140,7 +140,7 @@ describe("GET /v1/usage/quota", () => {
 
   it("nulls out unset optional fields (utilization, resetsAt, overage*)", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
-    rateLimitStore.record({ status: "rejected", rateLimitType: "five_hour" })
+    rateLimitStore.record("default", { status: "rejected", rateLimitType: "five_hour" })
     const res = await app.fetch(new Request("http://localhost/v1/usage/quota"))
     const body = await res.json() as QuotaResponse
     const bucket = body.buckets[0]!
@@ -171,7 +171,7 @@ describe("GET /v1/usage/quota", () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
 
     // SDK has its own bucket for five_hour with overage info we want preserved.
-    rateLimitStore.record({
+    rateLimitStore.record("default", {
       status: "allowed",
       rateLimitType: "five_hour",
       utilization: 0.10,         // OAuth (0.36) should win
@@ -205,7 +205,7 @@ describe("GET /v1/usage/quota", () => {
 
   it("preserves overage fields when present", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
-    rateLimitStore.record({
+    rateLimitStore.record("default", {
       status: "allowed_warning",
       rateLimitType: "overage",
       utilization: 0.78,
@@ -226,5 +226,40 @@ describe("GET /v1/usage/quota", () => {
     expect(bucket.overageResetsAt).toBe(1_730_100_000_000)
     expect(bucket.overageDisabledReason).toBe("no_limits_configured")
     expect(bucket.surpassedThreshold).toBe(0.75)
+  })
+
+  it("reports the requested profile's SDK buckets, not another profile's", async () => {
+    // Both accounts have recorded a five_hour bucket. Asking for `personal`
+    // must never surface `work`'s numbers.
+    rateLimitStore.record("work", {
+      status: "allowed",
+      rateLimitType: "five_hour",
+      utilization: 0.99,
+      resetsAt: 1_111_111_111_111,
+    })
+    rateLimitStore.record("personal", {
+      status: "allowed",
+      rateLimitType: "five_hour",
+      utilization: 0.10,
+      resetsAt: 2_222_222_222_222,
+    })
+    __setFetchOAuthUsageOverride(async () => null)
+
+    const { app } = createProxyServer({
+      port: 0,
+      host: "127.0.0.1",
+      profiles: [
+        { id: "work", claudeConfigDir: "/tmp/meridian-quota-work" },
+        { id: "personal", claudeConfigDir: "/tmp/meridian-quota-personal" },
+      ],
+      defaultProfile: "work",
+    })
+
+    const res = await app.fetch(new Request("http://localhost/v1/usage/quota?profile=personal"))
+    expect(res.status).toBe(200)
+    const body = await res.json() as QuotaResponse
+    const fiveHour = body.buckets.filter(b => b.type === "five_hour")
+    expect(fiveHour.map(b => b.resetsAt)).toEqual([2_222_222_222_222])
+    expect(fiveHour.map(b => b.utilization)).toEqual([0.10])
   })
 })
