@@ -17,7 +17,9 @@
  * Default mode is "active" (the pre-#383 chain) — existing setups are
  * byte-identical unless routing is explicitly enabled.
  *
- * This is a leaf module — pure functions, no I/O.
+ * This is a leaf module — no I/O. Most functions here are pure; the
+ * exhaustion/assignment trackers below hold mutable in-memory state (by
+ * design — see their own doc comments) but still perform no I/O.
  */
 
 import { createHash } from "node:crypto"

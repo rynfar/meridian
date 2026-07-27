@@ -468,7 +468,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // the deep request machinery. State is per proxy instance.
   const priorityExhaustion = new ProfileExhaustion()
   const PRIORITY_ASSIGNMENTS_MAX = 5000
-  const priorityAssignments = new AssignmentStore(PRIORITY_ASSIGNMENTS_MAX) // sessionKey -> profileId
+  const priorityAssignments = new AssignmentStore(PRIORITY_ASSIGNMENTS_MAX)
   const PRIORITY_DEFAULT_COOLDOWN_MS = 10 * 60_000
   const PRIORITY_COOLDOWN_CAP_MS = 6 * 60 * 60_000
 
@@ -759,6 +759,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // without it they re-pick an account every turn and bounce back to
             // the preferred profile the moment its cooldown expires, replaying
             // the whole history against a cold cache.
+            // Deliberately not clientWorkingDirectory (computed below): no
+            // MERIDIAN_WORKDIR/CLAUDE_PROXY_WORKDIR override here — that
+            // override would collapse every client's account key to one
+            // shared value.
             const assignmentCwd = adapter.extractClientWorkingDirectory?.(body)
               ?? adapter.extractWorkingDirectory(body)
             const sessionKey = getPriorityAssignmentKey(
