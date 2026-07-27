@@ -93,9 +93,12 @@ sources, most authoritative first:
    a `five_hour` window with a future `resetsAt` — the rolling window boundary
    exists regardless of consumption — so an ungated read would extend a
    healthy profile's mark out to that boundary on any transient or
-   non-five-hour error. Already profile-scoped, already cached per profile
-   (30s TTL) with in-flight sharing, already returns `null` gracefully on
-   failure. This source was anticipated by the original priority routing spec
+   non-five-hour error. A missing or null `utilization` is treated as NOT
+   exhausted — under-suppressing is the safe direction; over-suppressing a
+   healthy profile is the bug this gate exists to prevent. Already
+   profile-scoped, already cached per profile (30s TTL) with in-flight
+   sharing, already returns `null` gracefully on failure. This source was
+   anticipated by the original priority routing spec
    (`2026-07-23-priority-profile-routing-design.md` §2).
 3. **10-minute default** — unchanged last resort.
 
