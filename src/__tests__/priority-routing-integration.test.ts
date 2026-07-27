@@ -497,14 +497,16 @@ describe("keyless priority affinity", () => {
     // backoff = ~3s real time) has already run its course. A resetsAt inside
     // that ~3s window would already be in the past by the time the mark is
     // set, so tier 1 would reject it and fall back to the 10-minute default
-    // — silently defeating the "quick recovery" setup below. 3.4s clears
-    // that floor with margin; the follow-up sleep only needs to cross the
-    // remaining gap to resetsAt, so it can stay short.
+    // — silently defeating the "quick recovery" setup below. 5s clears that
+    // ~3s floor with ~2s margin; the follow-up 3.6s sleep runs after the
+    // ladder too, so total elapsed at turn 2 is ~6.6s — comfortably past the
+    // 5s resetsAt (expiring it ~1.6s before turn 2) while still trusting the
+    // mark when it's set.
     rateLimitStore.record("work", {
       status: "rejected",
       rateLimitType: "five_hour",
       utilization: 1,
-      resetsAt: Date.now() + 3_400,
+      resetsAt: Date.now() + 5_000,
     })
     failingDirs.add("prof-work")
     const app = createTestApp()
@@ -534,7 +536,7 @@ describe("keyless priority affinity", () => {
     // ~3s rate-limit retry ladder or tier 1 discards it for the 10-minute
     // default and this recovery never happens.
     rateLimitStore.record("work", {
-      status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt: Date.now() + 3_400,
+      status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt: Date.now() + 5_000,
     })
     failingDirs.add("prof-work")
     const app = createTestApp()
@@ -551,13 +553,24 @@ describe("keyless priority affinity", () => {
   }, 20_000)
 
   it("lands a keyless fork on the same account as its parent", async () => {
+    // work must genuinely recover before the fork request — see the timing
+    // note on the first test in this block for why the resetsAt margin
+    // matters. Without a real recovery, choosePriorityProfile would still be
+    // skipping the (still-exhausted) work profile on its own, and the
+    // assertion below would pass regardless of whether the fork actually
+    // inherited its parent's assignment.
+    rateLimitStore.record("work", {
+      status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt: Date.now() + 5_000,
+    })
     failingDirs.add("prof-work")
     const app = createTestApp()
     // Parent fails over to personal.
     expect((await post(app, {}, "shared opening")).status).toBe(200)
 
+    // work recovers AND its exhaustion mark expires — so the only thing that
+    // can keep the fork on personal is the inherited assignment.
     failingDirs.delete("prof-work")
-    await Bun.sleep(70)
+    await Bun.sleep(3_600)
     capturedEnvs = []
     // A fork shares the parent's first message, so it shares the fingerprint
     // and therefore the account. This deliberately diverges from the session

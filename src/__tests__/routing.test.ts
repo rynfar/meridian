@@ -235,4 +235,20 @@ describe("AssignmentStore", () => {
     expect(store.get("a")).toBeUndefined()
     expect(store.get("b")).toBe("work")
   })
+
+  it("with max 0, an entry is evicted immediately after being written", () => {
+    const store = new AssignmentStore(0)
+    store.set("a", "work")
+    expect(store.size).toBe(0)
+    expect(store.get("a")).toBeUndefined()
+  })
+
+  it("with max 1, only the newest entry survives", () => {
+    const store = new AssignmentStore(1)
+    store.set("a", "work")
+    store.set("b", "personal")
+    expect(store.size).toBe(1)
+    expect(store.get("a")).toBeUndefined()
+    expect(store.get("b")).toBe("personal")
+  })
 })
