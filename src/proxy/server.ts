@@ -77,7 +77,7 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, type ResolvedProfile } from "./profiles"
-import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion } from "./routing"
+import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, AssignmentStore } from "./routing"
 import { getSetting, setSetting } from "./settings"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
@@ -467,8 +467,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // /v1/chat/completions), so ALL failover logic lives here — no changes to
   // the deep request machinery. State is per proxy instance.
   const priorityExhaustion = new ProfileExhaustion()
-  const priorityAssignments = new Map<string, string>() // sessionKey -> profileId
   const PRIORITY_ASSIGNMENTS_MAX = 5000
+  const priorityAssignments = new AssignmentStore(PRIORITY_ASSIGNMENTS_MAX) // sessionKey -> profileId
   const PRIORITY_DEFAULT_COOLDOWN_MS = 10 * 60_000
   const PRIORITY_COOLDOWN_CAP_MS = 6 * 60 * 60_000
 
@@ -617,13 +617,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const inner = await app.fetch(new Request(c.req.url, { method: "POST", headers, body: bodyBuf }))
       const { failed, errorPayload, response } = await sniffQuotaFailure(inner)
       if (!failed) {
-        if (sessionKey) {
-          priorityAssignments.set(sessionKey, candidate)
-          if (priorityAssignments.size > PRIORITY_ASSIGNMENTS_MAX) {
-            const oldest = priorityAssignments.keys().next().value
-            if (oldest !== undefined) priorityAssignments.delete(oldest)
-          }
-        }
+        if (sessionKey) priorityAssignments.set(sessionKey, candidate)
         if (previous) {
           claudeLog("profile.failover", { from: previous, to: candidate, reason: "rate_limit_error", sessionKey })
           plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate}`)

@@ -168,3 +168,43 @@ export class ProfileExhaustion {
     return out
   }
 }
+
+/**
+ * Session-to-profile assignments with LRU eviction.
+ *
+ * A JS Map preserves insertion order and a bare `set()` on an EXISTING key
+ * does not reorder it — so a plain map evicts first-inserted, which drops a
+ * long-lived active conversation ahead of a newer idle one. Both read and
+ * write therefore delete-then-set to refresh recency.
+ *
+ * Deliberately not persisted: this is routing hygiene, not durable truth.
+ * After a restart the next request re-establishes the assignment.
+ */
+export class AssignmentStore {
+  private readonly entries = new Map<string, string>()
+
+  constructor(private readonly max: number) {}
+
+  /** Read an assignment, marking it most-recently-used. */
+  get(key: string): string | undefined {
+    const value = this.entries.get(key)
+    if (value === undefined) return undefined
+    this.entries.delete(key)
+    this.entries.set(key, value)
+    return value
+  }
+
+  /** Write an assignment, marking it most-recently-used and evicting if over capacity. */
+  set(key: string, value: string): void {
+    this.entries.delete(key)
+    this.entries.set(key, value)
+    if (this.entries.size > this.max) {
+      const oldest = this.entries.keys().next().value
+      if (oldest !== undefined) this.entries.delete(oldest)
+    }
+  }
+
+  get size(): number {
+    return this.entries.size
+  }
+}

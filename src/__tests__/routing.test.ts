@@ -8,7 +8,7 @@
  * to the removed arm (minimal cache disruption).
  */
 import { describe, it, expect } from "bun:test"
-import { pickStickyProfile, getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, RENDEZVOUS_STABLE_GUARD } from "../proxy/routing"
+import { pickStickyProfile, getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, RENDEZVOUS_STABLE_GUARD, AssignmentStore } from "../proxy/routing"
 
 const PROFILES = ["personal", "work"]
 
@@ -173,5 +173,66 @@ describe("ProfileExhaustion tracker", () => {
     ex.mark("work", T0 + 120_000, "rate_limit_error")
     ex.mark("work", T0 + 30_000, "rate_limit_error")
     expect(ex.snapshot()[0]!.until).toBe(T0 + 120_000)
+  })
+})
+
+describe("AssignmentStore", () => {
+  it("stores and returns assignments", () => {
+    const store = new AssignmentStore(10)
+    store.set("a", "work")
+    expect(store.get("a")).toBe("work")
+    expect(store.get("missing")).toBeUndefined()
+    expect(store.size).toBe(1)
+  })
+
+  it("overwrites an existing key without growing", () => {
+    const store = new AssignmentStore(10)
+    store.set("a", "work")
+    store.set("a", "personal")
+    expect(store.get("a")).toBe("personal")
+    expect(store.size).toBe(1)
+  })
+
+  it("evicts the oldest entry once over capacity", () => {
+    const store = new AssignmentStore(2)
+    store.set("a", "work")
+    store.set("b", "work")
+    store.set("c", "work")
+    expect(store.size).toBe(2)
+    expect(store.get("a")).toBeUndefined()
+    expect(store.get("b")).toBe("work")
+    expect(store.get("c")).toBe("work")
+  })
+
+  it("refreshes recency on WRITE so a re-assigned key is not evicted first", () => {
+    // The FIFO bug: a bare Map.set() on an existing key does not reorder it,
+    // so "a" would still be evicted despite being the most recently written.
+    const store = new AssignmentStore(2)
+    store.set("a", "work")
+    store.set("b", "work")
+    store.set("a", "personal")
+    store.set("c", "work")
+    expect(store.get("a")).toBe("personal")
+    expect(store.get("b")).toBeUndefined()
+  })
+
+  it("refreshes recency on READ so an actively used key is not evicted first", () => {
+    const store = new AssignmentStore(2)
+    store.set("a", "work")
+    store.set("b", "work")
+    expect(store.get("a")).toBe("work") // "a" is in active use
+    store.set("c", "work")
+    expect(store.get("a")).toBe("work")
+    expect(store.get("b")).toBeUndefined()
+  })
+
+  it("does not refresh recency for a missing key", () => {
+    const store = new AssignmentStore(2)
+    store.set("a", "work")
+    store.set("b", "work")
+    expect(store.get("nope")).toBeUndefined()
+    store.set("c", "work")
+    expect(store.get("a")).toBeUndefined()
+    expect(store.get("b")).toBe("work")
   })
 })
