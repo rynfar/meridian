@@ -6,6 +6,7 @@
  */
 
 import { LRUMap } from "../../utils/lruMap"
+import { diagnosticLog } from "../../telemetry"
 import {
   lookupSharedSession,
   lookupSharedSessionByClaudeId,
@@ -127,6 +128,30 @@ function touchSession(state: SessionState): SessionState {
   return state
 }
 
+function classifyLineage(
+  state: SessionState,
+  messages: Array<{ role: string; content: any }>,
+  cacheKey: string
+): LineageResult {
+  const result = verifyLineage(state, messages)
+
+  if (result.type === "compaction") {
+    const msg = `Compaction detected (key=${cacheKey.slice(0, 8)}…): suffix overlap ${result.suffixOverlap}/${state.messageCount}, resume from incoming message ${result.resumeFrom}.`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  } else if (result.type === "undo") {
+    const msg = `Undo detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap}/${state.messageCount}, rollback UUID: ${result.rollbackUuid || "none (legacy session)"}.`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  } else if (result.type === "diverged" && result.reason === "modified-history") {
+    const msg = `Stale session detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. Starting fresh replay.`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  }
+
+  return result
+}
+
 /** Look up a cached session by header or fingerprint.
  *  Returns a LineageResult that classifies the mutation and includes the
  *  session state needed for the correct SDK action. */
@@ -138,7 +163,7 @@ export function lookupSession(
   if (sessionId) {
     const cached = sessionCache.get(sessionId)
     if (cached) {
-      const result = verifyLineage(cached, messages, sessionId, sessionCache)
+      const result = classifyLineage(cached, messages, sessionId)
       if (result.type === "continuation" || result.type === "compaction") touchSession(result.session)
       return result
     }
@@ -153,20 +178,20 @@ export function lookupSession(
         sdkMessageUuids: shared.sdkMessageUuids,
         contextUsage: shared.contextUsage,
       }
-      const result = verifyLineage(state, messages, sessionId, sessionCache)
+      const result = classifyLineage(state, messages, sessionId)
       if (result.type === "continuation" || result.type === "compaction") {
         sessionCache.set(sessionId, state)
       }
       return result
     }
-    return { type: "diverged" }
+    return { type: "diverged", reason: "not-found" }
   }
 
   const fp = getConversationFingerprint(messages, workingDirectory)
   if (fp) {
     const cached = fingerprintCache.get(fp)
     if (cached) {
-      const result = verifyLineage(cached, messages, fp, fingerprintCache)
+      const result = classifyLineage(cached, messages, fp)
       if (result.type === "continuation" || result.type === "compaction") touchSession(result.session)
       return result
     }
@@ -181,14 +206,14 @@ export function lookupSession(
         sdkMessageUuids: shared.sdkMessageUuids,
         contextUsage: shared.contextUsage,
       }
-      const result = verifyLineage(state, messages, fp, fingerprintCache)
+      const result = classifyLineage(state, messages, fp)
       if (result.type === "continuation" || result.type === "compaction") {
         fingerprintCache.set(fp, state)
       }
       return result
     }
   }
-  return { type: "diverged" }
+  return { type: "diverged", reason: "not-found" }
 }
 
 /** Look up a session by the Claude SDK session ID returned in responses.

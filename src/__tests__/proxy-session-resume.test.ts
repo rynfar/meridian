@@ -58,9 +58,10 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { storeSession } = await import("../proxy/session/cache")
 
 function createTestApp() {
-  const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+  const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
   return app
 }
 
@@ -86,6 +87,30 @@ async function readStreamFull(response: Response): Promise<string> {
     result += decoder.decode(value, { stream: true })
   }
   return result
+}
+
+function buildStaleSessionFixture() {
+  const cached = Array.from({ length: 515 }, (_, i) => ({
+    role: i % 2 === 0 ? "user" : "assistant",
+    content: `cached message ${i}`,
+  }))
+  const incoming = [
+    ...cached.slice(0, 514),
+    { role: "user", content: "cached boundary rewritten by the client" },
+    ...Array.from({ length: 212 }, (_, i) => {
+      const messageIndex = i + 515
+      let content = `new message ${messageIndex}`
+      if (messageIndex === 600) content = "WINDOWS MAXWELL CSV SENTINEL"
+      if (messageIndex === 601) content = "ASSISTANT ANALYSIS SENTINEL"
+      if (messageIndex === 726) content = "What did we find in the exported results?"
+      return {
+        role: messageIndex % 2 === 0 ? "user" : "assistant",
+        content,
+      }
+    }),
+  ]
+
+  return { cached, incoming }
 }
 
 // ============================================================
@@ -446,5 +471,81 @@ describe("Session resume: only send last user message on resume", () => {
     expect(capturedQueryParams.prompt).toContain("First message")
     expect(capturedQueryParams.prompt).toContain("Second message")
     expect(capturedQueryParams.options.resume).toBeUndefined()
+  })
+})
+
+describe("Session resume: stale cross-node history", () => {
+  beforeEach(() => {
+    mockMessages = [assistantMessage([{ type: "text", text: "Recovered" }])]
+    clearSessionCache()
+    capturedQueryParams = null
+    queryCallCount = 0
+  })
+
+  it("fresh-replays all 727 messages when only 514/515 cached messages match", async () => {
+    const app = createTestApp()
+    const { cached, incoming } = buildStaleSessionFixture()
+    storeSession("oc-stale-nonstream", cached, "sdk-stale-nonstream")
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: incoming,
+    }, { "x-opencode-session": "oc-stale-nonstream" })
+    await response.json()
+
+    expect(cached).toHaveLength(515)
+    expect(incoming).toHaveLength(727)
+    expect(capturedQueryParams.options.resume).toBeUndefined()
+    expect(capturedQueryParams.prompt).toContain("<conversation_history>")
+    expect(capturedQueryParams.prompt).toContain("WINDOWS MAXWELL CSV SENTINEL")
+    expect(capturedQueryParams.prompt).toContain("ASSISTANT ANALYSIS SENTINEL")
+    expect(capturedQueryParams.prompt.trimEnd()).toEndWith("What did we find in the exported results?")
+
+    capturedQueryParams = null
+    const followUp = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: false,
+      messages: [
+        ...incoming,
+        { role: "assistant", content: "Recovered" },
+        { role: "user", content: "Continue after recovery" },
+      ],
+    }, { "x-opencode-session": "oc-stale-nonstream" })
+    await followUp.json()
+
+    expect(capturedQueryParams.options.resume).toBe(MOCK_SDK_SESSION)
+    expect(capturedQueryParams.prompt).toContain("Continue after recovery")
+    expect(capturedQueryParams.prompt).not.toContain("WINDOWS MAXWELL CSV SENTINEL")
+  })
+
+  it("uses the same full replay fallback for streaming requests", async () => {
+    const app = createTestApp()
+    const { cached, incoming } = buildStaleSessionFixture()
+    storeSession("oc-stale-stream", cached, "sdk-stale-stream")
+    mockMessages = [
+      messageStart(),
+      textBlockStart(0),
+      textDelta(0, "Recovered"),
+      blockStop(0),
+      messageDelta("end_turn"),
+      messageStop(),
+    ]
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: true,
+      messages: incoming,
+    }, { "x-opencode-session": "oc-stale-stream" })
+    await readStreamFull(response)
+
+    expect(capturedQueryParams.options.resume).toBeUndefined()
+    expect(capturedQueryParams.prompt).toContain("<conversation_history>")
+    expect(capturedQueryParams.prompt).toContain("WINDOWS MAXWELL CSV SENTINEL")
+    expect(capturedQueryParams.prompt).toContain("ASSISTANT ANALYSIS SENTINEL")
+    expect(capturedQueryParams.prompt.trimEnd()).toEndWith("What did we find in the exported results?")
   })
 })

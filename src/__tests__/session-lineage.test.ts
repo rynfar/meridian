@@ -20,7 +20,10 @@ type MockSdkMessage = Record<string, unknown>
 type TestApp = { fetch: (req: Request) => Promise<Response> }
 
 let mockMessages: MockSdkMessage[] = []
-interface CapturedQueryParams { options?: { resume?: string; forkSession?: boolean; resumeSessionAt?: string } }
+interface CapturedQueryParams {
+  prompt?: unknown
+  options?: { resume?: string; forkSession?: boolean; resumeSessionAt?: string }
+}
 let capturedQueryParams: CapturedQueryParams | null = null
 /** Access capturedQueryParams without TS narrowing to `never` after null assignments */
 function getCaptured(): CapturedQueryParams | null { return capturedQueryParams }
@@ -28,7 +31,7 @@ let queuedSessionIds: string[] = []
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: unknown) => {
-    capturedQueryParams = params as { options?: { resume?: string } }
+    capturedQueryParams = params as CapturedQueryParams
     const sessionId = queuedSessionIds.shift() || "sdk-session-default"
     return (async function* () {
       for (const msg of mockMessages) {
@@ -68,7 +71,7 @@ afterAll(() => {
 })
 
 function createTestApp() {
-  const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+  const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
   return app as TestApp
 }
 
@@ -398,17 +401,22 @@ describe("Session lineage: compaction survival", () => {
       { role: "user", content: "topic D" },
     ], "sdk-c")
 
-    // Compaction: beginning summarised, last 4 messages + 2 new
+    // Compaction: beginning summarised, preserved suffix followed by multiple
+    // turns accumulated since this SDK session was last used.
     capturedQueryParams = null
     await post(app, "sess-c", [
       { role: "user", content: "[Summary: A, B and C discussed]" },
       { role: "assistant", content: "C explained" },
       { role: "user", content: "topic D" },
       { role: "assistant", content: "D explained" },
+      { role: "user", content: "INTERMEDIATE COMPACTION SENTINEL" },
+      { role: "assistant", content: "sentinel acknowledged" },
       { role: "user", content: "topic E" },
     ], "sdk-c")
 
     expect(getCaptured()?.options?.resume).toBe("sdk-c")
+    expect(getCaptured()?.prompt).toContain("INTERMEDIATE COMPACTION SENTINEL")
+    expect(getCaptured()?.prompt).toContain("topic E")
   })
 
   it("resumes after compaction reduces message count", async () => {

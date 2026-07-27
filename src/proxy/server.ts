@@ -988,8 +988,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             claudeLog("session.pending_store_awaited", { waitedMs: Date.now() - waitStart })
           }
         }
-        let lineageResult = isIndependentSession
-          ? { type: "diverged" as const }
+        let lineageResult: LineageResult = isIndependentSession
+          ? { type: "diverged", reason: "independent-request" }
           : lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
         // NOTE: agent-specific (opencode) — when OpenCode's chat.headers plugin
         // hook doesn't fire (category-dispatched or title-generation requests),
@@ -998,12 +998,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // session and be classified as "undo." Downgrade to "diverged" to
         // prevent leaking the old session's conversation history.
         if (lineageResult.type === "undo" && adapterBase === "opencode" && !agentSessionId) {
-          lineageResult = { type: "diverged" }
+          lineageResult = { type: "diverged", reason: "missing-session-header" }
         }
         const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
         const isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
         const resumeSessionId = cachedSession?.claudeSessionId
+        const resumeFrom = lineageResult.type === "continuation" || lineageResult.type === "compaction"
+          ? lineageResult.resumeFrom
+          : undefined
         // For undo: fork the session at the rollback point
         const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
 
@@ -1066,9 +1069,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // so we only need to send the new user message.
           messagesToConvert = getLastUserMessage(allMessages)
         } else if (isResume) {
-          const knownCount = cachedSession.messageCount || 0
-          if (knownCount > 0 && knownCount < allMessages.length) {
-            messagesToConvert = allMessages.slice(knownCount)
+          if (resumeFrom !== undefined && resumeFrom < allMessages.length) {
+            messagesToConvert = allMessages.slice(resumeFrom)
           } else {
             messagesToConvert = getLastUserMessage(allMessages)
           }

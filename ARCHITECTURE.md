@@ -172,10 +172,16 @@ Every request verifies that incoming messages are a valid continuation of the ca
 
 | Classification | Condition | Action |
 |---------------|-----------|--------|
-| **Continuation** | Prefix hash matches stored | Resume normally |
-| **Compaction** | Suffix preserved, beginning changed | Resume (agent summarized old messages) |
+| **Continuation** | Full stored prefix hash matches | Resume from the stored message boundary |
+| **Compaction** | Suffix preserved, beginning changed | Resume after the matched suffix |
 | **Undo** | Prefix preserved, suffix changed | Fork at rollback point |
-| **Diverged** | No meaningful overlap | Start fresh session |
+| **Diverged** | No overlap, unverifiable state, or a changed cached prefix followed by new messages | Start fresh and replay the complete client history |
+
+Lineage verification is side-effect free. A classification may select an SDK
+session and a replay boundary, but updated message counts and hashes are only
+stored after the upstream request succeeds. When Meridian cannot prove that an
+SDK session contains a section of client history, it starts fresh rather than
+silently skipping that section.
 
 ## Testing Strategy
 

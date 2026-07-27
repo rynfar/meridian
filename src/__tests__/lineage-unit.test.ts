@@ -11,7 +11,6 @@ import {
   measureSuffixOverlap,
   verifyLineage,
   normalizeContextUsage,
-  MIN_SUFFIX_FOR_COMPACTION,
   type SessionState,
 } from "../proxy/session/lineage"
 
@@ -28,8 +27,6 @@ function makeSession(overrides: Partial<SessionState> = {}): SessionState {
     ...overrides,
   }
 }
-
-const mockCache = { delete: () => true }
 
 describe("computeLineageHash", () => {
   it("returns empty string for empty array", () => {
@@ -169,10 +166,10 @@ describe("measureSuffixOverlap", () => {
 })
 
 describe("verifyLineage", () => {
-  it("returns continuation for empty lineage hash (legacy)", () => {
+  it("returns diverged for an unverifiable legacy session", () => {
     const session = makeSession({ lineageHash: "", messageCount: 0 })
-    const result = verifyLineage(session, [msg("user", "hi")], "key", mockCache)
-    expect(result.type).toBe("continuation")
+    const result = verifyLineage(session, [msg("user", "hi")])
+    expect(result).toEqual({ type: "diverged", reason: "unverifiable" })
   })
 
   it("returns continuation when prefix matches exactly", () => {
@@ -184,8 +181,11 @@ describe("verifyLineage", () => {
     })
     // Same messages + one new one = valid continuation
     const extended = [...msgs, msg("user", "how are you?")]
-    const result = verifyLineage(session, extended, "key", mockCache)
+    const result = verifyLineage(session, extended)
     expect(result.type).toBe("continuation")
+    if (result.type === "continuation") {
+      expect(result.resumeFrom).toBe(msgs.length)
+    }
   })
 
   it("returns diverged when no per-message hashes and lineage mismatches", () => {
@@ -194,7 +194,7 @@ describe("verifyLineage", () => {
       messageCount: 2,
       messageHashes: undefined,
     })
-    const result = verifyLineage(session, [msg("user", "different")], "key", mockCache)
+    const result = verifyLineage(session, [msg("user", "different")])
     expect(result.type).toBe("diverged")
   })
 
@@ -209,7 +209,7 @@ describe("verifyLineage", () => {
     })
     // Undo: keep first 2 messages, replace last 2
     const undone = [msg("user", "a"), msg("assistant", "b"), msg("user", "new")]
-    const result = verifyLineage(session, undone, "key", mockCache)
+    const result = verifyLineage(session, undone)
     expect(result.type).toBe("undo")
     if (result.type === "undo") {
       expect(result.prefixOverlap).toBe(2)
@@ -217,9 +217,7 @@ describe("verifyLineage", () => {
     }
   })
 
-  it("returns continuation (not undo) when messages grow with a modified message", () => {
-    // Reproduces the false undo bug: conversation grows from 7 to 9 messages
-    // but message[6] was modified (e.g., cache_control added by OpenCode).
+  it("returns diverged when messages grow after a cached message changed", () => {
     const msgs = [
       msg("user", "a"), msg("assistant", "b"),
       msg("user", "c"), msg("assistant", "d"),
@@ -242,8 +240,66 @@ describe("verifyLineage", () => {
       msg("assistant", "h"),      // New
       msg("user", "i"),           // New
     ]
-    const result = verifyLineage(session, extended, "key", mockCache)
-    // Should be continuation, NOT undo — the conversation grew
+    const result = verifyLineage(session, extended)
+    expect(result).toEqual({
+      type: "diverged",
+      reason: "modified-history",
+      prefixOverlap: 6,
+    })
+  })
+
+  it("does not mutate cached state when a stale 515-message session receives 727 messages", () => {
+    const cachedMessages = Array.from({ length: 515 }, (_, i) =>
+      msg(i % 2 === 0 ? "user" : "assistant", `cached-${i}`)
+    )
+    const session = makeSession({
+      lineageHash: computeLineageHash(cachedMessages),
+      messageCount: cachedMessages.length,
+      messageHashes: computeMessageHashes(cachedMessages),
+    })
+    const originalHashes = [...session.messageHashes!]
+    const incoming = [
+      ...cachedMessages.slice(0, 514),
+      msg("user", "changed-boundary"),
+      ...Array.from({ length: 212 }, (_, i) =>
+        msg((i + 515) % 2 === 0 ? "user" : "assistant", `new-${i}`)
+      ),
+    ]
+
+    const result = verifyLineage(session, incoming)
+
+    expect(incoming).toHaveLength(727)
+    expect(result).toEqual({
+      type: "diverged",
+      reason: "modified-history",
+      prefixOverlap: 514,
+    })
+    expect(session.messageCount).toBe(515)
+    expect(session.lineageHash).toBe(computeLineageHash(cachedMessages))
+    expect(session.messageHashes).toEqual(originalHashes)
+  })
+
+  it("ignores cache_control changes when verifying a strict continuation", () => {
+    const cachedMessages = [{
+      role: "user",
+      content: [{ type: "text", text: "hello" }],
+    }]
+    const session = makeSession({
+      lineageHash: computeLineageHash(cachedMessages),
+      messageCount: cachedMessages.length,
+      messageHashes: computeMessageHashes(cachedMessages),
+    })
+    const incoming = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "hello", cache_control: { type: "ephemeral" } }],
+      },
+      msg("assistant", "hi"),
+      msg("user", "continue"),
+    ]
+
+    const result = verifyLineage(session, incoming)
+
     expect(result.type).toBe("continuation")
   })
 
@@ -265,7 +321,7 @@ describe("verifyLineage", () => {
       msg("user", "a"), msg("assistant", "b"),
       msg("user", "c"), msg("assistant", "d-modified"),
     ]
-    const result = verifyLineage(session, modified, "key", mockCache)
+    const result = verifyLineage(session, modified)
     expect(result.type).toBe("undo")
   })
 
@@ -284,7 +340,7 @@ describe("verifyLineage", () => {
     })
     // Fewer messages — clear undo
     const undone = [msg("user", "a"), msg("assistant", "b"), msg("user", "new")]
-    const result = verifyLineage(session, undone, "key", mockCache)
+    const result = verifyLineage(session, undone)
     expect(result.type).toBe("undo")
   })
 
@@ -297,7 +353,7 @@ describe("verifyLineage", () => {
       messageCount: msgs.length,
       messageHashes: computeMessageHashes(msgs),
     })
-    const result = verifyLineage(session, msgs, "key", mockCache)
+    const result = verifyLineage(session, msgs)
     expect(result.type).toBe("diverged")
   })
 
@@ -311,7 +367,7 @@ describe("verifyLineage", () => {
       messageCount: msgs.length,
       messageHashes: computeMessageHashes(msgs),
     })
-    const result = verifyLineage(session, msgs, "key", mockCache)
+    const result = verifyLineage(session, msgs)
     expect(result.type).toBe("diverged")
   })
 
@@ -324,7 +380,7 @@ describe("verifyLineage", () => {
       messageHashes: computeMessageHashes(msgs),
     })
     const extended = [...msgs, msg("assistant", "hi"), msg("user", "how are you?")]
-    const result = verifyLineage(session, extended, "key", mockCache)
+    const result = verifyLineage(session, extended)
     expect(result.type).toBe("continuation")
   })
 
@@ -341,13 +397,23 @@ describe("verifyLineage", () => {
       messageCount: msgs.length,
       messageHashes: hashes,
     })
-    // Compaction: change beginning, keep last MIN_SUFFIX_FOR_COMPACTION messages
+    const originalLineageHash = session.lineageHash
+    const originalMessageHashes = [...session.messageHashes!]
+    // Compaction: change beginning, keep the stored suffix, append a new turn.
     const compacted = [
       msg("user", "summary"), // replaced
       msg("user", "e"), msg("assistant", "f"), // preserved suffix
+      msg("assistant", "new response"), msg("user", "continue"),
     ]
-    const result = verifyLineage(session, compacted, "key", mockCache)
+    const result = verifyLineage(session, compacted)
     expect(result.type).toBe("compaction")
+    if (result.type === "compaction") {
+      expect(result.resumeFrom).toBe(3)
+      expect(result.suffixOverlap).toBe(2)
+    }
+    expect(session.messageCount).toBe(msgs.length)
+    expect(session.lineageHash).toBe(originalLineageHash)
+    expect(session.messageHashes).toEqual(originalMessageHashes)
   })
 
   it("does not false-detect compaction when suffix hashes appear at wrong positions (regression #283)", () => {
@@ -374,7 +440,7 @@ describe("verifyLineage", () => {
       msg("user", "completely-new"),
       msg("assistant", "also-new"),
     ]
-    const result = verifyLineage(session, incoming, "key", mockCache)
+    const result = verifyLineage(session, incoming)
     // Must NOT be compaction — the suffix is at the wrong position
     expect(result.type).not.toBe("compaction")
     expect(result.type).toBe("diverged")
