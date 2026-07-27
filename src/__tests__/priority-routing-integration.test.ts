@@ -461,3 +461,110 @@ describe("priority cooldown resolution", () => {
     expect(capturedEnvs.some(e => e.includes("prof-personal"))).toBe(true)
   }, 20_000)
 })
+
+describe("keyless priority affinity", () => {
+  beforeEach(() => {
+    capturedEnvs = []
+    failingDirs = new Set()
+    clearSessionCache()
+    resetActiveProfile()
+    rateLimitStore.clear()
+    // Mirror the existing blocks exactly — MERIDIAN_PROFILE_ORDER matters,
+    // and the shared `savedEnv` object is restored wholesale in afterEach.
+    savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
+    savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    process.env.MERIDIAN_ROUTING = "priority"
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+  })
+
+  afterEach(() => {
+    rateLimitStore.clear()
+    // Same restore loop the other describe blocks use — copy it verbatim from
+    // the "priority routing" block's afterEach rather than hand-rolling one.
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v !== undefined) process.env[k] = v
+      else delete process.env[k]
+    }
+  })
+
+  it("keeps a KEYLESS conversation on its failed-over profile after the preferred one recovers", async () => {
+    // A short-out reset makes work's exhaustion mark expire soon after being
+    // set, so "the cooldown elapsed" is testable without a real 10-minute
+    // (default) or multi-hour wait. The gate added in #697 requires status
+    // "rejected" (or utilization >= 1) for the entry to be trusted as the
+    // cooldown source — and that trust check (`resetsAt > now`) is evaluated
+    // only AFTER turn 1's own rate-limit retry ladder (2 retries, 1s + 2s
+    // backoff = ~3s real time) has already run its course. A resetsAt inside
+    // that ~3s window would already be in the past by the time the mark is
+    // set, so tier 1 would reject it and fall back to the 10-minute default
+    // — silently defeating the "quick recovery" setup below. 3.4s clears
+    // that floor with margin; the follow-up sleep only needs to cross the
+    // remaining gap to resetsAt, so it can stay short.
+    rateLimitStore.record("work", {
+      status: "rejected",
+      rateLimitType: "five_hour",
+      utilization: 1,
+      resetsAt: Date.now() + 3_400,
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+
+    // Turn 1 — no session header of any kind. Fails over to personal.
+    const r1 = await post(app, {}, "keyless conversation")
+    expect(r1.status).toBe(200)
+
+    // work recovers AND its exhaustion mark expires.
+    failingDirs.delete("prof-work")
+    await Bun.sleep(3_600)
+    capturedEnvs = []
+
+    // Turn 2 of the SAME conversation. getConversationFingerprint keys off the
+    // FIRST user message, so re-sending it is a faithful stand-in for a longer
+    // turn-2 payload that opens with the same message.
+    const r2 = await post(app, {}, "keyless conversation")
+    expect(r2.status).toBe(200)
+    expect(capturedEnvs.every((e) => e.includes("prof-personal"))).toBe(true)
+  }, 20_000)
+
+  it("gives two keyless conversations independent assignments", async () => {
+    // MUST be recorded BEFORE the failing request. ProfileExhaustion.mark only
+    // ever EXTENDS a mark, so recording this after the failure would leave the
+    // 10-minute default in place and work would never come back inside the test.
+    // See the timing note in the previous test — resetsAt must clear turn 1's
+    // ~3s rate-limit retry ladder or tier 1 discards it for the 10-minute
+    // default and this recovery never happens.
+    rateLimitStore.record("work", {
+      status: "rejected", rateLimitType: "five_hour", utilization: 1, resetsAt: Date.now() + 3_400,
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    // Conversation A fails over to personal and is assigned there.
+    expect((await post(app, {}, "conversation A")).status).toBe(200)
+
+    // work recovers and its mark expires, so a DIFFERENT conversation is free
+    // to use it — proving the assignment is per-conversation, not global.
+    failingDirs.delete("prof-work")
+    await Bun.sleep(3_600)
+    capturedEnvs = []
+    expect((await post(app, {}, "conversation B")).status).toBe(200)
+    expect(capturedEnvs.some((e) => e.includes("prof-work"))).toBe(true)
+  }, 20_000)
+
+  it("lands a keyless fork on the same account as its parent", async () => {
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    // Parent fails over to personal.
+    expect((await post(app, {}, "shared opening")).status).toBe(200)
+
+    failingDirs.delete("prof-work")
+    await Bun.sleep(70)
+    capturedEnvs = []
+    // A fork shares the parent's first message, so it shares the fingerprint
+    // and therefore the account. This deliberately diverges from the session
+    // RESUME independence guard: an assignment picks an account, never a
+    // session, so sharing costs nothing and preserves a warm cache.
+    const fork = await post(app, { "x-meridian-source": "fork-memory-extract" }, "shared opening")
+    expect(fork.status).toBe(200)
+    expect(capturedEnvs.every((e) => e.includes("prof-personal"))).toBe(true)
+  }, 20_000)
+})

@@ -93,6 +93,7 @@ import {
   type TokenUsageIteration,
   type TokenUsage,
 } from "./session/lineage"
+import { getPriorityAssignmentKey } from "./session/fingerprint"
 // Re-export for backwards compatibility (existing tests import from here)
 
 import { lookupSession, storeSession, clearSessionCache, getMaxSessionsLimit, evictSession, getSessionByClaudeId } from "./session/cache"
@@ -759,7 +760,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           if (effectivePool.length > 1) {
             const { order, unknown } = resolvePriorityOrder(effectivePool.map(p => p.id), priorityProfileOrderSetting())
             if (unknown.length > 0) claudeLog("priority.unknown_order_ids", { unknown })
-            const sessionKey = adapter.getSessionId(c, body) || null
+            // Keyless clients (pylon's main process, OpenCode setups that omit
+            // x-opencode-session) fall back to the conversation fingerprint —
+            // without it they re-pick an account every turn and bounce back to
+            // the preferred profile the moment its cooldown expires, replaying
+            // the whole history against a cold cache.
+            const assignmentCwd = adapter.extractClientWorkingDirectory?.(body)
+              ?? adapter.extractWorkingDirectory(body)
+            const sessionKey = getPriorityAssignmentKey(
+              adapter.getSessionId(c, body),
+              body.messages,
+              assignmentCwd,
+            )
             const assigned = sessionKey ? priorityAssignments.get(sessionKey) : undefined
             // Assignment affinity: an existing conversation stays on its
             // account while that account is healthy (protects warm prompt
