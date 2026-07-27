@@ -479,10 +479,22 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   }
 
   /** Tier 1 + 3: this profile's own observed five_hour reset, else a
-   *  conservative default so a mis-mark self-heals. Never blocks. */
+   *  conservative default so a mis-mark self-heals. Never blocks.
+   *
+   *  Gated the same way as tier 2's `refinePriorityCooldown`: a healthy
+   *  account always has a `five_hour` window with a future `resetsAt` —
+   *  that boundary exists regardless of consumption, so a scoped entry's
+   *  mere presence doesn't prove the five-hour window caused THIS failure
+   *  (it could be a seven_day cap, or a transient upstream error). Only
+   *  trust the entry's `resetsAt` when it says the window was actually
+   *  exhausted (`status === "rejected"`, or `utilization >= 1` for older
+   *  entries that predate the `status` field); otherwise fall through to
+   *  the conservative default so tier 2 isn't left refining a wrong mark
+   *  it has no way to challenge. */
   function priorityCooldownUntil(profileId: string, now: number): number {
     const fiveHour = rateLimitStore.getAll(profileId)
-      .find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now)
+      .find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now
+        && (e.status === "rejected" || (e.utilization ?? 0) >= 1))
     const until = fiveHour?.resetsAt ?? now + PRIORITY_DEFAULT_COOLDOWN_MS
     return Math.min(until, now + PRIORITY_COOLDOWN_CAP_MS)
   }
@@ -504,12 +516,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    *  to a boundary that has nothing to do with the failure. A missing/null
    *  `utilization` is treated as NOT exhausted — under-suppressing is the
    *  safe direction; over-suppressing a healthy profile is the bug this
-   *  gate exists to prevent. */
+   *  gate exists to prevent.
+   *
+   *  `force: true` bypasses `fetchOAuthUsage`'s 30s cache: exhaustion is
+   *  rare (off the hot path) and `/v1/usage/quota/all` polling routinely
+   *  keeps that cache warm with a snapshot recorded just before the failure,
+   *  which would otherwise show "just under 1" and starve this refinement
+   *  right when it's needed. `force` only skips the cache read — the
+   *  in-flight-request de-dupe still applies after it, so concurrent
+   *  exhaustions of the same profile still share one upstream call rather
+   *  than stampeding it. A `stale: true` snapshot (served when a fresh fetch
+   *  failed transiently) is not authoritative about the current window, so
+   *  it's skipped too — the conservative default is the safer thing to
+   *  leave standing. */
   function refinePriorityCooldown(profileId: string): void {
     const target = getEffectiveProfiles(finalConfig.profiles).find(p => p.id === profileId)
-    void fetchOAuthUsage({ profileId, claudeConfigDir: target?.claudeConfigDir })
+    void fetchOAuthUsage({ profileId, claudeConfigDir: target?.claudeConfigDir, force: true })
       .then(usage => {
-        if (!usage) return
+        if (!usage || usage.stale) return
         const fiveHour = usage.windows.find(w => w.type === "five_hour")
         if (!fiveHour || (fiveHour.utilization ?? 0) < 1) return
         const now = Date.now()

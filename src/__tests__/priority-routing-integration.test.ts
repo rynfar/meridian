@@ -83,6 +83,26 @@ async function exhaustedMarks(app: { fetch: (r: Request) => Response | Promise<R
 
 const savedEnv: Record<string, string | undefined> = {}
 
+// File-level: every test in this file exhausts a profile through
+// dispatchPriority at some point, which fires refinePriorityCooldown ->
+// fetchOAuthUsage as a real (if fire-and-forget) side effect. Without this,
+// the "priority routing" describe block below (which predates the OAuth
+// refinement tier and sets no override of its own) would hit the real
+// fetchOAuthUsage -> createPlatformCredentialStore on every exhaustion,
+// spawning a `security find-generic-password` subprocess per call and, where
+// a matching credential exists, making a live HTTPS call to Anthropic from
+// the test suite. The "priority cooldown resolution" describe block below
+// still sets its own per-test override in its own beforeEach; Bun runs outer
+// (file-level) hooks before inner (describe-level) ones, so those overrides
+// still win for those tests.
+beforeEach(() => {
+  __setFetchOAuthUsageOverride(async () => null)
+})
+
+afterEach(() => {
+  __setFetchOAuthUsageOverride(null)
+})
+
 describe("priority routing", () => {
   beforeEach(() => {
     capturedEnvs = []
@@ -259,6 +279,31 @@ describe("priority cooldown resolution", () => {
       rateLimitType: "five_hour",
       utilization: 0.5,
       resetsAt: Date.now() + 5 * 60 * 60_000,
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    await post(app)
+    const after = Date.now()
+
+    const marks = await exhaustedMarks(app)
+    const until = marks.map(m => m.until)
+    expect(until).toHaveLength(1)
+    expect(until.every(u => u >= before + 10 * 60_000 && u <= after + 10 * 60_000)).toBe(true)
+  }, 20_000)
+
+  it("falls back to the 10-minute default when the profile's own five_hour entry is healthy (allowed, utilization < 1)", async () => {
+    // A healthy account always has a five_hour entry with a future resetsAt
+    // — that boundary exists regardless of consumption. This entry alone
+    // doesn't prove the five-hour window caused the failure that's being
+    // handled right now (it could be a seven_day cap instead), so the
+    // synchronous tier-1 mark must not adopt this resetsAt.
+    const futureReset = Date.now() + 3 * 60 * 60_000 // several hours out
+    rateLimitStore.record("work", {
+      status: "allowed",
+      rateLimitType: "five_hour",
+      utilization: 0.4,
+      resetsAt: futureReset,
     })
     failingDirs.add("prof-work")
     const app = createTestApp()
