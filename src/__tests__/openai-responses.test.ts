@@ -40,6 +40,34 @@ describe("translateResponsesToAnthropic", () => {
     expect(r.messages[0]!.role).toBe("user")
   })
 
+  // Bare `{role, content}` items are spec-valid and sent by the Vercel AI SDK.
+  it("treats input items without a type as messages", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        { role: "system", content: "Be terse." },
+        { role: "user", content: [{ type: "input_text", text: "hello" }] },
+        { role: "assistant", content: [{ type: "output_text", text: "hi" }] },
+      ],
+    })!
+    expect(r.system).toContain("Be terse.")
+    expect(r.messages).toEqual([
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+      { role: "assistant", content: [{ type: "text", text: "hi" }] },
+    ])
+  })
+
+  it("still ignores items that carry no role", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        { type: "reasoning", id: "rs_123" },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "hello" }] },
+      ],
+    })!
+    expect(r.messages).toEqual([{ role: "user", content: [{ type: "text", text: "hello" }] }])
+  })
+
   it("maps input_image data URLs to Anthropic image blocks", () => {
     const dataUrl = "data:image/png;base64,iVBORw0KGgo="
     const r = translateResponsesToAnthropic({

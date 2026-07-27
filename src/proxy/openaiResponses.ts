@@ -37,7 +37,8 @@ interface ResponsesContentPart {
 }
 
 interface ResponsesMessageItem {
-  type: "message"
+  /** Optional per the spec — `EasyInputMessage` requires only `role`. */
+  type?: "message"
   role: "user" | "assistant" | "developer" | "system"
   content: ResponsesContentPart[] | string
 }
@@ -165,7 +166,11 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
   }
 
   for (const item of items) {
-    switch (item.type) {
+    // Codex always sends `type`, but it defaults to "message" when omitted.
+    // Without this, bare `{role, content}` items hit `default:` and are
+    // dropped, leaving zero messages — upstream then 400s on empty messages.
+    const itemType = item.type ?? ("role" in item ? "message" : undefined)
+    switch (itemType) {
       case "message": {
         const msg = item as ResponsesMessageItem
         if (msg.role === "developer" || msg.role === "system") {
