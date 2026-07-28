@@ -55,6 +55,16 @@ interface OAuthCredentials {
   accessToken: string
   refreshToken: string
   expiresAt: number
+  /**
+   * When the *refresh* token itself stops working — i.e. when the login dies
+   * and an interactive `claude login` becomes mandatory. Written by the CLI at
+   * login; optional because nothing guarantees its presence.
+   *
+   * Distinct from `expiresAt`, which is the ~8h access-token lifetime that the
+   * background scheduler rolls on its own. No amount of refreshing extends
+   * this one unless Anthropic hands back a new value (see `doRefresh`).
+   */
+  refreshTokenExpiresAt?: number
   scopes?: string[]
   subscriptionType?: string
   rateLimitTier?: string
@@ -298,7 +308,14 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
     return false
   }
 
-  let tokenData: { access_token: string; refresh_token?: string; expires_in?: number; expires_at?: number }
+  let tokenData: {
+    access_token: string
+    refresh_token?: string
+    expires_in?: number
+    expires_at?: number
+    refresh_token_expires_at?: number
+    refresh_token_expires_in?: number
+  }
   try {
     tokenData = await response.json() as typeof tokenData
   } catch (err) {
@@ -311,17 +328,37 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
     tokenData.expires_at ??
     (tokenData.expires_in ? now + tokenData.expires_in * 1000 : now + 8 * 60 * 60 * 1000)
 
+  // The refresh token is rotated on every refresh, so its expiry may roll
+  // forward too. Anthropic does not currently document returning this, and the
+  // old code dropped it unconditionally — leaving the on-disk value frozen at
+  // login time and any renewal countdown built on it pessimistic. Persist it
+  // when offered; keep the previous value when not, which is the conservative
+  // direction (warn early rather than never).
+  const refreshTokenExpiresAtRaw =
+    tokenData.refresh_token_expires_at ??
+    (tokenData.refresh_token_expires_in ? now + tokenData.refresh_token_expires_in * 1000 : undefined)
+  // A refresh that just succeeded proves the refresh token is still valid, so
+  // its expiry must lie in the future. Reject anything else — a seconds-rather
+  // -than-ms value would land in 1970 and read downstream as "login already
+  // expired", turning a healthy proxy into a permanent alert.
+  const refreshTokenExpiresAt =
+    refreshTokenExpiresAtRaw && refreshTokenExpiresAtRaw > now ? refreshTokenExpiresAtRaw : undefined
+
   credentials.claudeAiOauth = {
     ...credentials.claudeAiOauth,
     accessToken: tokenData.access_token,
     refreshToken: tokenData.refresh_token ?? refreshToken,
     expiresAt,
+    ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : {}),
   }
 
   const written = await store.write(credentials)
   if (!written) return false
 
-  claudeLog("token_refresh.success", { expiresAt })
+  // Logged so it is observable whether Anthropic ever rolls the refresh-token
+  // window — undefined here means the renewal countdown stays anchored to the
+  // last interactive login.
+  claudeLog("token_refresh.success", { expiresAt, refreshTokenExpiresAt })
   return true
 }
 
@@ -349,6 +386,65 @@ export async function ensureFreshToken(
   if (!expiresAt) return false
   if (expiresAt - Date.now() > bufferMs) return true
   return refreshOAuthToken(s)
+}
+
+/**
+ * Default warning window before the login dies, in days.
+ *
+ * Three, matching the CLI's own `tff` constant — the window outside which it
+ * suppresses the expiry tip entirely. The login only lasts 30 days, so a wider
+ * window would spend a tenth of every cycle in the alerting state and train
+ * the alert to be ignored. Override with MERIDIAN_AUTH_RENEWAL_WARN_DAYS.
+ */
+export const DEFAULT_RENEWAL_WARN_DAYS = 3
+
+export interface AuthRenewalStatus {
+  /** Epoch ms the refresh token stops working, when known. */
+  refreshTokenExpiresAt?: number
+  /** Whole days until then. Negative once it has passed. */
+  daysUntilRenewal?: number
+  /** True once inside the warning window — the field monitors should alert on. */
+  renewalRequiredSoon: boolean
+}
+
+/**
+ * Report how long the *login* has left, as opposed to the access token.
+ *
+ * This is the signal behind Claude Code's "your login expires in N days"
+ * warning: when the refresh token dies, the background scheduler can no longer
+ * keep the proxy alive and someone must run `claude login` interactively.
+ * Nothing in the automated path recovers from it.
+ *
+ * `renewalRequiredSoon` stays false when the expiry is unknown — an absent
+ * field is not evidence of an imminent problem, and alerting on it would fire
+ * on every deployment that predates the CLI writing it.
+ */
+export async function getAuthRenewalStatus(
+  store?: CredentialStore,
+  warnDays = DEFAULT_RENEWAL_WARN_DAYS,
+): Promise<AuthRenewalStatus> {
+  const s = store ?? createPlatformCredentialStore()
+  let credentials: CredentialsFile | null = null
+  try {
+    credentials = await s.read()
+  } catch {
+    return { renewalRequiredSoon: false }
+  }
+
+  const refreshTokenExpiresAt = credentials?.claudeAiOauth?.refreshTokenExpiresAt
+  if (!refreshTokenExpiresAt) return { renewalRequiredSoon: false }
+
+  const msRemaining = refreshTokenExpiresAt - Date.now()
+  // Ceil, matching the CLI's own `Math.ceil(remaining / 86400000)` so this
+  // number reads identically to the "Your login expires in N days" warning
+  // Claude Code prints. Flooring here would report one day fewer than the
+  // terminal does and make the two impossible to reconcile.
+  const daysUntilRenewal = Math.ceil(msRemaining / 86_400_000)
+  return {
+    refreshTokenExpiresAt,
+    daysUntilRenewal,
+    renewalRequiredSoon: daysUntilRenewal <= warnDays,
+  }
 }
 
 // ---------------------------------------------------------------------------

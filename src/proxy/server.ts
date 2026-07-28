@@ -50,7 +50,7 @@ import { LRUMap } from "../utils/lruMap"
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
 import { classifyError, extractSdkTermination, formatSdkTermination, isStaleSessionError, isBusySessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
-import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, type CredentialStore } from "./tokenRefresh"
+import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, getAuthRenewalStatus, DEFAULT_RENEWAL_WARN_DAYS, type CredentialStore } from "./tokenRefresh"
 import {
   createFileDesignTokenStore,
   createDesignLogin,
@@ -3662,6 +3662,28 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // lazy in createProxyServer); startProxyServer eagerly populates it.
       const claudeExecutableInfo = getResolvedClaudeExecutableInfo()
 
+      // How long the login itself has left. Surfaced here because it is the
+      // one auth failure the proxy cannot recover from on its own, and it is
+      // knowable days in advance — external monitors alert on
+      // `renewalRequiredSoon`. Best-effort: a credential-store hiccup must not
+      // turn a healthy proxy into a degraded one.
+      const rawWarnDays = process.env.MERIDIAN_AUTH_RENEWAL_WARN_DAYS
+      const parsedWarnDays = rawWarnDays ? Number(rawWarnDays) : NaN
+      // Explicit finite check rather than `|| DEFAULT`: 0 is a legitimate
+      // setting (warn only once the login has actually lapsed) and would
+      // otherwise be swallowed as falsy.
+      const warnDays = Number.isFinite(parsedWarnDays) && parsedWarnDays >= 0
+        ? parsedWarnDays
+        : DEFAULT_RENEWAL_WARN_DAYS
+      // Read the *profile's* credential store, not the default one — profiles
+      // are separate auth contexts keyed by CLAUDE_CONFIG_DIR, so the default
+      // store would report an unrelated account's expiry.
+      const renewalConfigDir = profileEnvOverrides?.CLAUDE_CONFIG_DIR
+      const renewal = await getAuthRenewalStatus(
+        renewalConfigDir ? createPlatformCredentialStore({ claudeConfigDir: renewalConfigDir }) : undefined,
+        warnDays,
+      ).catch(() => ({ renewalRequiredSoon: false }))
+
       return c.json({
         status: "healthy",
         version: serverVersion,
@@ -3669,6 +3691,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           loggedIn: true,
           email: auth.email,
           subscriptionType: auth.subscriptionType,
+          ...renewal,
         },
         mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
         ...(claudeExecutableInfo ? { claudeExecutable: claudeExecutableInfo } : {}),
