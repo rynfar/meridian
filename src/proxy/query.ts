@@ -199,6 +199,43 @@ export function buildCwdNote(sdkCwd: string, clientCwd?: string): string {
   )
 }
 
+/**
+ * Correct the provenance claim on the preset's `gitStatus` block.
+ *
+ * The `claude_code` preset injects a `gitStatus:` section stating verbatim that
+ * it is "the git status at the start of the conversation" and "will not update
+ * during the conversation". In the real Claude Code CLI that holds: one
+ * long-lived process serves the whole conversation, so the snapshot really is
+ * from its start.
+ *
+ * Meridian breaks that invariant. Every turn is a separate HTTP request and a
+ * separate `query()`, so the SDK recomputes the block each time while it keeps
+ * asserting it is the conversation's starting state. Files the model created in
+ * earlier turns therefore reappear as apparently pre-existing work, and the
+ * model concludes it overwrote the user's uncommitted changes — #694, where it
+ * reported destroying two work-in-progress files it had written itself.
+ *
+ * Verified live: a file created by a third party after session start appears in
+ * the block under the "start of the conversation" caveat, on a session whose
+ * lineage is an unbroken continuation chain. This is not a history-loss bug, so
+ * the resume fixes (#705, #719) do not address it.
+ *
+ * Only meaningful alongside the preset — it is the preset that injects the block
+ * being corrected — so it is appended in that branch only.
+ */
+export const GIT_STATUS_PROVENANCE_NOTE =
+  `\n\n<meridian-note>\n` +
+  `You are reached through a proxy that issues a separate request per turn, so ` +
+  `the \`gitStatus\` block in your system prompt is recomputed at the start of ` +
+  `every turn — despite its claim to describe "the start of the conversation". ` +
+  `Read it as the working tree as of this turn and nothing more. It is not ` +
+  `evidence that a file predates the conversation: files you yourself created or ` +
+  `edited in earlier turns appear in it exactly like pre-existing changes. To ` +
+  `judge whether something predates the conversation, rely on the conversation ` +
+  `history and your own prior tool calls, and run \`git status\` when you need ` +
+  `the current tree.\n` +
+  `</meridian-note>`
+
 function resolveSystemPrompt(
   systemContext: string | undefined,
   passthrough: boolean,
@@ -211,13 +248,14 @@ function resolveSystemPrompt(
   const usePreset = codeSystemPrompt ?? (hasSettings || (!passthrough && !!systemContext))
   const includeClient = clientSystemPrompt ?? true
   const clientContext = includeClient ? systemContext : undefined
-  const append = [clientContext, cwdNote].filter(Boolean).join("") || undefined
 
   if (usePreset) {
-    return append
-      ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } }
-      : { systemPrompt: { type: "preset" as const, preset: "claude_code" as const } }
+    // Always non-empty: the gitStatus correction applies to every preset
+    // request, whether or not the client sent a system prompt.
+    const append = [clientContext, cwdNote, GIT_STATUS_PROVENANCE_NOTE].filter(Boolean).join("")
+    return { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } }
   }
+  const append = [clientContext, cwdNote].filter(Boolean).join("") || undefined
   if (append) return { systemPrompt: append }
   // Defensive: when `codeSystemPrompt: false` is explicit and there's
   // nothing to append, force an empty-string system prompt so the SDK

@@ -198,11 +198,11 @@ describe("Phase 2: Message format preservation", () => {
 
     // System prompt should be passed via systemPrompt option (append to Claude Code default)
     expect(capturedQueryParams).toBeDefined()
-    expect(capturedQueryParams.options.systemPrompt).toEqual({
-      type: "preset",
-      preset: "claude_code",
-      append: "You are a helpful assistant.",
-    })
+    // The client's system prompt leads the append; Meridian's own addenda (the
+    // gitStatus provenance note, #694) follow it.
+    expect(capturedQueryParams.options.systemPrompt.type).toBe("preset")
+    expect(capturedQueryParams.options.systemPrompt.preset).toBe("claude_code")
+    expect(capturedQueryParams.options.systemPrompt.append).toStartWith("You are a helpful assistant.")
     // Prompt text should NOT contain the system context (it's in the SDK option now)
     const prompt = capturedQueryParams.prompt
     expect(typeof prompt).toBe("string")

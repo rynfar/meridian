@@ -302,11 +302,10 @@ describe("Multimodal content", () => {
     })).json()
 
     // System context should be in SDK option, not injected as a structured message
-    expect(capturedQueryParams.options.systemPrompt).toEqual({
-      type: "preset",
-      preset: "claude_code",
-      append: "You are a helpful assistant.",
-    })
+    expect(capturedQueryParams.options.systemPrompt.type).toBe("preset")
+    expect(capturedQueryParams.options.systemPrompt.preset).toBe("claude_code")
+    // Leads with the client's prompt; Meridian's gitStatus note (#694) follows.
+    expect(capturedQueryParams.options.systemPrompt.append).toStartWith("You are a helpful assistant.")
 
     const messages: any[] = []
     for await (const msg of capturedQueryParams.prompt) {

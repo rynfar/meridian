@@ -2,7 +2,7 @@
  * Tests for the SDK query options builder.
  */
 import { describe, it, expect } from "bun:test"
-import { buildQueryOptions, type QueryContext } from "../proxy/query"
+import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 
 function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
@@ -118,7 +118,9 @@ describe("buildQueryOptions", () => {
     const sp = (result.options as any).systemPrompt
     expect(sp).toBeDefined()
     expect(sp.type).toBe("preset")
-    expect(sp.append).toBe("Be helpful")
+    expect(sp.append).toStartWith("Be helpful")
+    // Every preset request also carries the gitStatus provenance note (#694).
+    expect(sp.append).toContain(GIT_STATUS_PROVENANCE_NOTE)
   })
 
   it("uses raw system prompt in passthrough mode", () => {
@@ -329,7 +331,9 @@ describe("buildQueryOptions", () => {
     const sp = (result.options as any).systemPrompt
     expect(sp.type).toBe("preset")
     expect(sp.preset).toBe("claude_code")
-    expect(sp.append).toBe("Be helpful")
+    expect(sp.append).toStartWith("Be helpful")
+    // Every preset request also carries the gitStatus provenance note (#694).
+    expect(sp.append).toContain(GIT_STATUS_PROVENANCE_NOTE)
   })
 
   it("uses preset with append in passthrough + settingSources", () => {
@@ -341,10 +345,12 @@ describe("buildQueryOptions", () => {
     const sp = (result.options as any).systemPrompt
     expect(sp.type).toBe("preset")
     expect(sp.preset).toBe("claude_code")
-    expect(sp.append).toBe("Be helpful")
+    expect(sp.append).toStartWith("Be helpful")
+    // Every preset request also carries the gitStatus provenance note (#694).
+    expect(sp.append).toContain(GIT_STATUS_PROVENANCE_NOTE)
   })
 
-  it("uses bare preset when settingSources set but no systemContext", () => {
+  it("appends only Meridian's own note when settingSources set but no systemContext", () => {
     const result = buildQueryOptions(makeContext({
       systemContext: "",
       settingSources: ["user", "project"],
@@ -352,7 +358,8 @@ describe("buildQueryOptions", () => {
     const sp = (result.options as any).systemPrompt
     expect(sp.type).toBe("preset")
     expect(sp.preset).toBe("claude_code")
-    expect(sp.append).toBeUndefined()
+    // No client context to append, so the gitStatus note (#694) stands alone.
+    expect(sp.append).toBe(GIT_STATUS_PROVENANCE_NOTE)
   })
 
   it("omits systemPrompt when no systemContext and no settingSources", () => {
@@ -478,7 +485,9 @@ describe("buildQueryOptions", () => {
     const sp = (result.options as any).systemPrompt
     expect(sp.type).toBe("preset")
     expect(sp.preset).toBe("claude_code")
-    expect(sp.append).toBe("Agent instructions")
+    expect(sp.append).toStartWith("Agent instructions")
+    // Every preset request also carries the gitStatus provenance note (#694).
+    expect(sp.append).toContain(GIT_STATUS_PROVENANCE_NOTE)
   })
 
   it("skips preset when codeSystemPrompt is false in normal mode", () => {
@@ -503,7 +512,7 @@ describe("buildQueryOptions", () => {
     expect((result.options as any).systemPrompt).toBe("")
   })
 
-  it("shows preset without append when codeSystemPrompt true but clientSystemPrompt false", () => {
+  it("drops the client prompt from the append when clientSystemPrompt is false", () => {
     const result = buildQueryOptions(makeContext({
       systemContext: "Agent instructions",
       codeSystemPrompt: true,
@@ -512,7 +521,10 @@ describe("buildQueryOptions", () => {
     const sp = (result.options as any).systemPrompt
     expect(sp.type).toBe("preset")
     expect(sp.preset).toBe("claude_code")
-    expect(sp.append).toBeUndefined()
+    // The guard: the client's prompt is suppressed. Meridian's own gitStatus
+    // note is not client content, so it stays.
+    expect(sp.append).not.toContain("Agent instructions")
+    expect(sp.append).toBe(GIT_STATUS_PROVENANCE_NOTE)
   })
 
   it("strips client prompt when clientSystemPrompt is false in passthrough", () => {
@@ -543,7 +555,9 @@ describe("buildQueryOptions", () => {
     }))
     const sp = (result.options as any).systemPrompt
     expect(sp.type).toBe("preset")
-    expect(sp.append).toBe("Agent instructions")
+    expect(sp.append).toStartWith("Agent instructions")
+    // Every preset request also carries the gitStatus provenance note (#694).
+    expect(sp.append).toContain(GIT_STATUS_PROVENANCE_NOTE)
     const opts = result.options as any
     expect(opts.settingSources).toEqual(["user", "project"])
   })
