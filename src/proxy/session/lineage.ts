@@ -261,15 +261,34 @@ export function verifyLineage(
   const suffixStartInIncoming = incomingHashes.length - suffixOverlap >= 0
     ? findSuffixAnchorStart(cached.messageHashes, incomingHashes, suffixOverlap)
     : -1
+  // resumeFrom is a slice start, so the preserved suffix must also end before
+  // the last message — a run that reaches the end leaves nothing to send. The
+  // fast path already refuses that shape ("replayed-request"); without the same
+  // guard here, a false suffix match resumes with an empty delta and the caller
+  // falls back to getLastUserMessage().
+  //
+  // That fallback is what makes it silent rather than merely wasteful. Stateless
+  // chat frontends re-send the whole history every turn and append a constant
+  // trailing block after the user's own message (an injected assistant line, a
+  // prefill sent as a user message). Repeat a turn verbatim and that block
+  // matches the stored tail for several slots, so the anchor lands on the final
+  // message. getLastUserMessage() then returns the constant trailing message
+  // instead of the turn the user just typed, and the request reaches the model
+  // with the user's input missing — 200, fluent output, nothing in the logs.
+  //
+  // Genuine compaction is unaffected: a client that compacts also appends the
+  // new turn, which keeps the suffix run away from the end.
+  const compactionResumeFrom = suffixStartInIncoming + suffixOverlap
   if (
     suffixOverlap >= MIN_SUFFIX_FOR_COMPACTION &&
     cached.messageHashes.length >= MIN_STORED_FOR_COMPACTION &&
-    suffixStartInIncoming > 0   // at least one changed message before the preserved suffix
+    suffixStartInIncoming > 0 &&            // at least one changed message before the preserved suffix
+    compactionResumeFrom < messages.length  // and at least one new message after it
   ) {
     return {
       type: "compaction",
       session: cached,
-      resumeFrom: suffixStartInIncoming + suffixOverlap,
+      resumeFrom: compactionResumeFrom,
       suffixOverlap,
     }
   }

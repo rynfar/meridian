@@ -167,7 +167,10 @@ describe("lineage safety: invariants", () => {
       const incomingHashes = computeMessageHashes(s.incoming)
       const { resumeFrom } = result
 
-      expect(resumeFrom, `${s.label} resumeFrom past end`).toBeLessThanOrEqual(s.incoming.length)
+      // Strictly inside the array: resumeFrom is a slice start, so resuming at
+      // the end sends nothing and the caller silently falls back to the last
+      // user message, which is not necessarily the turn the client just added.
+      expect(resumeFrom, `${s.label} resumeFrom leaves nothing to send`).toBeLessThan(s.incoming.length)
 
       if (result.type === "continuation") {
         // Continuation resumes from the stored count, so the stored history
@@ -255,10 +258,10 @@ stored=4 churn=@3 gap=5 => D
 stored=4 shrink-to=1 => U
 stored=4 shrink-to=2 => U
 stored=6 churn=none gap=0 => D
-stored=6 churn=@0 gap=0 => C
-stored=6 churn=@1 gap=0 => C
-stored=6 churn=@2 gap=0 => C
-stored=6 churn=@3 gap=0 => C
+stored=6 churn=@0 gap=0 => D
+stored=6 churn=@1 gap=0 => D
+stored=6 churn=@2 gap=0 => D
+stored=6 churn=@3 gap=0 => D
 stored=6 churn=@4 gap=0 => D
 stored=6 churn=@5 gap=0 => U
 stored=6 churn=none gap=1 => R
@@ -291,14 +294,14 @@ stored=6 churn=@4 gap=5 => D
 stored=6 churn=@5 gap=5 => D
 stored=6 shrink-to=1 => U
 stored=6 shrink-to=3 => U
-stored=6 compaction => C
+stored=6 compaction => D
 stored=8 churn=none gap=0 => D
-stored=8 churn=@0 gap=0 => C
-stored=8 churn=@1 gap=0 => C
-stored=8 churn=@2 gap=0 => C
-stored=8 churn=@3 gap=0 => C
-stored=8 churn=@4 gap=0 => C
-stored=8 churn=@5 gap=0 => C
+stored=8 churn=@0 gap=0 => D
+stored=8 churn=@1 gap=0 => D
+stored=8 churn=@2 gap=0 => D
+stored=8 churn=@3 gap=0 => D
+stored=8 churn=@4 gap=0 => D
+stored=8 churn=@5 gap=0 => D
 stored=8 churn=@6 gap=0 => D
 stored=8 churn=@7 gap=0 => U
 stored=8 churn=none gap=1 => R
@@ -339,7 +342,7 @@ stored=8 churn=@6 gap=5 => D
 stored=8 churn=@7 gap=5 => D
 stored=8 shrink-to=1 => U
 stored=8 shrink-to=4 => U
-stored=8 compaction => C
+stored=8 compaction => D
 unrelated history => D`
 
     expect(actual).toBe(expected)

@@ -573,3 +573,73 @@ describe("normalizeContextUsage", () => {
     expect(result.output_tokens).toBe(50)
   })
 })
+
+describe("verifyLineage compaction that reaches the end of the incoming array", () => {
+  // Stateless chat frontends (SillyTavern and most roleplay clients) re-send the
+  // whole history every turn and append a constant trailing block after the
+  // user's own message — an injected assistant line plus a prefill sent as a
+  // user message. When the user repeats a turn verbatim, that trailing block
+  // matches the stored tail for several slots, so the suffix anchor lands on the
+  // final message and resumeFrom comes out equal to messages.length.
+  //
+  // The slice is then empty and the caller falls back to getLastUserMessage(),
+  // which returns the constant prefill rather than the turn the user just typed,
+  // so the request reaches the model with the user's input missing entirely.
+  const FAKE_ASSISTANT = "[injected] let's look at what the user wrote"
+  const LATEST = "<latest_human_message>\ngo on\n</latest_human_message>"
+  const PREFILL = "done thinking."
+
+  const head = [
+    msg("user", "turn one"),
+    msg("assistant", "reply one"),
+    msg("user", "turn two"),
+    msg("assistant", "reply two"),
+  ]
+  const trailingBlock = [
+    msg("user", "go on"),
+    msg("assistant", FAKE_ASSISTANT),
+    msg("user", LATEST),
+    msg("user", PREFILL),
+  ]
+  const stored = [...head, ...trailingBlock]
+  const incoming = [
+    ...head,
+    msg("user", "go on"),
+    msg("assistant", "reply three"),
+    ...trailingBlock,
+  ]
+
+  const session = makeSession({
+    messageCount: stored.length,
+    lineageHash: computeLineageHash(stored),
+    messageHashes: computeMessageHashes(stored),
+  })
+
+  it("does not resume with nothing left to send", () => {
+    const result = verifyLineage(session, incoming)
+    if (result.type === "continuation" || result.type === "compaction") {
+      expect(result.resumeFrom).toBeLessThan(incoming.length)
+    }
+  })
+
+  it("replays in full so the user's turn is not dropped", () => {
+    const result = verifyLineage(session, incoming)
+    expect(result.type).toBe("diverged")
+    if (result.type === "diverged") expect(result.reason).toBe("modified-history")
+  })
+
+  it("still detects a real compaction that appends a new turn", () => {
+    // The genuine shape: a long head replaced by a short summary, preserved
+    // tail intact, and the new turn appended after it. resumeFrom stays inside
+    // the array, so this must keep resuming — the fix must not cost it.
+    const compacted = [
+      msg("user", "summary of earlier"),
+      ...stored.slice(-3),
+      msg("assistant", "reply three"),
+      msg("user", "a brand new turn"),
+    ]
+    const result = verifyLineage(session, compacted)
+    expect(result.type).toBe("compaction")
+    if (result.type === "compaction") expect(result.resumeFrom).toBeLessThan(compacted.length)
+  })
+})
