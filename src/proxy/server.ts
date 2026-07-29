@@ -13,7 +13,7 @@ import { fetchOAuthUsage } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
-import { envBool } from "../env"
+import { env, envBool } from "../env"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
 export type { ProxyConfig, ProxyInstance, ProxyServer }
 // Public plugin-authoring types. Plugins import these to type their
@@ -1134,6 +1134,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // Adapter-scoped sanitize options (see sanitize.ts).
       const sanitizeOpts: import("./sanitize").SanitizeOptions = {
         stripSystemReminder: pipelineCtx.leaksCwdViaSystemReminder,
+        // Escape hatch for harnesses observed leaking raw <thinking> tags into
+        // user-authored prompts that haven't been surveyed here. No adapter
+        // sets this — a survey of opencode, crush, pi, droid and codex found
+        // none injecting it — and it stays off by default because deleting a
+        // user's own chain-of-thought is worse than echoing a stray tag.
+        stripThinking: env("STRIP_THINKING") === "1",
       }
 
       // When resuming, only send new messages the SDK doesn't have.
