@@ -141,7 +141,15 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // it here (instead of the sonnet fallthrough) keeps explicit mythos requests
   // on the right tier; server.ts pins ANTHROPIC_DEFAULT_FABLE_MODEL to the
   // requested claude-mythos-* id so the concrete model passes through verbatim.
+  // Per-tier opt-out (#702). Fable 1M is included at no Extra Usage cost on
+  // Max and Team (verified live), so [1m] stays the default — but on plans
+  // where it is NOT included, a user with Extra Usage ENABLED is billed
+  // silently: the request succeeds, so the extra-usage fallback below never
+  // fires. The global MERIDIAN_1M_CONTEXT_SUPPORT switch would also give up
+  // opus[1m], which IS included. Only an exact "fable" opts out; anything
+  // else (including unset) leaves the default untouched.
   if (model.includes("fable") || model.includes("mythos")) {
+    if (env("FABLE_MODEL") === "fable") return "fable"
     if (use1m && !isSubagent && !isExtendedContextKnownUnavailable()) return "fable[1m]"
     return "fable"
   }
@@ -152,7 +160,13 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // NOTE: There is a known upstream bug (anthropics/claude-code#39841) where
   // Claude Code currently gates opus[1m] behind Extra Usage even on Max.
   // We follow the documented behavior; the bug is Anthropic's to fix.
+  //
+  // Per-tier opt-out (#702), same shape as fable above. Relevant here
+  // because of the known upstream bug (anthropics/claude-code#39841) that
+  // gates opus[1m] behind Extra Usage even on Max, contrary to Anthropic's
+  // docs — affected users need a remedy that doesn't also disable fable.
   if (model.includes("opus")) {
+    if (env("OPUS_MODEL") === "opus") return "opus"
     if (use1m && !isSubagent && !isExtendedContextKnownUnavailable()) return "opus[1m]"
     return "opus"
   }

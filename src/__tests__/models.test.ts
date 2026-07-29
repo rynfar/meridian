@@ -205,6 +205,117 @@ describe("mapModelToClaudeModel", () => {
   })
 })
 
+describe("per-tier 1M overrides", () => {
+  const saved: Record<string, string | undefined> = {}
+  // Sonnet's vars are cleared too: the regression guard below asserts
+  // sonnet's default, and the suite shares one process — a leaked
+  // MERIDIAN_SONNET_MODEL from another file would fail it spuriously.
+  const KEYS = [
+    "MERIDIAN_FABLE_MODEL", "CLAUDE_PROXY_FABLE_MODEL",
+    "MERIDIAN_OPUS_MODEL", "CLAUDE_PROXY_OPUS_MODEL",
+    "MERIDIAN_SONNET_MODEL", "CLAUDE_PROXY_SONNET_MODEL",
+  ]
+
+  beforeEach(() => {
+    for (const k of KEYS) { saved[k] = process.env[k]; delete process.env[k] }
+    resetExtendedContextUnavailable()
+  })
+
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k]
+      else process.env[k] = saved[k]
+    }
+    resetExtendedContextUnavailable()
+  })
+
+  // THE REGRESSION GUARD. Every existing install has neither variable set;
+  // this asserts they see exactly today's behaviour. If the new check is
+  // misplaced, this fails.
+  it("with no override set, defaults are unchanged", () => {
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus[1m]")
+    expect(mapModelToClaudeModel("claude-sonnet-4-6")).toBe("sonnet")
+    expect(mapModelToClaudeModel("claude-haiku-4-5-20251001")).toBe("haiku")
+  })
+
+  it("MERIDIAN_FABLE_MODEL=fable forces the base variant", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "fable"
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable")
+  })
+
+  it("MERIDIAN_OPUS_MODEL=opus forces the base variant", () => {
+    process.env.MERIDIAN_OPUS_MODEL = "opus"
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus")
+  })
+
+  // The complaint in #702: the only existing lever is global, so opting out of
+  // fable 1M also gave up opus 1M. The override must be tier-scoped.
+  it("the fable override does not affect opus", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "fable"
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable")
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus[1m]")
+  })
+
+  it("the opus override does not affect fable", () => {
+    process.env.MERIDIAN_OPUS_MODEL = "opus"
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus")
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+  })
+
+  it("neither override affects sonnet or haiku", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "fable"
+    process.env.MERIDIAN_OPUS_MODEL = "opus"
+    expect(mapModelToClaudeModel("claude-sonnet-4-6")).toBe("sonnet")
+    expect(mapModelToClaudeModel("claude-haiku-4-5-20251001")).toBe("haiku")
+  })
+
+  it("explicit [1m] values are accepted as a documented no-op", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "fable[1m]"
+    process.env.MERIDIAN_OPUS_MODEL = "opus[1m]"
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus[1m]")
+  })
+
+  it("an unrecognized value is ignored, not treated as an opt-out", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "nonsense"
+    process.env.MERIDIAN_OPUS_MODEL = ""
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus[1m]")
+  })
+
+  it("the CLAUDE_PROXY_ aliases work identically", () => {
+    process.env.CLAUDE_PROXY_FABLE_MODEL = "fable"
+    process.env.CLAUDE_PROXY_OPUS_MODEL = "opus"
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable")
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus")
+  })
+
+  it("MERIDIAN_ takes precedence over CLAUDE_PROXY_", () => {
+    process.env.CLAUDE_PROXY_FABLE_MODEL = "fable"
+    process.env.MERIDIAN_FABLE_MODEL = "fable[1m]"
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+  })
+
+  // Mythos routes into the fable branch, so the fable switch must cover it.
+  it("the fable override covers mythos, which rides the fable tier", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "fable"
+    expect(mapModelToClaudeModel("claude-mythos-5")).toBe("fable")
+  })
+
+  it("subagents still get the base variant regardless of override", () => {
+    expect(mapModelToClaudeModel("claude-fable-5", "max", "subagent")).toBe("fable")
+    process.env.MERIDIAN_FABLE_MODEL = "fable[1m]"
+    expect(mapModelToClaudeModel("claude-fable-5", "max", "subagent")).toBe("fable")
+  })
+
+  it("the Extra Usage cooldown still forces the base variant", () => {
+    recordExtendedContextUnavailable()
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable")
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus")
+  })
+})
+
 // NOTE: getClaudeAuthStatusAsync and Auth status resilience tests are in
 // models-auth-status.test.ts — they run in isolation because they manipulate
 // process.env.PATH and global auth caches that leak across test files.
