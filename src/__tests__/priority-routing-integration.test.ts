@@ -273,6 +273,33 @@ describe("priority cooldown resolution", () => {
     expect(marks.map(m => m.until)).toEqual([WORK_RESET])
   }, 20_000)
 
+  it("adopts a SECONDS-valued reset from the SDK, which tier 1 could never match before (#708)", async () => {
+    // The SDK reports resetsAt in epoch seconds. Every fixture above uses
+    // milliseconds, which is why the suite never caught it: unconverted, the
+    // tier-1 gate `(e.resetsAt ?? 0) > now` compares ~1.8e9 against ~1.8e12 and
+    // is ALWAYS false, so a genuinely exhausted profile silently fell through to
+    // the 10-minute default. Recording in the SDK's real unit here is the point
+    // of the test — do not "fix" this to milliseconds.
+    const resetMs = Date.now() + 3 * 60 * 60_000
+    const resetSeconds = Math.floor(resetMs / 1000)
+    rateLimitStore.record("work", {
+      status: "rejected",
+      rateLimitType: "five_hour",
+      utilization: 1,
+      resetsAt: resetSeconds,
+    })
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const before = Date.now()
+    await post(app)
+
+    const marks = await exhaustedMarks(app)
+    expect(marks.map(m => m.id)).toEqual(["work"])
+    // The profile's own reset, not the 10-minute default.
+    expect(marks[0]!.until).toBe(resetSeconds * 1000)
+    expect(marks[0]!.until).toBeGreaterThan(before + 10 * 60_000)
+  }, 20_000)
+
   it("falls back to the 10-minute default when the profile has no entry of its own", async () => {
     rateLimitStore.record("personal", {
       status: "allowed",

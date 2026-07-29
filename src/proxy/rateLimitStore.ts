@@ -9,7 +9,7 @@
  *     type: "rate_limit_event",
  *     rate_limit_info: {
  *       status: "allowed" | "allowed_warning" | "rejected",
- *       resetsAt?: number,                              // epoch ms
+ *       resetsAt?: number,                              // epoch SECONDS — see toEpochMs
  *       rateLimitType?: "five_hour" | "seven_day"
  *                     | "seven_day_opus" | "seven_day_sonnet"
  *                     | "overage",
@@ -41,6 +41,36 @@
 
 import type { SDKRateLimitInfo } from "@anthropic-ai/claude-agent-sdk"
 
+/**
+ * Boundary above which a timestamp is already milliseconds.
+ *
+ * As epoch milliseconds this is 1973-03-03; as epoch seconds it is the year
+ * 5138. Every real reset time arrives either as ~1.8e9 (seconds, today) or
+ * ~1.8e12 (milliseconds, today), so the two ranges cannot collide for any date
+ * this proxy will ever see.
+ */
+const MIN_EPOCH_MS = 1e11
+
+/**
+ * Normalize an SDK reset timestamp to epoch milliseconds.
+ *
+ * The SDK reports these in epoch SECONDS while everything downstream —
+ * `Date.now()` comparisons in the priority-cooldown chain, the documented
+ * `/v1/usage/quota` contract, and consumers like the telemetry badge and Pylon
+ * — is epoch milliseconds. Proven by observing one profile's `five_hour` reset
+ * from both sources minutes apart: OAuth reported `1785234600292` and the SDK
+ * reported `1785234600` for the same instant (#708).
+ *
+ * Detects the unit rather than multiplying unconditionally, because
+ * `SDKRateLimitInfo.resetsAt` is typed `number` with no documented unit. An
+ * unconditional `* 1000` would silently corrupt every value if the SDK ever
+ * switched to milliseconds; this stays correct under either.
+ */
+export function toEpochMs(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined
+  return value < MIN_EPOCH_MS ? Math.round(value * 1000) : value
+}
+
 export interface RateLimitEntry extends SDKRateLimitInfo {
   /** When this entry was captured (epoch ms). */
   observedAt: number
@@ -70,7 +100,14 @@ class RateLimitStore {
       buckets = new Map<RateLimitBucketKey, RateLimitEntry>()
       this.byProfile.set(profileId, buckets)
     }
-    buckets.set(key, { ...info, observedAt })
+    // Normalize units here, at the single boundary where SDK data enters, so no
+    // consumer has to remember that the SDK speaks seconds (#708).
+    buckets.set(key, {
+      ...info,
+      resetsAt: toEpochMs(info.resetsAt),
+      overageResetsAt: toEpochMs(info.overageResetsAt),
+      observedAt,
+    })
   }
 
   /** Snapshot one profile's entries, newest-first by observedAt. */

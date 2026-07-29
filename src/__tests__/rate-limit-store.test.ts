@@ -112,10 +112,14 @@ describe("rateLimitStore", () => {
 
   it("keeps the same bucket type separate per profile", () => {
     const store = new _RateLimitStoreForTests()
-    store.record(WORK, { ...FIVE_HOUR, resetsAt: 1_000 })
-    store.record(PERSONAL, { ...FIVE_HOUR, resetsAt: 9_999 })
-    expect(store.get(WORK, "five_hour")?.resetsAt).toBe(1_000)
-    expect(store.get(PERSONAL, "five_hour")?.resetsAt).toBe(9_999)
+    // Realistic millisecond timestamps. These were once toy values (1_000 /
+    // 9_999), which `toEpochMs` correctly reads as epoch SECONDS and scales
+    // (#708) — the two distinct values are all this test needs, so use ones
+    // that are actually timestamps.
+    store.record(WORK, { ...FIVE_HOUR, resetsAt: 1_730_000_000_000 })
+    store.record(PERSONAL, { ...FIVE_HOUR, resetsAt: 1_730_500_000_000 })
+    expect(store.get(WORK, "five_hour")?.resetsAt).toBe(1_730_000_000_000)
+    expect(store.get(PERSONAL, "five_hour")?.resetsAt).toBe(1_730_500_000_000)
     expect(store.size(WORK)).toBe(1)
     expect(store.size(PERSONAL)).toBe(1)
     expect(store.size()).toBe(2)

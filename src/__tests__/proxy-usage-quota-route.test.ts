@@ -163,6 +163,30 @@ describe("GET /v1/usage/quota", () => {
     expect(bucket.isUsingOverage).toBe(false)
   })
 
+  it("exposes SDK reset times in epoch milliseconds, per the documented contract (#708)", async () => {
+    // The SDK reports these in epoch SECONDS. Consumers of this endpoint (the
+    // telemetry "resets in ..." badge, Pylon's quota display) treat the field as
+    // milliseconds, so an unconverted value renders a 1970 date. This only
+    // surfaced in production where OAuth usage is unavailable for a profile,
+    // because otherwise the OAuth value wins the merge and masks it.
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const resetSeconds = 1_785_234_600
+    rateLimitStore.record("default", {
+      status: "rejected",
+      rateLimitType: "five_hour",
+      resetsAt: resetSeconds,
+      overageResetsAt: resetSeconds + 600,
+    } as any)
+
+    const res = await app.fetch(new Request("http://localhost/v1/usage/quota"))
+    const body = await res.json() as QuotaResponse
+    const bucket = body.buckets[0]!
+    expect(bucket.resetsAt).toBe(resetSeconds * 1000)
+    expect(bucket.overageResetsAt).toBe((resetSeconds + 600) * 1000)
+    // Sanity: a millisecond timestamp is 13 digits and lands in this century.
+    expect(new Date(bucket.resetsAt!).getUTCFullYear()).toBeGreaterThan(2020)
+  })
+
   it("merges OAuth-sourced buckets onto SDK buckets, OAuth wins for utilization/resetsAt", async () => {
     // Override only for this test — afterEach clears it.
     __setFetchOAuthUsageOverride(async () => ({
