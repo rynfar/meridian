@@ -38,13 +38,14 @@ Which adapters actually inject which tags into user-role text was settled empiri
 | crush | 0.56.0 | 2 | none |
 | pi | 0.72.1 | 2 | none |
 | droid | 0.182.0 | 2 | `system-reminder` only |
+| codex | 0.146.0 | 5 | none |
 | *synthetic control* | — | 1 | `env`, `thinking` |
 
 The control run proves the probe fires; without it, "no tags" would be indistinguishable from a broken instrument. Droid injecting `system-reminder` and nothing else is a useful cross-check — that is precisely what the existing `stripSystemReminder` opt-in exists for, and it is already enabled for droid.
 
 **No current client injects `<thinking>`.** The #167 leak appears to have been fixed upstream since it was reported.
 
-Not covered: **codex** (ignores `OPENAI_BASE_URL`; reaching it needs `config.toml` surgery) and **ForgeCode** (not installed). Both remain unmeasured.
+Not covered: **ForgeCode**. It is installed, but invoking it triggered its own self-updater (2.9.8 → 2.13.19), which migrated its session state into SQLite; the run never reached the survey proxy and could not be redirected. Deliberately left unmeasured rather than pursued further.
 
 ## Design
 
@@ -88,5 +89,5 @@ Both then assert the same outcomes as today. Weakening either — for instance, 
 
 ## Risks
 
-- **A harness not covered by the survey may inject `<thinking>` today**, and would now leak it into model-visible text. Codex and ForgeCode are unmeasured. The consequence is the model echoing a stray tag — visible and reportable — versus the current consequence of silently deleting text the user wrote. The failure directions are not symmetric, which is what justifies the default.
+- **A harness not covered by the survey may inject `<thinking>` today**, and would now leak it into model-visible text. ForgeCode is unmeasured; the other five clients are not. The consequence is the model echoing a stray tag — visible and reportable — versus the current consequence of silently deleting text the user wrote. The failure directions are not symmetric, which is what justifies the default.
 - **The survey is a handful of turns on one machine.** A different opencode preset or a longer droid session could inject differently. Re-running it is cheap: the probe is committed on `diag/720-tag-leak-survey`.
