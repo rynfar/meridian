@@ -28,6 +28,13 @@
 // (should strip), but OpenCode's oh-my-opencode harness uses it to surface
 // background-task IDs and other orchestration state the model MUST see. So it
 // is only stripped when the caller opts in via { stripSystemReminder: true }.
+//
+// `thinking` is NOT here either, for the same reason: it is the most common
+// chain-of-thought convention in hand-written prompts and preset libraries, so
+// stripping it unconditionally deleted user-authored content (#720). It is only
+// stripped when the caller opts in via { stripThinking: true }. No adapter does
+// today — a survey of opencode, crush, pi, droid and codex found none of them
+// injecting it, so the #167 leak appears to have been fixed upstream.
 const ORCHESTRATION_TAGS = [
   // OpenCode / Crush: environment context blocks
   "env",
@@ -46,9 +53,6 @@ const ORCHESTRATION_TAGS = [
   // OpenCode: context injection blocks
   "directories",
   "available_skills",
-  // Leaked thinking tags (NOT the structured content block type —
-  // these are raw XML tags that appear in text content on replay)
-  "thinking",
 ]
 
 // Build regex for paired tags: <tagname ...>...</tagname>
@@ -87,10 +91,22 @@ const SYSTEM_REMINDER_PATTERNS: RegExp[] = [
   /<system-reminder\b[^>]*\/>/gi,
 ]
 
+// Opt-in: only used when the caller reports that its adapter leaks raw
+// <thinking> tags into text content (#167). Off by default — see the note on
+// ORCHESTRATION_TAGS above.
+const THINKING_TAG_PATTERNS: RegExp[] = [
+  /<thinking\b[^>]*>[\s\S]*?<\/thinking>/gi,
+  /<thinking\b[^>]*\/>/gi,
+]
+
 export interface SanitizeOptions {
   /** Strip `<system-reminder>` blocks. Enable for adapters (Droid) that leak
    *  CWD/env through this tag. */
   stripSystemReminder?: boolean
+  /** Strip raw `<thinking>` tags. Off by default: the tag is a common
+   *  chain-of-thought convention in user-authored prompts (#720). Enable only
+   *  for an adapter observed leaking it. */
+  stripThinking?: boolean
 }
 
 /**
@@ -101,9 +117,9 @@ export interface SanitizeOptions {
  */
 export function sanitizeTextContent(text: string, opts: SanitizeOptions = {}): string {
   let result = text
-  const patterns = opts.stripSystemReminder
-    ? [...ALL_PATTERNS, ...SYSTEM_REMINDER_PATTERNS]
-    : ALL_PATTERNS
+  const patterns = [...ALL_PATTERNS]
+  if (opts.stripSystemReminder) patterns.push(...SYSTEM_REMINDER_PATTERNS)
+  if (opts.stripThinking) patterns.push(...THINKING_TAG_PATTERNS)
   for (const pattern of patterns) {
     // Reset lastIndex for stateful regexes (those with 'g' flag)
     pattern.lastIndex = 0

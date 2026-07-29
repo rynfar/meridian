@@ -96,9 +96,9 @@ describe("sanitizeTextContent", () => {
     expect(sanitizeTextContent(input)).toBe("after")
   })
 
-  it("strips leaked <thinking> tags (text content, not structured blocks)", () => {
+  it("strips leaked <thinking> tags when opted in (text content, not structured blocks)", () => {
     const input = 'text<thinking>model thoughts leaked here</thinking>more text'
-    expect(sanitizeTextContent(input)).toBe("textmore text")
+    expect(sanitizeTextContent(input, { stripThinking: true })).toBe("textmore text")
   })
 
   // --- Non-XML markers ---
@@ -198,7 +198,7 @@ describe("sanitizeTextContent", () => {
       '<!-- OMO_INTERNAL_INITIATOR -->',
       'What is 2+2?',
     ].join("\n")
-    expect(sanitizeTextContent(input, { stripSystemReminder: true })).toBe("What is 2+2?")
+    expect(sanitizeTextContent(input, { stripSystemReminder: true, stripThinking: true })).toBe("What is 2+2?")
   })
 
   // --- Regression: issue #368 (OMO bg_* task IDs disappearing) ---
@@ -223,5 +223,33 @@ describe("sanitizeTextContent", () => {
     expect(result).toContain("[ALL BACKGROUND TASKS COMPLETE]")
     // OMO comment still stripped (unambiguous orchestration marker)
     expect(result).not.toContain("OMO_INTERNAL_INITIATOR")
+  })
+
+  // #720 — `thinking` is a common chain-of-thought convention in hand-written
+  // prompts, so stripping it by default deleted user-authored content. It is
+  // now opt-in. This is the regression guard: it must fail if `thinking` is
+  // returned to the unconditional ORCHESTRATION_TAGS list.
+  it("leaves <thinking> alone by default", () => {
+    const input = 'before<thinking>user reasoning instructions</thinking>after'
+    expect(sanitizeTextContent(input)).toBe(input)
+  })
+
+  it("still strips the unconditional tags when <thinking> is present and not opted in", () => {
+    const input = '<thinking>keep me</thinking><env>drop me</env>tail'
+    expect(sanitizeTextContent(input)).toBe("<thinking>keep me</thinking>tail")
+  })
+
+  it("strips a self-closing <thinking /> only when opted in", () => {
+    const input = 'a<thinking />b'
+    expect(sanitizeTextContent(input)).toBe("a<thinking />b")
+    expect(sanitizeTextContent(input, { stripThinking: true })).toBe("ab")
+  })
+
+  it("the two flags are independent", () => {
+    const input = '<system-reminder>r</system-reminder><thinking>t</thinking>tail'
+    // Only system-reminder opted in
+    expect(sanitizeTextContent(input, { stripSystemReminder: true })).toBe("<thinking>t</thinking>tail")
+    // Only thinking opted in
+    expect(sanitizeTextContent(input, { stripThinking: true })).toBe("<system-reminder>r</system-reminder>tail")
   })
 })
