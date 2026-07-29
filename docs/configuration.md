@@ -19,8 +19,10 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_IDLE_TIMEOUT_SECONDS` | `CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS` | `120` | HTTP keep-alive timeout |
 | `MERIDIAN_TELEMETRY_SIZE` | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size |
 | `MERIDIAN_NO_FILE_CHANGES` | `CLAUDE_PROXY_NO_FILE_CHANGES` | unset | Disable "Files changed" summary in responses |
-| `MERIDIAN_SONNET_MODEL` | `CLAUDE_PROXY_SONNET_MODEL` | `sonnet` | Sonnet context tier: `sonnet` (200k, default) or `sonnet[1m]` (1M, requires Extra Usage†) |
-| `MERIDIAN_1M_CONTEXT_SUPPORT` | `CLAUDE_PROXY_1M_CONTEXT_SUPPORT` | unset | Set to `0`/`false`/`no` to disable 1M context entirely — every model resolves to its 200k base variant, so Meridian never requests the extended window (avoids Extra Usage on 1M). |
+| `MERIDIAN_SONNET_MODEL` | `CLAUDE_PROXY_SONNET_MODEL` | `sonnet` | Sonnet context tier: `sonnet` (200k, default) or `sonnet[1m]` (1M, requires Extra Usage†). Not to be confused with `MERIDIAN_DEFAULT_SONNET_MODEL` below, which pins a concrete model id, not a context tier. |
+| `MERIDIAN_FABLE_MODEL` | `CLAUDE_PROXY_FABLE_MODEL` | `fable[1m]` | Fable context tier opt-out: set to `fable` to disable the 1M extended context window and stay on the 200k base variant (also governs Mythos, which rides the Fable tier). `fable[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_FABLE_MODEL` below, which pins a concrete model id, not a context tier. |
+| `MERIDIAN_OPUS_MODEL` | `CLAUDE_PROXY_OPUS_MODEL` | `opus[1m]` | Opus context tier opt-out: set to `opus` to disable the 1M extended context window and stay on the 200k base variant. `opus[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_OPUS_MODEL` below, which pins a concrete model id, not a context tier. |
+| `MERIDIAN_1M_CONTEXT_SUPPORT` | `CLAUDE_PROXY_1M_CONTEXT_SUPPORT` | unset | Set to `0`/`false`/`no` to disable 1M context entirely — every model resolves to its 200k base variant, so Meridian never requests the extended window (avoids Extra Usage on 1M). To opt out a single tier instead, use `MERIDIAN_FABLE_MODEL` or `MERIDIAN_OPUS_MODEL` above. |
 | `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `crush`, `droid`, `cherry`, `claudecode`, `passthrough`. Requires restart. |
 | `MERIDIAN_ROUTING` | — | `active` | Session-to-profile routing: `active` (all traffic to the active profile), `sticky` ([sticky session routing](profiles.md#sticky-session-routing)), or `priority` ([priority failover](profiles.md#priority-failover-routing)) |
 | `MERIDIAN_PROFILE_ORDER` | — | *(config order)* | Priority-mode pool order, comma-separated, highest priority first (e.g. `work,personal`). Also editable at `/settings`. |
@@ -42,7 +44,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_PLUGIN_DIR` | — | `~/.config/meridian/plugins` | Plugin auto-discovery directory |
 | `MERIDIAN_PLUGIN_CONFIG` | — | `~/.config/meridian/plugins.json` | Plugin manifest path |
 
-†Sonnet 1M requires Extra Usage on all plans including Max ([docs](https://code.claude.com/docs/en/model-config#extended-context)). Opus 1M is included with Max/Team/Enterprise at no extra cost.
+†Sonnet 1M requires Extra Usage on all plans including Max ([docs](https://code.claude.com/docs/en/model-config#extended-context)). Opus 1M is included with Max/Team/Enterprise at no extra cost. Fable 1M is also included at no Extra Usage cost, verified live on both Max and Team.
 
 ## Endpoints
 
