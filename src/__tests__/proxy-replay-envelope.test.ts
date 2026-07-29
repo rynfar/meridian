@@ -178,3 +178,46 @@ describe("stateless client with a trailing injected block (#712)", () => {
     expect(prompt).not.toBe("思考已结束。")
   })
 })
+
+/**
+ * #720 — a user's own <thinking> block must reach the model.
+ *
+ * `thinking` was on the unconditional strip list, and the sanitizer runs on
+ * user-authored text, so a paired <thinking>…</thinking> in a prompt was
+ * deleted before the model saw it — on full replay as well as on resume. Every
+ * unit test asserted the stripping worked; none asserted it should not happen
+ * to user content, which is why this went unnoticed.
+ */
+describe("user-authored <thinking> survives (#720)", () => {
+  beforeEach(() => {
+    clearSessionCache()
+    capturedPrompts = []
+  })
+
+  it("delivers a user's <thinking> block to the model", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, [
+      { role: "user", content: "<thinking>Reason step by step before answering.</thinking>\n\nWhat is 2+2?" },
+    ])
+    expect(res.status).toBe(200)
+
+    const prompt = capturedPrompts[0] as string
+    expect(typeof prompt).toBe("string")
+    expect(prompt).toContain("<thinking>")
+    expect(prompt).toContain("Reason step by step before answering.")
+    expect(prompt).toContain("What is 2+2?")
+  })
+
+  it("still strips harness tags from the same message", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, [
+      { role: "user", content: "<env>cwd=/tmp</env><thinking>my reasoning</thinking>the question" },
+    ])
+    expect(res.status).toBe(200)
+
+    const prompt = capturedPrompts[0] as string
+    expect(prompt).toContain("<thinking>my reasoning</thinking>")
+    expect(prompt).not.toContain("<env>")
+    expect(prompt).not.toContain("cwd=/tmp")
+  })
+})
