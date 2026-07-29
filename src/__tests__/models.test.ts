@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resolveSdkModelDefaults, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -207,18 +207,21 @@ describe("mapModelToClaudeModel", () => {
 
 describe("per-tier 1M overrides", () => {
   const saved: Record<string, string | undefined> = {}
-  // Sonnet's vars are cleared too: the regression guard below asserts
-  // sonnet's default, and the suite shares one process — a leaked
-  // MERIDIAN_SONNET_MODEL from another file would fail it spuriously.
+  // Sonnet's vars and the global 1M switch are cleared too: the regression
+  // guard below asserts every tier's default, and the suite shares one
+  // process — a leaked MERIDIAN_SONNET_MODEL or MERIDIAN_1M_CONTEXT_SUPPORT
+  // from another file would fail it spuriously.
   const KEYS = [
     "MERIDIAN_FABLE_MODEL", "CLAUDE_PROXY_FABLE_MODEL",
     "MERIDIAN_OPUS_MODEL", "CLAUDE_PROXY_OPUS_MODEL",
     "MERIDIAN_SONNET_MODEL", "CLAUDE_PROXY_SONNET_MODEL",
+    "MERIDIAN_1M_CONTEXT_SUPPORT", "CLAUDE_PROXY_1M_CONTEXT_SUPPORT",
   ]
 
   beforeEach(() => {
     for (const k of KEYS) { saved[k] = process.env[k]; delete process.env[k] }
     resetExtendedContextUnavailable()
+    resetWarnedTierOverrides()
   })
 
   afterEach(() => {
@@ -227,6 +230,7 @@ describe("per-tier 1M overrides", () => {
       else process.env[k] = saved[k]
     }
     resetExtendedContextUnavailable()
+    resetWarnedTierOverrides()
   })
 
   // THE REGRESSION GUARD. Every existing install has neither variable set;
@@ -282,6 +286,54 @@ describe("per-tier 1M overrides", () => {
     process.env.MERIDIAN_OPUS_MODEL = ""
     expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
     expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus[1m]")
+  })
+
+  // These are opt-outs, unlike MERIDIAN_SONNET_MODEL's opt-in: a typo there
+  // fails safe (no billing), but the identical typo here fails unsafe (the
+  // user keeps being billed for [1m]). Values must be normalized so
+  // whitespace/case typos from launchd plists, docker-compose, or quoted
+  // .env lines don't silently defeat the opt-out.
+  it("surrounding whitespace is normalized", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "  fable  "
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable")
+  })
+
+  it("case is normalized", () => {
+    process.env.MERIDIAN_FABLE_MODEL = "Fable"
+    expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable")
+  })
+
+  it("case is normalized for opus", () => {
+    process.env.MERIDIAN_OPUS_MODEL = "OPUS"
+    expect(mapModelToClaudeModel("claude-opus-4-6")).toBe("opus")
+  })
+
+  it("the [1m] no-op tolerates whitespace/case and warns nothing", () => {
+    const originalWarn = console.warn
+    const warnings: string[] = []
+    console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(" ")) }
+    try {
+      process.env.MERIDIAN_FABLE_MODEL = " fable[1m] "
+      expect(mapModelToClaudeModel("claude-fable-5")).toBe("fable[1m]")
+      expect(warnings.length).toBe(0)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  it("warns at most once per process per variable for an unrecognized value", () => {
+    const originalWarn = console.warn
+    const warnings: string[] = []
+    console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(" ")) }
+    try {
+      process.env.MERIDIAN_FABLE_MODEL = "typo-fable"
+      mapModelToClaudeModel("claude-fable-5")
+      mapModelToClaudeModel("claude-fable-5")
+      expect(warnings.length).toBe(1)
+      expect(warnings[0]).toContain("MERIDIAN_FABLE_MODEL")
+    } finally {
+      console.warn = originalWarn
+    }
   })
 
   it("the CLAUDE_PROXY_ aliases work identically", () => {

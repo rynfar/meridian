@@ -105,6 +105,35 @@ let cachedAuthStatusAt = 0
 let cachedAuthStatusIsFailure = false
 let cachedAuthStatusPromise: Promise<ClaudeAuthStatus | null> | null = null
 
+/** Env var names already warned about for an unrecognized per-tier 1M
+ *  opt-out value (#702) — ensures the warning fires at most once per
+ *  process per variable, since mapModelToClaudeModel runs per request. */
+const warnedTierOverrides = new Set<string>()
+
+/**
+ * Warn once per process per env var when a per-tier 1M opt-out (#702) is
+ * set to a non-empty value that is neither the opt-out (bare tier name)
+ * nor the documented `[1m]` no-op. These variables are opt-outs, unlike
+ * MERIDIAN_SONNET_MODEL's opt-in: a typo or trailing whitespace there
+ * fails safe (no extra billing), but the same typo here fails unsafe —
+ * the user keeps getting billed for [1m] despite taking the documented
+ * action to stop, with no signal that it didn't take effect. Matches the
+ * warn-and-fall-back-to-default tone of MERIDIAN_MAX_SESSIONS parsing in
+ * session/cache.ts.
+ */
+function warnUnrecognizedTierOverride(varName: string, raw: string, tierBase: string): void {
+  if (warnedTierOverrides.has(varName)) return
+  warnedTierOverrides.add(varName)
+  console.warn(
+    `[PROXY] Unrecognized MERIDIAN_${varName} value "${raw}"; expected "${tierBase}" or "${tierBase}[1m]" — ignoring, ${tierBase}[1m] remains the default`,
+  )
+}
+
+/** Clear the per-variable warn-once tracking — for testing only. */
+export function resetWarnedTierOverrides(): void {
+  warnedTierOverrides.clear()
+}
+
 /**
  * Only Claude 4.6 models support the 1M extended context window.
  * Older models (4.5 and earlier) do not.
@@ -141,15 +170,22 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // it here (instead of the sonnet fallthrough) keeps explicit mythos requests
   // on the right tier; server.ts pins ANTHROPIC_DEFAULT_FABLE_MODEL to the
   // requested claude-mythos-* id so the concrete model passes through verbatim.
+  //
   // Per-tier opt-out (#702). Fable 1M is included at no Extra Usage cost on
   // Max and Team (verified live), so [1m] stays the default — but on plans
   // where it is NOT included, a user with Extra Usage ENABLED is billed
   // silently: the request succeeds, so the extra-usage fallback below never
   // fires. The global MERIDIAN_1M_CONTEXT_SUPPORT switch would also give up
-  // opus[1m], which IS included. Only an exact "fable" opts out; anything
-  // else (including unset) leaves the default untouched.
+  // opus[1m], which IS included. Only "fable" (normalized) opts out; the
+  // [1m] form is a documented no-op; anything else (including unset) leaves
+  // the default untouched, with a once-per-process warning for typos.
   if (model.includes("fable") || model.includes("mythos")) {
-    if (env("FABLE_MODEL") === "fable") return "fable"
+    const fableOverrideRaw = env("FABLE_MODEL")
+    const fableOverride = fableOverrideRaw?.trim().toLowerCase()
+    if (fableOverride === "fable") return "fable"
+    if (fableOverrideRaw && fableOverride !== "fable[1m]") {
+      warnUnrecognizedTierOverride("FABLE_MODEL", fableOverrideRaw, "fable")
+    }
     if (use1m && !isSubagent && !isExtendedContextKnownUnavailable()) return "fable[1m]"
     return "fable"
   }
@@ -161,12 +197,18 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // Claude Code currently gates opus[1m] behind Extra Usage even on Max.
   // We follow the documented behavior; the bug is Anthropic's to fix.
   //
-  // Per-tier opt-out (#702), same shape as fable above. Relevant here
-  // because of the known upstream bug (anthropics/claude-code#39841) that
-  // gates opus[1m] behind Extra Usage even on Max, contrary to Anthropic's
-  // docs — affected users need a remedy that doesn't also disable fable.
+  // Per-tier opt-out (#702), same shape as fable above — affected users need
+  // a remedy that doesn't also disable fable. Only "opus" (normalized) opts
+  // out; the [1m] form is a documented no-op; anything else (including
+  // unset) leaves the default untouched, with a once-per-process warning
+  // for typos.
   if (model.includes("opus")) {
-    if (env("OPUS_MODEL") === "opus") return "opus"
+    const opusOverrideRaw = env("OPUS_MODEL")
+    const opusOverride = opusOverrideRaw?.trim().toLowerCase()
+    if (opusOverride === "opus") return "opus"
+    if (opusOverrideRaw && opusOverride !== "opus[1m]") {
+      warnUnrecognizedTierOverride("OPUS_MODEL", opusOverrideRaw, "opus")
+    }
     if (use1m && !isSubagent && !isExtendedContextKnownUnavailable()) return "opus[1m]"
     return "opus"
   }
