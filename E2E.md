@@ -87,6 +87,7 @@ kill $(lsof -ti :3456)
 | E32 | [Tool-use leak (#416) — opencode + opus-4-7](#e32-tool-use-leak-416--opencode--opus-4-7) | Multi-turn opencode rehydration with prior tool_use blocks does not cause opus-4-7 to emit `[Tool Use:` / `H:` / `Human:` text in its response | 2026-04-26 |
 | E33 | [OpenAI Compat: system prompt, no preset](#e33-openai-compat-system-prompt-no-preset) | `/v1/chat/completions` honours the client's system prompt without injecting the claude_code preset (openai adapter default) | 2026-06-15 |
 | E34 | [Streaming parallel tool calls (#552)](#e34-streaming-parallel-tool-calls-552) | **Automated**: `bun scripts/e2e-stream-parallel.mjs` — real CLI, SSE mode: parallel tool calls stream intact (no dangling `{}` blocks), denies held past generation, fast follow-up resumes. **Run before any release touching the passthrough tool loop** — mocked suites cannot catch CLI dispatch-ordering bugs (two shipped regressions proved it) | 2026-07-15 |
+| E35 | [SDK boundary assumptions (#694/#708/#710)](#e35-sdk-boundary-assumptions-694708710) | **Automated**: `bun scripts/e2e-sdk-boundary.mjs` — real SDK: rate-limit reset units land in a sane window, every live content-block type is classified for hashing, resume survives a client dropping thinking blocks, and reports whether the gitStatus block still misstates its provenance. **Run after any `@anthropic-ai/claude-agent-sdk` bump** and before releases touching lineage, rate limits, or the system prompt | 2026-07-29 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3127,3 +3128,64 @@ the actual client contract.
 **What's being tested:** deny-hold (`holdDenyUntilTurnEnd`), early stop +
 drain, `flushOpenClientBlocks`, `pendingSessionStores` (`server.ts`);
 `passthroughEarlyStop.ts`.
+
+## E35: SDK boundary assumptions (#694/#708/#710)
+
+**Automated** — one command:
+
+```bash
+bun scripts/e2e-sdk-boundary.mjs
+SDK_BOUNDARY_MODEL=claude-sonnet-5 bun scripts/e2e-sdk-boundary.mjs
+```
+
+**Why this exists:** three bugs shipped through this seam in one week, and the
+unit suite was green for all three — because a mocked suite can only assert
+what we already thought to look for.
+
+- **#708** — the SDK reports `resetsAt` in epoch *seconds*. Every fixture used
+  milliseconds, so the mismatch was unobservable and tier 1 of the priority
+  cooldown was dead code for its entire life.
+- **#710** — `thinking` blocks fell into the lineage hash's
+  serialize-everything fallback, folding an encrypted per-generation signature
+  into the hash. There was no thinking-block test at all.
+- **#694** — the `claude_code` preset injects a gitStatus block claiming to be
+  "the git status at the start of the conversation" and recomputes it every
+  turn. A user was told the model had destroyed their work-in-progress files.
+
+Each was found by watching real traffic. This script makes that watching
+repeatable instead of a fresh throwaway probe each time.
+
+**Pass criteria:**
+- every `resetsAt` / `overageResetsAt` lands between now and 8 days out —
+  bounded *both* ways, so a missed `*1000` (1970) and a double one (year 58000)
+  both fail, and the check stays valid if the SDK ever switches units
+- every content-block type observed in live traffic is in one of the three
+  hashing buckets in `messages.ts`
+- a session whose client stops echoing thinking blocks still logs
+  `lineage=continuation`, not a fresh replay
+- a check that cannot gather its evidence **fails** rather than passing quietly
+  (no rate-limit bucket, no content blocks, missing lineage verdicts)
+
+**Informational, not asserted:** check 4 asks the model whether the gitStatus
+block still claims to describe the conversation's start. It is reported rather
+than asserted because a model declining to answer must not fail a release. When
+it reports the block is gone or honestly labelled, `GIT_STATUS_PROVENANCE_NOTE`
+in `query.ts` can be removed.
+
+**Calibrated, not assumed.** Both hard checks were verified to fail against the
+real bugs by reverting each fix and re-running:
+
+```
+✗ units: five_hour.resetsAt=1785404400 is in the past (1970-01-21…) — seconds treated as ms?
+✗ lineage: third turn was lineage=new, expected continuation — dropped thinking blocks churned the hash (#710)
+```
+
+**What's being tested:** `toEpochMs` / `RateLimitStore.record`
+(`rateLimitStore.ts`); `normalizeContent` block classification (`messages.ts`);
+`hashMessage` / `verifyLineage` (`session/lineage.ts`);
+`GIT_STATUS_PROVENANCE_NOTE` (`query.ts`).
+
+**Static counterpart:** `sdk-block-type-coverage.test.ts` reads the
+`ContentBlockParam` union out of the installed SDK and fails when a new block
+type appears in none of the three buckets — so the next `thinking` is caught by
+CI on the dependency bump rather than by a user.

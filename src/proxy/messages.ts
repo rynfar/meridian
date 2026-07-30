@@ -34,7 +34,45 @@ function stripCacheControlForHashing(obj: any): any {
  * its own turn, and those are still hashed, so it never distinguishes two
  * genuinely different prefixes on its own.
  */
-const HASH_IGNORED_BLOCK_TYPES = new Set(["thinking", "redacted_thinking"])
+export const HASH_IGNORED_BLOCK_TYPES = new Set(["thinking", "redacted_thinking"])
+
+/**
+ * Block types with an explicit case in {@link normalizeContent}, hashed on
+ * their semantic fields only.
+ */
+export const HASH_HANDLED_BLOCK_TYPES = new Set(["text", "tool_use", "tool_result"])
+
+/**
+ * Block types deliberately serialized whole by the fallback.
+ *
+ * Reviewed against `ContentBlockParam` and confirmed to carry no
+ * per-generation opaque field: their payloads (`source`, `content`, `title`,
+ * `file_id`) are stable for the same logical content, so serializing them is
+ * safe. `cache_control` is stripped separately.
+ *
+ * The `*_tool_use` / `*_tool_result` entries reference `id` / `tool_use_id`,
+ * which ARE per-generation — but that matches how `tool_use` and `tool_result`
+ * are already hashed, and clients echo the same ids back. Same accepted risk,
+ * not a new one.
+ *
+ * Membership here is a decision, not a default. `sdk-block-type-coverage`
+ * fails when the installed SDK adds a type absent from all three sets, so a
+ * new block type cannot silently land in the fallback the way `thinking` did
+ * (#710).
+ */
+export const HASH_SERIALIZED_BLOCK_TYPES = new Set([
+  "image",
+  "document",
+  "search_result",
+  "server_tool_use",
+  "web_search_tool_result",
+  "web_fetch_tool_result",
+  "code_execution_tool_result",
+  "bash_code_execution_tool_result",
+  "text_editor_code_execution_tool_result",
+  "tool_search_tool_result",
+  "container_upload",
+])
 
 /**
  * Normalize message content to a string for hashing and comparison.
