@@ -12,6 +12,9 @@ import { droidAdapter } from "../proxy/adapters/droid"
 import { piAdapter } from "../proxy/adapters/pi"
 import { forgeCodeAdapter } from "../proxy/adapters/forgecode"
 import { passthroughAdapter } from "../proxy/adapters/passthrough"
+import { claudeCodeTransforms } from "../proxy/transforms/claudecode"
+import { claudeCodeAdapter } from "../proxy/adapters/claudecode"
+import { getAdapterTransforms } from "../proxy/transforms/registry"
 
 function makeCtx(adapter: string, body: any = {}) {
   return createRequestContext({
@@ -227,5 +230,74 @@ describe("Passthrough (LiteLLM) transform parity", () => {
   it("matches empty blockedTools", () => {
     const ctx = runTransformHook(passthroughTransforms, "onRequest", makeCtx("passthrough"), "passthrough")
     expect([...ctx.blockedTools]).toEqual([...passthroughAdapter.getBlockedBuiltinTools()])
+  })
+})
+
+// The Claude Code CLI drives its own tool loop. If registry.ts has no entry for
+// adapter "claude-code" (or the transform's `adapters` array omits it), the SDK
+// runs the client's task internally on the proxy host with built-ins unblocked
+// — every Bash/Edit executes twice, once per side. Same class as #546.
+describe("Claude Code transform parity", () => {
+  let savedMP: string | undefined
+  let savedCP: string | undefined
+  beforeEach(() => {
+    savedMP = process.env.MERIDIAN_PASSTHROUGH
+    savedCP = process.env.CLAUDE_PROXY_PASSTHROUGH
+    delete process.env.MERIDIAN_PASSTHROUGH
+    delete process.env.CLAUDE_PROXY_PASSTHROUGH
+  })
+  afterEach(() => {
+    if (savedMP !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedMP
+    else delete process.env.MERIDIAN_PASSTHROUGH
+    if (savedCP !== undefined) process.env.CLAUDE_PROXY_PASSTHROUGH = savedCP
+    else delete process.env.CLAUDE_PROXY_PASSTHROUGH
+  })
+
+  it("is registered under the adapter's own name", () => {
+    expect(getAdapterTransforms(claudeCodeAdapter.name)).toBe(claudeCodeTransforms)
+  })
+
+  it("matches blockedTools", () => {
+    const ctx = runTransformHook(claudeCodeTransforms, "onRequest", makeCtx("claude-code"), "claude-code")
+    expect([...ctx.blockedTools]).toEqual([...claudeCodeAdapter.getBlockedBuiltinTools()])
+    expect(ctx.blockedTools.length).toBeGreaterThan(0)
+  })
+
+  it("matches incompatibleTools and allowedMcpTools", () => {
+    const ctx = runTransformHook(claudeCodeTransforms, "onRequest", makeCtx("claude-code"), "claude-code")
+    expect([...ctx.incompatibleTools]).toEqual([...claudeCodeAdapter.getAgentIncompatibleTools()])
+    expect([...ctx.allowedMcpTools]).toEqual([...claudeCodeAdapter.getAllowedMcpTools()])
+  })
+
+  it("matches coreToolNames (PascalCase, not OpenCode's lowercase)", () => {
+    const ctx = runTransformHook(claudeCodeTransforms, "onRequest", makeCtx("claude-code"), "claude-code")
+    expect([...ctx.coreToolNames!]).toEqual([...claudeCodeAdapter.getCoreToolNames!()])
+  })
+
+  it("matches passthrough (default on)", () => {
+    const ctx = runTransformHook(claudeCodeTransforms, "onRequest", makeCtx("claude-code"), "claude-code")
+    expect(ctx.passthrough).toBe(claudeCodeAdapter.usesPassthrough!())
+    expect(ctx.passthrough).toBe(true)
+  })
+
+  it("matches passthrough (env off → false)", () => {
+    process.env.MERIDIAN_PASSTHROUGH = "0"
+    const ctx = runTransformHook(claudeCodeTransforms, "onRequest", makeCtx("claude-code"), "claude-code")
+    expect(ctx.passthrough).toBe(claudeCodeAdapter.usesPassthrough!())
+    expect(ctx.passthrough).toBe(false)
+  })
+
+  it("matches supportsThinking and shouldTrackFileChanges", () => {
+    const ctx = runTransformHook(claudeCodeTransforms, "onRequest", makeCtx("claude-code"), "claude-code")
+    expect(ctx.supportsThinking).toBe(claudeCodeAdapter.supportsThinking!())
+    expect(ctx.shouldTrackFileChanges).toBe(claudeCodeAdapter.shouldTrackFileChanges!())
+  })
+
+  it("matches file change extraction for Edit and Bash", () => {
+    const ctx = runTransformHook(claudeCodeTransforms, "onRequest", makeCtx("claude-code"), "claude-code")
+    expect(ctx.extractFileChangesFromToolUse!("Edit", { file_path: "/a.ts" }))
+      .toEqual(claudeCodeAdapter.extractFileChangesFromToolUse!("Edit", { file_path: "/a.ts" }))
+    expect(ctx.extractFileChangesFromToolUse!("Bash", { command: "echo hi > /tmp/a" }))
+      .toEqual(claudeCodeAdapter.extractFileChangesFromToolUse!("Bash", { command: "echo hi > /tmp/a" }))
   })
 })
