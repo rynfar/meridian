@@ -532,6 +532,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    *  leave standing. */
   function refinePriorityCooldown(profileId: string): void {
     const target = getEffectiveProfiles(finalConfig.profiles).find(p => p.id === profileId)
+    // Only `claude-max` profiles have credentials this can consult. `api`
+    // profiles authenticate with a key and have no usage endpoint; `oauth-token`
+    // profiles carry their token in `CLAUDE_CODE_OAUTH_TOKEN` with a config dir
+    // that deliberately holds no on-disk credentials, so the store read finds
+    // nothing there either. `force: true` also means the 30s cache can't
+    // suppress the repeat, so every exhaustion event would pay for a credential
+    // read (a `/usr/bin/security` subprocess on macOS) to learn nothing.
+    // Mirrors the `not_oauth` guard in `/v1/usage/quota/all` and
+    // `credentialStoreForProfile`. Tier 3's conservative default already stands
+    // when this returns early (#699).
+    if ((target?.type ?? "claude-max") !== "claude-max") return
     void fetchOAuthUsage({ profileId, claudeConfigDir: target?.claudeConfigDir, force: true })
       .then(usage => {
         if (!usage || usage.stale) return
