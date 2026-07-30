@@ -2,7 +2,7 @@
  * Unit tests for classifyError — pure function, no mocks needed.
  */
 import { describe, it, expect } from "bun:test"
-import { classifyError, isStaleSessionError, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination } from "../proxy/errors"
+import { classifyError, extendedContextHint, isStaleSessionError, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination } from "../proxy/errors"
 
 describe("classifyError", () => {
   describe("authentication errors", () => {
@@ -56,6 +56,68 @@ describe("classifyError", () => {
       const result = classifyError("Claude Code process exited with code 1\nSubprocess stderr: OAuth token expired")
       expect(result.status).toBe(401)
       expect(result.type).toBe("authentication_error")
+    })
+  })
+
+  describe("extended-context remediation hint (#716)", () => {
+    // A 1M-context rate limit used to advise MERIDIAN_SONNET_MODEL=sonnet
+    // unconditionally. That is a no-op for Sonnet (already 200k by default) and
+    // names the wrong variable for the two tiers that actually default to 1M.
+    const RATE_LIMITED_1M = "429 rate limit reached for 1m context"
+
+    it("names the Fable variable for a fable[1m] request", () => {
+      const r = classifyError(RATE_LIMITED_1M, "fable[1m]")
+      expect(r.message).toContain("MERIDIAN_FABLE_MODEL=fable")
+      expect(r.message).not.toContain("SONNET")
+    })
+
+    it("names the Opus variable for an opus[1m] request", () => {
+      const r = classifyError(RATE_LIMITED_1M, "opus[1m]")
+      expect(r.message).toContain("MERIDIAN_OPUS_MODEL=opus")
+      expect(r.message).not.toContain("SONNET")
+    })
+
+    it("names the Sonnet variable only when the user opted in to sonnet[1m]", () => {
+      const r = classifyError(RATE_LIMITED_1M, "sonnet[1m]")
+      expect(r.message).toContain("MERIDIAN_SONNET_MODEL=sonnet")
+    })
+
+    it("stays silent for a 200k request, where the old advice was a no-op", () => {
+      // This is the reported bug: Sonnet is 200k by default, so telling the
+      // user to set MERIDIAN_SONNET_MODEL=sonnet changes nothing. They set it,
+      // see no difference, and conclude the proxy is broken.
+      const r = classifyError(RATE_LIMITED_1M, "sonnet")
+      expect(r.type).toBe("rate_limit_error")
+      expect(r.message).not.toContain("MERIDIAN")
+    })
+
+    it("treats mythos as the fable tier", () => {
+      expect(extendedContextHint("mythos[1m]")).toContain("MERIDIAN_FABLE_MODEL=fable")
+    })
+
+    it("falls back to the global switch when no model resolved", () => {
+      // The outer error handler can fire before `model` is assigned. The global
+      // switch is correct for every tier, so it is the safe thing to advise.
+      const r = classifyError(RATE_LIMITED_1M)
+      expect(r.message).toContain("MERIDIAN_1M_CONTEXT_SUPPORT=0")
+    })
+
+    it("falls back to the global switch for an unrecognized 1M tier", () => {
+      expect(extendedContextHint("someothermodel[1m]")).toContain("MERIDIAN_1M_CONTEXT_SUPPORT=0")
+    })
+
+    it("adds no hint when the error is unrelated to context", () => {
+      const r = classifyError("429 too many requests", "opus[1m]")
+      expect(r.type).toBe("rate_limit_error")
+      expect(r.message).not.toContain("MERIDIAN")
+    })
+
+    it("still classifies as a rate limit regardless of the hint", () => {
+      for (const m of [undefined, "sonnet", "opus[1m]", "fable[1m]"]) {
+        const r = classifyError(RATE_LIMITED_1M, m)
+        expect(r.status).toBe(429)
+        expect(r.type).toBe("rate_limit_error")
+      }
     })
   })
 

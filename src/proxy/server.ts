@@ -3239,7 +3239,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     type: "upstream_timeout",
                     message: `Upstream stalled: no data for ${error.sinceLastMs}ms`,
                   }
-                : classifyError(errMsg)
+                : classifyError(errMsg, model)
               claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
 
               // Surface the SDK termination reason (max_turns / process_exit / aborted)

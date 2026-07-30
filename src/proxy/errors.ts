@@ -10,9 +10,46 @@ export interface ClassifiedError {
 }
 
 /**
- * Detect specific SDK errors and return helpful messages to the client.
+ * Remediation advice for a rate limit hit on an extended-context request.
+ *
+ * `model` is the resolved variant (`opus[1m]`, `fable`, `sonnet`, …). The advice
+ * has to name the tier that actually failed: the three per-tier variables have
+ * opposite polarity, because Sonnet 1M costs Extra Usage on every plan while
+ * Fable and Opus 1M are included on Max/Team (#717). So Sonnet opts *in* to 1M
+ * and the other two opt *out* of it.
+ *
+ * Returns "" rather than guessing when there is nothing useful to say:
+ *
+ *  - The request did not use extended context. Suggesting a 1M variable is
+ *    irrelevant, and for Sonnet — which is 200k by default — the old advice
+ *    was a literal no-op: the user set the variable to the value it already
+ *    had, saw no change, and reasonably concluded Meridian was broken (#716).
+ *  - The tier is unrecognized, where the global switch is the only safe advice.
  */
-export function classifyError(errMsg: string): ClassifiedError {
+export function extendedContextHint(model?: string): string {
+  const advise = (v: string) =>
+    ` If you're frequently hitting this, set ${v} to use the 200k model instead.`
+
+  // No model resolved — the outer catch can fire before `model` is assigned.
+  // The global switch is correct for every tier, so it's the safe fallback.
+  if (!model) return advise("MERIDIAN_1M_CONTEXT_SUPPORT=0")
+
+  const lower = model.toLowerCase()
+  if (!lower.includes("[1m]")) return ""
+  if (lower.includes("fable") || lower.includes("mythos")) return advise("MERIDIAN_FABLE_MODEL=fable")
+  if (lower.includes("opus")) return advise("MERIDIAN_OPUS_MODEL=opus")
+  if (lower.includes("sonnet")) return advise("MERIDIAN_SONNET_MODEL=sonnet")
+  return advise("MERIDIAN_1M_CONTEXT_SUPPORT=0")
+}
+
+/**
+ * Detect specific SDK errors and return helpful messages to the client.
+ *
+ * `model` is the resolved variant for this request, used only to target the
+ * extended-context remediation hint. Optional because the outer error handler
+ * may not have assigned it yet when a request fails early.
+ */
+export function classifyError(errMsg: string, model?: string): ClassifiedError {
   const lower = errMsg.toLowerCase()
 
   // Expired OAuth token (more specific than the generic auth check below)
@@ -41,7 +78,7 @@ export function classifyError(errMsg: string): ClassifiedError {
   if (lower.includes("429") || lower.includes("rate limit") || lower.includes("too many requests")
     || lower.includes("hit your session limit") || lower.includes("usage limit reached")) {
     const hint = lower.includes("1m") || lower.includes("context")
-      ? " If you're frequently hitting this, set MERIDIAN_SONNET_MODEL=sonnet to use the 200k model instead."
+      ? extendedContextHint(model)
       : ""
     return {
       status: 429,
