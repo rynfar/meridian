@@ -15,9 +15,34 @@ function stripCacheControlForHashing(obj: any): any {
 }
 
 /**
+ * Content block types that contribute nothing to the lineage hash.
+ *
+ * Thinking blocks are model-emitted reasoning. Their `signature` is an opaque,
+ * high-entropy, per-generation blob, and `redacted_thinking` carries only
+ * opaque `data` — none of it identifies the conversation prefix, which is the
+ * only question the hash exists to answer.
+ *
+ * They are dropped entirely rather than reduced to their text, because the
+ * failure mode is a client that stops echoing thinking blocks once a tool loop
+ * finishes — a common pattern, since only the active loop strictly needs them.
+ * Hashing `thinking:<text>` would still change that message's hash the moment
+ * the block disappears; contributing nothing is what makes the hash stable
+ * across its presence, absence, and any re-signature (#710).
+ *
+ * Deliberate trade-off: two prefixes differing ONLY in thinking now hash alike.
+ * That is correct — thinking always accompanies the same text and tool calls in
+ * its own turn, and those are still hashed, so it never distinguishes two
+ * genuinely different prefixes on its own.
+ */
+const HASH_IGNORED_BLOCK_TYPES = new Set(["thinking", "redacted_thinking"])
+
+/**
  * Normalize message content to a string for hashing and comparison.
  * Handles both string content and array content (Anthropic content blocks).
  * Strips cache_control metadata to ensure hash stability across requests.
+ *
+ * Used only for lineage hashing — see {@link HASH_IGNORED_BLOCK_TYPES}, which
+ * drops content a display-oriented normalizer would need to keep.
  *
  * NOTE: OpenCode sends content as a string on the first request but as
  * an array on subsequent ones. This normalizer handles both formats.
@@ -26,7 +51,9 @@ function stripCacheControlForHashing(obj: any): any {
 export function normalizeContent(content: any): string {
   if (typeof content === "string") return content
   if (Array.isArray(content)) {
-    return content.map((block: any) => {
+    // Filtered, not mapped to "": an empty segment would still leave its
+    // newline behind and churn the hash exactly as the raw block did.
+    return content.filter((block: any) => !HASH_IGNORED_BLOCK_TYPES.has(block?.type)).map((block: any) => {
       if (block.type === "text" && block.text) return block.text
       if (block.type === "tool_use") return `tool_use:${block.id}:${block.name}:${JSON.stringify(block.input)}`
       if (block.type === "tool_result") {
