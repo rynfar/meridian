@@ -7,6 +7,7 @@ import { forgeCodeTransforms } from "./forgecode"
 import { passthroughTransforms } from "./passthrough"
 import { cherryTransforms } from "./cherry"
 import { codexTransforms } from "./codex"
+import { claudeCodeTransforms } from "./claudecode"
 
 const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   opencode: openCodeTransforms,
@@ -16,6 +17,10 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   forgecode: forgeCodeTransforms,
   passthrough: passthroughTransforms,
   cherry: cherryTransforms,
+  // Keyed by adapter.name ("claude-code", not "claudecode"). Without this the
+  // Claude Code CLI falls through to the empty default — built-ins unblocked,
+  // passthrough off — and the SDK re-executes every tool call on the proxy host.
+  "claude-code": claudeCodeTransforms,
   // The OpenAI-compatible endpoint reuses OpenCode's transforms verbatim so
   // tool/passthrough behaviour is identical; only the preset default differs
   // (see sdkFeatures.ADAPTER_DEFAULTS.openai).
