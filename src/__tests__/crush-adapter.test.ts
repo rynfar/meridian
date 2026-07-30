@@ -11,21 +11,38 @@ describe("crushAdapter — identity", () => {
 })
 
 describe("crushAdapter.getSessionId", () => {
-  it("always returns undefined — Crush sends no session header", () => {
-    const ctx = {
-      req: { header: () => "any-value" },
-    }
-    expect(crushAdapter.getSessionId(ctx as any)).toBeUndefined()
+  const ctxWith = (headers: Record<string, string>) => ({
+    req: { header: (name: string) => headers[name] },
+  }) as any
+
+  it("reads x-session-id, which Crush 0.87 sends", () => {
+    // Older Crush sent no session header and this returned undefined, leaving
+    // continuity to fingerprint lookup. Values captured from a real 0.87 request.
+    expect(crushAdapter.getSessionId(ctxWith({ "x-session-id": "eee42bf262921f57" })))
+      .toBe("eee42bf262921f57")
   })
 
-  it("returns undefined even when x-opencode-session is present", () => {
-    const ctx = {
-      req: {
-        header: (name: string) =>
-          name === "x-opencode-session" ? "sess-abc" : undefined,
-      },
-    }
-    expect(crushAdapter.getSessionId(ctx as any)).toBeUndefined()
+  it("falls back to x-session-affinity", () => {
+    expect(crushAdapter.getSessionId(ctxWith({ "x-session-affinity": "aff-123" })))
+      .toBe("aff-123")
+  })
+
+  it("prefers x-session-id when both are present", () => {
+    // Crush sends both with the same value; x-session-id is the direct one.
+    expect(crushAdapter.getSessionId(ctxWith({
+      "x-session-id": "primary",
+      "x-session-affinity": "secondary",
+    }))).toBe("primary")
+  })
+
+  it("returns undefined for a build that sends neither", () => {
+    // Older Crush: fingerprint-based continuity still has to work.
+    expect(crushAdapter.getSessionId(ctxWith({}))).toBeUndefined()
+  })
+
+  it("ignores x-opencode-session — that header belongs to another client", () => {
+    expect(crushAdapter.getSessionId(ctxWith({ "x-opencode-session": "sess-abc" })))
+      .toBeUndefined()
   })
 })
 

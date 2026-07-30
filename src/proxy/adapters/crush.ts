@@ -39,11 +39,19 @@ export const crushAdapter: AgentAdapter = {
   name: "crush",
 
   /**
-   * Crush sends no session header.
-   * Session continuity is maintained via fingerprint-based cache lookup.
+   * Crush 0.87 sends `x-session-id` and `x-session-affinity` (same value).
+   * Older builds sent neither, and this returned undefined — session continuity
+   * then rested on fingerprint-based cache lookup.
+   *
+   * Reading the header is not optional now that `x-session-affinity` no longer
+   * resolves Crush to the OpenCode adapter: `openCodeAdapter.getSessionId` falls
+   * back to that header, so while Crush was misdetected it was silently getting
+   * keyed sessions. Returning undefined here would have quietly downgraded Crush
+   * to fingerprint-only continuity as a side effect of fixing the detection —
+   * observed live as `lineage=new` on every turn and a looping session.
    */
-  getSessionId(_c: Context): string | undefined {
-    return undefined
+  getSessionId(c: Context): string | undefined {
+    return c.req.header("x-session-id") ?? c.req.header("x-session-affinity")
   },
 
   /**

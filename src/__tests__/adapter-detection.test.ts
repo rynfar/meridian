@@ -258,8 +258,47 @@ describe("detectAdapter — OpenCode detection", () => {
     expect(adapter.name).toBe("opencode")
   })
 
-  it("returns openCodeAdapter when x-session-affinity is present", () => {
+  it("returns openCodeAdapter when x-session-affinity is present and nothing else identifies the client", () => {
     const adapter = detectAdapter(makeContext("", { "x-session-affinity": "ses_2a50aeb32ffe" }))
+    expect(adapter).toBe(openCodeAdapter)
+  })
+
+  it("does NOT let x-session-affinity override a Crush User-Agent", () => {
+    // Crush 0.87 sends x-session-affinity + x-session-id alongside its own
+    // User-Agent. While the affinity header was checked ahead of the UA chain,
+    // every Crush request resolved to the OpenCode adapter, silently swapping
+    // in OpenCode's transforms, tool config and session semantics.
+    // Header set captured from a real crush 0.87.0 request.
+    const adapter = detectAdapter(makeContext("Charm-Crush/v0.87.0 (https://charm.land/crush)", {
+      "x-session-affinity": "eee42bf262921f57",
+      "x-session-id": "eee42bf262921f57",
+    }))
+    expect(adapter).toBe(crushAdapter)
+    expect(adapter.name).toBe("crush")
+  })
+
+  it("does NOT let x-session-affinity override a droid User-Agent", () => {
+    const adapter = detectAdapter(makeContext("factory-cli/1.0.0", {
+      "x-session-affinity": "aff-1",
+    }))
+    expect(adapter).toBe(droidAdapter)
+  })
+
+  it("still lets x-opencode-session win over any other client's User-Agent", () => {
+    // OpenCode's plugin header is unambiguous — no other client sends it — so it
+    // must keep outranking the UA chain even though x-session-affinity no longer does.
+    const adapter = detectAdapter(makeContext("Charm-Crush/v0.87.0", {
+      "x-opencode-session": "sess-abc",
+    }))
+    expect(adapter).toBe(openCodeAdapter)
+  })
+
+  it("keeps detecting OpenCode from affinity alone when the UA is unrecognized", () => {
+    // The fallback still has to work: an OpenCode build whose UA we do not know
+    // is exactly what the affinity check exists for.
+    const adapter = detectAdapter(makeContext("some-unknown-client/9", {
+      "x-session-affinity": "ses_abc",
+    }))
     expect(adapter).toBe(openCodeAdapter)
   })
 
@@ -376,10 +415,15 @@ describe("detectAdapter — adapter contracts", () => {
     expect(adapter.extractWorkingDirectory({ messages: [], system: [] })).toBeUndefined()
   })
 
-  it("detected crush adapter returns undefined for session ID", () => {
+  it("detected crush adapter reads Crush's own session headers", () => {
+    // Crush 0.87 sends x-session-id / x-session-affinity; older builds sent
+    // neither, and fingerprint continuity has to keep working for those.
     const adapter = detectAdapter(makeContext("Charm-Crush/v0.51.2"))
-    const ctx = { req: { header: () => "any-value" } }
-    expect(adapter.getSessionId(ctx as any)).toBeUndefined()
+    const ctx = (h: Record<string, string>) => ({ req: { header: (n: string) => h[n] } })
+    expect(adapter.getSessionId(ctx({ "x-session-id": "sid-1" }) as any)).toBe("sid-1")
+    expect(adapter.getSessionId(ctx({}) as any)).toBeUndefined()
+    // Not OpenCode's header.
+    expect(adapter.getSessionId(ctx({ "x-opencode-session": "sess-abc" }) as any)).toBeUndefined()
   })
 
   it("detected crush adapter has crush MCP server name", () => {
