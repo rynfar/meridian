@@ -1,166 +1,185 @@
 /**
- * Tests for auth status caching behavior and model selection resilience.
+ * Auth-status caching and resilience — against the REAL implementation (#707).
  *
- * Mocks ../proxy/models to fully control getClaudeAuthStatusAsync behavior,
- * eliminating races from parallel test files that share the module singleton.
+ * This file previously declared its own `authCache`, `lastKnownGood`, TTLs and
+ * caching logic and asserted against that copy. It never imported
+ * `../proxy/models`, so all 8 tests would have passed with
+ * `getClaudeAuthStatusAsync` deleted — no coverage at all of the resilience
+ * behaviour it claimed to test.
+ *
+ * The original objection to mocking was real and is quoted in the old file:
+ * bun's `mock.module` is global and leaks across files. It no longer applies —
+ * `package.json` excludes this file from the main `bun test` run and executes
+ * it as its own invocation, so a module mock here cannot reach other files.
+ *
+ * Two things make the real implementation testable deterministically:
+ *   - `MERIDIAN_CLAUDE_PATH` short-circuits executable resolution, so no real
+ *     binary is probed.
+ *   - `profileAuthCaches` is keyed by profile id, so a unique profile per test
+ *     gives isolation without any shared-singleton race — which is what drove
+ *     the reimplementation in the first place.
  */
+import { describe, it, expect, beforeEach, afterAll, mock } from "bun:test"
 
-import { describe, it, expect, beforeEach } from "bun:test"
-
-type AuthStatus = { loggedIn: boolean; email: string; subscriptionType: string } | null
-
+/** Controls what the mocked `claude auth status` does on the next call. */
 let authBehavior: "success" | "fail" = "success"
-let authCache: AuthStatus = null
-let authCacheAt = 0
-let lastKnownGood: AuthStatus = null
-let authIsFailure = false
-const AUTH_TTL = 30_000
-const FAIL_TTL = 5_000
-const MOCK_AUTH = { loggedIn: true, email: "test@test.com", subscriptionType: "max" }
+let execFileCalls = 0
+let currentPayload = { loggedIn: true, email: "test@test.com", subscriptionType: "max" }
 
-function resetCache() {
-  authCache = null
-  authCacheAt = 0
-  lastKnownGood = null
-  authIsFailure = false
-}
-
-function expireCache() {
-  authCacheAt = 0
-}
-
-async function mockGetAuthStatus(): Promise<AuthStatus> {
-  const ttl = authIsFailure ? FAIL_TTL : AUTH_TTL
-  if (authCacheAt > 0 && Date.now() - authCacheAt < ttl) {
-    return authCache ?? lastKnownGood
-  }
-
-  if (authBehavior === "fail") {
-    if (lastKnownGood) {
-      authCache = null
-      authCacheAt = Date.now()
-      authIsFailure = true
-      return lastKnownGood
+mock.module("child_process", () => ({
+  exec: (_cmd: string, optsOrCb: any, cb?: any) => {
+    const done = typeof optsOrCb === "function" ? optsOrCb : cb
+    done?.(null, { stdout: "", stderr: "" })
+  },
+  execFile: (_file: string, _args: any, optsOrCb: any, cb?: any) => {
+    execFileCalls++
+    const done = typeof optsOrCb === "function" ? optsOrCb : cb
+    if (authBehavior === "fail") {
+      done?.(new Error("claude auth status failed"), { stdout: "", stderr: "" })
+      return
     }
-    authCache = null
-    authCacheAt = Date.now()
-    authIsFailure = true
-    return null
-  }
+    done?.(null, { stdout: JSON.stringify(currentPayload), stderr: "" })
+  },
+}))
 
-  const result = { ...MOCK_AUTH }
-  authCache = result
-  lastKnownGood = result
-  authCacheAt = Date.now()
-  authIsFailure = false
-  return result
-}
+const savedClaudePath = process.env.MERIDIAN_CLAUDE_PATH
+process.env.MERIDIAN_CLAUDE_PATH = "/fake/claude"
 
-// No mock.module — these tests use self-contained mock functions above.
-// Mocking ../proxy/models would poison the module registry for parallel
-// test files (bun's mock.module is global and leaks across files).
+const {
+  getClaudeAuthStatusAsync,
+  getAuthCacheInfo,
+  resetCachedClaudeAuthStatus,
+  expireAuthStatusCache,
+} = await import("../proxy/models")
 
-const getClaudeAuthStatusAsync = mockGetAuthStatus
-const resetCachedClaudeAuthStatus = resetCache
-const expireAuthStatusCache = expireCache
-
-function mapModelToClaudeModel(model: string, sub?: string | null, agentMode?: string | null) {
-  const base = model.toLowerCase()
-  if (base.includes("opus")) return agentMode === "subagent" ? "opus" : "opus[1m]"
-  if (base.includes("haiku")) return "haiku"
-  return "sonnet"
-}
-
-describe("getClaudeAuthStatusAsync", () => {
-  beforeEach(() => {
-    resetCachedClaudeAuthStatus()
-    authBehavior = "success"
-  })
-
-  it("returns parsed auth status on success", async () => {
-    const result = await getClaudeAuthStatusAsync()
-    expect(result).not.toBeNull()
-    expect(result?.subscriptionType).toBe("max")
-    expect(result?.email).toBe("test@test.com")
-  })
-
-  it("caches results — second call returns same reference", async () => {
-    const result1 = await getClaudeAuthStatusAsync()
-    const result2 = await getClaudeAuthStatusAsync()
-    expect(result2).toBe(result1)
-  })
-
-  it("caches null results to avoid repeated exec calls", async () => {
-    authBehavior = "fail"
-    const result1 = await getClaudeAuthStatusAsync()
-    expect(result1).toBeNull()
-
-    authBehavior = "success"
-    const result2 = await getClaudeAuthStatusAsync()
-    expect(result2).toBeNull()
-  })
-
-  it("refreshes after reset", async () => {
-    authBehavior = "fail"
-    const result1 = await getClaudeAuthStatusAsync()
-    expect(result1).toBeNull()
-
-    resetCachedClaudeAuthStatus()
-    authBehavior = "success"
-    const result2 = await getClaudeAuthStatusAsync()
-    expect(result2).not.toBeNull()
-    expect(result2?.subscriptionType).toBe("max")
-  })
-
-  it("returns last known good status when auth check fails after a prior success", async () => {
-    const result1 = await getClaudeAuthStatusAsync()
-    expect(result1).not.toBeNull()
-
-    expireAuthStatusCache()
-    authBehavior = "fail"
-    const result2 = await getClaudeAuthStatusAsync()
-    expect(result2).not.toBeNull()
-    expect(result2?.subscriptionType).toBe(result1!.subscriptionType)
-  })
-
-  it("returns null on first failure when no prior success exists", async () => {
-    authBehavior = "fail"
-    const result = await getClaudeAuthStatusAsync()
-    expect(result).toBeNull()
-  })
-
-  it("uses shorter TTL for failed auth checks (faster recovery)", async () => {
-    authBehavior = "fail"
-    await getClaudeAuthStatusAsync()
-
-    const cached = await getClaudeAuthStatusAsync()
-    expect(cached).toBeNull()
-
-    expireAuthStatusCache()
-    authBehavior = "success"
-    const fresh = await getClaudeAuthStatusAsync()
-    expect(fresh).not.toBeNull()
-    expect(fresh?.subscriptionType).toBe("max")
-  })
+afterAll(() => {
+  if (savedClaudePath === undefined) delete process.env.MERIDIAN_CLAUDE_PATH
+  else process.env.MERIDIAN_CLAUDE_PATH = savedClaudePath
 })
 
-describe("Auth status resilience - model selection", () => {
+/** Unique profile per test — the isolation that replaces the local copy. */
+let profileSeq = 0
+const nextProfile = () => `auth-test-${++profileSeq}`
+
+describe("getClaudeAuthStatusAsync — real implementation", () => {
   beforeEach(() => {
-    resetCachedClaudeAuthStatus()
     authBehavior = "success"
+    execFileCalls = 0
+    currentPayload = { loggedIn: true, email: "test@test.com", subscriptionType: "max" }
+    resetCachedClaudeAuthStatus()
   })
 
-  it("model stays sonnet (200k) when auth degrades — sonnet[1m] is opt-in", async () => {
-    const authResult = await getClaudeAuthStatusAsync()
-    expect(authResult?.subscriptionType).toBe("max")
+  it("fetches and returns auth status on a cold cache", async () => {
+    const status = await getClaudeAuthStatusAsync(nextProfile())
+    expect(status).toEqual(currentPayload)
+    expect(execFileCalls).toBe(1)
+  })
 
-    const model1 = mapModelToClaudeModel("sonnet", authResult!.subscriptionType)
-    expect(model1).toBe("sonnet")
+  it("serves from cache within the TTL instead of re-running the CLI", async () => {
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    expect(await getClaudeAuthStatusAsync(p)).toEqual(currentPayload)
+    // The point of the cache: one subprocess, not two.
+    expect(execFileCalls).toBe(1)
+  })
 
+  it("re-fetches once the TTL has expired", async () => {
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
     expireAuthStatusCache()
+    await getClaudeAuthStatusAsync(p)
+    expect(execFileCalls).toBe(2)
+  })
+
+  it("picks up a changed payload after expiry", async () => {
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    currentPayload = { loggedIn: true, email: "new@test.com", subscriptionType: "team" }
+    expireAuthStatusCache()
+    expect(await getClaudeAuthStatusAsync(p)).toEqual(currentPayload)
+  })
+
+  it("falls back to last-known-good when the auth check fails", async () => {
+    // The resilience property with no real coverage before: a transient CLI
+    // failure must not blank the proxy's view of auth.
+    const p = nextProfile()
+    const good = await getClaudeAuthStatusAsync(p)
+    expect(good).toEqual(currentPayload)
+
     authBehavior = "fail"
-    const degradedAuth = await getClaudeAuthStatusAsync()
-    const model2 = mapModelToClaudeModel("sonnet", degradedAuth?.subscriptionType)
-    expect(model2).toBe("sonnet")
+    expireAuthStatusCache()
+    expect(await getClaudeAuthStatusAsync(p)).toEqual(currentPayload)
+  })
+
+  it("returns null when the first check fails and there is no last-known-good", async () => {
+    authBehavior = "fail"
+    expect(await getClaudeAuthStatusAsync(nextProfile())).toBeNull()
+  })
+
+  it("marks the cache as failed so /health can report it", async () => {
+    const p = nextProfile()
+    authBehavior = "fail"
+    await getClaudeAuthStatusAsync(p)
+    expect(getAuthCacheInfo(p).isFailure).toBe(true)
+  })
+
+  it("clears the failure flag once a later check succeeds", async () => {
+    const p = nextProfile()
+    authBehavior = "fail"
+    await getClaudeAuthStatusAsync(p)
+    expect(getAuthCacheInfo(p).isFailure).toBe(true)
+
+    authBehavior = "success"
+    expireAuthStatusCache()
+    await getClaudeAuthStatusAsync(p)
+    const info = getAuthCacheInfo(p)
+    expect(info.isFailure).toBe(false)
+    expect(info.lastSuccessAt).toBeGreaterThan(0)
+  })
+
+  it("records lastSuccessAt only on success", async () => {
+    const p = nextProfile()
+    authBehavior = "fail"
+    await getClaudeAuthStatusAsync(p)
+    expect(getAuthCacheInfo(p).lastSuccessAt).toBe(0)
+  })
+
+  it("de-duplicates concurrent cold-cache calls into one subprocess", async () => {
+    // Without the in-flight promise, a burst of requests on a cold cache would
+    // spawn one `claude auth status` each.
+    const p = nextProfile()
+    const results = await Promise.all([
+      getClaudeAuthStatusAsync(p),
+      getClaudeAuthStatusAsync(p),
+      getClaudeAuthStatusAsync(p),
+    ])
+    for (const r of results) expect(r).toEqual(currentPayload)
+    expect(execFileCalls).toBe(1)
+  })
+
+  it("keeps profiles isolated — one account's failure does not poison another", async () => {
+    // The reason the cache is per-profile at all: two Claude accounts have
+    // independent auth state.
+    const good = nextProfile()
+    const bad = nextProfile()
+    await getClaudeAuthStatusAsync(good)
+
+    authBehavior = "fail"
+    await getClaudeAuthStatusAsync(bad)
+
+    expect(getAuthCacheInfo(good).isFailure).toBe(false)
+    expect(getAuthCacheInfo(bad).isFailure).toBe(true)
+    // The healthy profile still serves from its own cache, no new subprocess.
+    const callsBefore = execFileCalls
+    expect(await getClaudeAuthStatusAsync(good)).toEqual(currentPayload)
+    expect(execFileCalls).toBe(callsBefore)
+  })
+
+  it("reports zeroed cache info for a profile never checked", async () => {
+    expect(getAuthCacheInfo("never-seen")).toEqual({
+      lastCheckedAt: 0,
+      lastSuccessAt: 0,
+      isFailure: false,
+    })
   })
 })
