@@ -62,7 +62,18 @@ const ORCHESTRATION_TAGS = [
 function tagPatterns(tag: string): [paired: RegExp, selfClosing: RegExp] {
   return [
     // Paired: <tagname ...>...</tagname>
-    new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, "gi"),
+    //
+    // The `(?<!\/)` is load-bearing. Without it, `[^>]*` happily consumes the
+    // ` /` of a self-closing tag, so `<tag />` matches as an OPENING tag and
+    // the lazy body runs on to the next `</tag>` — deleting everything in
+    // between:
+    //
+    //   "a<env />KEEP<env>x</env>b"  ->  "ab"     (KEEP silently lost)
+    //
+    // Requiring that the character before `>` is not `/` makes a self-closing
+    // tag unmatchable as an opening tag, so the self-closing pattern below
+    // handles it and the intervening text survives (#722).
+    new RegExp(`<${tag}\\b[^>]*(?<!\\/)>[\\s\\S]*?<\\/${tag}>`, "gi"),
     // Self-closing: <tagname ... />
     new RegExp(`<${tag}\\b[^>]*\\/>`, "gi"),
   ]
