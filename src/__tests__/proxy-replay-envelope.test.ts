@@ -243,6 +243,62 @@ describe("user-authored <thinking> survives (#720)", () => {
   })
 })
 
+describe("assistant content: Meridian's own markers stripped on replay (#724)", () => {
+  beforeEach(() => {
+    clearSessionCache()
+    capturedPrompts = []
+  })
+
+  it("does not replay Meridian's 'Files changed:' summary back to the model", async () => {
+    // server.ts appends this onto the assistant's last text block; the client
+    // echoes that turn back next request, and before #724 it replayed verbatim.
+    // NON_XML_PATTERNS carried a matcher for it that could never fire, because
+    // the sanitizer only ran on user-authored text.
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, [
+      { role: "user", content: "create a file" },
+      { role: "assistant", content: "Done.\n\n---\nFiles changed:\n  - src/a.ts\n" },
+      { role: "user", content: "now what?" },
+    ])
+    expect(res.status).toBe(200)
+
+    const prompt = capturedPrompts[0] as string
+    expect(prompt).not.toContain("Files changed:")
+    expect(prompt).not.toContain("src/a.ts")
+    // The assistant's real answer must survive.
+    expect(prompt).toContain("Done.")
+    expect(prompt).toContain("now what?")
+  })
+
+  it("leaves XML tags in assistant output alone — that is the model's own answer", async () => {
+    // The #720 failure mirrored: stripping the allowlist from model output
+    // would delete a legitimate answer about configuration.
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, [
+      { role: "user", content: "show me an env block" },
+      { role: "assistant", content: "Sure:\n<env>\nFOO=1\n</env>\nThat sets FOO." },
+      { role: "user", content: "thanks" },
+    ])
+    expect(res.status).toBe(200)
+
+    const prompt = capturedPrompts[0] as string
+    expect(prompt).toContain("FOO=1")
+  })
+
+  it("still strips the same markers from user-authored text", async () => {
+    // The user path must not regress while the assistant path is added.
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, [
+      { role: "user", content: "<env>cwd=/tmp</env>the question" },
+    ])
+    expect(res.status).toBe(200)
+
+    const prompt = capturedPrompts[0] as string
+    expect(prompt).not.toContain("cwd=/tmp")
+    expect(prompt).toContain("the question")
+  })
+})
+
 /**
  * MERIDIAN_STRIP_THINKING — escape hatch for harnesses observed leaking raw
  * <thinking> tags into user-authored prompts that haven't been surveyed. Off

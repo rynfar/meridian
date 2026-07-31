@@ -139,6 +139,37 @@ export interface SanitizeOptions {
  * Designed to be called on individual content blocks (not concatenated
  * prompt strings) to eliminate cross-block regex matching risk.
  */
+/**
+ * Strip only the branded, harness-generated markers from ASSISTANT text.
+ *
+ * Assistant content is replayed into the prompt as `[Assistant: …]` context and
+ * has never been sanitized — the unimplemented half of #167 (see #724). The
+ * concrete leak is Meridian's own doing: `server.ts` appends its "Files
+ * changed:" summary onto the assistant's last text block, the client echoes
+ * that assistant turn back on the next turn, and the summary replays into the
+ * model's context verbatim. `NON_XML_PATTERNS` has carried a pattern for it all
+ * along, which could never fire because the sanitizer only ran on user text.
+ *
+ * Deliberately NOT the XML tag allowlist. Assistant text is model OUTPUT, and a
+ * model asked about configuration will legitimately write `<env>…</env>` — so
+ * stripping the allowlist here would delete the model's own answer, which is
+ * exactly the failure #720 was about. `NON_XML_PATTERNS` is safe because every
+ * entry is uniquely branded (Meridian's summary, oh-my-opencode's markers, the
+ * background-task marker): no model emits them by accident.
+ *
+ * `tool_result` content is deliberately left alone too — it is tool-generated
+ * and can legitimately contain anything, including text that merely looks like
+ * a marker. Corrupting real tool output is worse than replaying a wrapper.
+ */
+export function sanitizeAssistantText(text: string): string {
+  let result = text
+  for (const pattern of NON_XML_PATTERNS) {
+    pattern.lastIndex = 0
+    result = result.replace(pattern, "")
+  }
+  return result.replace(/\n{3,}/g, "\n\n").trim()
+}
+
 export function sanitizeTextContent(text: string, opts: SanitizeOptions = {}): string {
   let result = text
   const patterns = [...ALL_PATTERNS]

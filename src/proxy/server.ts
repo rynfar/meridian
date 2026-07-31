@@ -83,7 +83,7 @@ import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
 import { detectTokenAnomalies, formatAnomalyAlerts, type TokenSnapshot } from "./tokenHealth"
 import { computeCacheHitRate, formatUsageSummary } from "./tokenUsage"
-import { sanitizeTextContent } from "./sanitize"
+import { sanitizeTextContent, sanitizeAssistantText } from "./sanitize"
 import {
   computeLineageHash,
   hashMessage,
@@ -197,10 +197,15 @@ function normalizeStructuredUserContent(content: any): any {
  * inventing fake tool-call patterns back (issue #111, #386).
  */
 function flattenAssistantContent(content: any): string {
-  if (typeof content === "string") return content
+  // Strips only branded harness markers — notably Meridian's own "Files
+  // changed:" summary, which this server appends to the assistant's last text
+  // block and which the client then echoes back for replay (#724). The XML tag
+  // allowlist is deliberately NOT applied: assistant text is model output, and
+  // a model discussing configuration legitimately writes `<env>` (#720).
+  if (typeof content === "string") return sanitizeAssistantText(content)
   if (!Array.isArray(content)) return String(content ?? "")
   return content
-    .map((b: any) => (b?.type === "text" && b.text ? b.text : ""))
+    .map((b: any) => (b?.type === "text" && b.text ? sanitizeAssistantText(b.text) : ""))
     .filter(Boolean)
     .join("\n")
 }
