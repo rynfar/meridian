@@ -88,6 +88,7 @@ kill $(lsof -ti :3456)
 | E33 | [OpenAI Compat: system prompt, no preset](#e33-openai-compat-system-prompt-no-preset) | `/v1/chat/completions` honours the client's system prompt without injecting the claude_code preset (openai adapter default) | 2026-06-15 |
 | E34 | [Streaming parallel tool calls (#552)](#e34-streaming-parallel-tool-calls-552) | **Automated**: `bun scripts/e2e-stream-parallel.mjs` — real CLI, SSE mode: parallel tool calls stream intact (no dangling `{}` blocks), denies held past generation, fast follow-up resumes. **Run before any release touching the passthrough tool loop** — mocked suites cannot catch CLI dispatch-ordering bugs (two shipped regressions proved it) | 2026-07-15 |
 | E35 | [SDK boundary assumptions (#694/#708/#710)](#e35-sdk-boundary-assumptions-694708710) | **Automated**: `bun scripts/e2e-sdk-boundary.mjs` — real SDK: rate-limit reset units land in a sane window, every live content-block type is classified for hashing, resume survives a client dropping thinking blocks, and reports whether the gitStatus block still misstates its provenance. **Run after any `@anthropic-ai/claude-agent-sdk` bump** and before releases touching lineage, rate limits, or the system prompt | 2026-07-29 |
+| E36 | [Client detection after an upgrade (#733)](#e36-client-detection-after-an-upgrade-733) | **Automated**: `bun scripts/e2e-client-detection.mjs` — drives each installed client against a local stub, captures its real headers, and asserts the adapter Meridian resolves. **Run after upgrading any client**; costs no tokens | 2026-07-31 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3189,3 +3190,54 @@ real bugs by reverting each fix and re-running:
 `ContentBlockParam` union out of the installed SDK and fails when a new block
 type appears in none of the three buckets — so the next `thinking` is caught by
 CI on the dependency bump rather than by a user.
+
+## E36: Client detection after an upgrade (#733)
+
+**Automated**, and costs **no tokens** — every request is answered by a local
+stub and never forwarded upstream:
+
+```bash
+bun scripts/e2e-client-detection.mjs            # check for drift
+bun scripts/e2e-client-detection.mjs --update   # re-record the fixture
+```
+
+**Why this exists:** Meridian picks an adapter from request headers, so a client
+changing what it sends silently reroutes it — and nothing fails.
+
+Crush 0.87 added `x-session-affinity`, which detection checked ahead of the
+User-Agent chain, so every Crush request resolved to the **OpenCode** adapter:
+OpenCode's transforms, tool config, MCP server name and CWD extraction applied
+to a client with its own. Then fixing the detection made it *worse*, because
+`openCodeAdapter.getSessionId` falls back to that same header — Crush had been
+getting keyed sessions by accident, and correct detection downgraded it to
+fingerprint-only continuity, looping until timeout.
+
+That was found by upgrading a client and running one turn. No user would connect
+"sessions feel wrong" to header precedence, and no unit test can watch a client
+change its headers.
+
+**Pass criteria:**
+- every installed client resolves to the adapter recorded in
+  `src/__tests__/fixtures/client-headers.json`
+- a client that never reaches the capture server **fails** rather than being
+  silently skipped — silence is not success
+- an uninstalled client is skipped with a note, so the script is runnable on a
+  machine that has only some clients
+
+**Also reported, not failed:** headers added or removed since the recorded
+capture, and User-Agent changes. A new header is exactly how #733 started, one
+release before it did damage — so it is surfaced even while detection is still
+correct.
+
+**Adding a client:** one entry in the `CLIENTS` table (how to write its config
+and run one turn), then `--update`.
+
+**Static counterpart:** `client-detection-fixtures.test.ts` pins detection
+against the same captured header sets, so a change to detection ORDERING fails
+in CI without needing any client installed. Verified: reintroducing #733 fails
+that test *and* the live script.
+
+**Note on the fixtures:** they are real captures, not hand-written. Both
+opencode 1.18.9 and crush 0.87 send `x-session-affinity` **and** `x-session-id`
+— which is why one of the tests asserts, as a property, that a shared session
+header can never be what distinguishes two clients.

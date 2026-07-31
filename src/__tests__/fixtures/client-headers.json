@@ -1,0 +1,68 @@
+{
+  "_comment": [
+    "Request headers CAPTURED FROM REAL CLIENTS, not hand-written.",
+    "",
+    "Meridian picks an adapter from these headers, and a client changing them",
+    "silently reroutes it: crush 0.87 added x-session-affinity and was thereby",
+    "detected as OpenCode, inheriting OpenCode's transforms, tool config and",
+    "session semantics (#733). No user could connect the symptom to the cause.",
+    "",
+    "client-detection-fixtures.test.ts asserts each set still resolves to the",
+    "adapter recorded here, so a change to detection ordering fails CI.",
+    "scripts/e2e-client-detection.mjs re-captures from installed clients and",
+    "diffs against this file, so a CLIENT-side change shows up as a git diff.",
+    "",
+    "To add a client: run the live script, which writes the captured set here.",
+    "Secrets are redacted at capture time."
+  ],
+  "captures": [
+    {
+      "client": "crush",
+      "version": "0.87.0",
+      "capturedAt": "2026-07-31",
+      "expectedAdapter": "crush",
+      "headers": {
+        "user-agent": "Charm-Crush/v0.87.0 (https://charm.land/crush)",
+        "accept": "application/json",
+        "anthropic-beta": "interleaved-thinking-2025-05-14",
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "x-session-affinity": "<session>",
+        "x-session-id": "<session>",
+        "x-stainless-arch": "arm64",
+        "x-stainless-lang": "go",
+        "x-stainless-os": "MacOS",
+        "x-stainless-package-version": "1.26.0",
+        "x-stainless-runtime": "go",
+        "x-stainless-runtime-version": "go1.26.5"
+      }
+    },
+    {
+      "client": "opencode",
+      "version": "1.18.9",
+      "capturedAt": "2026-07-31",
+      "expectedAdapter": "opencode",
+      "headers": {
+        "content-type": "application/json",
+        "user-agent": "opencode/1.18.9 ai-sdk/provider-utils/4.0.27 runtime/bun/1.3.14",
+        "anthropic-version": "2023-06-01",
+        "x-session-affinity": "<session>",
+        "x-session-id": "<session>",
+        "accept": "*/*"
+      }
+    },
+    {
+      "client": "opencode",
+      "version": "1.18.9+meridian-plugin",
+      "capturedAt": "2026-07-31",
+      "expectedAdapter": "opencode",
+      "note": "With the Meridian plugin active, x-opencode-session is injected and outranks the User-Agent chain.",
+      "headers": {
+        "user-agent": "opencode/1.18.9 ai-sdk/provider-utils/4.0.27 runtime/bun/1.3.14",
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "x-opencode-session": "ses_045efb928ffejLOGaHyZy9rPdQ"
+      }
+    }
+  ]
+}
