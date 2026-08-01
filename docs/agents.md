@@ -347,3 +347,28 @@ The design token is stored at `~/.config/meridian/design-token.json` (mode `0600
 export ANTHROPIC_API_KEY=x
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 ```
+### Hermes Agent
+
+[Hermes](https://hermes-agent.nousresearch.com) profiles route through
+Meridian via their model config — no adapter-specific setup on the Meridian
+side (requests are handled by the default `opencode` adapter):
+
+```yaml
+# $HERMES_HOME/config.yaml
+model:
+  provider: anthropic
+  base_url: http://127.0.0.1:3456
+```
+
+Any `ANTHROPIC_API_KEY` value satisfies Hermes' credential check; Meridian
+handles the real authentication. Note that Hermes profiles have isolated
+`HERMES_HOME` directories: repeat the config for each profile.
+
+**Strongly recommended:** install the
+[`meridian-affinity` Hermes plugin](../examples/hermes-plugin/) — without
+it, every agentic turn ending in a `tool_result` is treated as an
+independent session and prompt-cache reuse is lost (each turn re-bills
+cache creation for the whole history). With it, sessions are resumed and
+cache hit rates reach ~100% on long runs. The plugin also wires
+`x-request-id`, `x-meridian-source` and `x-opencode-effort` for per-task
+cost control and telemetry correlation.

@@ -1,0 +1,3 @@
+name: meridian-affinity
+version: 1.0.0
+description: "Meridian integration: injects x-session-affinity (prompt-cache continuity), x-request-id, x-meridian-source and x-opencode-effort on every LLM request."
