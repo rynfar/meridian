@@ -129,23 +129,27 @@ def usage_status(args=None, **kwargs):
 def _register_usage_tool(ctx):
     ctx.register_tool(
         name="usage_status",
-        toolset="usage",
+        # A *native* toolset, deliberately. Platform sessions (Telegram,
+        # Discord, ...) resolve their tools through _get_platform_tools(),
+        # which keeps only native toolset keys and drops plugin-defined ones
+        # — a tool in a custom "usage" toolset is registered, listed as
+        # enabled by `hermes tools list`, and still never reaches the model.
+        # Override with USAGE_TOOLSET if another native toolset fits better.
+        toolset=os.environ.get("USAGE_TOOLSET", "delegation"),
         schema=_USAGE_SCHEMA,
         handler=usage_status,
         check_fn=_meridian_reachable,
-        # Wording matters more than it looks: with a purely descriptive
-        # blurb the model answers budget questions from the per-request USD
-        # figure already in its context and never calls the tool. Name the
-        # user-facing words ("budget", "quota", "how much is left") and say
-        # explicitly what NOT to answer with.
+        # Trigger first, ≤200 chars. A description is read twice: by the
+        # search index that surfaces the tool, and by the model deciding
+        # whether to call it. So it must (a) contain the words a user
+        # actually says — "budget", "quota", "Meridian" — or a search for
+        # those returns nothing, and (b) say when to call rather than how it
+        # works, or the model answers from whatever number is already in its
+        # context instead of calling. Long explanatory blurbs hurt both.
         description=(
-            "BUDGET / QUOTA of the Claude subscription. CALL THIS for any "
-            "question about budget, budget window, quota, usage or 'how much "
-            "is left'. Do NOT answer from the per-request USD budget shown "
-            "in context: that is the cost cap of the current call, not the "
-            "subscription window. Returns, per window (five_hour, "
-            "seven_day, ...): percentage used, status, minutes until reset. "
-            "Also check it before starting or unparking long work."
+            "Call for any budget, quota, usage or Meridian question. Returns "
+            "the real subscription windows (5h, 7d); never answer from the "
+            "per-request USD cap shown in context."
         ),
         emoji="⏳",
     )

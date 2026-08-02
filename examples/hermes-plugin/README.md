@@ -36,12 +36,21 @@ a human asking "how much budget is left?" over Telegram gets an answer from
 the agent itself. The tool hides itself when Meridian is unreachable, so an
 offline fleet is not offered a tool that would fail on every call.
 
-One wording caveat, learned the hard way: with a neutral description the
-model answers budget questions from the per-request USD cap already present
-in its context (`USD budget: $0/$1.5`) and never calls the tool — it is not
-missing, it is simply not chosen. The description therefore names the
-user-facing words ("budget", "quota", "how much is left") and states what
-*not* to answer with. Keep that framing if you adapt it.
+Two wording caveats, learned the hard way. A tool description is read twice
+— by the search index that surfaces the tool, and by the model deciding
+whether to call it — so it must be written for both:
+
+- **Use the words the user says.** A description that never contains
+  "budget", "quota" or "Meridian" means a search for those terms returns
+  nothing, and the tool stays invisible even though it is registered.
+- **Say when to call, not how it works.** With a neutral, explanatory
+  description the model answered budget questions from the per-request USD
+  cap already in its context (`USD budget: $0/$1.5`) and never called the
+  tool: not missing, simply not chosen. Naming what *not* to answer with
+  fixed it.
+
+Keep it short (~200 chars): long descriptions dilute the search index and
+bury the trigger. Details belong here in the README, not in the schema.
 
 ## Install
 
@@ -66,34 +75,28 @@ model:
   base_url: http://127.0.0.1:3456
 ```
 
-The plugin also registers a `usage_status` tool in a `usage` toolset. A
-plugin toolset that is not listed in `toolsets:` is loaded but **never
-offered to the model** — the agent simply reports that no such tool exists,
-with nothing in the logs to explain why. Add it explicitly:
-
-```yaml
-toolsets:
-  - usage      # exposes usage_status to the agent
-```
-
-If your agents run outside the CLI (Telegram, Discord, ...) **and** you set
-`platform_toolsets`, list the toolset there too:
-
-```yaml
-platform_toolsets:
-  telegram:
-    - hermes-telegram
-    - usage      # without this line the tool never reaches Telegram sessions
-```
-
-`hermes-<platform>` resolves to the core tools plus tools registered into a
-toolset *named after the platform* — any other plugin toolset is dropped for
-that platform, even when `hermes tools list --platform telegram` reports it
-as `✓ enabled` (that flag is the enable/disable state, not the resolution).
-
-Finally restart the gateway: plugins load once per process, and long-lived
+Then restart the gateway: plugins load once per process, and long-lived
 agent processes keep the old registry until they do. Existing chat sessions
 also cache their tool list — start a fresh one (`/new`) after the restart.
+
+### Why `usage_status` lives in a native toolset
+
+The tool registers into `delegation` (a native toolset) rather than a
+plugin-defined one. That is not cosmetic:
+
+`gateway/run.py` builds each platform session's tool surface from
+`_get_platform_tools()`, which keeps **only native toolset keys** —
+plugin-defined toolsets are skipped. A tool registered into a custom
+`usage` toolset is therefore loaded, reported as `✓ enabled` by
+`hermes tools list --platform telegram`, and still never reaches the model:
+the agent answers "I have no such tool", and nothing in the logs says why.
+(The kanban tools escape this only because `kanban_show` / `kanban_list`
+are hard-coded in `_HERMES_CORE_TOOLS`.)
+
+Override the target with `USAGE_TOOLSET` if a different native toolset fits
+your fleet better. Verifying by hand is worth it: ask an agent a plain
+question ("what's my budget?") on the platform you actually use — the CLI
+resolves toolsets differently and can succeed while Telegram fails.
 
 Repeat for every Hermes profile that should route through Meridian
 (profiles have isolated `HERMES_HOME` directories and do not inherit
