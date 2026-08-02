@@ -92,11 +92,11 @@ function createTestApp() {
   return app
 }
 
-async function sendRequest(app: any, stream: boolean) {
+async function sendRequest(app: any, stream: boolean, headers: Record<string, string> = {}) {
   capturedQueryParams = null
   const response = await app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify({
       model: "claude-sonnet-4-5",
       max_tokens: 128,
@@ -149,6 +149,57 @@ describe("Tool blocking: normal mode (non-passthrough)", () => {
     const app = createTestApp()
     const params = await sendRequest(app, true)
     assertAllToolsBlocked(params, "normal/stream")
+  })
+})
+
+// A Claude Code CLI client drives its own tool loop. server.ts resolves tool
+// config and passthrough from `pipelineCtx.*` — never from the adapter methods
+// — so with no registry entry for "claude-code" the request kept the
+// createRequestContext defaults: `blockedTools: []` and `passthrough:
+// undefined`. The SDK subprocess then had its own Read/Write/Bash available
+// while the client executed the same tool_use blocks locally, so a side effect
+// could happen twice (#735).
+//
+// These go through the HTTP layer on purpose: transform-parity tests assert the
+// transform's VALUES, and every one of them passed while this was broken. The
+// defect was the wiring between the registry and the request, which only a
+// server-level assertion can see.
+describe("Tool blocking: claude-code adapter (#735)", () => {
+  let savedAgent: string | undefined
+  beforeEach(() => {
+    // Default install: no passthrough opt-in, and no default-agent override
+    // (which would reroute the ambiguous claude-cli User-Agent elsewhere).
+    delete process.env.CLAUDE_PROXY_PASSTHROUGH
+    delete process.env.MERIDIAN_PASSTHROUGH
+    savedAgent = process.env.MERIDIAN_DEFAULT_AGENT
+    delete process.env.MERIDIAN_DEFAULT_AGENT
+  })
+  afterEach(() => {
+    if (savedAgent !== undefined) process.env.MERIDIAN_DEFAULT_AGENT = savedAgent
+    else delete process.env.MERIDIAN_DEFAULT_AGENT
+  })
+
+  const CLAUDE_CLI_UA = { "user-agent": "claude-cli/1.0.60 (external)" }
+
+  it("blocks the SDK's built-in tools for a claude-cli client (non-stream)", async () => {
+    const app = createTestApp()
+    const params = await sendRequest(app, false, CLAUDE_CLI_UA)
+    assertAllToolsBlocked(params, "claude-code/non-stream")
+  })
+
+  it("blocks the SDK's built-in tools for a claude-cli client (stream)", async () => {
+    const app = createTestApp()
+    const params = await sendRequest(app, true, CLAUDE_CLI_UA)
+    assertAllToolsBlocked(params, "claude-code/stream")
+  })
+
+  it("does not leave disallowedTools empty, which is the actual regression", async () => {
+    // Stated separately from assertAllToolsBlocked: an empty list is the exact
+    // broken state, and a future change that empties it should fail on a test
+    // whose name says so.
+    const app = createTestApp()
+    const params = await sendRequest(app, false, CLAUDE_CLI_UA)
+    expect((params?.options?.disallowedTools || []).length).toBeGreaterThan(0)
   })
 })
 
