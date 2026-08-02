@@ -2367,6 +2367,51 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // extends the guarantee to ALL close paths (early stop, turn-2
             // suppression, drain-close). With the deny-hold in place blocks
             // normally complete before any close — this is the backstop.
+            // #742: the early stop fires on deny-settlement alone. When the SDK
+            // surfaces a wide parallel set as separate assistant turns, every
+            // deny the tracker KNOWS about can settle while a LATER tool_use
+            // block is still mid-input_json_delta. Closing then produced a
+            // well-formed envelope around TRUNCATED input JSON — the client
+            // rejects the call and the turn wedges. The envelope audit only
+            // measures framing, which is why this read as healthy (#675 triaged
+            // the same race as "client impact: none" on exactly that basis).
+            //
+            // So the stop is deferred while any forwarded block is open, and
+            // fired from the content_block_stop handler once the set empties.
+            let pendingEarlyStop = false
+            let pendingEarlyStopAt = 0
+
+            /** Emit the early-stop close. `reason` is recorded so the deferred
+             *  path is distinguishable from the immediate one in telemetry. */
+            const fireEarlyStop = (reason: "immediate" | "blocks_closed" | "deadline"): void => {
+              earlyStopFired = true
+              claudeLog("passthrough.early_stop", {
+                mode: "stream",
+                captured: capturedToolUses.length,
+                drained: awaitingEarlyStopDrain,
+                reason,
+                deferredMs: pendingEarlyStopAt ? Date.now() - pendingEarlyStopAt : 0,
+              })
+              pendingEarlyStop = false
+              // Still called: on the "deadline" path a block may genuinely be
+              // stuck open, and an unterminated block renders as an aborted
+              // ("red") tool call (#552). The backstop stays — it just no
+              // longer fires on the common ordering.
+              flushOpenClientBlocks("early_stop")
+              safeEnqueue(encoder.encode(
+                `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
+              ), "early_stop")
+              safeEnqueue(encoder.encode(
+                `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
+              ), "early_stop")
+              requestAbort.abort("passthrough turn complete")
+              awaitingEarlyStopDrain = false
+              if (!streamClosed) {
+                streamClosed = true
+                try { controller.close() } catch {}
+              }
+            }
+
             const flushOpenClientBlocks = (source: string): void => {
               if (openClientBlocks.size === 0) return
               recordEnvelopeViolations([...openClientBlocks].map((idx) => ({
@@ -2657,22 +2702,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       // emissions below only fire in the unusual case where the
                       // denies arrive first (safeEnqueue no-ops when closed).
                       if (shouldEarlyStop(earlyStop) && streamedToolUseIds.size > 0) {
-                        earlyStopFired = true
-                        claudeLog("passthrough.early_stop", { mode: "stream", captured: capturedToolUses.length, drained: awaitingEarlyStopDrain })
-                        flushOpenClientBlocks("early_stop")
-                        safeEnqueue(encoder.encode(
-                          `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
-                        ), "early_stop")
-                        safeEnqueue(encoder.encode(
-                          `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
-                        ), "early_stop")
-                        requestAbort.abort("passthrough turn complete")
-                        awaitingEarlyStopDrain = false
-                        if (!streamClosed) {
-                          streamClosed = true
-                          try { controller.close() } catch {}
+                        if (openClientBlocks.size > 0) {
+                          // A forwarded block is still streaming its input.
+                          // Defer rather than truncate it (#742); the deny that
+                          // completed the tracker belongs to a block that has
+                          // already closed, so the open one's stop is close
+                          // behind. Deliberately no `break` — the remaining
+                          // deltas must keep flowing to the client.
+                          if (!pendingEarlyStop) {
+                            pendingEarlyStop = true
+                            pendingEarlyStopAt = Date.now()
+                            claudeLog("passthrough.early_stop_deferred", {
+                              openBlocks: openClientBlocks.size,
+                              captured: capturedToolUses.length,
+                            })
+                          }
+                        } else {
+                          fireEarlyStop("immediate")
+                          break
                         }
-                        break
                       }
                     }
                   }
@@ -2916,6 +2964,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     } else if (eventType === "content_block_stop") {
                       const idx = (event as any).index
                       if (typeof idx === "number") openClientBlocks.delete(idx)
+                      // The block that was mid-stream when the denies settled
+                      // has now been forwarded intact — safe to close (#742).
+                      if (pendingEarlyStop && openClientBlocks.size === 0) {
+                        fireEarlyStop("blocks_closed")
+                        break
+                      }
                     }
 
                     // NOTE: agent-specific (passthrough mode) — close the client stream

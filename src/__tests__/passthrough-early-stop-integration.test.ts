@@ -232,6 +232,69 @@ describe("Integration: passthrough early stop", () => {
     expect(yieldedCount).toBe(3) // everything drained, old behavior
   })
 
+  // #742: the early stop fires on deny-settlement alone. When the SDK surfaces a
+  // wide parallel set as separate assistant turns, every deny the tracker KNOWS
+  // about can settle while a LATER tool_use block is still mid-input_json_delta.
+  // flushOpenClientBlocks then force-emits its content_block_stop, so the client
+  // gets a well-formed envelope wrapped around TRUNCATED JSON — invisible as a
+  // wire error, which is why the envelope audit (framing) never caught it.
+  //
+  // This asserts payload integrity, not framing: the property #675 missed when
+  // it triaged the same race as "client impact: none".
+  it("stream: does not truncate a still-streaming parallel tool_use when the deny settles first (#742)", async () => {
+    const TAIL = "TAIL_OF_THE_PROMPT"
+    mockMessages = [
+      messageStart("msg_es"),
+      // First tool: completes normally and is the only one the tracker sees.
+      toolUseBlockStart(0, "read", "tu1"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      assistantMessage([{ type: "tool_use", id: "tu1", name: "read", input: { file_path: "x" } }]),
+      // Second parallel tool opens and is still mid-JSON...
+      toolUseBlockStart(1, "read", "tu2"),
+      inputJsonDelta(1, '{"file_path":"y","note":"HEAD_'),
+      // ...when tu1's deny lands. Every tool the tracker knows about is now
+      // denied, so the early stop fires with block 1 still open.
+      userDenyMessage("tu1"),
+      // The rest of tu2's JSON. Before the fix these are never forwarded.
+      inputJsonDelta(1, TAIL + '"}'),
+      blockStop(1),
+      messageDelta("tool_use"),
+    ]
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x and y" }],
+    })
+
+    expect(response.status).toBe(200)
+    const text = await response.text()
+
+    // Reassemble each block's input the way a client does: accumulate
+    // input_json_delta per block index, then parse.
+    const perBlock = new Map<number, string>()
+    for (const line of text.split("\n")) {
+      if (!line.startsWith("data: ")) continue
+      let evt: any
+      try { evt = JSON.parse(line.slice(6)) } catch { continue }
+      if (evt?.type !== "content_block_delta") continue
+      if (evt.delta?.type !== "input_json_delta") continue
+      perBlock.set(evt.index, (perBlock.get(evt.index) ?? "") + evt.delta.partial_json)
+    }
+
+    const blockOne = perBlock.get(1) ?? ""
+    // The failure signature: the client sees the head but never the tail.
+    expect(blockOne).toContain("HEAD_")
+    expect(blockOne).toContain(TAIL)
+    // And what it assembles must actually parse — the client-visible symptom
+    // was InputValidationError on unparseable JSON.
+    expect(() => JSON.parse(blockOne)).not.toThrow()
+    expect(JSON.parse(blockOne).note).toBe("HEAD_" + TAIL)
+  })
+
   it("stream: closes cleanly after the deny — digest events never consumed", async () => {
     mockMessages = [
       messageStart("msg_es"),

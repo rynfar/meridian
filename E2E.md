@@ -3106,9 +3106,38 @@ curl -s http://127.0.0.1:3456/v1/chat/completions \
 **Automated** — the one E2E that is a single command:
 
 ```bash
-bun scripts/e2e-stream-parallel.mjs        # 3 attempts (default)
+bun scripts/e2e-stream-parallel.mjs                    # 3 attempts (default)
 E2E_ATTEMPTS=5 bun scripts/e2e-stream-parallel.mjs
+E2E_WIDE=1 bun scripts/e2e-stream-parallel.mjs         # #742 window (see below)
 ```
+
+**`E2E_WIDE=1` — the #742 ordering.** The default prompt produces three
+short-argument calls that close in one delta each, so the deny-before-block-close
+window never opens: the run reports **INCONCLUSIVE for #742** rather than a
+pass, because clean assertions over an ordering that never occurred prove
+nothing. `E2E_WIDE=1` adds a fourth call carrying a multi-KB free-text argument
+— the shape from the original report (a ~2.9 KB subagent prompt) — which keeps
+one block streaming while an earlier call's deny settles. That hit the race on
+**6 of 6** attempts.
+
+The run also watches Meridian's own diagnostics, not just the wire:
+
+| signal | meaning |
+|---|---|
+| `dangling_blocks_closed` / `early_stop` | the race FIRING — the bug's signature |
+| `passthrough.early_stop_deferred` | the fix ENGAGING — race occurred, handled |
+
+Requiring at least one deferral is what makes a green run evidence instead of
+absence. Verified by reverting the fix and re-running the same scenario:
+
+```
+✗ tool task has EMPTY input (the '{} Tool execution aborted' render)
+   widest tool input: 29 bytes across 4 calls      # vs 5259-6418 with the fix
+```
+
+Note the envelope marker did **not** fire in that failing run. The framing
+stayed valid throughout — only the payload assertion caught it. That is exactly
+why #675 mis-triaged this same race as "client impact: none".
 
 **Why this exists:** the CLI dispatches PreToolUse hooks per-block while later
 parallel blocks are still generating, and a deny landing mid-generation makes
