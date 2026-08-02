@@ -23,6 +23,19 @@ deltas per turn.
 | `x-meridian-source` | `hermes-<profile>` | per-profile filtering in logs/telemetry |
 | `x-opencode-effort` | per-profile default, `HERMES_EFFORT` override | reasoning-effort (cost) control per task |
 
+## What it exposes back to the agent
+
+| Tool | Returns |
+|---|---|
+| `usage_status` | each quota window (`five_hour`, `seven_day`, ...): percentage used, status, minutes until reset |
+
+Reads `GET /v1/usage/quota`. Without it, an agent has no way to know how much
+of the subscription window it has left: it discovers the wall by hitting it,
+mid-task. With it, an orchestrator can check before unparking long work, and
+a human asking "how much budget is left?" over Telegram gets an answer from
+the agent itself. The tool hides itself when Meridian is unreachable, so an
+offline fleet is not offered a tool that would fail on every call.
+
 ## Install
 
 ```bash
@@ -44,6 +57,25 @@ Point Hermes at Meridian (any key value works, Meridian handles auth):
 model:
   provider: anthropic
   base_url: http://127.0.0.1:3456
+```
+
+The plugin also registers a `usage_status` tool in a `usage` toolset. A
+plugin toolset that is not listed in `toolsets:` is loaded but **never
+offered to the model** — the agent simply reports that no such tool exists,
+with nothing in the logs to explain why. Add it explicitly:
+
+```yaml
+toolsets:
+  - usage      # exposes usage_status to the agent
+```
+
+Then enable it per platform if your agents run outside the CLI (Telegram,
+Discord, ...), and restart the gateway so long-lived agent processes reload
+the plugin:
+
+```bash
+hermes tools enable usage --platform telegram
+hermes tools list --platform telegram   # expect: ✓ enabled  usage
 ```
 
 Repeat for every Hermes profile that should route through Meridian
