@@ -139,17 +139,18 @@ def _register_usage_tool(ctx):
         schema=_USAGE_SCHEMA,
         handler=usage_status,
         check_fn=_meridian_reachable,
-        # Trigger first, ≤200 chars. A description is read twice: by the
-        # search index that surfaces the tool, and by the model deciding
-        # whether to call it. So it must (a) contain the words a user
-        # actually says — "budget", "quota", "Meridian" — or a search for
-        # those returns nothing, and (b) say when to call rather than how it
-        # works, or the model answers from whatever number is already in its
-        # context instead of calling. Long explanatory blurbs hurt both.
+        # Triggering conditions only, ≤200 chars. A description is read
+        # twice — by the search index that surfaces the tool, and by the
+        # model deciding whether to call it — so it must carry the words a
+        # user actually says ("budget", "quota", "Meridian"), or a search
+        # for those returns nothing. It must NOT announce what the call
+        # returns: a description that summarises the result invites the
+        # model to produce that result from context instead of calling.
+        # Naming what must never be answered instead is what fixed it here.
         description=(
-            "Call for any budget, quota, usage or Meridian question. Returns "
-            "the real subscription windows (5h, 7d); never answer from the "
-            "per-request USD cap shown in context."
+            "Use when the question is about budget, quota, usage, remaining "
+            "window or Meridian — including 'how much is left'. Never answer "
+            "from the per-request USD cap in context."
         ),
         emoji="⏳",
     )

@@ -43,11 +43,13 @@ whether to call it — so it must be written for both:
 - **Use the words the user says.** A description that never contains
   "budget", "quota" or "Meridian" means a search for those terms returns
   nothing, and the tool stays invisible even though it is registered.
-- **Say when to call, not how it works.** With a neutral, explanatory
-  description the model answered budget questions from the per-request USD
-  cap already in its context (`USD budget: $0/$1.5`) and never called the
-  tool: not missing, simply not chosen. Naming what *not* to answer with
-  fixed it.
+- **Give triggering conditions only — never announce the result.** With a
+  neutral, explanatory description the model answered budget questions from
+  the per-request USD cap already in its context (`USD budget: $0/$1.5`)
+  and never called the tool: not missing, simply not chosen. A description
+  that summarises what the call returns makes this worse, because the model
+  can produce that summary from context instead of calling. State when to
+  call, and what must *never* be answered instead.
 
 Keep it short (~200 chars): long descriptions dilute the search index and
 bury the trigger. Details belong here in the README, not in the schema.
