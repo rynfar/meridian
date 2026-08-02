@@ -133,10 +133,19 @@ def _register_usage_tool(ctx):
         schema=_USAGE_SCHEMA,
         handler=usage_status,
         check_fn=_meridian_reachable,
+        # Wording matters more than it looks: with a purely descriptive
+        # blurb the model answers budget questions from the per-request USD
+        # figure already in its context and never calls the tool. Name the
+        # user-facing words ("budget", "quota", "how much is left") and say
+        # explicitly what NOT to answer with.
         description=(
-            "Claude subscription usage per quota window (five_hour, "
+            "BUDGET / QUOTA of the Claude subscription. CALL THIS for any "
+            "question about budget, budget window, quota, usage or 'how much "
+            "is left'. Do NOT answer from the per-request USD budget shown "
+            "in context: that is the cost cap of the current call, not the "
+            "subscription window. Returns, per window (five_hour, "
             "seven_day, ...): percentage used, status, minutes until reset. "
-            "Check before starting or unparking long work."
+            "Also check it before starting or unparking long work."
         ),
         emoji="⏳",
     )

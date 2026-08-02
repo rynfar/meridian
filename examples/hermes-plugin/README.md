@@ -36,6 +36,13 @@ a human asking "how much budget is left?" over Telegram gets an answer from
 the agent itself. The tool hides itself when Meridian is unreachable, so an
 offline fleet is not offered a tool that would fail on every call.
 
+One wording caveat, learned the hard way: with a neutral description the
+model answers budget questions from the per-request USD cap already present
+in its context (`USD budget: $0/$1.5`) and never calls the tool — it is not
+missing, it is simply not chosen. The description therefore names the
+user-facing words ("budget", "quota", "how much is left") and states what
+*not* to answer with. Keep that framing if you adapt it.
+
 ## Install
 
 ```bash
