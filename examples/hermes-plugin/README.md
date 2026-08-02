@@ -76,14 +76,24 @@ toolsets:
   - usage      # exposes usage_status to the agent
 ```
 
-Then enable it per platform if your agents run outside the CLI (Telegram,
-Discord, ...), and restart the gateway so long-lived agent processes reload
-the plugin:
+If your agents run outside the CLI (Telegram, Discord, ...) **and** you set
+`platform_toolsets`, list the toolset there too:
 
-```bash
-hermes tools enable usage --platform telegram
-hermes tools list --platform telegram   # expect: ✓ enabled  usage
+```yaml
+platform_toolsets:
+  telegram:
+    - hermes-telegram
+    - usage      # without this line the tool never reaches Telegram sessions
 ```
+
+`hermes-<platform>` resolves to the core tools plus tools registered into a
+toolset *named after the platform* — any other plugin toolset is dropped for
+that platform, even when `hermes tools list --platform telegram` reports it
+as `✓ enabled` (that flag is the enable/disable state, not the resolution).
+
+Finally restart the gateway: plugins load once per process, and long-lived
+agent processes keep the old registry until they do. Existing chat sessions
+also cache their tool list — start a fresh one (`/new`) after the restart.
 
 Repeat for every Hermes profile that should route through Meridian
 (profiles have isolated `HERMES_HOME` directories and do not inherit
