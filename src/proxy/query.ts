@@ -108,6 +108,8 @@ export interface QueryContext {
   dreaming?: boolean
   /** Share memory directory with Claude Code (~/.claude) */
   sharedMemory?: boolean
+  /** Run the WebFetch domain safety check (hostname sent to api.anthropic.com) */
+  webFetchPreflight?: boolean
   /** Per-request cost cap in USD */
   maxBudgetUsd?: number
   /** Fallback model when primary fails */
@@ -330,6 +332,11 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       settings: {
         autoMemoryEnabled: ctx.memory ?? true,
         autoDreamEnabled: ctx.dreaming ?? false,
+        // Always explicit, for the same reason as the memory keys above: an
+        // omitted key falls back to the subprocess default, which is to run
+        // the check. `webFetchPreflight` is the positive form the settings
+        // UI shows; the SDK setting is the negative one.
+        skipWebFetchPreflight: ctx.webFetchPreflight === false,
       },
       // #634/#490: always explicit. Empty array → SDK emits
       // `--setting-sources=` → subprocess loads nothing. Omitting the key

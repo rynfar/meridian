@@ -390,6 +390,30 @@ describe("buildQueryOptions", () => {
     expect(opts.settings.autoDreamEnabled).toBe(false)
   })
 
+  // WebFetch preflight: the subprocess sends each fetch target's hostname to
+  // api.anthropic.com before retrieving it. The setting is emitted on every
+  // request for the same reason the memory keys are — an omitted key falls
+  // back to the subprocess default, which runs the check.
+  it("skips the WebFetch preflight when webFetchPreflight is false", () => {
+    const result = buildQueryOptions(makeContext({ webFetchPreflight: false }))
+    expect((result.options as any).settings.skipWebFetchPreflight).toBe(true)
+  })
+
+  it("runs the WebFetch preflight when webFetchPreflight is true", () => {
+    const result = buildQueryOptions(makeContext({ webFetchPreflight: true }))
+    expect((result.options as any).settings.skipWebFetchPreflight).toBe(false)
+  })
+
+  it("defaults to running the WebFetch preflight when unset", () => {
+    const result = buildQueryOptions(makeContext())
+    expect((result.options as any).settings.skipWebFetchPreflight).toBe(false)
+  })
+
+  it("carries the WebFetch preflight setting into passthrough mode", () => {
+    const result = buildQueryOptions(makeContext({ passthrough: true, webFetchPreflight: false }))
+    expect((result.options as any).settings.skipWebFetchPreflight).toBe(true)
+  })
+
   it("emits an explicit empty settingSources so the subprocess loads nothing (#634/#490)", () => {
     const result = buildQueryOptions(makeContext({ settingSources: [] }))
     expect((result.options as any).settingSources).toEqual([])

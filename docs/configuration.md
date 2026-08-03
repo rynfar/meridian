@@ -139,6 +139,20 @@ Configure per-adapter at **`/settings`** in the Meridian web UI. Changes take ef
 | **Thinking** | disabled / adaptive / enabled | Extended thinking mode for complex reasoning |
 | **Thinking Passthrough** | on / off | Forward thinking blocks to the client for display |
 | **Shared Memory** | on / off | Share memory directory with Claude Code (`~/.claude`) instead of isolated storage |
+| **WebFetch Preflight** | on / off | Check each WebFetch hostname against the Anthropic blocklist before fetching (default on) |
+
+### WebFetch preflight
+
+Before the WebFetch tool retrieves a URL, the subprocess sends the target
+hostname to `api.anthropic.com/api/web/domain_info` to check it against a
+safety blocklist. Only the hostname goes — not the path or the page — and the
+result is cached per host for five minutes.
+
+The check runs on every provider and is not covered by
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, so turning it off here is the only
+way to keep fetch targets local. With it off, WebFetch retrieves any URL
+without consulting the blocklist; if that matters for your deployment, pair it
+with WebFetch tool permissions on the calling agent.
 
 ### System prompts
 
