@@ -133,17 +133,37 @@ jobs:
   # fails, someone changed the repo settings; restore them, do not "fix" this.
   merge-settings:
     runs-on: ubuntu-latest
+    # The merge-settings fields are only returned to a token with admin read.
+    # Without this the API silently omits them and the check compares empty
+    # strings — failing identically whether the settings are right or wrong,
+    # which is a check that cannot pass rather than a check that works.
+    permissions:
+      administration: read
     steps:
       - name: Squash defaults must keep the changelog 1:1 with PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          settings=$(gh api "repos/${GITHUB_REPOSITORY}" \
-            --jq '.squash_merge_commit_title + "+" + .squash_merge_commit_message')
-          echo "squash title+body = ${settings}"
-          if [ "${settings}" != "PR_TITLE+BLANK" ]; then
-            echo "::error::Expected PR_TITLE+BLANK, got ${settings}."
-            echo "::error::Restore with: gh api -X PATCH repos/${GITHUB_REPOSITORY} \\"
-            echo "::error::  -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=BLANK"
+          title=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.squash_merge_commit_title // ""')
+          body=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.squash_merge_commit_message // ""')
+          echo "squash title=${title:-<unreadable>} body=${body:-<unreadable>}"
+
+          # Distinguish "could not check" from "drifted". Treating the first as
+          # the second is noise; treating it as success is worse — the drift
+          # this job exists to catch would sail through unnoticed.
+          if [ -z "${title}" ] || [ -z "${body}" ]; then
+            echo "::error::Could not read the repository merge settings."
+            echo "::error::The API omits them unless the token has administration:read."
+            echo "::error::This is a broken check, NOT a settings problem — fix the workflow."
             exit 1
           fi
+
+          if [ "${title}" != "PR_TITLE" ] || [ "${body}" != "BLANK" ]; then
+            echo "::error::Expected PR_TITLE + BLANK, got ${title} + ${body}."
+            echo "::error::Release Please will emit duplicate changelog entries for any"
+            echo "::error::PR with 2+ conventional commits. Restore with:"
+            echo "::error::  gh api -X PATCH repos/${GITHUB_REPOSITORY} \\"
+            echo "::error::    -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=BLANK"
+            exit 1
+          fi
+          echo "merge settings correct: ${title} + ${body}"
