@@ -158,3 +158,30 @@ describe("sdkFeatures config roundtrip", () => {
     expect(config).toEqual({})
   })
 })
+
+// ── settings UI coverage ────────────────────────────────────────────
+
+// The settings page can only configure adapters it lists in ADAPTER_LABELS.
+// That list was written once (#349) and never updated, so `codex` (#654) and
+// `cherry` (#481) silently had no UI — which is how the webFetchPreflight
+// toggle came to render on seven adapters where it does nothing and none of
+// the one where it does. Keep the two lists in lockstep.
+describe("settings UI adapter coverage", () => {
+  it("renders a label for every adapter getAllFeatureConfigs returns", () => {
+    const { getAllFeatureConfigs } = require("../proxy/sdkFeatures") as typeof import("../proxy/sdkFeatures")
+    const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
+
+    const block = /const ADAPTER_LABELS = \{([\s\S]*?)\n\};/.exec(settingsPageHtml)
+    expect(block).not.toBeNull()
+    const labelled = new Set([...block![1]!.matchAll(/^\s*(\w+):\s*'/gm)].map(m => m[1]!))
+
+    for (const adapter of Object.keys(getAllFeatureConfigs())) {
+      expect(labelled).toContain(adapter)
+    }
+  })
+
+  it("exposes cherry, the only adapter the WebFetch preflight toggle affects", () => {
+    const { getAllFeatureConfigs } = require("../proxy/sdkFeatures") as typeof import("../proxy/sdkFeatures")
+    expect(Object.keys(getAllFeatureConfigs())).toContain("cherry")
+  })
+})

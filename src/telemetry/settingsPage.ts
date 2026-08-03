@@ -181,7 +181,7 @@ const FEATURES = [
   { key: 'thinking', label: 'Thinking', desc: 'Extended thinking mode', type: 'select', options: ['disabled', 'adaptive', 'enabled'] },
   { key: 'thinkingPassthrough', label: 'Thinking Passthrough', desc: 'Forward thinking blocks to the client', type: 'toggle' },
   { key: 'sharedMemory', label: 'Shared Memory', desc: 'Share memory with Claude Code (~/.claude) instead of isolated storage', type: 'toggle' },
-  { key: 'webFetchPreflight', label: 'WebFetch Preflight', desc: 'Check each WebFetch hostname against the Anthropic blocklist before fetching — off keeps hostnames local but fetches any URL unchecked', type: 'toggle' },
+  { key: 'webFetchPreflight', label: 'WebFetch Preflight', desc: 'Check each WebFetch hostname against the Anthropic blocklist before fetching — off keeps hostnames local but fetches any URL unchecked. Only affects Cherry Studio; other adapters never run the SDK\\'s built-in WebFetch', type: 'toggle' },
   { key: 'maxBudgetUsd', label: 'Max Budget (USD)', desc: 'Per-request cost cap — query aborts if exceeded (0 = disabled)', type: 'number' },
   { key: 'fallbackModel', label: 'Fallback Model', desc: 'Auto-fallback model if primary fails', type: 'select', options: ['', 'sonnet', 'opus', 'haiku', 'sonnet[1m]', 'opus[1m]'] },
   { key: 'sdkDebug', label: 'SDK Debug Logging', desc: 'Enable verbose SDK debug output to proxy stderr', type: 'toggle' },
@@ -196,6 +196,11 @@ const ADAPTER_LABELS = {
   pi: 'Pi',
   droid: 'Droid',
   passthrough: 'LiteLLM / Passthrough',
+  codex: 'Codex CLI (/v1/responses)',
+  // Cherry is the only adapter that lets the SDK subprocess run the built-in
+  // WebSearch/WebFetch itself (#481), so it is the only one where the WebFetch
+  // Preflight entry in FEATURES has any effect. It has to be reachable here.
+  cherry: 'Cherry Studio',
 };
 
 let currentConfig = {};

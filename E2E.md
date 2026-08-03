@@ -89,6 +89,7 @@ kill $(lsof -ti :3456)
 | E34 | [Streaming parallel tool calls (#552)](#e34-streaming-parallel-tool-calls-552) | **Automated**: `bun scripts/e2e-stream-parallel.mjs` — real CLI, SSE mode: parallel tool calls stream intact (no dangling `{}` blocks), denies held past generation, fast follow-up resumes. **Run before any release touching the passthrough tool loop** — mocked suites cannot catch CLI dispatch-ordering bugs (two shipped regressions proved it) | 2026-07-15 |
 | E35 | [SDK boundary assumptions (#694/#708/#710)](#e35-sdk-boundary-assumptions-694708710) | **Automated**: `bun scripts/e2e-sdk-boundary.mjs` — real SDK: rate-limit reset units land in a sane window, every live content-block type is classified for hashing, resume survives a client dropping thinking blocks, and reports whether the gitStatus block still misstates its provenance. **Run after any `@anthropic-ai/claude-agent-sdk` bump** and before releases touching lineage, rate limits, or the system prompt | 2026-07-29 |
 | E36 | [Client detection after an upgrade (#733)](#e36-client-detection-after-an-upgrade-733) | **Automated**: `bun scripts/e2e-client-detection.mjs` — drives each installed client against a local stub, captures its real headers, and asserts the adapter Meridian resolves. **Run after upgrading any client**; costs no tokens | 2026-07-31 |
+| E37 | [WebFetch preflight scope (#748)](#e37-webfetch-preflight-scope-748) | **Automated**: `bun scripts/e2e-webfetch-preflight.mjs` — stubbed `claude` + isolated HOME: the toggle reaches the right adapter's `--settings`, and only `cherry` can actually run the built-in WebFetch, so the documented scope is asserted rather than assumed. **Run before releases touching sdkFeatures, query settings, or tool config**; costs no tokens | 2026-08-03 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3270,3 +3271,58 @@ that test *and* the live script.
 opencode 1.18.9 and crush 0.87 send `x-session-affinity` **and** `x-session-id`
 — which is why one of the tests asserts, as a property, that a shared session
 header can never be what distinguishes two clients.
+
+## E37: WebFetch preflight scope (#748)
+
+**Automated**, and costs **no tokens** — `claude` is replaced by a stub that
+records its argv, and `HOME` is redirected to a temp dir so the run cannot
+touch your real `~/.config/meridian/sdk-features.json`:
+
+```bash
+bun scripts/e2e-webfetch-preflight.mjs
+```
+
+**Why this exists:** the WebFetch Preflight toggle has two independent failure
+modes, and only the first is obvious.
+
+The first is routing: `webFetchPreflight: false` on one adapter must produce
+`skipWebFetchPreflight: true` in *that* adapter's spawn and no other. The value
+is threaded through six separate `buildQueryOptions` call sites in `server.ts`,
+which is exactly the shape where one gets missed and the toggle appears to work
+because you only ever tested the streaming path.
+
+The second is scope, and it is the one that misleads users. The preflight lives
+inside the SDK's built-in `WebFetch`, so the setting only changes behaviour
+where the subprocess can invoke that tool. Every adapter but `cherry` prevents
+it — passthrough modes send `--tools` empty (the SDK's "disable all built-ins")
+and internal modes list `WebFetch` in `--disallowed-tools`. Cherry unblocks the
+built-in web tools so Claude can browse for itself (#481), making it the only
+adapter where the toggle does anything. A toggle that silently does nothing on
+the adapter you flipped it on is worse than no toggle: you believe the hostname
+stopped leaving your network when it never was.
+
+**Pass criteria:**
+- `cherry` + `webFetchPreflight:false` → `skipWebFetchPreflight:true` in argv
+- `cherry` unset → `skipWebFetchPreflight:false` (default matches the
+  subprocess default — an omitted key would silently re-enable the check, the
+  #634 failure mode)
+- `opencode` + `webFetchPreflight:false` → the setting still routes, but the
+  spawn cannot reach the built-in WebFetch, so the case is asserted **INERT**
+- a case where no subprocess spawned **fails** rather than passing quietly —
+  silence is not success
+- the real `sdk-features.json` is byte-identical before and after
+
+**The scope assertion is deliberate.** `builtinWebFetch` is checked per case
+against what `docs/configuration.md` promises. If a future tool-config change
+lets another adapter run the built-in WebFetch, this fails with a pointer to
+the docs — otherwise the scope note rots and users keep turning off a check
+that is still running.
+
+**Verified:** 2026-08-03. Mutation-tested both ways — flipping
+`DEFAULT_FEATURES.webFetchPreflight` to `false` fails the default case, and
+removing `cherry` from `ADAPTER_LABELS` fails the static counterpart in
+`sdk-features-unit.test.ts`.
+
+**Static counterpart:** the `WebFetch preflight scope` block in `query.test.ts`
+pins the same three adapter shapes at the `buildQueryOptions` level, so tool
+config drift fails in CI without starting a proxy.

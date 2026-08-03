@@ -181,7 +181,7 @@ export function getExplicitThinking(adapterName: string): AdapterFeatures["think
  * Get the full config for all adapters (for the settings UI).
  */
 export function getAllFeatureConfigs(): Record<string, AdapterFeatures> {
-  const adapters = ["opencode", "crush", "forgecode", "pi", "droid", "passthrough", "openai", "codex"]
+  const adapters = ["opencode", "crush", "forgecode", "pi", "droid", "passthrough", "openai", "codex", "cherry"]
   const result: Record<string, AdapterFeatures> = {}
   for (const name of adapters) {
     result[name] = getFeaturesForAdapter(name)

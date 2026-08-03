@@ -4,6 +4,7 @@
 import { describe, it, expect } from "bun:test"
 import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
+import { CHERRY_BLOCKED_BUILTIN_TOOLS, CHERRY_INCOMPATIBLE_TOOLS, CHERRY_WEB_TOOLS } from "../proxy/adapters/cherry"
 
 function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
   return {
@@ -412,6 +413,44 @@ describe("buildQueryOptions", () => {
   it("carries the WebFetch preflight setting into passthrough mode", () => {
     const result = buildQueryOptions(makeContext({ passthrough: true, webFetchPreflight: false }))
     expect((result.options as any).settings.skipWebFetchPreflight).toBe(true)
+  })
+
+  // The setting above only *reaches* the subprocess — it changes nothing
+  // unless the subprocess can actually invoke the SDK's built-in WebFetch,
+  // because that is where the preflight lives. These three lock in which
+  // adapter shapes can, so the toggle's real scope can't drift silently.
+  // Documented in docs/configuration.md under "WebFetch preflight".
+  describe("WebFetch preflight scope", () => {
+    const canRunBuiltinWebFetch = (opts: any): boolean => {
+      const builtinsDisabled = Array.isArray(opts.tools) && opts.tools.length === 0
+      return !builtinsDisabled && !(opts.disallowedTools ?? []).includes("WebFetch")
+    }
+
+    it("passthrough adapters disable every built-in, so the toggle is inert", () => {
+      // `tools: []` is documented by the SDK as "disable all built-in tools".
+      const opts = buildQueryOptions(makeContext({
+        passthrough: true, blockedTools: [], incompatibleTools: [],
+      })).options as any
+      expect(opts.tools).toEqual([])
+      expect(canRunBuiltinWebFetch(opts)).toBe(false)
+    })
+
+    it("internal-mode adapters block WebFetch outright, so the toggle is inert", () => {
+      const opts = buildQueryOptions(makeContext({ passthrough: false })).options as any
+      expect(opts.disallowedTools).toContain("WebFetch")
+      expect(canRunBuiltinWebFetch(opts)).toBe(false)
+    })
+
+    it("cherry leaves the built-in WebFetch runnable, so the toggle bites there (#481)", () => {
+      const opts = buildQueryOptions(makeContext({
+        passthrough: false,
+        blockedTools: CHERRY_BLOCKED_BUILTIN_TOOLS,
+        incompatibleTools: CHERRY_INCOMPATIBLE_TOOLS,
+        allowedMcpTools: [...CHERRY_WEB_TOOLS],
+      })).options as any
+      expect(opts.disallowedTools).not.toContain("WebFetch")
+      expect(canRunBuiltinWebFetch(opts)).toBe(true)
+    })
   })
 
   it("emits an explicit empty settingSources so the subprocess loads nothing (#634/#490)", () => {
