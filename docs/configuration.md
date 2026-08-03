@@ -139,6 +139,22 @@ Configure per-adapter at **`/settings`** in the Meridian web UI. Changes take ef
 | **Thinking** | disabled / adaptive / enabled | Extended thinking mode for complex reasoning |
 | **Thinking Passthrough** | on / off | Forward thinking blocks to the client for display |
 | **Shared Memory** | on / off | Share memory directory with Claude Code (`~/.claude`) instead of isolated storage |
+| **claude.ai Connectors** | on / off | Load the MCP connectors attached to your claude.ai account (default off) |
+
+### claude.ai connectors
+
+If your claude.ai account has connectors attached — Drive, Gmail, Calendar —
+the subprocess can fetch them from `/v1/mcp_servers` and connect each one
+through `mcp-proxy.anthropic.com`. Their tools then appear in the session
+alongside the ones Meridian registered.
+
+That is rarely what you want from a proxy: the calling agent negotiated a tool
+surface, and this adds third-party tools it never asked for, plus an outbound
+fetch describing the account. So it is **off by default**.
+
+Passthrough mode keeps it off regardless of this setting. There the client
+executes tools, and it has no way to run one that exists only inside the
+subprocess.
 
 ### System prompts
 

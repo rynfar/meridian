@@ -26,6 +26,14 @@ export interface AdapterFeatures {
   thinkingPassthrough: boolean
   /** Share memory directory with Claude Code (~/.claude instead of SDK default) */
   sharedMemory: boolean
+  /**
+   * Load the MCP connectors attached to the account's claude.ai profile
+   * (Drive, Gmail, Calendar, …). Off by default: the calling agent never
+   * negotiated those tools, and they reach third parties through
+   * mcp-proxy.anthropic.com. Ignored in passthrough mode, where the client
+   * executes tools and cannot run one that exists only in the subprocess.
+   */
+  claudeAiConnectors: boolean
   /** Per-request cost cap in USD (0 = disabled) */
   maxBudgetUsd: number
   /** Fallback model when primary fails (empty = disabled) */
@@ -51,6 +59,7 @@ const DEFAULT_FEATURES: AdapterFeatures = {
   thinking: "disabled",
   thinkingPassthrough: false,
   sharedMemory: false,
+  claudeAiConnectors: false,
   maxBudgetUsd: 0,
   fallbackModel: "",
   sdkDebug: false,

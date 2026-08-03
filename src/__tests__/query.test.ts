@@ -297,10 +297,24 @@ describe("buildQueryOptions", () => {
     expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe("false")
   })
 
-  it("does not disable Claude.ai MCP servers in normal mode", () => {
+  it("disables Claude.ai MCP servers in normal mode too, by default", () => {
     const result = buildQueryOptions(makeContext({ passthrough: false }))
     const env = (result.options as any).env
+    expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe("false")
+  })
+
+  it("loads Claude.ai MCP servers when explicitly opted in", () => {
+    const result = buildQueryOptions(makeContext({ passthrough: false, claudeAiConnectors: true }))
+    const env = (result.options as any).env
     expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBeUndefined()
+  })
+
+  // Passthrough wins over the opt-in: the client executes tools there and
+  // cannot run one that only exists inside the subprocess.
+  it("keeps Claude.ai MCP servers off in passthrough even when opted in", () => {
+    const result = buildQueryOptions(makeContext({ passthrough: true, claudeAiConnectors: true }))
+    const env = (result.options as any).env
+    expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe("false")
   })
 
   it("includes hooks when provided", () => {
