@@ -386,3 +386,40 @@ export function describeToolCall(info: ToolCallInfo): string {
   const head = info.target ? `your ${info.name} ${info.target}` : `your ${info.name}`
   return info.contentSummary ? `[${head} → "${info.contentSummary}"]` : `[${head}]`
 }
+
+/**
+ * Flatten an Anthropic `system` field into the text Meridian forwards as the
+ * SDK subprocess's system prompt.
+ *
+ * Not every block in that array is an instruction. Claude Code passes
+ * transport metadata through the same field — its `system` arrives as:
+ *
+ *   [0] "x-anthropic-billing-header: cc_version=2.1.220.8b8; cc_entrypoint=sdk-cli;"
+ *   [1] "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+ *   [2] <the actual system prompt>
+ *
+ * Block [0] is a header the client smuggles through the body, not something
+ * anyone wrote for a model to read. Joining every block verbatim puts it at
+ * the top of the subprocess's system prompt, where it is at best noise the
+ * model has to skip past.
+ *
+ * It is also meaningless downstream: Meridian's subprocess authenticates as
+ * its own subscription and sends its own billing header, so the client's copy
+ * describes a request that is never made.
+ *
+ * The filter anchors at the start of a block, so a prompt that merely
+ * discusses such a header in prose is left alone.
+ *
+ * Pure: never mutates the input.
+ */
+const TRANSPORT_HEADER_BLOCK = /^\s*x-anthropic-[a-z0-9-]*header\s*:/i
+
+export function extractSystemText(system: unknown): string {
+  if (typeof system === "string") return system
+  if (!Array.isArray(system)) return ""
+  return system
+    .filter((b: any) => b?.type === "text" && typeof b.text === "string" && b.text)
+    .map((b: any) => b.text as string)
+    .filter((text) => !TRANSPORT_HEADER_BLOCK.test(text))
+    .join("\n")
+}
