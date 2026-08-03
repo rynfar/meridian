@@ -119,3 +119,31 @@ jobs:
           finally {
             try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch { }
           }
+
+  # Merge settings are load-bearing, not cosmetic. Release Please parses every
+  # commit on main for the changelog, so a squash body carrying branch commit
+  # subjects produces DUPLICATE entries — that is what #693/#700 hit via
+  # --merge, and the same trap reaches --squash for any 2+ commit PR.
+  #
+  # PR_TITLE + BLANK closes it structurally: the changelog line is the PR
+  # title, and the body holds nothing but the Co-authored-by trailer GitHub
+  # appends (verified — contributor credit survives BLANK).
+  #
+  # This exists so the invariant is enforced rather than remembered. If it
+  # fails, someone changed the repo settings; restore them, do not "fix" this.
+  merge-settings:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Squash defaults must keep the changelog 1:1 with PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          settings=$(gh api "repos/${GITHUB_REPOSITORY}" \
+            --jq '.squash_merge_commit_title + "+" + .squash_merge_commit_message')
+          echo "squash title+body = ${settings}"
+          if [ "${settings}" != "PR_TITLE+BLANK" ]; then
+            echo "::error::Expected PR_TITLE+BLANK, got ${settings}."
+            echo "::error::Restore with: gh api -X PATCH repos/${GITHUB_REPOSITORY} \\"
+            echo "::error::  -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=BLANK"
+            exit 1
+          fi

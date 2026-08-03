@@ -146,6 +146,37 @@ All changes go through this process, no exceptions:
    renders both avatars on the commit. The only thing lost is sole `Author` on
    the commit, which is not worth a changelog that repeats itself every release.
 
+   **The duplicate-entry trap is closed by repo settings, not by remembering.**
+   The same failure reaches squash whenever a branch has 2+ conventional
+   commits: GitHub would paste each commit subject into the squash body and
+   Release Please would parse them all. The repository is configured so that
+   cannot happen:
+
+   | Setting | Value | Why |
+   |---|---|---|
+   | `squash_merge_commit_title` | `PR_TITLE` | the changelog line is the PR title, never a branch commit's subject |
+   | `squash_merge_commit_message` | `BLANK` | the body carries no commit subjects, so there is nothing extra to parse |
+
+   Verified 2026-08-03 on a throwaway PR: the resulting squash body contained
+   *only* `Co-authored-by:`, which GitHub still appends under `BLANK`. So
+   contributor credit and a 1:1 changelog both hold with no flags.
+
+   **Therefore: plain `gh pr merge <N> --squash --delete-branch` is correct for
+   every PR, single- or multi-commit.** Do not hand-craft `--subject`/`--body`
+   to work around the old trap; that was only needed before these settings, and
+   a hand-written body can reintroduce the duplicate. Do not change these two
+   settings back. Check them with:
+
+   ```bash
+   gh api repos/rynfar/meridian --jq '{t: .squash_merge_commit_title, m: .squash_merge_commit_message}'
+   # expect {"t":"PR_TITLE","m":"BLANK"}
+   ```
+
+   `--admin` is **not** routinely required. `main` requires signed commits, and
+   `commit.gpgsign` is enabled locally, so normal work merges `CLEAN`. Reach for
+   `--admin` only when a PR is genuinely `BLOCKED`, and check
+   `gh pr view <N> --json mergeStateStatus` first rather than adding it by habit.
+
    **`main` requires signed commits, so fork PRs can never be merged directly.**
    An external PR sits at `mergeStateStatus: BLOCKED` with every check green and
    no indication why — `gh pr view <N> --json mergeStateStatus` is the only
