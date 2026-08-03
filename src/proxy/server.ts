@@ -66,7 +66,7 @@ import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDef
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
-import { extractAdvisorModel, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns } from "./messages"
+import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -900,17 +900,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const profileEnv = { ...sdkModelDefaults, ...cleanEnv, ...profile.env }
         const profileCredentialStore = credentialStoreForProfile(profile)
 
-        let systemContext = ""
-        if (body.system) {
-          if (typeof body.system === "string") {
-            systemContext = body.system
-          } else if (Array.isArray(body.system)) {
-            systemContext = body.system
-              .filter((b: any) => b.type === "text" && b.text)
-              .map((b: any) => b.text)
-              .join("\n")
-          }
-        }
+        // Drops transport metadata some clients pass through `system`.
+        let systemContext = extractSystemText(body.system)
 
         // Run the transform pipeline — adapter transforms populate SDK configuration.
         // INVARIANT (#476): behavior keyed by adapter name — transforms, plugin

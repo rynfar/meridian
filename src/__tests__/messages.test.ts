@@ -2,7 +2,7 @@
  * Unit tests for message parsing utilities.
  */
 import { describe, it, expect } from "bun:test"
-import { frameReplayTurns, normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, buildToolUseIndex, describeToolCall } from "../proxy/messages"
+import { frameReplayTurns, normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, buildToolUseIndex, describeToolCall, extractSystemText } from "../proxy/messages"
 
 const img = (id: string) => ({ type: "image", source: { type: "base64", media_type: "image/png", data: id } })
 function userMsg(content: unknown) {
@@ -452,5 +452,54 @@ describe("frameReplayTurns (#619)", () => {
     expect(out).not.toContain("Human:")
     expect(out).toEndWith("final question")
     expect(out).toContain("[your bash ls]:")
+  })
+})
+
+describe("extractSystemText", () => {
+  const CLIENT_PROMPT = "You are a release-notes assistant. Answer in bullet points."
+  const BILLING = "x-anthropic-billing-header: cc_version=2.1.220.8b8; cc_entrypoint=sdk-cli;"
+  const SDK_PREAMBLE = "You are a Claude agent, built on Anthropic's Claude Agent SDK."
+
+  it("passes a string system field through unchanged", () => {
+    expect(extractSystemText(CLIENT_PROMPT)).toBe(CLIENT_PROMPT)
+  })
+
+  it("joins text blocks with newlines", () => {
+    expect(extractSystemText([{ type: "text", text: "a" }, { type: "text", text: "b" }]))
+      .toBe("a\nb")
+  })
+
+  // Claude Code's system array leads with a pseudo-HTTP header. Joined
+  // verbatim it sits at the top of the subprocess's system prompt, where it
+  // is noise at best — and it describes a request Meridian never makes, since
+  // the subprocess sends its own billing header.
+  it("drops the billing header block Claude Code smuggles through system", () => {
+    const out = extractSystemText([
+      { type: "text", text: BILLING },
+      { type: "text", text: SDK_PREAMBLE },
+      { type: "text", text: CLIENT_PROMPT },
+    ])
+    expect(out).not.toContain("x-anthropic-billing-header")
+    expect(out).not.toContain("cc_entrypoint")
+    expect(out).toBe(`${SDK_PREAMBLE}\n${CLIENT_PROMPT}`)
+  })
+
+  it("keeps a client prompt that merely mentions a header in prose", () => {
+    const prose = "Always send the x-anthropic-billing-header when relaying."
+    expect(extractSystemText([{ type: "text", text: prose }])).toBe(prose)
+  })
+
+  it("ignores non-text blocks and empty text", () => {
+    expect(extractSystemText([
+      { type: "image", source: {} },
+      { type: "text", text: "" },
+      { type: "text", text: CLIENT_PROMPT },
+    ])).toBe(CLIENT_PROMPT)
+  })
+
+  it("returns empty string for absent or malformed input", () => {
+    expect(extractSystemText(undefined)).toBe("")
+    expect(extractSystemText(null)).toBe("")
+    expect(extractSystemText(42)).toBe("")
   })
 })
