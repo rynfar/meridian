@@ -164,6 +164,66 @@ describe("Tool blocking: normal mode (non-passthrough)", () => {
 // transform's VALUES, and every one of them passed while this was broken. The
 // defect was the wiring between the registry and the request, which only a
 // server-level assertion can see.
+// #744: claudeCodeAdapter returns undefined from extractWorkingDirectory (so the
+// subprocess never chdirs into a layout that may not exist here), and surfaces
+// the client's real path via extractClientWorkingDirectory. When that path DOES
+// exist on the proxy host it should become the SDK's cwd — otherwise the SDK
+// advertises the proxy's own directory and the model composes absolute paths
+// against the wrong tree, writing to the proxy host while reporting success.
+//
+// Asserted through the HTTP layer on purpose: the resolver can be exercised
+// directly, but that only re-tests a copy of the call-site expression (#707).
+describe("SDK cwd for a claude-code client (#744)", () => {
+  let clientDir: string
+  let savedAgent: string | undefined
+
+  beforeEach(() => {
+    clientDir = mkdtempSync(join(tmpdir(), "meridian-client-cwd-"))
+    savedAgent = process.env.MERIDIAN_DEFAULT_AGENT
+    delete process.env.MERIDIAN_DEFAULT_AGENT
+  })
+  afterEach(() => {
+    rmSync(clientDir, { recursive: true, force: true })
+    if (savedAgent !== undefined) process.env.MERIDIAN_DEFAULT_AGENT = savedAgent
+    else delete process.env.MERIDIAN_DEFAULT_AGENT
+  })
+
+  /** The system-prompt shape a real Claude Code CLI sends. */
+  const systemFor = (cwd: string) => [
+    { type: "text", text: "You are a Claude agent, built on Anthropic's Claude Agent SDK." },
+    { type: "text", text: `# Environment\nYou have been invoked in the following environment:\n - Primary working directory: ${cwd}\n - Platform: darwin\n` },
+  ]
+
+  async function postAs(system: any) {
+    capturedQueryParams = null
+    const res = await createTestApp().fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "user-agent": "claude-cli/1.0.60 (external)" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-5", max_tokens: 64, stream: false,
+        system, messages: [{ role: "user", content: "hi" }],
+      }),
+    }))
+    await res.json()
+    return capturedQueryParams
+  }
+
+  it("uses the client's directory as the SDK cwd when it exists here", () => {
+    return postAs(systemFor(clientDir)).then((params) => {
+      expect(params?.options?.cwd).toBe(clientDir)
+    })
+  })
+
+  it("falls back to a valid server path when the client directory does not exist (#381)", () => {
+    // Remote client: its filesystem layout is absent here, and chdiring into it
+    // would fail the SDK spawn with a misleading error.
+    return postAs(systemFor("/definitely/not/here/meridian-744")).then((params) => {
+      expect(params?.options?.cwd).not.toBe("/definitely/not/here/meridian-744")
+      expect(params?.options?.cwd).toBe(process.cwd())
+    })
+  })
+})
+
 describe("Tool blocking: claude-code adapter (#735)", () => {
   let savedAgent: string | undefined
   beforeEach(() => {

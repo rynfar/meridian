@@ -840,7 +840,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // resolveSdkWorkingDirectory falls back to process.cwd() in that case.
         const cwdResolution = resolveSdkWorkingDirectory({
           envOverride: process.env.MERIDIAN_WORKDIR ?? process.env.CLAUDE_PROXY_WORKDIR,
-          adapterCwd: adapter.extractWorkingDirectory(body),
+          // Adapters that hand back an SDK-safe path win. Otherwise fall back to
+          // the CLIENT's path (claude-code deliberately returns undefined above
+          // so the subprocess never chdirs into a layout that may not exist
+          // here). resolveSdkWorkingDirectory validates existence, so this is
+          // only adopted when the directory is genuinely present on the proxy
+          // host; a remote client still falls back to process.cwd() as in #381.
+          //
+          // Without this the SDK chdirs to the proxy's own directory and its
+          // env block advertises that path, so the model composes absolute
+          // paths against the wrong tree and writes land on the proxy host
+          // while reporting success (#744). Adopting the client's path when it
+          // exists removes the contradiction at the source rather than relying
+          // on the cwd note to argue the model out of it.
+          adapterCwd: adapter.extractWorkingDirectory(body) ?? adapter.extractClientWorkingDirectory?.(body),
           fallback: process.cwd(),
         })
         const workingDirectory = cwdResolution.workingDirectory
