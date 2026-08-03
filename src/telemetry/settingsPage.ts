@@ -188,6 +188,10 @@ const FEATURES = [
   { key: 'additionalDirectories', label: 'Additional Directories', desc: 'Comma-separated extra paths Claude can access (monorepo libs, etc.)', type: 'text' },
 ];
 
+// Display names only — NOT the list of adapters to render. The page renders
+// whatever /settings/api/features returns, so a new adapter shows up here the
+// moment it exists, using its raw name until someone gives it a pretty one.
+// A hardcoded list is what hid codex and cherry from this page entirely.
 const ADAPTER_LABELS = {
   opencode: 'OpenCode',
   openai: 'OpenAI (/v1/chat/completions)',
@@ -197,10 +201,8 @@ const ADAPTER_LABELS = {
   droid: 'Droid',
   passthrough: 'LiteLLM / Passthrough',
   codex: 'Codex CLI (/v1/responses)',
-  // Cherry is the only adapter that lets the SDK subprocess run the built-in
-  // WebSearch/WebFetch itself (#481), so it is the only one where the WebFetch
-  // Preflight entry in FEATURES has any effect. It has to be reachable here.
   cherry: 'Cherry Studio',
+  'claude-code': 'Claude Code',
 };
 
 let currentConfig = {};
@@ -247,7 +249,8 @@ function render() {
   const container = document.getElementById('adapters');
   container.innerHTML = '';
 
-  for (const [adapter, label] of Object.entries(ADAPTER_LABELS)) {
+  for (const adapter of Object.keys(currentConfig)) {
+    const label = ADAPTER_LABELS[adapter] || adapter;
     const features = currentConfig[adapter] || {};
     const active = hasAnyEnabled(features);
 

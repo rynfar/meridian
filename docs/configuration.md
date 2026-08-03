@@ -127,6 +127,8 @@ Meridian can expose Claude Code features to any connected agent. Capabilities li
 
 Configure per-adapter at **`/settings`** in the Meridian web UI. Changes take effect on the next request — no restart needed. Config is persisted to `~/.config/meridian/sdk-features.json`.
 
+Every adapter Meridian can route to appears on that page — the list is derived from the adapter registry, so adding an adapter makes it configurable with no second edit. Alias names (`cherrystudio`, `claudecode`) collapse into their canonical adapter rather than appearing twice.
+
 ### Available features
 
 | Setting | Options | Description |

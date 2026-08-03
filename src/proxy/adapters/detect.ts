@@ -39,6 +39,25 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   codex: codexAdapter,
 }
 
+/**
+ * Every adapter that can be configured, by canonical name.
+ *
+ * Derived from ADAPTER_MAP rather than listed by hand, because a hand-kept
+ * copy has drifted every single time an adapter was added: the settings UI
+ * missed `codex` from #654 until #752, `cherry` from #481 was never
+ * configurable at all, and `claude-code` was missing from the feature config
+ * as well. Nothing failed in any of those cases — the adapter was simply
+ * absent from /settings, which reads as "this has no settings" rather than
+ * as a bug.
+ *
+ * ADAPTER_MAP keys include aliases (`cherrystudio`, `claudecode`), so
+ * canonical names come from `adapter.name` and duplicates collapse. Insertion
+ * order is preserved so the settings page ordering stays stable.
+ */
+export function listAdapterNames(): string[] {
+  return [...new Set(Object.values(ADAPTER_MAP).map(a => a.name))]
+}
+
 const envDefault = process.env.MERIDIAN_DEFAULT_AGENT || ""
 if (envDefault && !ADAPTER_MAP[envDefault]) {
   console.warn(

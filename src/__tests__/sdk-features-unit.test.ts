@@ -167,21 +167,39 @@ describe("sdkFeatures config roundtrip", () => {
 // toggle came to render on seven adapters where it does nothing and none of
 // the one where it does. Keep the two lists in lockstep.
 describe("settings UI adapter coverage", () => {
-  it("renders a label for every adapter getAllFeatureConfigs returns", () => {
+  it("exposes every adapter in the registry, with no aliases", () => {
     const { getAllFeatureConfigs } = require("../proxy/sdkFeatures") as typeof import("../proxy/sdkFeatures")
-    const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
+    const { listAdapterNames } = require("../proxy/adapters/detect") as typeof import("../proxy/adapters/detect")
 
-    const block = /const ADAPTER_LABELS = \{([\s\S]*?)\n\};/.exec(settingsPageHtml)
-    expect(block).not.toBeNull()
-    const labelled = new Set([...block![1]!.matchAll(/^\s*(\w+):\s*'/gm)].map(m => m[1]!))
-
-    for (const adapter of Object.keys(getAllFeatureConfigs())) {
-      expect(labelled).toContain(adapter)
-    }
+    // Not a hardcoded expected list — that is the bug this replaces. Adding an
+    // adapter to ADAPTER_MAP must make it configurable with no second edit.
+    expect(Object.keys(getAllFeatureConfigs()).sort()).toEqual(listAdapterNames().sort())
+    // `cherrystudio` and `claudecode` are alias keys; they must collapse into
+    // their canonical adapter rather than showing up as separate cards.
+    expect(Object.keys(getAllFeatureConfigs())).not.toContain("cherrystudio")
+    expect(Object.keys(getAllFeatureConfigs())).not.toContain("claudecode")
   })
 
-  it("exposes cherry, the only adapter the WebFetch preflight toggle affects", () => {
+  it("includes the adapters that were previously unreachable in the UI", () => {
     const { getAllFeatureConfigs } = require("../proxy/sdkFeatures") as typeof import("../proxy/sdkFeatures")
-    expect(Object.keys(getAllFeatureConfigs())).toContain("cherry")
+    const names = Object.keys(getAllFeatureConfigs())
+    // cherry (#481) is the only adapter the WebFetch preflight toggle affects;
+    // codex (#654) and claude-code were absent for the same hardcoded-list reason.
+    expect(names).toContain("cherry")
+    expect(names).toContain("codex")
+    expect(names).toContain("claude-code")
+  })
+
+  it("renders adapters from the API response, not a hardcoded page list", () => {
+    const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
+    // The render loop must iterate the fetched config. Iterating ADAPTER_LABELS
+    // is what made a new adapter invisible instead of merely unlabelled.
+    expect(settingsPageHtml).toContain("for (const adapter of Object.keys(currentConfig))")
+    expect(settingsPageHtml).not.toContain("Object.entries(ADAPTER_LABELS)")
+  })
+
+  it("falls back to the raw adapter name when no label exists", () => {
+    const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
+    expect(settingsPageHtml).toContain("ADAPTER_LABELS[adapter] || adapter")
   })
 })

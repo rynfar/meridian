@@ -179,11 +179,16 @@ export function getExplicitThinking(adapterName: string): AdapterFeatures["think
 
 /**
  * Get the full config for all adapters (for the settings UI).
+ *
+ * The adapter list comes from the adapter registry, not a copy kept here —
+ * see listAdapterNames() for why. Required lazily: this module is imported by
+ * request-path code that has no reason to pull in every adapter definition,
+ * and the registry only matters when the settings UI asks for it.
  */
 export function getAllFeatureConfigs(): Record<string, AdapterFeatures> {
-  const adapters = ["opencode", "crush", "forgecode", "pi", "droid", "passthrough", "openai", "codex", "cherry"]
+  const { listAdapterNames } = require("./adapters/detect") as typeof import("./adapters/detect")
   const result: Record<string, AdapterFeatures> = {}
-  for (const name of adapters) {
+  for (const name of listAdapterNames()) {
     result[name] = getFeaturesForAdapter(name)
   }
   return result
