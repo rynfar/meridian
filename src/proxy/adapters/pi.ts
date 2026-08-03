@@ -30,6 +30,7 @@ import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
 import { resolvePassthrough } from "../../env"
+import { extractClaudeCodeSessionId } from "./claudecode"
 
 const PI_MCP_SERVER_NAME = "pi"
 
@@ -77,8 +78,29 @@ export const piAdapter: AgentAdapter = {
    * long-lived subagent conversations resume instead of fresh-replaying
    * every turn (which decayed prompt-cache hits to the static-prefix floor).
    */
-  getSessionId(c: Context): string | undefined {
-    return c.req.header("x-session-affinity")
+  /**
+   * `x-session-affinity` stays authoritative — that is Pi's own convention and
+   * an orchestrator-supplied key must keep winning.
+   *
+   * Falling back to the body identity is for harnesses that carry a stable
+   * per-agent session id in `metadata.user_id` instead of a header. Oh My Pi
+   * does exactly that (`{"session_id": …}`, distinct for Main, Advisor and each
+   * subagent), and without it every OMP request ending in `user[tool_result]`
+   * fell into the headerless `isClientDrivenLoop` bypass: no session key means
+   * an independent request, which skips lineage lookup and starts a fresh SDK
+   * session every tool round (#734).
+   *
+   * The bypass itself is left intact — it is correct for genuinely headerless
+   * concurrent loops, where a shared key would collide. This only supplies the
+   * key when the client has actually declared one.
+   *
+   * `extractClaudeCodeSessionId` is deliberately strict: `metadata.user_id`
+   * must be, or parse to, an object with a non-empty string `session_id`. A
+   * plain-string user id yields undefined, so clients that do not opt into this
+   * envelope are unaffected.
+   */
+  getSessionId(c: Context, body?: unknown): string | undefined {
+    return c.req.header("x-session-affinity") ?? extractClaudeCodeSessionId(body)
   },
 
   extractWorkingDirectory(body: any): string | undefined {

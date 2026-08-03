@@ -318,3 +318,62 @@ describe("piAdapter.extractFileChangesFromToolUse", () => {
     expect(piAdapter.extractFileChangesFromToolUse!("write", null)).toEqual([])
   })
 })
+
+
+/**
+ * #734: Oh My Pi carries a stable per-agent session id in metadata.user_id
+ * rather than a header. Without reading it, every OMP request ending in
+ * `user[tool_result]` hit the headerless `isClientDrivenLoop` bypass — no
+ * session key means an independent request, which skips lineage lookup and
+ * starts a fresh SDK session on every tool round.
+ */
+describe("piAdapter.getSessionId — body identity fallback (#734)", () => {
+  const ctx = (headers: Record<string, string> = {}) => ({
+    req: { header: (n: string) => headers[n] },
+  }) as any
+
+  const ompBody = (sessionId: string) => ({
+    metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+  })
+
+  it("reads the OMP session id from metadata.user_id", () => {
+    expect(piAdapter.getSessionId(ctx(), ompBody("omp-main-1"))).toBe("omp-main-1")
+  })
+
+  it("keeps x-session-affinity authoritative over the body", () => {
+    // Pi's own convention, and an orchestrator-supplied key must keep winning.
+    expect(piAdapter.getSessionId(ctx({ "x-session-affinity": "hdr" }), ompBody("body")))
+      .toBe("hdr")
+  })
+
+  it("returns undefined for a stock Pi client with neither", () => {
+    // The headerless bypass must stay reachable — it is correct for genuinely
+    // concurrent tool loops with no identity at all.
+    expect(piAdapter.getSessionId(ctx(), {})).toBeUndefined()
+    expect(piAdapter.getSessionId(ctx())).toBeUndefined()
+  })
+
+  it("ignores a plain-string user_id, which is not a session declaration", () => {
+    // Anthropic's user_id is a USER identifier; adopting one as a session key
+    // would collide every conversation from that user into one SDK session.
+    expect(piAdapter.getSessionId(ctx(), { metadata: { user_id: "user-123" } })).toBeUndefined()
+  })
+
+  it("ignores a JSON envelope without a session_id", () => {
+    expect(piAdapter.getSessionId(ctx(), { metadata: { user_id: JSON.stringify({ account: "a" }) } }))
+      .toBeUndefined()
+  })
+
+  it("ignores an empty session_id", () => {
+    expect(piAdapter.getSessionId(ctx(), ompBody(""))).toBeUndefined()
+  })
+
+  it("keeps distinct agents on distinct sessions", () => {
+    // OMP gives Main, Advisor and each subagent its own id; that distinctness
+    // is what makes adopting the key safe against the collision the bypass
+    // exists to prevent.
+    const main = piAdapter.getSessionId(ctx(), ompBody("omp-main"))
+    const advisor = piAdapter.getSessionId(ctx(), ompBody("omp-advisor"))
+    expect(main).not.toBe(advisor)
+  })
+})

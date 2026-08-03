@@ -126,3 +126,89 @@ describe("explicit session keys override the independence guard", () => {
     expect(capturedOptions[1].resume).toBe("test-session")
   })
 })
+
+
+/**
+ * #734: Oh My Pi carries a stable per-agent session id in `metadata.user_id`
+ * rather than a header. Meridian's Pi adapter read only the header, so every
+ * OMP request ending in `user[tool_result]` fell into the headerless
+ * `isClientDrivenLoop` bypass — an independent request that skips lineage
+ * lookup and starts a fresh SDK session on every tool round.
+ *
+ * The tool_result shape is the point: a plain `user[text]` follow-up already
+ * resumed, which is why the reporter's telemetry showed 14 continuations for
+ * text turns and 0 for 40 tool-result turns.
+ */
+describe("OMP body session identity survives the tool-result bypass (#734)", () => {
+  const OMP = (sessionId: string) => ({
+    metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+  })
+
+  const TOOL_TURN_1 = {
+    ...TURN_1,
+    ...OMP("omp-main-734"),
+  }
+  /** Ends in user[tool_result] — the shape that triggered the bypass. */
+  const TOOL_TURN_2 = {
+    ...TURN_1,
+    ...OMP("omp-main-734"),
+    messages: [
+      ...TURN_1.messages,
+      { role: "assistant", content: [{ type: "tool_use", id: "tu1", name: "read", input: { p: "a" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "tu1", content: "file contents" }] },
+    ],
+  }
+
+  beforeEach(() => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    capturedOptions = []
+    clearSessionCache()
+  })
+  afterEach(() => {
+    clearSessionCache()
+  })
+
+  it("resumes a tool-result turn when the body carries an OMP session id", async () => {
+    const app = createTestApp()
+    const headers = { "x-meridian-agent": "pi" }
+    expect((await post(app, TOOL_TURN_1, headers)).status).toBe(200)
+    expect((await post(app, TOOL_TURN_2, headers)).status).toBe(200)
+    expect(capturedOptions).toHaveLength(2)
+    expect(capturedOptions[0].resume).toBeUndefined()
+    expect(capturedOptions[1].resume).toBe("test-session")
+  })
+
+  it("still refuses to resume a tool-result turn with no identity at all", async () => {
+    // The bypass must stay intact for genuinely headerless concurrent loops,
+    // where every request would otherwise share one key and collide.
+    const app = createTestApp()
+    const headers = { "x-meridian-agent": "pi" }
+    const { metadata: _1, ...t1 } = TOOL_TURN_1 as any
+    const { metadata: _2, ...t2 } = TOOL_TURN_2 as any
+    await post(app, t1, headers)
+    await post(app, t2, headers)
+    expect(capturedOptions).toHaveLength(2)
+    expect(capturedOptions[1].resume).toBeUndefined()
+  })
+
+  it("keeps distinct OMP agents on distinct sessions", async () => {
+    // Main / Advisor / subagents each get their own id; adopting the key is
+    // only safe because those ids differ.
+    const app = createTestApp()
+    const headers = { "x-meridian-agent": "pi" }
+    await post(app, TOOL_TURN_1, headers)
+    await post(app, { ...TOOL_TURN_2, ...OMP("omp-advisor-734") }, headers)
+    expect(capturedOptions).toHaveLength(2)
+    expect(capturedOptions[1].resume).toBeUndefined()
+  })
+
+  it("x-session-affinity still wins over the body id", async () => {
+    const app = createTestApp()
+    const headers = { "x-meridian-agent": "pi", "x-session-affinity": "hdr-734" }
+    await post(app, TOOL_TURN_1, headers)
+    await post(app, { ...TOOL_TURN_2, ...OMP("a-different-body-id") }, headers)
+    expect(capturedOptions).toHaveLength(2)
+    // Same header across both turns, so it resumes despite the body id changing.
+    expect(capturedOptions[1].resume).toBe("test-session")
+  })
+})
