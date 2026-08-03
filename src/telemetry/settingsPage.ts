@@ -181,6 +181,7 @@ const FEATURES = [
   { key: 'thinking', label: 'Thinking', desc: 'Extended thinking mode', type: 'select', options: ['disabled', 'adaptive', 'enabled'] },
   { key: 'thinkingPassthrough', label: 'Thinking Passthrough', desc: 'Forward thinking blocks to the client', type: 'toggle' },
   { key: 'sharedMemory', label: 'Shared Memory', desc: 'Share memory with Claude Code (~/.claude) instead of isolated storage', type: 'toggle' },
+  { key: 'webFetchPreflight', label: 'WebFetch Preflight', desc: 'Check each WebFetch hostname against the Anthropic blocklist before fetching — off keeps hostnames local but fetches any URL unchecked', type: 'toggle' },
   { key: 'maxBudgetUsd', label: 'Max Budget (USD)', desc: 'Per-request cost cap — query aborts if exceeded (0 = disabled)', type: 'number' },
   { key: 'fallbackModel', label: 'Fallback Model', desc: 'Auto-fallback model if primary fails', type: 'select', options: ['', 'sonnet', 'opus', 'haiku', 'sonnet[1m]', 'opus[1m]'] },
   { key: 'sdkDebug', label: 'SDK Debug Logging', desc: 'Enable verbose SDK debug output to proxy stderr', type: 'toggle' },
@@ -232,7 +233,7 @@ function showSaved() {
 function hasAnyEnabled(features) {
   return features.codeSystemPrompt || !features.clientSystemPrompt || features.claudeMd !== 'off' || features.memory || features.dreaming ||
          features.thinking !== 'disabled' || features.thinkingPassthrough ||
-         features.sharedMemory || features.maxBudgetUsd > 0 ||
+         features.sharedMemory || features.webFetchPreflight === false || features.maxBudgetUsd > 0 ||
          features.fallbackModel || features.sdkDebug ||
          features.additionalDirectories;
 }

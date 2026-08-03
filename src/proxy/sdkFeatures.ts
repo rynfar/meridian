@@ -26,6 +26,13 @@ export interface AdapterFeatures {
   thinkingPassthrough: boolean
   /** Share memory directory with Claude Code (~/.claude instead of SDK default) */
   sharedMemory: boolean
+  /**
+   * Run the WebFetch domain safety check. Before each fetch the subprocess
+   * sends the target hostname to api.anthropic.com to test it against a
+   * blocklist. Turn off to keep hostnames local; WebFetch then fetches any
+   * URL unchecked, so pair it with tool permissions if that matters.
+   */
+  webFetchPreflight: boolean
   /** Per-request cost cap in USD (0 = disabled) */
   maxBudgetUsd: number
   /** Fallback model when primary fails (empty = disabled) */
@@ -51,6 +58,8 @@ const DEFAULT_FEATURES: AdapterFeatures = {
   thinking: "disabled",
   thinkingPassthrough: false,
   sharedMemory: false,
+  // Matches the subprocess default — opt out, don't opt in.
+  webFetchPreflight: true,
   maxBudgetUsd: 0,
   fallbackModel: "",
   sdkDebug: false,
