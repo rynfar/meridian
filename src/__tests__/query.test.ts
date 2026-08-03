@@ -47,6 +47,41 @@ describe("buildQueryOptions", () => {
     expect((result.options as any).includePartialMessages).toBeUndefined()
   })
 
+  // The subprocess runs headless behind the proxy — its metrics, crash
+  // reports, feedback uploads and surveys describe a session no human is in.
+  it("quiets the subprocess's non-essential outbound traffic by default", () => {
+    const env = buildQueryOptions(makeContext()).options.env ?? {}
+    expect(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe("1")
+    expect(env.DISABLE_TELEMETRY).toBe("1")
+    expect(env.DISABLE_ERROR_REPORTING).toBe("1")
+    expect(env.DISABLE_FEEDBACK_COMMAND).toBe("1")
+    expect(env.CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY).toBe("1")
+    expect(env.DISABLE_AUTOUPDATER).toBe("1")
+    expect(env.CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL).toBe("1")
+  })
+
+  it("lets the inherited env opt back into telemetry", () => {
+    const result = buildQueryOptions(makeContext({
+      cleanEnv: { DISABLE_TELEMETRY: "0", DISABLE_ERROR_REPORTING: "0" },
+    }))
+    expect(result.options.env?.DISABLE_TELEMETRY).toBe("0")
+    expect(result.options.env?.DISABLE_ERROR_REPORTING).toBe("0")
+    // Untouched keys keep the quiet default.
+    expect(result.options.env?.DISABLE_FEEDBACK_COMMAND).toBe("1")
+  })
+
+  it("lets envOverrides opt back into telemetry", () => {
+    const result = buildQueryOptions(makeContext({
+      envOverrides: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "0" },
+    }))
+    expect(result.options.env?.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe("0")
+  })
+
+  it("keeps the quiet defaults in passthrough mode", () => {
+    const env = buildQueryOptions(makeContext({ passthrough: true })).options.env ?? {}
+    expect(env.DISABLE_TELEMETRY).toBe("1")
+  })
+
   it("applies envOverrides after inherited env", () => {
     const result = buildQueryOptions(makeContext({
       cleanEnv: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-6" },
