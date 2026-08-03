@@ -23,6 +23,11 @@ describe("validateFeatureUpdate", () => {
     expect(() => validateFeatureUpdate({ webFetchPreflight: "off" })).toThrow("webFetchPreflight must be a boolean")
   })
 
+  it("accepts claudeAiConnectors and rejects a non-boolean", () => {
+    expect(validateFeatureUpdate({ claudeAiConnectors: true })).toEqual({ claudeAiConnectors: true })
+    expect(() => validateFeatureUpdate({ claudeAiConnectors: "yes" })).toThrow("claudeAiConnectors must be a boolean")
+  })
+
   it("accepts codeSystemPrompt and clientSystemPrompt booleans", () => {
     expect(validateFeatureUpdate({ codeSystemPrompt: true })).toEqual({ codeSystemPrompt: true })
     expect(validateFeatureUpdate({ clientSystemPrompt: false })).toEqual({ clientSystemPrompt: false })

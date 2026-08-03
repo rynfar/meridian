@@ -182,6 +182,7 @@ const FEATURES = [
   { key: 'thinkingPassthrough', label: 'Thinking Passthrough', desc: 'Forward thinking blocks to the client', type: 'toggle' },
   { key: 'sharedMemory', label: 'Shared Memory', desc: 'Share memory with Claude Code (~/.claude) instead of isolated storage', type: 'toggle' },
   { key: 'webFetchPreflight', label: 'WebFetch Preflight', desc: 'Check each WebFetch hostname against the Anthropic blocklist before fetching — off keeps hostnames local but fetches any URL unchecked. Only affects Cherry Studio; other adapters never run the SDK\\'s built-in WebFetch', type: 'toggle' },
+  { key: 'claudeAiConnectors', label: 'claude.ai Connectors', desc: 'Load the MCP connectors attached to your claude.ai account (Drive, Gmail, Calendar). Off by default; always off in passthrough mode', type: 'toggle' },
   { key: 'maxBudgetUsd', label: 'Max Budget (USD)', desc: 'Per-request cost cap — query aborts if exceeded (0 = disabled)', type: 'number' },
   { key: 'fallbackModel', label: 'Fallback Model', desc: 'Auto-fallback model if primary fails', type: 'select', options: ['', 'sonnet', 'opus', 'haiku', 'sonnet[1m]', 'opus[1m]'] },
   { key: 'sdkDebug', label: 'SDK Debug Logging', desc: 'Enable verbose SDK debug output to proxy stderr', type: 'toggle' },
@@ -240,7 +241,8 @@ function showSaved() {
 function hasAnyEnabled(features) {
   return features.codeSystemPrompt || !features.clientSystemPrompt || features.claudeMd !== 'off' || features.memory || features.dreaming ||
          features.thinking !== 'disabled' || features.thinkingPassthrough ||
-         features.sharedMemory || features.webFetchPreflight === false || features.maxBudgetUsd > 0 ||
+         features.sharedMemory || features.webFetchPreflight === false ||
+         features.claudeAiConnectors || features.maxBudgetUsd > 0 ||
          features.fallbackModel || features.sdkDebug ||
          features.additionalDirectories;
 }

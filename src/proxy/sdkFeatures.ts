@@ -33,6 +33,14 @@ export interface AdapterFeatures {
    * URL unchecked, so pair it with tool permissions if that matters.
    */
   webFetchPreflight: boolean
+  /**
+   * Load the MCP connectors attached to the account's claude.ai profile
+   * (Drive, Gmail, Calendar, …). Off by default: the calling agent never
+   * negotiated those tools, and they reach third parties through
+   * mcp-proxy.anthropic.com. Ignored in passthrough mode, where the client
+   * executes tools and cannot run one that exists only in the subprocess.
+   */
+  claudeAiConnectors: boolean
   /** Per-request cost cap in USD (0 = disabled) */
   maxBudgetUsd: number
   /** Fallback model when primary fails (empty = disabled) */
@@ -60,6 +68,7 @@ const DEFAULT_FEATURES: AdapterFeatures = {
   sharedMemory: false,
   // Matches the subprocess default — opt out, don't opt in.
   webFetchPreflight: true,
+  claudeAiConnectors: false,
   maxBudgetUsd: 0,
   fallbackModel: "",
   sdkDebug: false,

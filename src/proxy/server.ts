@@ -1718,6 +1718,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
+                    claudeAiConnectors: sdkFeatures.claudeAiConnectors,
                     maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
                     sdkDebug: sdkFeatures.sdkDebug,
                     additionalDirectories: sdkFeatures.additionalDirectories
@@ -1794,6 +1795,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
+                    claudeAiConnectors: sdkFeatures.claudeAiConnectors,
                       maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
                       sdkDebug: sdkFeatures.sdkDebug,
                       additionalDirectories: sdkFeatures.additionalDirectories
@@ -1843,6 +1845,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                       memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
+                    claudeAiConnectors: sdkFeatures.claudeAiConnectors,
                       maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
                       sdkDebug: sdkFeatures.sdkDebug,
                       additionalDirectories: sdkFeatures.additionalDirectories
@@ -2483,6 +2486,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
+                    claudeAiConnectors: sdkFeatures.claudeAiConnectors,
                       maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
                       sdkDebug: sdkFeatures.sdkDebug,
                       additionalDirectories: sdkFeatures.additionalDirectories
@@ -2544,6 +2548,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
+                    claudeAiConnectors: sdkFeatures.claudeAiConnectors,
                         maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
                         sdkDebug: sdkFeatures.sdkDebug,
                         additionalDirectories: sdkFeatures.additionalDirectories
@@ -2589,6 +2594,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                         memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                         webFetchPreflight: sdkFeatures.webFetchPreflight,
+                        claudeAiConnectors: sdkFeatures.claudeAiConnectors,
                         maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
                         sdkDebug: sdkFeatures.sdkDebug,
                         additionalDirectories: sdkFeatures.additionalDirectories
