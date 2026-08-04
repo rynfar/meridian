@@ -82,19 +82,34 @@ def _register(ctx):
 _USAGE_SCHEMA = {"type": "object", "properties": {}, "required": []}
 
 
+# Meridian gates /v1/* behind MERIDIAN_API_KEY when one is configured;
+# only / and /health stay open. Send the key when we have it, or every
+# quota read 401s on a secured proxy.
+MERIDIAN_API_KEY = os.environ.get("MERIDIAN_API_KEY", "")
+
+
 def _get(path, timeout=4.0):
-    with urllib.request.urlopen(MERIDIAN_URL + path, timeout=timeout) as r:
+    req = urllib.request.Request(MERIDIAN_URL + path)
+    if MERIDIAN_API_KEY:
+        req.add_header("x-api-key", MERIDIAN_API_KEY)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
 def _meridian_reachable():
-    """check_fn: hide the tool entirely when Meridian is not answering.
+    """check_fn: hide the tool entirely when it would not work.
 
     An agent that cannot reach Meridian is better off not seeing a tool that
     would fail on every call.
+
+    Probes the quota endpoint itself, NOT /health. /health is deliberately
+    exempt from MERIDIAN_API_KEY, so a /health probe answers 200 on a
+    secured proxy while the actual quota call 401s — leaving the tool
+    visible and broken in exactly the deployment where auth is enabled,
+    which is the case this check exists to prevent.
     """
     try:
-        _get("/health", timeout=2.0)
+        _get("/v1/usage/quota", timeout=2.0)
         return True
     except Exception:
         return False

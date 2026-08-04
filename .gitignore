@@ -44,3 +44,8 @@ apps/desktop/src-tauri/target/
 
 # Local spikes / experiments (per-developer; never commit)
 spike/
+
+# Python bytecode — examples/hermes-plugin is a Python plugin, and a
+# committed .pyc shipped in #741 because nothing here ignored it.
+__pycache__/
+*.py[cod]

@@ -109,3 +109,26 @@ plugins or config).
 Edit `EFFORT_BY_PROFILE` in `__init__.py` to match your profiles, or set
 `HERMES_EFFORT=low|medium|high|xhigh|max` in a worker's environment to
 override per task.
+
+## Environment
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MERIDIAN_URL` | `http://127.0.0.1:3456` | where this Hermes install reaches Meridian |
+| `MERIDIAN_API_KEY` | unset | required for `usage_status` if the proxy sets `MERIDIAN_API_KEY` — Meridian gates `/v1/*` behind it |
+| `HERMES_EFFORT` | per-profile | overrides `x-opencode-effort` for one worker |
+| `USAGE_TOOLSET` | `delegation` | native toolset the `usage_status` tool registers into |
+
+If your Meridian sets `MERIDIAN_API_KEY` and you don't set it here,
+`usage_status` hides itself rather than appearing and failing on every
+call — `/health` is exempt from auth, so the tool's availability check
+deliberately probes the quota endpoint instead.
+
+## Adapter note
+
+Hermes sends `User-Agent: python-httpx`, which matches no Meridian
+detection heuristic, so plain Hermes traffic resolves to whatever
+`MERIDIAN_DEFAULT_AGENT` names. The `x-session-affinity` header this plugin
+injects resolves to the **`opencode`** adapter regardless of that default —
+usually what you want, since these headers are the ones that adapter reads,
+but it is a real switch on any deployment that sets a different default.
