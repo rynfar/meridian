@@ -396,9 +396,14 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
         // — the same mismatch that made CLAUDE_CODE_USE_POWERSHELL_TOOL a bug
         // (#441). This was the pre-existing behaviour for passthrough; the
         // change is that every other adapter now defaults to it too.
-        ...(passthrough || ctx.claudeAiConnectors !== true
-          ? { ENABLE_CLAUDEAI_MCP_SERVERS: "false" }
-          : {}),
+        //
+        // Always explicit, never omitted — same reason as the `settings` keys
+        // above (#634). Expressing "on" by leaving the variable out would make
+        // the opt-in mean "whatever the subprocess defaults to", so an upstream
+        // default flip would silently re-enable connectors for everyone who
+        // opted in, and silently disable them for everyone who did not.
+        ENABLE_CLAUDEAI_MCP_SERVERS:
+          !passthrough && ctx.claudeAiConnectors === true ? "true" : "false",
         // Passthrough: suppress the CLI's "# Scratchpad Directory" context
         // block (#627). It advertises a PROXY-HOST path, but the CLIENT
         // executes the tools — OpenCode 1.18+ permission-blocks writes to

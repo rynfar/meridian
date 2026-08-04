@@ -339,10 +339,25 @@ describe("buildQueryOptions", () => {
     expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe("false")
   })
 
+  // Explicit "true", not an omitted key (#634). Expressing the opt-in by
+  // leaving the variable out would make it mean "whatever the subprocess
+  // defaults to" — an upstream flip would then silently re-enable connectors
+  // for opted-in users and disable them for everyone else.
   it("loads Claude.ai MCP servers when explicitly opted in", () => {
     const result = buildQueryOptions(makeContext({ passthrough: false, claudeAiConnectors: true }))
     const env = (result.options as any).env
-    expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBeUndefined()
+    expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBe("true")
+  })
+
+  it("always emits the connector variable, never relying on omission (#634)", () => {
+    for (const ctx of [
+      { passthrough: false },
+      { passthrough: false, claudeAiConnectors: true },
+      { passthrough: true, claudeAiConnectors: true },
+    ]) {
+      const env = (buildQueryOptions(makeContext(ctx)).options as any).env
+      expect(env.ENABLE_CLAUDEAI_MCP_SERVERS).toBeDefined()
+    }
   })
 
   // Passthrough wins over the opt-in: the client executes tools there and
