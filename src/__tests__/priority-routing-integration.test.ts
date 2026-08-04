@@ -13,6 +13,8 @@ import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, m
 
 let capturedEnvs: string[] = []
 let failingDirs = new Set<string>()
+const DEFAULT_FAILURE = "429 rate limit reached for this account"
+let failureMessage = DEFAULT_FAILURE
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
@@ -21,7 +23,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     const streaming = params.options?.includePartialMessages === true
     return (async function* () {
       if ([...failingDirs].some((f) => dir.includes(f))) {
-        throw new Error("429 rate limit reached for this account")
+        throw new Error(failureMessage)
       }
       if (streaming) {
         yield messageStart("msg-1")
@@ -96,6 +98,7 @@ const savedEnv: Record<string, string | undefined> = {}
 // (file-level) hooks before inner (describe-level) ones, so those overrides
 // still win for those tests.
 beforeEach(() => {
+  failureMessage = DEFAULT_FAILURE
   __setFetchOAuthUsageOverride(async () => null)
 })
 
@@ -143,6 +146,16 @@ describe("priority routing", () => {
     // work attempted (with its internal retry ladder), then personal
     expect(capturedEnvs.some((e) => e.includes("prof-work"))).toBe(true)
     expect(capturedEnvs[capturedEnvs.length - 1]).toContain("prof-personal")
+  }, 20_000)
+
+  it("fails over on the CLI's shorter 'You've hit your limit' wording", async () => {
+    failureMessage = "Claude Code returned an error result: You've hit your limit · resets 6:40pm (UTC)"
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const res = await post(app)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { content: Array<{ text: string }> }
+    expect(body.content[0].text).toContain("prof-personal")
   }, 20_000)
 
   it("surfaces the LAST tried profile's error when every profile is exhausted", async () => {
