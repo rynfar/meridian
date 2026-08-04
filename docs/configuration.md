@@ -217,6 +217,21 @@ Passthrough mode keeps it off regardless of this setting. There the client
 executes tools, and it has no way to run one that exists only inside the
 subprocess.
 
+> **Upgrading to 1.60.0 — this turns something off that used to be on.**
+>
+> Before 1.60.0, connectors loaded for any adapter *not* running in
+> passthrough mode. In practice that meant **`cherry`, `droid`, and anything
+> started with `MERIDIAN_PASSTHROUGH=0`** — those sessions silently lose
+> connector tools on upgrade until you switch this on at `/settings`.
+>
+> Adapters that default to passthrough, `opencode` included, are unaffected:
+> connectors were already disabled for them.
+>
+> Nothing errors when a connector tool disappears — the model simply stops
+> having it, and answers as if the data were unavailable. If a session that
+> used to reach your Drive or Gmail stops doing so after upgrading, this
+> setting is why.
+
 ### System prompts
 
 The system prompt controls are independent — any combination works:
