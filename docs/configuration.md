@@ -74,6 +74,9 @@ One thing these do not cover: before WebFetch retrieves a URL, the subprocess
 sends the target hostname to `api.anthropic.com` to check it against a safety
 blocklist. That check is deliberately exempt from
 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` upstream and is unaffected here.
+It has its own per-adapter switch — see [WebFetch preflight](#webfetch-preflight)
+— though it only reaches the wire on the `cherry` adapter, since no other
+adapter lets the subprocess run the built-in WebFetch at all.
 
 ## Endpoints
 
@@ -178,11 +181,12 @@ hostname to `api.anthropic.com/api/web/domain_info` to check it against a
 safety blocklist. Only the hostname goes — not the path or the page — and the
 result is cached per host for five minutes.
 
-The check is not covered by `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, so
-turning it off here is the only way to keep fetch targets local. With it off,
-WebFetch retrieves any URL without consulting the blocklist; if that matters
-for your deployment, pair it with WebFetch tool permissions on the calling
-agent.
+The check is not covered by `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` — it is
+the one exception to everything under [Subprocess traffic](#subprocess-traffic)
+— so turning it off here is the only way to keep fetch targets local. With it
+off, WebFetch retrieves any URL without consulting the blocklist; if that
+matters for your deployment, pair it with WebFetch tool permissions on the
+calling agent.
 
 **Scope: this only affects the `cherry` adapter.** The preflight runs inside
 the SDK's built-in `WebFetch`, so it only fires when the Meridian-spawned
