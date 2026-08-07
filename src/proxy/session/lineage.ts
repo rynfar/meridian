@@ -56,6 +56,8 @@ export interface SessionState {
    *  Only assistant messages have UUIDs (user messages are null).
    *  Used to find the rollback point for undo. */
   sdkMessageUuids?: Array<string | null>
+  /** Last persisted passthrough deny — continuations of an early-stopped session fork here. */
+  passthroughResumeUuid?: string
   /** Last observed token usage for this session (from SDK message_start / message_delta events) */
   contextUsage?: TokenUsage
 }

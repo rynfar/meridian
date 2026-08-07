@@ -38,6 +38,8 @@ export interface StoredSession {
   messageBlockHashes?: string[][]
   /** Per-message SDK assistant UUIDs for undo rollback (null for user messages) */
   sdkMessageUuids?: Array<string | null>
+  /** Uuid of the last persisted passthrough deny — resume boundary after an early stop. */
+  passthroughResumeUuid?: string
   /** Last observed token usage for this Claude session */
   contextUsage?: TokenUsage
   /** Previous Claude session ID preserved when the session mapping is replaced.
@@ -205,7 +207,8 @@ export function storeSharedSession(
   messageHashes?: string[],
   sdkMessageUuids?: Array<string | null>,
   contextUsage?: TokenUsage,
-  messageBlockHashes?: string[][]
+  messageBlockHashes?: string[][],
+  passthroughResumeUuid?: string | null
 ): void {
   const path = getStorePath()
   const lockPath = `${path}.lock`
@@ -232,6 +235,9 @@ export function storeSharedSession(
       messageHashes: messageHashes ?? existing?.messageHashes,
       messageBlockHashes: messageBlockHashes ?? existing?.messageBlockHashes,
       sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
+      passthroughResumeUuid: passthroughResumeUuid === undefined
+        ? existing?.passthroughResumeUuid
+        : passthroughResumeUuid ?? undefined,
       contextUsage: contextUsage ?? existing?.contextUsage,
       ...(previousClaudeSessionId ? { previousClaudeSessionId } : {}),
     }

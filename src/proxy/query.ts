@@ -91,8 +91,9 @@ export interface QueryContext {
   resumeSessionId?: string
   /** Whether this is an undo operation */
   isUndo: boolean
-  /** UUID to rollback to for undo operations */
-  undoRollbackUuid?: string
+  /** Fork the resumed session at this SDK message UUID (undo rollback point
+   *  or passthrough deny boundary). Maps to the SDK's resumeSessionAt. */
+  resumeSessionAtUuid?: string
   /** Fork the resumed session instead of attaching to it (#630 busy-session
    *  fallback — the original stays registered as a bg agent; the fork gets a
    *  fresh id with the full history). */
@@ -298,7 +299,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
   const {
     prompt, model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
     passthrough, stream, sdkAgents, passthroughMcp, cleanEnv, hasDeferredTools,
-    resumeSessionId, isUndo, undoRollbackUuid, forkSession, sdkHooks, blockedTools, incompatibleTools,
+    resumeSessionId, isUndo, resumeSessionAtUuid, forkSession, sdkHooks, blockedTools, incompatibleTools,
     mcpServerName, allowedMcpTools, onStderr,
     effort, thinking, taskBudget, outputFormat, betas, settingSources, codeSystemPrompt, clientSystemPrompt,
     memory, dreaming, sharedMemory, maxBudgetUsd, fallbackModel, sdkDebug, additionalDirectories,
@@ -428,7 +429,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       ...(Object.keys(sdkAgents).length > 0 ? { agents: sdkAgents } : {}),
       ...(resumeSessionId ? { resume: resumeSessionId } : {}),
       ...(isUndo || forkSession ? { forkSession: true } : {}),
-      ...(isUndo && undoRollbackUuid ? { resumeSessionAt: undoRollbackUuid } : {}),
+      ...(resumeSessionAtUuid ? { resumeSessionAt: resumeSessionAtUuid } : {}),
       ...(sdkHooks ? { hooks: sdkHooks } : {}),
       ...(effort ? { effort } : {}),
       ...(thinking ? { thinking } : {}),

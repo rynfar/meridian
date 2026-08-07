@@ -105,3 +105,21 @@ export function shouldEarlyStop(tracker: EarlyStopTracker): boolean {
   tracker.fired = true
   return true
 }
+
+/**
+ * Resume boundary of an early-stopped session: the uuid of a persisted `user`
+ * message carrying tool_results. The last one before the abort is the final
+ * deny — continuations fork there instead of resuming the interrupted tail.
+ */
+export function resumeBoundaryUuid(message: unknown): string | undefined {
+  const m = message as { type?: unknown; uuid?: unknown; message?: { content?: unknown } } | null | undefined
+  if (m?.type !== "user") return undefined
+  if (typeof m.uuid !== "string" || m.uuid.length === 0) return undefined
+  const content = m.message?.content
+  if (!Array.isArray(content)) return undefined
+  const hasResult = content.some((block) => {
+    const b = block as { type?: unknown } | null | undefined
+    return b?.type === "tool_result"
+  })
+  return hasResult ? m.uuid : undefined
+}

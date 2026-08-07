@@ -42,7 +42,7 @@ import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { createEarlyStopTracker, noteAssistantContent, noteUserContent, shouldEarlyStop } from "./passthroughEarlyStop"
+import { createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
@@ -1105,6 +1105,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
         const resumeSessionId = cachedSession?.claudeSessionId
+        // --- Passthrough mode ---
+        // When enabled, ALL tool execution is forwarded to OpenCode instead of
+        // being handled internally. This enables multi-model agent delegation
+        // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
+        // Adapter can override the global passthrough env var per-agent.
+        // Droid always uses internal mode; OpenCode defers to the env var.
+        // Instance passthrough override (#476) beats the adapter transform's
+        // default, which beats the global env var.
+        const passthrough = adapter.instancePassthrough !== undefined
+          ? adapter.instancePassthrough
+          : pipelineCtx.passthrough !== undefined
+            ? pipelineCtx.passthrough
+            : envBool("PASSTHROUGH")
         const resumeFrom = lineageResult.type === "continuation" || lineageResult.type === "compaction"
           ? lineageResult.resumeFrom
           : undefined
@@ -1113,6 +1126,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           : undefined
         // For undo: fork the session at the rollback point
         const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
+        // Early-stopped sessions resume from the persisted deny boundary, not the interrupted tail.
+        const passthroughResumeUuid = passthrough && isResume ? cachedSession?.passthroughResumeUuid : undefined
 
         // Debug: log request details
         const msgSummary = body.messages?.map((m: any) => {
@@ -1307,19 +1322,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         return textPrompt!
       }
 
-      // --- Passthrough mode ---
-      // When enabled, ALL tool execution is forwarded to OpenCode instead of
-      // being handled internally. This enables multi-model agent delegation
-      // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
-      // Adapter can override the global passthrough env var per-agent.
-      // Droid always uses internal mode; OpenCode defers to the env var.
-      // Instance passthrough override (#476) beats the adapter transform's
-      // default, which beats the global env var.
-      const passthrough = adapter.instancePassthrough !== undefined
-        ? adapter.instancePassthrough
-        : pipelineCtx.passthrough !== undefined
-          ? pipelineCtx.passthrough
-          : envBool("PASSTHROUGH")
       // SDK setting sources — controls CLAUDE.md and user settings loading.
       const settingSources: import("@anthropic-ai/claude-agent-sdk").SettingSource[] =
         envBool("LOAD_CONTEXT") || sdkFeatures.claudeMd === "full"
@@ -1676,6 +1678,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           claudeLog("upstream.start", { mode: "non_stream", model })
           let lastUsage: TokenUsage | undefined
           let lastStopReason: string | undefined
+          let nextPassthroughResumeUuid: string | undefined
 
           try {
             // Lazy-resolve executable if not already set (e.g. when using createProxyServer directly)
@@ -1725,7 +1728,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   for await (const event of query(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                    resumeSessionId, isUndo, undoRollbackUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                    resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughResumeUuid, forkSession: busySessionFork || Boolean(passthroughResumeUuid) || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, outputFormat, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -1802,7 +1805,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                      resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                      resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -1852,7 +1855,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                      resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                      resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                       memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -1941,6 +1944,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (message.type === "assistant") {
                   noteAssistantContent(earlyStop, (message as any).message?.content)
                 } else if (message.type === "user") {
+                  nextPassthroughResumeUuid = resumeBoundaryUuid(message) ?? nextPassthroughResumeUuid
                   noteUserContent(earlyStop, (message as any).message?.content)
                   if (shouldEarlyStop(earlyStop)) {
                     earlyStopFired = true
@@ -2288,7 +2292,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // the stream (already persisted), so the history is coherent and the
           // session is safe to store and resume.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
-                storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
+                storeSession(
+                  profileSessionId,
+                  body.messages || [],
+                  currentSessionId,
+                  profileScopedCwd,
+                  sdkUuidMap,
+                  lastUsage,
+                  earlyStopFired ? nextPassthroughResumeUuid : null
+                )
               }
 
               const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
@@ -2371,6 +2383,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let lastUsage: TokenUsage | undefined
             let hasStructuredOutput = false
             let structuredOutput: unknown
+            let nextPassthroughResumeUuid: string | undefined
             // Hoisted out of the inner streaming loop so the outer catch can
             // dedupe captured tool_uses against what was already forwarded
             // when recovering gracefully from max_turns (see catch below).
@@ -2493,7 +2506,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     for await (const event of query(buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                      resumeSessionId, isUndo, undoRollbackUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                      resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughResumeUuid, forkSession: busySessionFork || Boolean(passthroughResumeUuid) || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -2555,7 +2568,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                        resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                        resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                         effort, thinking, taskBudget, outputFormat, betas, settingSources,
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -2601,7 +2614,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                        resumeSessionId: undefined, isUndo: false, undoRollbackUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                        resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                         effort, thinking, taskBudget, outputFormat, betas, settingSources,
                         codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                         memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -2722,6 +2735,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   if (message.type === "assistant" && (message as any).uuid) {
                     sdkUuidMap.push((message as any).uuid)
                   }
+                  nextPassthroughResumeUuid = resumeBoundaryUuid(message) ?? nextPassthroughResumeUuid
                   // Early stop: abort before the digest turn generates (see the
                   // earlyStop declaration above). By deny time the client has
                   // already received all turn-1 blocks and the stop_reason
@@ -3136,7 +3150,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // aborts are safe to store: every deny was persisted before the
               // abort. See the non-stream store above.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
-                storeSession(profileSessionId, body.messages || [], currentSessionId, profileScopedCwd, sdkUuidMap, lastUsage)
+                storeSession(
+                  profileSessionId,
+                  body.messages || [],
+                  currentSessionId,
+                  profileScopedCwd,
+                  sdkUuidMap,
+                  lastUsage,
+                  earlyStopFired ? nextPassthroughResumeUuid : null
+                )
               }
               resolvePendingStore()
 

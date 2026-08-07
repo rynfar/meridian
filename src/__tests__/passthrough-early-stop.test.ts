@@ -16,6 +16,7 @@ import {
   isClientForwardedToolUse,
   noteAssistantContent,
   noteUserContent,
+  resumeBoundaryUuid,
   shouldEarlyStop,
 } from "../proxy/passthroughEarlyStop"
 
@@ -56,6 +57,41 @@ describe("isClientForwardedToolUse", () => {
 
   it("excludes tool_use blocks with no id (can't be tracked)", () => {
     expect(isClientForwardedToolUse({ type: "tool_use", name: "read" })).toBe(false)
+  })
+})
+
+describe("resumeBoundaryUuid", () => {
+  const userMsg = (uuid: unknown, content: unknown) => ({
+    type: "user",
+    uuid,
+    message: { role: "user", content },
+  })
+
+  it("returns the uuid of a user message carrying a tool_result", () => {
+    expect(resumeBoundaryUuid(userMsg("u1", [toolResult("t1")]))).toBe("u1")
+  })
+
+  it("returns the uuid when tool_results mix with other blocks", () => {
+    expect(resumeBoundaryUuid(userMsg("u2", [{ type: "text", text: "hi" }, toolResult("t1")]))).toBe("u2")
+  })
+
+  it("ignores assistant messages", () => {
+    expect(resumeBoundaryUuid({ type: "assistant", uuid: "a1", message: { content: [toolResult("t1")] } })).toBeUndefined()
+  })
+
+  it("ignores user messages without tool_results", () => {
+    expect(resumeBoundaryUuid(userMsg("u3", [{ type: "text", text: "hi" }]))).toBeUndefined()
+  })
+
+  it("ignores messages with no usable uuid", () => {
+    expect(resumeBoundaryUuid(userMsg(undefined, [toolResult("t1")]))).toBeUndefined()
+    expect(resumeBoundaryUuid(userMsg("", [toolResult("t1")]))).toBeUndefined()
+  })
+
+  it("tolerates malformed content", () => {
+    expect(resumeBoundaryUuid(userMsg("u4", "just a string"))).toBeUndefined()
+    expect(resumeBoundaryUuid(null)).toBeUndefined()
+    expect(resumeBoundaryUuid({})).toBeUndefined()
   })
 })
 

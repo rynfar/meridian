@@ -183,7 +183,7 @@ describe("buildQueryOptions", () => {
   it("sets fork options for undo", () => {
     const result = buildQueryOptions(makeContext({
       isUndo: true,
-      undoRollbackUuid: "uuid-abc",
+      resumeSessionAtUuid: "uuid-abc",
     }))
     expect((result.options as any).forkSession).toBe(true)
     expect((result.options as any).resumeSessionAt).toBe("uuid-abc")

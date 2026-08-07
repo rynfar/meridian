@@ -30,6 +30,9 @@ const PREFIX = "mcp__oc__"
 
 let capturedController: AbortController | undefined
 let capturedResume: string | undefined
+let capturedResumeSessionAt: string | undefined
+let capturedForkSession: boolean | undefined
+let denyUuids: string[] = []
 let timeline: string[] = []
 // Deny persistence delay — simulates the CLI's post-release deny latency that
 // makes the store land after the client response (the fast-client race).
@@ -56,11 +59,15 @@ const assistantMsg = (blocks: any[]) => ({
   message: { id: "m1", type: "message", role: "assistant", content: blocks, model: "claude-sonnet-4-5-20250929", stop_reason: "tool_use", usage: { input_tokens: 10, output_tokens: 30 } },
   parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session",
 })
-const denyMsg = (ids: string[]) => ({
-  type: "user",
-  message: { role: "user", content: ids.map((id) => ({ type: "tool_result", tool_use_id: id, is_error: true, content: "denied" })) },
-  parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session",
-})
+const denyMsg = (ids: string[]) => {
+  const uuid = crypto.randomUUID()
+  denyUuids.push(uuid)
+  return {
+    type: "user",
+    message: { role: "user", content: ids.map((id) => ({ type: "tool_result", tool_use_id: id, is_error: true, content: "denied" })) },
+    parent_tool_use_id: null, uuid, session_id: "test-session",
+  }
+}
 
 // CLI-faithful mock: per-block assistant messages, mid-stream hook dispatch,
 // CANCEL-ON-DENY when a deny resolves while generation is in flight.
@@ -68,6 +75,8 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedController = opts?.options?.abortController
     capturedResume = opts?.options?.resume
+    capturedResumeSessionAt = opts?.options?.resumeSessionAt
+    capturedForkSession = opts?.options?.forkSession
     const hook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
     return (async function* () {
       if (!hook) {
@@ -184,6 +193,9 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     denyDelayMs = 0
     capturedController = undefined
     capturedResume = undefined
+    capturedResumeSessionAt = undefined
+    capturedForkSession = undefined
+    denyUuids = []
     clearSessionCache()
   })
 
@@ -247,6 +259,9 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
         { type: "tool_result", tool_use_id: "tg1", content: "ok" },
       ]},
     ])
+    const resumeBoundary = denyUuids[1]
     expect(capturedResume ?? "(fresh)").toBe("test-session")
+    expect(capturedResumeSessionAt).toBe(resumeBoundary)
+    expect(capturedForkSession).toBe(true)
   })
 })
