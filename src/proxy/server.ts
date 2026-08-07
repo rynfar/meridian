@@ -13,7 +13,7 @@ import { fetchOAuthUsage, fetchOAuthUsageResult } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
-import { env, envBool } from "../env"
+import { env, envBool, envInt } from "../env"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
 export type { ProxyConfig, ProxyInstance, ProxyServer }
 // Public plugin-authoring types. Plugins import these to type their
@@ -122,7 +122,17 @@ let claudeExecutable = ""
 // Must be > slowest legitimate TTFB / server-side thinking pause, and < the
 // "feels dead" threshold. Pylon's turn watchdog (120s warn / 180s abort) is the
 // looser backstop, so this fires first.
-const UPSTREAM_IDLE_MS = 90_000
+//
+// Overridable via MERIDIAN_UPSTREAM_IDLE_MS because the 90s default is not
+// always above the "slowest legitimate thinking pause" it assumes: a deep
+// agentic turn that reasons for a long stretch before emitting anything gets
+// killed mid-turn, and the kill reaches the client as a finished-but-empty
+// message (termination reason is `unknown`, so the tool_use recovery path
+// cannot fire). The default is left at 90s so upstream behaviour is unchanged;
+// keep any override BELOW Pylon's STALL_ABORT_MS (180s), or the two layers race
+// to abort the same hung model — see the coordination contract in
+// streamIdleGuard.ts.
+const UPSTREAM_IDLE_MS = envInt("UPSTREAM_IDLE_MS", 90_000)
 
 function credentialStoreForProfile(profile: ResolvedProfile): CredentialStore | undefined {
   if (profile.type !== "claude-max") return undefined
