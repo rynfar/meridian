@@ -106,6 +106,51 @@ export function shouldEarlyStop(tracker: EarlyStopTracker): boolean {
   return true
 }
 
+/** What a client-aborted stream must do with its session mapping. */
+export type ClientAbortDisposition =
+  | { action: "store"; resumeUuid: string }
+  | { action: "evict" }
+  | { action: "none" }
+
+/**
+ * Decide the fate of a session whose stream the CLIENT aborted (the user hit
+ * stop, or the connection dropped).
+ *
+ * A client abort leaves the SDK session ending in an interrupted tail — the
+ * same state the deny-boundary fix addresses for early stop. Resuming from
+ * that tail makes the SDK synthesize a "Continue from where you left off."
+ * turn, which the model answers with meta text ("No response requested.") or
+ * an empty turn. Each empty turn then becomes the next tail, so the session
+ * never recovers on its own: every following turn comes back empty until the
+ * lineage is discarded.
+ *
+ * An early stop is meridian's own doing and always has a persisted deny to
+ * fork from; a user interrupt is not an early stop and may have none. So:
+ *
+ * - a boundary was persisted → store it, and the next continuation forks
+ *   there (lineage and prompt cache survive);
+ * - no boundary → nothing is safe to resume from, so drop the mapping and let
+ *   the next request replay into a fresh SDK session. A cache-miss replay is
+ *   the cost of not wedging the conversation.
+ *
+ * `sawDuplicateToolUse` keeps the #552 rule: such a history holds a dangling
+ * dropped call that diverges from the client's view and is never resumable.
+ */
+export function clientAbortDisposition(input: {
+  isIndependentSession: boolean
+  profileSessionId?: string
+  currentSessionId?: string
+  sawDuplicateToolUse: boolean
+  resumeBoundaryUuid?: string
+}): ClientAbortDisposition {
+  // Fork/subagent requests never write the cache, so they have nothing to undo.
+  if (input.isIndependentSession || !input.profileSessionId) return { action: "none" }
+  if (input.currentSessionId && !input.sawDuplicateToolUse && input.resumeBoundaryUuid) {
+    return { action: "store", resumeUuid: input.resumeBoundaryUuid }
+  }
+  return { action: "evict" }
+}
+
 /**
  * Resume boundary of an early-stopped session: the uuid of a persisted `user`
  * message carrying tool_results. The last one before the abort is the final

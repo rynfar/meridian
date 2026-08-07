@@ -42,7 +42,7 @@ import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
+import { clientAbortDisposition, createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
@@ -2481,8 +2481,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               openClientBlocks.clear()
             }
 
+            // Hoisted out of the try so the client-abort branch of the catch
+            // below can settle this session (see clientAbortDisposition).
+            let currentSessionId: string | undefined
             try {
-              let currentSessionId: string | undefined
               // Same transparent retry wrapper as the non-streaming path.
               // Rate-limit retry strategy:
               //   1. Strip [1m] context (immediate, different model tier)
@@ -3354,6 +3356,33 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   textEventsForwarded,
                   durationMs: Date.now() - requestStartAt
                 })
+                // This was the only terminal path that returned without
+                // settling the session: the mapping stayed pointed at the
+                // interrupted tail (every following turn then came back empty)
+                // and follow-ups waited on a promise nobody resolved. Both
+                // obligations are met before returning.
+                const disposition = clientAbortDisposition({
+                  isIndependentSession,
+                  profileSessionId,
+                  currentSessionId,
+                  sawDuplicateToolUse,
+                  resumeBoundaryUuid: nextPassthroughResumeUuid,
+                })
+                if (disposition.action === "store" && currentSessionId) {
+                  storeSession(
+                    profileSessionId,
+                    body.messages || [],
+                    currentSessionId,
+                    profileScopedCwd,
+                    sdkUuidMap,
+                    lastUsage,
+                    disposition.resumeUuid
+                  )
+                } else if (disposition.action === "evict") {
+                  evictSession(profileSessionId, profileScopedCwd, body.messages || [])
+                }
+                claudeLog("passthrough.client_abort_settled", { action: disposition.action })
+                resolvePendingStore()
                 return
               }
 

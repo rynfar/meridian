@@ -12,6 +12,7 @@
  */
 import { describe, it, expect } from "bun:test"
 import {
+  clientAbortDisposition,
   createEarlyStopTracker,
   isClientForwardedToolUse,
   noteAssistantContent,
@@ -57,6 +58,43 @@ describe("isClientForwardedToolUse", () => {
 
   it("excludes tool_use blocks with no id (can't be tracked)", () => {
     expect(isClientForwardedToolUse({ type: "tool_use", name: "read" })).toBe(false)
+  })
+})
+
+describe("clientAbortDisposition", () => {
+  const base = {
+    isIndependentSession: false,
+    profileSessionId: "s1",
+    currentSessionId: "claude-1",
+    sawDuplicateToolUse: false,
+    resumeBoundaryUuid: "u1",
+  }
+
+  it("stores the boundary when one was persisted before the abort", () => {
+    expect(clientAbortDisposition(base)).toEqual({ action: "store", resumeUuid: "u1" })
+  })
+
+  it("evicts when no deny was persisted — nothing is safe to resume from", () => {
+    // The interrupted tail would make the SDK synthesize a continuation the
+    // model answers with an empty turn, and every empty turn becomes the next
+    // tail. A fresh replay is the cost of not wedging the conversation.
+    expect(clientAbortDisposition({ ...base, resumeBoundaryUuid: undefined })).toEqual({ action: "evict" })
+  })
+
+  it("evicts when the SDK session id never arrived", () => {
+    expect(clientAbortDisposition({ ...base, currentSessionId: undefined })).toEqual({ action: "evict" })
+  })
+
+  it("evicts on a duplicate-aborted history (#552) even with a boundary", () => {
+    expect(clientAbortDisposition({ ...base, sawDuplicateToolUse: true })).toEqual({ action: "evict" })
+  })
+
+  it("does nothing for fork/subagent requests — they never write the cache", () => {
+    expect(clientAbortDisposition({ ...base, isIndependentSession: true })).toEqual({ action: "none" })
+  })
+
+  it("does nothing without a session key", () => {
+    expect(clientAbortDisposition({ ...base, profileSessionId: undefined })).toEqual({ action: "none" })
   })
 })
 
