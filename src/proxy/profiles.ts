@@ -16,36 +16,80 @@
 
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
-import { homedir } from "node:os"
+import { configPath, defaultConfigDir } from "../configDir"
 import { setSetting, getSetting } from "./settings"
 import { pickStickyProfile, type RoutingMode } from "./routing"
-
-const CONFIG_FILE = join(homedir(), ".config", "meridian", "profiles.json")
 
 /** Disk profile cache with short TTL so new profiles are picked up quickly */
 const DISK_CACHE_TTL_MS = 5_000
 let diskProfilesCache: ProfileConfig[] = []
 let diskProfilesCacheAt = 0
+/** Which file the cache holds, so a changed MERIDIAN_CONFIG_DIR is a miss
+ *  rather than the previous directory's profile list served for 5s. */
+let diskProfilesCachePath = ""
 
 /**
- * Load profiles from ~/.config/meridian/profiles.json.
+ * Pure: what to say when the configured profiles.json is absent — a message,
+ * or undefined when there is nothing worth saying.
+ *
+ * MERIDIAN_CONFIG_DIR used to move settings.json alone, so anyone who already
+ * set it kept getting their profile list from the default directory. Now that
+ * it moves the whole directory that list is gone from their instance, which
+ * reads as profiles lost rather than profiles left where they always were.
+ * Only relocation can produce that, hence the first condition: with the
+ * variable unset both paths are the same file and this stays silent.
+ */
+export function profilesRelocationNotice(
+  configuredFile: string,
+  defaultFile: string,
+  defaultFileExists: boolean,
+): string | undefined {
+  if (configuredFile === defaultFile || !defaultFileExists) return undefined
+  return `[meridian] No profiles at ${configuredFile}, but ${defaultFile} exists. ` +
+    `MERIDIAN_CONFIG_DIR moves the whole config directory, not settings.json alone — ` +
+    `copy profiles.json (and profiles/) across, or unset the variable to use the default.`
+}
+
+/** The notice must not repeat on every 5s cache miss. */
+let warnedProfilesLeftBehind = false
+
+function warnIfProfilesLeftBehind(configuredFile: string): void {
+  // Only a disk-discovering instance can be surprised by an empty list —
+  // with MERIDIAN_PROFILES set the profiles come from there instead.
+  if (warnedProfilesLeftBehind || !diskDiscoveryEnabled) return
+  const defaultFile = join(defaultConfigDir(), "profiles.json")
+  const notice = profilesRelocationNotice(configuredFile, defaultFile, existsSync(defaultFile))
+  if (!notice) return
+  warnedProfilesLeftBehind = true
+  console.warn(notice)
+}
+
+/**
+ * Load profiles from profiles.json in the config directory.
  * Cached with a 5s TTL so new profiles are picked up without restart,
  * while avoiding synchronous disk I/O on every request.
  */
 export function loadProfilesFromDisk(): ProfileConfig[] {
-  if (diskProfilesCacheAt > 0 && Date.now() - diskProfilesCacheAt < DISK_CACHE_TTL_MS) {
+  const file = configPath("profiles.json")
+  if (
+    diskProfilesCachePath === file &&
+    diskProfilesCacheAt > 0 &&
+    Date.now() - diskProfilesCacheAt < DISK_CACHE_TTL_MS
+  ) {
     return diskProfilesCache
   }
+  diskProfilesCachePath = file
   try {
-    if (!existsSync(CONFIG_FILE)) {
+    if (!existsSync(file)) {
+      warnIfProfilesLeftBehind(file)
       diskProfilesCache = []
     } else {
-      diskProfilesCache = JSON.parse(readFileSync(CONFIG_FILE, "utf-8"))
+      diskProfilesCache = JSON.parse(readFileSync(file, "utf-8"))
     }
     diskProfilesCacheAt = Date.now()
     return diskProfilesCache
   } catch (err) {
-    console.warn(`[meridian] Failed to read ${CONFIG_FILE}: ${err instanceof Error ? err.message : err}`)
+    console.warn(`[meridian] Failed to read ${file}: ${err instanceof Error ? err.message : err}`)
     diskProfilesCacheAt = Date.now()
     diskProfilesCache = []
     return []
@@ -88,7 +132,7 @@ let activeProfileId: string | undefined
 
 /**
  * Set the active profile. All requests without an explicit x-meridian-profile
- * header will use this profile. Persisted to ~/.config/meridian/settings.json.
+ * header will use this profile. Persisted to settings.json in the config directory.
  */
 export function setActiveProfile(profileId: string): void {
   activeProfileId = profileId
@@ -137,7 +181,7 @@ let diskDiscoveryEnabled = false
 
 /** Enable disk auto-discovery of profiles. Called by the CLI when
  *  no MERIDIAN_PROFILES env var is set, so the server picks up
- *  profiles from ~/.config/meridian/profiles.json dynamically. */
+ *  profiles from profiles.json in the config directory dynamically. */
 export function enableDiskProfileDiscovery(): void {
   diskDiscoveryEnabled = true
 }
@@ -222,7 +266,7 @@ function buildResolvedProfile(profile: ProfileConfig): ResolvedProfile {
       // silently reads host creds from disk and swaps a refreshed token in
       // for our env value, masking token failures. Path must not collapse
       // to ~/.claude — see query.ts re: upstream claude-code#20553.
-      env.CLAUDE_CONFIG_DIR = join(homedir(), ".config", "meridian", "profiles", profile.id)
+      env.CLAUDE_CONFIG_DIR = configPath("profiles", profile.id)
     }
     return { id: profile.id, type: "oauth-token", env }
   }

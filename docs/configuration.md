@@ -39,6 +39,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `CLAUDE_PROXY_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `3` | Consecutive idle stalls for the same request and session before returning a terminal error. Identical retries are then rejected before another SDK query for one idle window (at least 60 seconds). A changed request or completed turn resets the streak; rejected retries do not extend the pause. `0` disables this ceiling. Tracking is bounded and local to the proxy instance; requests without a correlatable session are not pooled. |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to disable prompt-level scratchpad suppression in passthrough mode (#627, #1049) |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD_ENV` | — | `0` | Set to `1` to also pass `CLAUDE_CODE_SESSION_KIND=bg` to the SDK subprocess. Disabled by default to prevent CLI 2.1.274+ from registering persistent phantom background jobs under `~/.claude/jobs/` (#1049) |
+| `MERIDIAN_CONFIG_DIR` | — | `~/.config/meridian` | Meridian's own config directory. Moving it moves everything inside it — see [below](#relocating-the-config-directory). |
 | `MERIDIAN_PRICING_CONFIG` | `CLAUDE_PROXY_PRICING_CONFIG` | `~/.config/meridian/model-pricing.json` | Path to the model pricing overrides file used by cost estimation |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](profiles.md). |
 | `MERIDIAN_DEFER_TOOL_THRESHOLD` | — | `15` | Number of tools before non-core tools are deferred via ToolSearch. Set to `0` to disable. |
@@ -132,6 +133,44 @@ proxy having refreshed it earlier — the SDK does not write credentials back.
 the proxy's own refresh (5-minute buffer) reaches it first. If the SDK does
 write on that path, this flag cannot prevent it. Treat the guarantee as
 covering everything Meridian does, not everything the subprocess might do.
+
+### Relocating the config directory
+
+`MERIDIAN_CONFIG_DIR` moves the directory Meridian keeps its own state in, so a
+second instance pointed at an empty directory starts genuinely empty:
+
+| File | Holds |
+|---|---|
+| `settings.json` | Active profile, routing mode, priority order |
+| `profiles.json` | Configured profiles ([Multi-Profile Support](profiles.md)) |
+| `profiles/<id>/` | Per-profile `CLAUDE_CONFIG_DIR` (credentials, SDK state) |
+| `adapter-instances.json` | [Adapter instances](agents.md#adapter-instances) |
+| `sdk-features.json` | Per-adapter [SDK feature toggles](#sdk-feature-toggles-experimental) |
+| `model-pricing.json` | Cost-estimation overrides |
+| `telemetry.db` | Persisted telemetry, when enabled |
+
+`MERIDIAN_PRICING_CONFIG` and `MERIDIAN_TELEMETRY_DB` still win for their own
+file when set. `XDG_CONFIG_HOME` is deliberately ignored: honouring it would
+relocate the configuration of everyone who has it set, without them asking.
+
+Two paths do **not** follow it yet — plugins (`plugins/`, `plugins.json`) and
+`design-token.json` still default under `~/.config/meridian` whatever this is set
+to. Point a second instance's plugins elsewhere with `MERIDIAN_PLUGIN_DIR` /
+`MERIDIAN_PLUGIN_CONFIG` / `MERIDIAN_DESIGN_TOKEN_PATH` in the meantime.
+
+Running a second instance beside your usual one:
+
+```bash
+mkdir -p ~/.config/meridian-dev
+MERIDIAN_CONFIG_DIR=~/.config/meridian-dev MERIDIAN_PORT=3457 meridian
+```
+
+That instance has no profiles until you add them (`MERIDIAN_CONFIG_DIR=... meridian
+profile add ...`), and switching its active profile cannot disturb the other one.
+Upgrading from a version where the variable moved `settings.json` alone? Your
+profiles stay where they are — copy `profiles.json` and `profiles/` across, or
+unset the variable. Meridian says so once at startup if it finds the new location
+empty and the default one populated.
 
 ### Subprocess traffic
 

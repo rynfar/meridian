@@ -17,7 +17,7 @@
  *
  * Config sources (first wins):
  *   1. MERIDIAN_ADAPTER_INSTANCES env var (JSON string)
- *   2. ~/.config/meridian/adapter-instances.json (5s TTL cache)
+ *   2. adapter-instances.json in the config directory (5s TTL cache)
  *
  * With no instances configured, adapter detection is byte-identical to the
  * built-in chain. Built-in adapter names cannot be shadowed.
@@ -26,11 +26,8 @@
  */
 
 import { existsSync, readFileSync } from "node:fs"
-import { join } from "node:path"
-import { homedir } from "node:os"
+import { configPath } from "../configDir"
 import type { AdapterFeatures } from "./sdkFeatures"
-
-const CONFIG_FILE = join(homedir(), ".config", "meridian", "adapter-instances.json")
 
 export interface AdapterInstanceMatch {
   /** Exact header values — ALL listed headers must match (case-insensitive names). */
@@ -97,6 +94,9 @@ export function parseAdapterInstances(raw: string | undefined): AdapterInstanceM
 const DISK_CACHE_TTL_MS = 5_000
 let diskCache: AdapterInstanceMap = {}
 let diskCacheAt = 0
+/** Keyed by path so a changed MERIDIAN_CONFIG_DIR misses instead of serving
+ *  the previous directory's instances for 5s. */
+let diskCachePath = ""
 
 /**
  * Load the configured instance map. Env var wins over the disk file.
@@ -107,11 +107,13 @@ export function loadAdapterInstances(): AdapterInstanceMap {
   const fromEnv = process.env.MERIDIAN_ADAPTER_INSTANCES
   if (fromEnv) return parseAdapterInstances(fromEnv)
 
-  if (diskCacheAt > 0 && Date.now() - diskCacheAt < DISK_CACHE_TTL_MS) return diskCache
+  const file = configPath("adapter-instances.json")
+  if (diskCachePath === file && diskCacheAt > 0 && Date.now() - diskCacheAt < DISK_CACHE_TTL_MS) return diskCache
+  diskCachePath = file
   try {
-    diskCache = existsSync(CONFIG_FILE) ? parseAdapterInstances(readFileSync(CONFIG_FILE, "utf-8")) : {}
+    diskCache = existsSync(file) ? parseAdapterInstances(readFileSync(file, "utf-8")) : {}
   } catch (err) {
-    console.warn(`[meridian] Failed to read ${CONFIG_FILE}: ${err instanceof Error ? err.message : err}`)
+    console.warn(`[meridian] Failed to read ${file}: ${err instanceof Error ? err.message : err}`)
     diskCache = {}
   }
   diskCacheAt = Date.now()

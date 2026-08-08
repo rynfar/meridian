@@ -1,13 +1,13 @@
 /**
  * SDK feature toggles — per-adapter configuration for Claude Code features.
  *
- * Persisted under MERIDIAN_CONFIG_DIR, defaulting to ~/.config/meridian.
+ * Persisted to sdk-features.json in the config directory (see configDir.ts).
  * Read at request time (no restart needed to pick up changes).
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs"
-import { dirname, join } from "node:path"
-import { homedir } from "node:os"
+import { dirname } from "node:path"
+import { configDir, configPath } from "../configDir"
 
 export interface AdapterFeatures {
   /** Use the Claude Code system prompt preset (tool instructions, safety rules) */
@@ -151,11 +151,13 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
 }
 
 function getConfigPath(): string {
-  const dir = process.env.MERIDIAN_CONFIG_DIR || join(homedir(), ".config", "meridian")
-  return join(dir, "sdk-features.json")
+  const dir = configDir()
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  return configPath("sdk-features.json")
 }
 
 let cachedConfig: FeatureConfig | null = null
+let cachedConfigPath: string | null = null
 let lastReadTime = 0
 let lastReadPath: string | undefined
 const CACHE_TTL_MS = 5000
@@ -163,7 +165,13 @@ const CACHE_TTL_MS = 5000
 function readConfig(): FeatureConfig {
   const now = Date.now()
   const path = getConfigPath()
+<<<<<<< HEAD
   if (cachedConfig && lastReadPath === path && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
+=======
+  if (cachedConfig && cachedConfigPath === path && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
+
+  cachedConfigPath = path
+>>>>>>> a51bcddf (fix: make MERIDIAN_CONFIG_DIR relocate the directory, not one file in it)
   try {
     if (existsSync(path)) {
       cachedConfig = JSON.parse(readFileSync(path, "utf-8")) as FeatureConfig
@@ -186,6 +194,7 @@ function writeConfig(config: FeatureConfig): void {
     writeFileSync(tmp, JSON.stringify(config, null, 2))
     renameSync(tmp, path)
     cachedConfig = config
+    cachedConfigPath = path
     lastReadTime = Date.now()
     lastReadPath = path
   } catch (e) {

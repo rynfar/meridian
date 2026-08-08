@@ -5,15 +5,15 @@
  * static table in pricing.ts doesn't know about (custom routers, brand-new
  * releases). Overrides win over the built-in table in resolveModelPricing.
  *
- * Persisted to ~/.config/meridian/model-pricing.json (override the path with
- * MERIDIAN_PRICING_CONFIG). Read at request time with a short cache, so
+ * Persisted to model-pricing.json in the config directory (override the path
+ * with MERIDIAN_PRICING_CONFIG). Read at request time with a short cache, so
  * settings-page edits show up on the next dashboard refresh without a proxy
  * restart. Mirrors the sdkFeatures.ts persistence pattern.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs"
-import { join, dirname } from "node:path"
-import { homedir } from "node:os"
+import { dirname } from "node:path"
+import { configPath } from "../configDir"
 import { env } from "../env"
 import {
   CACHE_READ_MULTIPLIER,
@@ -29,8 +29,7 @@ const MAX_MODEL_KEY_LENGTH = 200
 function getConfigPath(): string {
   const explicit = env("PRICING_CONFIG")
   if (explicit) return explicit
-  const dir = join(homedir(), ".config", "meridian")
-  return join(dir, "model-pricing.json")
+  return configPath("model-pricing.json")
 }
 
 let cachedOverrides: PricingOverrides | null = null
