@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, test, beforeEach } from "bun:test"
-import { fetchOAuthUsage, resetOAuthUsageCache, explainMissingOAuthUsage } from "../proxy/oauthUsage"
+import { fetchOAuthUsage, fetchOAuthUsageResult, resetOAuthUsageCache } from "../proxy/oauthUsage"
 import type { CredentialStore } from "../proxy/tokenRefresh"
 
 const SAMPLE_RESPONSE = {
@@ -248,21 +248,39 @@ describe("oauthUsage", () => {
   // A null return is overloaded — "no credentials" vs "throttled with nothing
   // left to serve". Consumers rendered the first reading unconditionally and
   // told users to run `claude login` when their credentials were fine.
-  test("attributes a null return to the rate limit, not a missing token", async () => {
+  test("attributes a throttled fetch to the rate limit, not a missing token", async () => {
     const { fetchImpl } = countingFetch(() =>
       new Response("rate limited", { status: 429, headers: { "Retry-After": "120" } }))
     const store = makeStore("t")
 
-    expect(explainMissingOAuthUsage("attributed")).toBe("no_token")
-    expect(await fetchOAuthUsage({ force: true, store, profileId: "attributed", fetchImpl })).toBeNull()
-    expect(explainMissingOAuthUsage("attributed")).toBe("rate_limited")
-    // Per-profile: a healthy profile is unaffected by another's cooldown.
-    expect(explainMissingOAuthUsage("untouched")).toBe("no_token")
+    const limited = await fetchOAuthUsageResult({ force: true, store, profileId: "attributed", fetchImpl })
+    expect(limited.snapshot).toBeNull()
+    expect(limited.error).toBe("rate_limited")
+
+    // The cooldown is per-profile, so an untouched profile reports its own
+    // (absent) credentials rather than inheriting the throttle.
+    const other = await fetchOAuthUsageResult({
+      force: true, store: makeStore(null), profileId: "untouched", fetchImpl,
+    })
+    expect(other.error).toBe("no_token")
   })
 
-  test("stops attributing to the rate limit once the cooldown lapses", async () => {
-    const { fetchImpl } = countingFetch(() =>
-      new Response("rate limited", { status: 429, headers: { "Retry-After": "0" } }))
+  test("keeps reporting rate_limited while the cooldown suppresses the fetch", async () => {
+    const { fetchImpl, getCalls } = countingFetch(() =>
+      new Response("rate limited", { status: 429, headers: { "Retry-After": "120" } }))
+    const opts = { force: true, store: makeStore("t"), profileId: "suppressed", fetchImpl }
+
+    expect((await fetchOAuthUsageResult(opts)).error).toBe("rate_limited")
+    // Second call never reaches the network — the reason has to survive the
+    // early return, not just the branch that set the cooldown.
+    expect((await fetchOAuthUsageResult(opts)).error).toBe("rate_limited")
+    expect(getCalls()).toBe(1)
+  })
+
+  test("stops reporting rate_limited once the cooldown lapses", async () => {
+    const { fetchImpl } = countingFetch(calls => calls === 1
+      ? new Response("rate limited", { status: 429, headers: { "Retry-After": "0" } })
+      : new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
     const opts = {
       force: true,
       store: makeStore("t"),
@@ -272,20 +290,22 @@ describe("oauthUsage", () => {
       staleMaxMs: 10,
     }
 
-    expect(await fetchOAuthUsage(opts)).toBeNull()
-    expect(explainMissingOAuthUsage("lapsed")).toBe("rate_limited")
+    expect((await fetchOAuthUsageResult(opts)).error).toBe("rate_limited")
     await new Promise(resolve => setTimeout(resolve, 20))
-    expect(explainMissingOAuthUsage("lapsed")).toBe("no_token")
+    const recovered = await fetchOAuthUsageResult(opts)
+    expect(recovered.error).toBeNull()
+    expect(recovered.snapshot).not.toBeNull()
   })
 
   test("reports a genuinely missing token as no_token", async () => {
     const { fetchImpl } = countingFetch(() =>
       new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
 
-    expect(await fetchOAuthUsage({
+    const result = await fetchOAuthUsageResult({
       force: true, store: makeStore(null), profileId: "tokenless", fetchImpl,
-    })).toBeNull()
-    expect(explainMissingOAuthUsage("tokenless")).toBe("no_token")
+    })
+    expect(result.snapshot).toBeNull()
+    expect(result.error).toBe("no_token")
   })
 
   // The cap must not disarm the throttle: a staleMaxMs below the backoff floor
@@ -415,5 +435,72 @@ describe("oauthUsage", () => {
     const w = result!.windows[0]
     expect(w).toBeDefined()
     expect(w!.resetsAt).toBe(Date.parse(iso))
+  })
+})
+
+/**
+ * The failure REASON, which is what a per-profile status display shows a
+ * human. Every failure used to reach callers as a bare null, so the quota
+ * routes labelled all of them "no_token" and a rate-limited read rendered as
+ * an account that had lost its credentials.
+ */
+describe("fetchOAuthUsageResult", () => {
+  beforeEach(() => {
+    resetOAuthUsageCache()
+  })
+
+  test("reports no_token only when the store holds no token", async () => {
+    const fetchImpl = fixedFetch(() => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+    const { snapshot, error } = await fetchOAuthUsageResult({
+      force: true, store: makeStore(null), profileId: "reason-empty", fetchImpl,
+    })
+    expect(snapshot).toBeNull()
+    expect(error).toBe("no_token")
+  })
+
+  // Narrowed from the original `upstream_error`: a 429 is the one failure the
+  // backoff can keep returning for minutes, so it gets its own value rather
+  // than hiding among generic upstream faults. Still never `no_token`, which
+  // was the bug.
+  test("reports rate_limited for a 429 rather than no_token", async () => {
+    const fetchImpl = fixedFetch(() => new Response("rate limited", { status: 429 }))
+    const { snapshot, error } = await fetchOAuthUsageResult({
+      force: true, store: makeStore("t"), profileId: "reason-429", fetchImpl,
+    })
+    expect(snapshot).toBeNull()
+    expect(error).toBe("rate_limited")
+  })
+
+  test("reports upstream_error for a 500", async () => {
+    const fetchImpl = fixedFetch(() => new Response("boom", { status: 500 }))
+    const { error } = await fetchOAuthUsageResult({
+      force: true, store: makeStore("t"), profileId: "reason-500", fetchImpl,
+    })
+    expect(error).toBe("upstream_error")
+  })
+
+  test("reports no error on success", async () => {
+    const fetchImpl = fixedFetch(() => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+    const { snapshot, error } = await fetchOAuthUsageResult({
+      force: true, store: makeStore("t"), profileId: "reason-ok", fetchImpl,
+    })
+    expect(snapshot).not.toBeNull()
+    expect(error).toBeNull()
+  })
+
+  test("a snapshot served stale after a failure is not an error", async () => {
+    const { fetchImpl } = countingFetch(calls => calls === 1
+      ? new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+      : new Response("rate limited", { status: 429 }))
+    const first = await fetchOAuthUsageResult({
+      force: true, store: makeStore("t"), profileId: "reason-stale", fetchImpl,
+    })
+    expect(first.error).toBeNull()
+
+    const second = await fetchOAuthUsageResult({
+      force: true, store: makeStore("t"), profileId: "reason-stale", fetchImpl,
+    })
+    expect(second.snapshot?.stale).toBe(true)
+    expect(second.error).toBeNull()
   })
 })

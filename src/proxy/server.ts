@@ -9,7 +9,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { linkRequestAbort } from "./requestAbort"
-import { fetchOAuthUsage, explainMissingOAuthUsage } from "./oauthUsage"
+import { fetchOAuthUsage, fetchOAuthUsageResult } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
@@ -4360,19 +4360,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // level (windows + extraUsage), or an `error` when the fetch failed for that
   // profile: `"no_token" | "upstream_error" | "not_oauth" | "rate_limited"`.
   //
-  // `rate_limited` means Anthropic 429'd the usage endpoint and the backoff has
-  // no last-good snapshot left to serve — the credentials are fine. Consumers
-  // added after #781 should treat it as transient and keep the previous render
-  // rather than prompting for login. Older consumers that only switch on
-  // `no_token` fall through to their default branch, which is why this is a new
-  // value rather than a reuse.
+  // Only `no_token` asks anything of the operator (`claude login`). The other
+  // two are transient and want waiting, not action: `rate_limited` is a 429
+  // with no last-good snapshot left to serve, and `upstream_error` covers 5xx
+  // and a refusal to refresh (which a read-only instance does BY DESIGN, so
+  // reporting it as a missing login would be actively wrong).
+  //
+  // The reason is threaded out of the fetch rather than inferred here — a null
+  // snapshot alone can't tell these apart, which is exactly how every failure
+  // came to be labelled `no_token`. Older consumers that only switch on
+  // `no_token` fall through to their default branch, which is why these are new
+  // values rather than reuses.
   app.get("/v1/usage/quota/all", async (c) => {
     const profilesList = getEffectiveProfiles(finalConfig.profiles)
     const activeId = getActiveProfileId() || finalConfig.defaultProfile || profilesList[0]?.id || null
 
     if (profilesList.length === 0) {
       // Single-account mode — just return the default OAuth account's data.
-      const oauth = await fetchOAuthUsage({})
+      const { snapshot: oauth, error } = await fetchOAuthUsageResult({})
       return c.json({
         profiles: [{
           id: "default",
@@ -4380,7 +4385,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           windows: oauth?.windows ?? [],
           extraUsage: oauth?.extraUsage ?? null,
           fetchedAt: oauth?.fetchedAt ?? null,
-          error: oauth ? null : explainMissingOAuthUsage(),
+          error,
         }],
         activeProfile: "default",
         asOf: Date.now(),
@@ -4401,7 +4406,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           error: "not_oauth" as const,
         }
       }
-      const oauth = await fetchOAuthUsage({
+      const { snapshot: oauth, error } = await fetchOAuthUsageResult({
         profileId: p.id,
         claudeConfigDir: p.claudeConfigDir,
       })
@@ -4412,7 +4417,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         windows: oauth?.windows ?? [],
         extraUsage: oauth?.extraUsage ?? null,
         fetchedAt: oauth?.fetchedAt ?? null,
-        error: oauth ? null : explainMissingOAuthUsage(p.id),
+        error,
       }
     }))
 
