@@ -94,10 +94,12 @@ const CACHE_TTL_MS_DEFAULT = 30_000
 // blanking the consumer ("no usage data yet" flapping) — but only within
 // this bound, so genuinely dead credentials still surface as missing data.
 const STALE_MAX_MS_DEFAULT = 15 * 60_000
+const RATE_LIMIT_BACKOFF_MS_DEFAULT = 60_000
 
 /** Per-profile cache. Key = profileId (or DEFAULT_KEY for the unscoped default). */
 const cacheByProfile = new Map<string, OAuthUsageSnapshot>()
 const inflightByProfile = new Map<string, Promise<OAuthUsageSnapshot | null>>()
+const rateLimitedUntilByProfile = new Map<string, number>()
 const DEFAULT_KEY = "__default__"
 
 const WINDOW_TYPES: Array<keyof RawOAuthUsageResponse> = [
@@ -120,6 +122,14 @@ function normalizeUtilization(raw: number | null | undefined): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null
   // OAuth returns 0..100. Normalize to 0..1 to match SDK rate_limit_event.
   return Math.max(0, raw / 100)
+}
+
+function parseRetryAfterMs(raw: string | null): number | null {
+  if (!raw) return null
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000)
+  const retryAt = Date.parse(raw)
+  return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : null
 }
 
 function modelScopedWindowType(limit: RawOAuthLimit): string | null {
@@ -188,7 +198,7 @@ async function callAnthropic(
   token: string,
   fetchImpl: FetchLike,
   signal?: AbortSignal,
-): Promise<RawOAuthUsageResponse | { __status: number }> {
+): Promise<RawOAuthUsageResponse | { __status: number; retryAfterMs: number | null }> {
   const res = await fetchImpl(OAUTH_USAGE_URL, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -197,7 +207,12 @@ async function callAnthropic(
     },
     signal: signal ?? AbortSignal.timeout(10_000),
   })
-  if (!res.ok) return { __status: res.status }
+  if (!res.ok) {
+    return {
+      __status: res.status,
+      retryAfterMs: parseRetryAfterMs(res.headers.get("retry-after")),
+    }
+  }
   return (await res.json()) as RawOAuthUsageResponse
 }
 
@@ -205,6 +220,8 @@ export interface FetchOAuthUsageOpts {
   ttlMs?: number
   /** Max age of a last-good snapshot served on fetch failure (default 15 min). */
   staleMaxMs?: number
+  /** Minimum per-profile cooldown after HTTP 429 (default 60s). */
+  rateLimitBackoffMs?: number
   force?: boolean
   store?: CredentialStore
   profileId?: string | null
@@ -264,17 +281,8 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
   const ttl = opts?.ttlMs ?? CACHE_TTL_MS_DEFAULT
   const cacheKey = opts?.profileId ?? DEFAULT_KEY
   const fetchImpl = opts?.fetchImpl ?? globalThis.fetch
-
-  if (!opts?.force) {
-    const cached = cacheByProfile.get(cacheKey)
-    if (cached && Date.now() - cached.fetchedAt < ttl) return cached
-  }
-  const existing = inflightByProfile.get(cacheKey)
-  if (existing) return existing
-
-  const store = opts?.store ?? createPlatformCredentialStore({ claudeConfigDir: opts?.claudeConfigDir })
-
   const staleMaxMs = opts?.staleMaxMs ?? STALE_MAX_MS_DEFAULT
+
   // On transient failure, serve the last-good snapshot (bounded) instead of
   // null — a credential-read blip or upstream 5xx should not blank the
   // consumer's usage display until the next successful fetch.
@@ -286,6 +294,25 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
     }
     return null
   }
+
+  if (!opts?.force) {
+    const cached = cacheByProfile.get(cacheKey)
+    if (cached && Date.now() - cached.fetchedAt < ttl) return cached
+  }
+  const existing = inflightByProfile.get(cacheKey)
+  if (existing) return existing
+
+  // A 429 must throttle forced and normal callers alike. Without a negative
+  // cache, every quota poll retries immediately and can keep Anthropic's
+  // private usage endpoint permanently rate-limited.
+  const rateLimitedUntil = rateLimitedUntilByProfile.get(cacheKey)
+  if (rateLimitedUntil !== undefined) {
+    if (Date.now() < rateLimitedUntil) return staleOr("rate_limited")
+    rateLimitedUntilByProfile.delete(cacheKey)
+  }
+
+  const store = opts?.store ?? createPlatformCredentialStore({ claudeConfigDir: opts?.claudeConfigDir })
+  const rateLimitBackoffMs = opts?.rateLimitBackoffMs ?? RATE_LIMIT_BACKOFF_MS_DEFAULT
 
   const promise = (async () => {
     try {
@@ -311,10 +338,15 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
         result = await callAnthropic(newToken, fetchImpl)
       }
       if ("__status" in result) {
+        if (result.__status === 429) {
+          const retryAfterMs = Math.max(rateLimitBackoffMs, result.retryAfterMs ?? 0)
+          rateLimitedUntilByProfile.set(cacheKey, Date.now() + retryAfterMs)
+        }
         claudeLog("oauth_usage.upstream_error", { profile: cacheKey, status: result.__status })
         return staleOr(`upstream_${result.__status}`)
       }
 
+      rateLimitedUntilByProfile.delete(cacheKey)
       const snapshot = buildSnapshot(result)
       cacheByProfile.set(cacheKey, snapshot)
       return snapshot
@@ -334,4 +366,5 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
 export function resetOAuthUsageCache(): void {
   cacheByProfile.clear()
   inflightByProfile.clear()
+  rateLimitedUntilByProfile.clear()
 }
