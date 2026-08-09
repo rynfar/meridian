@@ -27,6 +27,12 @@ for (const key of Object.keys(process.env)) {
   if (key.startsWith("MERIDIAN_") || key.startsWith("CLAUDE_PROXY_")) delete process.env[key]
 }
 
+// Follow mode replaces the active profile for EVERY profile resolution, so a
+// developer with this exported in their shell would silently change what the
+// profile/routing suites resolve to.
+delete process.env.MERIDIAN_FOLLOW_ACTIVE
+delete process.env.CLAUDE_PROXY_FOLLOW_ACTIVE
+
 // Point settings.ts at a throwaway directory so the suite never reads the
 // developer's real ~/.config/meridian/settings.json. A live
 // `routing: "priority"` setting made the sticky- and priority-routing

@@ -385,14 +385,16 @@ function profileSection(q,s,pl,h){
     // active+priority keeps the active profile meaningful - switching it is how
     // you move traffic, so the card stays clickable, unlike in pure priority.
     var isActivePriority=pl&&pl.routing==='active+priority';
-    var switchable=multi&&p.configured&&!p.isActive&&!isPriority;
+    var follow=pl&&pl.follow;
+    var switchable=multi&&p.configured&&!p.isActive&&!isPriority&&!follow;
     var badge=isPriority?'':p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
+    if(follow&&p.isActive)badge+=' <span class="pool-chip">'+(follow.activeProfile?'following '+esc(follow.url):'local — '+esc(follow.url)+' unreachable')+(follow.stale?' · stale':'')+'</span>';
     // Sits beside the name because it qualifies the percentages below it: 70%
     // of a 20x account is several times the work left in 70% of a 5x one.
     if(p.allowance)badge+='<span class="plan-chip" title="'+esc((p.planLabel||'')+(p.rateLimitTier?' · '+p.rateLimitTier:''))+'">'+esc(p.allowance)+'</span>';
-    if(isPriority||isActivePriority){\n      var orderIdx=(pl.profileOrder||[]).indexOf(p.id);
-      if(orderIdx>=0)badge+='<span class="pool-chip">'+(isActivePriority?'#'+(orderIdx+1)+' fallback':'#'+(orderIdx+1)+' in pool')+'</span>';
-      var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];
+    if(isPriority||isActivePriority){
+      var orderIdx=(pl.profileOrder||[]).indexOf(p.id);
+      if(orderIdx>=0)badge+='<span class="pool-chip">'+(isActivePriority?'#'+(orderIdx+1)+' fallback':'#'+(orderIdx+1)+' in pool')+'</span>';      var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];
       // Suppressed when a refusal is being reported below: both say the same
       // thing, and the banner says it better.
       if(exh&&!spentByProfile[p.id]){\n        // A billing refusal has no reset to wait for — the pool re-probes on the
@@ -495,7 +497,7 @@ function render(h,s,q,pl){
 function switchProfile(id){
   fetch('/profiles/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:id})})
     .then(function(r){return r.json()})
-    .then(function(data){if(data.success){refresh();if(window.meridianHeaderRefresh)window.meridianHeaderRefresh()}})
+    .then(function(data){if(data.success){refresh();if(window.meridianHeaderRefresh)window.meridianHeaderRefresh()}else if(data.error)alert(data.error)})
     .catch(function(){});
 }
 // The handle sits inside a card that is itself a switch button, so without

@@ -643,6 +643,7 @@ async function switchProfile(id) {
   });
   const data = await res.json();
   if (data.success) refresh();
+  else if (data.error) alert(data.error);
 }
 
 meridianReorder.init({ onSaved: refresh });
