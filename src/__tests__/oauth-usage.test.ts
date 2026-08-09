@@ -171,6 +171,57 @@ describe("oauthUsage", () => {
     expect(result).toBeNull()
   })
 
+  test("backs off repeated 429 responses per profile even when forced", async () => {
+    const { fetchImpl, getCalls } = countingFetch(() =>
+      new Response("rate limited", { status: 429, headers: { "Retry-After": "120" } }))
+    const store = makeStore("t")
+
+    const first = await fetchOAuthUsage({ force: true, store, profileId: "limited", fetchImpl })
+    const second = await fetchOAuthUsage({ force: true, store, profileId: "limited", fetchImpl })
+    const otherProfile = await fetchOAuthUsage({ force: true, store, profileId: "other", fetchImpl })
+
+    expect(first).toBeNull()
+    expect(second).toBeNull()
+    expect(otherProfile).toBeNull()
+    expect(getCalls()).toBe(2)
+  })
+
+  test("serves stale usage while 429 backoff suppresses forced retries", async () => {
+    const { fetchImpl, getCalls } = countingFetch((calls) =>
+      calls === 1
+        ? new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+        : new Response("rate limited", { status: 429, headers: { "Retry-After": "0" } }))
+    const store = makeStore("t")
+
+    const fresh = await fetchOAuthUsage({ force: true, store, profileId: "stale-limited", fetchImpl })
+    const limited = await fetchOAuthUsage({ force: true, store, profileId: "stale-limited", fetchImpl })
+    const backedOff = await fetchOAuthUsage({ force: true, store, profileId: "stale-limited", fetchImpl })
+
+    expect(fresh?.stale).toBeUndefined()
+    expect(limited?.stale).toBe(true)
+    expect(backedOff?.stale).toBe(true)
+    expect(backedOff?.windows).toEqual(fresh?.windows)
+    expect(getCalls()).toBe(2)
+  })
+
+  test("retries after the configured 429 backoff expires", async () => {
+    const { fetchImpl, getCalls } = countingFetch((calls) =>
+      calls === 1
+        ? new Response("rate limited", { status: 429, headers: { "Retry-After": "0" } })
+        : new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+    const opts = {
+      force: true,
+      store: makeStore("t"),
+      profileId: "retry",
+      fetchImpl,
+      rateLimitBackoffMs: 0,
+    }
+
+    expect(await fetchOAuthUsage(opts)).toBeNull()
+    expect(await fetchOAuthUsage(opts)).not.toBeNull()
+    expect(getCalls()).toBe(2)
+  })
+
   test("caches result within TTL", async () => {
     const { fetchImpl, getCalls } = countingFetch(() => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
     const store = makeStore("t")
