@@ -13,7 +13,7 @@ export const openCodeTransforms: Transform[] = [
     // transform is skipped and clients get built-in tools unblocked +
     // passthrough off (#546). Codex additionally FORCES passthrough on via a
     // follow-on transform (#475).
-    adapters: ["opencode", "openai", "codex"],
+    adapters: ["opencode", "openai", "jcode", "codex"],
 
     onRequest(ctx: RequestContext): RequestContext {
       const body = ctx.body

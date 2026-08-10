@@ -15,6 +15,7 @@ import { piAdapter } from "./pi"
 import { forgeCodeAdapter } from "./forgecode"
 import { claudeCodeAdapter } from "./claudecode"
 import { openAiAdapter } from "./openai"
+import { jcodeAdapter, normalizeJcodeSessionId } from "./jcode"
 import { codexAdapter } from "./codex"
 import { cherryAdapter } from "./cherry"
 import { loadAdapterInstances, matchesInstance, type AdapterInstanceDef } from "../adapterInstances"
@@ -34,6 +35,8 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   // Generic OpenAI-compatible endpoint (/v1/chat/completions). Selected via
   // the x-meridian-agent: openai tag the handler sets on the internal hop.
   openai: openAiAdapter,
+  // Jcode uses the OpenAI-compatible endpoint with a durable local session ID.
+  jcode: jcodeAdapter,
   // Codex CLI endpoint (/v1/responses). Forces passthrough — Codex executes
   // its own tools. Selected via the x-meridian-agent: codex internal tag.
   codex: codexAdapter,
@@ -150,6 +153,15 @@ export function detectAdapter(c: Context): AgentAdapter {
   }
 
   const userAgent = c.req.header("user-agent") || ""
+
+  // NOTE: Jcode-specific. The User-Agent alone is insufficient because generic
+  // OpenAI clients must retain their existing history-packing behavior.
+  if (
+    userAgent.startsWith("jcode/")
+    && normalizeJcodeSessionId(c.req.header("x-jcode-session"))
+  ) {
+    return jcodeAdapter
+  }
 
   // OpenCode User-Agent: opencode/<version>
   if (userAgent.startsWith("opencode/")) {

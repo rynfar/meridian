@@ -14,6 +14,7 @@ import { piAdapter } from "../proxy/adapters/pi"
 import { passthroughAdapter } from "../proxy/adapters/passthrough"
 import { forgeCodeAdapter } from "../proxy/adapters/forgecode"
 import { claudeCodeAdapter } from "../proxy/adapters/claudecode"
+import { jcodeAdapter } from "../proxy/adapters/jcode"
 
 function makeContext(userAgent: string, extraHeaders?: Record<string, string>): any {
   const allHeaders: Record<string, string> = {}
@@ -150,6 +151,31 @@ describe("detectAdapter — claude-cli + MERIDIAN_DEFAULT_AGENT tiebreaker", () 
     process.env.MERIDIAN_DEFAULT_AGENT = "pi"
     const adapter = detectAdapter(makeContext("claude-cli/2.0.0", { "x-meridian-agent": "claude-code" }))
     expect(adapter).toBe(claudeCodeAdapter)
+  })
+})
+
+describe("detectAdapter — Jcode detection", () => {
+  it("accepts an explicit Jcode adapter override", () => {
+    expect(detectAdapter(makeContext("", { "x-meridian-agent": "jcode" }))).toBe(jcodeAdapter)
+  })
+
+  it("detects Jcode only when its User-Agent has a valid session header", () => {
+    expect(detectAdapter(makeContext("jcode/0.1.0", {
+      "x-jcode-session": "session_local_123",
+    }))).toBe(jcodeAdapter)
+  })
+
+  it("does not activate Jcode behavior without a valid session header", () => {
+    expect(detectAdapter(makeContext("jcode/0.1.0"))).toBe(openCodeAdapter)
+    expect(detectAdapter(makeContext("jcode/0.1.0", {
+      "x-jcode-session": "bad session",
+    }))).toBe(openCodeAdapter)
+  })
+
+  it("does not let the session header override another identified client", () => {
+    expect(detectAdapter(makeContext("factory-cli/1.0.0", {
+      "x-jcode-session": "session_local_123",
+    }))).toBe(droidAdapter)
   })
 })
 

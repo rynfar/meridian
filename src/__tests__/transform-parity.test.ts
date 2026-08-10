@@ -96,7 +96,7 @@ describe("OpenCode transform parity", () => {
 // "openai" is listed there the opencode-core transform is silently skipped —
 // leaving built-in tools UNBLOCKED and passthrough OFF for OpenAI clients (a
 // full Claude Code agent under bypassPermissions, the opposite of intent).
-describe("OpenAI adapter reuses the OpenCode pipeline (#546)", () => {
+describe("OpenAI-compatible adapters reuse the OpenCode pipeline (#546)", () => {
   it("blocks built-in tools for adapterName 'openai' (same as opencode)", () => {
     const ctx = runTransformHook(openCodeTransforms, "onRequest", makeCtx("openai"), "openai")
     expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
@@ -106,6 +106,12 @@ describe("OpenAI adapter reuses the OpenCode pipeline (#546)", () => {
   it("applies the same incompatibleTools and allowedMcpTools as opencode", () => {
     const ctx = runTransformHook(openCodeTransforms, "onRequest", makeCtx("openai"), "openai")
     expect([...ctx.incompatibleTools]).toEqual([...openCodeAdapter.getAgentIncompatibleTools()])
+    expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
+  })
+
+  it("applies the same core transforms to Jcode", () => {
+    const ctx = runTransformHook(openCodeTransforms, "onRequest", makeCtx("jcode"), "jcode")
+    expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
     expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
   })
 })

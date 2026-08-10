@@ -96,6 +96,11 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   openai: {
     codeSystemPrompt: false,
   },
+  // Jcode supplies its own coding-agent instructions over the generic
+  // OpenAI-compatible endpoint, so the Claude Code preset stays off.
+  jcode: {
+    codeSystemPrompt: false,
+  },
   // Cherry Studio is a chat client that brings its own system prompt. Default
   // the ~28KB Claude Code preset OFF (same rationale as openai/passthrough) so
   // its prompt isn't overridden. WebSearch still works without the preset

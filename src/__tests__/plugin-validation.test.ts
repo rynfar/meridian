@@ -75,4 +75,14 @@ describe("validateTransform", () => {
     expect(result.valid).toBe(true)
     expect(result.warnings ?? []).not.toContain("openai")
   })
+
+  it("accepts 'jcode' as a known adapter without warning", () => {
+    const result = validateTransform({
+      name: "scoped",
+      adapters: ["jcode"],
+      onRequest: () => {},
+    })
+    expect(result.valid).toBe(true)
+    expect(result.warnings ?? []).not.toContain("jcode")
+  })
 })
