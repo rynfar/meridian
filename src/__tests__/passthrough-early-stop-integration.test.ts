@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
 import { assistantMessage, messageStart, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta } from "./helpers"
+import { PASSTHROUGH_CONTINUATION_LEAD_IN } from "../proxy/messages"
 
 let mockMessages: any[] = []
 let yieldedCount = 0
@@ -161,6 +162,76 @@ describe("Integration: passthrough early stop", () => {
     expect(second.status).toBe(200)
     // Resume proof: the SDK was invoked with the stored session id.
     expect(capturedQueryParams.options.resume).toBe("test-session")
+  })
+
+  it("non-stream: a deny-boundary continuation tells the model the end-turn deny is spent", async () => {
+    // The fork puts the persisted deny — "do not generate further text, end
+    // your turn now" — immediately before this delta, where it is the nearest
+    // instruction in context. Live, the model obeyed it and returned an empty
+    // text block with stop_reason end_turn, three times in 500 requests, each
+    // on a session's second turn. The prompt has to say the deny is discharged.
+    mockMessages = [
+      assistantMessage([{ type: "tool_use", id: "tu1", name: "read", input: { file_path: "x" } }]),
+      userDenyMessage("tu1"),
+    ]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x" }],
+    }, "es-lead-in")
+    expect(first.status).toBe(200)
+
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says hi" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "assistant", content: [{ type: "tool_use", id: "tu1", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "tu1", content: "hi" }] },
+      ],
+    }, "es-lead-in")
+    expect(second.status).toBe(200)
+    // Forked from the boundary, and the prompt carries the discharge.
+    expect(capturedQueryParams.options.resumeSessionAt).toBeTruthy()
+    const prompt = capturedQueryParams.prompt as string
+    expect(prompt).toContain(PASSTHROUGH_CONTINUATION_LEAD_IN)
+    // The tool result stays terminal — the lead-in is framing, not the answer.
+    expect(prompt.indexOf(PASSTHROUGH_CONTINUATION_LEAD_IN)).toBeLessThan(prompt.indexOf("hi"))
+  })
+
+  it("non-stream: a plain resume with no deny boundary stays bare", async () => {
+    // No forwarded tool call, so no deny is persisted and nothing needs
+    // discharging — the delta must not grow a preamble on every ordinary turn.
+    mockMessages = [assistantMessage([{ type: "text", text: "first answer" }])]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "just talk" }],
+    }, "es-no-boundary")
+    expect(first.status).toBe(200)
+
+    mockMessages = [assistantMessage([{ type: "text", text: "second answer" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "just talk" },
+        { role: "assistant", content: [{ type: "text", text: "first answer" }] },
+        { role: "user", content: "and again" },
+      ],
+    }, "es-no-boundary")
+    expect(second.status).toBe(200)
+    expect(capturedQueryParams.options.resume).toBe("test-session")
+    expect(capturedQueryParams.prompt as string).not.toContain(PASSTHROUGH_CONTINUATION_LEAD_IN)
   })
 
   it("non-stream: waits for ALL parallel denies before stopping", async () => {

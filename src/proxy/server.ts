@@ -67,7 +67,7 @@ import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
-import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns } from "./messages"
+import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns, framePassthroughContinuation, PASSTHROUGH_CONTINUATION_LEAD_IN } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -1288,6 +1288,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (structuredMessages.length > 1) {
           structuredMessages = consolidateMultimodalOntoLastUser(structuredMessages)
         }
+
+        // Same spent-deny problem as the text path — see
+        // framePassthroughContinuation. Carried as its own leading user turn so
+        // the multimodal blocks of the real delta are left untouched.
+        if (passthroughResumeUuid && structuredMessages.length > 0) {
+          structuredMessages.unshift({
+            type: "user" as const,
+            message: { role: "user" as const, content: PASSTHROUGH_CONTINUATION_LEAD_IN },
+            parent_tool_use_id: null,
+          })
+        }
       } else {
         // Text prompt — convert messages to string.
         // Sanitize each text block before flattening to strip orchestration
@@ -1317,9 +1328,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           })
         // Fresh (non-resume) replays get the #619 anti-self-play envelope:
         // history framed as context-only, the live user message terminal.
-        // Resume deltas are tail-only and stay bare.
+        // Resume deltas are tail-only and stay bare — except when the resume
+        // forks from a deny boundary, where the spent "end your turn now" deny
+        // is the nearest instruction in context and silences the answer (see
+        // framePassthroughContinuation).
+        const resumeDelta = promptTurns.map((t: { text: string }) => t.text).filter(Boolean).join("\n\n") || ""
         textPrompt = isResume
-          ? promptTurns.map((t: { text: string }) => t.text).filter(Boolean).join("\n\n") || ""
+          ? (passthroughResumeUuid ? framePassthroughContinuation(resumeDelta) : resumeDelta)
           : frameReplayTurns(promptTurns)
       }
 
