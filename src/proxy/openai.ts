@@ -83,6 +83,11 @@ export interface OpenAiChatRequest {
   stream_options?: { include_usage?: boolean }
 }
 
+export interface OpenAiTranslationOptions {
+  /** Keep append-only turns intact so Meridian can verify and resume lineage. */
+  preserveConversationHistory?: boolean
+}
+
 export interface AnthropicTextBlock {
   type: "text"
   text: string
@@ -418,7 +423,10 @@ function summarizeAnthropicContent(content: string | AnthropicContentBlock[]): s
  *
  * Returns null if the request has no messages (caller should return 400).
  */
-export function translateOpenAiToAnthropic(body: OpenAiChatRequest): AnthropicRequestBody | null {
+export function translateOpenAiToAnthropic(
+  body: OpenAiChatRequest,
+  options: OpenAiTranslationOptions = {},
+): AnthropicRequestBody | null {
   const messages = body.messages ?? []
   if (messages.length === 0) return null
 
@@ -535,7 +543,7 @@ export function translateOpenAiToAnthropic(body: OpenAiChatRequest): AnthropicRe
   let systemPrompt = systemParts.join("\n")
   let messagesToSend: AnthropicMessage[] = turns
 
-  if (turns.length > 1) {
+  if (turns.length > 1 && !options.preserveConversationHistory) {
     const history = turns.slice(0, -1)
       .map(m => `${m.role}: ${summarizeAnthropicContent(m.content)}`)
       .join("\n")

@@ -101,6 +101,21 @@ describe("translateOpenAiToAnthropic", () => {
     expect(result!.system).toContain("assistant: 4")
   })
 
+  it("preserves append-only history for keyed Jcode sessions", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [
+        { role: "system", content: "stable system" },
+        { role: "user", content: "Turn 1" },
+        { role: "assistant", content: "Answer 1" },
+        { role: "user", content: "Turn 2" },
+      ],
+    }, { preserveConversationHistory: true })
+
+    expect(result?.system).toBe("stable system")
+    expect(result?.messages.map(message => message.role)).toEqual(["user", "assistant", "user"])
+    expect(result?.system).not.toContain("<conversation_history>")
+  })
+
   it("prepends system message before conversation history", () => {
     const result = translateOpenAiToAnthropic({
       messages: [

@@ -26,12 +26,15 @@ import {
 } from "./helpers"
 
 let mockMessages: unknown[] = []
+let mockSdkSessionId: string | undefined
 let capturedPromptMessages: unknown[] = []
 let capturedOptions: Record<string, unknown> | null = null
+let capturedOptionHistory: Array<Record<string, unknown>> = []
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: ({ prompt, options }: { prompt: string | AsyncIterable<unknown>; options?: Record<string, unknown> }) => {
     capturedOptions = options ?? null
+    capturedOptionHistory.push(options ?? {})
     return (async function* () {
       capturedPromptMessages = []
       if (typeof prompt === "string") {
@@ -41,7 +44,13 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           capturedPromptMessages.push(msg)
         }
       }
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        if (mockSdkSessionId && msg !== null && typeof msg === "object") {
+          yield { ...msg, session_id: mockSdkSessionId }
+        } else {
+          yield msg
+        }
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
@@ -64,10 +73,14 @@ function createTestApp() {
   return app
 }
 
-async function postChatCompletion(app: ReturnType<typeof createTestApp>, body: Record<string, unknown>) {
+async function postChatCompletion(
+  app: ReturnType<typeof createTestApp>,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+) {
   return app.fetch(new Request("http://localhost/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   }))
 }
@@ -238,6 +251,93 @@ describe("POST /v1/chat/completions — non-streaming", () => {
       },
       parent_tool_use_id: null,
     }])
+  })
+})
+
+describe("POST /v1/chat/completions — Jcode session continuity", () => {
+  const firstTurn = {
+    stream: false,
+    messages: [
+      { role: "system", content: "stable system" },
+      { role: "user", content: "Turn 1" },
+    ],
+  }
+  const secondTurn = {
+    stream: false,
+    messages: [
+      { role: "system", content: "stable system" },
+      { role: "user", content: "Turn 1" },
+      { role: "assistant", content: "Answer 1" },
+      { role: "user", content: "Turn 2" },
+    ],
+  }
+
+  beforeEach(() => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    mockSdkSessionId = "sdk-1"
+    capturedPromptMessages = []
+    capturedOptions = null
+    capturedOptionHistory = []
+    clearSessionCache()
+  })
+
+  it("resumes the same SDK session for two turns with one verified Jcode key", async () => {
+    const app = createTestApp()
+    const headers = {
+      "User-Agent": "jcode/0.1.0",
+      "x-jcode-session": "session-a",
+    }
+
+    expect((await postChatCompletion(app, firstTurn, headers)).status).toBe(200)
+    expect((await postChatCompletion(app, secondTurn, headers)).status).toBe(200)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[0]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.resume).toBe("sdk-1")
+    expect(capturedOptionHistory[1]?.systemPrompt).toBe("stable system")
+  })
+
+  it("keeps distinct Jcode session keys isolated", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, {
+      "User-Agent": "jcode/0.1.0",
+      "x-jcode-session": "session-a",
+    })
+    await postChatCompletion(app, secondTurn, {
+      "User-Agent": "jcode/0.1.0",
+      "x-jcode-session": "session-b",
+    })
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+  })
+
+  it("falls back to generic history packing when Jcode omits its session header", async () => {
+    const app = createTestApp()
+    const headers = { "User-Agent": "jcode/0.1.0" }
+
+    await postChatCompletion(app, firstTurn, headers)
+    await postChatCompletion(app, secondTurn, headers)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.systemPrompt).toContain("<conversation_history>")
+  })
+
+  it("ignores x-jcode-session from a non-Jcode client", async () => {
+    const app = createTestApp()
+    const headers = {
+      "User-Agent": "curl/8.0.0",
+      "x-jcode-session": "session-a",
+    }
+
+    await postChatCompletion(app, firstTurn, headers)
+    await postChatCompletion(app, secondTurn, headers)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.systemPrompt).toContain("<conversation_history>")
   })
 })
 
