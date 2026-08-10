@@ -78,7 +78,7 @@ function createTestApp() {
 async function post(
   app: TestApp,
   session: string,
-  messages: Array<{ role: string; content: string }>,
+  messages: Array<{ role: string; content: any }>,
   sessionId: string
 ) {
   queuedSessionIds.push(sessionId)
@@ -224,6 +224,44 @@ describe("Session lineage: normal continuation", () => {
     ], "sdk-1")
 
     expect(getCaptured()?.options?.resume).toBe("sdk-1")
+  })
+
+  it("resumes with only a late parallel tool result plus later user output", async () => {
+    const app = createTestApp()
+    const toolResult = (id: string, content: string) => ({
+      type: "tool_result",
+      tool_use_id: id,
+      content,
+    })
+    const stored = [
+      { role: "user", content: [{ type: "text", text: "run both" }] },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "call-a", name: "bash", input: { command: "a" } },
+        { type: "tool_use", id: "call-b", name: "bash", input: { command: "b" } },
+      ] },
+      { role: "user", content: [toolResult("call-a", "seen-a-result")] },
+    ]
+
+    await post(app, "sess-parallel", stored, "sdk-parallel")
+    await post(app, "sess-parallel", [
+      stored[0]!,
+      stored[1]!,
+      { role: "user", content: [
+        toolResult("call-a", "seen-a-result"),
+        toolResult("call-b", "late-b-result"),
+      ] },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "call-c", name: "bash", input: { command: "c" } },
+      ] },
+      { role: "user", content: [toolResult("call-c", "new-c-result")] },
+    ], "sdk-parallel")
+
+    expect(getCaptured()?.options?.resume).toBe("sdk-parallel")
+    const prompt = getCaptured()?.prompt
+    expect(typeof prompt).toBe("string")
+    expect(prompt as string).toContain("late-b-result")
+    expect(prompt as string).toContain("new-c-result")
+    expect(prompt as string).not.toContain("seen-a-result")
   })
 })
 

@@ -1104,6 +1104,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const resumeFrom = lineageResult.type === "continuation" || lineageResult.type === "compaction"
           ? lineageResult.resumeFrom
           : undefined
+        const resumeContentFrom = lineageResult.type === "continuation"
+          ? lineageResult.resumeContentFrom
+          : undefined
         // For undo: fork the session at the rollback point
         const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
 
@@ -1172,7 +1175,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // so we only need to send the new user message.
           messagesToConvert = getLastUserMessage(allMessages)
         } else if (isResume) {
-          if (resumeFrom !== undefined && resumeFrom < allMessages.length) {
+          if (
+            resumeFrom !== undefined &&
+            resumeContentFrom !== undefined &&
+            resumeFrom < allMessages.length &&
+            Array.isArray(allMessages[resumeFrom]?.content)
+          ) {
+            const boundaryMessage = allMessages[resumeFrom]!
+            messagesToConvert = [
+              {
+                ...boundaryMessage,
+                content: boundaryMessage.content.slice(resumeContentFrom),
+              },
+              ...allMessages.slice(resumeFrom + 1),
+            ]
+          } else if (resumeFrom !== undefined && resumeFrom < allMessages.length) {
             messagesToConvert = allMessages.slice(resumeFrom)
           } else {
             messagesToConvert = getLastUserMessage(allMessages)

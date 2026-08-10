@@ -34,6 +34,8 @@ export interface StoredSession {
   lineageHash?: string
   /** Per-message content hashes for precise diff-based compaction detection */
   messageHashes?: string[]
+  /** Per-message hashes of individual content blocks for append-only tool results */
+  messageBlockHashes?: string[][]
   /** Per-message SDK assistant UUIDs for undo rollback (null for user messages) */
   sdkMessageUuids?: Array<string | null>
   /** Last observed token usage for this Claude session */
@@ -202,7 +204,8 @@ export function storeSharedSession(
   lineageHash?: string,
   messageHashes?: string[],
   sdkMessageUuids?: Array<string | null>,
-  contextUsage?: TokenUsage
+  contextUsage?: TokenUsage,
+  messageBlockHashes?: string[][]
 ): void {
   const path = getStorePath()
   const lockPath = `${path}.lock`
@@ -227,6 +230,7 @@ export function storeSharedSession(
       messageCount: messageCount ?? existing?.messageCount ?? 0,
       lineageHash: lineageHash ?? existing?.lineageHash,
       messageHashes: messageHashes ?? existing?.messageHashes,
+      messageBlockHashes: messageBlockHashes ?? existing?.messageBlockHashes,
       sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
       contextUsage: contextUsage ?? existing?.contextUsage,
       ...(previousClaudeSessionId ? { previousClaudeSessionId } : {}),

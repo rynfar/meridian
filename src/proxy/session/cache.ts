@@ -17,6 +17,7 @@ import {
 import { getConversationFingerprint } from "./fingerprint"
 import {
   computeLineageHash,
+  computeMessageBlockHashes,
   computeMessageHashes,
   verifyLineage,
   type SessionState,
@@ -135,7 +136,11 @@ function classifyLineage(
 ): LineageResult {
   const result = verifyLineage(state, messages)
 
-  if (result.type === "compaction") {
+  if (result.type === "continuation" && result.resumeContentFrom !== undefined) {
+    const msg = `Parallel tool-result continuation (key=${cacheKey.slice(0, 8)}…): resume from message ${result.resumeFrom}, content block ${result.resumeContentFrom}.`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  } else if (result.type === "compaction") {
     const msg = `Compaction detected (key=${cacheKey.slice(0, 8)}…): suffix overlap ${result.suffixOverlap}/${state.messageCount}, resume from incoming message ${result.resumeFrom}.`
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
@@ -175,6 +180,7 @@ export function lookupSession(
         messageCount: shared.messageCount || 0,
         lineageHash: shared.lineageHash || "",
         messageHashes: shared.messageHashes,
+        messageBlockHashes: shared.messageBlockHashes,
         sdkMessageUuids: shared.sdkMessageUuids,
         contextUsage: shared.contextUsage,
       }
@@ -203,6 +209,7 @@ export function lookupSession(
         messageCount: shared.messageCount || 0,
         lineageHash: shared.lineageHash || "",
         messageHashes: shared.messageHashes,
+        messageBlockHashes: shared.messageBlockHashes,
         sdkMessageUuids: shared.sdkMessageUuids,
         contextUsage: shared.contextUsage,
       }
@@ -240,6 +247,7 @@ export function getSessionByClaudeId(claudeSessionId: string): SessionState | un
       messageCount: shared.messageCount || 0,
       lineageHash: shared.lineageHash || "",
       messageHashes: shared.messageHashes,
+      messageBlockHashes: shared.messageBlockHashes,
       sdkMessageUuids: shared.sdkMessageUuids,
       contextUsage: shared.contextUsage,
     })
@@ -263,12 +271,14 @@ export function storeSession(
   if (!claudeSessionId) return
   const lineageHash = computeLineageHash(messages)
   const messageHashes = computeMessageHashes(messages)
+  const messageBlockHashes = computeMessageBlockHashes(messages)
   const state: SessionState = {
     claudeSessionId,
     lastAccess: Date.now(),
     messageCount: messages?.length || 0,
     lineageHash,
     messageHashes,
+    messageBlockHashes,
     sdkMessageUuids,
     ...(contextUsage ? { contextUsage } : {}),
   }
@@ -291,7 +301,8 @@ export function storeSession(
       lineageHash,
       messageHashes,
       sdkMessageUuids,
-      contextUsage
+      contextUsage,
+      messageBlockHashes
     )
   }
 }

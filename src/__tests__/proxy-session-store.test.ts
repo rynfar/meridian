@@ -92,14 +92,17 @@ describe("Shared session store", () => {
       undefined,
       undefined,
       undefined,
-      { input_tokens: 9, output_tokens: 4 }
+      { input_tokens: 9, output_tokens: 4 },
+      [["block-hash-a", "block-hash-b"]]
     )
 
     const byKey = lookupSharedSession("session-usage")
     expect(byKey?.contextUsage).toEqual({ input_tokens: 9, output_tokens: 4 })
+    expect(byKey?.messageBlockHashes).toEqual([["block-hash-a", "block-hash-b"]])
 
     const byClaudeId = lookupSharedSessionByClaudeId("claude-sess-usage")
     expect(byClaudeId?.contextUsage).toEqual({ input_tokens: 9, output_tokens: 4 })
+    expect(byClaudeId?.messageBlockHashes).toEqual([["block-hash-a", "block-hash-b"]])
   })
 
   it("should return the freshest match when multiple keys share a Claude session ID", () => {

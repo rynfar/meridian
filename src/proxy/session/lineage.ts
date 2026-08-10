@@ -6,7 +6,7 @@
  */
 
 import { createHash } from "crypto"
-import { normalizeContent } from "../messages"
+import { HASH_IGNORED_BLOCK_TYPES, normalizeContent } from "../messages"
 
 // --- Types ---
 
@@ -48,6 +48,10 @@ export interface SessionState {
    *  Used for precise diff-based mutation classification when the aggregate
    *  lineageHash mismatches. */
   messageHashes?: string[]
+  /** Per-message hashes of individual content blocks.
+   *  Lets clients append a late parallel tool_result to the final user turn
+   *  without forcing a full-history replay. */
+  messageBlockHashes?: string[][]
   /** SDK assistant message UUIDs indexed by message position.
    *  Only assistant messages have UUIDs (user messages are null).
    *  Used to find the rollback point for undo. */
@@ -61,7 +65,7 @@ export interface SessionState {
  * the information needed to take the correct SDK action.
  */
 export type LineageResult =
-  | { type: "continuation"; session: SessionState; resumeFrom: number }
+  | { type: "continuation"; session: SessionState; resumeFrom: number; resumeContentFrom?: number }
   | { type: "compaction";   session: SessionState; resumeFrom: number; suffixOverlap: number }
   | { type: "undo";         session: SessionState; prefixOverlap: number; rollbackUuid: string | undefined }
   | { type: "diverged";     reason: LineageDivergenceReason; prefixOverlap?: number }
@@ -105,6 +109,26 @@ export function hashMessage(message: { role: string; content: any }): string {
 export function computeMessageHashes(messages: Array<{ role: string; content: any }>): string[] {
   if (!messages || messages.length === 0) return []
   return messages.map(hashMessage)
+}
+
+function hashNormalizedContent(content: any): string {
+  return createHash("sha256")
+    .update(normalizeContent(content))
+    .digest("hex")
+    .slice(0, 32)
+}
+
+function hashableContentBlocks(content: any): any[] {
+  if (!Array.isArray(content)) return [content]
+  return content.filter((block: any) => !HASH_IGNORED_BLOCK_TYPES.has(block?.type))
+}
+
+/** Compute semantic hashes for each content block in every message. */
+export function computeMessageBlockHashes(messages: Array<{ role: string; content: any }>): string[][] {
+  if (!messages || messages.length === 0) return []
+  return messages.map((message) =>
+    hashableContentBlocks(message.content).map((block) =>
+      hashNormalizedContent(Array.isArray(message.content) ? [block] : block)))
 }
 
 // --- Overlap measurement ---
@@ -290,6 +314,55 @@ export function verifyLineage(
       session: cached,
       resumeFrom: compactionResumeFrom,
       suffixOverlap,
+    }
+  }
+
+  // Append-only parallel tool results: Responses clients can send one result
+  // while another tool from the same assistant turn is still running. The
+  // Responses adapter coalesces consecutive function_call_output items into a
+  // single Anthropic user message, so the later result extends the final cached
+  // slot instead of appending a new message. The SDK session already contains
+  // the old blocks; resume with only the newly appended tool_result blocks.
+  //
+  // This is deliberately narrow. Arbitrary text edits and changed existing
+  // blocks still diverge, preserving the stale-lineage safety fixes in #689 and
+  // #692. Legacy sessions without block hashes also keep replaying safely.
+  const boundary = cached.messageCount - 1
+  if (
+    boundary >= 0 &&
+    prefixOverlap === boundary &&
+    messages.length >= cached.messageCount &&
+    cached.messageBlockHashes?.length === cached.messageCount
+  ) {
+    const incomingBoundary = messages[boundary]
+    const storedBlocks = cached.messageBlockHashes[boundary]
+    if (incomingBoundary?.role === "user" && storedBlocks && Array.isArray(incomingBoundary.content)) {
+      const incomingBlocks = hashableContentBlocks(incomingBoundary.content)
+      const incomingBlockHashes = incomingBlocks.map((block) => hashNormalizedContent([block]))
+      const preservesStoredBlocks =
+        incomingBlocks.length === incomingBoundary.content.length &&
+        incomingBlockHashes.length > storedBlocks.length &&
+        storedBlocks.every((hash, index) => incomingBlockHashes[index] === hash)
+      const appendedBlocks = incomingBlocks.slice(storedBlocks.length)
+      const seenToolResultIds = new Set(
+        incomingBlocks.slice(0, storedBlocks.length)
+          .filter((block) => block?.type === "tool_result" && typeof block.tool_use_id === "string")
+          .map((block) => block.tool_use_id as string),
+      )
+      const hasOnlyNewToolResults = appendedBlocks.every((block) => {
+        if (block?.type !== "tool_result" || typeof block.tool_use_id !== "string") return false
+        if (seenToolResultIds.has(block.tool_use_id)) return false
+        seenToolResultIds.add(block.tool_use_id)
+        return true
+      })
+      if (preservesStoredBlocks && hasOnlyNewToolResults) {
+        return {
+          type: "continuation",
+          session: cached,
+          resumeFrom: boundary,
+          resumeContentFrom: storedBlocks.length,
+        }
+      }
     }
   }
 

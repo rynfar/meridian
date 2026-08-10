@@ -7,6 +7,7 @@ import {
   computeLineageHash,
   hashMessage,
   computeMessageHashes,
+  computeMessageBlockHashes,
   measurePrefixOverlap,
   measureSuffixOverlap,
   verifyLineage,
@@ -535,6 +536,109 @@ describe("verifyLineage stale modified continuation (#689)", () => {
     const incoming = [...churn(stored, 1), msg("user", "one more")]
     const result = verifyLineage(session, incoming)
     expect(result.type).toBe("diverged")
+  })
+})
+
+describe("verifyLineage append-only tool-result extension", () => {
+  const toolResult = (id: string, content: string) => ({
+    type: "tool_result",
+    tool_use_id: id,
+    content,
+  })
+
+  function sessionFor(messages: Array<{ role: string; content: any }>): SessionState {
+    return makeSession({
+      lastAccess: 0,
+      lineageHash: computeLineageHash(messages),
+      messageCount: messages.length,
+      messageHashes: computeMessageHashes(messages),
+      messageBlockHashes: computeMessageBlockHashes(messages),
+    })
+  }
+
+  it("resumes from only the newly appended parallel tool result", () => {
+    const stored = [
+      { role: "user", content: [{ type: "text", text: "run both" }] },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "call-a", name: "bash", input: { command: "a" } },
+        { type: "tool_use", id: "call-b", name: "bash", input: { command: "b" } },
+      ] },
+      { role: "user", content: [toolResult("call-a", "a-result")] },
+    ]
+    const incoming = [
+      stored[0]!,
+      stored[1]!,
+      { role: "user", content: [
+        toolResult("call-a", "a-result"),
+        toolResult("call-b", "b-result"),
+      ] },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "call-c", name: "bash", input: { command: "c" } },
+      ] },
+      { role: "user", content: [toolResult("call-c", "c-result")] },
+    ]
+
+    expect(verifyLineage(sessionFor(stored), incoming)).toEqual({
+      type: "continuation",
+      session: sessionFor(stored),
+      resumeFrom: 2,
+      resumeContentFrom: 1,
+    })
+  })
+
+  it("still diverges when an existing tool result changed", () => {
+    const stored = [
+      { role: "user", content: [{ type: "text", text: "run both" }] },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "call-a", name: "bash", input: { command: "a" } },
+      ] },
+      { role: "user", content: [toolResult("call-a", "old-result")] },
+    ]
+    const incoming = [
+      stored[0]!,
+      stored[1]!,
+      { role: "user", content: [
+        toolResult("call-a", "changed-result"),
+        toolResult("call-b", "new-result"),
+      ] },
+      { role: "assistant", content: "next" },
+    ]
+
+    expect(verifyLineage(sessionFor(stored), incoming)).toEqual({
+      type: "diverged",
+      reason: "modified-history",
+      prefixOverlap: 2,
+    })
+  })
+
+  it("still diverges when arbitrary user text is appended to the changed slot", () => {
+    const stored = [
+      { role: "user", content: [{ type: "text", text: "first" }] },
+    ]
+    const incoming = [
+      { role: "user", content: [
+        { type: "text", text: "first" },
+        { type: "text", text: "edited continuation" },
+      ] },
+      { role: "assistant", content: "next" },
+    ]
+
+    expect(verifyLineage(sessionFor(stored), incoming).type).toBe("diverged")
+  })
+
+  it("still diverges when a prior tool result is appended again", () => {
+    const stored = [
+      { role: "user", content: [toolResult("call-a", "a-result")] },
+    ]
+    const incoming = [
+      { role: "user", content: [
+        toolResult("call-a", "a-result"),
+        toolResult("call-a", "a-result"),
+      ] },
+      { role: "assistant", content: "next" },
+    ]
+
+    expect(verifyLineage(sessionFor(stored), incoming).type).toBe("diverged")
   })
 })
 
