@@ -10,6 +10,7 @@ import { describe, it, expect } from "bun:test"
 import {
   ANNOUNCE_TURN_NUDGE,
   classifyTurnOutcome,
+  createRecoveryLifter,
   shouldAttemptRecovery,
   SILENT_TURN_NUDGE,
   type TurnOutcome,
@@ -147,5 +148,61 @@ describe("SILENT_TURN_NUDGE", () => {
   it("adds no transcript markers for the model to imitate (#496)", () => {
     expect(SILENT_TURN_NUDGE).not.toContain("Human:")
     expect(SILENT_TURN_NUDGE).not.toContain("[Assistant:")
+  })
+})
+
+describe("createRecoveryLifter", () => {
+  const textStart = { type: "content_block_start", content_block: { type: "text" } }
+  const delta = (text: string) => ({ type: "content_block_delta", delta: { type: "text_delta", text } })
+  const stop = { type: "content_block_stop" }
+
+  const lifterAt = (first: number) => {
+    let next = first
+    return createRecoveryLifter(() => next++)
+  }
+
+  it("allocates the block index from the caller's space, so the recovery block continues the open message's numbering", () => {
+    expect(lifterAt(7).lift(textStart)).toEqual({
+      kind: "block_start",
+      frame: { type: "content_block_start", index: 7, content_block: { type: "text", text: "" } },
+    })
+  })
+
+  it("rewrites deltas onto the allocated index and reports their length", () => {
+    const lifter = lifterAt(7)
+    lifter.lift(textStart)
+    expect(lifter.lift(delta("done"))).toEqual({
+      kind: "text_delta",
+      frame: { type: "content_block_delta", index: 7, delta: { type: "text_delta", text: "done" } },
+      textChars: 4,
+    })
+  })
+
+  it("drops a delta arriving before any text block opened — emitting it would be malformed SSE", () => {
+    expect(lifterAt(0).lift(delta("orphan"))).toBeUndefined()
+  })
+
+  it("releases the index on stop and drops trailing deltas and stops", () => {
+    const lifter = lifterAt(3)
+    lifter.lift(textStart)
+    expect(lifter.lift(stop)).toEqual({ kind: "block_stop", frame: { type: "content_block_stop", index: 3 } })
+    expect(lifter.lift(delta("late"))).toBeUndefined()
+    expect(lifter.lift(stop)).toBeUndefined()
+  })
+
+  it("ignores non-text blocks entirely — a tool call is not lifted", () => {
+    const lifter = lifterAt(0)
+    expect(lifter.lift({ type: "content_block_start", content_block: { type: "tool_use" } })).toBeUndefined()
+    expect(lifter.lift(delta("x"))).toBeUndefined()
+  })
+
+  it("gives a second text block a fresh index", () => {
+    const lifter = lifterAt(5)
+    lifter.lift(textStart)
+    lifter.lift(stop)
+    expect(lifter.lift(textStart)).toEqual({
+      kind: "block_start",
+      frame: { type: "content_block_start", index: 6, content_block: { type: "text", text: "" } },
+    })
   })
 })

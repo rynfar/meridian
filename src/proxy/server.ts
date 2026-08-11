@@ -44,7 +44,7 @@ import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, compute
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
-import { ANNOUNCE_TURN_NUDGE, classifyTurnOutcome, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
+import { ANNOUNCE_TURN_NUDGE, classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -2420,7 +2420,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             const silentTurnRecoveryEnabled = process.env.MERIDIAN_SILENT_TURN_RECOVERY !== "0"
             let silentTurnRecoveryAttempted = false
             let silentTurnRecovered = false
-            let recoveryBlockIndex: number | undefined
             // Hoisted out of the inner streaming loop so the outer catch can
             // dedupe captured tool_uses against what was already forwarded
             // when recovering gracefully from max_turns (see catch below).
@@ -3229,7 +3228,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // so the recovered answer can actually be forwarded. A turn that
               // already closed (early stop, turn-2 suppression) carries tool
               // calls by construction and is never silent.
-              const preRecoveryOutcome = classifyTurnOutcome({
+              //
+              // One classification, read twice: here, to decide whether a
+              // recovery spend is warranted, and again for the final envelope's
+              // telemetry. The counters mutate in between — a closure, not a
+              // snapshot.
+              const classifyNow = () => classifyTurnOutcome({
                 textEvents: textEventsForwarded,
                 toolUses: streamedToolUseIds.size,
                 blocksForwarded: eventsForwarded,
@@ -3237,6 +3241,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 denyBoundaryContinuation: Boolean(passthroughResumeUuid),
                 clientMessageCount: allMessages.length,
               })
+              const preRecoveryOutcome = classifyNow()
               //
               // `messageStartEmitted` is a hard precondition, not a heuristic:
               // recovery works by appending a text block to the message already
@@ -3263,6 +3268,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   reason: preRecoveryOutcome.kind === "silent" ? preRecoveryOutcome.reason : undefined,
                   sdkSessionId: currentSessionId || resumeSessionId,
                 })
+                const recoveryLifter = createRecoveryLifter(() => nextClientBlockIndex++)
                 try {
                   for await (const event of query(buildQueryOptions({
                     // The announce stall needs its own words: "no visible
@@ -3300,46 +3306,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     advisorModel,
                   }, requestAbort.controller))) {
                     if ((event as any).type !== "stream_event") continue
-                    const inner = (event as any).event
-                    const innerType = inner?.type
-                    // Only text is lifted into the already-open message. A tool
-                    // call arriving here would need its own block index space and
-                    // the client's turn boundary to match — out of scope for a
-                    // recovery, and it still counts as a productive turn below.
-                    if (innerType === "content_block_start" && inner.content_block?.type === "text") {
-                      const idx = nextClientBlockIndex++
-                      recoveryBlockIndex = idx
-                      safeEnqueue(encoder.encode(
-                        `event: content_block_start\ndata: ${JSON.stringify({
-                          type: "content_block_start",
-                          index: idx,
-                          content_block: { type: "text", text: "" },
-                        })}\n\n`
-                      ), "silent_recovery_block_start")
+                    // Only text is lifted into the already-open message; the
+                    // re-indexing handshake lives in createRecoveryLifter. A
+                    // tool call arriving here still counts as a productive
+                    // recovery, through the shared PreToolUse capture below.
+                    const lifted = recoveryLifter.lift((event as any).event)
+                    if (!lifted) continue
+                    safeEnqueue(encoder.encode(
+                      `event: ${lifted.frame.type}\ndata: ${JSON.stringify(lifted.frame)}\n\n`
+                    ), `silent_recovery_${lifted.kind}`)
+                    if (lifted.kind === "block_start") {
                       eventsForwarded += 1
-                    } else if (
-                      innerType === "content_block_delta" &&
-                      inner.delta?.type === "text_delta" &&
-                      recoveryBlockIndex !== undefined
-                    ) {
-                      safeEnqueue(encoder.encode(
-                        `event: content_block_delta\ndata: ${JSON.stringify({
-                          type: "content_block_delta",
-                          index: recoveryBlockIndex,
-                          delta: { type: "text_delta", text: inner.delta.text },
-                        })}\n\n`
-                      ), "silent_recovery_text_delta")
+                    } else if (lifted.kind === "text_delta") {
                       textEventsForwarded += 1
-                      if (typeof inner.delta.text === "string") textCharsForwarded += inner.delta.text.length
+                      textCharsForwarded += lifted.textChars
                       silentTurnRecovered = true
-                    } else if (innerType === "content_block_stop" && recoveryBlockIndex !== undefined) {
-                      safeEnqueue(encoder.encode(
-                        `event: content_block_stop\ndata: ${JSON.stringify({
-                          type: "content_block_stop",
-                          index: recoveryBlockIndex,
-                        })}\n\n`
-                      ), "silent_recovery_block_stop")
-                      recoveryBlockIndex = undefined
                     }
                   }
                 } catch (recoveryError) {
@@ -3534,14 +3515,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // client got anything actionable — a tool-only turn tripped it
                 // while being perfectly healthy, and a thinking-only turn
                 // looked identical to one.
-                const turnOutcome = classifyTurnOutcome({
-                  textEvents: textEventsForwarded,
-                  toolUses: streamedToolUseIds.size,
-                  blocksForwarded: eventsForwarded,
-                  textChars: textCharsForwarded,
-                  denyBoundaryContinuation: Boolean(passthroughResumeUuid),
-                  clientMessageCount: allMessages.length,
-                })
+                const turnOutcome = classifyNow()
                 if (turnOutcome.kind === "announce") {
                   claudeLog("response.announce_turn", {
                     model,

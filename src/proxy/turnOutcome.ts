@@ -173,6 +173,75 @@ export function shouldInjectSilentTurn(input: {
 }
 
 /**
+ * One frame of a recovery turn, re-indexed for the client's wire. `kind`
+ * doubles as the enqueue label suffix, so telemetry keeps the exact names the
+ * recovery has always logged (silent_recovery_block_start, …).
+ */
+export type RecoveryLift =
+  | {
+      kind: "block_start"
+      frame: { type: "content_block_start"; index: number; content_block: { type: "text"; text: string } }
+    }
+  | {
+      kind: "text_delta"
+      frame: { type: "content_block_delta"; index: number; delta: { type: "text_delta"; text: unknown } }
+      /** Characters delivered — 0 when the delta carried a non-string text. */
+      textChars: number
+    }
+  | { kind: "block_stop"; frame: { type: "content_block_stop"; index: number } }
+
+/**
+ * Lift a recovery turn's stream events into the message already open on the
+ * client's wire.
+ *
+ * Only text is lifted. A tool call arriving in the recovery turn would need
+ * its own block index space and the client's turn boundary to match — out of
+ * scope for a recovery; it still counts as one, through the shared PreToolUse
+ * capture at the recovery site in server.ts.
+ *
+ * The lifter owns the re-indexing handshake: a text block start allocates a
+ * client index from the caller's space — so the recovery block continues the
+ * open message's numbering instead of colliding with it — deltas are rewritten
+ * onto that index, and stop releases it. Deltas and stops outside an open
+ * block are dropped: emitting them would be malformed SSE.
+ */
+export function createRecoveryLifter(allocateBlockIndex: () => number): {
+  lift(innerEvent: unknown): RecoveryLift | undefined
+} {
+  let blockIndex: number | undefined
+  return {
+    lift(innerEvent) {
+      const inner = innerEvent as
+        | { type?: unknown; content_block?: { type?: unknown }; delta?: { type?: unknown; text?: unknown } }
+        | null
+        | undefined
+      if (!inner) return undefined
+      if (inner.type === "content_block_start" && inner.content_block?.type === "text") {
+        blockIndex = allocateBlockIndex()
+        return {
+          kind: "block_start",
+          frame: { type: "content_block_start", index: blockIndex, content_block: { type: "text", text: "" } },
+        }
+      }
+      if (inner.type === "content_block_delta" && inner.delta?.type === "text_delta" && blockIndex !== undefined) {
+        const text = inner.delta.text
+        return {
+          kind: "text_delta",
+          frame: { type: "content_block_delta", index: blockIndex, delta: { type: "text_delta", text } },
+          textChars: typeof text === "string" ? text.length : 0,
+        }
+      }
+      if (inner.type === "content_block_stop" && blockIndex !== undefined) {
+        const index = blockIndex
+        blockIndex = undefined
+        return { kind: "block_stop", frame: { type: "content_block_stop", index } }
+      }
+      return undefined
+    },
+  }
+}
+
+/**
  * Is one in-session recovery attempt worth making?
  *
  * Only for a stalled turn — silent or announce — at most once, and never when
