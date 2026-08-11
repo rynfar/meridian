@@ -110,7 +110,9 @@ describe("priority routing", () => {
   beforeEach(() => {
     capturedEnvs = []
     failingDirs = new Set()
-    failureMessage = DEFAULT_FAILURE
+    // failureMessage resets in the file-level beforeEach, which runs first and
+    // covers the later describes too — this one only ever saw the leak because
+    // its own tests happened to run last.
     clearSessionCache()
     // The active profile is process-global module state; other test files
     // (profile-switch integration) set it. This suite's expectations are

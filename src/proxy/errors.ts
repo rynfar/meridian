@@ -42,6 +42,11 @@ export function extendedContextHint(model?: string): string {
   return advise("MERIDIAN_1M_CONTEXT_SUPPORT=0")
 }
 
+/** "hit your limit", "hit your session limit", "hit your weekly limit", and any
+ *  future single-word qualifier the CLI adopts. Anchored on both sides so it
+ *  can't drift into unrelated text that happens to contain "limit". */
+const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
+
 /**
  * Detect specific SDK errors and return helpful messages to the client.
  *
@@ -70,16 +75,20 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
     }
   }
 
-  // Rate limiting. The CLI phrases 5h-window exhaustion as "You've hit your
-  // session limit · resets <time>" or the shorter "You've hit your limit", and
-  // weekly caps as "You've hit your weekly limit" or "usage limit reached". All
-  // are quota exhaustion and must classify as rate_limit_error (429), not
-  // generic api_error: clients back off correctly and priority routing's
-  // failover keys off this class.
+  // Rate limiting. All quota exhaustion must classify as rate_limit_error
+  // (429), not generic api_error: clients back off correctly and priority
+  // routing's failover keys off this class. Misclassifying costs a 500 and a
+  // profile that never fails over.
+  //
+  // The CLI's phrasing is a moving target — "You've hit your session limit ·
+  // resets <time>", the shorter "You've hit your limit", and "You've hit your
+  // weekly limit" have all been observed live, each arriving as its own bug
+  // report after the previous literal stopped matching (#764, #787). Match the
+  // shape instead of enumerating: "hit your <anything> limit" covers the
+  // variants seen so far and the daily/monthly/5-hour ones that would
+  // otherwise be the next report.
   if (lower.includes("429") || lower.includes("rate limit") || lower.includes("too many requests")
-    || lower.includes("hit your session limit") || lower.includes("hit your limit")
-    || lower.includes("hit your weekly limit")
-    || lower.includes("usage limit reached")) {
+    || HIT_YOUR_LIMIT.test(lower) || lower.includes("usage limit reached")) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? extendedContextHint(model)
       : ""

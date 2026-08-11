@@ -502,6 +502,25 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(r.status).toBe(429)
   })
 
+  // #764 and #787 were the same bug twice: a new qualifier, a 500 instead of
+  // failover, a PR. These pin the shape so the next variant is already covered.
+  it.each([
+    ["daily", "You've hit your daily limit · resets midnight (UTC)"],
+    ["monthly", "You've hit your monthly limit"],
+    ["hyphenated", "You've hit your 5-hour limit · resets 3pm"],
+  ])("maps an unseen '%s' limit qualifier to rate_limit_error", (_label, msg) => {
+    const r = classifyError(`Claude Code returned an error result: ${msg}`)
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
+  // The qualifier is one word, not a wildcard — an unrelated sentence that
+  // merely contains "limit" must not become a 429 that clients back off on.
+  it("does not treat unrelated 'limit' prose as a rate limit", () => {
+    const r = classifyError("Claude Code returned an error result: you have hit your configured tool call depth limit")
+    expect(r.type).not.toBe("rate_limit_error")
+  })
+
   it("maps 'usage limit reached' to rate_limit_error", () => {
     const r = classifyError("usage limit reached | resets at 5pm")
     expect(r.type).toBe("rate_limit_error")
