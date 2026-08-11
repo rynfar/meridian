@@ -110,6 +110,7 @@ describe("priority routing", () => {
   beforeEach(() => {
     capturedEnvs = []
     failingDirs = new Set()
+    failureMessage = DEFAULT_FAILURE
     clearSessionCache()
     // The active profile is process-global module state; other test files
     // (profile-switch integration) set it. This suite's expectations are
@@ -155,7 +156,17 @@ describe("priority routing", () => {
     const res = await post(app)
     expect(res.status).toBe(200)
     const body = await res.json() as { content: Array<{ text: string }> }
-    expect(body.content[0].text).toContain("prof-personal")
+    expect(body.content[0]?.text).toContain("prof-personal")
+  }, 20_000)
+
+  it("fails over on the CLI's 'You've hit your weekly limit' wording", async () => {
+    failureMessage = "Claude Code returned an error result: You've hit your weekly limit \u00b7 resets 2pm (Asia/Jerusalem)"
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const res = await post(app)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { content: Array<{ text: string }> }
+    expect(body.content[0]?.text).toContain("prof-personal")
   }, 20_000)
 
   it("surfaces the LAST tried profile's error when every profile is exhausted", async () => {

@@ -70,13 +70,15 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
     }
   }
 
-  // Rate limiting. The CLI phrases 5h-window exhaustion as either "You've hit
-  // your session limit · resets <time>" or the shorter "You've hit your limit".
-  // Weekly caps use "usage limit reached". These ARE quota exhaustion and must
-  // classify as rate_limit_error (429), not generic api_error: clients back off
-  // correctly and priority routing's failover keys off this class.
+  // Rate limiting. The CLI phrases 5h-window exhaustion as "You've hit your
+  // session limit · resets <time>" or the shorter "You've hit your limit", and
+  // weekly caps as "You've hit your weekly limit" or "usage limit reached". All
+  // are quota exhaustion and must classify as rate_limit_error (429), not
+  // generic api_error: clients back off correctly and priority routing's
+  // failover keys off this class.
   if (lower.includes("429") || lower.includes("rate limit") || lower.includes("too many requests")
     || lower.includes("hit your session limit") || lower.includes("hit your limit")
+    || lower.includes("hit your weekly limit")
     || lower.includes("usage limit reached")) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? extendedContextHint(model)
