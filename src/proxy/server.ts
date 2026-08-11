@@ -2424,6 +2424,32 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // dedupe captured tool_uses against what was already forwarded
             // when recovering gracefully from max_turns (see catch below).
             const streamedToolUseIds = new Set<string>()
+            // The turn's terminal message_delta, withheld rather than forwarded
+            // inline. `message_delta` is the frame stock Anthropic clients
+            // finalize a message on, so anything appended after it — recovered
+            // text, late tool_use blocks — is discarded by a correct client.
+            // Observed on the wire: a recovered answer arrived at index 9, two
+            // frames behind the end_turn delta at index 8, and was dropped.
+            //
+            // `message_stop` was already deferred to the end of the turn for
+            // the same reason; this makes the pair consistent. Exactly one
+            // terminal delta leaves the proxy, and it leaves last, once the
+            // turn's real stop_reason is known.
+            let pendingTerminalDelta: Uint8Array | null = null
+            let terminalDeltaSent = false
+            const sendTerminalDelta = (stopReasonOverride?: string): void => {
+              if (terminalDeltaSent) return
+              const payload = stopReasonOverride
+                ? encoder.encode(`event: message_delta\ndata: ${JSON.stringify({
+                    type: "message_delta",
+                    delta: { stop_reason: stopReasonOverride, stop_sequence: null },
+                    usage: { output_tokens: lastUsage?.output_tokens ?? 0 },
+                  })}\n\n`)
+                : pendingTerminalDelta
+              if (!payload) return
+              terminalDeltaSent = true
+              if (safeEnqueue(payload, "terminal_message_delta")) eventsForwarded += 1
+            }
             // Client block indices whose content_block_start was forwarded but
             // whose content_block_stop hasn't been yet. The single-step abort
             // (#575) can SIGTERM the subprocess mid-block, leaving the client
@@ -2478,9 +2504,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // ("red") tool call (#552). The backstop stays — it just no
               // longer fires on the common ordering.
               flushOpenClientBlocks("early_stop")
-              safeEnqueue(encoder.encode(
-                `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
-              ), "early_stop")
+              sendTerminalDelta("tool_use")
               safeEnqueue(encoder.encode(
                 `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
               ), "early_stop")
@@ -2882,9 +2906,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (messageStartEmitted) {
                         if (passthrough && streamedToolUseIds.size > 0) {
                           flushOpenClientBlocks("turn2_suppression")
-                          safeEnqueue(encoder.encode(
-                            `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: lastUsage?.output_tokens ?? 0 } })}\n\n`
-                          ), "passthrough_turn2_stop")
+                          sendTerminalDelta("tool_use")
                           safeEnqueue(encoder.encode(
                             `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
                           ), "passthrough_turn2_stop")
@@ -3059,10 +3081,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     // Anthropic clients crash on — the real API never returns them (#525).
                     stripNonStandardStreamFields(event)
                     const payload = encoder.encode(`event: ${eventType}\ndata: ${JSON.stringify(event)}\n\n`)
-                    if (!safeEnqueue(payload, `stream_event:${eventType}`)) {
-                      break
+                    if (eventType === "message_delta") {
+                      // Withheld, not dropped — see sendTerminalDelta. Every
+                      // path that ends the turn flushes it, so the client still
+                      // gets exactly one, after any recovered content.
+                      pendingTerminalDelta = payload
+                    } else {
+                      if (!safeEnqueue(payload, `stream_event:${eventType}`)) {
+                        break
+                      }
+                      eventsForwarded += 1
                     }
-                    eventsForwarded += 1
 
                     // Track envelope integrity: which forwarded blocks are open.
                     if (eventType === "content_block_start") {
@@ -3098,6 +3127,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       streamedToolUseIds.size > 0
                     ) {
                       flushOpenClientBlocks("drain_close")
+                      // This path used to rely on the delta having gone out
+                      // inline above; it is now withheld, so send it here.
+                      sendTerminalDelta()
                       safeEnqueue(
                         encoder.encode(`event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`),
                         "passthrough_tool_stream_stop"
@@ -3383,14 +3415,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     ), "passthrough_tool_block_stop")
                   }
 
-                  // Emit message_delta with stop_reason: "tool_use"
-                  safeEnqueue(encoder.encode(
-                    `event: message_delta\ndata: ${JSON.stringify({
-                      type: "message_delta",
-                      delta: { stop_reason: "tool_use", stop_sequence: null },
-                      usage: { output_tokens: 0 }
-                    })}\n\n`
-                  ), "passthrough_message_delta")
+                  // The turn really did end in tool calls, so the withheld
+                  // delta's stop_reason is wrong — override it. Emitting a
+                  // second delta here is what gave one message two conflicting
+                  // terminal frames once recovery started appending blocks.
+                  sendTerminalDelta("tool_use")
                 }
 
                 // Passthrough mode: scan body.messages for file changes on end_turn
@@ -3431,8 +3460,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   }
                 }
 
-                // Emit the final message_stop (we skipped all intermediate ones)
+                // Emit the terminal pair (both were withheld through the turn
+                // so recovered content lands ahead of them, where clients can
+                // still see it).
                 if (messageStartEmitted) {
+                  sendTerminalDelta()
                   safeEnqueue(encoder.encode(`event: message_stop\ndata: {"type":"message_stop"}\n\n`), "final_message_stop")
                 }
 

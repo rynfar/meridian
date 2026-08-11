@@ -46,7 +46,7 @@ import { startProxyServer } from "../src/proxy/server.ts"
 
 const PORT = Number(process.env.E2E_PORT ?? 3497)
 const ATTEMPTS = Number(process.env.E2E_ATTEMPTS ?? 3)
-const MODEL = process.env.E2E_MODEL ?? "claude-sonnet-4-5"
+const MODEL = process.env.E2E_MODEL ?? "claude-haiku-4-5-20251001"
 
 process.env.MERIDIAN_PASSTHROUGH = "1"
 process.env.OPENCODE_CLAUDE_PROVIDER_DEBUG = "1"
@@ -95,6 +95,24 @@ async function send(messages, sessionId) {
 }
 
 /**
+ * Session-category diagnostic lines recorded since `since`.
+ *
+ * The guard reports itself through `diagnosticLog.session()`, which writes to
+ * an in-memory ring buffer surfaced at /telemetry/logs — it never reaches
+ * stdout. Reading it here is what makes `recovered` a real number instead of a
+ * constant zero.
+ */
+async function sessionLogsSince(since) {
+  const res = await fetch(
+    `http://127.0.0.1:${PORT}/telemetry/logs?category=session&since=${since}&limit=500`
+  )
+  if (!res.ok) throw new Error(`telemetry/logs returned ${res.status}`)
+  const body = await res.json()
+  const rows = Array.isArray(body) ? body : (body.logs ?? [])
+  return rows.map((r) => String(r.message ?? ""))
+}
+
+/**
  * What did the client actually receive? Mirrors classifyTurnOutcome — text
  * DELTAS, not text blocks, because an empty text block is the defect's shape.
  */
@@ -134,7 +152,7 @@ let failures = 0
 
 for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
   const session = `e2e-silent-${Date.now()}-${attempt}`
-  const diagFrom = diag.length
+  const sinceTs = Date.now()
 
   // Turn 1 — provoke a tool call. Fresh session every attempt, so the answer
   // below is always a second turn.
@@ -172,21 +190,24 @@ for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
   )
   const t2 = inspect(second.events)
 
-  const attemptDiag = diag.slice(diagFrom)
-  // Count the session-level silent_turn lines only (the claudeLog mock is off in
-  // this harness, so telemetry lines do not appear here). The recovery verdict
-  // is a field on that same line: `recovery=succeeded|failed|off`.
-  const silentLines = attemptDiag.filter((l) => l.includes("silent_turn reason="))
+  // The guard's own account of the turn. These lines go to the diagnostic ring
+  // buffer, NOT to console.debug — reading stdout here counted zero forever,
+  // which made the run look clean while measuring nothing.
+  const lines = await sessionLogsSince(sinceTs)
+  const silentLines = lines.filter((l) => l.includes("silent_turn reason="))
+  const announceLines = lines.filter((l) => l.includes("announce_turn chars="))
   const silences = silentLines.length
-  const recovered = silentLines.filter((l) => l.includes("recovery=succeeded")).length
+  const announces = announceLines.length
+  const recovered = [...silentLines, ...announceLines]
+    .filter((l) => l.includes("recovery=succeeded")).length
 
   const verdict = t2.actionable ? "pass" : "FAIL"
   if (!t2.actionable) failures += 1
-  results.push({ attempt, verdict, t1, t2, silences, recovered })
+  results.push({ attempt, verdict, t1, t2, silences, announces, recovered })
 
   console.log(
     `  ${attempt}: ${verdict} — turn2 text=${t2.textDeltas} tools=${t2.toolUses.length} ` +
-    `stop=${t2.stopReason} silent_turn_logs=${silences} recovered=${recovered}`,
+    `stop=${t2.stopReason} silent=${silences} announce=${announces} recovered=${recovered}`,
   )
 }
 
@@ -214,11 +235,13 @@ const attempted = results.filter((r) => r.verdict !== "no-tool-call").length
 const skipped = results.length - attempted
 const totalSilences = results.reduce((n, r) => n + (r.silences ?? 0), 0)
 const totalRecovered = results.reduce((n, r) => n + (r.recovered ?? 0), 0)
+const totalAnnounces = results.reduce((n, r) => n + (r.announces ?? 0), 0)
 
 console.log("")
 console.log(`attempts:   ${attempted}${skipped ? ` (${skipped} skipped — no tool call)` : ""}`)
 console.log(`silent:     ${failures}   (client received nothing actionable)`)
 console.log(`upstream:   ${totalSilences} silent turns detected, ${totalRecovered} recovered`)
+console.log(`announce:   ${totalAnnounces} turns classified announce (recovery spent on a turn that already answered)`)
 console.log(`recovery:   ${process.env.MERIDIAN_SILENT_TURN_RECOVERY === "0" ? "OFF (baseline)" : "ON"}`)
 
 if (envelopeProblems.length > 0) {
@@ -227,7 +250,7 @@ if (envelopeProblems.length > 0) {
   for (const p of envelopeProblems) console.log(`  - ${p}`)
 }
 
-await inst.stop?.()
+await inst.close()
 
 if (failures > 0 || envelopeProblems.length > 0) {
   console.log("")
