@@ -29,7 +29,7 @@ mock.module("../mcpTools", () => ({
 // oauth-usage.test.ts, where 10 tests would flake with `result === null`).
 // The override is bypassed when the caller passes `store` or `fetchImpl`,
 // keeping oauth-usage unit tests isolated.
-const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
+const { __setFetchOAuthUsageOverride, fetchOAuthUsage, resetOAuthUsageCache } = await import("../proxy/oauthUsage")
 const { createProxyServer } = await import("../proxy/server")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
 const { resetActiveProfile } = await import("../proxy/profiles")
@@ -293,3 +293,72 @@ describe("GET /v1/usage/quota", () => {
     expect(fiveHour.map(b => b.utilization)).toEqual([0.10])
   })
 })
+
+// #781 follow-up: a null usage snapshot meant `error: "no_token"` regardless of
+// cause, so an upstream 429 told users their credentials were missing. The 429
+// backoff made that stick for the whole cooldown instead of one poll interval.
+describe("GET /v1/usage/quota/all — null attribution", () => {
+  beforeEach(() => {
+    rateLimitStore.clear()
+    resetActiveProfile()
+    resetOAuthUsageCache()
+    __setFetchOAuthUsageOverride(async () => null)
+  })
+
+  afterEach(() => {
+    __setFetchOAuthUsageOverride(null)
+    resetOAuthUsageCache()
+  })
+
+  async function fetchAll(profiles?: Array<{ id: string; claudeConfigDir: string }>) {
+    const { app } = createProxyServer({
+      port: 0,
+      host: "127.0.0.1",
+      ...(profiles ? { profiles, defaultProfile: profiles[0]!.id } : {}),
+    })
+    const res = await app.fetch(new Request("http://localhost/v1/usage/quota/all"))
+    expect(res.status).toBe(200)
+    return await res.json() as { profiles: Array<{ id: string; error: string | null }> }
+  }
+
+  it("reports no_token when there is no cooldown", async () => {
+    const body = await fetchAll()
+    expect(body.profiles.map(p => p.error)).toEqual(["no_token"])
+  })
+
+  it("reports rate_limited once a 429 cooldown is active", async () => {
+    // Passing store+fetchImpl bypasses the override and runs the real impl, so
+    // the 429 registers a genuine cooldown for the default key.
+    await primeRateLimit(undefined)
+
+    const body = await fetchAll()
+    expect(body.profiles.map(p => p.error)).toEqual(["rate_limited"])
+  })
+
+  it("attributes the cooldown per profile", async () => {
+    await primeRateLimit("work")
+
+    const body = await fetchAll([
+      { id: "work", claudeConfigDir: "/tmp/meridian-quota-work" },
+      { id: "personal", claudeConfigDir: "/tmp/meridian-quota-personal" },
+    ])
+    expect(body.profiles.find(p => p.id === "work")?.error).toBe("rate_limited")
+    expect(body.profiles.find(p => p.id === "personal")?.error).toBe("no_token")
+  })
+})
+
+async function primeRateLimit(profileId: string | undefined): Promise<void> {
+  const store = {
+    async read() {
+      return { claudeAiOauth: { accessToken: "t", refreshToken: "rt", expiresAt: Date.now() + 60_000 } } as any
+    },
+    async write() { return true },
+  }
+  const result = await fetchOAuthUsage({
+    force: true,
+    profileId,
+    store: store as any,
+    fetchImpl: async () => new Response("rate limited", { status: 429, headers: { "Retry-After": "120" } }),
+  })
+  expect(result).toBeNull()
+}

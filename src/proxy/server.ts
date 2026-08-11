@@ -9,7 +9,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { linkRequestAbort } from "./requestAbort"
-import { fetchOAuthUsage } from "./oauthUsage"
+import { fetchOAuthUsage, explainMissingOAuthUsage } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
@@ -4357,8 +4357,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // (which returns only the active profile's data).
   //
   // Each profile entry includes the same shape as `/v1/usage/quota`'s top
-  // level (windows + extraUsage), or `error: "no_token" | "upstream_error"`
-  // when the fetch failed for that profile.
+  // level (windows + extraUsage), or an `error` when the fetch failed for that
+  // profile: `"no_token" | "upstream_error" | "not_oauth" | "rate_limited"`.
+  //
+  // `rate_limited` means Anthropic 429'd the usage endpoint and the backoff has
+  // no last-good snapshot left to serve — the credentials are fine. Consumers
+  // added after #781 should treat it as transient and keep the previous render
+  // rather than prompting for login. Older consumers that only switch on
+  // `no_token` fall through to their default branch, which is why this is a new
+  // value rather than a reuse.
   app.get("/v1/usage/quota/all", async (c) => {
     const profilesList = getEffectiveProfiles(finalConfig.profiles)
     const activeId = getActiveProfileId() || finalConfig.defaultProfile || profilesList[0]?.id || null
@@ -4373,7 +4380,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           windows: oauth?.windows ?? [],
           extraUsage: oauth?.extraUsage ?? null,
           fetchedAt: oauth?.fetchedAt ?? null,
-          error: oauth ? null : "no_token",
+          error: oauth ? null : explainMissingOAuthUsage(),
         }],
         activeProfile: "default",
         asOf: Date.now(),
@@ -4405,7 +4412,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         windows: oauth?.windows ?? [],
         extraUsage: oauth?.extraUsage ?? null,
         fetchedAt: oauth?.fetchedAt ?? null,
-        error: oauth ? null : "no_token",
+        error: oauth ? null : explainMissingOAuthUsage(p.id),
       }
     }))
 

@@ -277,6 +277,15 @@ function renderUsageSection(profileQuota) {
         + '<div class="usage-empty">Run <code style="background:var(--bg);padding:1px 5px;border-radius:3px">claude login</code> to see usage.</div>'
         + '</div>';
     }
+    // Credentials are fine here — Anthropic is throttling the usage endpoint
+    // and the backoff has no snapshot left to serve. Saying "run claude login"
+    // would send the user chasing a problem they don't have.
+    if (profileQuota.error === 'rate_limited') {
+      return '<div class="usage-section">'
+        + '<div class="usage-section-title">Usage</div>'
+        + '<div class="usage-empty">Usage data is rate limited upstream — retrying shortly.</div>'
+        + '</div>';
+    }
     return ''; // nothing fetched yet
   }
 

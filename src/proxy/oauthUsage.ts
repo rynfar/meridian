@@ -376,6 +376,20 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
   return promise
 }
 
+/** Why {@link fetchOAuthUsage} returned null for a profile.
+ *
+ * `null` is overloaded: it means "no credentials" *and* "upstream is throttling
+ * us and there's no snapshot left to serve". Consumers rendered the first
+ * reading unconditionally, telling users to run `claude login` when their
+ * credentials were fine. Ask here instead of assuming.
+ *
+ * Only meaningful right after a null return — the cooldown is time-bounded.
+ */
+export function explainMissingOAuthUsage(profileId?: string | null): "rate_limited" | "no_token" {
+  const until = rateLimitedUntilByProfile.get(profileId ?? DEFAULT_KEY)
+  return until !== undefined && Date.now() < until ? "rate_limited" : "no_token"
+}
+
 /** Test-only / shutdown helper — clears all cached snapshots and pending fetches. */
 export function resetOAuthUsageCache(): void {
   cacheByProfile.clear()

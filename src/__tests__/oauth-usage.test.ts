@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, test, beforeEach } from "bun:test"
-import { fetchOAuthUsage, resetOAuthUsageCache } from "../proxy/oauthUsage"
+import { fetchOAuthUsage, resetOAuthUsageCache, explainMissingOAuthUsage } from "../proxy/oauthUsage"
 import type { CredentialStore } from "../proxy/tokenRefresh"
 
 const SAMPLE_RESPONSE = {
@@ -243,6 +243,49 @@ describe("oauthUsage", () => {
     await new Promise(resolve => setTimeout(resolve, 30))
     expect(await fetchOAuthUsage(opts)).not.toBeNull()
     expect(getCalls()).toBe(2)
+  })
+
+  // A null return is overloaded — "no credentials" vs "throttled with nothing
+  // left to serve". Consumers rendered the first reading unconditionally and
+  // told users to run `claude login` when their credentials were fine.
+  test("attributes a null return to the rate limit, not a missing token", async () => {
+    const { fetchImpl } = countingFetch(() =>
+      new Response("rate limited", { status: 429, headers: { "Retry-After": "120" } }))
+    const store = makeStore("t")
+
+    expect(explainMissingOAuthUsage("attributed")).toBe("no_token")
+    expect(await fetchOAuthUsage({ force: true, store, profileId: "attributed", fetchImpl })).toBeNull()
+    expect(explainMissingOAuthUsage("attributed")).toBe("rate_limited")
+    // Per-profile: a healthy profile is unaffected by another's cooldown.
+    expect(explainMissingOAuthUsage("untouched")).toBe("no_token")
+  })
+
+  test("stops attributing to the rate limit once the cooldown lapses", async () => {
+    const { fetchImpl } = countingFetch(() =>
+      new Response("rate limited", { status: 429, headers: { "Retry-After": "0" } }))
+    const opts = {
+      force: true,
+      store: makeStore("t"),
+      profileId: "lapsed",
+      fetchImpl,
+      rateLimitBackoffMs: 10,
+      staleMaxMs: 10,
+    }
+
+    expect(await fetchOAuthUsage(opts)).toBeNull()
+    expect(explainMissingOAuthUsage("lapsed")).toBe("rate_limited")
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(explainMissingOAuthUsage("lapsed")).toBe("no_token")
+  })
+
+  test("reports a genuinely missing token as no_token", async () => {
+    const { fetchImpl } = countingFetch(() =>
+      new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+
+    expect(await fetchOAuthUsage({
+      force: true, store: makeStore(null), profileId: "tokenless", fetchImpl,
+    })).toBeNull()
+    expect(explainMissingOAuthUsage("tokenless")).toBe("no_token")
   })
 
   // The cap must not disarm the throttle: a staleMaxMs below the backoff floor
