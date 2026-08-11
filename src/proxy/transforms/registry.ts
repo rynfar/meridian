@@ -25,6 +25,10 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   // tool/passthrough behaviour is identical; only the preset default differs
   // (see sdkFeatures.ADAPTER_DEFAULTS.openai).
   openai: openCodeTransforms,
+  // Jcode rides the same OpenAI-compatible endpoint, so it needs the identical
+  // tool config. Without this entry it falls through to the empty default —
+  // built-ins unblocked under bypassPermissions, passthrough off.
+  jcode: openCodeTransforms,
   // Codex (/v1/responses): OpenCode's tool config + a follow-on transform
   // that forces passthrough (Codex executes its own tools). See #475.
   codex: [...openCodeTransforms, ...codexTransforms],

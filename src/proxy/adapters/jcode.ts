@@ -31,7 +31,9 @@ export function extractJcodeWorkingDirectory(body: unknown): string | undefined 
     : Array.isArray(system)
       ? system.filter(isTextSystemBlock).map(part => part.text).join("\n")
       : ""
-  return text.match(/(?:^|\n)Working directory:\s*([^\n]+)/)?.[1]?.trim() || undefined
+  // [^\S\n] not \s — \s spans newlines, so an empty marker would swallow the
+  // next line ("Git branch: main") and pass it off as the working directory.
+  return text.match(/(?:^|\n)Working directory:[^\S\n]*([^\n]+)/)?.[1]?.trim() || undefined
 }
 
 export const jcodeAdapter: AgentAdapter = {

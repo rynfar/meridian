@@ -109,8 +109,12 @@ describe("OpenAI-compatible adapters reuse the OpenCode pipeline (#546)", () => 
     expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
   })
 
+  it("registers the jcode adapter against the OpenCode pipeline", () => {
+    expect(getAdapterTransforms("jcode")).toBe(openCodeTransforms)
+  })
+
   it("applies the same core transforms to Jcode", () => {
-    const ctx = runTransformHook(openCodeTransforms, "onRequest", makeCtx("jcode"), "jcode")
+    const ctx = runTransformHook(getAdapterTransforms("jcode"), "onRequest", makeCtx("jcode"), "jcode")
     expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
     expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
   })

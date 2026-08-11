@@ -12,7 +12,7 @@
 
 ---
 
-Meridian bridges the Claude Agent SDK (formerly the Claude Code SDK) to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Droid, Open WebUI, Claude Code — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
+Meridian bridges the Claude Agent SDK (formerly the Claude Code SDK) to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Droid, Jcode, Open WebUI, Claude Code — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
 
 > [!NOTE]
 > ### How Meridian works with Anthropic
@@ -106,6 +106,7 @@ The Claude Agent SDK provides programmatic access to Claude. But your favorite c
 | [Pi](https://github.com/mariozechner/pi-coding-agent) | ✅ Verified | models.json config (see [Agent Setup](docs/agents.md)) — full tool support via passthrough; detected via `x-meridian-agent: pi` header |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
 | [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see [Agent Setup](docs/agents.md)) — chat client with Claude's built-in web search via internal mode |
+| Jcode | ✅ Verified | `/v1/chat/completions` + `x-jcode-session` header — dedicated `jcode` adapter keeps append-only history intact, so retained sessions resume on one SDK session (90.9% cache hit on turn 2 of a two-turn Opus session) |
 | [Codex CLI](https://github.com/openai/codex) | ✅ Verified | `/v1/responses` (see [Agent Setup](docs/agents.md)) — Responses-API provider, passthrough tool execution; verified on 0.144 (plain + tool-driving turns) |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
 
