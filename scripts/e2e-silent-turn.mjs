@@ -124,6 +124,20 @@ function inspect(events) {
   let messageStops = 0
   let sawErrorBeforeStop = false
 
+  let terminalDeltaAt = -1
+  let lastContentAt = -1
+  let terminalDeltas = 0
+
+  events.forEach(({ event, data }, i) => {
+    if (event === "message_delta") {
+      terminalDeltas += 1
+      if (terminalDeltaAt === -1) terminalDeltaAt = i
+    }
+    if (event === "content_block_start" || event === "content_block_delta" || event === "content_block_stop") {
+      lastContentAt = i
+    }
+  })
+
   for (const { event, data } of events) {
     if (event === "content_block_delta" && data?.delta?.type === "text_delta") textDeltas += 1
     if (event === "content_block_start" && data?.content_block?.type === "tool_use") {
@@ -143,11 +157,15 @@ function inspect(events) {
     errorEvent,
     messageStops,
     sawErrorBeforeStop,
+    terminalDeltaAt,
+    lastContentAt,
+    terminalDeltas,
     actionable: textDeltas > 0 || toolUses.length > 0,
   }
 }
 
 const results = []
+const envelopeProblemsEarly = []
 let failures = 0
 
 for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
@@ -201,22 +219,50 @@ for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
   const recovered = [...silentLines, ...announceLines]
     .filter((l) => l.includes("recovery=succeeded")).length
 
+  // Turn 3 — only meaningful after a recovery, and that is exactly when it
+  // matters: the recovery forks, so if the fork is not persisted the client's
+  // session still points at the turn that went silent. The symptom is invisible
+  // on turn 2 and shows up here as a turn that answers from nowhere.
+  let t3 = null
+  if (recovered > 0) {
+    const third = await send(
+      [
+        { role: "user", content: "Read /etc/hostname and then tell me what it contains." },
+        { role: "assistant", content: assistantBlocks },
+        {
+          role: "user",
+          content: t1.toolUses.map((tu) => ({
+            type: "tool_result", tool_use_id: tu.id, content: "e2e-test-host\n",
+          })),
+        },
+        { role: "assistant", content: [{ type: "text", text: "It contains e2e-test-host." }] },
+        { role: "user", content: "What was the hostname you just read? Answer with the name only." },
+      ],
+      session,
+    )
+    t3 = inspect(third.events)
+    if (!t3.actionable) {
+      envelopeProblemsEarly.push(`attempt ${attempt} turn3: no content after a recovered turn`)
+    }
+  }
+
   const verdict = t2.actionable ? "pass" : "FAIL"
   if (!t2.actionable) failures += 1
-  results.push({ attempt, verdict, t1, t2, silences, announces, recovered })
+  results.push({ attempt, verdict, t1, t2, t3, silences, announces, recovered })
 
   console.log(
     `  ${attempt}: ${verdict} — turn2 text=${t2.textDeltas} tools=${t2.toolUses.length} ` +
-    `stop=${t2.stopReason} silent=${silences} announce=${announces} recovered=${recovered}`,
+    `stop=${t2.stopReason} silent=${silences} announce=${announces} recovered=${recovered}` +
+    (t3 ? ` turn3_text=${t3.textDeltas}` : ""),
   )
 }
 
 // Envelope hygiene across every turn: exactly one message_stop, and any error
 // ahead of it. An error behind message_stop is unreachable — that is how a
 // failed turn came to look successful.
-const envelopeProblems = []
+const envelopeProblems = [...envelopeProblemsEarly]
 for (const r of results) {
-  for (const [label, t] of [["turn1", r.t1], ["turn2", r.t2]]) {
+  for (const [label, t] of [["turn1", r.t1], ["turn2", r.t2], ["turn3", r.t3]]) {
     if (!t) continue
     if (t.messageStops !== 1) {
       envelopeProblems.push(`attempt ${r.attempt} ${label}: ${t.messageStops} message_stop events`)
@@ -227,6 +273,19 @@ for (const r of results) {
     // A turn with no text must not claim it finished speaking.
     if (t.errorEvent && t.textDeltas === 0 && t.stopReason === "end_turn") {
       envelopeProblems.push(`attempt ${r.attempt} ${label}: failed turn claims stop_reason=end_turn`)
+    }
+    // message_delta is where stock clients finalize the message. Content behind
+    // it is discarded by a correct client, which is how a recovery could repair
+    // a turn on the proxy and still deliver nothing. Counting text anywhere in
+    // the stream — as this harness used to — reports that as a pass.
+    if (t.terminalDeltaAt !== -1 && t.lastContentAt > t.terminalDeltaAt) {
+      envelopeProblems.push(
+        `attempt ${r.attempt} ${label}: content at index ${t.lastContentAt} follows the terminal ` +
+        `message_delta at ${t.terminalDeltaAt} — a client finalizing there drops it`
+      )
+    }
+    if (t.terminalDeltas > 1) {
+      envelopeProblems.push(`attempt ${r.attempt} ${label}: ${t.terminalDeltas} message_delta frames (one message, two endings)`)
     }
   }
 }

@@ -3414,6 +3414,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   textEvents: textEventsForwarded,
                   forkedSession: recoverySessionId ?? null,
                 })
+                // A repaired turn ends the request looking productive, so the
+                // end-of-turn classification below says nothing about it — the
+                // one event meaning "the loop nearly lost a turn" would leave
+                // no trace at session level. Report the PRE-recovery verdict,
+                // which is the truth about what upstream actually produced.
+                if (silentTurnRecovered && preRecoveryOutcome.kind === "silent") {
+                  diagnosticLog.session(
+                    `${requestMeta.requestId} silent_turn reason=${preRecoveryOutcome.reason} ` +
+                    `blocks=${eventsForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
+                    `recovery=succeeded`,
+                    requestMeta.requestId,
+                  )
+                }
               }
 
               if (!streamClosed) {
