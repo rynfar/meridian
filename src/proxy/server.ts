@@ -3307,7 +3307,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 let recoverySessionId: string | undefined
                 let recoveryBoundaryUuid: string | undefined
                 try {
-                  for await (const event of query(buildQueryOptions({
+                  // Bounded by the same idle limit as the main stream. Iterating
+                  // the recovery query directly left a stalled recovery holding
+                  // an open SSE response and its concurrency slot with nothing
+                  // to time it out — the client waits forever on a request that
+                  // had already produced a deliverable turn.
+                  for await (const event of guardUpstreamIdle(query(buildQueryOptions({
                     prompt: SILENT_TURN_NUDGE,
                     model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     // The nudge asks for prose, but a tool call is an equally
@@ -3339,7 +3344,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
                     advisorModel,
-                  }, requestAbort.controller))) {
+                  }, requestAbort.controller)), UPSTREAM_IDLE_MS, (sinceLastMs) =>
+                    claudeLog("upstream.stalled", { mode: "silent_recovery", model, sinceLastMs }),
+                  )) {
                     const recoveryMessage = event as any
                     if (recoveryMessage.session_id) recoverySessionId = recoveryMessage.session_id
                     recoveryBoundaryUuid = resumeBoundaryUuid(recoveryMessage) ?? recoveryBoundaryUuid
