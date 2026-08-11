@@ -586,6 +586,78 @@ describe("verifyLineage append-only tool-result extension", () => {
     })
   })
 
+  // #767: OpenCode + Opus reported `prefix overlap N/N+1` on nearly every turn,
+  // each one forcing a fresh replay (cache 97% -> 32%, ~3.9x cost). The reported
+  // shape is exactly this path: the trailing stored message is the user turn
+  // carrying tool_results, a parallel call lands late and extends it, and the
+  // conversation grows by an assistant+user pair on top. Opus issues parallel
+  // tool calls far more readily than Haiku, which is the model correlation the
+  // report measured (85% clean on Haiku vs 30-40% on Opus).
+  it("continues on the #767 signature: trailing message extended, history grown", () => {
+    // 51 stored messages, the last one a user turn with one result of two.
+    const head: Array<{ role: string; content: any }> = []
+    for (let i = 0; i < 49; i++) {
+      head.push({ role: i % 2 === 0 ? "user" : "assistant", content: [{ type: "text", text: `turn ${i}` }] })
+    }
+    const assistantWithParallelCalls = { role: "assistant", content: [
+      { type: "tool_use", id: "call-a", name: "bash", input: { command: "a" } },
+      { type: "tool_use", id: "call-b", name: "bash", input: { command: "b" } },
+    ] }
+    const stored = [
+      ...head,
+      assistantWithParallelCalls,
+      { role: "user", content: [toolResult("call-a", "a-result")] },
+    ]
+    expect(stored.length).toBe(51)
+
+    const incoming = [
+      ...head,
+      assistantWithParallelCalls,
+      // The late sibling result extends the SAME message rather than adding one.
+      { role: "user", content: [toolResult("call-a", "a-result"), toolResult("call-b", "b-result")] },
+      { role: "assistant", content: [{ type: "text", text: "and the answer" }] },
+      { role: "user", content: [{ type: "text", text: "next question" }] },
+    ]
+    expect(incoming.length).toBe(53)
+
+    const result = verifyLineage(sessionFor(stored), incoming)
+    expect(result.type).toBe("continuation")
+    if (result.type === "continuation") {
+      expect(result.resumeFrom).toBe(50)
+      expect(result.resumeContentFrom).toBe(1)
+    }
+  })
+
+  // The caveat that decides whether a fix is visible in the field: block hashes
+  // are only recorded from 1.61.0 on, so a session cached by an older build
+  // keeps replaying until it is started fresh.
+  it("a session stored without block hashes still diverges (pre-1.61.0 cache entry)", () => {
+    const stored = [
+      { role: "user", content: [{ type: "text", text: "run both" }] },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "call-a", name: "bash", input: { command: "a" } },
+        { type: "tool_use", id: "call-b", name: "bash", input: { command: "b" } },
+      ] },
+      { role: "user", content: [toolResult("call-a", "a-result")] },
+    ]
+    const legacySession = makeSession({
+      lastAccess: 0,
+      lineageHash: computeLineageHash(stored),
+      messageCount: stored.length,
+      messageHashes: computeMessageHashes(stored),
+      // messageBlockHashes deliberately absent — what a pre-1.61.0 entry holds.
+    })
+    const incoming = [
+      stored[0]!,
+      stored[1]!,
+      { role: "user", content: [toolResult("call-a", "a-result"), toolResult("call-b", "b-result")] },
+      { role: "assistant", content: [{ type: "text", text: "answer" }] },
+      { role: "user", content: [{ type: "text", text: "next" }] },
+    ]
+
+    expect(verifyLineage(legacySession, incoming).type).toBe("diverged")
+  })
+
   it("still diverges when an existing tool result changed", () => {
     const stored = [
       { role: "user", content: [{ type: "text", text: "run both" }] },
