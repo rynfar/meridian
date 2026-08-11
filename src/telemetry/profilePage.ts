@@ -148,6 +148,41 @@ export const profilePageHtml = `<!DOCTYPE html>
   }
   .guide .warn strong { color: var(--yellow); }
 
+  /* Browser login — the paste box that replaces a terminal round trip. */
+  .login-btn {
+    padding: 6px 12px; font-size: 12px; font-weight: 500;
+    background: var(--surface2); color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 6px; cursor: pointer; transition: all 0.15s;
+  }
+  .login-btn:hover { background: rgba(88,166,255,0.12); }
+  .login-btn:disabled { opacity: 0.4; cursor: default; }
+  /* The sign-in control is an <a>, so it needs a button's box back. */
+  a.login-btn { display: inline-block; text-decoration: none; line-height: normal; }
+  a.login-btn[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+  .login-panel {
+    margin-top: 12px; padding: 14px 16px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 8px;
+  }
+  .login-panel-title { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+  .login-note {
+    font-size: 12px; color: var(--muted); margin-bottom: 8px; padding: 8px 10px;
+    background: rgba(210,153,34,0.1); border: 1px solid rgba(210,153,34,0.3); border-radius: 6px;
+  }
+  .login-steps { font-size: 12px; color: var(--muted); padding-left: 18px; margin-bottom: 10px; }
+  .login-steps li { margin-bottom: 4px; }
+  .login-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .login-input {
+    flex: 1 1 260px; min-width: 0; padding: 7px 10px; border-radius: 6px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
+  }
+  .login-input:focus { outline: none; border-color: var(--accent); }
+  .login-msg { margin-top: 10px; font-size: 12px; }
+  .login-msg.err { color: var(--red); }
+  .login-msg.busy { color: var(--muted); }
+  .login-reopen { color: var(--accent); font-size: 11px; text-decoration: none; }
+  .login-reopen:hover { text-decoration: underline; }
+
   .mono { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px; }
   .copy-cmd {
     font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px;
@@ -270,6 +305,20 @@ ${reorderLiveRegionHtml}
       <li><strong>CLI:</strong> <code>meridian profile switch &lt;name&gt;</code></li>
       <li><strong>Per-request:</strong> Send <code>x-meridian-profile: &lt;name&gt;</code> header</li>
     </ol>
+
+    <h3 style="margin-top:16px">Re-authenticating a profile</h3>
+    <ol>
+      <li><strong>UI:</strong> Click <strong>Log in from browser</strong> on the profile card and sign in.
+          Claude sends you back here and the login finishes itself. It is an ordinary link, so
+          right-click it to open the sign-in in a private window or copy it into another browser
+          \u2014 useful when this browser is already signed into a different Claude account.</li>
+      <li><strong>CLI:</strong> <code>meridian profile login &lt;name&gt;</code></li>
+    </ol>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      Claude will only redirect back to <code>localhost</code> or <code>127.0.0.1</code> \u2014 those are the
+      addresses registered for this client. Browsing Meridian on any other hostname, the panel
+      asks for the code instead; the bare code or the whole callback URL both work.
+    </p>
 
     <h3 style="margin-top:16px">Other commands</h3>
     <div style="font-size:13px;margin-top:8px">
@@ -680,7 +729,24 @@ function render(data, quotaData) {
     html += '<button class="copy-btn" data-cmd="meridian profile login ' + esc(p.id) + '" onclick="copyCmd(this)" title="Copy to clipboard">';
     html += '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25z"/></svg>';
     html += '</button>';
+    // Only claude-max profiles have an OAuth flow; api and oauth-token profiles
+    // would only ever get a refusal, so they get no button.
+    if ((p.type || 'claude-max') === 'claude-max') {
+      // A real anchor with a real href, not a button. That is the only way the
+      // browser offers "Open Link in Incognito Window" and "Copy Link Address"
+      // — and someone signed into several Claude accounts needs those, because
+      // the ambient session in their main browser is usually the wrong account
+      // for the profile being re-authenticated. A button, or an anchor that
+      // navigates from a click handler, gets no such menu.
+      html += '<a class="login-btn login-link" data-profile="' + esc(p.id) + '"'
+        + ' href="' + esc(loginHrefFor(p.id) || '#') + '"'
+        + (loginHrefFor(p.id) ? '' : ' aria-disabled="true"')
+        + ' target="_blank" rel="noopener noreferrer"'
+        + ' onclick="return onLoginLinkClick(event, &quot;' + esc(p.id) + '&quot;)">Log in from browser</a>';
+    }
     html += '</div>';
+
+    html += '<div class="login-slot" id="login-slot-' + esc(p.id) + '"></div>';
 
     html += renderUsageSection(quotaById[p.id]);
 
@@ -696,6 +762,11 @@ function render(data, quotaData) {
   document.getElementById('content').innerHTML = html;
   meridianReorder.restoreFocus(refocusId);
   afterRender();
+  // render() replaces #content wholesale, so the anchors are new elements with
+  // whatever href the markup carried. Restore them from the cache, then top up
+  // anything missing or near expiry in the background.
+  applyLoginHrefs();
+  ensureLoginLinks(profiles);
 }
 
 // The search and the #anchor both act on the cards render() just drew, so
@@ -834,9 +905,346 @@ async function switchProfile(id) {
   else if (data.error) alert(data.error);
 }
 
+// --- Browser login ---
+//
+// The open login is held here rather than in the DOM because render() rebuilds
+// #content wholesale on every poll — a panel written into a card would be
+// destroyed mid-typing. While a login is open the card poll is paused, so the
+// panel and whatever is half-pasted into it survive.
+var activeLogin = null;
+var loginPollTimer = null;
+
+function loginSlot(id) { return document.getElementById('login-slot-' + id); }
+
+function setLoginMsg(text, kind) {
+  var slot = activeLogin ? loginSlot(activeLogin.profile) : null;
+  if (!slot) return;
+  var msg = slot.querySelector('.login-msg');
+  if (!msg) return;
+  msg.className = 'login-msg' + (kind ? ' ' + kind : '');
+  msg.textContent = text || '';
+}
+
+// Sign-in links, minted server-side and held per profile so the anchor has a
+// real href before anyone clicks it. Nothing secret lives here: the authorize
+// URL is public by design, and the PKCE verifier never leaves the server.
+var loginLinks = {};
+// Whether this browser can reach Meridian on loopback. A fact about the
+// BROWSER, not about any one profile, so it is answered once for the page.
+var loopbackOk = null;
+// Set when the refusal is about the instance rather than a profile.
+var loginBlocked = null;
+
+function loginHrefFor(id) {
+  var link = loginLinks[id];
+  if (!link) return '';
+  return (loopbackOk && link.loopback) ? link.loopback : link.hosted;
+}
+
+function applyLoginHrefs() {
+  var els = document.querySelectorAll('.login-link');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    var href = loginHrefFor(el.getAttribute('data-profile'));
+    if (href) {
+      el.setAttribute('href', href);
+      el.removeAttribute('aria-disabled');
+    } else {
+      el.setAttribute('href', '#');
+      el.setAttribute('aria-disabled', 'true');
+    }
+    if (loginBlocked) el.setAttribute('title', loginBlocked);
+  }
+}
+
+async function mintLoginLink(id) {
+  var res, data;
+  try {
+    res = await fetch('/profiles/login/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: id })
+    });
+    data = await res.json();
+  } catch (err) {
+    return 'error';
+  }
+  if (!res.ok) {
+    if (data.code === 'credentials_readonly' || data.code === 'no_profiles') {
+      loginBlocked = data.error || 'Login unavailable on this instance.';
+      return 'blocked';
+    }
+    return 'error';
+  }
+  if (data.mode === 'redirect') loopbackOk = true;
+  loginLinks[id] = {
+    loginId: data.loginId,
+    hosted: data.pasteAuthorizeUrl,
+    loopback: data.loopbackAuthorizeUrl || null,
+    probeUrl: data.loopbackProbeUrl || null,
+    expiresAt: data.expiresAt
+  };
+  return 'ok';
+}
+
+// Keep every claude-max card's href live. Re-minted before the pending login
+// expires, so a link that has sat on screen for a while still works when it is
+// finally clicked — or when it is opened in another browser minutes later.
+async function ensureLoginLinks(profiles) {
+  if (loginBlocked) return;
+  var due = [];
+  for (var i = 0; i < profiles.length; i++) {
+    var p = profiles[i];
+    if ((p.type || 'claude-max') !== 'claude-max') continue;
+    var link = loginLinks[p.id];
+    if (!link || link.expiresAt - Date.now() < 120000) due.push(p.id);
+  }
+  if (due.length === 0) return;
+
+  // The first alone: a refusal about the INSTANCE (a read-only standby, no
+  // profiles at all) would otherwise repeat once per card, and each one is a
+  // logged refusal on the server.
+  if (await mintLoginLink(due[0]) === 'blocked') { applyLoginHrefs(); return; }
+  await Promise.all(due.slice(1).map(mintLoginLink));
+
+  if (loopbackOk === null) {
+    var probe = null;
+    for (var id in loginLinks) {
+      if (loginLinks[id].probeUrl) { probe = loginLinks[id].probeUrl; break; }
+    }
+    loopbackOk = probe ? await loopbackReachable(probe) : false;
+  }
+  applyLoginHrefs();
+}
+
+function showLoginMessage(id, text, kind) {
+  var slot = loginSlot(id);
+  if (!slot) return;
+  slot.innerHTML = '<div class="login-panel"><div class="login-msg ' + esc(kind) + '"></div></div>';
+  var msg = slot.querySelector('.login-msg');
+  if (msg) msg.textContent = text;
+}
+
+function onLoginLinkClick(ev, id) {
+  if (loginBlocked) {
+    ev.preventDefault();
+    showLoginMessage(id, loginBlocked, 'err');
+    return false;
+  }
+  var link = loginLinks[id];
+  if (!link) {
+    ev.preventDefault();
+    showLoginMessage(id, 'Preparing the sign-in link\\u2026', 'busy');
+    return false;
+  }
+  openLoginPanel(id, link);
+  // Returning true lets the BROWSER follow the href. Nothing here opens a
+  // window, so ctrl-click, middle-click and "open in incognito" all behave as
+  // the user asked instead of being second-guessed by script.
+  return true;
+}
+
+function openLoginPanel(id, link) {
+  if (activeLogin && activeLogin.profile !== id) cancelLogin();
+  var slot = loginSlot(id);
+  if (!slot) return;
+  activeLogin = { profile: id, loginId: link.loginId, pasteUrl: link.hosted };
+  if (loopbackOk && link.loopback) {
+    slot.innerHTML = renderWaitingPanel(id, link.loopback, link.hosted);
+  } else {
+    slot.innerHTML = renderPastePanel(id, link.hosted,
+      'This browser cannot be redirected back to Meridian, so paste the code instead.');
+    bindPasteInput(slot);
+  }
+  // Poll either way: the login can also be finished in another browser, and
+  // then this panel should get out of the way.
+  scheduleLoginPoll();
+}
+
+// Can this browser reach the instance that served this page on loopback?
+//
+// The probe is that login's own status route, so a 200 proves both that
+// loopback is reachable AND that what answered holds this login — something
+// else listening on the port answers 410. Any failure keeps the paste flow,
+// so a wrong guess costs nothing.
+async function loopbackReachable(probeUrl) {
+  var ctrl = new AbortController();
+  var timer = setTimeout(function () { ctrl.abort(); }, 2000);
+  try {
+    var res = await fetch(probeUrl, { signal: ctrl.signal, cache: 'no-store' });
+    if (!res.ok) return false;
+    var body = await res.json();
+    return body.status === 'waiting';
+  } catch (err) {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function renderWaitingPanel(id, authorizeUrl, pasteUrl) {
+  return '<div class="login-panel">'
+    + '<div class="login-panel-title">Sign in as ' + esc(id) + '</div>'
+    + '<ol class="login-steps">'
+    +   '<li>A Claude sign-in tab just opened — '
+    +     '<a class="login-reopen" href="' + esc(authorizeUrl) + '" target="_blank" rel="noopener noreferrer">open it again</a>'
+    +     ' if it was blocked. Right-click either link to sign in from a private window or another browser.</li>'
+    +   '<li>Make sure you are signed into the right Claude account for this profile.</li>'
+    +   '<li>That is all — Claude sends you back here and this page finishes the login itself.</li>'
+    + '</ol>'
+    + '<div class="login-row">'
+    +   '<button class="switch-btn current login-cancel" style="margin-top:0" onclick="cancelLogin()">Cancel</button>'
+    // Also a real link, and pointed at the hosted code page on purpose: it is
+    // the one that still works from a browser on ANOTHER machine, where a
+    // loopback redirect has nowhere to come back to.
+    +   '<a class="login-reopen" href="' + esc(pasteUrl || authorizeUrl) + '" target="_blank" rel="noopener noreferrer" onclick="switchToPaste();return true;">Paste a code instead</a>'
+    + '</div>'
+    + '<div class="login-msg busy">Waiting for you to finish signing in\\u2026</div>'
+    + '</div>';
+}
+
+function renderPastePanel(id, authorizeUrl, note) {
+  return '<div class="login-panel">'
+    + '<div class="login-panel-title">Sign in as ' + esc(id) + '</div>'
+    + (note ? '<div class="login-note">' + esc(note) + '</div>' : '')
+    + '<ol class="login-steps">'
+    +   '<li>A Claude sign-in tab just opened — '
+    +     '<a class="login-reopen" href="' + esc(authorizeUrl) + '" target="_blank" rel="noopener">open it again</a>'
+    +     ' if it was blocked.</li>'
+    +   '<li>Make sure you are signed into the right Claude account for this profile.</li>'
+    +   '<li>Paste the code Claude shows you below — or the whole callback URL from the address bar.</li>'
+    + '</ol>'
+    + '<div class="login-row">'
+    +   '<input class="login-input" type="text" autocomplete="off" spellcheck="false" placeholder="code, or https://platform.claude.com/oauth/code/callback?code=…">'
+    +   '<button class="login-btn login-submit" onclick="submitLogin()">Complete login</button>'
+    +   '<button class="switch-btn current login-cancel" style="margin-top:0" onclick="cancelLogin()">Cancel</button>'
+    + '</div>'
+    + '<div class="login-msg"></div>'
+    + '</div>';
+}
+
+function bindPasteInput(slot) {
+  var input = slot.querySelector('.login-input');
+  if (!input) return;
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitLogin(); });
+  input.focus();
+}
+
+// Falls back WITHOUT restarting the login: both authorize URLs were minted from
+// the same challenge, so the one that shows a code completes the login already
+// in progress.
+function switchToPaste() {
+  if (!activeLogin) return;
+  var slot = loginSlot(activeLogin.profile);
+  if (!slot || !activeLogin.pasteUrl) return;
+  slot.innerHTML = renderPastePanel(activeLogin.profile, activeLogin.pasteUrl,
+    'Opened a second sign-in that ends on a page showing the code.');
+  bindPasteInput(slot);
+}
+
+function scheduleLoginPoll() {
+  stopLoginPoll();
+  loginPollTimer = setTimeout(checkLoginStatus, 1500);
+}
+
+function stopLoginPoll() {
+  if (loginPollTimer) clearTimeout(loginPollTimer);
+  loginPollTimer = null;
+}
+
+async function checkLoginStatus() {
+  if (!activeLogin || activeLogin.spent) return;
+  var loginId = activeLogin.loginId;
+
+  var res, data;
+  try {
+    res = await fetch('/profiles/login/status?loginId=' + encodeURIComponent(loginId));
+    data = await res.json();
+  } catch (err) {
+    scheduleLoginPoll();
+    return;
+  }
+
+  // The login may have been cancelled or replaced while this was in flight.
+  if (!activeLogin || activeLogin.loginId !== loginId) return;
+
+  if (res.ok && data.status === 'waiting') { scheduleLoginPoll(); return; }
+  if (res.ok && data.status === 'completed') { finishLogin(); return; }
+
+  setLoginMsg(data.error || 'Login failed.', 'err');
+  activeLogin.spent = true;
+  stopLoginPoll();
+}
+
+function finishLogin() {
+  stopLoginPoll();
+  activeLogin = null;
+  if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
+  refresh();
+}
+
+async function submitLogin() {
+  if (!activeLogin || activeLogin.spent) return;
+  var slot = loginSlot(activeLogin.profile);
+  var input = slot ? slot.querySelector('.login-input') : null;
+  var value = input ? input.value.trim() : '';
+  if (!value) { setLoginMsg('Paste the code first.', 'err'); return; }
+
+  var buttons = slot ? slot.querySelectorAll('button') : [];
+  for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
+  setLoginMsg('Exchanging…', 'busy');
+
+  var res, data;
+  try {
+    res = await fetch('/profiles/login/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loginId: activeLogin.loginId, code: value })
+    });
+    data = await res.json();
+  } catch (err) {
+    setLoginMsg('Could not reach Meridian.', 'err');
+    for (var j = 0; j < buttons.length; j++) buttons[j].disabled = false;
+    return;
+  }
+
+  if (!res.ok) {
+    setLoginMsg(data.error || 'Login failed.', 'err');
+    var cancelBtn = slot ? slot.querySelector('.login-cancel') : null;
+    if (cancelBtn) cancelBtn.disabled = false;
+    // The server says whether the login survived: it does when the paste was
+    // rejected before any code reached Anthropic. Otherwise the code is spent
+    // and this panel cannot retry it.
+    if (data.retryable) {
+      var submitBtn = slot ? slot.querySelector('.login-submit') : null;
+      if (submitBtn) submitBtn.disabled = false;
+      if (input) input.focus();
+    } else {
+      // Keep the panel — and with it the paused poll — so the reason stays
+      // readable. render() rebuilds #content wholesale, so resuming here would
+      // erase the very message telling the user their code was spent. Cancel
+      // is the way out.
+      activeLogin.spent = true;
+    }
+    return;
+  }
+
+  finishLogin();
+}
+
+function cancelLogin() {
+  var previous = activeLogin;
+  stopLoginPoll();
+  activeLogin = null;
+  if (previous) {
+    var slot = loginSlot(previous.profile);
+    if (slot) slot.innerHTML = '';
+  }
+}
+
 meridianReorder.init({ onSaved: refresh });
 refresh();
-setInterval(function () { if (!meridianReorder.dragging()) refresh(); }, 10000);
+setInterval(function () { if (!activeLogin && !meridianReorder.dragging()) refresh(); }, 10000);
 ` + profileBarJs + `
 </script>
 </body>

@@ -244,6 +244,17 @@ export function enableDiskProfileDiscovery(): void {
   diskDiscoveryEnabled = true
 }
 
+/** Disable disk auto-discovery — for testing only.
+ *
+ *  The flag is process-global and one-way, so a test file that imports
+ *  `bin/cli.ts` turns it on for every file that runs after it in the same
+ *  `bun test` process. Any test asserting behaviour for an EMPTY profile list
+ *  then reads the host's real `~/.config/meridian/profiles.json` instead, and
+ *  passes or fails depending on file order. This is the way back. */
+export function resetDiskProfileDiscovery(): void {
+  diskDiscoveryEnabled = false
+}
+
 export function getEffectiveProfiles(configProfiles: ProfileConfig[] | undefined): ProfileConfig[] {
   const fromConfig = configProfiles ?? []
   const configIds = new Set(fromConfig.map(p => p.id))

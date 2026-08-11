@@ -35,6 +35,53 @@ The same login also records the account's plan (`subscriptionType`, `rateLimitTi
 
 > **⚠ A profile created by an older Meridian has no plan recorded, and a token refresh cannot backfill it** — the value is only ever written at login, and Anthropic's usage endpoint does not carry it. Re-run `meridian profile login <name> --headless` to repair such a profile.
 
+#### From the web UI: re-authenticate a profile without a terminal
+
+A profile whose credentials expired can be logged in again from the Profiles page, with no shell on the Meridian host. Click **Log in from browser** on the profile's card, sign in to that profile's Claude account, and you are done — Claude sends you back to Meridian, which finishes the login and updates the card. There is nothing to copy and paste.
+
+**It is an ordinary link, and that is deliberate.** If you are signed into several Claude accounts, the session your main browser offers is often the wrong one for the profile you are re-authenticating. Because the control is a real `<a href>` carrying the authorize URL, the browser's own context menu applies: **Open Link in Incognito Window**, **Open Link in New Private Window**, or **Copy Link Address** to paste into a different browser or browser profile. The login still lands on the profile it was started for — the PKCE verifier and `state` live on the server, keyed by `state`, so the browser that finishes the sign-in does not have to be the one that started it, and the page you started from notices and updates itself. Nothing secret is in the link: the authorize URL is public by design, and the verifier never leaves the server.
+
+That works whenever the **browser** is on the machine Meridian runs on — including through an SSH port-forward, and including when you reached the UI by some other name such as a LAN or tailnet hostname. What matters is the browser's position, not the URL in its address bar, so the page settles it by measurement: before opening the sign-in tab it asks the browser to reach Meridian on loopback, and takes the redirect flow only if that answers.
+
+A browser on a *different* machine cannot reach it, the check fails in under two seconds, and the panel asks for the code instead. Either form is accepted: the **bare code** Claude shows you, or the **whole callback URL** from the address bar (`https://platform.claude.com/oauth/code/callback?code=…&state=…`), which is usually easier to copy. The redirect flow also offers **Paste a code instead** as a manual fallback, which does not restart anything — both sign-in URLs belong to the same login.
+
+**Why the browser sometimes has to be on the same host.** Anthropic publishes the Claude Code client's registration at [`https://claude.ai/oauth/claude-code-client-metadata`](https://claude.ai/oauth/claude-code-client-metadata), and it declares exactly three ways back:
+
+```json
+"redirect_uris": ["http://localhost/callback", "http://127.0.0.1/callback"]
+```
+
+plus the hosted code-display page, `https://platform.claude.com/oauth/code/callback`. The loopback pair is the [RFC 8252 §7.3](https://datatracker.ietf.org/doc/html/rfc8252#section-7.3) convention, where the port is not part of the match — which is why Meridian can use whichever port you reached it on. A redirect URI belonging to *your* hostname cannot be added to Anthropic's registration, so it would be rejected at the authorize step; the paste flow is what remains for that case.
+
+For scripting, the same login is three routes:
+
+```bash
+# mode is "redirect" when the Host you call with is a loopback address, else "paste".
+# In "paste" mode the reply also carries loopbackAuthorizeUrl + loopbackProbeUrl:
+# fetch the probe, and if it answers {"status":"waiting"} you can use the
+# loopback URL after all — that is exactly what the web UI does.
+# → {"loginId":"…","mode":"redirect","authorizeUrl":"…","pasteAuthorizeUrl":"…","expiresAt":…,"profile":"work"}
+curl -X POST http://127.0.0.1:3456/profiles/login/start \
+  -H 'Content-Type: application/json' -d '{"profile":"work"}'
+
+# → {"status":"waiting"|"completed"|"failed", "profileId":"work", …}
+curl 'http://127.0.0.1:3456/profiles/login/status?loginId=…'
+
+# only needed for the paste path; `code` accepts the bare code or the full callback URL
+curl -X POST http://127.0.0.1:3456/profiles/login/complete \
+  -H 'Content-Type: application/json' -d '{"loginId":"…","code":"…"}'
+```
+
+Details worth knowing:
+
+- The PKCE verifier never leaves the server. The browser only ever holds an opaque login id.
+- The loopback check the page runs is that login's own `/profiles/login/status` URL, so a reply proves both that the browser can reach loopback *and* that what answered is the instance holding this login. Anything else listening on the port answers 410 and the paste flow stands.
+- A login is **single-use** and expires **10 minutes** after it starts. `state` must match the login it was started with, exactly as the CLI requires; on the redirect path that `state` is what identifies the login at all.
+- `GET /callback` is deliberately **not** behind `MERIDIAN_API_KEY` — Anthropic's redirect carries no key. It acts only on an unguessable, single-use `state` minted by `/profiles/login/start`, which *is* gated, and answers 410 to anything else.
+- Only **claude-max** profiles have this flow. `api` and `oauth-token` profiles are refused with the reason — replace an OAuth token with `meridian profile remove <name> && meridian profile add <name> --oauth-token`.
+- An unknown profile name is refused, not created. `meridian profile add` remains the only way a profile comes into existence.
+- An instance told not to write credential files (`MERIDIAN_CREDENTIALS_READONLY=1` — set on a second instance that shares another's credentials) refuses **before** opening the sign-in tab, and names where the login can be completed instead. Refusing after sign-in would have burned a one-time code for nothing.
+
 #### Headless / CI: register an OAuth token
 
 When a browser isn't available (containers, CI runners, remote shells), generate a long-lived OAuth token with `claude setup-token` and register it as a profile:
