@@ -70,7 +70,10 @@ export type LineageResult =
   | { type: "continuation"; session: SessionState; resumeFrom: number; resumeContentFrom?: number }
   | { type: "compaction";   session: SessionState; resumeFrom: number; suffixOverlap: number }
   | { type: "undo";         session: SessionState; prefixOverlap: number; rollbackUuid: string | undefined }
-  | { type: "diverged";     reason: LineageDivergenceReason; prefixOverlap?: number }
+  | { type: "diverged";     reason: LineageDivergenceReason; prefixOverlap?: number;
+      /** Which message stopped matching. Present for modified-history, the
+       *  only divergence where the answer is both knowable and useful. */
+      mismatch?: LineageMismatch }
 
 export type LineageDivergenceReason =
   | "unverifiable"
@@ -103,6 +106,86 @@ export function hashMessage(message: { role: string; content: any }): string {
     .update(`${message.role}:${normalizeContent(message.content)}`)
     .digest("hex")
     .slice(0, 32)
+}
+
+/** A message's shape, for diagnostics that must never carry its content. */
+export interface MessageShape {
+  role: string
+  /** "string" for plain content, otherwise the block types in order. */
+  blocks: string
+  /** Bytes of normalized content — size moves when content does. */
+  bytes: number
+}
+
+/** Why two histories stopped matching, in terms safe to log.
+ *
+ * Answers the question `prefix overlap 50/51` raises and never answers: WHICH
+ * message stopped matching, and what changed about its shape. Content never
+ * appears here — only role, block types, byte counts, and digests.
+ */
+export interface LineageMismatch {
+  /** First index whose digest differs, or -1 when the prefix matches entirely. */
+  index: number
+  storedDigest?: string
+  incomingDigest?: string
+  /** Only the incoming side has a shape: the stored side is kept as digests,
+   *  so its structure is not recoverable — by design, nothing to recover. */
+  incomingShape?: MessageShape
+  /** Digest of the preceding index, which by definition matched. */
+  previousDigest?: string
+  storedCount: number
+  incomingCount: number
+}
+
+function describeShape(message: { role: string; content: any }): MessageShape {
+  const normalized = normalizeContent(message.content)
+  return {
+    role: message.role,
+    blocks: Array.isArray(message.content)
+      ? message.content.map((b: any) => String(b?.type ?? "unknown")).join(",")
+      : typeof message.content === "string" ? "string" : "unknown",
+    bytes: Buffer.byteLength(normalized, "utf8"),
+  }
+}
+
+/**
+ * Locate the first message whose hash differs between a stored session and an
+ * incoming request.
+ *
+ * Pure and allocation-light: callers reach for it only on a divergence, which
+ * is rare and already about to cost a full replay.
+ */
+export function describeLineageMismatch(
+  cached: SessionState,
+  messages: Array<{ role: string; content: any }>,
+  /** Reuse the caller's hashes. verifyLineage has already hashed the incoming
+   *  history to measure overlap; hashing it again on a 700-message transcript
+   *  would double the cost of the request that is already paying for a replay. */
+  precomputedIncomingHashes?: string[],
+): LineageMismatch {
+  const storedHashes = cached.messageHashes ?? []
+  const incomingHashes = precomputedIncomingHashes ?? computeMessageHashes(messages)
+  const limit = Math.min(storedHashes.length, incomingHashes.length)
+
+  let index = -1
+  for (let i = 0; i < limit; i++) {
+    if (storedHashes[i] !== incomingHashes[i]) { index = i; break }
+  }
+
+  const base: LineageMismatch = {
+    index,
+    storedCount: cached.messageCount,
+    incomingCount: messages.length,
+  }
+  if (index < 0) return base
+
+  return {
+    ...base,
+    storedDigest: storedHashes[index],
+    incomingDigest: incomingHashes[index],
+    incomingShape: messages[index] ? describeShape(messages[index]!) : undefined,
+    previousDigest: index > 0 ? storedHashes[index - 1] : undefined,
+  }
 }
 
 /**
@@ -399,7 +482,12 @@ export function verifyLineage(
   // holds content the client no longer claims — so the bound is gone and the
   // whole shape diverges.
   if (prefixOverlap > 0 && messages.length > cached.messageCount) {
-    return { type: "diverged", reason: "modified-history", prefixOverlap }
+    return {
+      type: "diverged",
+      reason: "modified-history",
+      prefixOverlap,
+      mismatch: describeLineageMismatch(cached, messages, incomingHashes),
+    }
   }
 
   // No meaningful overlap — completely different conversation.

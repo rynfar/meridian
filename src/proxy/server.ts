@@ -1112,6 +1112,34 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (lineageResult.type === "undo" && adapterBase === "opencode" && !agentSessionId) {
           lineageResult = { type: "diverged", reason: "missing-session-header" }
         }
+        // Publish the decision to plugins. Core has always known WHICH message
+        // stopped matching; the log line only ever reported how many matched
+        // ("prefix overlap 50/51"), which is why #767 had to hand-patch a build
+        // to get any further. The detail is computed only on a divergence — the
+        // one case that is both rare and already about to cost a full replay —
+        // and carries digests and shapes, never content.
+        if (pipeline.some(t => t.onSession)) {
+          // verifyLineage attaches the detail on modified-history, where it has
+          // the stored digests in hand; nothing recomputes it here.
+          const mismatch = lineageResult.type === "diverged" ? lineageResult.mismatch : undefined
+          runTransformHook(pipeline, "onSession", {
+            adapter: adapterBase,
+            lineage: lineageResult.type,
+            reason: lineageResult.type === "diverged" ? lineageResult.reason : undefined,
+            sessionKey: profileSessionId,
+            storedCount: mismatch?.storedCount,
+            incomingCount: (body.messages || []).length,
+            prefixOverlap: lineageResult.type === "diverged" ? lineageResult.prefixOverlap : undefined,
+            mismatch: mismatch && mismatch.index >= 0 ? {
+              index: mismatch.index,
+              storedDigest: mismatch.storedDigest,
+              incomingDigest: mismatch.incomingDigest,
+              previousDigest: mismatch.previousDigest,
+              incomingShape: mismatch.incomingShape,
+            } : undefined,
+          }, adapterBase)
+        }
+
         const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
         const isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined

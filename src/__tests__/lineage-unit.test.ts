@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "bun:test"
 import {
+  describeLineageMismatch,
   computeLineageHash,
   hashMessage,
   computeMessageHashes,
@@ -243,7 +244,7 @@ describe("verifyLineage", () => {
       msg("user", "i"),           // New
     ]
     const result = verifyLineage(session, extended)
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       type: "diverged",
       reason: "modified-history",
       prefixOverlap: 6,
@@ -271,7 +272,7 @@ describe("verifyLineage", () => {
     const result = verifyLineage(session, incoming)
 
     expect(incoming).toHaveLength(727)
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       type: "diverged",
       reason: "modified-history",
       prefixOverlap: 514,
@@ -539,6 +540,62 @@ describe("verifyLineage stale modified continuation (#689)", () => {
   })
 })
 
+// #767 asked for exactly this: "prefix overlap 50/51" says how many messages
+// matched and never which one stopped. The answer was always in hand at the
+// point of the decision — it just was not reported.
+describe("describeLineageMismatch", () => {
+  function sessionFor(messages: Array<{ role: string; content: any }>): SessionState {
+    return makeSession({
+      lastAccess: 0,
+      lineageHash: computeLineageHash(messages),
+      messageCount: messages.length,
+      messageHashes: computeMessageHashes(messages),
+    })
+  }
+
+  it("names the first index that stopped matching, with both digests", () => {
+    const stored = [
+      { role: "user", content: "one" },
+      { role: "assistant", content: "two" },
+      { role: "user", content: "three" },
+    ]
+    const incoming = [
+      { role: "user", content: "one" },
+      { role: "assistant", content: "two" },
+      { role: "user", content: "three-EDITED" },
+    ]
+
+    const detail = describeLineageMismatch(sessionFor(stored), incoming)
+    expect(detail.index).toBe(2)
+    expect(detail.storedDigest).toBeDefined()
+    expect(detail.incomingDigest).toBeDefined()
+    expect(detail.storedDigest).not.toBe(detail.incomingDigest)
+    // The preceding index matched — that is what makes the named index the seam.
+    expect(detail.previousDigest).toBe(computeMessageHashes(stored)[1])
+    expect(detail.storedCount).toBe(3)
+    expect(detail.incomingCount).toBe(3)
+  })
+
+  it("reports shape without ever carrying content", () => {
+    const secret = "SECRET-do-not-log-this"
+    const stored = [{ role: "user", content: "one" }]
+    const incoming = [{ role: "user", content: [
+      { type: "text", text: secret },
+      { type: "tool_result", tool_use_id: "t1", content: secret },
+    ] }]
+
+    const detail = describeLineageMismatch(sessionFor(stored), incoming)
+    expect(detail.incomingShape).toEqual({ role: "user", blocks: "text,tool_result", bytes: expect.any(Number) })
+    expect(JSON.stringify(detail)).not.toContain(secret)
+  })
+
+  it("reports -1 when the shared prefix matches all the way", () => {
+    const stored = [{ role: "user", content: "one" }]
+    const incoming = [{ role: "user", content: "one" }, { role: "assistant", content: "two" }]
+    expect(describeLineageMismatch(sessionFor(stored), incoming).index).toBe(-1)
+  })
+})
+
 describe("verifyLineage append-only tool-result extension", () => {
   const toolResult = (id: string, content: string) => ({
     type: "tool_result",
@@ -676,7 +733,7 @@ describe("verifyLineage append-only tool-result extension", () => {
       { role: "assistant", content: "next" },
     ]
 
-    expect(verifyLineage(sessionFor(stored), incoming)).toEqual({
+    expect(verifyLineage(sessionFor(stored), incoming)).toMatchObject({
       type: "diverged",
       reason: "modified-history",
       prefixOverlap: 2,

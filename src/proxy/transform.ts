@@ -110,8 +110,41 @@ export interface TelemetryContext {
   readonly cacheHitRate: number
 }
 
+/**
+ * A lineage decision, after it has been made.
+ *
+ * Observe-only in practice: the pipeline takes the returned context, but
+ * nothing downstream reads it back, so a plugin cannot change how a session
+ * resumes. That is deliberate — resume correctness is core's to own, and the
+ * three stale-lineage defects it has already produced are not a surface to
+ * open to third parties.
+ *
+ * `mismatch` is present only on a divergence, which is the case worth
+ * diagnosing: it names WHICH message stopped matching, where `prefix overlap
+ * 50/51` only ever said how many did. Content never appears — roles, block
+ * types, byte counts, and digests are enough to tell a late tool result from a
+ * rewritten transcript, and they are safe to write to a log.
+ */
+export interface SessionContext {
+  readonly adapter: string
+  readonly lineage: "continuation" | "compaction" | "undo" | "diverged"
+  /** Set when lineage is `diverged`. */
+  readonly reason?: string
+  readonly sessionKey?: string
+  readonly storedCount?: number
+  readonly incomingCount?: number
+  readonly prefixOverlap?: number
+  readonly mismatch?: {
+    readonly index: number
+    readonly storedDigest?: string
+    readonly incomingDigest?: string
+    readonly previousDigest?: string
+    readonly incomingShape?: { readonly role: string; readonly blocks: string; readonly bytes: number }
+  }
+  [key: string]: unknown
+}
+
 // Roadmap context types (reserved, not yet used)
-export interface SessionContext { readonly adapter: string; [key: string]: unknown }
 export interface ToolUseContext { readonly adapter: string; [key: string]: unknown }
 export interface ToolResultContext { readonly adapter: string; [key: string]: unknown }
 export interface ErrorContext { readonly adapter: string; [key: string]: unknown }
