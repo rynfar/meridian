@@ -3298,6 +3298,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   sdkSessionId: currentSessionId || resumeSessionId,
                 })
                 const recoveryLifter = createRecoveryLifter(() => nextClientBlockIndex++)
+                // The fork's identity. Without capturing it the recovered answer
+                // lives only in a session nothing points at: storeSession has
+                // already run against the pre-fork id, whose tail is the silent
+                // turn, so the next continuation resumes the silence and a tool
+                // call made here comes back as a tool_result for a tool_use the
+                // resumable session never saw.
+                let recoverySessionId: string | undefined
+                let recoveryBoundaryUuid: string | undefined
                 try {
                   for await (const event of query(buildQueryOptions({
                     prompt: SILENT_TURN_NUDGE,
@@ -3332,7 +3340,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       : undefined,
                     advisorModel,
                   }, requestAbort.controller))) {
-                    if ((event as any).type !== "stream_event") continue
+                    const recoveryMessage = event as any
+                    if (recoveryMessage.session_id) recoverySessionId = recoveryMessage.session_id
+                    recoveryBoundaryUuid = resumeBoundaryUuid(recoveryMessage) ?? recoveryBoundaryUuid
+                    if (recoveryMessage.type !== "stream_event") continue
                     // Only text is lifted into the already-open message; the
                     // re-indexing handshake lives in createRecoveryLifter. A
                     // tool call arriving here still counts as a productive
@@ -3366,10 +3377,35 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (capturedToolUses.length > capturedBeforeRecovery) {
                   silentTurnRecovered = true
                 }
+                // Point the client's session at the fork, so the turn that
+                // actually answered is the one the next request resumes. The
+                // uuid map is reset rather than carried: those uuids belong to
+                // the pre-fork session and would not resolve against the fork,
+                // so undo falls back to a full replay — correct, just less
+                // efficient, where keeping them would be neither.
+                if (
+                  silentTurnRecovered && recoverySessionId &&
+                  !isIndependentSession && !sawDuplicateToolUse
+                ) {
+                  currentSessionId = recoverySessionId
+                  nextPassthroughResumeUuid = recoveryBoundaryUuid
+                  sdkUuidMap.length = 0
+                  for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
+                  storeSession(
+                    profileSessionId,
+                    body.messages || [],
+                    recoverySessionId,
+                    profileScopedCwd,
+                    sdkUuidMap,
+                    lastUsage,
+                    recoveryBoundaryUuid ?? null
+                  )
+                }
                 claudeLog("response.silent_turn_recovery_result", {
                   mode: "stream",
                   recovered: silentTurnRecovered,
                   textEvents: textEventsForwarded,
+                  forkedSession: recoverySessionId ?? null,
                 })
               }
 

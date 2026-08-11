@@ -47,6 +47,22 @@ const ev = (event: any) => ({
   type: "stream_event", event, parent_tool_use_id: null,
   uuid: crypto.randomUUID(), session_id: "test-session",
 })
+/** Same shape as `ev`, but stamped with the fork's session id — a recovery
+ *  query runs with forkSession:true and the SDK answers under a NEW id. */
+const forkEv = (event: any) => ({
+  type: "stream_event", event, parent_tool_use_id: null,
+  uuid: crypto.randomUUID(), session_id: "fork-session",
+})
+const forkTextBlock = (index: number, text: string) => [
+  forkEv({ type: "content_block_start", index, content_block: { type: "text", text: "" } }),
+  forkEv({ type: "content_block_delta", index, delta: { type: "text_delta", text } }),
+  forkEv({ type: "content_block_stop", index }),
+]
+const forkMsgEnd = () => [
+  forkEv({ type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 40 } }),
+  forkEv({ type: "message_stop" }),
+]
+
 const msgStart = () => ev({
   type: "message_start",
   message: {
@@ -188,6 +204,40 @@ describe("silent-turn recovery", () => {
 
     expect(response.status).toBe(200)
     expect(body).toContain("message_stop")
+  })
+
+  // The recovery forks, so its answer lands in a NEW SDK session. storeSession
+  // has already run against the pre-fork id by then, whose tail is the silent
+  // turn — leaving the mapping there means the next request resumes the silence
+  // and a tool call made during recovery comes back referencing a tool_use the
+  // resumable session never saw.
+  it("resumes the fork on the next turn, not the session that went silent", async () => {
+    scripted = [
+      [msgStart(), ...thinkingBlock(), ...emptyTextBlock(1), ...msgEnd()],
+      [forkEv({ type: "message_start", message: { id: "m2", type: "message", role: "assistant", content: [], model: "claude-sonnet-4-5-20250929", stop_reason: null, usage: { input_tokens: 5, output_tokens: 0 } } }),
+       ...forkTextBlock(0, "Recovered answer."), ...forkMsgEnd()],
+      [msgStart(), ...textBlock(0, "Second turn."), ...msgEnd()],
+    ]
+
+    const first = await read(await post(app, REQUEST, "silent-fork-resume"))
+    expect(first).toContain("Recovered answer.")
+
+    // A follow-up on the same client session must resume the fork.
+    await read(await post(app, {
+      ...REQUEST,
+      messages: [
+        { role: "user", content: "summarise the tool output" },
+        { role: "assistant", content: [{ type: "text", text: "Recovered answer." }] },
+        { role: "user", content: "and the next one" },
+      ],
+    }, "silent-fork-resume"))
+
+    expect(queryCalls.length).toBe(3)
+    // The recovery itself forks off the silent session...
+    expect(queryCalls[1].options.resume).toBe("test-session")
+    expect(queryCalls[1].options.forkSession).toBe(true)
+    // ...and the NEXT turn resumes the fork, which is where the answer lives.
+    expect(queryCalls[2].options.resume).toBe("fork-session")
   })
 
   it("kill switch keeps detection but skips the extra turn", async () => {
