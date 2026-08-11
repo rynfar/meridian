@@ -8,7 +8,6 @@
  */
 import { describe, it, expect } from "bun:test"
 import {
-  ANNOUNCE_TURN_NUDGE,
   classifyTurnOutcome,
   createRecoveryLifter,
   shouldAttemptRecovery,
@@ -56,41 +55,27 @@ describe("classifyTurnOutcome: the announce window", () => {
   // ("I'll start by auditing…", 131 chars), zero tool calls, end_turn. Text
   // arrived, so silence detection stays quiet; only the length test inside
   // the narrow window can see it.
-  const announceTurn = {
+  // The window this once classified as "announce" — deny-boundary continuation,
+  // short text, short conversation — measured against a live model as the shape
+  // of an ordinary concise answer: 12 recoveries across 12 healthy turns, one of
+  // which rewrote a finished answer into a tool_use envelope. Text is an answer.
+  const shortTextOnDenyBoundary = {
     textEvents: 2,
     toolUses: 0,
     blocksForwarded: 4,
-    textChars: 131,
-    denyBoundaryContinuation: true,
-    clientMessageCount: 3,
   }
 
-  it("classifies the observed announce-then-stop turn as announce", () => {
-    expect(classifyTurnOutcome(announceTurn)).toEqual({ kind: "announce" })
+  it("a short text-only final on a deny boundary is productive, not recovered", () => {
+    expect(classifyTurnOutcome(shortTextOnDenyBoundary)).toEqual({ kind: "productive" })
   })
 
-  it("a tool call makes the same turn productive — the client has work to do", () => {
-    expect(classifyTurnOutcome({ ...announceTurn, toolUses: 1 }))
+  it("a tool call is productive with no text at all", () => {
+    expect(classifyTurnOutcome({ textEvents: 0, toolUses: 1, blocksForwarded: 2 }))
       .toEqual({ kind: "productive" })
   })
 
-  it("a long text inside the window is an answer, not an announce", () => {
-    expect(classifyTurnOutcome({ ...announceTurn, textChars: 601 }))
-      .toEqual({ kind: "productive" })
-  })
-
-  it("outside the deny boundary a short text is an answer", () => {
-    expect(classifyTurnOutcome({ ...announceTurn, denyBoundaryContinuation: false }))
-      .toEqual({ kind: "productive" })
-  })
-
-  it("a longer conversation never gets the announce classification", () => {
-    expect(classifyTurnOutcome({ ...announceTurn, clientMessageCount: 5 }))
-      .toEqual({ kind: "productive" })
-  })
-
-  it("no text at all is still silent, boundary or not", () => {
-    expect(classifyTurnOutcome({ ...announceTurn, textEvents: 0, textChars: 0 }).kind)
+  it("no text and no tool call is still silent", () => {
+    expect(classifyTurnOutcome({ ...shortTextOnDenyBoundary, textEvents: 0 }).kind)
       .toBe("silent")
   })
 })

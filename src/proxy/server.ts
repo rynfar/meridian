@@ -44,7 +44,7 @@ import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, compute
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
-import { ANNOUNCE_TURN_NUDGE, classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
+import { classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -3269,9 +3269,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 textEvents: textEventsForwarded,
                 toolUses: streamedToolUseIds.size,
                 blocksForwarded: eventsForwarded,
-                textChars: textCharsForwarded,
-                denyBoundaryContinuation: Boolean(passthroughResumeUuid),
-                clientMessageCount: allMessages.length,
               })
               const preRecoveryOutcome = classifyNow()
               //
@@ -3303,9 +3300,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 const recoveryLifter = createRecoveryLifter(() => nextClientBlockIndex++)
                 try {
                   for await (const event of query(buildQueryOptions({
-                    // The announce stall needs its own words: "no visible
-                    // output" would be false — the client saw the announcement.
-                    prompt: preRecoveryOutcome.kind === "announce" ? ANNOUNCE_TURN_NUDGE : SILENT_TURN_NUDGE,
+                    prompt: SILENT_TURN_NUDGE,
                     model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     // The nudge asks for prose, but a tool call is an equally
                     // valid answer — so the tool surface has to stay identical.
@@ -3548,20 +3543,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // while being perfectly healthy, and a thinking-only turn
                 // looked identical to one.
                 const turnOutcome = classifyNow()
-                if (turnOutcome.kind === "announce") {
-                  claudeLog("response.announce_turn", {
-                    model,
-                    textChars: textCharsForwarded,
-                    outputTokens: lastUsage?.output_tokens,
-                    recovered: silentTurnRecovered,
-                    recoveryAttempted: silentTurnRecoveryAttempted,
-                  })
-                  diagnosticLog.session(
-                    `${requestMeta.requestId} announce_turn chars=${textCharsForwarded} ` +
-                    `recovery=${silentTurnRecoveryAttempted ? (silentTurnRecovered ? "succeeded" : "failed") : "off"}`,
-                    requestMeta.requestId,
-                  )
-                }
                 if (turnOutcome.kind === "silent") {
                   claudeLog("response.silent_turn", {
                     model,

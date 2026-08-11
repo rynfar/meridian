@@ -23,17 +23,16 @@
  * with an empty text block — counting it as content would classify the exact
  * defect this module exists to catch as healthy.
  *
- * Text alone is not always an answer either. Observed live one step past the
- * silence invariant: on a deny-boundary continuation (a session's second turn,
- * cold cache) the model produced an empty thinking block plus one short text
- * that only ANNOUNCED the work — "Let me read the config…" — and ended the
- * turn with
- * zero tool calls. The same stall for the client, now wearing a
- * plausible-looking sentence. Unlike silence this cannot be a hard invariant
- * (a short text final is sometimes a real answer), so it is scoped to the
- * narrow window where every observed case lived: a deny-boundary continuation
- * of a short conversation, with a short text. A false positive costs one
- * redundant closing turn; a false negative costs the conversation.
+ * Text is treated as an answer, full stop. An earlier version also flagged a
+ * short text-only final on a deny-boundary continuation as an "announce" stall
+ * — "Let me read the config…" with no tool call — and spent a recovery turn on
+ * it. Measured against a live model that window turned out to be the shape of
+ * an ordinary concise answer: 12 recoveries across 12 healthy turns, zero
+ * genuine silences, and one case where the recovery rewrote a completed prose
+ * answer into a tool_use envelope the client would then execute. The cost of a
+ * false positive was not "one redundant closing turn"; it was acting on a
+ * question already answered. If that stall is real it needs a signal that
+ * distinguishes it from a short answer — length and conversation depth do not.
  *
  * Pure module — no I/O, no imports from server.ts or session/.
  */
@@ -42,9 +41,6 @@
 export type TurnOutcome =
   | { kind: "productive" }
   | { kind: "silent"; reason: SilentReason }
-  /** Text arrived, but inside the announce risk window and with no tool call —
-   *  the announce-then-stop stall (see the module header). */
-  | { kind: "announce" }
 
 /**
  * Why a turn is silent. Both shapes reach the client identically; they are
@@ -56,15 +52,6 @@ export type SilentReason =
   | "no_blocks"
   /** Blocks were forwarded, but none of them carried text or a tool call. */
   | "no_actionable_content"
-
-/** Announce stalls cluster on a session's opening exchanges, where the spent
- *  deny dominates the context. Longer conversations never get the announce
- *  classification — their text-only finals are almost always real answers. */
-export const ANNOUNCE_RISK_MAX_CLIENT_MESSAGES = 4
-
-/** An announcement runs a sentence or two; a real answer usually runs longer.
- *  Texts above this length are taken as answers even inside the window. */
-export const ANNOUNCE_RISK_MAX_TEXT_CHARS = 600
 
 /**
  * Classify a turn by what actually reached the client.
@@ -80,28 +67,9 @@ export function classifyTurnOutcome(input: {
   toolUses: number
   /** Blocks forwarded in total, including thinking. */
   blocksForwarded: number
-  /** Characters of text forwarded — the announce test is a length test. */
-  textChars?: number
-  /** This request forked from a persisted deny boundary — the spent
-   *  "end your turn now" sits immediately before the live prompt. */
-  denyBoundaryContinuation?: boolean
-  /** Messages in the client's conversation (request body). */
-  clientMessageCount?: number
 }): TurnOutcome {
   if (input.toolUses > 0) return { kind: "productive" }
-  if (input.textEvents > 0) {
-    if (
-      input.denyBoundaryContinuation &&
-      input.textChars !== undefined &&
-      input.textChars > 0 &&
-      input.textChars <= ANNOUNCE_RISK_MAX_TEXT_CHARS &&
-      input.clientMessageCount !== undefined &&
-      input.clientMessageCount <= ANNOUNCE_RISK_MAX_CLIENT_MESSAGES
-    ) {
-      return { kind: "announce" }
-    }
-    return { kind: "productive" }
-  }
+  if (input.textEvents > 0) return { kind: "productive" }
   return {
     kind: "silent",
     reason: input.blocksForwarded > 0 ? "no_actionable_content" : "no_blocks",
@@ -125,20 +93,6 @@ export const SILENT_TURN_NUDGE =
   "nothing to act on. Any earlier instruction to end your turn without further text applied only to " +
   "that turn and is now discharged. Answer now, in text, addressing the most recent request and any " +
   "tool results above it. If a tool call is still required, make it."
-
-/**
- * The nudge for an announce-shaped stall — text arrived, but it only promised
- * the work. It cannot borrow SILENT_TURN_NUDGE's words: "no visible output"
- * would be false (the client saw the announcement), and a model told something
- * false about its own turn tends to argue rather than act. It names what the
- * turn actually did and discharges the same spent instruction, because every
- * observed announce lived on the same deny boundary.
- */
-export const ANNOUNCE_TURN_NUDGE =
-  "Your previous turn ended after only announcing what you were about to do — no tool calls were " +
-  "made, so the client received nothing to act on. Any earlier instruction to end your turn without " +
-  "further text applied only to that turn and is now discharged. Do the announced work now: make the " +
-  "tool calls the task needs. If the work is already complete, state the final result in text."
 
 /**
  * Fault injection: swallow the upstream text of this request's turn.
