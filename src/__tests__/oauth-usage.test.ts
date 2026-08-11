@@ -222,6 +222,48 @@ describe("oauthUsage", () => {
     expect(getCalls()).toBe(2)
   })
 
+  // A cooldown longer than the stale window is self-defeating: it suppresses
+  // every fetch, so the last-good snapshot ages out with nothing able to
+  // refresh it and the display blanks until the cooldown lapses. Cap it.
+  test("caps a long Retry-After at the stale window so the snapshot can refresh", async () => {
+    const { fetchImpl, getCalls } = countingFetch((calls) =>
+      calls === 1
+        ? new Response("rate limited", { status: 429, headers: { "Retry-After": "3600" } })
+        : new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+    const opts = {
+      force: true,
+      store: makeStore("t"),
+      profileId: "capped",
+      fetchImpl,
+      rateLimitBackoffMs: 0,
+      staleMaxMs: 20,
+    }
+
+    expect(await fetchOAuthUsage(opts)).toBeNull()
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(await fetchOAuthUsage(opts)).not.toBeNull()
+    expect(getCalls()).toBe(2)
+  })
+
+  // The cap must not disarm the throttle: a staleMaxMs below the backoff floor
+  // still gets the full floor, not the (smaller) stale window.
+  test("never caps the cooldown below the backoff floor", async () => {
+    const { fetchImpl, getCalls } = countingFetch(() =>
+      new Response("rate limited", { status: 429, headers: { "Retry-After": "1" } }))
+    const opts = {
+      force: true,
+      store: makeStore("t"),
+      profileId: "floor",
+      fetchImpl,
+      rateLimitBackoffMs: 60_000,
+      staleMaxMs: 0,
+    }
+
+    expect(await fetchOAuthUsage(opts)).toBeNull()
+    expect(await fetchOAuthUsage(opts)).toBeNull()
+    expect(getCalls()).toBe(1)
+  })
+
   test("caches result within TTL", async () => {
     const { fetchImpl, getCalls } = countingFetch(() => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
     const store = makeStore("t")

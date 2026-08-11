@@ -258,7 +258,10 @@ export function __setFetchOAuthUsageOverride(
  * callers for the same profile share a single in-flight request.
  *
  * @param ttlMs           Override the cache TTL (default 30s).
- * @param force           Bypass the cache and fetch fresh.
+ * @param force           Bypass the TTL cache and fetch fresh. Does NOT bypass
+ *                        the in-flight de-dupe or the 429 cooldown — both still
+ *                        apply, so a forced caller can still get a stale (or
+ *                        null) snapshot rather than a fresh upstream call.
  * @param store           Override the credential store (for testing).
  * @param profileId       Logical profile identifier used as the cache key.
  *                        Pass null/undefined for the default OAuth account.
@@ -339,7 +342,18 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
       }
       if ("__status" in result) {
         if (result.__status === 429) {
-          const retryAfterMs = Math.max(rateLimitBackoffMs, result.retryAfterMs ?? 0)
+          // Floor at the backoff, but cap at staleMaxMs: the cooldown suppresses
+          // every fetch, so one longer than the stale window would age the
+          // last-good snapshot out with nothing able to refresh it — staleOr
+          // starts returning null and the display blanks for the remainder.
+          // Capping means at most one retry per stale window, still far below
+          // the every-poll retries this backoff exists to stop.
+          // The cap never drops below the backoff floor, so a small staleMaxMs
+          // can't disarm the throttle this whole change exists to provide.
+          const retryAfterMs = Math.min(
+            Math.max(rateLimitBackoffMs, result.retryAfterMs ?? 0),
+            Math.max(staleMaxMs, rateLimitBackoffMs),
+          )
           rateLimitedUntilByProfile.set(cacheKey, Date.now() + retryAfterMs)
         }
         claudeLog("oauth_usage.upstream_error", { profile: cacheKey, status: result.__status })

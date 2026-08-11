@@ -532,7 +532,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    *  right when it's needed. `force` only skips the cache read — the
    *  in-flight-request de-dupe still applies after it, so concurrent
    *  exhaustions of the same profile still share one upstream call rather
-   *  than stampeding it. A `stale: true` snapshot (served when a fresh fetch
+   *  than stampeding it. The per-profile 429 cooldown suppresses forced
+   *  callers too, so an upstream rate limit leaves this refinement on the
+   *  conservative default instead of stampeding a limited endpoint. A
+   *  `stale: true` snapshot (served when a fresh fetch
    *  failed transiently) is not authoritative about the current window, so
    *  it's skipped too — the conservative default is the safer thing to
    *  leave standing. */
