@@ -2417,7 +2417,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // MERIDIAN_SILENT_TURN_RECOVERY=0 leaves the detection and the
             // telemetry in place and skips only the extra model turn — so an
             // operator who does not want the spend still keeps the visibility.
-            const silentTurnRecoveryEnabled = process.env.MERIDIAN_SILENT_TURN_RECOVERY !== "0"
+            const silentTurnRecoveryEnabled = env("SILENT_TURN_RECOVERY") !== "0"
             let silentTurnRecoveryAttempted = false
             let silentTurnRecovered = false
             // Hoisted out of the inner streaming loop so the outer catch can
@@ -3068,7 +3068,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       eventType === "content_block_delta" &&
                       (event as any).delta?.type === "text_delta" &&
                       shouldInjectSilentTurn({
-                        raw: process.env.MERIDIAN_DEBUG_FORCE_SILENT_TURN,
+                        raw: env("DEBUG_FORCE_SILENT_TURN"),
                         sessionId: agentSessionId,
                       })
                     ) {
