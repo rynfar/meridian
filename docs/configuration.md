@@ -28,6 +28,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_ROUTING` | — | `active` | Session-to-profile routing: `active` (all traffic to the active profile), `sticky` ([sticky session routing](profiles.md#sticky-session-routing)), or `priority` ([priority failover](profiles.md#priority-failover-routing)) |
 | `MERIDIAN_PROFILE_ORDER` | — | *(config order)* | Priority-mode pool order, comma-separated, highest priority first (e.g. `work,personal`). Also editable at `/settings`. |
 | `MERIDIAN_PASSTHROUGH_EARLY_STOP` | — | `1` | Set to `0` to disable [digest-turn elimination](#how-tool-calling-works-in-passthrough) and restore the old end-of-turn behavior |
+| `MERIDIAN_SILENT_TURN_RECOVERY` | — | `1` | Set to `0` to stop spending a recovery turn on a [silent turn](#silent-turns). Detection and telemetry stay on either way |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to let the SDK advertise its proxy-host scratchpad directory in passthrough mode |
 | `MERIDIAN_PRICING_CONFIG` | `CLAUDE_PROXY_PRICING_CONFIG` | `~/.config/meridian/model-pricing.json` | Path to the model pricing overrides file used by cost estimation |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](profiles.md). |
@@ -267,6 +268,18 @@ MERIDIAN_PASSTHROUGH=0 meridian   # force internal
 For large tool sets (>15 tools), non-core tools are automatically deferred via the SDK's ToolSearch mechanism. Core tools (read, write, edit, bash, glob, grep) are always loaded eagerly. The deferral threshold is configurable with `MERIDIAN_DEFER_TOOL_THRESHOLD`.
 
 **Digest-turn elimination** — after a tool call is captured, the SDK would normally invoke the model one more time to "digest" the denial before ending the turn. That extra invocation is discarded by the proxy but fully billed — measured at ~400+ wasted output tokens and 2–3× extra latency per tool step (and on always-thinking models like Fable, a full thinking pass each time). Meridian now aborts the SDK query the moment every tool call's denial is persisted, so the digest turn never generates. Sessions remain resumable and tool-result attribution is unaffected. Kill switch: `MERIDIAN_PASSTHROUGH_EARLY_STOP=0` restores the old behavior.
+
+### Silent turns
+
+A **silent turn** is a completed turn whose terminal envelope carries nothing the client can act on: no text, no tool call. On the wire it is indistinguishable from success — `stop_reason: "end_turn"`, HTTP 200, `error: null` — so a client does not retry, and an autonomous run treats a lost turn as a finished one.
+
+Three separate defects have produced this shape (all fixed in rynfar/meridian#768): a session resumed from an interrupted tail, a client abort that never settled its session, and a spent `end your turn now` deny landing immediately before a boundary continuation. They have nothing in common but their outcome, so Meridian now guards the outcome directly:
+
+- **Detection.** Every completed turn is classified: text or a tool call means productive, anything else is silent. `thinking` deliberately does not count — thinking plus an empty text block *is* the defect's signature. Silent turns are recorded as `response.silent_turn` in `/telemetry/logs` and named at session level, because an autonomous run has nobody to notice a quiet telemetry row.
+- **Recovery.** One extra turn, in the same session, forked from the deny boundary rather than appended to the silent tail — appending is what compounds one empty turn into an empty session. The nudge names the contradiction and discharges it, rather than just asking again like the CLI's own no-visible-output prompt, which failed on all three observed cases because the offending instruction was still standing. At most one attempt; never when the client has already disconnected. A recovery that itself fails leaves the original envelope intact and never turns a delivered turn into a failed request. Kill switch: `MERIDIAN_SILENT_TURN_RECOVERY=0` keeps detection and telemetry, skips the spend.
+- **Honest failure envelopes.** When a turn dies mid-stream, the `error` event now precedes `message_stop` — clients stop reading at `message_stop`, so an error queued behind it was written into a stream nobody was consuming. A failed turn that produced no text also reports `stop_reason: "max_tokens"` (truncated) instead of `"end_turn"` (finished), which is what lets a client tell a crash from a completed answer.
+
+Coverage: `E38` in [E2E.md](../E2E.md), with `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1` reproducing the shape on demand — the live rate is roughly three in five hundred requests, far too rare for a test run to wait for.
 
 ### Known limitations
 

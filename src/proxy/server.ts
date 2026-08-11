@@ -44,6 +44,7 @@ import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, compute
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
+import { classifyTurnOutcome, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -2409,6 +2410,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let hasStructuredOutput = false
             let structuredOutput: unknown
             let nextPassthroughResumeUuid: string | undefined
+            // Silent-turn recovery state (see turnOutcome.ts). Kill switch:
+            // MERIDIAN_SILENT_TURN_RECOVERY=0 leaves the detection and the
+            // telemetry in place and skips only the extra model turn — so an
+            // operator who does not want the spend still keeps the visibility.
+            const silentTurnRecoveryEnabled = process.env.MERIDIAN_SILENT_TURN_RECOVERY !== "0"
+            let silentTurnRecoveryAttempted = false
+            let silentTurnRecovered = false
+            let recoveryBlockIndex: number | undefined
             // Hoisted out of the inner streaming loop so the outer catch can
             // dedupe captured tool_uses against what was already forwarded
             // when recovering gracefully from max_turns (see catch below).
@@ -3025,6 +3034,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       }
                     }
 
+                    // Debug fault injection: swallow this turn's text so the
+                    // silent-turn guard can be exercised on demand instead of
+                    // waiting for a ~3-in-500 live occurrence (see
+                    // shouldInjectSilentTurn). Drops only text deltas — the
+                    // block start and stop still go out, which is precisely the
+                    // production shape: an empty text block.
+                    if (
+                      eventType === "content_block_delta" &&
+                      (event as any).delta?.type === "text_delta" &&
+                      shouldInjectSilentTurn({
+                        raw: process.env.MERIDIAN_DEBUG_FORCE_SILENT_TURN,
+                        sessionId: agentSessionId,
+                      })
+                    ) {
+                      claudeLog("debug.silent_turn_injected", { sessionId: agentSessionId })
+                      continue
+                    }
+
                     // Forward all other events (text, non-MCP tool_use like Task, message events).
                     // Strip SDK-only fields (context_management on message_delta) that stock
                     // Anthropic clients crash on — the real API never returns them (#525).
@@ -3189,6 +3216,135 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }
               resolvePendingStore()
 
+              // Last chance to save a silent turn. The three known causes are
+              // fixed; this catches the class — including causes not yet found —
+              // one turn before the client is told the request succeeded.
+              //
+              // Runs only where recovery is still possible: the stream is open,
+              // so the recovered answer can actually be forwarded. A turn that
+              // already closed (early stop, turn-2 suppression) carries tool
+              // calls by construction and is never silent.
+              const preRecoveryOutcome = classifyTurnOutcome({
+                textEvents: textEventsForwarded,
+                toolUses: streamedToolUseIds.size,
+                blocksForwarded: eventsForwarded,
+              })
+              //
+              // `messageStartEmitted` is a hard precondition, not a heuristic:
+              // recovery works by appending a text block to the message already
+              // open on the wire. With no message_start there is nothing to
+              // append to, and emitting blocks would be malformed SSE. That case
+              // — the SDK yielding nothing client-visible at all — is already
+              // covered by the retry wrapper's didYieldClientEvent check.
+              if (
+                !streamClosed &&
+                messageStartEmitted &&
+                shouldAttemptRecovery({
+                  outcome: preRecoveryOutcome,
+                  alreadyAttempted: silentTurnRecoveryAttempted,
+                  clientGone: streamClosed,
+                  sessionId: currentSessionId || resumeSessionId,
+                  enabled: silentTurnRecoveryEnabled,
+                })
+              ) {
+                silentTurnRecoveryAttempted = true
+                claudeLog("response.silent_turn_recovery", {
+                  mode: "stream",
+                  reason: preRecoveryOutcome.kind === "silent" ? preRecoveryOutcome.reason : undefined,
+                  sdkSessionId: currentSessionId || resumeSessionId,
+                })
+                try {
+                  for await (const event of query(buildQueryOptions({
+                    prompt: SILENT_TURN_NUDGE,
+                    model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
+                    // The nudge asks for prose, but a tool call is an equally
+                    // valid answer — so the tool surface has to stay identical.
+                    passthrough, stream: true, sdkAgents, passthroughMcp,
+                    cleanEnv: profileEnv, envOverrides, hasDeferredTools,
+                    resumeSessionId: currentSessionId || resumeSessionId,
+                    isUndo: false,
+                    // Fork rather than extend: the silent turn is now this
+                    // session's tail, and appending to it is what compounds an
+                    // empty turn into an empty session (#768 client-abort).
+                    resumeSessionAtUuid: nextPassthroughResumeUuid,
+                    forkSession: true,
+                    sdkHooks, blockedTools: pipelineCtx.blockedTools,
+                    incompatibleTools: pipelineCtx.incompatibleTools,
+                    mcpServerName: adapter.getMcpServerName(),
+                    allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                    effort, thinking, taskBudget, outputFormat, betas, settingSources,
+                    codeSystemPrompt: sdkFeatures.codeSystemPrompt,
+                    clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
+                    memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming,
+                    sharedMemory: sdkFeatures.sharedMemory,
+                    webFetchPreflight: sdkFeatures.webFetchPreflight,
+                    claudeAiConnectors: sdkFeatures.claudeAiConnectors,
+                    maxBudgetUsd: sdkFeatures.maxBudgetUsd,
+                    fallbackModel: sdkFeatures.fallbackModel,
+                    sdkDebug: sdkFeatures.sdkDebug,
+                    additionalDirectories: sdkFeatures.additionalDirectories
+                      ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
+                      : undefined,
+                    advisorModel,
+                  }, requestAbort.controller))) {
+                    if ((event as any).type !== "stream_event") continue
+                    const inner = (event as any).event
+                    const innerType = inner?.type
+                    // Only text is lifted into the already-open message. A tool
+                    // call arriving here would need its own block index space and
+                    // the client's turn boundary to match — out of scope for a
+                    // recovery, and it still counts as a productive turn below.
+                    if (innerType === "content_block_start" && inner.content_block?.type === "text") {
+                      const idx = nextClientBlockIndex++
+                      recoveryBlockIndex = idx
+                      safeEnqueue(encoder.encode(
+                        `event: content_block_start\ndata: ${JSON.stringify({
+                          type: "content_block_start",
+                          index: idx,
+                          content_block: { type: "text", text: "" },
+                        })}\n\n`
+                      ), "silent_recovery_block_start")
+                      eventsForwarded += 1
+                    } else if (
+                      innerType === "content_block_delta" &&
+                      inner.delta?.type === "text_delta" &&
+                      recoveryBlockIndex !== undefined
+                    ) {
+                      safeEnqueue(encoder.encode(
+                        `event: content_block_delta\ndata: ${JSON.stringify({
+                          type: "content_block_delta",
+                          index: recoveryBlockIndex,
+                          delta: { type: "text_delta", text: inner.delta.text },
+                        })}\n\n`
+                      ), "silent_recovery_text_delta")
+                      textEventsForwarded += 1
+                      silentTurnRecovered = true
+                    } else if (innerType === "content_block_stop" && recoveryBlockIndex !== undefined) {
+                      safeEnqueue(encoder.encode(
+                        `event: content_block_stop\ndata: ${JSON.stringify({
+                          type: "content_block_stop",
+                          index: recoveryBlockIndex,
+                        })}\n\n`
+                      ), "silent_recovery_block_stop")
+                      recoveryBlockIndex = undefined
+                    }
+                  }
+                } catch (recoveryError) {
+                  // A failed recovery must never turn a delivered turn into a
+                  // failed request: the client still gets the original envelope,
+                  // and the attempt is recorded for the operator.
+                  claudeLog("response.silent_turn_recovery_failed", {
+                    mode: "stream",
+                    error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+                  })
+                }
+                claudeLog("response.silent_turn_recovery_result", {
+                  mode: "stream",
+                  recovered: silentTurnRecovered,
+                  textEvents: textEventsForwarded,
+                })
+              }
+
               if (!streamClosed) {
                 // In passthrough mode, emit captured tool_use blocks as stream events
                 // Skip any that were already forwarded during the stream (dedup by ID)
@@ -3352,13 +3508,36 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   ...(envelopeViolations.length > 0 ? { envelopeViolations: [...envelopeViolations] } : {}),
                 })
 
-                if (textEventsForwarded === 0) {
-                  claudeLog("response.empty_stream", {
+                // The silent-turn invariant (see turnOutcome.ts): a terminal
+                // envelope must carry text or a tool call. The old check only
+                // logged missing text, which said nothing about whether the
+                // client got anything actionable — a tool-only turn tripped it
+                // while being perfectly healthy, and a thinking-only turn
+                // looked identical to one.
+                const turnOutcome = classifyTurnOutcome({
+                  textEvents: textEventsForwarded,
+                  toolUses: streamedToolUseIds.size,
+                  blocksForwarded: eventsForwarded,
+                })
+                if (turnOutcome.kind === "silent") {
+                  claudeLog("response.silent_turn", {
                     model,
+                    reason: turnOutcome.reason,
                     streamEventsSeen,
                     eventsForwarded,
-                    reason: "no_text_deltas_forwarded"
+                    outputTokens: lastUsage?.output_tokens,
+                    recovered: silentTurnRecovered,
+                    recoveryAttempted: silentTurnRecoveryAttempted,
                   })
+                  // Named at session level too: an autonomous run has nobody to
+                  // notice a quiet telemetry row, and this is the one event that
+                  // means "the loop just lost a turn".
+                  diagnosticLog.session(
+                    `${requestMeta.requestId} silent_turn reason=${turnOutcome.reason} ` +
+                    `blocks=${eventsForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
+                    `recovery=${silentTurnRecoveryAttempted ? (silentTurnRecovered ? "succeeded" : "failed") : "off"}`,
+                    requestMeta.requestId,
+                  )
                 }
               }
             } catch (error) {
@@ -3596,23 +3775,59 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
               // If we already emitted message_start, close the message cleanly so
               // clients that access usage.input_tokens don't crash on the incomplete response.
+              //
+              // The stop_reason here is load-bearing. This path runs when the
+              // turn FAILED, and it used to send "end_turn" — the wire's word
+              // for "the model finished and had nothing more to say". A client
+              // cannot distinguish that from success, so it does not retry, and
+              // an autonomous loop treats a crashed turn as a completed one.
+              // The error event that follows arrives AFTER message_stop, which
+              // most clients have already stopped reading.
+              //
+              // A turn cut off mid-generation is exactly what "max_tokens"
+              // describes on the wire — truncated, not finished — and every
+              // Anthropic-compatible client already handles it. Reserve
+              // "end_turn" for the case where the model really did produce a
+              // complete answer before the failure.
               if (messageStartEmitted) {
+                const errorStopReason = textEventsForwarded > 0 ? "end_turn" : "max_tokens"
+                claudeLog("response.error_envelope", {
+                  mode: "stream",
+                  stopReason: errorStopReason,
+                  textEvents: textEventsForwarded,
+                  classified: streamErr.type,
+                })
                 safeEnqueue(encoder.encode(
                   `event: message_delta\ndata: ${JSON.stringify({
                     type: "message_delta",
-                    delta: { stop_reason: "end_turn", stop_sequence: null },
+                    delta: { stop_reason: errorStopReason, stop_sequence: null },
                     usage: { output_tokens: 0 }
                   })}\n\n`
                 ), "error_message_delta")
+                // The error goes out BEFORE message_stop, not after.
+                //
+                // message_stop is the wire's end-of-message marker: clients stop
+                // reading the body at it, so an error event queued afterwards was
+                // written into a stream nobody was still consuming. That is how a
+                // failed turn arrived looking like a successful one — the
+                // incompleteness existed in the SSE, one frame too late to be
+                // seen. Ordering it first is what makes the failure reach the
+                // client at all.
+                safeEnqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({
+                  type: "error",
+                  error: { type: streamErr.type, message: streamErr.message }
+                })}\n\n`), "error_event_before_stop")
                 safeEnqueue(encoder.encode(
                   `event: message_stop\ndata: {"type":"message_stop"}\n\n`
                 ), "error_message_stop")
+              } else {
+                // No message_start was ever emitted, so there is no message to
+                // close — the error event is the whole response.
+                safeEnqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({
+                  type: "error",
+                  error: { type: streamErr.type, message: streamErr.message }
+                })}\n\n`), "error_event")
               }
-
-              safeEnqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({
-                type: "error",
-                error: { type: streamErr.type, message: streamErr.message }
-              })}\n\n`), "error_event")
               if (!streamClosed) {
                 try { controller.close() } catch {}
                 streamClosed = true

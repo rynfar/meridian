@@ -1,10 +1,22 @@
 /**
  * Stream Error Recovery Tests
  *
- * When an error occurs mid-stream (after message_start has been emitted),
- * the proxy must emit message_delta + message_stop before the error event
- * so clients get a well-formed message lifecycle and don't crash accessing
- * usage.input_tokens on an incomplete response.
+ * When an error occurs mid-stream (after message_start has been emitted), the
+ * proxy must close the message lifecycle so clients don't crash accessing
+ * usage.input_tokens on an incomplete response (#168) — AND the error must
+ * reach them.
+ *
+ * Order changed deliberately: the error event now precedes message_stop. #168
+ * put it after, which satisfied the lifecycle but hid the failure — clients stop
+ * reading the body at message_stop, so the error was written into a stream
+ * nobody was consuming. A failed turn then looked exactly like a successful
+ * empty one, and an autonomous loop treated it as a completed turn. The
+ * lifecycle guarantee is unchanged; only the frame that carries the bad news
+ * moved ahead of the marker that ends the read.
+ *
+ * The failed turn also stops claiming stop_reason "end_turn" when it produced no
+ * text: a cut-off turn is truncated, and "max_tokens" is the wire's word for
+ * that.
  *
  * See: https://github.com/rynfar/meridian/issues/168
  */
@@ -84,7 +96,7 @@ describe("Stream error recovery after message_start", () => {
     clearSessionCache()
   })
 
-  it("should emit message_delta and message_stop before error when message_start was sent", async () => {
+  it("closes the message lifecycle and puts the error where the client will read it", async () => {
     mockMessages = [
       messageStart("msg_1"),
       textBlockStart(0),
@@ -109,10 +121,11 @@ describe("Stream error recovery after message_start", () => {
     expect(errorIdx).toBeGreaterThan(-1)
     expect(messageDeltaIdx).toBeLessThan(errorIdx)
 
-    // Should have message_stop before error
+    // message_stop comes AFTER the error: it is the marker at which clients
+    // stop reading, so anything queued behind it is never seen.
     const messageStopIdx = eventTypes.lastIndexOf("message_stop")
     expect(messageStopIdx).toBeGreaterThan(-1)
-    expect(messageStopIdx).toBeLessThan(errorIdx)
+    expect(messageStopIdx).toBeGreaterThan(errorIdx)
 
     // The recovery message_delta should have usage with output_tokens
     const recoveryDelta = events[messageDeltaIdx]
@@ -186,11 +199,16 @@ describe("Stream error recovery after message_start", () => {
     expect(eventTypes).toContain("message_stop")
     expect(eventTypes).toContain("error")
 
-    // message_delta and message_stop should come before error
+    // The lifecycle closes, but the error is reachable: delta, error, stop.
     const messageDeltaIdx = eventTypes.lastIndexOf("message_delta")
     const messageStopIdx = eventTypes.lastIndexOf("message_stop")
     const errorIdx = eventTypes.indexOf("error")
     expect(messageDeltaIdx).toBeLessThan(errorIdx)
-    expect(messageStopIdx).toBeLessThan(errorIdx)
+    expect(messageStopIdx).toBeGreaterThan(errorIdx)
+
+    // A turn that died before producing text must not claim it finished: that
+    // is the shape an autonomous loop reads as a completed, empty turn.
+    const delta = events[messageDeltaIdx]?.data as any
+    expect(delta.delta.stop_reason).toBe("max_tokens")
   })
 })

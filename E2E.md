@@ -90,6 +90,7 @@ kill $(lsof -ti :3456)
 | E35 | [SDK boundary assumptions (#694/#708/#710)](#e35-sdk-boundary-assumptions-694708710) | **Automated**: `bun scripts/e2e-sdk-boundary.mjs` — real SDK: rate-limit reset units land in a sane window, every live content-block type is classified for hashing, resume survives a client dropping thinking blocks, and reports whether the gitStatus block still misstates its provenance. **Run after any `@anthropic-ai/claude-agent-sdk` bump** and before releases touching lineage, rate limits, or the system prompt | 2026-07-29 |
 | E36 | [Client detection after an upgrade (#733)](#e36-client-detection-after-an-upgrade-733) | **Automated**: `bun scripts/e2e-client-detection.mjs` — drives each installed client against a local stub, captures its real headers, and asserts the adapter Meridian resolves. **Run after upgrading any client**; costs no tokens | 2026-07-31 |
 | E37 | [WebFetch preflight scope (#748)](#e37-webfetch-preflight-scope-748) | **Automated**: `bun scripts/e2e-webfetch-preflight.mjs` — stubbed `claude` + isolated HOME: the toggle reaches the right adapter's `--settings`, and only `cherry` can actually run the built-in WebFetch, so the documented scope is asserted rather than assumed. **Run before releases touching sdkFeatures, query settings, or tool config**; costs no tokens | 2026-08-03 |
+| E38 | [Silent turns (#768)](#e38-silent-turns-768) | **Automated**: `bun scripts/e2e-silent-turn.mjs` — real CLI, SSE mode, second turn of a fresh session: asserts the outcome (did the client get text or a tool call?) rather than any one cause, so a cause not yet found fails it too. Pair a `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1` run against `MERIDIAN_SILENT_TURN_RECOVERY=0` for the before/after. **Run before any release touching the passthrough tool loop, prompt assembly, or session resume** | 2026-08-11 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3326,3 +3327,64 @@ removing `cherry` from `ADAPTER_LABELS` fails the static counterpart in
 **Static counterpart:** the `WebFetch preflight scope` block in `query.test.ts`
 pins the same three adapter shapes at the `buildQueryOptions` level, so tool
 config drift fails in CI without starting a proxy.
+
+## E38: Silent turns (#768)
+
+**Automated**, costs real tokens (two turns per attempt, plus one per silence
+the recovery repairs):
+
+```bash
+bun scripts/e2e-silent-turn.mjs
+E2E_ATTEMPTS=10 bun scripts/e2e-silent-turn.mjs
+
+# The pair that actually proves the guard, on demand:
+MERIDIAN_DEBUG_FORCE_SILENT_TURN=1 MERIDIAN_SILENT_TURN_RECOVERY=0 bun scripts/e2e-silent-turn.mjs  # FAILS
+MERIDIAN_DEBUG_FORCE_SILENT_TURN=1 bun scripts/e2e-silent-turn.mjs                                  # passes
+```
+
+**Why this exists:** three separate defects have now ended in the same shape —
+`stop_reason: "end_turn"`, HTTP 200, `error: null`, and nothing the client can
+act on. An interrupted tail, an unsettled client abort, a spent deny at the
+boundary seam. Each was found by reading a transcript after the fact; each
+mocked suite stayed green while the field kept breaking.
+
+They have nothing in common except their outcome, so the outcome is what this
+measures. Every turn is asked one question — did the client receive text or a
+tool call? — which a cause nobody has found yet fails exactly like the three
+known ones.
+
+It drives the shape all three took: a tool call, then the turn that must answer
+its result, in a fresh session each attempt. Every observed silence landed on a
+session's **second** turn, where the deny is the largest thing in a still-short
+context.
+
+**Fault injection, and why it is not optional.** The live rate is about three in
+five hundred requests. A ten-attempt run expects 0.06 occurrences, so a green
+run without injection is ambiguous — the guard works, or the defect simply did
+not happen. That ambiguity is what let two earlier "verified" fixes ship broken.
+`MERIDIAN_DEBUG_FORCE_SILENT_TURN=1` drops the upstream turn's text deltas while
+leaving its block start and stop, which is the production signature exactly;
+detection, recovery, envelope and telemetry then run for real against a real
+model. Only the trigger is synthetic.
+
+**Pass criteria:**
+
+- every turn under test carries text or ≥1 tool call
+- exactly one `message_stop` per turn
+- any `error` event precedes `message_stop` — behind it, clients have already
+  stopped reading and the failure is invisible
+- a failed turn with no text does not claim `stop_reason: "end_turn"`
+- an attempt where the model never called a tool is reported as **skipped**,
+  not counted as a pass: it never reached the shape under test
+
+**Reading the output:** `silent: 0` says the client always got an answer, not
+that nothing broke upstream — `upstream: N silent turns detected, M recovered`
+is where the mechanism shows itself. Compare an injected run with recovery ON
+against the same run with `MERIDIAN_SILENT_TURN_RECOVERY=0`; comparing a single
+recovery-ON run against nothing tells you almost nothing.
+
+**Verified:** 2026-08-11. Injected, recovery OFF: 2/2 attempts FAIL with
+`text=0 tools=0`. Injected, recovery ON: 2/2 pass, the answer arriving as real
+text deltas. Uninjected, both settings: 3/3 pass, no silences — the live rate is
+far below what a run this size can see, which is the whole reason injection
+exists.
