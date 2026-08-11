@@ -15,6 +15,8 @@ meridian profile add personal
 meridian profile add work
 ```
 
+Or add one from the Profiles page without a terminal at all — see [From the web UI: add a profile](#from-the-web-ui-add-a-profile).
+
 > **⚠ Important:** Claude's OAuth reuses your browser session. Before adding a second account, sign out of claude.ai and sign into the other account first.
 
 #### Headless / SSH: complete Claude OAuth with a pasted code
@@ -79,8 +81,41 @@ Details worth knowing:
 - A login is **single-use** and expires **10 minutes** after it starts. `state` must match the login it was started with, exactly as the CLI requires; on the redirect path that `state` is what identifies the login at all.
 - `GET /callback` is deliberately **not** behind `MERIDIAN_API_KEY` — Anthropic's redirect carries no key. It acts only on an unguessable, single-use `state` minted by `/profiles/login/start`, which *is* gated, and answers 410 to anything else.
 - Only **claude-max** profiles have this flow. `api` and `oauth-token` profiles are refused with the reason — replace an OAuth token with `meridian profile remove <name> && meridian profile add <name> --oauth-token`.
-- An unknown profile name is refused, not created. `meridian profile add` remains the only way a profile comes into existence.
+- An unknown profile name is refused here rather than created — a typo in a re-authentication must not quietly produce a second account slot. Creating one is a separate, explicit act: see [Add a profile from the web UI](#from-the-web-ui-add-a-profile) below.
 - An instance told not to write credential files (`MERIDIAN_CREDENTIALS_READONLY=1` — set on a second instance that shares another's credentials) refuses **before** opening the sign-in tab, and names where the login can be completed instead. Refusing after sign-in would have burned a one-time code for nothing.
+
+#### From the web UI: add a profile
+
+A new Claude account can be added from the Profiles page without a shell on the Meridian host. Under **Add a profile**, type a name and click **Add profile**:
+
+1. Meridian validates the name, refuses it if anything is wrong, then mints the PKCE login and opens Claude's sign-in in a new tab.
+2. Sign in to the Claude account this profile should use. Claude shows you a code.
+3. Paste it back — the **bare code** or the **whole callback URL**, exactly as for a re-login.
+
+The profile appears in the list, with its own config directory under `~/.config/meridian/profiles/<name>/`, ready to use with no restart.
+
+```bash
+# → {"addId":"…","authorizeUrl":"https://claude.com/cai/oauth/authorize?…","expiresAt":…,"profile":"work"}
+curl -X POST http://127.0.0.1:3456/profiles/add/start \
+  -H 'Content-Type: application/json' -d '{"profile":"work"}'
+
+# `code` accepts the bare code or the full callback URL
+curl -X POST http://127.0.0.1:3456/profiles/add/complete \
+  -H 'Content-Type: application/json' -d '{"addId":"…","code":"…"}'
+```
+
+**Nothing is written until the credentials are in hand.** The exchange with Anthropic happens first; the `profiles.json` entry is written only once it succeeds. A sign-in that is abandoned, rejected or never finished therefore leaves no profile behind at all — there is no half-made account slot stuck at "not logged in" to notice and clean up. Just add it again with the same name.
+
+**Who can do this.** These routes inherit `/profiles/*`'s `requireAuth`, so they are behind `MERIDIAN_API_KEY` **when that key is set**. When it is not set — the default — the only thing standing between this page and a new profile is whatever reaches the port: bind Meridian to loopback, or to a private network you trust. Adding a profile is the most privileged thing the Profiles page does, so treat an unauthenticated instance on a shared network accordingly. There is deliberately no delete, rename or edit here; removal stays `meridian profile remove <name>` on the host.
+
+Details worth knowing:
+
+- Names may use only letters, numbers, hyphens and underscores. The name becomes a directory, and the check is the same one `meridian profile add` applies.
+- An existing name is refused and points you at **Log in from browser** on that profile's card — re-authenticating an account is what that button is for.
+- One open sign-in per name at a time, so two people cannot both be part-way through creating the same one. Starting another for the same name **replaces** the first rather than being refused — cancelling the panel, reloading the page and closing the tab all abandon a sign-in without telling the server, and a name you could not retry until the 10-minute expiry would be worse than the race it prevents. Only the most recently started sign-in can be completed.
+- `MERIDIAN_CREDENTIALS_READONLY=1` refuses **before** the sign-in tab opens, and names `meridian profile add <name>` as the alternative.
+- Only **claude-max** profiles are created this way. `api` and `oauth-token` profiles are CLI-only — neither has an OAuth flow to drive from a page.
+- **The `~/.claude` import offer is CLI-only.** `meridian profile add` on a host whose default config dir is already signed in offers to adopt those credentials as the new profile. The UI never does: clicking **Add profile** always signs in fresh. Silently claiming the account you happen to be logged in as on that machine is not something a button press should be able to do.
 
 #### Headless / CI: register an OAuth token
 

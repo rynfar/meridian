@@ -297,6 +297,8 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET /profiles/login/status` | Poll a started login: `waiting`, `completed` or `failed` |
 | `POST /profiles/login/complete` | Finish that login with the code the user pasted back |
 | `GET /callback` | Anthropic's OAuth redirect target. **Not** behind `MERIDIAN_API_KEY` — the redirect carries no key; acts only on a single-use `state` minted by `/profiles/login/start` |
+| `POST /profiles/add/start` | Begin creating a new profile — validates the name and returns the authorize URL (see [Adding from the web UI](profiles.md#from-the-web-ui-add-a-profile)) |
+| `POST /profiles/add/complete` | Finish that creation — writes the profile only once Anthropic returns credentials |
 | `GET /v1/usage/quota` | Usage windows for the active profile (JSON) |
 | `GET /v1/usage/quota/all` | Usage windows for every profile (JSON) |
 | `GET /settings` | Routing, SDK feature toggles, model pricing, telemetry storage and update-check UI |

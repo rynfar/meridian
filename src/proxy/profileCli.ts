@@ -225,6 +225,17 @@ function loadProfileConfig(): ProfileConfig[] {
   }
 }
 
+/**
+ * Ids currently written to profiles.json, for collision checks.
+ *
+ * Ids only. The file also holds `apiKey` and `oauthToken` values, and a
+ * collision check has no business handling those — the narrower return type is
+ * what keeps them from reaching a caller that might render or log one.
+ */
+export function loadProfileIds(): string[] {
+  return loadProfileConfig().map(p => p.id)
+}
+
 function saveProfileConfig(profiles: ProfileConfig[]): void {
   ensureProfilesDir()
   writeFileSync(profilesConfigFile(), `${JSON.stringify(profiles, null, 2)}\n`, { mode: 0o600 })
@@ -457,20 +468,84 @@ async function completeManualOAuthLogin(configDir: string): Promise<boolean> {
   return false
 }
 
+export type ProfileSlotFailureReason = "invalid_id" | "already_exists" | "write_failed"
+
+export type CreateProfileSlotResult =
+  | { ok: true; profile: ProfileConfig; profiles: ProfileConfig[] }
+  | { ok: false; reason: ProfileSlotFailureReason; message: string }
+
+/**
+ * Turn a valid, non-colliding id into the two things a browser-login profile
+ * is made of: an entry in profiles.json and a CLAUDE_CONFIG_DIR of its own.
+ *
+ * ONE implementation, two front ends — `meridian profile add` and
+ * `POST /profiles/add/complete` — for the same reason the token exchange has
+ * one: two copies of "what a profile is made of" drift, and the copy that
+ * drifts is the one nobody runs.
+ *
+ * The collision check reads profiles.json at call time rather than trusting a
+ * list the caller loaded earlier, so a slot created between an early check and
+ * this one is still caught.
+ *
+ * `claudeConfigDir` adopts a directory that already holds credentials — the
+ * CLI's `~/.claude` import. Omitted, the profile gets a fresh directory of its
+ * own under `profiles/<id>`.
+ */
+export function createProfileSlot(
+  id: string,
+  options: { claudeConfigDir?: string } = {},
+): CreateProfileSlotResult {
+  if (!isValidProfileId(id)) {
+    return {
+      ok: false,
+      reason: "invalid_id",
+      message: "Invalid profile ID. Use only letters, numbers, hyphens and underscores.",
+    }
+  }
+
+  const profiles = loadProfileConfig()
+  if (profiles.some(p => p.id === id)) {
+    return { ok: false, reason: "already_exists", message: `Profile "${id}" already exists.` }
+  }
+
+  const claudeConfigDir = options.claudeConfigDir ?? profileConfigDirFor(id)
+  const profile: ProfileConfig = { id, claudeConfigDir }
+  try {
+    mkdirSync(claudeConfigDir, { recursive: true })
+    profiles.push(profile)
+    saveProfileConfig(reclaimAlias(profiles, id))
+  } catch (err) {
+    return { ok: false, reason: "write_failed", message: err instanceof Error ? err.message : String(err) }
+  }
+
+  return { ok: true, profile, profiles }
+}
+
+/** CLI wrapper: `createProfileSlot` refusals are fatal for `meridian profile add`. */
+function createProfileSlotOrExit(id: string, options: { claudeConfigDir?: string } = {}): ProfileConfig[] {
+  const created = createProfileSlot(id, options)
+  if (!created.ok) {
+    console.error(`\x1b[31m✗ ${created.message}\x1b[0m`)
+    if (created.reason === "already_exists") console.error(`  Run: meridian profile list`)
+    process.exit(1)
+  }
+  return created.profiles
+}
+
 export async function profileAdd(id: string, options: AuthLoginOptions = {}): Promise<void> {
   if (!isValidProfileId(id)) {
     console.error("\x1b[31m✗ Invalid profile ID.\x1b[0m Use only letters, numbers, hyphens, underscores.")
     process.exit(1)
   }
 
-  let profiles = loadProfileConfig()
+  // Checked here as well as inside createProfileSlot: this one fails before a
+  // browser login the user would otherwise complete for nothing.
+  const profiles = loadProfileConfig()
   if (profiles.find(p => p.id === id)) {
     console.error(`\x1b[31m✗ Profile "${id}" already exists.\x1b[0m`)
     console.error(`  Run: meridian profile list`)
     process.exit(1)
   }
-  profiles = reclaimAlias(profiles, id)
-
   // Offer to import existing ~/.claude credentials if this is the first profile
   // and the default config dir has valid, active auth
   const defaultClaudeDir = join(homedir(), ".claude")
@@ -481,10 +556,9 @@ export async function profileAdd(id: string, options: AuthLoginOptions = {}): Pr
       console.log(`\x1b[32m✓ Found existing Claude credentials (${defaultAuth.email}, ${defaultAuth.subscriptionType || "unknown"})\x1b[0m`)
       const answer = promptYesNo(`  Import as profile "${id}"?`)
       if (answer) {
-        profiles.push({ id, claudeConfigDir: defaultClaudeDir })
-        saveProfileConfig(profiles)
+        const imported = createProfileSlotOrExit(id, { claudeConfigDir: defaultClaudeDir })
         console.log(`\x1b[32m✓ Profile "${id}" imported — using ${defaultAuth.email}\x1b[0m`)
-        printEnvHint(profiles)
+        printEnvHint(imported)
         return
       }
       console.log()
@@ -494,6 +568,9 @@ export async function profileAdd(id: string, options: AuthLoginOptions = {}): Pr
   }
 
   const configDir = getProfileDir(id)
+  // Created before the login rather than by createProfileSlot afterwards: the
+  // `claude auth login` subprocess writes its credentials into this directory,
+  // so it has to exist first. The profiles.json entry still waits for success.
   mkdirSync(configDir, { recursive: true })
 
   console.log(`\x1b[36mAdding profile: ${id}\x1b[0m`)
@@ -504,9 +581,7 @@ export async function profileAdd(id: string, options: AuthLoginOptions = {}): Pr
   const existingAuth = getAuthStatus(configDir)
   if (existingAuth.loggedIn) {
     console.log(`\x1b[32m✓ Already authenticated as ${existingAuth.email}\x1b[0m`)
-    profiles.push({ id, claudeConfigDir: configDir })
-    saveProfileConfig(profiles)
-    printEnvHint(profiles)
+    printEnvHint(createProfileSlotOrExit(id))
     return
   }
 
@@ -559,9 +634,7 @@ export async function profileAdd(id: string, options: AuthLoginOptions = {}): Pr
   console.log()
   console.log(`\x1b[32m✓ Profile "${id}" created — logged in as ${auth.email} (${auth.subscriptionType || "unknown"})\x1b[0m`)
 
-  profiles.push({ id, claudeConfigDir: configDir })
-  saveProfileConfig(profiles)
-  printEnvHint(profiles)
+  printEnvHint(createProfileSlotOrExit(id))
 }
 
 export async function profileAddOauthToken(id: string, tokenArg: string | undefined): Promise<void> {

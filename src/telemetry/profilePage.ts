@@ -182,6 +182,8 @@ export const profilePageHtml = `<!DOCTYPE html>
   .login-msg.busy { color: var(--muted); }
   .login-reopen { color: var(--accent); font-size: 11px; text-decoration: none; }
   .login-reopen:hover { text-decoration: underline; }
+  .add-intro { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .add-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
 
   .mono { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px; }
   .copy-cmd {
@@ -275,6 +277,13 @@ export const profilePageHtml = `<!DOCTYPE html>
 </div>
 ${reorderLiveRegionHtml}
 
+<!-- Outside #content on purpose: render() rebuilds that element wholesale on
+     every poll, which would destroy a half-typed name or a pasted code. -->
+<div class="section">
+  <div class="section-title">Add a profile</div>
+  <div class="profile-card"><div id="add-slot"></div></div>
+</div>
+
 <div class="section" style="margin-top:32px">
   <h2 class="section-title">Setup Guide</h2>
   <div class="guide">
@@ -286,17 +295,22 @@ ${reorderLiveRegionHtml}
 
     <h3 style="margin-top:16px">Adding a new profile</h3>
     <ol>
-      <li>Open a terminal and run: <code>meridian profile add &lt;name&gt;</code></li>
-      <li>This opens your browser for Claude login</li>
-      <li>Done \u2014 the profile is ready to use</li>
+      <li><strong>UI:</strong> Name it under <strong>Add a profile</strong> above, sign in, then paste
+          the code Claude shows you \u2014 the whole callback URL works too</li>
+      <li><strong>CLI:</strong> <code>meridian profile add &lt;name&gt;</code></li>
     </ol>
+    <p style="font-size:12px;color:var(--muted);margin-top:8px">
+      Either way the profile gets its own config directory and is ready to use immediately.
+      Only the CLI offers to adopt existing <code>~/.claude</code> credentials as a profile;
+      the UI always signs in fresh, so clicking Add can never quietly claim the account
+      you are already logged in as on this machine.
+    </p>
 
     <div class="warn">
-      <strong>\u26a0 Important for adding a second account:</strong> Before running
-      <code>meridian profile add</code> for a different account, sign out of claude.ai
-      in your browser first, then sign in with the other account. Claude\u2019s OAuth
-      reuses your browser session \u2014 if you\u2019re already signed in, the login will
-      silently use the same account.
+      <strong>\u26a0 Important for adding a second account:</strong> Before adding a different
+      account, sign out of claude.ai in your browser first, then sign in with the other
+      account. Claude\u2019s OAuth reuses your browser session \u2014 if you\u2019re already signed
+      in, the login will silently use the same account.
     </div>
 
     <h3 style="margin-top:16px">Switching profiles</h3>
@@ -672,7 +686,7 @@ function render(data, quotaData) {
   if (profiles.length === 0) {
     document.getElementById('content').innerHTML = '<div class="empty-state">'
       + '<h2>No profiles configured</h2>'
-      + '<p style="margin-top:8px">Add your first profile from the terminal:</p>'
+      + '<p style="margin-top:8px">Add your first one below, or from a terminal:</p>'
       + '<p style="margin-top:8px"><code class="mono" style="background:var(--bg);padding:8px 16px;border-radius:6px;display:inline-block">meridian profile add personal</code></p>'
       + '</div>';
     afterRender();
@@ -916,13 +930,16 @@ var loginPollTimer = null;
 
 function loginSlot(id) { return document.getElementById('login-slot-' + id); }
 
-function setLoginMsg(text, kind) {
-  var slot = activeLogin ? loginSlot(activeLogin.profile) : null;
+function setPanelMsg(slot, text, kind) {
   if (!slot) return;
   var msg = slot.querySelector('.login-msg');
   if (!msg) return;
   msg.className = 'login-msg' + (kind ? ' ' + kind : '');
   msg.textContent = text || '';
+}
+
+function setLoginMsg(text, kind) {
+  setPanelMsg(activeLogin ? loginSlot(activeLogin.profile) : null, text, kind);
 }
 
 // Sign-in links, minted server-side and held per profile so the anchor has a
@@ -1082,6 +1099,8 @@ async function loopbackReachable(probeUrl) {
   }
 }
 
+// The redirect flow's panel. It has no paste box on purpose — Claude comes
+// back to Meridian by itself — so it does not share renderOauthPanel's shape.
 function renderWaitingPanel(id, authorizeUrl, pasteUrl) {
   return '<div class="login-panel">'
     + '<div class="login-panel-title">Sign in as ' + esc(id) + '</div>'
@@ -1103,24 +1122,39 @@ function renderWaitingPanel(id, authorizeUrl, pasteUrl) {
     + '</div>';
 }
 
-function renderPastePanel(id, authorizeUrl, note) {
+// One panel for both paste flows. Signing a profile in and creating one differ
+// in their wording and their handlers, not in their shape — two copies of this
+// markup would drift the moment either is touched.
+function renderOauthPanel(o) {
   return '<div class="login-panel">'
-    + '<div class="login-panel-title">Sign in as ' + esc(id) + '</div>'
-    + (note ? '<div class="login-note">' + esc(note) + '</div>' : '')
+    + '<div class="login-panel-title">' + o.title + '</div>'
+    + (o.note ? '<div class="login-note">' + esc(o.note) + '</div>' : '')
     + '<ol class="login-steps">'
     +   '<li>A Claude sign-in tab just opened — '
-    +     '<a class="login-reopen" href="' + esc(authorizeUrl) + '" target="_blank" rel="noopener">open it again</a>'
+    +     '<a class="login-reopen" href="' + esc(o.authorizeUrl) + '" target="_blank" rel="noopener noreferrer">open it again</a>'
     +     ' if it was blocked.</li>'
-    +   '<li>Make sure you are signed into the right Claude account for this profile.</li>'
+    +   '<li>' + o.accountStep + '</li>'
     +   '<li>Paste the code Claude shows you below — or the whole callback URL from the address bar.</li>'
     + '</ol>'
     + '<div class="login-row">'
     +   '<input class="login-input" type="text" autocomplete="off" spellcheck="false" placeholder="code, or https://platform.claude.com/oauth/code/callback?code=…">'
-    +   '<button class="login-btn login-submit" onclick="submitLogin()">Complete login</button>'
-    +   '<button class="switch-btn current login-cancel" style="margin-top:0" onclick="cancelLogin()">Cancel</button>'
+    +   '<button class="login-btn login-submit" onclick="' + o.onSubmit + '">' + o.submitLabel + '</button>'
+    +   '<button class="switch-btn current login-cancel" style="margin-top:0" onclick="' + o.onCancel + '">Cancel</button>'
     + '</div>'
     + '<div class="login-msg"></div>'
     + '</div>';
+}
+
+function renderPastePanel(id, authorizeUrl, note) {
+  return renderOauthPanel({
+    title: 'Sign in as ' + esc(id),
+    authorizeUrl: authorizeUrl,
+    note: note,
+    accountStep: 'Make sure you are signed into the right Claude account for this profile.',
+    submitLabel: 'Complete login',
+    onSubmit: 'submitLogin()',
+    onCancel: 'cancelLogin()',
+  });
 }
 
 function bindPasteInput(slot) {
@@ -1242,8 +1276,141 @@ function cancelLogin() {
   }
 }
 
+// --- Add a profile ---
+//
+// The same two steps against its own routes. Creating an account is a
+// different act from re-authenticating one, and /profiles/login/start refuses
+// an unknown name precisely so a typo there cannot create one.
+//
+// #add-slot sits outside #content, so this panel survives the poll on its own
+// and — unlike the login panels — does not have to pause it.
+var activeAdd = null;
+
+function addSlot() { return document.getElementById('add-slot'); }
+
+function renderAddForm(prefill) {
+  return '<div class="add-intro">Sign in to another Claude account and keep it here alongside the others.</div>'
+    + '<div class="login-row">'
+    +   '<input class="login-input add-input" type="text" autocomplete="off" spellcheck="false"'
+    +     ' placeholder="new profile name" value="' + esc(prefill || '') + '">'
+    +   '<button class="login-btn" onclick="startAdd()">Add profile</button>'
+    + '</div>'
+    + '<div class="add-note">Letters, numbers, hyphens and underscores.</div>'
+    + '<div class="login-msg"></div>';
+}
+
+function resetAddForm(prefill) {
+  activeAdd = null;
+  var slot = addSlot();
+  if (!slot) return;
+  slot.innerHTML = renderAddForm(prefill);
+  var input = slot.querySelector('.add-input');
+  if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') startAdd(); });
+}
+
+function renderAddPanel(id, authorizeUrl) {
+  return renderOauthPanel({
+    title: 'Create ' + esc(id),
+    authorizeUrl: authorizeUrl,
+    accountStep: 'Sign in with the Claude account this profile should use \u2014 if a different account is already '
+      + 'signed in at claude.ai, sign out there first, or Claude will reuse it without asking.',
+    submitLabel: 'Create profile',
+    onSubmit: 'submitAdd()',
+    onCancel: 'cancelAdd()',
+  });
+}
+
+async function startAdd() {
+  var slot = addSlot();
+  if (!slot) return;
+  var nameInput = slot.querySelector('.add-input');
+  var name = nameInput ? nameInput.value.trim() : '';
+  if (!name) { setPanelMsg(slot, 'Name the profile first.', 'err'); return; }
+
+  setPanelMsg(slot, 'Starting\u2026', 'busy');
+
+  var res, data;
+  try {
+    res = await fetch('/profiles/add/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: name })
+    });
+    data = await res.json();
+  } catch (err) {
+    setPanelMsg(slot, 'Could not reach Meridian.', 'err');
+    return;
+  }
+
+  // The form is left standing on a refusal, name and all: every refusal here
+  // is about the name, and retyping it to fix a typo is the wrong ask.
+  if (!res.ok) { setPanelMsg(slot, data.error || 'Could not start.', 'err'); return; }
+
+  activeAdd = { profile: name, addId: data.addId };
+  slot.innerHTML = renderAddPanel(name, data.authorizeUrl);
+  var codeInput = slot.querySelector('.login-input');
+  if (codeInput) {
+    codeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitAdd(); });
+    codeInput.focus();
+  }
+  window.open(data.authorizeUrl, '_blank', 'noopener');
+}
+
+async function submitAdd() {
+  if (!activeAdd || activeAdd.spent) return;
+  var slot = addSlot();
+  var input = slot ? slot.querySelector('.login-input') : null;
+  var value = input ? input.value.trim() : '';
+  if (!value) { setPanelMsg(slot, 'Paste the code first.', 'err'); return; }
+
+  var buttons = slot ? slot.querySelectorAll('button') : [];
+  for (var i = 0; i < buttons.length; i++) buttons[i].disabled = true;
+  setPanelMsg(slot, 'Creating\u2026', 'busy');
+
+  var res, data;
+  try {
+    res = await fetch('/profiles/add/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addId: activeAdd.addId, code: value })
+    });
+    data = await res.json();
+  } catch (err) {
+    setPanelMsg(slot, 'Could not reach Meridian.', 'err');
+    for (var j = 0; j < buttons.length; j++) buttons[j].disabled = false;
+    return;
+  }
+
+  if (!res.ok) {
+    setPanelMsg(slot, data.error || 'Could not create the profile.', 'err');
+    var cancelBtn = slot ? slot.querySelector('.login-cancel') : null;
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (data.retryable) {
+      var submitBtn = slot ? slot.querySelector('.login-submit') : null;
+      if (submitBtn) submitBtn.disabled = false;
+      if (input) input.focus();
+    } else {
+      // The code is spent. Keep the panel so the reason stays readable —
+      // Cancel is the way back to the form.
+      activeAdd.spent = true;
+    }
+    return;
+  }
+
+  resetAddForm('');
+  if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
+  refresh();
+}
+
+function cancelAdd() {
+  // Keeps the name. Abandoning a sign-in almost always means the wrong Claude
+  // account was signed in, not that the name was wrong.
+  resetAddForm(activeAdd ? activeAdd.profile : '');
+}
+
 meridianReorder.init({ onSaved: refresh });
 refresh();
+resetAddForm('');
 setInterval(function () { if (!activeLogin && !meridianReorder.dragging()) refresh(); }, 10000);
 ` + profileBarJs + `
 </script>
