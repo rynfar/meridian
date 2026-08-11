@@ -52,7 +52,7 @@ export function configDirToCredentialsFile(claudeConfigDir: string): string {
   return join(resolve(claudeConfigDir), ".credentials.json")
 }
 
-interface OAuthCredentials {
+export interface OAuthCredentials {
   accessToken: string
   refreshToken: string
   expiresAt: number
@@ -71,7 +71,7 @@ interface OAuthCredentials {
   rateLimitTier?: string
 }
 
-interface CredentialsFile {
+export interface CredentialsFile {
   claudeAiOauth: OAuthCredentials
   [key: string]: unknown
 }

@@ -31,6 +31,10 @@ Open the printed URL in a browser, sign in to the target Claude account, then pa
 meridian profile login work --headless
 ```
 
+The same login also records the account's plan (`subscriptionType`, `rateLimitTier`), read from Anthropic's OAuth profile endpoint — the token exchange itself returns no plan information. That is what lets `meridian profile list`, `/profiles/list`, `/health` and the dashboard tell a Max account from a Team one, and what makes `/v1/models` advertise the larger context window Max accounts actually have. If the lookup fails the login still succeeds and the plan simply stays unknown.
+
+> **⚠ A profile created by an older Meridian has no plan recorded, and a token refresh cannot backfill it** — the value is only ever written at login, and Anthropic's usage endpoint does not carry it. Re-run `meridian profile login <name> --headless` to repair such a profile.
+
 #### Headless / CI: register an OAuth token
 
 When a browser isn't available (containers, CI runners, remote shells), generate a long-lived OAuth token with `claude setup-token` and register it as a profile:
