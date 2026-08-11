@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from "bun:test"
 import {
+  ANNOUNCE_TURN_NUDGE,
   classifyTurnOutcome,
   shouldAttemptRecovery,
   SILENT_TURN_NUDGE,
@@ -43,6 +44,52 @@ describe("classifyTurnOutcome", () => {
   // reason the input is textEvents and not textBlocks.
   it("does not accept an empty text block as text", () => {
     expect(classifyTurnOutcome({ textEvents: 0, toolUses: 0, blocksForwarded: 2 }).kind)
+      .toBe("silent")
+  })
+})
+
+describe("classifyTurnOutcome: the announce window", () => {
+  // The live case that slipped past the silent invariant (request a342c863,
+  // 2026-08-11 10:54 UTC): a deny-boundary continuation on a session's second
+  // exchange — thinking, then one short text that only announced the work
+  // ("I'll start by auditing…", 131 chars), zero tool calls, end_turn. Text
+  // arrived, so silence detection stays quiet; only the length test inside
+  // the narrow window can see it.
+  const announceTurn = {
+    textEvents: 2,
+    toolUses: 0,
+    blocksForwarded: 4,
+    textChars: 131,
+    denyBoundaryContinuation: true,
+    clientMessageCount: 3,
+  }
+
+  it("classifies the observed announce-then-stop turn as announce", () => {
+    expect(classifyTurnOutcome(announceTurn)).toEqual({ kind: "announce" })
+  })
+
+  it("a tool call makes the same turn productive — the client has work to do", () => {
+    expect(classifyTurnOutcome({ ...announceTurn, toolUses: 1 }))
+      .toEqual({ kind: "productive" })
+  })
+
+  it("a long text inside the window is an answer, not an announce", () => {
+    expect(classifyTurnOutcome({ ...announceTurn, textChars: 601 }))
+      .toEqual({ kind: "productive" })
+  })
+
+  it("outside the deny boundary a short text is an answer", () => {
+    expect(classifyTurnOutcome({ ...announceTurn, denyBoundaryContinuation: false }))
+      .toEqual({ kind: "productive" })
+  })
+
+  it("a longer conversation never gets the announce classification", () => {
+    expect(classifyTurnOutcome({ ...announceTurn, clientMessageCount: 5 }))
+      .toEqual({ kind: "productive" })
+  })
+
+  it("no text at all is still silent, boundary or not", () => {
+    expect(classifyTurnOutcome({ ...announceTurn, textEvents: 0, textChars: 0 }).kind)
       .toBe("silent")
   })
 })

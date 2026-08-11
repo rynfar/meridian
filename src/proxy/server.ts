@@ -44,7 +44,7 @@ import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, compute
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
-import { classifyTurnOutcome, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
+import { ANNOUNCE_TURN_NUDGE, classifyTurnOutcome, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -2363,6 +2363,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let streamEventsSeen = 0
             let eventsForwarded = 0
             let textEventsForwarded = 0
+            // Characters of forwarded text — the announce classification is a
+            // length test (see turnOutcome.ts).
+            let textCharsForwarded = 0
             let bytesSent = 0
             let streamClosed = false
             // Early-stop drain: after the client stream closes at turn-1's
@@ -3113,6 +3116,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       const delta = (event as any).delta
                       if (delta?.type === "text_delta") {
                         textEventsForwarded += 1
+                        if (typeof delta.text === "string") textCharsForwarded += delta.text.length
                       }
                     }
                   }
@@ -3172,6 +3176,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 messageStartEmitted = true
                 eventsForwarded += 5
                 textEventsForwarded += 1
+                textCharsForwarded += text.length
               }
 
               if (passthrough) {
@@ -3228,6 +3233,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 textEvents: textEventsForwarded,
                 toolUses: streamedToolUseIds.size,
                 blocksForwarded: eventsForwarded,
+                textChars: textCharsForwarded,
+                denyBoundaryContinuation: Boolean(passthroughResumeUuid),
+                clientMessageCount: allMessages.length,
               })
               //
               // `messageStartEmitted` is a hard precondition, not a heuristic:
@@ -3248,14 +3256,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 })
               ) {
                 silentTurnRecoveryAttempted = true
+                const capturedBeforeRecovery = capturedToolUses.length
                 claudeLog("response.silent_turn_recovery", {
                   mode: "stream",
+                  kind: preRecoveryOutcome.kind,
                   reason: preRecoveryOutcome.kind === "silent" ? preRecoveryOutcome.reason : undefined,
                   sdkSessionId: currentSessionId || resumeSessionId,
                 })
                 try {
                   for await (const event of query(buildQueryOptions({
-                    prompt: SILENT_TURN_NUDGE,
+                    // The announce stall needs its own words: "no visible
+                    // output" would be false — the client saw the announcement.
+                    prompt: preRecoveryOutcome.kind === "announce" ? ANNOUNCE_TURN_NUDGE : SILENT_TURN_NUDGE,
                     model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     // The nudge asks for prose, but a tool call is an equally
                     // valid answer — so the tool surface has to stay identical.
@@ -3318,6 +3330,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         })}\n\n`
                       ), "silent_recovery_text_delta")
                       textEventsForwarded += 1
+                      if (typeof inner.delta.text === "string") textCharsForwarded += inner.delta.text.length
                       silentTurnRecovered = true
                     } else if (innerType === "content_block_stop" && recoveryBlockIndex !== undefined) {
                       safeEnqueue(encoder.encode(
@@ -3337,6 +3350,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     mode: "stream",
                     error: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
                   })
+                }
+                // Tool calls made in the recovery turn are captured by the
+                // shared PreToolUse hook and delivered through the unseen-
+                // capture emission below — an equally valid recovery, and for
+                // an announce stall the expected one.
+                if (capturedToolUses.length > capturedBeforeRecovery) {
+                  silentTurnRecovered = true
                 }
                 claudeLog("response.silent_turn_recovery_result", {
                   mode: "stream",
@@ -3518,7 +3538,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   textEvents: textEventsForwarded,
                   toolUses: streamedToolUseIds.size,
                   blocksForwarded: eventsForwarded,
+                  textChars: textCharsForwarded,
+                  denyBoundaryContinuation: Boolean(passthroughResumeUuid),
+                  clientMessageCount: allMessages.length,
                 })
+                if (turnOutcome.kind === "announce") {
+                  claudeLog("response.announce_turn", {
+                    model,
+                    textChars: textCharsForwarded,
+                    outputTokens: lastUsage?.output_tokens,
+                    recovered: silentTurnRecovered,
+                    recoveryAttempted: silentTurnRecoveryAttempted,
+                  })
+                  diagnosticLog.session(
+                    `${requestMeta.requestId} announce_turn chars=${textCharsForwarded} ` +
+                    `recovery=${silentTurnRecoveryAttempted ? (silentTurnRecovered ? "succeeded" : "failed") : "off"}`,
+                    requestMeta.requestId,
+                  )
+                }
                 if (turnOutcome.kind === "silent") {
                   claudeLog("response.silent_turn", {
                     model,
