@@ -142,9 +142,17 @@ export function clientAbortDisposition(input: {
   currentSessionId?: string
   sawDuplicateToolUse: boolean
   resumeBoundaryUuid?: string
+  /** Only passthrough turns have deny boundaries. */
+  passthrough: boolean
 }): ClientAbortDisposition {
   // Fork/subagent requests never write the cache, so they have nothing to undo.
   if (input.isIndependentSession || !input.profileSessionId) return { action: "none" }
+  // A "deny boundary" is a passthrough concept. In internal mode the SDK runs
+  // the tools itself, so a user message carrying tool_results is an ordinary
+  // turn — storing its uuid would mark a normal continuation point as a spent
+  // deny in the cross-process store, and the next continuation would fork from
+  // it. The interrupted tail is still unsafe to resume, so evict and replay.
+  if (!input.passthrough) return { action: "evict" }
   if (input.currentSessionId && !input.sawDuplicateToolUse && input.resumeBoundaryUuid) {
     return { action: "store", resumeUuid: input.resumeBoundaryUuid }
   }

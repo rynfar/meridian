@@ -3628,6 +3628,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   currentSessionId,
                   sawDuplicateToolUse,
                   resumeBoundaryUuid: nextPassthroughResumeUuid,
+                  passthrough,
                 })
                 if (disposition.action === "store" && currentSessionId) {
                   storeSession(

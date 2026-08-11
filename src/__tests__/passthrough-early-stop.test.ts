@@ -68,6 +68,7 @@ describe("clientAbortDisposition", () => {
     currentSessionId: "claude-1",
     sawDuplicateToolUse: false,
     resumeBoundaryUuid: "u1",
+    passthrough: true,
   }
 
   it("stores the boundary when one was persisted before the abort", () => {
@@ -79,6 +80,14 @@ describe("clientAbortDisposition", () => {
     // model answers with an empty turn, and every empty turn becomes the next
     // tail. A fresh replay is the cost of not wedging the conversation.
     expect(clientAbortDisposition({ ...base, resumeBoundaryUuid: undefined })).toEqual({ action: "evict" })
+  })
+
+  // A deny boundary is a passthrough concept. In internal mode the SDK runs the
+  // tools itself, so a user message carrying tool_results is an ordinary turn —
+  // persisting its uuid as a spent deny would make the next continuation fork
+  // from a point that was never a boundary.
+  it("never records a deny boundary for an internal-mode abort", () => {
+    expect(clientAbortDisposition({ ...base, passthrough: false })).toEqual({ action: "evict" })
   })
 
   it("evicts when the SDK session id never arrived", () => {
