@@ -32,8 +32,9 @@ opt-in plugins instead:
 | [`@rynfar/meridian-plugin-hermes-scrub`](https://github.com/rynfar/meridian-plugin-hermes-scrub) | Strips Hermes Agent's `# Finishing the job` harness block from the system prompt. Fixes empty-stream responses when proxying Hermes, and avoids its coding-harness fingerprint. |
 | [`@rynfar/meridian-plugin-pi-scrub`](https://github.com/rynfar/meridian-plugin-pi-scrub) | Strips Pi's coding-agent-harness prompt line that Anthropic meters as Extra Usage. |
 | [`@rynfar/meridian-plugin-opencode-scrub`](https://github.com/rynfar/meridian-plugin-opencode-scrub) | Strips OpenCode harness boilerplate from the system prompt before it reaches Claude. |
+| [`@rynfar/meridian-plugin-openclaw-scrub`](https://github.com/rynfar/meridian-plugin-openclaw-scrub) | Stops OpenClaw traffic being metered as a third-party app. Removes the output-directive block and the heartbeat sections — the three passages measured to trip `400 You're out of extra usage` on their own. |
 
-**Nix users:** the flake packages all three prebuilt — `pkgs.meridianPlugins.<name>` via the `meridian` overlay (or `meridian.legacyPackages.${system}.meridianPlugins`), each exposing `.path` for a `plugins.json` entry or the home-manager `pluginConfig` option. Pins are refreshed by a scheduled workflow that rebuilds every plugin before bumping.
+**Nix users:** the flake packages hermes-scrub, pi-scrub and opencode-scrub prebuilt — `pkgs.meridianPlugins.<name>` via the `meridian` overlay (or `meridian.legacyPackages.${system}.meridianPlugins`), each exposing `.path` for a `plugins.json` entry or the home-manager `pluginConfig` option. Pins are refreshed by a scheduled workflow that rebuilds every plugin before bumping. openclaw-scrub is not in the flake yet — add it as a `meridian-plugin-openclaw-scrub` input (the packaging is generic; it is picked up by prefix) and relock.
 
 Everyone else: install into Meridian's config dir and register the built file in
 `~/.config/meridian/plugins.json`:
