@@ -108,6 +108,23 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   cherry: {
     codeSystemPrompt: false,
   },
+  // Prime Agent ships ~17-19KB of its own harness doctrine — RLM control
+  // semantics, subagent delegation guidance, continual-harness state. Layering
+  // Claude Code's ~28KB preset on top duplicates and contradicts it, so keep
+  // the preset OFF (same rationale as codex/jcode/cherry). Users can flip it on
+  // via the settings UI.
+  //
+  // Measured rather than assumed: 6 multi-round `ipython` loops per arm, driven
+  // through Meridian with the real captured Prime Agent prompt and tool schema.
+  // Both arms scored identically on what matters — every run called only
+  // `ipython`, ran all three requested steps in order, and finished. The preset
+  // bought nothing, so OFF keeps the behaviour and saves ~28KB per request.
+  // (Both arms also re-ran the final cell in most samples; since it appears
+  // equally with the preset on, it is a property of the task and model, not of
+  // this setting.)
+  prime: {
+    codeSystemPrompt: false,
+  },
   // Codex CLI endpoint (/v1/responses). Codex ships its own ~21KB harness
   // instructions; keep the Claude Code preset OFF so they aren't overridden
   // (same rationale as openai). Passthrough is forced in the adapter itself.

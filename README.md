@@ -12,7 +12,7 @@
 
 ---
 
-Meridian bridges the Claude Agent SDK (formerly the Claude Code SDK) to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Droid, Jcode, Open WebUI, Claude Code — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
+Meridian bridges the Claude Agent SDK (formerly the Claude Code SDK) to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Prime Agent, Droid, Jcode, Open WebUI, Claude Code — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
 
 > [!NOTE]
 > ### How Meridian works with Anthropic
@@ -104,6 +104,7 @@ The Claude Agent SDK provides programmatic access to Claude. But your favorite c
 | [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars — file editing, streaming; `--no-stream` broken (litellm bug) |
 | [Open WebUI](https://github.com/open-webui/open-webui) | ✅ Verified | OpenAI-compatible endpoints — set base URL to `http://127.0.0.1:3456` |
 | [Pi](https://github.com/mariozechner/pi-coding-agent) | ✅ Verified | models.json config (see [Agent Setup](docs/agents.md)) — full tool support via passthrough; detected via `x-meridian-agent: pi` header |
+| [Prime Agent](https://www.npmjs.com/package/prime-agent) | ✅ Verified | Extension config (see [Agent Setup](docs/agents.md)) — a Pi fork with its own `prime` adapter; single `ipython` tool via passthrough, RLM subagents get distinct session keys, sessions survive long idle gaps. The extension's `metadata.user_id` stamp is **required**, not optional. Cron/scheduled ticks are [not yet verified](docs/agents.md#prime-agent) |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
 | [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see [Agent Setup](docs/agents.md)) — chat client with Claude's built-in web search via internal mode |
 | Jcode | ✅ Verified | `/v1/chat/completions` + `x-jcode-session` header — dedicated `jcode` adapter keeps append-only history intact, so retained sessions resume on one SDK session (90.9% cache hit on turn 2 of a two-turn Opus session) |

@@ -250,6 +250,139 @@ Pi mimics Claude Code's User-Agent, so automatic detection isn't possible. The `
 
 Pi runs in passthrough mode by default — it executes its own tools and Meridian just forwards the `tool_use` blocks. Opt out with `MERIDIAN_PASSTHROUGH=0`.
 
+### Prime Agent
+
+[Prime Agent](https://www.npmjs.com/package/prime-agent) is a fork of Pi with a
+different prompt and tool surface, so it uses its own `prime` adapter rather
+than Pi's. Its only tool by default is `ipython`, a persistent kernel in the
+client — passthrough is effectively required, and internal mode
+(`MERIDIAN_PASSTHROUGH=0`) drops that tool entirely.
+
+Connect it with an extension. Save as `.prime/agent/extensions/meridian.ts` in
+a project, or `~/.prime/agent/extensions/meridian.ts` globally:
+
+```typescript
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
+
+const MERIDIAN_PROVIDER = "meridian"
+
+export default function (pi: ExtensionAPI) {
+  pi.registerProvider(MERIDIAN_PROVIDER, {
+    name: "Meridian (Claude Max)",
+    baseUrl: "http://127.0.0.1:3456",
+    apiKey: "MERIDIAN_API_KEY",       // env var name, or any literal if auth is off
+    api: "anthropic-messages",
+    headers: { "x-meridian-agent": "prime" },
+    models: [
+      {
+        id: "claude-opus-5",
+        name: "Claude Opus 5 (Meridian)",
+        reasoning: true,
+        input: ["text", "image"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200000,
+        maxTokens: 32000,
+      },
+    ],
+  })
+
+  // Required, not an optimisation — see below.
+  pi.on("before_provider_request", (event: any, ctx: any) => {
+    if (ctx?.model?.provider !== MERIDIAN_PROVIDER) return undefined
+    const sessionId = ctx?.sessionManager?.getSessionId?.()
+    if (typeof sessionId !== "string" || !sessionId) return undefined
+    return {
+      ...(event.payload as Record<string, unknown>),
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    }
+  })
+}
+```
+
+Then pick a model with `/model` or `--provider meridian --model claude-opus-5`.
+
+Registering a **new** provider rather than overriding `anthropic` means
+installing this changes nothing until you select one of its models, so an
+already-running agent is unaffected.
+
+**The `before_provider_request` hook is required.** Prime Agent sends no session
+identity of its own, and under passthrough every tool round ends in a
+`tool_result` — which Meridian treats as a self-contained request needing no
+session resume. Each round then replays the whole conversation into a fresh
+session, and since that replay strips the assistant's `tool_use` blocks by
+design, the model loses track of what it has already run. Stamping
+`metadata.user_id` makes each round a continuation instead, so the SDK keeps the
+real tool calls in its own session state. `getSessionId()` is distinct per
+agent, so RLM children get their own keys rather than colliding with the parent.
+
+Detection is by the `x-meridian-agent: prime` header above, or
+`MERIDIAN_DEFAULT_AGENT=prime`. There is deliberately no User-Agent rule: in
+API-key mode Prime Agent sends the generic `Anthropic/JS <version>` that every
+Anthropic SDK client sends, so matching on it would misroute unrelated traffic.
+
+**Known limitation — file-change tracking.** Meridian reads file changes out of
+`ipython` cells for `%%bash` bodies, `!` shell escapes, and `await edit(path=…)`
+calls. It does **not** parse arbitrary Python writes (`open(p, "w").write(…)`,
+`Path.write_text`, library calls), which would need real dataflow analysis. Those
+edits still happen; they just don't appear in Meridian's file-change summary.
+
+#### What was verified, and what wasn't
+
+Measured on 2026-08-13/14 against Prime Agent 0.7.2:
+
+| Verified | How |
+|---|---|
+| Adapter selection, live turns | Real `prime-agent` binary through Meridian |
+| Tool-round session continuity | 45/45 rounds resumed as continuations across 12 sessions |
+| RLM children get distinct keys | Parent and depth-1 child carried different `metadata.user_id` on the wire |
+| Works with `codeSystemPrompt` off | 6 multi-round loops per arm; preset on vs off scored identically |
+| Survives long idle gaps | 7-minute silence, then `lineage=continuation` and the model recalled a codeword set before the gap |
+| Not metered as a third-party app | Negative control → full 18KB prompt → control again, all passing with the preset off |
+
+**Not verified: cron/scheduled tick delivery.** Two attempts, neither
+conclusive. Against a shared supervisor the scheduler fired (`runs=3`) but no
+request reached Meridian. Against an isolated supervisor, `schedule add` itself
+hung and never persisted the job. Session continuity across a worker restart is
+likewise untested.
+
+Four constraints make this awkward to exercise, all learned the hard way:
+
+- Only *resident* workers can be scheduled against. `print`, `rpc` and `json`
+  create **client-owned** workers, which Prime Agent deliberately omits from
+  schedules — so every headless mode is structurally ineligible. A resident
+  worker needs an interactive session, which needs a TTY (a pty works).
+- The `--daemon-socket` flag must come **before** the subcommand:
+  `prime-agent --daemon-socket <path> schedule list`. Placed after, it is
+  rejected as an unknown option, which reads misleadingly like the subcommand
+  cannot target a custom socket.
+- `PRIME_AGENT_CODING_AGENT_DIR` does **not** isolate a session from a shared
+  supervisor. The supervisor writes sessions into whichever agent directory
+  *it* was started with, so a test run against an already-running daemon lands
+  its sessions in that daemon's store. The supervisor socket is likewise global
+  per UID (`$TMPDIR/prime-agent-<uid>/daemon.sock`), so real isolation needs
+  `--daemon-socket` *and* a matching `PRIME_AGENT_CODING_AGENT_DIR`.
+- A dangling `~/.cache/meridian` makes Meridian return
+  `500 ENOENT … mkdir '~/.cache/meridian'` on affected requests. The client
+  retries and appears to hang, which is easy to misread as the agent stalling.
+  Check that path resolves before diagnosing anything else.
+
+A resident worker configured this way *does* reach Meridian — verified — so the
+remaining gap is specifically the scheduler, not the transport.
+
+The long-idle result above covers the part Meridian owns — a turn arriving on a
+session after a quiet gap resumes rather than replaying.
+
+Also not verified: the real client driving its own IPython kernel through a full
+tool loop. Kernel provisioning stalled in the isolated test environment; the
+tool-round evidence above comes from replaying Prime Agent's exact prompt and
+tool schema rather than from its kernel.
+
+**The metering result is a dated snapshot, not a property of the prompt.** It
+means "not flagged on this account at this moment" — the same classifier was
+observed changing its answer within a single day during the OpenClaw work. If
+you hit `400 You're out of extra usage` on Prime Agent traffic, re-measure
+before assuming the prompt is fine.
+
 ### Claude Code
 
 Claude Code can point at Meridian like any other Anthropic API client. The

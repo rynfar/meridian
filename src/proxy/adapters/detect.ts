@@ -12,6 +12,7 @@ import { droidAdapter } from "./droid"
 import { crushAdapter } from "./crush"
 import { passthroughAdapter } from "./passthrough"
 import { piAdapter } from "./pi"
+import { primeAdapter } from "./prime"
 import { forgeCodeAdapter } from "./forgecode"
 import { claudeCodeAdapter } from "./claudecode"
 import { openAiAdapter } from "./openai"
@@ -26,6 +27,13 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   crush: crushAdapter,
   passthrough: passthroughAdapter,
   pi: piAdapter,
+  // Prime Agent — a Pi fork. Its User-Agent in API-key mode is the generic
+  // `Anthropic/JS <version>`, shared with every other Anthropic SDK client, so
+  // there is deliberately no UA heuristic: selection is by this explicit tag
+  // (set in the provider config) or MERIDIAN_DEFAULT_AGENT=prime. Both the
+  // canonical name and the npm package name are accepted.
+  prime: primeAdapter,
+  "prime-agent": primeAdapter,
   forgecode: forgeCodeAdapter,
   "claude-code": claudeCodeAdapter,
   claudecode: claudeCodeAdapter,

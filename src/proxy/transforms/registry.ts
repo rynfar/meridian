@@ -3,6 +3,7 @@ import { openCodeTransforms } from "./opencode"
 import { crushTransforms } from "./crush"
 import { droidTransforms } from "./droid"
 import { piTransforms } from "./pi"
+import { primeTransforms } from "./prime"
 import { forgeCodeTransforms } from "./forgecode"
 import { passthroughTransforms } from "./passthrough"
 import { cherryTransforms } from "./cherry"
@@ -14,6 +15,10 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   crush: crushTransforms,
   droid: droidTransforms,
   pi: piTransforms,
+  // Prime Agent is a Pi fork with a different tool surface (one `ipython`
+  // tool, not Pi's read/write/edit/bash/glob/grep), so it needs its own
+  // config rather than sharing Pi's.
+  prime: primeTransforms,
   forgecode: forgeCodeTransforms,
   passthrough: passthroughTransforms,
   cherry: cherryTransforms,
