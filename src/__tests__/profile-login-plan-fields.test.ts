@@ -8,12 +8,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { buildLoginCredentials } from "../proxy/profileCli"
 import {
-  buildLoginCredentials,
   extractPlanFields,
   fetchOAuthPlanFields,
   subscriptionTypeFromOrganizationType,
-} from "../proxy/profileCli"
+} from "../proxy/oauthPlan"
 import type { CredentialStore } from "../proxy/tokenRefresh"
 
 /** Assign a mock to globalThis.fetch without TS complaining about `preconnect`. */
