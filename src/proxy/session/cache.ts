@@ -17,6 +17,7 @@ import {
 import { getConversationFingerprint } from "./fingerprint"
 import {
   computeLineageHash,
+  formatLineageMismatch,
   computeMessageBlockHashes,
   computeMessageHashes,
   verifyLineage,
@@ -149,7 +150,11 @@ function classifyLineage(
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
   } else if (result.type === "diverged" && result.reason === "modified-history") {
+    // The overlap count alone is not actionable — name the message that broke,
+    // which verifyLineage already worked out to reach this branch.
+    const detail = result.mismatch ? formatLineageMismatch(result.mismatch) : undefined
     const msg = `Stale session detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. Starting fresh replay.`
+      + (detail ? `\n  ${detail}` : "")
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
   }

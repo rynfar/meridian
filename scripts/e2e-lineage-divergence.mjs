@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Live check: does `onSession` actually reach a plugin, and does the report
- * distinguish the two cases that matter?
+ * Live check: does a divergence explain itself, and does the append-only path
+ * avoid one in the first place?
  *
  * Three turns against a real model, cheapest tier:
  *
@@ -9,7 +9,7 @@
  *   2. extend the trailing message with a late parallel tool result
  *      → must CONTINUE (this is the #767 shape, fixed in 1.61.0)
  *   3. rewrite an earlier message
- *      → must DIVERGE, and lineage-doctor must name the index
+ *      → must DIVERGE, and the log must name the offending index
  *
  * Requires Claude Max auth. Two turns of Haiku plus one short one.
  */
@@ -24,13 +24,13 @@ const reports = []
 const realError = console.error
 console.error = (...args) => {
   const line = args.map(String).join(" ")
-  if (line.includes("lineage-doctor")) reports.push(line)
+  if (line.includes("first mismatch at index")) reports.push(line)
   realError(...args)
 }
 
-// pluginConfigPath must be passed explicitly: MERIDIAN_PLUGIN_CONFIG is read
-// by the CLI, not by startProxyServer, so a programmatic instance otherwise
-// silently loads whatever the user has in ~/.config/meridian/plugins.json.
+// No plugin config: the diagnosis is core's, so it must appear with nothing
+// installed. Passing an explicit (empty) path also stops a programmatic
+// instance from silently picking up whatever is in ~/.config/meridian.
 const inst = await startProxyServer({
   port: PORT,
   host: "127.0.0.1",
@@ -109,15 +109,15 @@ console.log("  status", await send([
   { role: "user", content: "and now?" },
 ], session))
 
-console.log("\n--- lineage-doctor reports ---")
-if (reports.length === 0) console.log("(none — the hook never reached the plugin)")
+console.log("\n--- divergence reports ---")
+if (reports.length === 0) console.log("(none — the divergence went unexplained)")
 for (const r of reports) console.log(r)
 
 console.log("\n--- verdict ---")
 const named = reports.some(r => r.includes("first mismatch at index"))
 console.log(named
-  ? "OK: the plugin received onSession and named the diverging message"
-  : "FAIL: no mismatch detail reached the plugin")
+  ? "OK: core named the diverging message"
+  : "FAIL: the divergence was logged without saying which message broke")
 
 await inst.close()
 process.exit(named ? 0 : 1)

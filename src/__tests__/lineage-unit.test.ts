@@ -5,6 +5,7 @@
 import { describe, it, expect } from "bun:test"
 import {
   describeLineageMismatch,
+  formatLineageMismatch,
   computeLineageHash,
   hashMessage,
   computeMessageHashes,
@@ -593,6 +594,51 @@ describe("describeLineageMismatch", () => {
     const stored = [{ role: "user", content: "one" }]
     const incoming = [{ role: "user", content: "one" }, { role: "assistant", content: "two" }]
     expect(describeLineageMismatch(sessionFor(stored), incoming).index).toBe(-1)
+  })
+})
+
+// The log line this feeds is the whole point: core already knew which message
+// broke, and reported only a count nobody could act on.
+describe("formatLineageMismatch", () => {
+  const base = {
+    index: 50,
+    storedDigest: "19d133336ded0000000000000000aaaa",
+    incomingDigest: "d546681fb008000000000000000bbbbb",
+    previousDigest: "d61d1384ce00000000000000000ccccc",
+    incomingShape: { role: "user", blocks: "tool_result,tool_result", bytes: 812 },
+    storedCount: 51,
+    incomingCount: 53,
+  }
+
+  it("names the index, truncates both digests, and reports the shape", () => {
+    const out = formatLineageMismatch(base)!
+    expect(out).toContain("first mismatch at index 50")
+    expect(out).toContain("stored=19d133336ded")
+    expect(out).toContain("incoming=d546681fb008")
+    expect(out).toContain("user[tool_result,tool_result] 812B")
+  })
+
+  // A trailing-only mismatch is a late tool result; a mid-history one means the
+  // transcript was rewritten. The overlap count cannot tell them apart.
+  it("calls out a trailing-only mismatch", () => {
+    expect(formatLineageMismatch(base)).toContain("trailing message only")
+  })
+
+  it("does not call a mid-history mismatch trailing", () => {
+    expect(formatLineageMismatch({ ...base, index: 2 })).not.toContain("trailing")
+  })
+
+  it("returns nothing when the shared prefix matched all the way", () => {
+    expect(formatLineageMismatch({ ...base, index: -1 })).toBeUndefined()
+  })
+
+  it("never carries content", () => {
+    const secret = "SECRET-do-not-log"
+    const out = formatLineageMismatch({
+      ...base,
+      incomingShape: { role: "user", blocks: "text", bytes: secret.length },
+    })!
+    expect(out).not.toContain(secret)
   })
 })
 

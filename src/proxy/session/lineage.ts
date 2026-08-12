@@ -189,6 +189,34 @@ export function describeLineageMismatch(
 }
 
 /**
+ * One-line explanation of a divergence, for the log that reports it.
+ *
+ * `prefix overlap 50/51` says how many messages matched and never which one
+ * stopped, which is the fact needed to act on it — a trailing-only mismatch is
+ * a late tool result or a client re-serialising its last turn, while a mismatch
+ * in the middle means the history was rewritten. Same overlap count, different
+ * bug.
+ *
+ * Digests are truncated and content never appears, so the line is safe to paste
+ * into a public issue.
+ */
+export function formatLineageMismatch(mismatch: LineageMismatch): string | undefined {
+  if (mismatch.index < 0) return undefined
+  const short = (digest: string | undefined) => (digest ? digest.slice(0, 12) : "—")
+  const trailing = mismatch.index === mismatch.storedCount - 1
+    ? " (trailing message only — the rest of the history matched)"
+    : ""
+  const shape = mismatch.incomingShape
+    ? `${mismatch.incomingShape.role}[${mismatch.incomingShape.blocks}] ${mismatch.incomingShape.bytes}B`
+    : "unknown"
+  return (
+    `first mismatch at index ${mismatch.index}${trailing}: ` +
+    `stored=${short(mismatch.storedDigest)} incoming=${short(mismatch.incomingDigest)}, ` +
+    `incoming now ${shape}`
+  )
+}
+
+/**
  * Compute per-message hashes for an entire message array.
  */
 export function computeMessageHashes(messages: Array<{ role: string; content: any }>): string[] {
