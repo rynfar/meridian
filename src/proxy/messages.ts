@@ -375,6 +375,24 @@ function summarizeContent(value: unknown): string | undefined {
 }
 
 /**
+ * The replacement text of an edit, under any of the spellings harnesses use.
+ *
+ * Harnesses disagree on this field name and the disagreement is silent: a
+ * miss yields no summary at all, and the replay then tells the model THAT it
+ * edited a file but not WHAT it wrote — the #496 failure where it re-derives
+ * near-duplicate edits and confabulates a parallel editor.
+ *
+ * `new_string` is Claude Code's; `newText` is Pi's — confirmed from a real
+ * `~/.pi` session transcript (`edit: path, oldText, newText`), which matched
+ * neither existing key, so every Pi edit replayed summary-less. Both casings of
+ * both nouns are accepted rather than adding them one incident at a time.
+ */
+function editReplacementText(rec: Record<string, unknown> | null | undefined): unknown {
+  if (!rec) return undefined
+  return rec.new_string ?? rec.newString ?? rec.new_text ?? rec.newText
+}
+
+/**
  * Extract a content summary for mutating tools. Non-mutating tools (read,
  * bash, grep, ...) return undefined — their target alone identifies the call.
  */
@@ -383,14 +401,14 @@ function extractContentSummary(name: string, input: unknown): string | undefined
   const rec = input as Record<string, unknown>
   switch (name.toLowerCase()) {
     case "edit":
-      return summarizeContent(rec.newString ?? rec.new_string)
+      return summarizeContent(editReplacementText(rec))
     case "write":
       return summarizeContent(rec.content)
     case "multiedit": {
       const edits = rec.edits
       if (!Array.isArray(edits) || edits.length === 0) return undefined
       const first = edits[0] as Record<string, unknown> | null | undefined
-      const firstSummary = summarizeContent(first?.newString ?? first?.new_string)
+      const firstSummary = summarizeContent(editReplacementText(first))
       if (!firstSummary) return undefined
       return edits.length > 1 ? `${edits.length} edits; first: ${firstSummary}` : firstSummary
     }

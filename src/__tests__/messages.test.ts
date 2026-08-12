@@ -361,6 +361,37 @@ describe("buildToolUseIndex / tool-result attribution (#552)", () => {
     expect(target).not.toContain("\n")
   })
 
+  // Pi's edit tool sends oldText/newText — confirmed from a real ~/.pi session
+  // transcript. It matched neither newString nor new_string, so every Pi edit
+  // replayed with no content summary: the #496 failure where the model knows it
+  // edited a file but not what it wrote, and re-derives near-duplicate edits.
+  it("summarises an edit under every spelling of the replacement field", () => {
+    const cases: Array<[string, Record<string, unknown>]> = [
+      ["new_string", { path: "a.ts", old_string: "x", new_string: "const a = 2" }],
+      ["newString", { path: "a.ts", oldString: "x", newString: "const a = 2" }],
+      ["new_text", { path: "a.ts", old_text: "x", new_text: "const a = 2" }],
+      ["newText", { path: "a.ts", oldText: "x", newText: "const a = 2" }],
+    ]
+    for (const [label, input] of cases) {
+      const idx = buildToolUseIndex([
+        { role: "assistant", content: [{ type: "tool_use", id: "e", name: "edit", input }] },
+      ])
+      expect(idx.get("e")).toEqual({ name: "edit", target: "a.ts", contentSummary: "const a = 2" })
+      expect(describeToolCall(idx.get("e")!)).toBe(`[your edit a.ts → "const a = 2"]`)
+      if (label === "newText") expect(idx.get("e")!.contentSummary).toBeDefined()
+    }
+  })
+
+  it("summarises multiedit under the same spellings", () => {
+    const idx = buildToolUseIndex([
+      { role: "assistant", content: [{
+        type: "tool_use", id: "m", name: "multiedit",
+        input: { path: "a.ts", edits: [{ oldText: "x", newText: "first change" }, { oldText: "y", newText: "second" }] },
+      }] },
+    ])
+    expect(idx.get("m")!.contentSummary).toBe("2 edits; first: first change")
+  })
+
   it("ignores a whitespace-only target and falls through to the next key", () => {
     const idx = buildToolUseIndex([
       { role: "assistant", content: [
