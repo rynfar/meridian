@@ -327,11 +327,44 @@ export interface ToolCallInfo {
   contentSummary: string | undefined
 }
 
-/** Input keys that identify what a tool call operated on, in priority order. */
-const TOOL_TARGET_KEYS = ["filePath", "file_path", "path", "command", "pattern", "query", "url"] as const
+/**
+ * Input keys that identify what a tool call operated on, in priority order.
+ *
+ * `code` covers tools whose whole payload is a program rather than a path or a
+ * shell line — Prime Agent's `ipython`, and notebook/REPL tools generally. Its
+ * omission was not cosmetic: with no matching key the target is undefined and
+ * `extractContentSummary` has no case either, so EVERY call from such a tool
+ * replayed as the same bare `[your ipython]`. The model could not tell which
+ * cell produced which result, nor that it had already run one, and re-ran the
+ * first cell indefinitely (observed: `2+2` seven times in one turn).
+ */
+const TOOL_TARGET_KEYS = ["filePath", "file_path", "path", "command", "code", "pattern", "query", "url"] as const
+
+/** Max length of a replayed target label, including the "..." marker. */
+const TOOL_TARGET_MAX = 80
 
 /** Max length of a replayed content summary (before the "..." marker). */
 const CONTENT_SUMMARY_MAX = 120
+
+/**
+ * Normalize a tool-call target for the single-line `[your bash …]` label.
+ *
+ * Collapsing whitespace is what keeps the attribution on one line. A
+ * multi-line value — a heredoc, a `&&` chain split across lines, an `ipython`
+ * cell — previously embedded raw newlines straight into the replayed prompt,
+ * breaking the compact bracketed shape that #111/#386 depend on for the model
+ * to read it as context rather than as tool syntax to imitate.
+ *
+ * Truncation math is unchanged from the original inline slice (77 + "..." =
+ * 80), so labels that were already single-line render byte-identically.
+ */
+function normalizeTarget(value: string): string | undefined {
+  const collapsed = value.replace(/\s+/g, " ").trim()
+  if (!collapsed) return undefined
+  return collapsed.length > TOOL_TARGET_MAX
+    ? collapsed.slice(0, TOOL_TARGET_MAX - 3) + "..."
+    : collapsed
+}
 
 /** Collapse whitespace runs to single spaces and truncate. */
 function summarizeContent(value: unknown): string | undefined {
@@ -390,8 +423,8 @@ export function buildToolUseIndex(
         for (const key of TOOL_TARGET_KEYS) {
           const v = (input as Record<string, unknown>)[key]
           if (typeof v === "string" && v) {
-            target = v.length > 80 ? v.slice(0, 77) + "..." : v
-            break
+            target = normalizeTarget(v)
+            if (target) break
           }
         }
       }

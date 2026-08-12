@@ -311,6 +311,65 @@ describe("buildToolUseIndex / tool-result attribution (#552)", () => {
     expect(describeToolCall({ name: "custom", target: undefined, contentSummary: undefined })).toBe("[your custom]")
   })
 
+  // A code-execution tool's whole payload is the `code` field. Without it in
+  // TOOL_TARGET_KEYS every call replayed as the same bare `[your ipython]`:
+  // the model could not tell which cell produced which result, nor that it had
+  // already run one, and re-ran the first cell indefinitely.
+  it("attributes code-execution tools by the code they ran", () => {
+    const idx = buildToolUseIndex([
+      { role: "assistant", content: [{ type: "tool_use", id: "c1", name: "ipython", input: { code: "2+2" } }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "c2", name: "ipython", input: { code: "3+3" } }] },
+    ])
+    expect(idx.get("c1")).toEqual({ name: "ipython", target: "2+2", contentSummary: undefined })
+    expect(idx.get("c2")).toEqual({ name: "ipython", target: "3+3", contentSummary: undefined })
+
+    const labels = [...idx.values()].map(describeToolCall)
+    expect(new Set(labels).size).toBe(2)
+    expect(labels).toEqual(["[your ipython 2+2]", "[your ipython 3+3]"])
+  })
+
+  // The label is rendered inline in a single-line bracket. A multi-line value
+  // used to embed raw newlines into the replayed prompt, breaking the compact
+  // shape #111/#386 rely on. Affects `command` for every bash-using adapter,
+  // not just code tools.
+  it("keeps multi-line targets on one line", () => {
+    const idx = buildToolUseIndex([
+      { role: "assistant", content: [
+        { type: "tool_use", id: "b1", name: "bash", input: { command: "echo one\necho two\necho three" } },
+        { type: "tool_use", id: "b2", name: "ipython", input: { code: "import os\nprint(os.getcwd())" } },
+      ] },
+    ])
+    for (const id of ["b1", "b2"]) {
+      const label = describeToolCall(idx.get(id)!)
+      expect(label).not.toContain("\n")
+      expect(label.startsWith("[")).toBe(true)
+      expect(label.endsWith("]")).toBe(true)
+    }
+    expect(idx.get("b1")!.target).toBe("echo one echo two echo three")
+    expect(idx.get("b2")!.target).toBe("import os print(os.getcwd())")
+  })
+
+  it("still truncates long targets to the 80-char budget after collapsing", () => {
+    const idx = buildToolUseIndex([
+      { role: "assistant", content: [
+        { type: "tool_use", id: "t1", name: "ipython", input: { code: "x = 1\n".repeat(100) } },
+      ] },
+    ])
+    const target = idx.get("t1")!.target!
+    expect(target.length).toBeLessThanOrEqual(80)
+    expect(target.endsWith("...")).toBe(true)
+    expect(target).not.toContain("\n")
+  })
+
+  it("ignores a whitespace-only target and falls through to the next key", () => {
+    const idx = buildToolUseIndex([
+      { role: "assistant", content: [
+        { type: "tool_use", id: "t1", name: "runner", input: { command: "   \n  ", code: "print(1)" } },
+      ] },
+    ])
+    expect(idx.get("t1")!.target).toBe("print(1)")
+  })
+
   it("returns an empty index for non-array and toolless content", () => {
     expect(buildToolUseIndex([{ role: "user", content: "hi" }]).size).toBe(0)
     expect(buildToolUseIndex([]).size).toBe(0)
