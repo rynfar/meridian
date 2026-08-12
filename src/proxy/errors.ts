@@ -244,6 +244,47 @@ export function isRateLimitError(errMsg: string): boolean {
 }
 
 /**
+ * Error types that exhaust the CURRENT account while leaving the rest of the
+ * pool viable — priority routing's cue to try the next candidate instead of
+ * handing the failure to the client.
+ *
+ * `rate_limit_error` is a spent quota window; `billing_error` is a lapsed
+ * subscription or a declined payment method. Both are properties of the one
+ * account that raised them and neither can succeed on a retry there, which is
+ * exactly what makes another account worth trying.
+ *
+ * Deliberately absent: `authentication_error`, which the token refresh already
+ * recovers in place, and the account-blind failures (`api_error`,
+ * `overloaded_error`, `timeout_error`) — those say nothing about entitlement,
+ * and failing over on them would spend the whole pool on one upstream hiccup
+ * and leave every account marked exhausted for something none of them did.
+ */
+const ACCOUNT_FAILOVER_ERROR_TYPES: ReadonlySet<string> = new Set([
+  "rate_limit_error",
+  "billing_error",
+])
+
+/**
+ * Whether a classified error type means "this account cannot serve the
+ * request, another one might". Used by priority routing to decide failover.
+ */
+export function isAccountFailoverError(errorType: string | null | undefined): errorType is string {
+  return typeof errorType === "string" && ACCOUNT_FAILOVER_ERROR_TYPES.has(errorType)
+}
+
+/**
+ * Whether the refusal is the quota kind, which names its own reset — the two
+ * cooldown tiers read the account's five-hour window, and only this kind has
+ * anything to look up there. Lives beside the set so the type name stays
+ * owned by one module: a rename that missed a caller in the orchestrator would
+ * not break failover loudly, it would silently downgrade every quota cooldown
+ * to the conservative default.
+ */
+export function isQuotaRefusal(errorType: string | null | undefined): boolean {
+  return errorType === "rate_limit_error"
+}
+
+/**
  * Detect errors caused by the 1M context window requiring Extra Usage.
  * Max subscribers without Extra Usage enabled get this error when using
  * sonnet[1m] or opus[1m]. The fix is to fall back to the base model.

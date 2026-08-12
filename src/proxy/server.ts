@@ -50,7 +50,7 @@ import { LRUMap } from "../utils/lruMap"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
-import { classifyError, extractSdkTermination, formatSdkTermination, isStaleSessionError, isBusySessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError } from "./errors"
+import { classifyError, extractSdkTermination, formatSdkTermination, isStaleSessionError, isBusySessionError, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal } from "./errors"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, getAuthRenewalStatus, resolveRenewalWarnDays, type CredentialStore } from "./tokenRefresh"
 import {
   createFileDesignTokenStore,
@@ -583,25 +583,37 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       })
   }
 
-  /** Inspect an inner response for a quota failure without destroying it.
-   *  Non-stream: a 429 body. Stream: an `event: error` frame with
-   *  rate_limit_error BEFORE any content frame (mid-content errors pass
-   *  through — never yank a stream a client is already consuming). */
-  async function sniffQuotaFailure(res: Response): Promise<{ failed: boolean; errorPayload: unknown; response: Response }> {
+  /** Inspect an inner response for an account-level failure without destroying
+   *  it. Non-stream: an error body on a non-OK status. Stream: an
+   *  `event: error` frame BEFORE any content frame (mid-content errors pass
+   *  through — never yank a stream a client is already consuming).
+   *
+   *  `isAccountFailoverError` decides which classified types are worth another
+   *  account; anything else is this account's honest answer and belongs to the
+   *  client untouched. The non-stream status gate is `!res.ok` rather than a
+   *  literal 429 because the qualifying types do not share one status — a
+   *  spent quota window is 429, a refused subscription 402. */
+  async function sniffAccountFailure(res: Response): Promise<
+    | { failed: true; errorPayload: unknown; errorType: string; response: Response }
+    | { failed: false; errorPayload: null; errorType: null; response: Response }
+  > {
     const contentType = res.headers.get("content-type") ?? ""
     if (!contentType.includes("text/event-stream")) {
-      if (res.status === 429) {
+      if (!res.ok) {
         const body = await res.clone().json().catch(() => null) as { error?: { type?: string } } | null
-        if (body?.error?.type === "rate_limit_error") return { failed: true, errorPayload: body, response: res }
+        const errorType = body?.error?.type
+        if (isAccountFailoverError(errorType)) {
+          return { failed: true, errorPayload: body, errorType, response: res }
+        }
       }
-      return { failed: false, errorPayload: null, response: res }
+      return { failed: false, errorPayload: null, errorType: null, response: res }
     }
     const reader = res.body?.getReader()
-    if (!reader) return { failed: false, errorPayload: null, response: res }
+    if (!reader) return { failed: false, errorPayload: null, errorType: null, response: res }
     const decoder = new TextDecoder()
     const consumed: Uint8Array[] = []
     let text = ""
-    let failedPayload: unknown = null
+    let failure: { payload: unknown; type: string } | null = null
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
@@ -614,16 +626,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const dataLine = frame.split("\n").find(l => l.startsWith("data: "))
         try {
           const parsed = dataLine ? JSON.parse(dataLine.slice(6)) as { error?: { type?: string } } : null
-          if (parsed?.error?.type === "rate_limit_error") {
-            failedPayload = parsed
+          const parsedType = parsed?.error?.type
+          if (isAccountFailoverError(parsedType)) {
+            failure = { payload: parsed, type: parsedType }
           }
-        } catch { /* not a quota frame — pass through below */ }
+        } catch { /* not an account-failure frame — pass through below */ }
       }
       break // first complete frame decides
     }
-    if (failedPayload) {
+    if (failure) {
       await reader.cancel().catch(() => {})
-      return { failed: true, errorPayload: failedPayload, response: res }
+      return { failed: true, errorPayload: failure.payload, errorType: failure.type, response: res }
     }
     const rest = new ReadableStream<Uint8Array>({
       start(ctrl) { for (const chunk of consumed) ctrl.enqueue(chunk) },
@@ -634,44 +647,61 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       },
       cancel(reason) { void reader.cancel(reason).catch(() => {}) },
     })
-    return { failed: false, errorPayload: null, response: new Response(rest, { status: res.status, headers: res.headers }) }
+    return { failed: false, errorPayload: null, errorType: null, response: new Response(rest, { status: res.status, headers: res.headers }) }
   }
 
   async function dispatchPriority(c: Context, orderedCandidateIds: string[], sessionKey: string | null, wantsStream: boolean): Promise<Response> {
     const bodyBuf = await c.req.arrayBuffer()
     let lastError: unknown = null
+    let lastStatus = 429
     let previous: string | null = null
+    let previousReason = "rate_limit_error"
     for (const candidate of orderedCandidateIds) {
       const headers = new Headers(c.req.raw.headers)
       headers.set("x-meridian-profile", candidate)
       headers.set("x-meridian-priority-dispatch", "1")
       const inner = await app.fetch(new Request(c.req.url, { method: "POST", headers, body: bodyBuf }))
-      const { failed, errorPayload, response } = await sniffQuotaFailure(inner)
-      if (!failed) {
+      const sniffed = await sniffAccountFailure(inner)
+      if (!sniffed.failed) {
         if (sessionKey) priorityAssignments.set(sessionKey, candidate)
         if (previous) {
-          claudeLog("profile.failover", { from: previous, to: candidate, reason: "rate_limit_error", sessionKey })
-          plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate}`)
+          claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey })
+          plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
         }
-        return response
+        return sniffed.response
       }
-      const cooldownUntil = priorityCooldownUntil(candidate, Date.now())
-      priorityExhaustion.mark(candidate, cooldownUntil, "rate_limit_error")
-      claudeLog("priority.exhausted", { profile: candidate, until: cooldownUntil })
-      refinePriorityCooldown(candidate)
-      lastError = errorPayload
+      const reason = sniffed.errorType
+      // Only a quota refusal has a reset to look up. Both cooldown tiers read
+      // the account's five-hour window, which says nothing about entitlement:
+      // a refused subscription would be suppressed until an unrelated quota
+      // boundary, and `refinePriorityCooldown` could only push that further
+      // out (`mark` lets a later refinement extend a cooldown, never shorten
+      // it). The conservative default stands instead, so the account is
+      // re-probed once the subscription may plausibly have been fixed.
+      const quotaRefusal = isQuotaRefusal(reason)
+      const cooldownUntil = quotaRefusal
+        ? priorityCooldownUntil(candidate, Date.now())
+        : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
+      priorityExhaustion.mark(candidate, cooldownUntil, reason)
+      claudeLog("priority.exhausted", { profile: candidate, until: cooldownUntil, reason })
+      if (quotaRefusal) refinePriorityCooldown(candidate)
+      lastError = sniffed.errorPayload
+      lastStatus = inner.status
       previous = candidate
+      previousReason = reason
     }
     // Every candidate failed: surface the LAST tried profile's error (owner
     // decision). Stream sniff consumed the inner body, so reconstruct the
-    // exact frame for SSE requests; non-stream errors pass through as JSON.
+    // exact frame for SSE requests; non-stream errors pass through as JSON,
+    // carrying the status that came with them — a pool refused for billing
+    // must not reach the client as a 429 it would dutifully back off from.
     if (wantsStream) {
       return new Response(`event: error\ndata: ${JSON.stringify(lastError)}\n\n`, {
         status: 200,
         headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" },
       })
     }
-    return new Response(JSON.stringify(lastError), { status: 429, headers: { "content-type": "application/json" } })
+    return new Response(JSON.stringify(lastError), { status: lastStatus, headers: { "content-type": "application/json" } })
   }
   app.use("/auth/*", requireAuth)
 

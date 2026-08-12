@@ -2,7 +2,7 @@
  * Unit tests for classifyError — pure function, no mocks needed.
  */
 import { describe, it, expect } from "bun:test"
-import { classifyError, extendedContextHint, isStaleSessionError, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination } from "../proxy/errors"
+import { classifyError, extendedContextHint, isStaleSessionError, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal } from "../proxy/errors"
 
 describe("classifyError", () => {
   describe("authentication errors", () => {
@@ -525,5 +525,51 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     const r = classifyError("usage limit reached | resets at 5pm")
     expect(r.type).toBe("rate_limit_error")
     expect(r.status).toBe(429)
+  })
+})
+
+describe("isAccountFailoverError", () => {
+  it("accepts the types that exhaust one account and leave the pool viable", () => {
+    expect(isAccountFailoverError("rate_limit_error")).toBe(true)
+    expect(isAccountFailoverError("billing_error")).toBe(true)
+  })
+
+  it("rejects failures that say nothing about the account", () => {
+    // Failing over on these would spend every account on one upstream hiccup
+    // and mark them all exhausted for something none of them did.
+    expect(isAccountFailoverError("api_error")).toBe(false)
+    expect(isAccountFailoverError("overloaded_error")).toBe(false)
+    expect(isAccountFailoverError("timeout_error")).toBe(false)
+    expect(isAccountFailoverError("upstream_timeout")).toBe(false)
+  })
+
+  it("rejects authentication_error, which the token refresh recovers in place", () => {
+    expect(isAccountFailoverError("authentication_error")).toBe(false)
+  })
+
+  it("rejects a missing or malformed type rather than guessing", () => {
+    expect(isAccountFailoverError(undefined)).toBe(false)
+    expect(isAccountFailoverError(null)).toBe(false)
+    expect(isAccountFailoverError("")).toBe(false)
+  })
+
+  it("agrees with classifyError on a subscription refusal", () => {
+    const classified = classifyError("Your Claude Max subscription is inactive - update your payment method")
+    expect(classified.type).toBe("billing_error")
+    expect(classified.status).toBe(402)
+    expect(isAccountFailoverError(classified.type)).toBe(true)
+  })
+})
+
+describe("isQuotaRefusal", () => {
+  it("separates the refusal that names its own reset from the one that does not", () => {
+    expect(isQuotaRefusal("rate_limit_error")).toBe(true)
+    expect(isQuotaRefusal("billing_error")).toBe(false)
+    expect(isQuotaRefusal(undefined)).toBe(false)
+  })
+
+  it("is a strict subset of the failover set", () => {
+    expect(isAccountFailoverError("rate_limit_error") && isQuotaRefusal("rate_limit_error")).toBe(true)
+    expect(isAccountFailoverError("billing_error") && !isQuotaRefusal("billing_error")).toBe(true)
   })
 })
