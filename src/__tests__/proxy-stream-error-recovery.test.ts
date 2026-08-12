@@ -135,6 +135,12 @@ describe("Stream error recovery after message_start", () => {
     // The error should still be present
     const errorEvent = events[errorIdx]
     expect((errorEvent?.data as any).error.type).toBe("rate_limit_error")
+
+    // #770: a turn that streamed text and THEN failed used to close with
+    // "end_turn" — the wire's word for a clean finish. The client commits a
+    // successful message and never retries. Partial output followed by a crash
+    // is a truncation, and nothing here can know the answer was complete.
+    expect((recoveryDelta?.data as any).delta.stop_reason).toBe("max_tokens")
   })
 
   it("should emit error immediately when message_start was NOT sent", async () => {

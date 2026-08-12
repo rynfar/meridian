@@ -348,11 +348,13 @@ export function isExtraUsageRequiredError(errMsg: string): boolean {
  * collapses into a generic api_error.
  */
 export interface SdkTermination {
-  reason: "max_turns" | "process_exit" | "aborted" | "unknown"
+  reason: "max_turns" | "process_exit" | "aborted" | "upstream_idle" | "unknown"
   /** Turn count when reason=max_turns and parseable. */
   turns?: number
   /** Exit code when reason=process_exit and parseable. */
   exitCode?: number
+  /** Milliseconds the upstream was silent, when reason=upstream_idle. */
+  idleMs?: number
   /** Captured "Subprocess stderr: …" tail (truncated). */
   stderrTail?: string
   /** Truncated raw error message — set only when reason="unknown" so the log
@@ -389,6 +391,44 @@ function makeRawTail(errMsg: string): string | undefined {
  * Returns reason="unknown" when the message doesn't match any recognized
  * pattern; callers can still log it with whatever surrounding context they have.
  */
+/**
+ * Can a failed passthrough turn still be delivered as a tool-use response?
+ *
+ * When the PreToolUse hook already captured tool calls, the client has
+ * everything it needs to run them and drive the next turn — so a terminated
+ * turn can end as a normal `stop_reason: "tool_use"` instead of a 500 with the
+ * calls thrown away.
+ *
+ * `upstream_idle` qualifies for exactly the same reason as `max_turns` (#770):
+ * the stall killed the stream, not the work already captured. Dropping those
+ * calls is what leaves the model resuming against its own unfulfilled promise
+ * and reporting that it "forgot".
+ *
+ * `abortIsOurs` exists because the two call sites disagree, deliberately: the
+ * streaming path accepts an abort only when meridian raised it (a duplicate
+ * tool_use or an early stop), since a client disconnect must never be recorded
+ * as a recovered success. The non-streaming path has no client-disconnect abort
+ * to distinguish and passes true.
+ */
+export function canRecoverCapturedToolUses(input: {
+  reason: SdkTermination["reason"]
+  passthrough: boolean
+  capturedToolUses: number
+  abortIsOurs: boolean
+}): boolean {
+  if (!input.passthrough) return false
+  if (input.capturedToolUses <= 0) return false
+  switch (input.reason) {
+    case "max_turns":
+    case "upstream_idle":
+      return true
+    case "aborted":
+      return input.abortIsOurs
+    default:
+      return false
+  }
+}
+
 export function extractSdkTermination(errMsg: string): SdkTermination {
   const stderrTail = extractStderrTail(errMsg)
 
@@ -396,6 +436,22 @@ export function extractSdkTermination(errMsg: string): SdkTermination {
   // (the SDK sometimes emits the operative phrase only into stderr).
   const haystack = `${errMsg}\n${stderrTail ?? ""}`
   const lower = haystack.toLowerCase()
+
+  // Meridian's own terminations, not the SDK's. guardUpstreamIdle raises this
+  // when the model stream goes quiet past the limit; the message matches none
+  // of the SDK needles below, so it used to land on "unknown" — which excludes
+  // it from canRecoverAsToolUse and silently DISCARDS any tool_use blocks the
+  // PreToolUse hook had already captured (#770). The client then never sees the
+  // calls, and the next turn resumes against a history where the model promised
+  // work it never appears to have requested.
+  if (lower.includes("upstream idle for")) {
+    const m = haystack.match(/upstream idle for (\d+)ms/i)
+    return {
+      reason: "upstream_idle",
+      ...(m ? { idleMs: Number(m[1]) } : {}),
+      ...(stderrTail ? { stderrTail } : {}),
+    }
+  }
 
   if (lower.includes("reached maximum number of turns")) {
     const m = haystack.match(/Reached maximum number of turns \((\d+)\)/i)

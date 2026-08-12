@@ -2,7 +2,7 @@
  * Unit tests for classifyError — pure function, no mocks needed.
  */
 import { describe, it, expect } from "bun:test"
-import { classifyError, extendedContextHint, classifyResumeRefusal, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal } from "../proxy/errors"
+import { canRecoverCapturedToolUses, classifyError, extendedContextHint, classifyResumeRefusal, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal } from "../proxy/errors"
 
 describe("classifyError", () => {
   describe("authentication errors", () => {
@@ -176,6 +176,75 @@ describe("classifyError", () => {
       const r = classifyError(msg)
       expect(r.type).not.toBe("billing_error")
       expect(isAccountFailoverError(r.type)).toBe(false)
+    })
+  })
+
+  // #770: guardUpstreamIdle is meridian's own termination, not the SDK's. Its
+  // message matched none of the needles, so it landed on "unknown" — which
+  // excludes it from canRecoverAsToolUse and discards tool calls the hook had
+  // already captured.
+  describe("upstream idle termination", () => {
+    it("recognises the idle guard's own error and reads the idle window", () => {
+      const t = extractSdkTermination("upstream idle for 90001ms (limit 90000ms)")
+      expect(t.reason).toBe("upstream_idle")
+      expect(t.idleMs).toBe(90001)
+    })
+
+    it("recognises it when wrapped by the SDK error text", () => {
+      const t = extractSdkTermination("Error: upstream idle for 90001ms (limit 90000ms)\n    at guard.ts:1")
+      expect(t.reason).toBe("upstream_idle")
+    })
+
+    it("leaves the client-facing classification untouched", () => {
+      // The 504 upstream_timeout the client sees comes from an
+      // `instanceof UpstreamIdleError` branch in server.ts, NOT from
+      // classifyError — which still reads this as a generic api_error. #770 is
+      // about the termination reason only, so this pins that the wire status
+      // did not move with it.
+      const r = classifyError("upstream idle for 90001ms (limit 90000ms)")
+      expect(r.status).toBe(500)
+      expect(r.type).toBe("api_error")
+    })
+
+    it("does not swallow a max_turns error that mentions idling", () => {
+      const t = extractSdkTermination("Reached maximum number of turns (3) while waiting for an idle upstream")
+      expect(t.reason).toBe("max_turns")
+    })
+  })
+
+  describe("canRecoverCapturedToolUses", () => {
+    const base = { passthrough: true, capturedToolUses: 2, abortIsOurs: true } as const
+
+    it("recovers a turn-cap termination", () => {
+      expect(canRecoverCapturedToolUses({ ...base, reason: "max_turns" })).toBe(true)
+    })
+
+    // #770: the stall killed the stream, not the work already captured.
+    it("recovers an idle-guard termination", () => {
+      expect(canRecoverCapturedToolUses({ ...base, reason: "upstream_idle" })).toBe(true)
+    })
+
+    it("recovers our own abort but not a client disconnect", () => {
+      expect(canRecoverCapturedToolUses({ ...base, reason: "aborted", abortIsOurs: true })).toBe(true)
+      expect(canRecoverCapturedToolUses({ ...base, reason: "aborted", abortIsOurs: false })).toBe(false)
+    })
+
+    it("does not recover an unrecognised termination", () => {
+      expect(canRecoverCapturedToolUses({ ...base, reason: "unknown" })).toBe(false)
+    })
+
+    it("does not recover a process crash", () => {
+      expect(canRecoverCapturedToolUses({ ...base, reason: "process_exit" })).toBe(false)
+    })
+
+    // Without captured calls there is nothing to deliver, and outside
+    // passthrough the client does not execute tools at all.
+    it("requires captured tool calls", () => {
+      expect(canRecoverCapturedToolUses({ ...base, reason: "max_turns", capturedToolUses: 0 })).toBe(false)
+    })
+
+    it("requires passthrough", () => {
+      expect(canRecoverCapturedToolUses({ ...base, reason: "max_turns", passthrough: false })).toBe(false)
     })
   })
 

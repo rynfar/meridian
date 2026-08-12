@@ -51,7 +51,7 @@ import { LRUMap } from "../utils/lruMap"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
-import { classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal } from "./errors"
+import { canRecoverCapturedToolUses, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal } from "./errors"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, getAuthRenewalStatus, resolveRenewalWarnDays, type CredentialStore } from "./tokenRefresh"
 import {
   createFileDesignTokenStore,
@@ -2208,10 +2208,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // that never triggered the loop-break (e.g. wide parallel exceeding
             // the turn budget) land here.
             const sdkTerm = extractSdkTermination(error instanceof Error ? error.message : String(error))
-            const canRecoverAsToolUse =
-              passthrough &&
-              capturedToolUses.length > 0 &&
-              (sdkTerm.reason === "max_turns" || sdkTerm.reason === "aborted")
+            const canRecoverAsToolUse = canRecoverCapturedToolUses({
+              reason: sdkTerm.reason,
+              passthrough,
+              capturedToolUses: capturedToolUses.length,
+              // No client-disconnect abort reaches this path.
+              abortIsOurs: true,
+            })
             if (canRecoverAsToolUse) {
               diagnosticLog.session(
                 `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
@@ -3803,12 +3806,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // single-step duplicate abort (sawDuplicateToolUse) or the
               // early stop (earlyStopFired) — a client-disconnect abort must
               // not be recorded as a recovered success.
-              const canRecoverAsToolUse =
-                (sdkTerm.reason === "max_turns" ||
-                  (sdkTerm.reason === "aborted" && (sawDuplicateToolUse || earlyStopFired))) &&
-                passthrough &&
-                capturedToolUses.length > 0 &&
-                messageStartEmitted
+              // "upstream_idle" joins them for the same reason (#770): the guard
+              // killed a stalled stream, but the tool calls were already
+              // captured and are exactly what the client needs to make progress.
+              // Discarding them turns a recoverable stall into a turn the model
+              // later reports having "forgotten", because the next resume shows
+              // its promise to act with no matching call.
+              const canRecoverAsToolUse = canRecoverCapturedToolUses({
+                reason: sdkTerm.reason,
+                passthrough,
+                capturedToolUses: capturedToolUses.length,
+                abortIsOurs: sawDuplicateToolUse || earlyStopFired,
+              }) && messageStartEmitted
 
               if (canRecoverAsToolUse) {
                 // Log the recovery at session level (not error) — it's a
@@ -3968,11 +3977,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               //
               // A turn cut off mid-generation is exactly what "max_tokens"
               // describes on the wire — truncated, not finished — and every
-              // Anthropic-compatible client already handles it. Reserve
-              // "end_turn" for the case where the model really did produce a
-              // complete answer before the failure.
+              // Anthropic-compatible client already handles it.
+              //
+              // Unconditional, including when text was already forwarded (#770).
+              // The earlier carve-out reserved "end_turn" for "the model really
+              // did produce a complete answer before the failure", but nothing
+              // here can know that: reaching this branch means the turn raised
+              // instead of completing, and a partial answer followed by a crash
+              // is still a truncation. Emitting "end_turn" there was the one
+              // value that actively lies, and it lies in the direction that
+              // makes an autonomous loop stop.
               if (messageStartEmitted) {
-                const errorStopReason = textEventsForwarded > 0 ? "end_turn" : "max_tokens"
+                const errorStopReason = "max_tokens"
                 claudeLog("response.error_envelope", {
                   mode: "stream",
                   stopReason: errorStopReason,
