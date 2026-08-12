@@ -42,6 +42,21 @@ export function extendedContextHint(model?: string): string {
   return advise("MERIDIAN_1M_CONTEXT_SUPPORT=0")
 }
 
+/** Phrases that actually indicate a billing or subscription refusal.
+ *
+ *  `\b402\b` excludes a `:digits` suffix so a stack frame like
+ *  `handler.js:402:15` cannot be read as a payment-required status. */
+const BILLING_SIGNALS: readonly RegExp[] = [
+  /\b402\b(?!:\d)/,
+  /billing[_ ](?:error|issue|problem|failure)/,
+  /subscription (?:is |has )?(?:inactive|expired|lapsed|cancell?ed|ended|invalid|not active)/,
+  /(?:expired|inactive|lapsed|invalid|no active|cancell?ed) subscription/,
+  /payment (?:method|required|failed|declined|details|info)/,
+  /update your payment/,
+  /(?:out of|draw from|draws from) extra usage/,
+  /insufficient (?:credit|funds|balance)/,
+]
+
 /** "hit your limit", "hit your session limit", "hit your weekly limit", and any
  *  future single-word qualifier the CLI adopts. Anchored on both sides so it
  *  can't drift into unrelated text that happens to contain "limit". */
@@ -99,8 +114,14 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
     }
   }
 
-  // Billing / subscription
-  if (lower.includes("402") || lower.includes("billing") || lower.includes("subscription") || lower.includes("payment")) {
+  // Billing / subscription. Matched on phrases rather than bare tokens: an
+  // error mentioning `subscription.ts`, a path under `src/billing/`, or a URL
+  // containing `/payment/` is not a billing problem, and this branch runs
+  // BEFORE the process-crash and max-turns branches, so it wins on any message
+  // that merely contains the word. That was a wrong status code until
+  // isAccountFailoverError started keying on it (#796) — at which point an
+  // MCP server's stderr could mark every profile in the pool exhausted.
+  if (BILLING_SIGNALS.some(rx => rx.test(lower))) {
     return {
       status: 402,
       type: "billing_error",

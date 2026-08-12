@@ -24,6 +24,11 @@ const SUBSCRIPTION_REFUSAL = "Claude Code returned an error result: Your Claude 
 // Classifies as overloaded_error (503): says nothing about the account, so it
 // must NOT spend the pool.
 const UPSTREAM_HICCUP = "Claude Code returned an error result: upstream is overloaded"
+// A perfectly ordinary failure that happens to name a file called
+// subscription.ts. Before the classifier was tightened this read as
+// billing_error and, with billing in the failover set, burned the whole pool.
+const INCIDENTAL_BILLING_WORD =
+  "Claude Code returned an error result: Reached maximum number of turns (3) while editing subscription.ts"
 let failureMessage = DEFAULT_FAILURE
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
@@ -277,6 +282,36 @@ describe("priority routing", () => {
     expect(marks.map(m => m.id)).toEqual(["work"])
     expect(marks[0]?.reason).toBe("billing_error")
   }, 20_000)
+
+  // The blast radius of putting billing_error in the failover set: any error
+  // text containing "subscription", "billing" or "payment" — a filename, a
+  // path, an MCP server's stderr — used to mark EVERY profile exhausted, and a
+  // fully exhausted pool collapses the candidate list, so the next genuine
+  // quota failure never reaches the healthy account.
+  it("does not spend the pool on an error that merely names a billing word", async () => {
+    failureMessage = INCIDENTAL_BILLING_WORD
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    await post(app)
+
+    const marks = await exhaustedMarks(app)
+    expect(marks.map(m => m.id)).not.toContain("personal")
+    expect(marks.map(m => m.id)).not.toContain("work")
+  }, 20_000)
+
+  it("still fails over to a healthy account after one of those errors", async () => {
+    failureMessage = INCIDENTAL_BILLING_WORD
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    await post(app)
+
+    // The pool must be intact: a real quota refusal now still reaches personal.
+    failureMessage = DEFAULT_FAILURE
+    const res = await post(app, {}, "second request after an incidental billing word")
+    expect(res.status).toBe(200)
+    const body = await res.json() as { content: Array<{ text: string }> }
+    expect(body.content[0]?.text).toContain("prof-personal")
+  }, 30_000)
 
   it("streams fail over on a refused subscription too", async () => {
     failureMessage = SUBSCRIPTION_REFUSAL

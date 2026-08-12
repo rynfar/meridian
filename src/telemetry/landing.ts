@@ -193,7 +193,14 @@ function profileSection(q,s,pl,h){
       var orderIdx=(pl.profileOrder||[]).indexOf(p.id);
       if(orderIdx>=0)badge+='<span class="pool-chip">#'+(orderIdx+1)+' in pool</span>';
       var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];
-      if(exh)badge+=' <span class="pool-chip exhausted">exhausted · resets '+resetIn(exh.until)+'</span>';
+      if(exh){
+        // A billing refusal has no reset to wait for — the pool re-probes on the
+        // same timer, but nothing changes until a human fixes the account.
+        // Showing it as 'resets in 9m' promises a recovery that never comes.
+        badge+=exh.reason==='billing_error'
+          ?' <span class="pool-chip exhausted" title="Subscription or payment refused — this does not clear on its own">subscription refused</span>'
+          :' <span class="pool-chip exhausted">exhausted · resets '+resetIn(exh.until)+'</span>';
+      }
     }
     cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'

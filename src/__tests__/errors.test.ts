@@ -150,6 +150,33 @@ describe("classifyError", () => {
       const result = classifyError("subscription expired")
       expect(result.status).toBe(402)
     })
+
+    it("detects a lapsed subscription with a payment-method prompt", () => {
+      const r = classifyError("Claude Code returned an error result: Your Claude Max subscription is inactive — update your payment method to continue.")
+      expect(r.status).toBe(402)
+      expect(r.type).toBe("billing_error")
+    })
+
+    it("detects an exhausted extra-usage refusal", () => {
+      const r = classifyError("API Error: 400 You're out of extra usage. Add more at claude.ai/settings/usage")
+      expect(r.type).toBe("billing_error")
+    })
+
+    // These used to classify as billing because the branch matched bare
+    // substrings anywhere in the text, and it runs before the crash/max-turns
+    // branches so it won. Harmless as a wrong status code; not harmless once
+    // isAccountFailoverError keys on the type (#796), where an incidental
+    // filename could mark every profile in the pool exhausted.
+    it.each([
+      ["a filename", "Claude Code returned an error result: Reached maximum number of turns (3) while editing subscription.ts"],
+      ["a path", "Error: ENOENT: no such file or directory, open '/repo/src/billing/index.ts'"],
+      ["a URL", "fetch failed: https://api.example.com/payment/status returned 500"],
+      ["a stack frame line number", "TypeError: undefined is not a function\n    at handler.js:402:15"],
+    ])("does not read %s as a billing error", (_label, msg) => {
+      const r = classifyError(msg)
+      expect(r.type).not.toBe("billing_error")
+      expect(isAccountFailoverError(r.type)).toBe(false)
+    })
   })
 
   describe("process crashes", () => {
