@@ -20,7 +20,7 @@ import { join } from "node:path"
 import { configPath, defaultConfigDir } from "../configDir"
 import { setSetting, getSetting } from "../settings"
 import { pickStickyProfile, type RoutingMode } from "./routing"
-import { followedActiveProfile } from "./followActive"
+import { adoptedProfiles, followedActiveProfile } from "./followActive"
 
 /** Disk profile cache with short TTL so new profiles are picked up quickly */
 const DISK_CACHE_TTL_MS = 5_000
@@ -246,11 +246,33 @@ export function enableDiskProfileDiscovery(): void {
 
 export function getEffectiveProfiles(configProfiles: ProfileConfig[] | undefined): ProfileConfig[] {
   const fromConfig = configProfiles ?? []
-  if (!diskDiscoveryEnabled) return fromConfig
-  const fromDisk = loadProfilesFromDisk()
-  // Config (env var) takes precedence; disk fills in anything not already defined
   const configIds = new Set(fromConfig.map(p => p.id))
-  return [...fromConfig, ...fromDisk.filter(p => !configIds.has(p.id))]
+  // Config (env var) takes precedence; disk fills in anything not already defined
+  const fromDisk = diskDiscoveryEnabled ? loadProfilesFromDisk().filter(p => !configIds.has(p.id)) : []
+  const localIds = new Set([...configIds, ...fromDisk.map(p => p.id)])
+  // Adopted last: an id spelled out locally is an explicit local statement and
+  // outranks the mirror, the same way config already outranks disk.
+  const adopted = adoptedProfiles()
+    .filter(p => !localIds.has(p.id))
+    .map(p => ({ id: p.id, claudeConfigDir: p.credentialDir }))
+  return [...fromConfig, ...fromDisk, ...adopted]
+}
+
+/**
+ * Where another instance on this machine could read this profile's credentials,
+ * or null when it could not.
+ *
+ * The test is that the resolved environment is a config directory and NOTHING
+ * else. That is what makes it derived rather than a second opinion about
+ * profile types: a profile whose credentials are an inline API key or OAuth
+ * token carries that secret in its env, fails the test, and is reported by id
+ * alone. A secret must never leave the process holding it, so there is no
+ * shape of this function that returns one.
+ */
+export function shareableCredentialDir(resolved: ResolvedProfile): string | null {
+  const keys = Object.keys(resolved.env)
+  if (keys.length !== 1 || keys[0] !== "CLAUDE_CONFIG_DIR") return null
+  return resolved.env.CLAUDE_CONFIG_DIR ?? null
 }
 
 /** Check if any profiles are available from any source */

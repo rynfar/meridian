@@ -19,9 +19,18 @@ import {
   pollFollowedActiveProfile,
   resetFollowActive,
   setFollowStateForTesting,
+  readFollowedRoster,
+  adoptedProfiles,
   FOLLOW_STALE_AFTER_MS,
 } from "../proxy/followActive"
-import { resolveProfile, resolveActiveProfileId, setActiveProfile, resetActiveProfile } from "../proxy/profiles"
+import {
+  resolveProfile,
+  resolveActiveProfileId,
+  setActiveProfile,
+  resetActiveProfile,
+  getEffectiveProfiles,
+  shareableCredentialDir,
+} from "../proxy/profiles"
 
 const FOLLOWED = "http://127.0.0.1:3456"
 const realFetch = globalThis.fetch
@@ -337,5 +346,169 @@ describe("resolveProfile under follow mode", () => {
     setFollowStateForTesting({ lastGood: { profileId: "work", at: Date.now() - FOLLOW_STALE_AFTER_MS - 1 } })
     expect(resolveProfile(profiles, undefined).id).toBe("work")
     expect(followStatus(["personal", "work"])?.stale).toBe(true)
+  })
+})
+
+describe("shareableCredentialDir", () => {
+  test("a file-backed profile reports where its credentials are", () => {
+    expect(shareableCredentialDir({ id: "p", type: "claude-max", env: { CLAUDE_CONFIG_DIR: "/c/p" } })).toBe("/c/p")
+  })
+
+  test("an inline secret is never reported, even alongside a directory", () => {
+    expect(shareableCredentialDir({ id: "p", type: "api", env: { ANTHROPIC_API_KEY: "sk-not-a-real-key" } })).toBeNull()
+    expect(shareableCredentialDir({
+      id: "p",
+      type: "oauth-token",
+      env: { CLAUDE_CODE_OAUTH_TOKEN: "not-a-real-token", CLAUDE_CONFIG_DIR: "/c/p" },
+    })).toBeNull()
+  })
+
+  test("a profile with no override has no directory to share", () => {
+    expect(shareableCredentialDir({ id: "p", type: "claude-max", env: {} })).toBeNull()
+  })
+})
+
+describe("readFollowedRoster", () => {
+  const entry = (id: string, credentialDir: string | null) => ({ id, credentialDir })
+
+  test("a body with no profiles array carries no roster", () => {
+    expect(readFollowedRoster(null)).toBeUndefined()
+    expect(readFollowedRoster({})).toBeUndefined()
+    expect(readFollowedRoster({ profiles: "nope" })).toBeUndefined()
+  })
+
+  test("an instance too old to report credentialDir is not read as an empty roster", () => {
+    expect(readFollowedRoster({ profiles: [{ id: "personal" }, { id: "work" }] })).toBeUndefined()
+  })
+
+  test("splits what can be adopted from what cannot", () => {
+    expect(readFollowedRoster({
+      profiles: [entry("personal", "/c/personal"), entry("api-only", null), entry("work", "/c/work")],
+    })).toEqual({
+      adoptable: [
+        { id: "personal", credentialDir: "/c/personal" },
+        { id: "work", credentialDir: "/c/work" },
+      ],
+      unadoptable: ["api-only"],
+    })
+  })
+
+  test("an all-unadoptable roster is a roster, not an absence", () => {
+    expect(readFollowedRoster({ profiles: [entry("api-only", null)] }))
+      .toEqual({ adoptable: [], unadoptable: ["api-only"] })
+  })
+
+  test("garbage entries are dropped rather than adopted", () => {
+    const roster = readFollowedRoster({
+      profiles: [
+        entry("ok", "/c/ok"),
+        { id: 7, credentialDir: "/c/seven" },
+        { id: "   ", credentialDir: "/c/blank" },
+        entry("overlong", `/${"x".repeat(5_000)}`),
+        "not an object",
+      ],
+    })
+    expect(roster?.adoptable).toEqual([{ id: "ok", credentialDir: "/c/ok" }])
+    expect(roster?.unadoptable).toEqual(["overlong"])
+  })
+})
+
+describe("the roster rides the poll that is already happening", () => {
+  function listBody(activeProfile: string, profiles: Array<{ id: string; credentialDir: string | null }>): Response {
+    return new Response(JSON.stringify({ activeProfile, profiles }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })
+  }
+
+  test("one request carries both the active profile and the roster", async () => {
+    follow()
+    let calls = 0
+    stubFetch(async () => {
+      calls++
+      return listBody("work", [
+        { id: "personal", credentialDir: "/c/personal" },
+        { id: "work", credentialDir: "/c/work" },
+      ])
+    })
+    await pollFollowedActiveProfile()
+    expect(calls).toBe(1)
+    expect(adoptedProfiles().map(p => p.id)).toEqual(["personal", "work"])
+    expect(followStatus(["personal", "work"])?.activeProfile).toBe("work")
+  })
+
+  test("a failed poll keeps the roster it already had", async () => {
+    follow()
+    stubFetch(async () => listBody("work", [{ id: "work", credentialDir: "/c/work" }]))
+    await pollFollowedActiveProfile()
+    stubFetch(async () => { throw new Error("connection refused") })
+    await pollFollowedActiveProfile()
+    expect(adoptedProfiles().map(p => p.id)).toEqual(["work"])
+  })
+
+  test("a successful poll withdraws a profile the followed instance dropped", async () => {
+    follow()
+    stubFetch(async () => listBody("work", [
+      { id: "work", credentialDir: "/c/work" },
+      { id: "gone", credentialDir: "/c/gone" },
+    ]))
+    await pollFollowedActiveProfile()
+    stubFetch(async () => listBody("work", [{ id: "work", credentialDir: "/c/work" }]))
+    await pollFollowedActiveProfile()
+    expect(adoptedProfiles().map(p => p.id)).toEqual(["work"])
+  })
+
+  test("status names what was adopted and what could not be", async () => {
+    follow()
+    stubFetch(async () => listBody("work", [
+      { id: "work", credentialDir: "/c/work" },
+      { id: "api-only", credentialDir: null },
+    ]))
+    await pollFollowedActiveProfile()
+    const status = followStatus(["work"])
+    expect(status?.adoptedProfiles).toEqual(["work"])
+    expect(status?.unadoptableProfiles).toEqual(["api-only"])
+    expect(status?.rosterSyncedAt).toBeGreaterThan(0)
+  })
+
+  test("nothing is adopted when follow mode is off", () => {
+    expect(adoptedProfiles()).toEqual([])
+  })
+})
+
+describe("adopted profiles join the effective list", () => {
+  const local = [{ id: "personal", claudeConfigDir: "/local/personal" }]
+
+  function adopt(profiles: Array<{ id: string; credentialDir: string | null }>, active?: string): void {
+    setFollowStateForTesting({
+      lastGood: { profileId: active ?? profiles[0]!.id, at: Date.now() },
+      lastRoster: { roster: readFollowedRoster({ profiles })!, at: Date.now() },
+    })
+  }
+
+  test("a profile only the followed instance has becomes servable here", () => {
+    follow()
+    adopt([{ id: "kwiat-personal", credentialDir: "/shared/kwiat-personal" }])
+    expect(getEffectiveProfiles(local).map(p => p.id)).toEqual(["personal", "kwiat-personal"])
+    expect(resolveProfile(local, undefined, "kwiat-personal").env)
+      .toEqual({ CLAUDE_CONFIG_DIR: "/shared/kwiat-personal" })
+  })
+
+  test("a local entry outranks the mirror for the same id", () => {
+    follow()
+    adopt([{ id: "personal", credentialDir: "/shared/personal" }])
+    expect(getEffectiveProfiles(local)).toEqual(local)
+  })
+
+  test("follow mode off adopts nothing", () => {
+    adopt([{ id: "kwiat-personal", credentialDir: "/shared/kwiat-personal" }])
+    expect(getEffectiveProfiles(local).map(p => p.id)).toEqual(["personal"])
+  })
+
+  test("the followed active profile resolves instead of falling back to the local one", () => {
+    setActiveProfile("personal")
+    follow()
+    adopt([{ id: "kwiat-personal", credentialDir: "/shared/kwiat-personal" }], "kwiat-personal")
+    expect(resolveProfile(local, undefined).id).toBe("kwiat-personal")
   })
 })

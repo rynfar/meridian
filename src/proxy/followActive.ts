@@ -138,11 +138,132 @@ export function readActiveProfile(body: unknown): string | undefined {
   return trimmed
 }
 
+// --- Pure: the roster -----------------------------------------------------
+
+/** Longest plausible credential directory — a defence against a garbage body. */
+const MAX_CREDENTIAL_DIR_LENGTH = 4_096
+
+/** A profile the followed instance has, and where its credentials live. */
+export interface FollowedProfile {
+  id: string
+  /** Absolute CLAUDE_CONFIG_DIR, on a filesystem both instances can read. */
+  credentialDir: string
+}
+
+export interface FollowedRoster {
+  /** Profiles this instance can serve by pointing at the same directory. */
+  adoptable: FollowedProfile[]
+  /** Profiles it cannot, because their credentials are an inline secret. */
+  unadoptable: string[]
+}
+
+/**
+ * Extract the profile roster from a `/profiles/list` body.
+ *
+ * Following one scalar is not enough. `MERIDIAN_CONFIG_DIR` gives a second
+ * instance its own `profiles.json` — that is the whole point of it — so the
+ * two rosters diverge the moment an account is added to either. The followed
+ * value then names a profile this instance does not have, `decideFollowedProfile`
+ * returns "unknown-profile", and the dev instance serves from an unrelated
+ * account: exactly the divergence follow mode exists to prevent. Measured on
+ * one box, a profile added to the primary was still absent from the follower
+ * minutes later, and its traffic 429'd against the wrong account.
+ *
+ * Adoptability is decided by the SENDER, which is the only side that can. A
+ * profile authenticated by a file both instances can read crosses as a path; a
+ * profile authenticated by an inline API key or OAuth token cannot cross at
+ * all, because the secret must not leave the process that holds it. The sender
+ * reports the second kind by id alone so this instance can say why an account
+ * it can see is one it cannot serve.
+ *
+ * Returns undefined — distinct from an empty roster — when the body carries no
+ * roster information at all. `credentialDir` is emitted for EVERY profile, null
+ * included, so its total absence means the followed instance predates this and
+ * cannot answer the question. Guessing "nothing is adoptable" there would warn
+ * about accounts that are merely unreported.
+ */
+export function readFollowedRoster(body: unknown): FollowedRoster | undefined {
+  if (typeof body !== "object" || body === null) return undefined
+  const entries = (body as { profiles?: unknown }).profiles
+  if (!Array.isArray(entries)) return undefined
+  const adoptable: FollowedProfile[] = []
+  const unadoptable: string[] = []
+  let sawField = false
+  for (const entry of entries) {
+    if (typeof entry !== "object" || entry === null) continue
+    const record = entry as { id?: unknown; credentialDir?: unknown }
+    if (typeof record.id !== "string") continue
+    const id = record.id.trim()
+    if (!id || id.length > MAX_PROFILE_ID_LENGTH) continue
+    if (!("credentialDir" in record)) continue
+    sawField = true
+    const dir = record.credentialDir
+    if (typeof dir === "string" && dir.trim() && dir.length <= MAX_CREDENTIAL_DIR_LENGTH) {
+      adoptable.push({ id, credentialDir: dir.trim() })
+    } else {
+      unadoptable.push(id)
+    }
+  }
+  return sawField ? { adoptable, unadoptable } : undefined
+}
+
+/** Whether two rosters name the same profiles at the same locations. */
+function sameRoster(a: FollowedRoster | undefined, b: FollowedRoster | undefined): boolean {
+  if (!a || !b) return a === b
+  if (a.adoptable.length !== b.adoptable.length) return false
+  if (a.unadoptable.length !== b.unadoptable.length) return false
+  return (
+    a.adoptable.every((p, i) => p.id === b.adoptable[i]!.id && p.credentialDir === b.adoptable[i]!.credentialDir) &&
+    a.unadoptable.every((id, i) => id === b.unadoptable[i])
+  )
+}
+
+/**
+ * Report a roster change once, when it happens.
+ *
+ * Transitions only, matching the active-profile line beside it: a line per
+ * poll would be 8,640 a day. An account appearing or disappearing is the
+ * event worth a line, and a relocation is reported separately because the
+ * roster is the same size and nothing else would show it.
+ */
+function logRosterChange(previous: FollowedRoster | undefined, next: FollowedRoster, url: string): void {
+  const before = new Map((previous?.adoptable ?? []).map(p => [p.id, p.credentialDir]))
+  const added = next.adoptable.filter(p => !before.has(p.id)).map(p => p.id)
+  const moved = next.adoptable.filter(p => before.has(p.id) && before.get(p.id) !== p.credentialDir).map(p => p.id)
+  const after = new Set(next.adoptable.map(p => p.id))
+  const removed = [...before.keys()].filter(id => !after.has(id))
+  if (added.length || removed.length || moved.length) {
+    console.warn(
+      `[PROXY] Profiles from ${url}: now serving ${next.adoptable.length}` +
+      (added.length ? `; added ${added.join(", ")}` : "") +
+      (removed.length ? `; withdrew ${removed.join(", ")}` : "") +
+      (moved.length ? `; relocated ${moved.join(", ")}` : "") + "."
+    )
+  }
+  const unadoptableChanged =
+    next.unadoptable.length !== (previous?.unadoptable.length ?? 0) ||
+    next.unadoptable.some((id, i) => id !== previous?.unadoptable[i])
+  if (next.unadoptable.length && unadoptableChanged) {
+    console.warn(
+      `[PROXY] ${url} also has ${next.unadoptable.join(", ")}, which cannot be taken from it: ` +
+      `their credentials are an inline key or token rather than a file on this machine, and a ` +
+      `secret is never sent over this link. Configure them here to serve them here.`
+    )
+  }
+}
+
 // --- Pure: the decision ---------------------------------------------------
 
 export interface FollowState {
   /** Last value successfully read, and when it was last CONFIRMED by a poll. */
   lastGood?: { profileId: string; at: number }
+  /**
+   * Last roster successfully read. Kept across a failed poll for the same
+   * reason `lastGood` is: a followed instance that has gone quiet has not
+   * withdrawn its accounts, and dropping them would strand every session
+   * pinned to one.
+   */
+  lastRoster?: { roster: FollowedRoster; at: number }
   /** When the most recent poll completed, successful or not. */
   lastPollAt?: number
   /** Most recent poll failure. Cleared on the next success. */
@@ -233,6 +354,18 @@ export function followedActiveProfile(availableIds: readonly string[]): FollowOu
   return decideFollowedProfile(state, availableIds, Date.now())
 }
 
+/**
+ * Profiles contributed by the followed instance. Called on the request path
+ * through `getEffectiveProfiles` — synchronous, cache-only, no I/O.
+ *
+ * Empty until the first successful poll, so an instance whose followed peer is
+ * down starts with its own profiles rather than none.
+ */
+export function adoptedProfiles(): readonly FollowedProfile[] {
+  if (!isFollowEnabled()) return []
+  return state.lastRoster?.roster.adoptable ?? []
+}
+
 /** Follow state as surfaced by `/profiles/list`. Undefined when not following. */
 export interface FollowStatus {
   /** Base URL of the followed instance. */
@@ -249,12 +382,19 @@ export interface FollowStatus {
   lastSyncedAt: number | null
   /** Most recent poll failure, if the last poll failed. */
   lastError: string | null
+  /** Profile ids taken from the followed instance and served here. */
+  adoptedProfiles: string[]
+  /** Profile ids it has that cannot be adopted, so a UI can say why. */
+  unadoptableProfiles: string[]
+  /** When the roster was last confirmed, or null if never read. */
+  rosterSyncedAt: number | null
 }
 
 export function followStatus(availableIds: readonly string[]): FollowStatus | undefined {
   const target = followTarget()
   if (!target) return undefined
   const outcome = decideFollowedProfile(state, availableIds, Date.now())
+  const roster = state.lastRoster
   return {
     url: target.url,
     activeProfile: outcome.follow ? outcome.profileId : null,
@@ -263,6 +403,9 @@ export function followStatus(availableIds: readonly string[]): FollowStatus | un
     stale: outcome.follow ? outcome.stale : false,
     lastSyncedAt: state.lastGood?.at ?? null,
     lastError: state.lastError?.message ?? null,
+    adoptedProfiles: (roster?.roster.adoptable ?? []).map(p => p.id),
+    unadoptableProfiles: roster?.roster.unadoptable ?? [],
+    rosterSyncedAt: roster?.at ?? null,
   }
 }
 
@@ -283,10 +426,18 @@ export async function pollFollowedActiveProfile(): Promise<void> {
       headers: { accept: "application/json" },
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const value = readActiveProfile(await res.json())
+    const body = await res.json()
+    const value = readActiveProfile(body)
     if (!value) throw new Error("response carried no usable activeProfile")
     const previous = state.lastGood?.profileId
-    state = { lastGood: { profileId: value, at: now }, lastPollAt: now }
+    const roster = readFollowedRoster(body)
+    const previousRoster = state.lastRoster?.roster
+    state = {
+      lastGood: { profileId: value, at: now },
+      lastRoster: roster ? { roster, at: now } : state.lastRoster,
+      lastPollAt: now,
+    }
+    if (roster && !sameRoster(roster, previousRoster)) logRosterChange(previousRoster, roster, target.url)
     // Log transitions only. A line per poll would be 8,640 lines a day; the
     // interesting events are "we picked up a change" and "we recovered".
     if (previous !== value) {
