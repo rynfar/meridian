@@ -2,7 +2,7 @@
  * Unit tests for classifyError — pure function, no mocks needed.
  */
 import { describe, it, expect } from "bun:test"
-import { classifyError, extendedContextHint, isStaleSessionError, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal } from "../proxy/errors"
+import { classifyError, extendedContextHint, classifyResumeRefusal, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal } from "../proxy/errors"
 
 describe("classifyError", () => {
   describe("authentication errors", () => {
@@ -259,37 +259,50 @@ describe("classifyError", () => {
     })
   })
 
-  describe("stale session detection", () => {
-    it("detects 'No message found with message.uuid' errors", () => {
-      expect(isStaleSessionError(new Error("No message found with message.uuid of: e663b687-6d08-4cc4-b9a9-5245ce8f1e07"))).toBe(true)
+  describe("resume refusal classification", () => {
+    const busyRefusal =
+      "Error: Session 3cff857d-114e-4be3-8a12-99842ad2326e is currently running as a background agent (bg). Use `claude agents` to find and attach to it, or add --fork-session to branch off a copy."
+
+    it("a lost message names itself, so an identical attempt is pointless", () => {
+      expect(classifyResumeRefusal(new Error("No message found with message.uuid of: e663b687-6d08-4cc4-b9a9-5245ce8f1e07"))).toBe("missing-message")
     })
 
-    it("detects the error embedded in longer messages", () => {
-      expect(isStaleSessionError(new Error("claude code returned an error result: No message found with message.uuid of: abc123"))).toBe(true)
+    it("reads the refusal out of a longer message", () => {
+      expect(classifyResumeRefusal(new Error("claude code returned an error result: No message found with message.uuid of: abc123"))).toBe("missing-message")
     })
 
-    it("detects 'No conversation found with session ID' errors", () => {
-      expect(isStaleSessionError(new Error("No conversation found with session ID: 2e9e868c-ab59-482c-ae28-3b60ec9cb95b"))).toBe(true)
+    it("a session that would not open is unresumable, not proven gone", () => {
+      expect(classifyResumeRefusal(new Error("No conversation found with session ID: 2e9e868c-ab59-482c-ae28-3b60ec9cb95b"))).toBe("unresumable")
+      expect(classifyResumeRefusal(new Error("No conversation found to continue"))).toBe("unresumable")
+      expect(classifyResumeRefusal(new Error("No conversations found to resume"))).toBe("unresumable")
+      expect(classifyResumeRefusal(new Error("No conversations found to resume."))).toBe("unresumable")
     })
 
-    it("detects 'No conversation found to continue' errors", () => {
-      expect(isStaleSessionError(new Error("No conversation found to continue"))).toBe(true)
+    it("a session held by a running agent is busy, so it can be branched", () => {
+      expect(classifyResumeRefusal(new Error(busyRefusal))).toBe("busy")
     })
 
-    it("detects 'No conversations found to resume' errors", () => {
-      expect(isStaleSessionError(new Error("No conversations found to resume"))).toBe(true)
-      expect(isStaleSessionError(new Error("No conversations found to resume."))).toBe(true)
+    it("finds the busy refusal on stderr when the error only carries the exit code", () => {
+      expect(classifyResumeRefusal(new Error("Claude Code process exited with code 1"), busyRefusal)).toBe("busy")
     })
 
-    it("returns false for unrelated errors", () => {
-      expect(isStaleSessionError(new Error("rate limit exceeded"))).toBe(false)
-      expect(isStaleSessionError(new Error("authentication failed"))).toBe(false)
+    it("leaves failures that are not about the resume unclassified", () => {
+      expect(classifyResumeRefusal(new Error("rate limit exceeded"))).toBeUndefined()
+      expect(classifyResumeRefusal(new Error("authentication failed"))).toBeUndefined()
+      expect(classifyResumeRefusal(new Error("Claude Code process exited with code 1"))).toBeUndefined()
     })
 
-    it("returns false for non-Error values", () => {
-      expect(isStaleSessionError("No message found with message.uuid")).toBe(false)
-      expect(isStaleSessionError(null)).toBe(false)
-      expect(isStaleSessionError(undefined)).toBe(false)
+    it("reads no wording off the value of a non-Error failure", () => {
+      expect(classifyResumeRefusal("No message found with message.uuid")).toBeUndefined()
+      expect(classifyResumeRefusal(null)).toBeUndefined()
+      expect(classifyResumeRefusal(undefined)).toBeUndefined()
+    })
+
+    it("still finds the busy refusal on stderr, whatever the failure value is", () => {
+      // The busy wording travels on stderr precisely because the failure often
+      // carries nothing but an exit code, so this one is not value-bound.
+      expect(classifyResumeRefusal("exit 1", busyRefusal)).toBe("busy")
+      expect(classifyResumeRefusal(null, busyRefusal)).toBe("busy")
     })
   })
 

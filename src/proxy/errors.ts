@@ -228,17 +228,43 @@ export function isExpiredTokenError(errMsg: string): boolean {
 }
 
 /**
- * Detect errors caused by stale session/message UUIDs.
- * These happen when the upstream Claude session no longer contains
- * the referenced message or conversation (expired, evicted server-side, etc.).
+ * Why the CLI refused a --resume, as far as the refusal itself can tell:
+ *
+ * - "busy": the session exists and is registered as a running agent. It can
+ *   be branched, so a caller out of retries may fork it.
+ * - "unresumable": the session as a whole could not be opened. This is not
+ *   proof that it is gone — a --resume landing while the session's previous
+ *   subprocess is still exiting is refused although the session is intact —
+ *   so a caller must retry before giving up on it, and has nothing to fork.
+ * - "missing-message": one message inside the session is gone, so an
+ *   identical attempt fails identically. Retrying is pointless.
+ *
+ * The three carry different recoveries, which is the whole reason they are
+ * one verdict rather than scattered text matches at each call site.
  */
-export function isStaleSessionError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
+export type ResumeRefusal = "busy" | "unresumable" | "missing-message"
+
+/**
+ * Classify a resume failure. Returns undefined for anything that is not a
+ * refusal of the resume itself (rate limits, auth, upstream faults), which
+ * the caller handles on its own paths.
+ *
+ * The busy refusal text arrives on stderr — the SDK error itself only carries
+ * the exit code — so captured stderr is part of the input.
+ */
+export function classifyResumeRefusal(error: unknown, stderr?: string): ResumeRefusal | undefined {
+  if (isBusySessionError(error, stderr)) return "busy"
+  if (!(error instanceof Error)) return undefined
   const msg = error.message
-  return msg.includes("No message found with message.uuid")
-    || msg.includes("No conversation found with session ID")
-    || msg.includes("No conversation found to continue")
-    || msg.includes("No conversations found to resume")
+  if (msg.includes("No message found with message.uuid")) return "missing-message"
+  if (
+    msg.includes("No conversation found with session ID") ||
+    msg.includes("No conversation found to continue") ||
+    msg.includes("No conversations found to resume")
+  ) {
+    return "unresumable"
+  }
+  return undefined
 }
 
 /**
