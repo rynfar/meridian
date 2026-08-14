@@ -145,6 +145,8 @@ describe("SqliteTelemetryStore", () => {
       sdkSessionId: "sess-abc",
       status: 200,
       queueWaitMs: 5,
+      sessionQueueWaitMs: 2,
+      sdkQueueWaitMs: 3,
       proxyOverheadMs: 12,
       ttfbMs: 120,
       upstreamDurationMs: 800,
@@ -175,6 +177,8 @@ describe("SqliteTelemetryStore", () => {
     expect(retrieved!.sessionDiscoveredCount).toBe(3)
     expect(retrieved!.messageCount).toBe(5)
     expect(retrieved!.sdkSessionId).toBe("sess-abc")
+    expect(retrieved!.sessionQueueWaitMs).toBe(2)
+    expect(retrieved!.sdkQueueWaitMs).toBe(3)
     expect(retrieved!.inputTokens).toBe(1200)
     expect(retrieved!.outputTokens).toBe(340)
     expect(retrieved!.cacheReadInputTokens).toBe(900)

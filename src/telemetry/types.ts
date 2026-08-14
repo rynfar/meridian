@@ -84,6 +84,12 @@ export interface RequestMetric {
   /** Time spent waiting in the concurrency queue (ms) */
   queueWaitMs: number
 
+  /** Time spent waiting for the logical Session turn lease (ms). */
+  sessionQueueWaitMs?: number
+
+  /** Cumulative time spent waiting for SDK query permits across attempts (ms). */
+  sdkQueueWaitMs?: number
+
   /** Time spent in proxy processing before SDK call — request parsing,
    *  session lookup, prompt building (ms). If this is high, the proxy
    *  is the bottleneck. Typically <50ms. */
@@ -173,6 +179,8 @@ export interface TelemetrySummary {
 
   /** Timing breakdowns by phase */
   queueWait: PhaseTiming
+  sessionQueueWait: PhaseTiming
+  sdkQueueWait: PhaseTiming
   proxyOverhead: PhaseTiming
   ttfb: PhaseTiming
   upstreamDuration: PhaseTiming

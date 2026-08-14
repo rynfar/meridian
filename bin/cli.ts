@@ -212,6 +212,26 @@ export async function runCli(
       process.exit(1)
     }
   })
+
+  // Graceful shutdown: close() itself drains in-flight requests (bounded by
+  // MERIDIAN_SHUTDOWN_GRACE_MS) before releasing the port — see close() in
+  // startProxyServer. This handler just owns the process-exit decision, since
+  // only the CLI (not a library consumer embedding startProxyServer) should
+  // ever call process.exit() on a signal.
+  let shuttingDown = false
+  const handleShutdownSignal = (signal: NodeJS.Signals) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`\n[meridian] Received ${signal}, shutting down gracefully...`)
+    proxy.close()
+      .then(() => process.exit(0))
+      .catch((err) => {
+        console.error(`[meridian] Error during shutdown: ${err instanceof Error ? err.message : err}`)
+        process.exit(1)
+      })
+  }
+  process.on("SIGTERM", handleShutdownSignal)
+  process.on("SIGINT", handleShutdownSignal)
 }
 
 if (import.meta.main) {

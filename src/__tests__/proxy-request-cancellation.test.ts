@@ -108,7 +108,7 @@ describe("request cancellation propagation", () => {
     expect(capturedController).toBeDefined()
     expect(capturedController!.signal.aborted).toBe(true)
     expect(capturedController!.signal.reason).toBe("client timeout")
-    expect(response.status).toBeGreaterThanOrEqual(500)
+    expect(response.status).toBe(499)
   })
 
   it("aborts a streaming SDK query when the response body is cancelled", async () => {

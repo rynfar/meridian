@@ -12,11 +12,13 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_PORT` | `CLAUDE_PROXY_PORT` | `3456` | Port to listen on |
 | `MERIDIAN_HOST` | `CLAUDE_PROXY_HOST` | `127.0.0.1` | Host to bind to |
 | `MERIDIAN_PASSTHROUGH` | `CLAUDE_PROXY_PASSTHROUGH` | unset | Forward tool calls to client instead of executing |
-| `MERIDIAN_MAX_CONCURRENT` | `CLAUDE_PROXY_MAX_CONCURRENT` | `10` | Maximum concurrent SDK sessions |
+| `MERIDIAN_MAX_CONCURRENT` | `CLAUDE_PROXY_MAX_CONCURRENT` | `10` | Maximum SDK queries running concurrently within one Meridian process |
 | `MERIDIAN_MAX_SESSIONS` | `CLAUDE_PROXY_MAX_SESSIONS` | `1000` | In-memory LRU session cache size |
 | `MERIDIAN_MAX_STORED_SESSIONS` | `CLAUDE_PROXY_MAX_STORED_SESSIONS` | `10000` | File-based session store capacity |
 | `MERIDIAN_WORKDIR` | `CLAUDE_PROXY_WORKDIR` | `cwd()` | Default working directory for SDK |
 | `MERIDIAN_IDLE_TIMEOUT_SECONDS` | `CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS` | `120` | HTTP keep-alive timeout |
+| `MERIDIAN_SHUTDOWN_GRACE_MS` | `CLAUDE_PROXY_SHUTDOWN_GRACE_MS` | `30000` | Milliseconds `close()` waits for in-flight `/v1/messages` requests to finish after it stops admitting new ones, before closing the port. See [Graceful shutdown](#graceful-shutdown). |
+| `MERIDIAN_SESSION_TURN_MAX_HOLD_MS` | `CLAUDE_PROXY_SESSION_TURN_MAX_HOLD_MS` | `600000` | Hard ceiling on how long one turn may hold its session's serialization lease. On timeout the lease is force-released with a warning and queued turns for that session proceed concurrently. See [Concurrent requests to the same session](#concurrent-requests-to-the-same-session). |
 | `MERIDIAN_TELEMETRY_SIZE` | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size |
 | `MERIDIAN_NO_FILE_CHANGES` | `CLAUDE_PROXY_NO_FILE_CHANGES` | unset | Disable "Files changed" summary in responses |
 | `MERIDIAN_STRIP_THINKING` | `CLAUDE_PROXY_STRIP_THINKING` | unset | Set to `1` to strip raw `<thinking>` tags from user-authored prompt text. Off by default — `<thinking>` is a common chain-of-thought convention in hand-written prompts (#720); enable only if your harness is observed leaking it verbatim. |
@@ -120,6 +122,105 @@ Health response example:
 ```
 
 `plugin.opencode` is `"configured"` when `meridian setup` has been run, `"not-configured"` otherwise.
+
+## Graceful shutdown
+
+`meridian`'s CLI entry point calls `ProxyInstance.close()` on `SIGTERM`/`SIGINT`
+before exiting. `close()` stops admitting new requests immediately, then waits
+up to `MERIDIAN_SHUTDOWN_GRACE_MS` (default 30s) for whatever is already
+in-flight to finish naturally before closing the port. Library consumers that
+already call `close()` for their own shutdown handling (see the Stable API
+Contract) get this drain behavior automatically — no code change needed.
+
+While draining:
+
+- `GET /health` returns `503` with `{ "status": "draining", ... }` immediately,
+  ahead of the usual auth-status check, so a fleet manager or load balancer
+  polling this endpoint learns to stop routing here as fast as possible.
+- New `/v1/messages` requests (and `/v1/chat/completions`, `/v1/responses`,
+  which route through the same handler) are rejected with `503` and header
+  `x-meridian-draining: 1`:
+
+  ```json
+  HTTP/1.1 503
+  x-meridian-draining: 1
+  Content-Type: application/json
+
+  {
+    "type": "error",
+    "error": {
+      "type": "overloaded_error",
+      "message": "Meridian is shutting down and is not accepting new requests. Retry against another instance."
+    }
+  }
+  ```
+
+- Requests already in flight when draining started are left to finish; the
+  port only closes once they're all done or the grace period elapses,
+  whichever comes first. If the grace period elapses first, a warning is
+  logged and any remaining HTTP connections are forcibly closed.
+
+## Concurrent requests to the same session
+
+Requests that share a reliable session identity supplied by the client
+(currently a session header) are serialized: a request queued behind another
+one for the *same* session waits for the in-flight one to finish before its
+own conversation lineage is checked. Headerless requests are not strictly
+serialized because a conversation fingerprint is not unique enough to prove
+that two requests belong to the same logical chat.
+
+If, by the time it's dequeued, the earlier request has already committed a
+new turn *in the same profile's session scope* — and the waiting request's
+message history is no longer a valid continuation or compaction of that new
+state — Meridian returns:
+
+```json
+HTTP/1.1 400
+Content-Type: application/json
+
+{
+  "type": "error",
+  "error": {
+    "type": "invalid_request_error",
+    "message": "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID."
+  }
+}
+```
+
+The response uses the Anthropic-compatible `400 invalid_request_error`
+contract. Gateways and adapters should treat the message as a stale-session
+signal, not as account exhaustion:
+
+- **Do not treat it like `429 rate_limit_error`.** It never means the
+  account/profile is exhausted — the account is healthy, two requests just
+  raced for the same session. Failing over to a different account or profile
+  does not fix it and wastes a hop.
+- **Do not blindly retry the identical request body.** The message history
+  it was sent with is the thing that's stale; resending the same bytes will
+  usually just be reclassified as a fresh/diverged session on retry (a full
+  replay) rather than conflict again. Re-fetch the conversation's current
+  state from your own source of truth before resubmitting, or route the
+  follow-up to a distinct session ID if the two requests represent genuinely
+  independent turns.
+
+This only fires for requests that share a reliable session identity —
+unrelated and headerless sessions are never strictly serialized against each
+other and never see this concurrency error. Three further exemptions:
+
+- **Scoped per profile.** One session id backs an independent conversation
+  per profile, each with its own resume cache. Turns under different profiles
+  still serialize against each other (they share one id), but a commit under
+  one profile never refuses a queued turn from another.
+- **Declared concurrent flows are never refused.** A request whose
+  `x-meridian-source` starts with `fork-` or `subagent-` has told Meridian it
+  is knowingly running a parallel turn under a shared session key. Those
+  turns are still serialized, but a stale lineage costs them a replay rather
+  than a `400` — the behavior they had before serialization existed.
+- **The lease cannot wedge a session forever.** A turn holds its session's
+  serialization lease until its response body completes. If that never
+  happens, the lease is force-released after
+  `MERIDIAN_SESSION_TURN_MAX_HOLD_MS` (default 10 minutes) with a logged
+  warning, and queued turns for that session proceed concurrently.
 
 ## API Key Authentication
 

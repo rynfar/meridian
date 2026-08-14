@@ -24,6 +24,15 @@ export interface ProxyConfig {
    * library consumer has already installed; the bundled CLI passes `true`.
    */
   installProcessErrorHandlers?: boolean
+  /**
+   * Cap concurrent SDK subprocess spawns for THIS instance only. Left unset
+   * (the default), instances share one process-wide budget from
+   * `MERIDIAN_MAX_CONCURRENT` — spawning many subprocesses at once is what
+   * exhausts the host, and that limit is a property of the process, not of any
+   * one proxy. Set this only when an embedder deliberately wants an isolated
+   * budget per instance.
+   */
+  maxConcurrent?: number
 }
 
 export interface ProxyInstance {
@@ -43,6 +52,14 @@ export interface ProxyServer {
   config: ProxyConfig
   /** Load plugins from disk and wire them into the request pipeline */
   initPlugins?(): Promise<void>
+  /**
+   * Stop admitting new `/v1/messages` requests (fast-fails with 503) and
+   * report `/health` as `draining`. Used by `startProxyServer`'s `close()`
+   * to drain in-flight requests before the HTTP server actually shuts down.
+   */
+  beginDrain?(): void
+  /** Count of requests admitted past the draining gate that haven't finished yet. */
+  getInFlightCount?(): number
 }
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {

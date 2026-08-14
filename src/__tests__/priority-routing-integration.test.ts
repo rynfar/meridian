@@ -73,6 +73,7 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
 const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
@@ -132,6 +133,7 @@ afterEach(() => {
 
 describe("priority routing", () => {
   beforeEach(() => {
+    resetProcessSdkSemaphoreForTests()
     capturedEnvs = []
     failingDirs = new Set()
     // failureMessage resets in the file-level beforeEach, which runs first and
@@ -152,11 +154,13 @@ describe("priority routing", () => {
     // custom config dir — which is most of this project's users.
     savedEnv.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR
     delete process.env.CLAUDE_CONFIG_DIR
+    savedEnv.MERIDIAN_MAX_CONCURRENT = process.env.MERIDIAN_MAX_CONCURRENT
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
   })
 
   afterEach(() => {
+    resetProcessSdkSemaphoreForTests()
     for (const [k, v] of Object.entries(savedEnv)) {
       if (v === undefined) delete process.env[k]
       else process.env[k] = v
@@ -182,6 +186,18 @@ describe("priority routing", () => {
     expect(capturedEnvs.some((e) => e.includes("prof-work"))).toBe(true)
     expect(capturedEnvs[capturedEnvs.length - 1]).toContain("prof-personal")
   }, 20_000)
+
+  it("fails over without deadlocking when MAX_CONCURRENT is 1", async () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "1"
+    failureMessage = SUBSCRIPTION_REFUSAL
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+
+    const res = await post(app, { "x-opencode-session": "priority-single-slot" })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { content: Array<{ text: string }> }
+    expect(body.content[0]?.text).toContain("prof-personal")
+  })
 
   it("fails over on the CLI's shorter 'You've hit your limit' wording", async () => {
     failureMessage = "Claude Code returned an error result: You've hit your limit · resets 6:40pm (UTC)"

@@ -2,7 +2,6 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { stream } from "hono/streaming"
 import { serve } from "@hono/node-server"
-import { AsyncLocalStorage } from "node:async_hooks"
 import type { Server } from "node:http"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -10,6 +9,8 @@ import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { linkRequestAbort } from "./requestAbort"
+import { AbortableSemaphore, getProcessSdkSemaphore } from "./concurrency"
+import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
@@ -100,6 +101,7 @@ import { getPriorityAssignmentKey } from "./session/fingerprint"
 // Re-export for backwards compatibility (existing tests import from here)
 
 import { lookupSession, storeSession, clearSessionCache, getMaxSessionsLimit, evictSession, getSessionByClaudeId } from "./session/cache"
+import { processSessionTurns, type SessionTurnLease } from "./session/turnCoordinator"
 import { lookupSessionRecovery, listStoredSessions } from "./sessionStore"
 // Re-export for backwards compatibility (existing tests import from here)
 export { computeLineageHash, hashMessage, computeMessageHashes }
@@ -135,6 +137,65 @@ let claudeExecutable = ""
 // to abort the same hung model — see the coordination contract in
 // streamIdleGuard.ts.
 const UPSTREAM_IDLE_MS = envInt("UPSTREAM_IDLE_MS", 90_000)
+
+// Bounds how long ProxyInstance.close() waits for in-flight /v1/messages
+// requests to finish (after beginDrain() stops admitting new ones) before it
+// closes the HTTP server anyway. Plugins that already call close() for
+// graceful shutdown (see the Stable API Contract) get this drain for free.
+const SHUTDOWN_GRACE_MS = envInt("SHUTDOWN_GRACE_MS", 30_000)
+
+interface RequestMeta {
+  requestId: string
+  endpoint: string
+  queueEnteredAt: number
+  sessionQueueWaitMs: number
+  sdkQueueWaitMs: number
+  sdkActiveDurationMs: number
+  /** Start of the SDK attempt currently running — the TTFB anchor. */
+  currentSdkStartedAt?: number
+  /**
+   * Captured against the attempt that actually produced the first chunk, not
+   * against the request's first attempt: a fresh-replay or failover retry must
+   * not report the abandoned attempt's runtime as time-to-first-byte.
+   */
+  ttfbMs?: number
+  sessionTurnLease?: SessionTurnLease
+}
+
+interface HandleMessagesOptions {
+  body: any
+  forcedProfileId?: string
+}
+
+function totalQueueWaitMs(meta: RequestMeta): number {
+  return meta.sessionQueueWaitMs + meta.sdkQueueWaitMs
+}
+
+/**
+ * Derive an independent telemetry identity for one failover candidate.
+ *
+ * Each candidate is its own upstream attempt: sharing the caller's meta would
+ * make every attempt overwrite the previous one's telemetry row (same
+ * requestId) and inherit its accumulated SDK timings, so the surviving row
+ * would bill the winner for every account that refused first. The session-turn
+ * lease is deliberately shared by reference — the request holds exactly one
+ * turn no matter how many accounts it tries.
+ */
+function forkAttemptMeta(meta: RequestMeta, attempt: number): RequestMeta {
+  if (attempt === 0) return meta
+  return {
+    ...meta,
+    requestId: `${meta.requestId}.${attempt}`,
+    queueEnteredAt: Date.now(),
+    // The wait happened once, before the first attempt; re-reporting it on
+    // every row would multiply one queue delay across the whole failover.
+    sessionQueueWaitMs: 0,
+    sdkQueueWaitMs: 0,
+    sdkActiveDurationMs: 0,
+    currentSdkStartedAt: undefined,
+    ttfbMs: undefined,
+  }
+}
 
 function credentialStoreForProfile(profile: ResolvedProfile): CredentialStore | undefined {
   if (profile.type !== "claude-max") return undefined
@@ -411,15 +472,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // so silently-updated tool definitions force a rebuild.
   const sessionMcpCache = new LRUMap<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>(getMaxSessionsLimit())
 
-  // In-flight session stores. The streaming drain design ends the client's
-  // response at the turn boundary (fast), while deny persistence + the early
-  // stop + storeSession continue in the background for ~a second. A client
-  // that executes its tools quickly (small file reads) can send the follow-up
-  // BEFORE the store lands — its lookup misses and the conversation falls to
-  // a fresh replay. Follow-ups briefly await their session's pending store.
-  const PENDING_STORE_WAIT_MS = 3000
-  const PENDING_STORE_AUTO_RESOLVE_MS = 10000
-
   // A --resume spawned while the session's previous subprocess is still
   // exiting is refused, in two wordings: "currently running as a background
   // agent" (#630, a consequence of #628's CLAUDE_CODE_SESSION_KIND=bg) and
@@ -431,21 +483,58 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // The env name predates the wider refusal set and stays as it is: renaming it
   // would silently drop anyone's existing override.
   const RESUME_REFUSAL_RETRY_DELAY_MS = parseInt(process.env.MERIDIAN_BUSY_RETRY_DELAY_MS ?? "500", 10)
-  const pendingSessionStores = new Map<string, { promise: Promise<void>; resolve: () => void }>()
-  const registerPendingStore = (key: string): (() => void) => {
-    let resolveFn: () => void = () => {}
-    const promise = new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, PENDING_STORE_AUTO_RESOLVE_MS)
-      resolveFn = () => {
-        clearTimeout(timer)
-        resolve()
+
+  // Hard ceiling on how long one turn may hold its session lease. The lease is
+  // released when the request finishes, which for a stream means when the body
+  // completes — so any path that leaves that promise unsettled would wedge the
+  // session for the lifetime of the process. On timeout the session degrades to
+  // pre-coordination behavior (concurrent turns, possibly a replay), which is
+  // recoverable; a permanent deadlock is not. Read per instance (like the busy
+  // retry delay above) so tests don't have to wait out the real ceiling.
+  const SESSION_TURN_MAX_HOLD_MS = envInt("SESSION_TURN_MAX_HOLD_MS", 600_000)
+  // Default: share the process-wide budget, because the failure this guards
+  // against (many SDK subprocesses spawned at once) is a property of the host
+  // process, not of any one instance. `maxConcurrent` is the opt-out for
+  // embedders that deliberately want isolated budgets per instance.
+  const sdkSemaphore = finalConfig.maxConcurrent !== undefined
+    ? new AbortableSemaphore(finalConfig.maxConcurrent)
+    : getProcessSdkSemaphore()
+  const responseCompletions = new WeakMap<Response, Promise<void>>()
+
+  // Graceful shutdown (#drain): once true, handleWithQueue fast-fails new
+  // requests instead of queueing them, and /health reports it so a fleet
+  // manager (e.g. a gateway's account-pool scheduler) can stop routing here
+  // before the process actually exits. inFlightRequests only counts requests
+  // that were admitted past that gate, so it drains to 0 on its own — no
+  // separate bookkeeping of queued vs. active is needed.
+  let draining = false
+  let inFlightRequests = 0
+
+  async function* runSdkQueryAttempt(
+    params: Parameters<typeof query>[0],
+    signal: AbortSignal,
+    requestMeta: RequestMeta,
+    mode: string,
+  ) {
+    const lease = await sdkSemaphore.acquire(signal)
+    requestMeta.sdkQueueWaitMs += lease.waitedMs
+    const startedAt = Date.now()
+    requestMeta.currentSdkStartedAt = startedAt
+    let sdkQuery: ReturnType<typeof query> | undefined
+    try {
+      sdkQuery = query(params)
+      yield* guardUpstreamIdle(sdkQuery, UPSTREAM_IDLE_MS, (sinceLastMs) =>
+        claudeLog("upstream.stalled", { mode, sinceLastMs }))
+    } finally {
+      try {
+        // Production Query objects expose close(); test doubles and older SDK
+        // shims may be plain async generators whose iterator return() is
+        // already invoked by guardUpstreamIdle.
+        if (typeof sdkQuery?.close === "function") sdkQuery.close()
+      } finally {
+        requestMeta.sdkActiveDurationMs += Date.now() - startedAt
+        lease.release()
       }
-    })
-    const entry = { promise, resolve: resolveFn }
-    pendingSessionStores.set(key, entry)
-    return () => {
-      entry.resolve()
-      if (pendingSessionStores.get(key) === entry) pendingSessionStores.delete(key)
     }
   }
 
@@ -483,10 +572,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   // --- Priority routing (opt-in, routing="priority") ---
   // Ordered account pool with per-request failover. The /v1/messages handler
-  // becomes a thin dispatcher in this mode: it re-enters itself with a pinned
-  // x-meridian-profile header per candidate (the same internal-hop pattern as
-  // /v1/chat/completions), so ALL failover logic lives here — no changes to
-  // the deep request machinery. State is per proxy instance.
+  // becomes a thin dispatcher in this mode: it calls handleMessages directly
+  // with a forcedProfileId per candidate, so ALL failover logic lives here —
+  // no changes to the deep request machinery. Calling in-process rather than
+  // re-entering over HTTP matters for more than speed: an internal hop would
+  // take a second slot from the same concurrency budget as its own parent and
+  // deadlock the pool whenever MERIDIAN_MAX_CONCURRENT is 1. State is per
+  // proxy instance.
   const priorityExhaustion = new ProfileExhaustion()
   const PRIORITY_ASSIGNMENTS_MAX = 5000
   const priorityAssignments = new AssignmentStore(PRIORITY_ASSIGNMENTS_MAX)
@@ -660,20 +752,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       },
       cancel(reason) { void reader.cancel(reason).catch(() => {}) },
     })
-    return { failed: false, errorPayload: null, errorType: null, response: new Response(rest, { status: res.status, headers: res.headers }) }
+    const response = new Response(rest, { status: res.status, headers: res.headers })
+    const completion = responseCompletions.get(res)
+    if (completion) responseCompletions.set(response, completion)
+    return { failed: false, errorPayload: null, errorType: null, response }
   }
 
-  async function dispatchPriority(c: Context, orderedCandidateIds: string[], sessionKey: string | null, wantsStream: boolean): Promise<Response> {
-    const bodyBuf = await c.req.arrayBuffer()
+  async function dispatchPriority(c: Context, body: any, requestMeta: RequestMeta, orderedCandidateIds: string[], sessionKey: string | null, wantsStream: boolean): Promise<Response> {
     let lastError: unknown = null
     let lastStatus = 429
     let previous: string | null = null
     let previousReason = "rate_limit_error"
-    for (const candidate of orderedCandidateIds) {
-      const headers = new Headers(c.req.raw.headers)
-      headers.set("x-meridian-profile", candidate)
-      headers.set("x-meridian-priority-dispatch", "1")
-      const inner = await app.fetch(new Request(c.req.url, { method: "POST", headers, body: bodyBuf }))
+    for (const [attempt, candidate] of orderedCandidateIds.entries()) {
+      const inner = await handleMessages(c, forkAttemptMeta(requestMeta, attempt), { body, forcedProfileId: candidate })
       const sniffed = await sniffAccountFailure(inner)
       if (!sniffed.failed) {
         if (sessionKey) priorityAssignments.set(sessionKey, candidate)
@@ -683,6 +774,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
         return sniffed.response
       }
+      await responseCompletions.get(inner)?.catch(() => {})
       const reason = sniffed.errorType
       // Only a quota refusal has a reset to look up. Both cooldown tiers read
       // the account's five-hour window, which says nothing about entitlement:
@@ -732,52 +824,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return c.html(landingHtml)
   })
 
-  // --- Concurrency Control ---
-  // Each request spawns an SDK subprocess (cli.js, ~11MB). Spawning multiple
-  // simultaneously can crash the process. Serialize SDK queries with a queue.
-  const MAX_CONCURRENT_SESSIONS = parseInt((process.env.MERIDIAN_MAX_CONCURRENT ?? process.env.CLAUDE_PROXY_MAX_CONCURRENT) || "10", 10)
-  let activeSessions = 0
-  const sessionQueue: Array<{ resolve: () => void }> = []
-  // Priority routing dispatches by re-entering this app over `app.fetch`
-  // (dispatchPriority), so one external request makes two passes through the
-  // queued route. Counting both is a deadlock, not an over-count: the outer
-  // pass holds its slot for as long as the inner pass runs, so N concurrent
-  // requests hold all N slots while waiting for inner passes that can never be
-  // admitted, and the queue never drains again. The slot belongs to the
-  // external request; the inner pass is the same request continuing, and it is
-  // the only one of the two that spawns an SDK subprocess.
-  //
-  // The marker rides the async context rather than a header because a header
-  // reaches the limiter from the wire: any client could send it and opt out of
-  // the limit this exists to impose. It carries the outer pass's queue timings
-  // so the inner pass — the one that reports telemetry — still records the wait
-  // the external request actually served, rather than a zero of its own.
-  const insideSessionSlot = new AsyncLocalStorage<{ queueEnteredAt: number; queueStartedAt: number }>()
-
-  async function acquireSession(): Promise<void> {
-    if (activeSessions < MAX_CONCURRENT_SESSIONS) {
-      activeSessions++
-      return
-    }
-    return new Promise<void>((resolve) => {
-      sessionQueue.push({ resolve })
-    })
-  }
-
-  function releaseSession(): void {
-    activeSessions--
-    const next = sessionQueue.shift()
-    if (next) {
-      activeSessions++
-      next.resolve()
-    }
-  }
-
   const handleMessages = async (
     c: Context,
-    requestMeta: { requestId: string; endpoint: string; queueEnteredAt: number; queueStartedAt: number }
+    requestMeta: RequestMeta,
+    options: HandleMessagesOptions,
   ) => {
-    const requestStartAt = Date.now()
+    const requestStartAt = requestMeta.queueEnteredAt
     const requestAbort = linkRequestAbort(c.req.raw.signal)
     let streamOwnsAbortLink = false
 
@@ -785,7 +837,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // Hoist adapter detection before try so it's available in the catch block for telemetry
       const adapter = detectAdapter(c)
       try {
-        const body = await c.req.json()
+        const body = options.body
 
         // Validate required fields
         if (!Array.isArray(body.messages)) {
@@ -838,7 +890,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // ordered pool with per-request failover. Pinned requests (explicit
         // x-meridian-profile — including our own internal hops) bypass the
         // pool entirely and take the normal path below.
-        if (routingMode === "priority" && !c.req.header("x-meridian-profile")) {
+        if (routingMode === "priority" && !options.forcedProfileId && !c.req.header("x-meridian-profile")) {
           const effectivePool = getEffectiveProfiles(finalConfig.profiles)
           if (effectivePool.length > 1) {
             const { order, unknown } = resolvePriorityOrder(effectivePool.map(p => p.id), priorityProfileOrderSetting())
@@ -871,13 +923,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               first = pick?.id ?? order[0]!
             }
             const candidates = [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
-            return dispatchPriority(c, candidates, sessionKey, body.stream === true)
+            return dispatchPriority(c, body, requestMeta, candidates, sessionKey, body.stream === true)
           }
         }
         const profile = resolveProfile(
           finalConfig.profiles,
           finalConfig.defaultProfile,
-          c.req.header("x-meridian-profile") || undefined,
+          options.forcedProfileId || c.req.header("x-meridian-profile") || undefined,
           routingMode === "sticky"
             ? { routingMode, stickySessionKey: adapter.getSessionId(c, body) }
             : undefined
@@ -1095,6 +1147,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // For agents without (Pi): pass profile-scoped workingDirectory to fingerprint lookup.
         const profileSessionId = profile.id !== "default" && agentSessionId
           ? `${profile.id}:${agentSessionId}` : agentSessionId
+        // The turn lease is keyed by the raw client session id (the profile
+        // isn't resolved yet when it's acquired, and under priority routing it
+        // can differ per attempt), but "did this session advance" is only
+        // meaningful within one profile's cache scope — so commits and the
+        // conflict check below both carry profileSessionId.
+        const commitSessionTurn = () => {
+          if (profileSessionId) requestMeta.sessionTurnLease?.markCommitted(profileSessionId)
+        }
         // Use the client-local CWD for fingerprint bucketing so that two
         // independent client projects don't collide on the same first-user-
         // message hash even when they share an SDK cwd on the proxy host.
@@ -1144,20 +1204,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const isIndependentSession =
           (!agentSessionId && (requestSource?.startsWith("fork-") || requestSource?.startsWith("subagent-"))) ||
           isClientDrivenLoop || false
-        // If the previous turn's background drain is still persisting this
-        // session (streaming early stop), wait briefly so the lookup below
-        // sees the stored session instead of falling to a fresh replay.
-        if (!isIndependentSession && profileSessionId) {
-          const pendingStore = pendingSessionStores.get(profileSessionId)
-          if (pendingStore) {
-            const waitStart = Date.now()
-            await Promise.race([
-              pendingStore.promise,
-              new Promise((resolve) => setTimeout(resolve, PENDING_STORE_WAIT_MS)),
-            ])
-            claudeLog("session.pending_store_awaited", { waitedMs: Date.now() - waitStart })
-          }
-        }
         let lineageResult: LineageResult = isIndependentSession
           ? { type: "diverged", reason: "independent-request" }
           : lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
@@ -1169,6 +1215,77 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // prevent leaking the old session's conversation history.
         if (lineageResult.type === "undo" && adapterBase === "opencode" && !agentSessionId) {
           lineageResult = { type: "diverged", reason: "missing-session-header" }
+        }
+        // Clients that declare a concurrent flow (x-meridian-source fork-/
+        // subagent-) knowingly run parallel turns under one session key — see
+        // the keyed fork/subagent note above. Serializing them is still worth
+        // doing, but a reclassification is their normal cost; refusing them
+        // would break flows that worked before turn coordination existed.
+        const declaresConcurrentFlow =
+          requestSource?.startsWith("fork-") === true || requestSource?.startsWith("subagent-") === true
+        if (
+          profileSessionId &&
+          !declaresConcurrentFlow &&
+          requestMeta.sessionTurnLease?.advancedWhileWaiting(profileSessionId) &&
+          lineageResult.type !== "continuation" &&
+          lineageResult.type !== "compaction"
+        ) {
+          const reason = lineageResult.type === "diverged" ? lineageResult.reason : lineageResult.type
+          const message = "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID."
+          claudeLog("session.concurrent_conflict", {
+            reason,
+            sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+          })
+          diagnosticLog.session(
+            `${requestMeta.requestId} session.concurrent_conflict reason=${reason} wait=${requestMeta.sessionQueueWaitMs}ms`,
+            requestMeta.requestId,
+          )
+          // Every other terminal path records; this one must too, or the single
+          // event operators most need to count — how often concurrency actually
+          // refuses a turn — is invisible in /telemetry, SQLite and Prometheus.
+          // The error tag is deliberately more specific than the wire type so a
+          // conflict can be separated from ordinary request-validation errors.
+          const conflictTotalMs = Date.now() - requestStartAt
+          const conflictQueueWaitMs = totalQueueWaitMs(requestMeta)
+          telemetryStore.record({
+            requestId: requestMeta.requestId,
+            timestamp: Date.now(),
+            adapter: adapter.name,
+            model,
+            requestModel: requestedModel,
+            mode: stream ? "stream" : "non-stream",
+            isResume: false,
+            isPassthrough: envBool("PASSTHROUGH"),
+            hasDeferredTools: undefined,
+            deferredToolCount: undefined,
+            toolCount: body.tools?.length ?? 0,
+            lineageType: lineageResult.type,
+            messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
+            sdkSessionId: undefined,
+            status: 400,
+            queueWaitMs: conflictQueueWaitMs,
+            sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+            sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
+            proxyOverheadMs: Math.max(0, conflictTotalMs - conflictQueueWaitMs),
+            ttfbMs: null,
+            // The turn is refused before any SDK query is spawned.
+            upstreamDurationMs: 0,
+            totalDurationMs: conflictTotalMs,
+            contentBlocks: 0,
+            textEvents: 0,
+            error: "session_turn_conflict",
+            profileId: profile.id,
+          })
+          return new Response(
+            JSON.stringify({ type: "error", error: { type: "invalid_request_error", message } }),
+            {
+              // Keep the public response within the Anthropic-compatible
+              // Messages API contract. The diagnostic event above retains the
+              // more specific reason for operators.
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            },
+          )
         }
         // Publish the decision to plugins. Core has always known WHICH message
         // stopped matching; the log line only ever reported how many matched
@@ -1236,7 +1353,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const lineageType = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : c.req.header("x-meridian-priority-dispatch") ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} active=${activeSessions}/${MAX_CONCURRENT_SESSIONS} msgCount=${msgCount}`
+        const sdkSnapshot = sdkSemaphore.snapshot
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 
@@ -1255,7 +1373,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         claudeLog("request.received", {
           model,
           stream,
-          queueWaitMs: requestMeta.queueStartedAt - requestMeta.queueEnteredAt,
+          queueWaitMs: totalQueueWaitMs(requestMeta),
+          sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+          sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
           messageCount: Array.isArray(body.messages) ? body.messages.length : 0,
           hasSystemPrompt: Boolean(body.system)
         })
@@ -1838,7 +1958,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // consumer loop, attempt error, loop exit).
                 turnGenerating = true
                 try {
-                  for await (const event of query(buildQueryOptions({
+                  for await (const event of runSdkQueryAttempt(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
                     resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughResumeUuid, forkSession: busySessionFork || Boolean(passthroughResumeUuid) || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -1853,7 +1973,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
                     advisorModel,
-                  }, requestAbort.controller))) {
+                  }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream")) {
                     // Capture Claude Max subscription quota updates emitted by
                     // the SDK as rate_limit_event. We snapshot them in this
                     // profile's slot of the (per-profile-scoped) rate limit
@@ -1928,7 +2048,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     evictSession(profileSessionId, profileScopedCwd, allMessages)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                    yield* query(buildQueryOptions({
+                    yield* runSdkQueryAttempt(buildQueryOptions({
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
@@ -1944,7 +2064,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
-                    }, requestAbort.controller))
+                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh")
                     return
                   }
 
@@ -1978,7 +2098,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     evictSession(profileSessionId, profileScopedCwd, allMessages)
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                    yield* query(buildQueryOptions({
+                    yield* runSdkQueryAttempt(buildQueryOptions({
                       prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                       model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
@@ -1994,7 +2114,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
-                    }, requestAbort.controller))
+                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh")
                     return
                   }
 
@@ -2092,10 +2212,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 }
                 if (!firstChunkAt) {
                   firstChunkAt = Date.now()
+                  // Anchored on the attempt that produced this chunk, not on
+                  // the handler's start: a request that replayed or failed
+                  // over would otherwise report the abandoned attempts as TTFB.
+                  requestMeta.ttfbMs ??= firstChunkAt - (requestMeta.currentSdkStartedAt ?? firstChunkAt)
                   claudeLog("upstream.first_chunk", {
                     mode: "non_stream",
                     model,
-                    ttfbMs: firstChunkAt - upstreamStartAt
+                    ttfbMs: requestMeta.ttfbMs
                   })
                 }
 
@@ -2350,7 +2474,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             hasToolUse
           })
 
-          const nonStreamQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
+          const nonStreamQueueWaitMs = totalQueueWaitMs(requestMeta)
           checkTokenHealth(
             requestMeta.requestId,
             currentSessionId || resumeSessionId,
@@ -2380,9 +2504,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             sdkSessionId: currentSessionId || resumeSessionId,
             status: 200,
             queueWaitMs: nonStreamQueueWaitMs,
-            proxyOverheadMs: upstreamStartAt - requestStartAt - nonStreamQueueWaitMs,
-            ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
-            upstreamDurationMs: Date.now() - upstreamStartAt,
+            sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+            sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
+            proxyOverheadMs: Math.max(0, totalDurationMs - nonStreamQueueWaitMs - requestMeta.sdkActiveDurationMs),
+            ttfbMs: requestMeta.ttfbMs ?? null,
+            upstreamDurationMs: requestMeta.sdkActiveDurationMs,
             totalDurationMs,
             contentBlocks: contentBlocks.length,
             textEvents: 0,
@@ -2431,6 +2557,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   lastUsage,
                   earlyStopFired ? nextPassthroughResumeUuid : null
                 )
+                commitSessionTurn()
               }
 
               const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
@@ -2459,8 +2586,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
 
         const encoder = new TextEncoder()
+        let resolveStreamCompletion = () => {}
+        const streamCompletion = new Promise<void>((resolve) => {
+          resolveStreamCompletion = resolve
+        })
         const readable = new ReadableStream({
-          async start(controller) {
+          start(controller) {
+            return (async () => {
             const upstreamStartAt = Date.now()
             let firstChunkAt: number | undefined
             let heartbeatCount = 0
@@ -2561,13 +2693,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // argument-less aborted call (#552 "red reads") — the recovery
             // path closes these explicitly before its final frames.
             const openClientBlocks = new Set<number>()
-
-            // Announce this request's eventual storeSession to follow-ups: the
-            // drain design ends the client response before the store lands, so
-            // a fast follow-up must await it (see pendingSessionStores).
-            const resolvePendingStore = passthrough && earlyStopEnabled && !isIndependentSession && profileSessionId
-              ? registerPendingStore(profileSessionId)
-              : () => {}
 
             // Envelope integrity: every path that ends the client stream must
             // first terminate any content block whose start was forwarded but
@@ -2670,7 +2795,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // must not re-match a previous attempt's refusal text.
                   const attemptStderrStart = stderrLines.length
                   try {
-                    for await (const event of query(buildQueryOptions({
+                    for await (const event of runSdkQueryAttempt(buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
                       resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughResumeUuid, forkSession: busySessionFork || Boolean(passthroughResumeUuid) || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -2685,7 +2810,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
-                    }, requestAbort.controller))) {
+                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream")) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
                         rateLimitStore.record(profile.id, (event as any).rate_limit_info)
@@ -2739,7 +2864,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       evictSession(profileSessionId, profileScopedCwd, allMessages)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                      yield* query(buildQueryOptions({
+                      yield* runSdkQueryAttempt(buildQueryOptions({
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
@@ -2755,7 +2880,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
-                      }, requestAbort.controller))
+                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh")
                       return
                     }
 
@@ -2785,7 +2910,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       evictSession(profileSessionId, profileScopedCwd, allMessages)
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
-                      yield* query(buildQueryOptions({
+                      yield* runSdkQueryAttempt(buildQueryOptions({
                         prompt: buildFreshPrompt(allMessages, sanitizeOpts),
                         model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
@@ -2801,7 +2926,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
-                      }, requestAbort.controller))
+                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh")
                       return
                     }
 
@@ -2963,10 +3088,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     streamEventsSeen += 1
                     if (!firstChunkAt) {
                       firstChunkAt = Date.now()
+                      // See the non-stream site: TTFB belongs to the attempt
+                      // that actually delivered, not to the first one tried.
+                      requestMeta.ttfbMs ??= firstChunkAt - (requestMeta.currentSdkStartedAt ?? firstChunkAt)
                       claudeLog("upstream.first_chunk", {
                         mode: "stream",
                         model,
-                        ttfbMs: firstChunkAt - upstreamStartAt
+                        ttfbMs: requestMeta.ttfbMs
                       })
                     }
 
@@ -3362,8 +3490,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   lastUsage,
                   earlyStopFired ? nextPassthroughResumeUuid : null
                 )
+                commitSessionTurn()
               }
-              resolvePendingStore()
 
               // Last chance to save a silent turn. The three known causes are
               // fixed; this catches the class — including causes not yet found —
@@ -3425,7 +3553,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // an open SSE response and its concurrency slot with nothing
                   // to time it out — the client waits forever on a request that
                   // had already produced a deliverable turn.
-                  for await (const event of guardUpstreamIdle(query(buildQueryOptions({
+                  for await (const event of runSdkQueryAttempt(buildQueryOptions({
                     prompt: SILENT_TURN_NUDGE,
                     model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     // The nudge asks for prose, but a tool call is an equally
@@ -3457,9 +3585,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
                     advisorModel,
-                  }, requestAbort.controller)), UPSTREAM_IDLE_MS, (sinceLastMs) =>
-                    claudeLog("upstream.stalled", { mode: "silent_recovery", model, sinceLastMs }),
-                  )) {
+                  }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "silent_recovery")) {
                     const recoveryMessage = event as any
                     if (recoveryMessage.session_id) recoverySessionId = recoveryMessage.session_id
                     recoveryBoundaryUuid = resumeBoundaryUuid(recoveryMessage) ?? recoveryBoundaryUuid
@@ -3520,6 +3646,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     lastUsage,
                     recoveryBoundaryUuid ?? null
                   )
+                  commitSessionTurn()
                 }
                 claudeLog("response.silent_turn_recovery_result", {
                   mode: "stream",
@@ -3660,7 +3787,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   textEventsForwarded
                 })
 
-                const streamQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
+                const streamQueueWaitMs = totalQueueWaitMs(requestMeta)
                 checkTokenHealth(
                   requestMeta.requestId,
                   currentSessionId || resumeSessionId,
@@ -3690,9 +3817,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   sdkSessionId: currentSessionId || resumeSessionId,
                   status: 200,
                   queueWaitMs: streamQueueWaitMs,
-                  proxyOverheadMs: upstreamStartAt - requestStartAt - streamQueueWaitMs,
-                  ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
-                  upstreamDurationMs: Date.now() - upstreamStartAt,
+                  sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+                  sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
+                  proxyOverheadMs: Math.max(0, streamTotalDurationMs - streamQueueWaitMs - requestMeta.sdkActiveDurationMs),
+                  ttfbMs: requestMeta.ttfbMs ?? null,
+                  upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                   totalDurationMs: streamTotalDurationMs,
                   contentBlocks: eventsForwarded,
                   textEvents: textEventsForwarded,
@@ -3766,15 +3895,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     lastUsage,
                     disposition.resumeUuid
                   )
+                  commitSessionTurn()
                 } else if (disposition.action === "evict") {
                   evictSession(profileSessionId, profileScopedCwd, body.messages || [])
                 }
                 claudeLog("passthrough.client_abort_settled", { action: disposition.action })
-                resolvePendingStore()
                 return
               }
 
-              resolvePendingStore()
               const stderrOutput = stderrLines.join("\n").trim()
               if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
                 error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
@@ -3892,7 +4020,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 recordEnvelopeViolations(checkUndeliveredToolUses(capturedToolUses, streamedToolUseIds))
                 // Record as success — the client got a usable response.
                 const recoverTotalMs = Date.now() - requestStartAt
-                const recoverQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
+                const recoverQueueWaitMs = totalQueueWaitMs(requestMeta)
                 telemetryStore.record({
                   requestId: requestMeta.requestId,
                   timestamp: Date.now(),
@@ -3912,9 +4040,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   sdkSessionId: resumeSessionId,
                   status: 200,
                   queueWaitMs: recoverQueueWaitMs,
-                  proxyOverheadMs: upstreamStartAt - requestStartAt - recoverQueueWaitMs,
-                  ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
-                  upstreamDurationMs: Date.now() - upstreamStartAt,
+                  sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+                  sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
+                  proxyOverheadMs: Math.max(0, recoverTotalMs - recoverQueueWaitMs - requestMeta.sdkActiveDurationMs),
+                  ttfbMs: requestMeta.ttfbMs ?? null,
+                  upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                   totalDurationMs: recoverTotalMs,
                   contentBlocks: eventsForwarded + unseenToolUses.length,
                   textEvents: textEventsForwarded,
@@ -3944,7 +4074,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // streaming errors would not appear in /telemetry/requests at all
               // (the success path's record call never runs when this catch fires).
               const streamErrTotalMs = Date.now() - requestStartAt
-              const streamErrQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
+              const streamErrQueueWaitMs = totalQueueWaitMs(requestMeta)
               telemetryStore.record({
                 requestId: requestMeta.requestId,
                 timestamp: Date.now(),
@@ -3964,9 +4094,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 sdkSessionId: resumeSessionId,
                 status: streamErr.status,
                 queueWaitMs: streamErrQueueWaitMs,
-                proxyOverheadMs: upstreamStartAt - requestStartAt - streamErrQueueWaitMs,
-                ttfbMs: firstChunkAt ? firstChunkAt - upstreamStartAt : null,
-                upstreamDurationMs: Date.now() - upstreamStartAt,
+                sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+                sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
+                proxyOverheadMs: Math.max(0, streamErrTotalMs - streamErrQueueWaitMs - requestMeta.sdkActiveDurationMs),
+                ttfbMs: requestMeta.ttfbMs ?? null,
+                upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                 totalDurationMs: streamErrTotalMs,
                 contentBlocks: eventsForwarded,
                 textEvents: textEventsForwarded,
@@ -4042,6 +4174,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             } finally {
               requestAbort.detach()
             }
+            })().finally(() => {
+              resolveStreamCompletion()
+            })
           },
           cancel(reason) {
             requestAbort.abort(reason)
@@ -4051,7 +4186,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
         const streamSessionId = resumeSessionId || `session_${Date.now()}`
         streamOwnsAbortLink = true
-        return new Response(readable, {
+        const streamResponse = new Response(readable, {
           headers: {
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
@@ -4059,6 +4194,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             "X-Claude-Session-ID": streamSessionId
           }
         })
+        responseCompletions.set(streamResponse, streamCompletion)
+        return streamResponse
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error)
         claudeLog("error.unhandled", {
@@ -4067,7 +4204,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         })
 
         // Detect specific error types and return helpful messages
-        const classified = classifyError(errMsg)
+        const classified = requestAbort.controller.signal.aborted
+          ? { status: 499, type: "request_cancelled", message: "The request was cancelled" }
+          : classifyError(errMsg)
 
         claudeLog("proxy.error", { error: errMsg, classified: classified.type })
 
@@ -4082,7 +4221,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           requestMeta.requestId,
         )
 
-        const errorQueueWaitMs = requestMeta.queueStartedAt - requestMeta.queueEnteredAt
+        const errorQueueWaitMs = totalQueueWaitMs(requestMeta)
+        const errorTotalMs = Date.now() - requestStartAt
         telemetryStore.record({
           requestId: requestMeta.requestId,
           timestamp: Date.now(),
@@ -4100,10 +4240,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           sdkSessionId: undefined,
           status: classified.status,
           queueWaitMs: errorQueueWaitMs,
-          proxyOverheadMs: Date.now() - requestStartAt - errorQueueWaitMs,
+          sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+          sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
+          proxyOverheadMs: Math.max(0, errorTotalMs - errorQueueWaitMs - requestMeta.sdkActiveDurationMs),
           ttfbMs: null,
-          upstreamDurationMs: Date.now() - requestStartAt,
-          totalDurationMs: Date.now() - requestStartAt,
+          upstreamDurationMs: requestMeta.sdkActiveDurationMs,
+          totalDurationMs: errorTotalMs,
           contentBlocks: 0,
           textEvents: 0,
           error: classified.type,
@@ -4120,22 +4262,110 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   }
 
   const handleWithQueue = async (c: Context, endpoint: string) => {
+    if (draining) {
+      return new Response(JSON.stringify({
+        type: "error",
+        error: { type: "overloaded_error", message: "Meridian is shutting down and is not accepting new requests. Retry against another instance." },
+      }), { status: 503, headers: { "Content-Type": "application/json", "x-meridian-draining": "1" } })
+    }
     const requestId = c.req.header("x-request-id") || randomUUID()
     const queueEnteredAt = Date.now()
     claudeLog("request.enter", { requestId, endpoint })
-    // Already inside this request's slot — an internal dispatch hop, not a new
-    // arrival. Taking a second slot here is what deadlocks the pool.
-    const held = insideSessionSlot.getStore()
-    if (held) {
-      return handleMessages(c, { requestId, endpoint, ...held })
+    let sessionTurnLease: SessionTurnLease | undefined
+    let finished = false
+    let leaseReleased = false
+    let leaseWatchdog: ReturnType<typeof setTimeout> | undefined
+    inFlightRequests++
+    // Releasing the lease is deliberately separate from finishing the request:
+    // the watchdog must be able to unblock the session without also corrupting
+    // the in-flight count that the shutdown drain reads.
+    const releaseSessionTurn = (forced: boolean) => {
+      if (leaseReleased || !sessionTurnLease) return
+      leaseReleased = true
+      if (leaseWatchdog) clearTimeout(leaseWatchdog)
+      if (forced) {
+        claudeLog("session.turn_lease_forced", { requestId, heldMs: SESSION_TURN_MAX_HOLD_MS })
+        plog(`[PROXY] ${requestId} session turn lease force-released after ${SESSION_TURN_MAX_HOLD_MS}ms`)
+      }
+      sessionTurnLease.release()
     }
-    await acquireSession()
-    const queueStartedAt = Date.now()
+    const finishRequest = () => {
+      if (finished) return
+      finished = true
+      releaseSessionTurn(false)
+      inFlightRequests--
+    }
+
+    let body: any
     try {
-      return await insideSessionSlot.run({ queueEnteredAt, queueStartedAt }, () =>
-        handleMessages(c, { requestId, endpoint, queueEnteredAt, queueStartedAt }))
-    } finally {
-      releaseSession()
+      try {
+        body = await c.req.json()
+      } catch (error) {
+        if (c.req.raw.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+          finishRequest()
+          return new Response(JSON.stringify({
+            type: "error",
+            error: { type: "request_cancelled", message: "The request was cancelled" },
+          }), { status: 499, headers: { "Content-Type": "application/json" } })
+        }
+        finishRequest()
+        return new Response(JSON.stringify({
+          type: "error",
+          error: { type: "invalid_request_error", message: "Request body must be valid JSON" },
+        }), { status: 400, headers: { "Content-Type": "application/json" } })
+      }
+
+      // Fingerprints are intentionally excluded here: they only hash the first
+      // user message + cwd and cannot distinguish independent headerless chats.
+      // Strict serialization is safe only when the adapter supplies a reliable
+      // client-session identity.
+      if (Array.isArray(body?.messages)) {
+        const adapter = detectAdapter(c)
+        const agentSessionId = adapter.getSessionId(c, body)
+        if (agentSessionId) {
+          try {
+            sessionTurnLease = await processSessionTurns.acquire(
+              `session:${agentSessionId}`,
+              c.req.raw.signal,
+            )
+            leaseWatchdog = setTimeout(() => releaseSessionTurn(true), SESSION_TURN_MAX_HOLD_MS)
+            leaseWatchdog.unref?.()
+          } catch (error) {
+            if (c.req.raw.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+              finishRequest()
+              return new Response(JSON.stringify({
+                type: "error",
+                error: { type: "request_cancelled", message: "The request was cancelled" },
+              }), { status: 499, headers: { "Content-Type": "application/json" } })
+            }
+            throw error
+          }
+        }
+      }
+
+      const requestMeta: RequestMeta = {
+        requestId,
+        endpoint,
+        queueEnteredAt,
+        sessionQueueWaitMs: sessionTurnLease?.waitedMs ?? 0,
+        sdkQueueWaitMs: 0,
+        sdkActiveDurationMs: 0,
+        sessionTurnLease,
+      }
+      const response = await handleMessages(c, requestMeta, { body })
+      const completion = responseCompletions.get(response)
+      if (completion) {
+        // .finally() re-throws whatever it settled with, so the catch is what
+        // keeps a future rejecting completion from surfacing as an unhandled
+        // rejection. It runs after finishRequest, which fires either way.
+        void completion.finally(finishRequest).catch(() => {})
+      } else {
+        finishRequest()
+      }
+      return response
+    } catch (error) {
+      finishRequest()
+      throw error
     }
   }
 
@@ -4250,6 +4480,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   // Health check endpoint — verifies auth status
   app.get("/health", async (c) => {
+    // Checked first and unconditionally: a fleet manager routing on this
+    // endpoint (e.g. a gateway's account-pool scheduler) needs to learn
+    // "stop sending here" as fast as possible during shutdown, without
+    // waiting on an auth-status round trip.
+    if (draining) {
+      return c.json({
+        status: "draining",
+        version: serverVersion,
+        message: "Meridian is shutting down; route new requests to another instance.",
+      }, 503)
+    }
     try {
       // Use active profile's auth context for health check
       const healthProfile = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile)
@@ -4514,6 +4755,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       method: "POST",
       headers: internalHeaders,
       body: JSON.stringify(anthropicBody),
+      signal: c.req.raw.signal,
     })
     const internalRes = await app.fetch(internalReq)
 
@@ -4542,10 +4784,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
     // Streaming: translate Anthropic SSE events to OpenAI SSE chunks
     const encoder = new TextEncoder()
+    let internalReader: { cancel(reason?: unknown): Promise<void> } | undefined
     const readable = new ReadableStream({
       async start(controller) {
         const reader = internalRes.body?.getReader()
         if (!reader) { controller.close(); return }
+        internalReader = reader
 
         const decoder = new TextDecoder()
         let buffer = ""
@@ -4591,6 +4835,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }
           controller.close()
         }
+      },
+      cancel(reason) {
+        return internalReader?.cancel(reason)
       },
     })
 
@@ -4652,6 +4899,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       method: "POST",
       headers: internalHeaders,
       body: JSON.stringify(anthropicBody),
+      signal: c.req.raw.signal,
     })
     const internalRes = await app.fetch(internalReq)
 
@@ -4675,10 +4923,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
     // Streaming: translate Anthropic SSE → Responses SSE.
     const encoder = new TextEncoder()
+    let internalReader: { cancel(reason?: unknown): Promise<void> } | undefined
     const readable = new ReadableStream({
       async start(controller) {
         const reader = internalRes.body?.getReader()
         if (!reader) { controller.close(); return }
+        internalReader = reader
 
         const decoder = new TextDecoder()
         let buffer = ""
@@ -4713,6 +4963,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         } finally {
           controller.close()
         }
+      },
+      cancel(reason) {
+        return internalReader?.cancel(reason)
       },
     })
 
@@ -5098,7 +5351,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     }
   }
 
-  return { app, config: finalConfig, initPlugins: initPluginsAsync }
+  return {
+    app,
+    config: finalConfig,
+    initPlugins: initPluginsAsync,
+    beginDrain: () => { draining = true },
+    getInFlightCount: () => inFlightRequests,
+  }
 }
 
 /**
@@ -5127,7 +5386,7 @@ export function installProxyProcessErrorHandlers(): void {
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
   claudeExecutable = await resolveClaudeExecutableAsync()
-  const { app, config: finalConfig, initPlugins } = createProxyServer(config)
+  const { app, config: finalConfig, initPlugins, beginDrain, getInFlightCount } = createProxyServer(config)
   if (initPlugins) await initPlugins()
 
   if (finalConfig.installProcessErrorHandlers) {
@@ -5161,6 +5420,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
   const idleMs = finalConfig.idleTimeoutSeconds * 1000
   server.keepAliveTimeout = idleMs
   server.headersTimeout = idleMs + 1000
+  const connectionTracker = trackServerConnections(server)
 
   server.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EADDRINUSE" && !finalConfig.silent) {
@@ -5212,16 +5472,33 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     if (authKeepaliveInterval.unref) authKeepaliveInterval.unref()
   }
 
+  let closePromise: Promise<void> | undefined
   return {
     server,
     config: finalConfig,
-    async close() {
-      clearInterval(profileTokenRefreshInterval)
-      if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
-      stopBackgroundRefresh()
-      await new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()))
-      })
+    close() {
+      closePromise ??= (async () => {
+        clearInterval(profileTokenRefreshInterval)
+        if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
+        stopBackgroundRefresh()
+
+        // Stop admitting new requests, then give whatever is already in flight
+        // up to SHUTDOWN_GRACE_MS to finish naturally before pulling the plug.
+        // This makes existing "call close() on SIGTERM" plugin code (see the
+        // Stable API Contract) graceful for free, with no signature change.
+        beginDrain?.()
+        try {
+          await closeServerWithGracePeriod(server, {
+            graceMs: SHUTDOWN_GRACE_MS,
+            getInFlightCount: () => getInFlightCount?.() ?? 0,
+            warn: finalConfig.silent ? undefined : (message) => console.warn(message),
+            forceCloseConnections: () => connectionTracker.forceCloseAll(),
+          })
+        } finally {
+          connectionTracker.dispose()
+        }
+      })()
+      return closePromise
     },
   }
 }

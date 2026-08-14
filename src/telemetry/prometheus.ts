@@ -12,6 +12,8 @@ const DURATION_BUCKETS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30
 
 const PHASES: { key: string; extract: (m: RequestMetric) => number | null }[] = [
   { key: "queue_wait", extract: (m) => m.queueWaitMs },
+  { key: "session_queue_wait", extract: (m) => m.sessionQueueWaitMs ?? 0 },
+  { key: "sdk_queue_wait", extract: (m) => m.sdkQueueWaitMs ?? 0 },
   { key: "proxy_overhead", extract: (m) => m.proxyOverheadMs },
   { key: "ttfb", extract: (m) => m.ttfbMs },
   { key: "upstream", extract: (m) => m.upstreamDurationMs },

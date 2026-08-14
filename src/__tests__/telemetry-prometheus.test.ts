@@ -75,7 +75,7 @@ describe("renderPrometheusMetrics", () => {
     store.record(makeMetric())
 
     const output = renderPrometheusMetrics(store)
-    for (const phase of ["queue_wait", "proxy_overhead", "ttfb", "upstream", "total"]) {
+    for (const phase of ["queue_wait", "session_queue_wait", "sdk_queue_wait", "proxy_overhead", "ttfb", "upstream", "total"]) {
       expect(output).toContain(`phase="${phase}"`)
     }
   })

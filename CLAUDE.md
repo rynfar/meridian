@@ -58,6 +58,8 @@ OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Speci
 
 ```
 server.ts          → HTTP routes, SSE streaming, concurrency (orchestration only)
+concurrency.ts     → Abortable SDK query semaphore, max-concurrency config
+shutdown.ts        → Bounded HTTP drain, socket tracking, forced close
 adapter.ts         → AgentAdapter interface (extensibility point)
 adapters/
   opencode.ts      → OpenCode-specific: headers, CWD, tool config
@@ -73,6 +75,7 @@ session/
   lineage.ts       → Hashing, lineage verification (PURE — no I/O)
   fingerprint.ts   → extractClientCwd, getConversationFingerprint
   cache.ts         → LRU caches, lookupSession, storeSession (stateful)
+  turnCoordinator.ts → Process-wide strict serialization for reliable session IDs
 ```
 
 ## Stable API Contract
@@ -90,7 +93,6 @@ External plugins depend on these interfaces. **Do not change without project own
 | `POST /v1/messages` request/response format | `server.ts` | All agents (Anthropic API contract) |
 | `GET /profiles/list` response shape | `server.ts` | Profile management UI and CLI |
 | `POST /profiles/active` request/response | `server.ts` | Profile switching from CLI and UI |
-
 If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
 
 ## Git & Workflow

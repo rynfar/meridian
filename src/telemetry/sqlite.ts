@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS metrics (
   sdk_session_id       TEXT,
   status               INTEGER NOT NULL,
   queue_wait_ms        REAL    NOT NULL,
+  session_queue_wait_ms REAL   NOT NULL DEFAULT 0,
+  sdk_queue_wait_ms     REAL   NOT NULL DEFAULT 0,
   proxy_overhead_ms    REAL    NOT NULL,
   ttfb_ms              REAL,
   upstream_duration_ms REAL    NOT NULL,
@@ -55,6 +57,8 @@ const METRICS_MIGRATIONS = [
   "ALTER TABLE metrics ADD COLUMN request_source TEXT",
   "ALTER TABLE metrics ADD COLUMN profile_id TEXT",
   "ALTER TABLE metrics ADD COLUMN envelope_violations TEXT",
+  "ALTER TABLE metrics ADD COLUMN session_queue_wait_ms REAL NOT NULL DEFAULT 0",
+  "ALTER TABLE metrics ADD COLUMN sdk_queue_wait_ms REAL NOT NULL DEFAULT 0",
 ]
 
 const LOGS_SCHEMA = `
@@ -103,7 +107,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
         is_resume, is_passthrough, lineage_type,
         has_deferred_tools, deferred_tool_count, tool_count, discovered_tools, session_discovered_count,
         message_count, sdk_session_id,
-        status, queue_wait_ms, proxy_overhead_ms, ttfb_ms,
+        status, queue_wait_ms, session_queue_wait_ms, sdk_queue_wait_ms, proxy_overhead_ms, ttfb_ms,
         upstream_duration_ms, total_duration_ms, content_blocks, text_events, error,
         input_tokens, output_tokens, cache_read_input_tokens,
         cache_creation_input_tokens, cache_hit_rate, profile_id, envelope_violations
@@ -112,7 +116,7 @@ class SqliteTelemetryStore implements ITelemetryStore {
         @isResume, @isPassthrough, @lineageType,
         @hasDeferredTools, @deferredToolCount, @toolCount, @discoveredTools, @sessionDiscoveredCount,
         @messageCount, @sdkSessionId,
-        @status, @queueWaitMs, @proxyOverheadMs, @ttfbMs,
+        @status, @queueWaitMs, @sessionQueueWaitMs, @sdkQueueWaitMs, @proxyOverheadMs, @ttfbMs,
         @upstreamDurationMs, @totalDurationMs, @contentBlocks, @textEvents, @error,
         @inputTokens, @outputTokens, @cacheReadInputTokens,
         @cacheCreationInputTokens, @cacheHitRate, @profileId, @envelopeViolations
@@ -144,6 +148,8 @@ class SqliteTelemetryStore implements ITelemetryStore {
         sdkSessionId: metric.sdkSessionId ?? null,
         status: metric.status,
         queueWaitMs: metric.queueWaitMs,
+        sessionQueueWaitMs: metric.sessionQueueWaitMs ?? 0,
+        sdkQueueWaitMs: metric.sdkQueueWaitMs ?? 0,
         proxyOverheadMs: metric.proxyOverheadMs,
         ttfbMs: metric.ttfbMs ?? null,
         upstreamDurationMs: metric.upstreamDurationMs,
@@ -346,6 +352,8 @@ function rowToMetric(r: Record<string, unknown>): RequestMetric {
     sdkSessionId: (r.sdk_session_id as string) ?? undefined,
     status: r.status as number,
     queueWaitMs: r.queue_wait_ms as number,
+    sessionQueueWaitMs: (r.session_queue_wait_ms as number) ?? 0,
+    sdkQueueWaitMs: (r.sdk_queue_wait_ms as number) ?? 0,
     proxyOverheadMs: r.proxy_overhead_ms as number,
     ttfbMs: (r.ttfb_ms as number) ?? null,
     upstreamDurationMs: r.upstream_duration_ms as number,

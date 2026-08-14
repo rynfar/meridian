@@ -38,7 +38,6 @@ export const dashboardHtml = `<!DOCTYPE html>
   .waterfall-seg { height: 100%; border-radius: 2px; min-width: 2px; }
   .waterfall-seg.queue { background: var(--queue); }
   .waterfall-seg.overhead { background: var(--yellow); }
-  .waterfall-seg.ttfb { background: var(--ttfb); }
   .waterfall-seg.response { background: var(--upstream); }
   .legend { display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
   .legend-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 4px; vertical-align: middle; }
@@ -296,6 +295,8 @@ function render(s, reqs, logs) {
   html += '<div class="section"><div class="section-title">Percentiles</div>'
     + '<table class="pct-table"><thead><tr><th>Phase</th><th>p50</th><th>p95</th><th>p99</th><th>Min</th><th>Max</th><th>Avg</th></tr></thead><tbody>'
     + pctRow('Queue Wait', 'var(--queue)', s.queueWait)
+    + pctRow('Session Queue', 'var(--queue)', s.sessionQueueWait)
+    + pctRow('SDK Queue', 'var(--queue)', s.sdkQueueWait)
     + pctRow('Proxy Overhead', 'var(--yellow)', s.proxyOverhead)
     + pctRow('TTFB', 'var(--ttfb)', s.ttfb)
     + pctRow('Upstream', 'var(--upstream)', s.upstreamDuration)
@@ -310,7 +311,6 @@ function render(s, reqs, logs) {
   html += '<div class="legend">'
     + '<span><span class="legend-dot" style="background:var(--queue)"></span>Queue</span>'
     + '<span><span class="legend-dot" style="background:var(--yellow)"></span>Proxy</span>'
-    + '<span><span class="legend-dot" style="background:var(--ttfb)"></span>TTFB</span>'
     + '<span><span class="legend-dot" style="background:var(--upstream)"></span>Response</span>'
     + '</div>'
     + '<table><thead><tr><th>Time</th><th>Adapter</th><th>Model</th><th>Mode</th><th>Session</th><th>Status</th>'
@@ -322,10 +322,11 @@ function render(s, reqs, logs) {
     const statusClass = r.error ? 'status-err' : 'status-ok';
     const statusText = r.error ? r.error : r.status;
     const scale = 280 / maxTotal;
+    const sessionQW = r.sessionQueueWaitMs || 0;
+    const sdkQW = r.sdkQueueWaitMs || 0;
     const qW = Math.max(r.queueWaitMs * scale, 2);
     const ohW = Math.max((r.proxyOverheadMs || 0) * scale, 0);
-    const ttfbW = Math.max((r.ttfbMs || 0) * scale, 0);
-    const respW = Math.max((r.upstreamDurationMs - (r.ttfbMs || 0)) * scale, 2);
+    const respW = Math.max(r.upstreamDurationMs * scale, 2);
 
     const lineageBadge = r.lineageType ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + ({continuation:'var(--green)',compaction:'var(--yellow)',undo:'var(--purple)',diverged:'var(--red)',new:'var(--muted)'}[r.lineageType] || 'var(--muted)') + ';color:var(--bg)">' + r.lineageType + '</span>' : '';
     const envBadge = (r.envelopeViolations && r.envelopeViolations.length > 0) ? ' <span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--red);color:var(--bg)" title="' + r.envelopeViolations.join(', ') + '">envelope×' + r.envelopeViolations.length + '</span>' : '';
@@ -341,16 +342,15 @@ function render(s, reqs, logs) {
       + '<td>' + r.mode + (r.hasDeferredTools ? (function() { var sessDisc = r.sessionDiscoveredCount || 0; var loaded = ((r.toolCount || 0) - (r.deferredToolCount || 0)) + sessDisc; var deferred = Math.max(0, (r.deferredToolCount || 0) - sessDisc); var newDisc = r.discoveredTools || []; return '<br><span style="font-size:10px;color:var(--purple)">loaded=' + loaded + ' deferred=' + deferred + '</span>' + (newDisc.length > 0 ? '<br><span style="font-size:10px;color:var(--green)">+' + newDisc.join(', +') + '</span>' : ''); })() : '') + '</td>'
       + '<td class="mono">' + sessionShort + ' ' + lineageBadge + envBadge + '<br><span style="font-size:10px;color:var(--muted)">' + msgCount + ' msgs</span></td>'
       + '<td class="' + statusClass + '">' + statusText + '</td>'
-      + '<td class="mono">' + ms(r.queueWaitMs) + '</td>'
+      + '<td class="mono">' + ms(r.queueWaitMs) + '<br><span style="font-size:9px;color:var(--muted)">session ' + ms(sessionQW) + ' / sdk ' + ms(sdkQW) + '</span></td>'
       + '<td class="mono">' + ms(r.proxyOverheadMs) + '</td>'
       + '<td class="mono">' + ms(r.ttfbMs) + '</td>'
       + '<td class="mono">' + ms(r.totalDurationMs) + '</td>'
       + '<td class="mono">' + (r.inputTokens != null ? (r.inputTokens > 1000 ? Math.round(r.inputTokens/1000) + 'k' : r.inputTokens) + ' in<br>' + (r.outputTokens > 1000 ? Math.round(r.outputTokens/1000) + 'k' : r.outputTokens || 0) + ' out' : '—') + '</td>'
       + '<td class="mono">' + (r.cacheHitRate != null ? '<span style="color:' + (r.cacheHitRate > 0.5 ? 'var(--green)' : r.cacheHitRate > 0 ? 'var(--yellow)' : 'var(--red)') + '">' + Math.round(r.cacheHitRate * 100) + '%</span>' : '—') + '</td>'
-      + '<td><div class="waterfall">'
+      + '<td><div class="waterfall" title="Queue, then proxy overhead, then upstream response. A request that replayed upstream sums every attempt into the response segment, while TTFB counts only the attempt that produced the first chunk.">'
       + '<div class="waterfall-seg queue" style="width:' + qW + 'px"></div>'
       + '<div class="waterfall-seg overhead" style="width:' + ohW + 'px"></div>'
-      + '<div class="waterfall-seg ttfb" style="width:' + ttfbW + 'px"></div>'
       + '<div class="waterfall-seg response" style="width:' + respW + 'px"></div>'
       + '</div></td>'
       + '</tr>';

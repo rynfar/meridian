@@ -8,6 +8,10 @@ describe("proxy async ops", () => {
     const proxyA = await startProxyServer({ port: 0, host: "127.0.0.1" })
     const proxyB = await startProxyServer({ port: 0, host: "127.0.0.1" })
 
+    const firstClose = proxyA.close()
+    const repeatedClose = proxyA.close()
+    expect(repeatedClose).toBe(firstClose)
+    await Promise.all([firstClose, repeatedClose])
     await proxyA.close()
     await proxyB.close()
 

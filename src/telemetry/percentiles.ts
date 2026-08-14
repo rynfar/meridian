@@ -43,6 +43,8 @@ export function computeSummary(
       envelopeViolationCount: 0,
       requestsPerMinute: 0,
       queueWait: emptyPhase,
+      sessionQueueWait: emptyPhase,
+      sdkQueueWait: emptyPhase,
       proxyOverhead: emptyPhase,
       ttfb: emptyPhase,
       upstreamDuration: emptyPhase,
@@ -70,6 +72,8 @@ export function computeSummary(
   const requestsPerMinute = (metrics.length / spanMs) * 60_000
 
   const queueWaits = metrics.map(m => m.queueWaitMs)
+  const sessionQueueWaits = metrics.map(m => m.sessionQueueWaitMs ?? 0)
+  const sdkQueueWaits = metrics.map(m => m.sdkQueueWaitMs ?? 0)
   const overheads = metrics.map(m => m.proxyOverheadMs)
   const ttfbs = metrics.filter(m => m.ttfbMs !== null).map(m => m.ttfbMs!)
   const upstreams = metrics.map(m => m.upstreamDurationMs)
@@ -119,6 +123,8 @@ export function computeSummary(
     envelopeViolationCount,
     requestsPerMinute: Math.round(requestsPerMinute * 100) / 100,
     queueWait: computePercentiles(queueWaits),
+    sessionQueueWait: computePercentiles(sessionQueueWaits),
+    sdkQueueWait: computePercentiles(sdkQueueWaits),
     proxyOverhead: computePercentiles(overheads),
     ttfb: ttfbs.length > 0 ? computePercentiles(ttfbs) : { p50: 0, p95: 0, p99: 0, min: 0, max: 0, avg: 0 },
     upstreamDuration: computePercentiles(upstreams),

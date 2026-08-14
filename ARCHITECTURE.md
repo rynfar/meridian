@@ -37,6 +37,8 @@ Agent (OpenCode) ◄── SSE Response ◄────────────�
 src/
 ├── proxy/
 │   ├── server.ts              ← HTTP layer: routes, SSE streaming, concurrency, request orchestration
+│   ├── concurrency.ts         ← Abortable SDK query semaphore and concurrency config parsing
+│   ├── shutdown.ts            ← Bounded HTTP drain and connection tracking
 │   ├── adapter.ts             ← AgentAdapter interface (extensibility point for multi-agent support)
 │   ├── adapters/
 │   │   ├── opencode.ts        ← OpenCode adapter (session headers, CWD extraction, tool config)
@@ -51,7 +53,8 @@ src/
 │   │   ├── index.ts           ← Barrel export
 │   │   ├── lineage.ts         ← Pure functions: hashing, lineage verification
 │   │   ├── fingerprint.ts     ← Conversation fingerprinting, client CWD extraction
-│   │   └── cache.ts           ← LRU session caches, lookup/store operations
+│   │   ├── cache.ts           ← LRU session caches, lookup/store operations
+│   │   └── turnCoordinator.ts ← Process-wide strict serialization for reliable session IDs
 │   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
 │   ├── profiles.ts            ← Multi-profile support: resolve, list, switch auth contexts (leaf)
 │   ├── profileCli.ts          ← CLI commands for profile management (leaf, I/O)
