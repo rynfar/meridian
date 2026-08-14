@@ -2,6 +2,7 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { stream } from "hono/streaming"
 import { serve } from "@hono/node-server"
+import { AsyncLocalStorage } from "node:async_hooks"
 import type { Server } from "node:http"
 import { homedir } from "node:os"
 import { join } from "node:path"
@@ -728,6 +729,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   const MAX_CONCURRENT_SESSIONS = parseInt((process.env.MERIDIAN_MAX_CONCURRENT ?? process.env.CLAUDE_PROXY_MAX_CONCURRENT) || "10", 10)
   let activeSessions = 0
   const sessionQueue: Array<{ resolve: () => void }> = []
+  // Priority routing dispatches by re-entering this app over `app.fetch`
+  // (dispatchPriority), so one external request makes two passes through the
+  // queued route. Counting both is a deadlock, not an over-count: the outer
+  // pass holds its slot for as long as the inner pass runs, so N concurrent
+  // requests hold all N slots while waiting for inner passes that can never be
+  // admitted, and the queue never drains again. The slot belongs to the
+  // external request; the inner pass is the same request continuing, and it is
+  // the only one of the two that spawns an SDK subprocess.
+  //
+  // The marker rides the async context rather than a header because a header
+  // reaches the limiter from the wire: any client could send it and opt out of
+  // the limit this exists to impose. It carries the outer pass's queue timings
+  // so the inner pass — the one that reports telemetry — still records the wait
+  // the external request actually served, rather than a zero of its own.
+  const insideSessionSlot = new AsyncLocalStorage<{ queueEnteredAt: number; queueStartedAt: number }>()
 
   async function acquireSession(): Promise<void> {
     if (activeSessions < MAX_CONCURRENT_SESSIONS) {
@@ -4082,10 +4098,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const requestId = c.req.header("x-request-id") || randomUUID()
     const queueEnteredAt = Date.now()
     claudeLog("request.enter", { requestId, endpoint })
+    // Already inside this request's slot — an internal dispatch hop, not a new
+    // arrival. Taking a second slot here is what deadlocks the pool.
+    const held = insideSessionSlot.getStore()
+    if (held) {
+      return handleMessages(c, { requestId, endpoint, ...held })
+    }
     await acquireSession()
     const queueStartedAt = Date.now()
     try {
-      return await handleMessages(c, { requestId, endpoint, queueEnteredAt, queueStartedAt })
+      return await insideSessionSlot.run({ queueEnteredAt, queueStartedAt }, () =>
+        handleMessages(c, { requestId, endpoint, queueEnteredAt, queueStartedAt }))
     } finally {
       releaseSession()
     }
