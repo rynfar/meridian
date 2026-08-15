@@ -80,7 +80,7 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, type ResolvedProfile } from "./profiles"
-import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, AssignmentStore } from "./routing"
+import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, AssignmentStore, resolveCooldownUntil } from "./routing"
 import { getSetting, setSetting } from "./settings"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
@@ -490,8 +490,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   const priorityExhaustion = new ProfileExhaustion()
   const PRIORITY_ASSIGNMENTS_MAX = 5000
   const priorityAssignments = new AssignmentStore(PRIORITY_ASSIGNMENTS_MAX)
+  // The per-window reset cap lives in routing.ts (cooldownCapMs): a single
+  // constant here is what let a 6-hour bound flatten a weekly reset (#790).
   const PRIORITY_DEFAULT_COOLDOWN_MS = 10 * 60_000
-  const PRIORITY_COOLDOWN_CAP_MS = 6 * 60 * 60_000
 
   function priorityProfileOrderSetting(): string[] | undefined {
     const env = process.env.MERIDIAN_PROFILE_ORDER
@@ -514,11 +515,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    *  the conservative default so tier 2 isn't left refining a wrong mark
    *  it has no way to challenge. */
   function priorityCooldownUntil(profileId: string, now: number): number {
-    const fiveHour = rateLimitStore.getAll(profileId)
-      .find(e => e.rateLimitType === "five_hour" && (e.resetsAt ?? 0) > now
-        && (e.status === "rejected" || (e.utilization ?? 0) >= 1))
-    const until = fiveHour?.resetsAt ?? now + PRIORITY_DEFAULT_COOLDOWN_MS
-    return Math.min(until, now + PRIORITY_COOLDOWN_CAP_MS)
+    const windows = rateLimitStore.getAll(profileId).map(e => ({
+      type: e.rateLimitType ?? "",
+      resetsAt: e.resetsAt,
+      exhausted: e.status === "rejected" || (e.utilization ?? 0) >= 1,
+    }))
+    return resolveCooldownUntil(windows, now, PRIORITY_DEFAULT_COOLDOWN_MS)
   }
 
   /** Tier 2: the authoritative per-account reset from Anthropic's usage
@@ -570,12 +572,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     void fetchOAuthUsage({ profileId, claudeConfigDir: target?.claudeConfigDir, force: true })
       .then(usage => {
         if (!usage || usage.stale) return
-        const fiveHour = usage.windows.find(w => w.type === "five_hour")
-        if (!fiveHour || (fiveHour.utilization ?? 0) < 1) return
         const now = Date.now()
-        const resetsAt = fiveHour.resetsAt
-        if (!resetsAt || resetsAt <= now) return
-        const until = Math.min(resetsAt, now + PRIORITY_COOLDOWN_CAP_MS)
+        const windows = usage.windows.map(w => ({
+          type: w.type,
+          resetsAt: w.resetsAt,
+          exhausted: (w.utilization ?? 0) >= 1,
+        }))
+        // Sentinel: resolveCooldownUntil falls back to `now + defaultMs` when
+        // nothing is exhausted. Passing 0 makes that fallback identifiable, so
+        // a snapshot showing a healthy account refines nothing and tier 3's
+        // conservative default stands — the same early-return the five-hour-only
+        // version did with its `utilization < 1` guard.
+        const until = resolveCooldownUntil(windows, now, 0)
+        if (until <= now) return
         priorityExhaustion.mark(profileId, until, "rate_limit_error")
         claudeLog("priority.cooldown_refined", { profile: profileId, until, source: "oauth_usage" })
       })

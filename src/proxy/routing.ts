@@ -210,3 +210,81 @@ export class AssignmentStore {
     return this.entries.size
   }
 }
+
+/**
+ * How long a profile stays benched when a usage window is exhausted (#790).
+ *
+ * Meridian benches a failing profile until its quota window resets. Reading
+ * that reset only from the `five_hour` window meant a weekly-capped profile
+ * matched nothing and fell through to the 10-minute default — so it was
+ * re-probed every 10 minutes, with a real failing upstream request on the
+ * request path, for however many days the weekly window had left.
+ *
+ * Only the ACCOUNT-WIDE windows bench a profile. Anthropic also reports
+ * per-model weekly budgets (`seven_day_opus`, `seven_day_fable`, …), and an
+ * exhausted one of those does not mean the account is unusable — sidelining a
+ * profile for days because a single model's budget ran out would be worse than
+ * the bug this fixes. Those cases keep the old default and are called out as a
+ * known remainder rather than silently mishandled.
+ */
+export type CooldownWindowType = "five_hour" | "seven_day"
+
+/** Account-wide windows, longest first — the order preference relies on it. */
+const COOLDOWN_WINDOWS: readonly CooldownWindowType[] = ["seven_day", "five_hour"]
+
+/**
+ * Upper bound on a reset for each window, guarding against a garbage value
+ * from upstream.
+ *
+ * This is per-window rather than one constant precisely because a single
+ * constant is how the fix fails silently: a 6-hour cap applied to a weekly
+ * reset flattens "resets in three days" to "resets in six hours" and quietly
+ * recreates the re-probe loop at a slower interval. A `five_hour` window
+ * cannot legitimately reset more than ~5h out; a `seven_day` one can reset up
+ * to 7 days out, so 8 days covers it with room for clock skew.
+ */
+const COOLDOWN_CAP_MS: Record<CooldownWindowType, number> = {
+  five_hour: 6 * 60 * 60_000,
+  seven_day: 8 * 24 * 60 * 60_000,
+}
+
+export function cooldownCapMs(type: CooldownWindowType): number {
+  return COOLDOWN_CAP_MS[type]
+}
+
+/** A usage window, normalized from either the rate-limit store or the OAuth snapshot. */
+export interface CooldownWindow {
+  type: string
+  resetsAt: number | null | undefined
+  /**
+   * Whether this window is actually spent. Presence proves nothing — a healthy
+   * account always carries both windows with future resets — so only genuine
+   * exhaustion may set this.
+   */
+  exhausted: boolean
+}
+
+/**
+ * The timestamp to bench a profile until, given its usage windows.
+ *
+ * Prefers the LONGEST exhausted account-wide window: a profile inside its
+ * weekly cap stays unusable even once the five-hour window rolls over, so
+ * benching only to the five-hour reset would resume probing a still-capped
+ * account. Falls back to `now + defaultMs` when nothing is exhausted, which
+ * keeps the conservative self-healing default for a mis-mark.
+ *
+ * Pure. Never returns a time in the past.
+ */
+export function resolveCooldownUntil(
+  windows: readonly CooldownWindow[],
+  now: number,
+  defaultMs: number,
+): number {
+  for (const type of COOLDOWN_WINDOWS) {
+    const match = windows.find(w => w.type === type && w.exhausted && (w.resetsAt ?? 0) > now)
+    if (match?.resetsAt) {
+      return Math.min(match.resetsAt, now + cooldownCapMs(type))
+    }
+  }
+  return now + defaultMs
+}

@@ -8,7 +8,7 @@
  * to the removed arm (minimal cache disruption).
  */
 import { describe, it, expect } from "bun:test"
-import { pickStickyProfile, getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, RENDEZVOUS_STABLE_GUARD, AssignmentStore } from "../proxy/routing"
+import { pickStickyProfile, getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, RENDEZVOUS_STABLE_GUARD, AssignmentStore , resolveCooldownUntil, cooldownCapMs } from "../proxy/routing"
 
 const PROFILES = ["personal", "work"]
 
@@ -250,5 +250,95 @@ describe("AssignmentStore", () => {
     expect(store.size).toBe(1)
     expect(store.get("a")).toBeUndefined()
     expect(store.get("b")).toBe("personal")
+  })
+})
+
+// #790: a weekly-capped profile matched no `five_hour` entry, fell through to
+// the 10-minute default, and was re-probed every 10 minutes — with a real
+// failing upstream request on the request path — for the rest of the weekly
+// window. These pin the reset actually chosen and, just as importantly, the
+// per-window cap: a single 6-hour bound silently flattens a weekly reset and
+// recreates the same loop at a slower interval.
+describe("resolveCooldownUntil (#790)", () => {
+  const NOW = 1_700_000_000_000
+  const MIN = 60_000
+  const HOUR = 60 * MIN
+  const DAY = 24 * HOUR
+  const DEFAULT_MS = 10 * MIN
+
+  it("benches to the weekly reset when the weekly window is exhausted", () => {
+    const until = resolveCooldownUntil(
+      [{ type: "seven_day", resetsAt: NOW + 3 * DAY, exhausted: true }],
+      NOW, DEFAULT_MS,
+    )
+    expect(until).toBe(NOW + 3 * DAY)
+  })
+
+  it("does not flatten a weekly reset to the five-hour cap", () => {
+    // The trap: with one 6-hour cap this returns NOW + 6h and the profile is
+    // re-probed every six hours for days instead of every ten minutes.
+    const until = resolveCooldownUntil(
+      [{ type: "seven_day", resetsAt: NOW + 5 * DAY, exhausted: true }],
+      NOW, DEFAULT_MS,
+    )
+    expect(until).toBeGreaterThan(NOW + 6 * HOUR)
+    expect(until).toBe(NOW + 5 * DAY)
+  })
+
+  it("prefers the weekly reset when both windows are exhausted", () => {
+    // Inside a weekly cap the account stays unusable after the five-hour
+    // window rolls over, so benching to the shorter reset resumes probing a
+    // still-capped account.
+    const until = resolveCooldownUntil([
+      { type: "five_hour", resetsAt: NOW + 2 * HOUR, exhausted: true },
+      { type: "seven_day", resetsAt: NOW + 4 * DAY, exhausted: true },
+    ], NOW, DEFAULT_MS)
+    expect(until).toBe(NOW + 4 * DAY)
+  })
+
+  it("keeps five-hour behaviour unchanged", () => {
+    const until = resolveCooldownUntil(
+      [{ type: "five_hour", resetsAt: NOW + 2 * HOUR, exhausted: true }],
+      NOW, DEFAULT_MS,
+    )
+    expect(until).toBe(NOW + 2 * HOUR)
+  })
+
+  it("still bounds an absurd reset, per window", () => {
+    expect(resolveCooldownUntil(
+      [{ type: "five_hour", resetsAt: NOW + 400 * DAY, exhausted: true }], NOW, DEFAULT_MS,
+    )).toBe(NOW + cooldownCapMs("five_hour"))
+    expect(resolveCooldownUntil(
+      [{ type: "seven_day", resetsAt: NOW + 400 * DAY, exhausted: true }], NOW, DEFAULT_MS,
+    )).toBe(NOW + cooldownCapMs("seven_day"))
+  })
+
+  it("treats a present-but-healthy window as no evidence", () => {
+    // A healthy account always carries both windows with future resets, so
+    // presence alone must never bench a profile.
+    const until = resolveCooldownUntil([
+      { type: "five_hour", resetsAt: NOW + 2 * HOUR, exhausted: false },
+      { type: "seven_day", resetsAt: NOW + 3 * DAY, exhausted: false },
+    ], NOW, DEFAULT_MS)
+    expect(until).toBe(NOW + DEFAULT_MS)
+  })
+
+  it("ignores a past or missing reset", () => {
+    expect(resolveCooldownUntil(
+      [{ type: "seven_day", resetsAt: NOW - HOUR, exhausted: true }], NOW, DEFAULT_MS,
+    )).toBe(NOW + DEFAULT_MS)
+    expect(resolveCooldownUntil(
+      [{ type: "seven_day", resetsAt: null, exhausted: true }], NOW, DEFAULT_MS,
+    )).toBe(NOW + DEFAULT_MS)
+  })
+
+  it("does not bench a whole profile for a per-model weekly cap", () => {
+    // Deliberate: sidelining an account for days because one model's budget ran
+    // out would be worse than the bug. Documented as a known remainder.
+    const until = resolveCooldownUntil([
+      { type: "seven_day_opus", resetsAt: NOW + 3 * DAY, exhausted: true },
+      { type: "seven_day_fable", resetsAt: NOW + 3 * DAY, exhausted: true },
+    ], NOW, DEFAULT_MS)
+    expect(until).toBe(NOW + DEFAULT_MS)
   })
 })
