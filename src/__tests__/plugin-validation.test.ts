@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { validateTransform } from "../proxy/plugins/validation"
+import { listAdapterNames } from "../proxy/adapters/detect"
 
 describe("validateTransform", () => {
   it("accepts a valid transform with name and onRequest", () => {
@@ -84,5 +85,37 @@ describe("validateTransform", () => {
     })
     expect(result.valid).toBe(true)
     expect(result.warnings ?? []).not.toContain("jcode")
+  })
+})
+
+// #791: the adapter list used to be hand-maintained here and drifted every
+// time an adapter was added — it was missing claude-code, cherry and codex
+// before prime missed it again. A plugin scoped to a real adapter was then
+// reported as referencing an unknown one, which reads as the plugin being
+// wrong rather than the list being stale. Deriving it from the registry is
+// what makes that impossible; this pins it.
+describe("adapter scoping stays in step with the registry (#791)", () => {
+  it("accepts every adapter the registry knows, with no warnings", () => {
+    for (const name of listAdapterNames()) {
+      const result = validateTransform({ name: "p", adapters: [name], onRequest: () => {} })
+      expect(result.valid).toBe(true)
+      expect(result.warnings).toBeUndefined()
+    }
+  })
+
+  it("accepts the adapters added since the hand-kept list was written", () => {
+    const result = validateTransform({
+      name: "p",
+      adapters: ["prime", "claude-code", "cherry", "codex"],
+      onRequest: () => {},
+    })
+    expect(result.valid).toBe(true)
+    expect(result.warnings).toBeUndefined()
+  })
+
+  it("still warns about an adapter that genuinely does not exist", () => {
+    const result = validateTransform({ name: "p", adapters: ["not-an-adapter"], onRequest: () => {} })
+    expect(result.valid).toBe(true)
+    expect(result.warnings).toEqual(["not-an-adapter"])
   })
 })

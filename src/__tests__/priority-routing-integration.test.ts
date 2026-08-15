@@ -144,6 +144,14 @@ describe("priority routing", () => {
     resetActiveProfile()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    // A profile with no claudeConfigDir of its own inherits the ambient
+    // CLAUDE_CONFIG_DIR, so the SDK mock sees the developer's real config
+    // directory instead of falling back to its "default" sentinel. A test that
+    // fails such a profile by adding "default" to failingDirs then never fails
+    // it at all. Green in CI, red on any machine that runs Claude Code with a
+    // custom config dir — which is most of this project's users.
+    savedEnv.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR
+    delete process.env.CLAUDE_CONFIG_DIR
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
   })
@@ -454,6 +462,14 @@ describe("priority cooldown resolution", () => {
     resetActiveProfile()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    // A profile with no claudeConfigDir of its own inherits the ambient
+    // CLAUDE_CONFIG_DIR, so the SDK mock sees the developer's real config
+    // directory instead of falling back to its "default" sentinel. A test that
+    // fails such a profile by adding "default" to failingDirs then never fails
+    // it at all. Green in CI, red on any machine that runs Claude Code with a
+    // custom config dir — which is most of this project's users.
+    savedEnv.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR
+    delete process.env.CLAUDE_CONFIG_DIR
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
     rateLimitStore.clear()
@@ -798,6 +814,14 @@ describe("keyless priority affinity", () => {
     // and the shared `savedEnv` object is restored wholesale in afterEach.
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    // A profile with no claudeConfigDir of its own inherits the ambient
+    // CLAUDE_CONFIG_DIR, so the SDK mock sees the developer's real config
+    // directory instead of falling back to its "default" sentinel. A test that
+    // fails such a profile by adding "default" to failingDirs then never fails
+    // it at all. Green in CI, red on any machine that runs Claude Code with a
+    // custom config dir — which is most of this project's users.
+    savedEnv.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR
+    delete process.env.CLAUDE_CONFIG_DIR
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
   })

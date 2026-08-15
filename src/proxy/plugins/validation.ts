@@ -1,4 +1,20 @@
-const KNOWN_ADAPTERS = ["opencode", "openai", "jcode", "crush", "droid", "pi", "forgecode", "passthrough"]
+import { listAdapterNames } from "../adapters/detect"
+
+/**
+ * Adapters a plugin may scope itself to.
+ *
+ * Derived from the adapter registry rather than hand-listed, because the
+ * hand-kept copy drifted every time an adapter was added and nothing failed
+ * loudly enough to notice: it was already missing `claude-code`, `cherry` and
+ * `codex` before `prime` missed it again (#791). The symptom is a plugin
+ * scoped to a perfectly real adapter being reported as referencing an unknown
+ * one — which reads as the plugin being wrong rather than this list being
+ * stale.
+ *
+ * Adapter INSTANCES (#476) are deliberately absent. Plugins scope to a base
+ * adapter and apply to its instances automatically, so an instance name is not
+ * something a plugin should be declaring.
+ */
 const KNOWN_HOOKS = ["onRequest", "onResponse", "onTelemetry", "onSession", "onToolUse", "onToolResult", "onError"]
 
 export interface ValidationResult {
@@ -31,8 +47,9 @@ export function validateTransform(exported: unknown): ValidationResult {
 
   const warnings: string[] = []
   if (Array.isArray(obj.adapters)) {
+    const known = listAdapterNames()
     for (const adapter of obj.adapters) {
-      if (typeof adapter === "string" && !KNOWN_ADAPTERS.includes(adapter)) {
+      if (typeof adapter === "string" && !known.includes(adapter)) {
         warnings.push(adapter)
       }
     }
