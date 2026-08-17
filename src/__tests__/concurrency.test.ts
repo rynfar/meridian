@@ -47,6 +47,58 @@ describe("AbortableSemaphore", () => {
     lease.release()
     expect(semaphore.snapshot.active).toBe(0)
   })
+
+  test("raising the limit grants waiting acquisitions immediately, in order", async () => {
+    const semaphore = new AbortableSemaphore(1)
+    const held = await semaphore.acquire()
+    const order: number[] = []
+    const secondP = semaphore.acquire().then(lease => { order.push(2); return lease })
+    const thirdP = semaphore.acquire().then(lease => { order.push(3); return lease })
+    expect(semaphore.snapshot).toEqual({ active: 1, queued: 2, limit: 1 })
+
+    semaphore.setLimit(3)
+    const [second, third] = await Promise.all([secondP, thirdP])
+
+    expect(order).toEqual([2, 3])
+    expect(semaphore.snapshot).toEqual({ active: 3, queued: 0, limit: 3 })
+    held.release()
+    second.release()
+    third.release()
+  })
+
+  test("lowering the limit never revokes a live lease; it converges as they release", async () => {
+    const semaphore = new AbortableSemaphore(3)
+    const leases = [await semaphore.acquire(), await semaphore.acquire(), await semaphore.acquire()]
+
+    semaphore.setLimit(1)
+    // Work already underway keeps its permit: active is allowed to exceed the
+    // new budget until it drains.
+    expect(semaphore.snapshot).toEqual({ active: 3, queued: 0, limit: 1 })
+
+    let granted = false
+    const queued = semaphore.acquire().then(lease => { granted = true; return lease })
+
+    leases[0]!.release()
+    await Promise.resolve()
+    expect(granted).toBe(false)
+    leases[1]!.release()
+    await Promise.resolve()
+    expect(granted).toBe(false)
+
+    leases[2]!.release()
+    const lease = await queued
+    expect(semaphore.snapshot).toEqual({ active: 1, queued: 0, limit: 1 })
+    lease.release()
+  })
+
+  test("setLimit rejects values that are not positive integers", () => {
+    const semaphore = new AbortableSemaphore(2)
+    expect(() => semaphore.setLimit(0)).toThrow(RangeError)
+    expect(() => semaphore.setLimit(-1)).toThrow(RangeError)
+    expect(() => semaphore.setLimit(1.5)).toThrow(RangeError)
+    expect(() => semaphore.setLimit(Number.NaN)).toThrow(RangeError)
+    expect(semaphore.limit).toBe(2)
+  })
 })
 
 describe("resolveMaxConcurrent", () => {
@@ -90,5 +142,36 @@ describe("getProcessSdkSemaphore", () => {
     const second = getProcessSdkSemaphore()
     expect(second).toBe(first)
     expect(first.limit).toBe(3)
+  })
+
+  test("follows a later environment change without losing the shared instance", () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    const first = getProcessSdkSemaphore()
+    expect(first.limit).toBe(2)
+
+    // A second proxy starting later in the same process — or a test that sets
+    // the variable after the first proxy booted — used to be ignored outright.
+    process.env.MERIDIAN_MAX_CONCURRENT = "5"
+    const second = getProcessSdkSemaphore()
+    expect(second).toBe(first)
+    expect(second.limit).toBe(5)
+
+    process.env.MERIDIAN_MAX_CONCURRENT = "1"
+    expect(getProcessSdkSemaphore().limit).toBe(1)
+  })
+
+  test("returns to the default budget when the variable is unset again", () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    expect(getProcessSdkSemaphore().limit).toBe(2)
+    delete process.env.MERIDIAN_MAX_CONCURRENT
+    expect(getProcessSdkSemaphore().limit).toBe(10)
+  })
+
+  test("an invalid value falls back to the default rather than throwing", () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "4"
+    const semaphore = getProcessSdkSemaphore()
+    process.env.MERIDIAN_MAX_CONCURRENT = "not-a-number"
+    expect(getProcessSdkSemaphore()).toBe(semaphore)
+    expect(semaphore.limit).toBe(10)
   })
 })

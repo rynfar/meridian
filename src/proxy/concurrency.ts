@@ -48,19 +48,47 @@ export function resolveMaxConcurrent(
   return DEFAULT_MAX_CONCURRENT
 }
 
+function assertPositiveLimit(limit: number): number {
+  if (!Number.isSafeInteger(limit) || limit <= 0) {
+    throw new RangeError("Semaphore limit must be a positive integer")
+  }
+  return limit
+}
+
 /** FIFO semaphore whose queued acquisitions can be cancelled safely. */
 export class AbortableSemaphore {
   private activeCount = 0
+  private currentLimit: number
   private readonly waiters: Waiter[] = []
 
-  constructor(readonly limit: number) {
-    if (!Number.isSafeInteger(limit) || limit <= 0) {
-      throw new RangeError("Semaphore limit must be a positive integer")
-    }
+  constructor(limit: number) {
+    this.currentLimit = assertPositiveLimit(limit)
+  }
+
+  get limit(): number {
+    return this.currentLimit
+  }
+
+  /**
+   * Change the budget in place.
+   *
+   * Mutating beats swapping the instance: queued waiters and in-flight leases
+   * belong to this object, so replacing it would strand them holding permits
+   * nobody counts. Raising the limit immediately grants whoever is already
+   * waiting; lowering it never revokes a live lease — the extra permits simply
+   * stop being reissued as the current holders release, so the semaphore
+   * converges on the new budget without killing work already underway.
+   */
+  setLimit(next: number): void {
+    const limit = assertPositiveLimit(next)
+    if (limit === this.currentLimit) return
+    const raised = limit > this.currentLimit
+    this.currentLimit = limit
+    if (raised) this.grantNext()
   }
 
   get snapshot(): SemaphoreSnapshot {
-    return { active: this.activeCount, queued: this.waiters.length, limit: this.limit }
+    return { active: this.activeCount, queued: this.waiters.length, limit: this.currentLimit }
   }
 
   acquire(signal?: AbortSignal): Promise<SemaphoreLease> {
@@ -119,10 +147,20 @@ export class AbortableSemaphore {
 
 /**
  * One SDK subprocess budget per process, shared by every ProxyServer instance.
- * The environment is intentionally read once, when the first proxy asks for it.
+ *
+ * The identity of the semaphore is stable — every caller gets the same object,
+ * which is the whole point of a shared budget — but its limit is reconciled
+ * against the environment on each call. Caching the limit at first use made the
+ * value depend on which proxy happened to start first, so a later instance (or
+ * a test that set MERIDIAN_MAX_CONCURRENT) was silently ignored.
  */
 export function getProcessSdkSemaphore(): AbortableSemaphore {
-  processSdkSemaphore ??= new AbortableSemaphore(resolveMaxConcurrent())
+  const limit = resolveMaxConcurrent()
+  if (!processSdkSemaphore) {
+    processSdkSemaphore = new AbortableSemaphore(limit)
+    return processSdkSemaphore
+  }
+  processSdkSemaphore.setLimit(limit)
   return processSdkSemaphore
 }
 
