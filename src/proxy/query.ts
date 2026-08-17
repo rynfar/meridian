@@ -91,8 +91,9 @@ export interface QueryContext {
   resumeSessionId?: string
   /** Whether this is an undo operation */
   isUndo: boolean
-  /** Fork the resumed session at this SDK message UUID (undo rollback point
-   *  or passthrough deny boundary). Maps to the SDK's resumeSessionAt. */
+  /** Resume at this SDK assistant-message UUID (undo rollback point or
+   *  passthrough tool-use boundary). Maps to resumeSessionAt, which accepts
+   *  SDKAssistantMessage UUIDs only; forkSession separately chooses a new ID. */
   resumeSessionAtUuid?: string
   /** Fork the resumed session instead of attaching to it (#630 busy-session
    *  fallback — the original stays registered as a bg agent; the fork gets a

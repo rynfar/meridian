@@ -38,8 +38,11 @@ export interface StoredSession {
   messageBlockHashes?: string[][]
   /** Per-message SDK assistant UUIDs for undo rollback (null for user messages) */
   sdkMessageUuids?: Array<string | null>
-  /** Uuid of the last persisted passthrough deny — resume boundary after an early stop. */
-  passthroughResumeUuid?: string
+  /** SDK assistant UUID immediately before synthetic passthrough denials.
+   *  Continuations resume the same session here, preserving the stable prefix. */
+  passthroughToolCallAssistantUuid?: string
+  /** Forwarded tool IDs pending at the stored assistant checkpoint. */
+  passthroughToolCallIds?: string[]
   /** Last observed token usage for this Claude session */
   contextUsage?: TokenUsage
   /** Previous Claude session ID preserved when the session mapping is replaced.
@@ -180,9 +183,18 @@ function writeStore(store: Record<string, StoredSession>): void {
   }
 }
 
+function hasLegacyUserDenialBoundary(session: StoredSession): boolean {
+  const legacy = (session as StoredSession & { passthroughResumeUuid?: unknown }).passthroughResumeUuid
+  return typeof legacy === "string" && legacy.length > 0 && !session.passthroughToolCallAssistantUuid
+}
+
 export function lookupSharedSession(key: string): StoredSession | undefined {
   const store = readStore()
-  return store[key]
+  const session = store[key]
+  // Versions 1.61.0–1.62.3 stored a user/tool_result UUID even though the SDK's
+  // resumeSessionAt accepts assistant UUIDs only. Replaying once is safer than
+  // resuming that invalid tail and re-triggering full-history cache churn.
+  return session && !hasLegacyUserDenialBoundary(session) ? session : undefined
 }
 
 export function lookupSharedSessionByClaudeId(claudeSessionId: string): StoredSession | undefined {
@@ -190,7 +202,7 @@ export function lookupSharedSessionByClaudeId(claudeSessionId: string): StoredSe
   let newest: StoredSession | undefined
 
   for (const session of sessions) {
-    if (session.claudeSessionId !== claudeSessionId) continue
+    if (session.claudeSessionId !== claudeSessionId || hasLegacyUserDenialBoundary(session)) continue
     if (!newest || session.lastUsedAt > newest.lastUsedAt) {
       newest = session
     }
@@ -208,7 +220,8 @@ export function storeSharedSession(
   sdkMessageUuids?: Array<string | null>,
   contextUsage?: TokenUsage,
   messageBlockHashes?: string[][],
-  passthroughResumeUuid?: string | null
+  passthroughToolCallAssistantUuid?: string | null,
+  passthroughToolCallIds?: string[] | null
 ): void {
   const path = getStorePath()
   const lockPath = `${path}.lock`
@@ -235,9 +248,12 @@ export function storeSharedSession(
       messageHashes: messageHashes ?? existing?.messageHashes,
       messageBlockHashes: messageBlockHashes ?? existing?.messageBlockHashes,
       sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
-      passthroughResumeUuid: passthroughResumeUuid === undefined
-        ? existing?.passthroughResumeUuid
-        : passthroughResumeUuid ?? undefined,
+      passthroughToolCallAssistantUuid: passthroughToolCallAssistantUuid === undefined
+        ? existing?.passthroughToolCallAssistantUuid
+        : passthroughToolCallAssistantUuid ?? undefined,
+      passthroughToolCallIds: passthroughToolCallIds === undefined
+        ? existing?.passthroughToolCallIds
+        : passthroughToolCallIds ?? undefined,
       contextUsage: contextUsage ?? existing?.contextUsage,
       ...(previousClaudeSessionId ? { previousClaudeSessionId } : {}),
     }

@@ -56,10 +56,32 @@ export interface SessionState {
    *  Only assistant messages have UUIDs (user messages are null).
    *  Used to find the rollback point for undo. */
   sdkMessageUuids?: Array<string | null>
-  /** Last persisted passthrough deny — continuations of an early-stopped session fork here. */
-  passthroughResumeUuid?: string
+  /** SDK assistant UUID immediately before synthetic passthrough denials.
+   *  Must be an assistant UUID: the Agent SDK rejects other resumeSessionAt boundaries. */
+  passthroughToolCallAssistantUuid?: string
+  /** Forwarded tool IDs that must be settled together at the checkpoint. */
+  passthroughToolCallIds?: string[]
   /** Last observed token usage for this session (from SDK message_start / message_delta events) */
   contextUsage?: TokenUsage
+}
+
+/**
+ * Associate SDK assistant events from the current upstream run with the single
+ * assistant message the Anthropic client will append after this request.
+ * Multiple SDK fragments overwrite the same future slot, leaving the final
+ * assistant UUID as the undo checkpoint for the consolidated client turn.
+ */
+export function withClientAssistantUuid(
+  existing: Array<string | null>,
+  clientMessageCount: number,
+  uuid: unknown
+): Array<string | null> {
+  const next = existing.slice(0, clientMessageCount + 1)
+  while (next.length < clientMessageCount) next.push(null)
+  // A later UUID-less assistant fragment must not leave an older fragment as
+  // the rollback point for a client message that contains both.
+  next[clientMessageCount] = typeof uuid === "string" && uuid.length > 0 ? uuid : null
+  return next
 }
 
 /**

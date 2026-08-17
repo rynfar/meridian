@@ -44,7 +44,7 @@ import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, createEarlyStopTracker, noteAssistantContent, noteUserContent, resumeBoundaryUuid, shouldEarlyStop } from "./passthroughEarlyStop"
+import { clientAbortDisposition, createEarlyStopTracker, isCompleteToolResultContinuation, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -70,7 +70,7 @@ import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
-import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns, framePassthroughContinuation, PASSTHROUGH_CONTINUATION_LEAD_IN } from "./messages"
+import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, type QueryContext } from "./query"
@@ -93,6 +93,7 @@ import {
   hashMessage,
   computeMessageHashes,
   normalizeContextUsage,
+  withClientAssistantUuid,
   type LineageResult,
   type TokenUsageIteration,
   type TokenUsage,
@@ -248,19 +249,27 @@ function stripCacheControlDeep(content: any): any {
   })
 }
 
-function normalizeStructuredUserContent(content: any): any {
+function normalizeStructuredUserContent(
+  content: any,
+  preserveToolResultWrapper = false
+): any {
   if (!Array.isArray(content)) return content
   const normalized: any[] = []
   for (const block of content) {
     if (!block || typeof block !== "object") continue
-    if (block.type === "tool_result" && Array.isArray(block.content) && hasMultimodalContent(block.content)) {
+    if (
+      !preserveToolResultWrapper &&
+      block.type === "tool_result" &&
+      Array.isArray(block.content) &&
+      hasMultimodalContent(block.content)
+    ) {
       normalized.push(...normalizeStructuredUserContent(block.content))
       continue
     }
     if (block.type === "tool_result" && Array.isArray(block.content)) {
       normalized.push({
         ...block,
-        content: normalizeStructuredUserContent(block.content),
+        content: normalizeStructuredUserContent(block.content, preserveToolResultWrapper),
       })
       continue
     }
@@ -1389,10 +1398,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }, adapterBase)
         }
 
-        const isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
+        let isResume = lineageResult.type === "continuation" || lineageResult.type === "compaction"
         const isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
-        const resumeSessionId = cachedSession?.claudeSessionId
+        let resumeSessionId = cachedSession?.claudeSessionId
         // --- Passthrough mode ---
         // When enabled, ALL tool execution is forwarded to OpenCode instead of
         // being handled internally. This enables multi-model agent delegation
@@ -1414,8 +1423,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           : undefined
         // For undo: fork the session at the rollback point
         const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
-        // Early-stopped sessions resume from the persisted deny boundary, not the interrupted tail.
-        const passthroughResumeUuid = passthrough && isResume ? cachedSession?.passthroughResumeUuid : undefined
+        // Early-stopped sessions resume at the assistant tool-use turn, before synthetic denials.
+        let passthroughToolCallAssistantUuid = passthrough && isResume ? cachedSession?.passthroughToolCallAssistantUuid : undefined
+        const passthroughToolCallIds = passthrough && isResume ? cachedSession?.passthroughToolCallIds : undefined
 
         // Debug: log request details
         const msgSummary = body.messages?.map((m: any) => {
@@ -1513,16 +1523,39 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         messagesToConvert = allMessages
       }
 
-      // Check if any messages contain multimodal content (images, documents, files)
-      const hasMultimodal = messagesToConvert?.some((m: any) => hasMultimodalContent(m.content))
+      // Rewinding to a tool-use checkpoint is valid only when the immediate
+      // delta settles that exact batch. Partial, late, duplicate, or unknown
+      // results get one safe fresh replay rather than an invalid SDK resume.
+      if (
+        passthroughToolCallAssistantUuid &&
+        !isCompleteToolResultContinuation(messagesToConvert, passthroughToolCallIds ?? [])
+      ) {
+        claudeLog("passthrough.checkpoint_replay", {
+          expectedToolIds: passthroughToolCallIds?.length ?? 0,
+          reason: "incomplete_or_mismatched_results",
+        })
+        isResume = false
+        resumeSessionId = undefined
+        passthroughToolCallAssistantUuid = undefined
+        messagesToConvert = allMessages
+      }
 
-      // Build the prompt — either structured (multimodal) or text.
+      // Multimodal blocks and passthrough tool results must remain structured.
+      // In particular, a continuation resumed at an assistant tool_use expects
+      // the client's real tool_result blocks, not a flattened transcript string.
+      const hasMultimodal = messagesToConvert?.some((m: any) => hasMultimodalContent(m.content))
+      const hasPassthroughToolResults = Boolean(passthroughToolCallAssistantUuid) &&
+        messagesToConvert?.some((m: any) =>
+          m.role === "user" && Array.isArray(m.content) &&
+          m.content.some((block: any) => block?.type === "tool_result"))
+
+      // Build the prompt — either structured or text.
       // Structured prompts are stored as arrays so they can be replayed on retry.
       let structuredMessages: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null }> | undefined
       let textPrompt: string | undefined
 
-      if (hasMultimodal) {
-        // Structured messages preserve image/document/file blocks for Claude to see.
+      if (hasMultimodal || hasPassthroughToolResults) {
+        // Structured messages preserve image/document/file and tool_result blocks.
         // On resume, only send user messages (SDK has assistant context already).
         // On first request, include everything.
         structuredMessages = []
@@ -1533,7 +1566,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             if (m.role === "user") {
               structuredMessages.push({
                 type: "user" as const,
-                message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControlDeep(m.content)) },
+                message: { role: "user" as const, content: normalizeStructuredUserContent(
+                  stripCacheControlDeep(m.content),
+                  Boolean(passthroughToolCallAssistantUuid)
+                ) },
                 parent_tool_use_id: null,
               })
             }
@@ -1544,7 +1580,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             if (m.role === "user") {
               structuredMessages.push({
                 type: "user" as const,
-                message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControlDeep(m.content)) },
+                message: { role: "user" as const, content: normalizeStructuredUserContent(
+                  stripCacheControlDeep(m.content),
+                  Boolean(passthroughToolCallAssistantUuid)
+                ) },
                 parent_tool_use_id: null,
               })
             } else {
@@ -1570,16 +1609,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           structuredMessages = consolidateMultimodalOntoLastUser(structuredMessages)
         }
 
-        // Same spent-deny problem as the text path — see
-        // framePassthroughContinuation. Carried as its own leading user turn so
-        // the multimodal blocks of the real delta are left untouched.
-        if (passthroughResumeUuid && structuredMessages.length > 0) {
-          structuredMessages.unshift({
-            type: "user" as const,
-            message: { role: "user" as const, content: PASSTHROUGH_CONTINUATION_LEAD_IN },
-            parent_tool_use_id: null,
-          })
-        }
       } else {
         // Text prompt — convert messages to string.
         // Sanitize each text block before flattening to strip orchestration
@@ -1609,14 +1638,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           })
         // Fresh (non-resume) replays get the #619 anti-self-play envelope:
         // history framed as context-only, the live user message terminal.
-        // Resume deltas are tail-only and stay bare — except when the resume
-        // forks from a deny boundary, where the spent "end your turn now" deny
-        // is the nearest instruction in context and silences the answer (see
-        // framePassthroughContinuation).
+        // Resume deltas are tail-only and stay bare.
         const resumeDelta = promptTurns.map((t: { text: string }) => t.text).filter(Boolean).join("\n\n") || ""
-        textPrompt = isResume
-          ? (passthroughResumeUuid ? framePassthroughContinuation(resumeDelta) : resumeDelta)
-          : frameReplayTurns(promptTurns)
+        textPrompt = isResume ? resumeDelta : frameReplayTurns(promptTurns)
       }
 
       // Create a fresh prompt value — can be called multiple times for retry
@@ -1655,13 +1679,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // model/client views diverged (#552 misattribution family).
       const droppedToolUseIds = new Set<string>()
       let sawDuplicateToolUse = false
-      // Early stop: the moment every forwarded tool call's deny is persisted
-      // (observed as a `user` tool_result in the stream), abort the query so
-      // the SDK's digest turn — a fully-billed, discarded model invocation
-      // (a whole thinking pass per tool step on always-thinking models) —
-      // never generates. Unlike the duplicate-abort above, the session history
-      // is coherent at that point (deny recorded), so the session is stored
-      // and resumed normally. Kill switch: MERIDIAN_PASSTHROUGH_EARLY_STOP=0.
+      // Stable checkpoint tracking: observe the forwarded assistant tool turn
+      // and every synthetic denial, but do NOT abort at that point. A live PTY
+      // E2E proved those iterator messages can precede the CLI's durable JSONL
+      // write; aborting there left only the initial user message on disk, so
+      // resumeSessionAt failed with `missing-message`. We therefore drain the
+      // hidden digest to a canonical SDK terminal result, suppress its content,
+      // and store the earlier assistant UUID only after the drain completes.
       const earlyStopEnabled = passthrough && process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP !== "0"
       const earlyStop = createEarlyStopTracker()
       let earlyStopFired = false
@@ -1846,7 +1870,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 //      lines the model then disowned. With early stop, the
                 //      fabricated-loop turns this rule guarded against never
                 //      generate (the query stops the moment every deny is
-                //      persisted), so same-tool-new-args calls are genuine
+                //      checkpointed), so same-tool-new-args calls are genuine
                 //      parallelism and are captured. The drop remains only
                 //      when the operator disables early stop.
                 //   3. Forced single tool (tool_choice:{type:"tool"} / structured
@@ -1856,11 +1880,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // instead of draining the whole turn budget.
                 const signature = toolUseSignature(toolName, toolInput)
                 const isExactDuplicate = capturedSignatures.has(signature)
+                // Once the real tool turn's checkpoint is complete, any later
+                // call belongs to the hidden digest turn. Never add it to the
+                // client-visible set, even when it uses a different tool/args.
+                const isPostCheckpointCall = earlyStopFired
                 const isSameToolRepeat = !earlyStopEnabled && !isExactDuplicate && capturedToolNames.has(toolName)
                 const exceedsForcedSingle = forceSingleToolUse && capturedToolUses.length >= 1
-                if (isExactDuplicate) {
+                if (isExactDuplicate || isPostCheckpointCall) {
                   droppedToolUseIds.add(input.tool_use_id)
-                  claudeLog("passthrough.duplicate_tool_use_dropped", { name: toolName })
+                  claudeLog("passthrough.duplicate_tool_use_dropped", {
+                    name: toolName,
+                    reason: isPostCheckpointCall ? "hidden_digest" : "exact_duplicate",
+                  })
                 } else if (isSameToolRepeat || exceedsForcedSingle) {
                   droppedToolUseIds.add(input.tool_use_id)
                   sawDuplicateToolUse = true
@@ -1916,11 +1947,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (earlyStopEnabled && turnGenerating && !requestAbort.controller.signal.aborted) {
                   await holdDenyUntilTurnEnd()
                 }
-                if (isExactDuplicate) {
+                if (isExactDuplicate || isPostCheckpointCall) {
                   return {
                     decision: "block" as const,
                     reason:
-                      "This exact tool call has already been forwarded to the client — do not repeat it. " +
+                      "This tool call has already been handled by the client-facing turn — do not repeat it. " +
                       "Do not call additional tools and do not generate further text — end your turn now.",
                   }
                 }
@@ -1975,7 +2006,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // RangeError when allMessages.length was 0. Cold-start requests
           // are now also rejected at the entrypoint (#450) but the defensive
           // initializer keeps any future reentry safe.
-          const sdkUuidMap: Array<string | null> = cachedSession?.sdkMessageUuids
+          let sdkUuidMap: Array<string | null> = (isResume || isUndo) && cachedSession?.sdkMessageUuids
             ? [...cachedSession.sdkMessageUuids]
             : []
           // Pad to current message count (the last user message has no UUID yet)
@@ -1984,7 +2015,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           claudeLog("upstream.start", { mode: "non_stream", model })
           let lastUsage: TokenUsage | undefined
           let lastStopReason: string | undefined
-          let nextPassthroughResumeUuid: string | undefined
+          let nextPassthroughToolCallAssistantUuid: string | undefined
+          let nextPassthroughToolCallIds: string[] | undefined
+          let sawCanonicalResult = false
 
           try {
             // Lazy-resolve executable if not already set (e.g. when using createProxyServer directly)
@@ -2035,7 +2068,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   for await (const event of runSdkQueryAttempt(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                    resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughResumeUuid, forkSession: busySessionFork || Boolean(passthroughResumeUuid) || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                    resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, outputFormat, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -2257,22 +2290,45 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 claudeLog("passthrough.loop_break", { mode: "non_stream", assistantMessages, captured: capturedToolUses.length })
                 break
               }
-              // Early stop: abort before the digest turn generates (see the
-              // earlyStop declaration above). The deny tool_results arrive as
-              // `user` messages; when every forwarded call's deny is persisted,
-              // the SDK-side history is coherent and turn 2 hasn't fired yet.
-              if (earlyStopEnabled) {
-                if (message.type === "assistant") {
-                  noteAssistantContent(earlyStop, (message as any).message?.content)
-                } else if (message.type === "user") {
-                  nextPassthroughResumeUuid = resumeBoundaryUuid(message) ?? nextPassthroughResumeUuid
-                  noteUserContent(earlyStop, (message as any).message?.content)
-                  if (shouldEarlyStop(earlyStop)) {
-                    earlyStopFired = true
-                    claudeLog("passthrough.early_stop", { mode: "non_stream", captured: capturedToolUses.length })
-                    requestAbort.abort("passthrough turn complete")
-                    break
+              // Checkpoint settlement: the deny tool_results identify when all
+              // visible calls have been handled. Freeze that assistant boundary,
+              // then keep draining; iterator observation alone is not durable.
+              let assistantAddedForwardedCall = false
+              if (
+                passthrough &&
+                message.type === "assistant" &&
+                !earlyStopFired &&
+                earlyStop.resolved.size === 0
+              ) {
+                // Non-stream can expose a parallel tool turn as several
+                // assistant fragments. They all precede the first synthetic deny;
+                // later assistants are the hidden digest. Stop extending the
+                // checkpoint once any deny is consumed, and do not use the hook
+                // set as an oracle because a producer-side digest hook can race
+                // ahead of iterator consumption.
+                const expectedBefore = earlyStop.expected.size
+                noteAssistantMessage(earlyStop, message)
+                assistantAddedForwardedCall = earlyStop.expected.size > expectedBefore
+              } else if (passthrough && message.type === "user" && !earlyStopFired) {
+                noteUserContent(earlyStop, (message as any).message?.content)
+                if (earlyStopEnabled && shouldEarlyStop(earlyStop)) {
+                  nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
+                  nextPassthroughToolCallIds = [...earlyStop.expected]
+                  earlyStopFired = true
+                  // A digest hook can race just ahead of iterator consumption.
+                  // Retain only calls proven to belong to the visible assistant
+                  // checkpoint; later hooks see earlyStopFired and are dropped.
+                  for (let i = capturedToolUses.length - 1; i >= 0; i--) {
+                    if (!earlyStop.expected.has(capturedToolUses[i]!.id)) capturedToolUses.splice(i, 1)
                   }
+                  // The iterator boundary is not a durability acknowledgement.
+                  // Keep consuming through the hidden digest and canonical SDK
+                  // result before storing this assistant checkpoint.
+                  claudeLog("passthrough.checkpoint_ready", {
+                    mode: "non_stream",
+                    captured: capturedToolUses.length,
+                    toolCallAssistantUuid: nextPassthroughToolCallAssistantUuid,
+                  })
                 }
               }
               if (message.type === "assistant") {
@@ -2280,9 +2336,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // return without the CLI cancelling anything in flight.
                 releaseHeldDenies("assistant_message")
                 assistantMessages += 1
-                // Capture SDK assistant UUID for undo rollback
-                if ((message as any).uuid) {
-                  sdkUuidMap.push((message as any).uuid)
+                // One Anthropic assistant response may combine several SDK
+                // assistant fragments (for example parallel tool calls).
+                if (!passthrough || earlyStop.expected.size === 0 || assistantAddedForwardedCall) {
+                  sdkUuidMap = withClientAssistantUuid(
+                    sdkUuidMap,
+                    allMessages.length,
+                    (message as any).uuid
+                  )
                 }
                 if (!firstChunkAt) {
                   firstChunkAt = Date.now()
@@ -2356,7 +2417,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // Capture token usage from the assistant message
                 const msgUsage = message.message.usage as TokenUsage | undefined
                 if (msgUsage) lastUsage = { ...lastUsage, ...msgUsage }
-                if (typeof message.message.stop_reason === "string") {
+                if (!isPassthroughTurn2 && typeof message.message.stop_reason === "string") {
+                  // Hidden digest turns are consumed only for durability; they
+                  // must not replace the client-visible tool_use stop reason.
                   lastStopReason = message.message.stop_reason
                 }
               }
@@ -2368,6 +2431,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // wrong output_tokens (typically 1) for any non-trivial response.
               // Prefer the result usage when present. See issue #449.
               if (message.type === "result") {
+                sawCanonicalResult = true
                 const resultUsage = (message as { usage?: unknown }).usage as TokenUsage | undefined
                 if (resultUsage) {
                   lastUsage = { ...lastUsage, ...resultUsage }
@@ -2402,6 +2466,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           } catch (error) {
             // #592: mirror the loop-exit release on the failure path.
             releaseHeldDenies("non_stream_error")
+            if (passthrough && capturedToolUses.length > 0 && !sawCanonicalResult) {
+              // A failed durability drain must not leave either a newly cached
+              // checkpoint or an older mapping behind for the advanced client.
+              evictSession(profileSessionId, profileScopedCwd, body.messages || [])
+              claudeLog("passthrough.noncanonical_session_evicted", { mode: "non_stream", reason: "drain_error" })
+            }
             const stderrOutput = stderrLines.join("\n").trim()
             if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
               error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
@@ -2613,25 +2683,31 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // block above for rationale (avoids polluting the parent's key).
           // Duplicate-aborted sessions (sawDuplicateToolUse) are never offered
           // for resume: that SIGTERM lands before the dropped call's deny is
-          // persisted, so the SDK-side history holds a dangling tool_use
-          // ("Stream closed") that diverges from the client's view — resuming
-          // it hands the model memory of a call whose result never arrives
-          // (#552). A fresh session rebuilt from client history is coherent by
-          // construction. Early-stop aborts (earlyStopFired) are different:
-          // they fire only AFTER every forwarded call's deny was observed in
-          // the stream (already persisted), so the history is coherent and the
-          // session is safe to store and resume.
+          // durably persisted, so the SDK-side history can diverge from the
+          // client's view (#552). Checkpoint-ready sessions, by contrast, reach
+          // this store only after the iterator drains to its canonical terminal
+          // result, which gives the CLI time to persist the assistant boundary.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
-                storeSession(
-                  profileSessionId,
-                  body.messages || [],
-                  currentSessionId,
-                  profileScopedCwd,
-                  sdkUuidMap,
-                  lastUsage,
-                  earlyStopFired ? nextPassthroughResumeUuid : null
-                )
-                commitSessionTurn()
+                const checkpointTurn = passthrough && contentBlocks.some((b) => b.type === "tool_use")
+                if (checkpointTurn && (!earlyStopFired || !sawCanonicalResult)) {
+                  // Iterator visibility is not durability. Never publish a
+                  // resumeSessionAt UUID unless the CLI reached its terminal
+                  // result and had a chance to commit the transcript.
+                  evictSession(profileSessionId, profileScopedCwd, body.messages || [])
+                  claudeLog("passthrough.noncanonical_session_evicted", { mode: "non_stream" })
+                } else {
+                  storeSession(
+                    profileSessionId,
+                    body.messages || [],
+                    currentSessionId,
+                    profileScopedCwd,
+                    sdkUuidMap,
+                    lastUsage,
+                    earlyStopFired ? nextPassthroughToolCallAssistantUuid : null,
+                    earlyStopFired ? nextPassthroughToolCallIds : null
+                  )
+                  commitSessionTurn()
+                }
               }
 
               const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
@@ -2678,13 +2754,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let textCharsForwarded = 0
             let bytesSent = 0
             let streamClosed = false
-            // Early-stop drain: after the client stream closes at turn-1's
+            // Canonical drain: after the client stream closes at turn 1's
             // stop_reason:"tool_use", keep consuming SDK messages (nothing is
-            // forwarded — safeEnqueue no-ops once streamClosed) until every
-            // forwarded call's deny is persisted, then abort the query so the
-            // digest turn never generates. Without this the subprocess keeps
-            // running in the background and turn 2 is fully billed, invisibly.
+            // forwarded once streamClosed) through the hidden digest and final
+            // result. SDK iterator visibility is not a persistence barrier;
+            // only the canonical result made the assistant UUID durable in a
+            // live PTY E2E.
             let awaitingEarlyStopDrain = false
+            let exitedBeforeCanonicalTerminal = false
 
             claudeLog("upstream.start", { mode: "stream", model })
 
@@ -2713,7 +2790,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // Defensive: start empty so allMessages.length === 0 doesn't crash the
             // ReadableStream's start() with `RangeError: Invalid array length`.
             // Cold-start requests with no messages are also rejected upstream now (#450).
-            const sdkUuidMap: Array<string | null> = cachedSession?.sdkMessageUuids
+            let sdkUuidMap: Array<string | null> = (isResume || isUndo) && cachedSession?.sdkMessageUuids
               ? [...cachedSession.sdkMessageUuids]
               : []
             while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
@@ -2722,7 +2799,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let lastUsage: TokenUsage | undefined
             let hasStructuredOutput = false
             let structuredOutput: unknown
-            let nextPassthroughResumeUuid: string | undefined
+            let nextPassthroughToolCallAssistantUuid: string | undefined
+            let nextPassthroughToolCallIds: string[] | undefined
+            let sawCanonicalResult = false
             // Silent-turn recovery state (see turnOutcome.ts). Kill switch:
             // MERIDIAN_SILENT_TURN_RECOVERY=0 leaves the detection and the
             // telemetry in place and skips only the extra model turn — so an
@@ -2776,48 +2855,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // extends the guarantee to ALL close paths (early stop, turn-2
             // suppression, drain-close). With the deny-hold in place blocks
             // normally complete before any close — this is the backstop.
-            // #742: the early stop fires on deny-settlement alone. When the SDK
-            // surfaces a wide parallel set as separate assistant turns, every
-            // deny the tracker KNOWS about can settle while a LATER tool_use
-            // block is still mid-input_json_delta. Closing then produced a
-            // well-formed envelope around TRUNCATED input JSON — the client
-            // rejects the call and the turn wedges. The envelope audit only
-            // measures framing, which is why this read as healthy (#675 triaged
-            // the same race as "client impact: none" on exactly that basis).
-            //
-            // So the stop is deferred while any forwarded block is open, and
-            // fired from the content_block_stop handler once the set empties.
-            let pendingEarlyStop = false
-            let pendingEarlyStopAt = 0
-
-            /** Emit the early-stop close. `reason` is recorded so the deferred
-             *  path is distinguishable from the immediate one in telemetry. */
-            const fireEarlyStop = (reason: "immediate" | "blocks_closed" | "deadline"): void => {
-              earlyStopFired = true
-              claudeLog("passthrough.early_stop", {
-                mode: "stream",
-                captured: capturedToolUses.length,
-                drained: awaitingEarlyStopDrain,
-                reason,
-                deferredMs: pendingEarlyStopAt ? Date.now() - pendingEarlyStopAt : 0,
-              })
-              pendingEarlyStop = false
-              // Still called: on the "deadline" path a block may genuinely be
-              // stuck open, and an unterminated block renders as an aborted
-              // ("red") tool call (#552). The backstop stays — it just no
-              // longer fires on the common ordering.
-              flushOpenClientBlocks("early_stop")
-              sendTerminalDelta("tool_use")
-              safeEnqueue(encoder.encode(
-                `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
-              ), "early_stop")
-              requestAbort.abort("passthrough turn complete")
-              awaitingEarlyStopDrain = false
-              if (!streamClosed) {
-                streamClosed = true
-                try { controller.close() } catch {}
-              }
-            }
+            // #742: never close a client turn merely because deny messages
+            // settled while a later parallel block is still streaming. The
+            // client closes only on the canonical turn-1 tool_use delta below,
+            // after its blocks are complete; the SDK then drains invisibly.
 
             const flushOpenClientBlocks = (source: string): void => {
               if (openClientBlocks.size === 0) return
@@ -2872,7 +2913,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     for await (const event of runSdkQueryAttempt(buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools,
-                      resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughResumeUuid, forkSession: busySessionFork || Boolean(passthroughResumeUuid) || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                      resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -3099,57 +3140,65 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               try {
                 for await (const message of guardedResponse) {
                   if (streamClosed && !awaitingEarlyStopDrain) {
+                    exitedBeforeCanonicalTerminal = true
                     break
                   }
 
-                  // Capture session ID and assistant UUID from any SDK message
+                  // Capture session ID and only client-visible assistant
+                  // UUIDs. Hidden digest assistants share the same client slot
+                  // and must not replace its stable tool checkpoint.
                   if ((message as any).session_id) {
                     currentSessionId = (message as any).session_id
                   }
-                  if (message.type === "assistant" && (message as any).uuid) {
-                    sdkUuidMap.push((message as any).uuid)
+                  let assistantAddedForwardedCall = false
+                  if (earlyStopEnabled && message.type === "assistant" && !earlyStopFired) {
+                    const expectedBefore = earlyStop.expected.size
+                    noteAssistantMessage(earlyStop, message)
+                    assistantAddedForwardedCall = earlyStop.expected.size > expectedBefore
+                  } else if (earlyStopEnabled && message.type === "user" && !earlyStopFired) {
+                    noteUserContent(earlyStop, (message as any).message?.content)
                   }
-                  nextPassthroughResumeUuid = resumeBoundaryUuid(message) ?? nextPassthroughResumeUuid
-                  // Early stop: abort before the digest turn generates (see the
-                  // earlyStop declaration above). By deny time the client has
-                  // already received all turn-1 blocks and the stop_reason
-                  // message_delta, so mirror the turn-2 suppression path's
-                  // clean close (message_delta + message_stop) and abort.
-                  if (earlyStopEnabled) {
-                    if (message.type === "assistant") {
-                      noteAssistantContent(earlyStop, (message as any).message?.content)
-                    } else if (message.type === "user") {
-                      noteUserContent(earlyStop, (message as any).message?.content)
-                      // streamedToolUseIds ≥ 1 guarantees the client actually
-                      // received a tool_use block before we stop the query.
-                      // Normally the client stream is already closed by the
-                      // stop_reason:"tool_use" close above (drain mode) — the
-                      // emissions below only fire in the unusual case where the
-                      // denies arrive first (safeEnqueue no-ops when closed).
-                      if (shouldEarlyStop(earlyStop) && streamedToolUseIds.size > 0) {
-                        if (openClientBlocks.size > 0) {
-                          // A forwarded block is still streaming its input.
-                          // Defer rather than truncate it (#742); the deny that
-                          // completed the tracker belongs to a block that has
-                          // already closed, so the open one's stop is close
-                          // behind. Deliberately no `break` — the remaining
-                          // deltas must keep flowing to the client.
-                          if (!pendingEarlyStop) {
-                            pendingEarlyStop = true
-                            pendingEarlyStopAt = Date.now()
-                            claudeLog("passthrough.early_stop_deferred", {
-                              openBlocks: openClientBlocks.size,
-                              captured: capturedToolUses.length,
-                            })
-                          }
-                        } else {
-                          fireEarlyStop("immediate")
-                          break
-                        }
+                  if (earlyStopEnabled && !earlyStopFired) {
+                    // A deny may precede the last per-block assistant metadata.
+                    // The client-visible stream is the completeness oracle: wait
+                    // until generation ended, every block closed, and metadata
+                    // names exactly the full forwarded ID set. Recheck on both
+                    // assistant and user messages so either ordering can settle.
+                    const hasCompleteStreamedSet =
+                      streamedToolUseIds.size > 0 &&
+                      earlyStop.expected.size === streamedToolUseIds.size &&
+                      [...streamedToolUseIds].every((id) => earlyStop.expected.has(id))
+                    if (
+                      !turnGenerating &&
+                      openClientBlocks.size === 0 &&
+                      hasCompleteStreamedSet &&
+                      shouldEarlyStop(earlyStop)
+                    ) {
+                      nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
+                      nextPassthroughToolCallIds = [...earlyStop.expected]
+                      earlyStopFired = true
+                      for (let i = capturedToolUses.length - 1; i >= 0; i--) {
+                        if (!earlyStop.expected.has(capturedToolUses[i]!.id)) capturedToolUses.splice(i, 1)
                       }
+                      claudeLog("passthrough.checkpoint_ready", {
+                        mode: "stream",
+                        captured: capturedToolUses.length,
+                        toolCallAssistantUuid: nextPassthroughToolCallAssistantUuid,
+                      })
                     }
                   }
+                  if (
+                    message.type === "assistant" &&
+                    (!passthrough || earlyStop.expected.size === 0 || assistantAddedForwardedCall)
+                  ) {
+                    sdkUuidMap = withClientAssistantUuid(
+                      sdkUuidMap,
+                      allMessages.length,
+                      (message as any).uuid
+                    )
+                  }
                   if (message.type === "result") {
+                    sawCanonicalResult = true
                     const resultUsage = (message as { usage?: unknown }).usage as TokenUsage | undefined
                     if (resultUsage) lastUsage = { ...lastUsage, ...resultUsage }
                     if (outputFormat && "structured_output" in message) {
@@ -3159,6 +3208,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   }
 
                   if (message.type === "stream_event") {
+                    // Once turn 1 is closed to the client, all later wire events
+                    // belong to the hidden digest. Ignore them wholesale so a
+                    // closed-controller enqueue cannot break the durability
+                    // drain before the canonical result arrives.
+                    if (streamClosed && awaitingEarlyStopDrain) continue
                     streamEventsSeen += 1
                     if (!firstChunkAt) {
                       firstChunkAt = Date.now()
@@ -3220,15 +3274,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       // client sees stop_reason:"tool_use" and executes the tool itself.
                       if (messageStartEmitted) {
                         if (passthrough && streamedToolUseIds.size > 0) {
-                          flushOpenClientBlocks("turn2_suppression")
-                          sendTerminalDelta("tool_use")
-                          safeEnqueue(encoder.encode(
-                            `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
-                          ), "passthrough_turn2_stop")
+                          if (!streamClosed) {
+                            flushOpenClientBlocks("turn2_suppression")
+                            sendTerminalDelta("tool_use")
+                            safeEnqueue(encoder.encode(
+                              `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`
+                            ), "passthrough_turn2_stop")
+                            streamClosed = true
+                            controller.close()
+                          }
+                          // Suppress the entire hidden digest turn, but drain it
+                          // through the canonical result so the transcript is durable.
+                          awaitingEarlyStopDrain = true
                           claudeLog("passthrough.turn2_suppressed", { mode: "stream", toolUses: streamedToolUseIds.size })
-                          streamClosed = true
-                          controller.close()
-                          break
+                          continue
                         }
                         continue
                       }
@@ -3415,12 +3474,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     } else if (eventType === "content_block_stop") {
                       const idx = (event as any).index
                       if (typeof idx === "number") openClientBlocks.delete(idx)
-                      // The block that was mid-stream when the denies settled
-                      // has now been forwarded intact — safe to close (#742).
-                      if (pendingEarlyStop && openClientBlocks.size === 0) {
-                        fireEarlyStop("blocks_closed")
-                        break
-                      }
                     }
 
                     // NOTE: agent-specific (passthrough mode) — close the client stream
@@ -3430,11 +3483,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     // back to the model, and the model produces an incorrect fallback
                     // response which gets forwarded.
                     //
-                    // With early stop enabled, don't break — keep DRAINING the SDK
-                    // stream (nothing forwards after close) until every deny is
-                    // persisted, then abort so the digest turn never generates.
-                    // Without early stop (kill switch), break as before: the
-                    // subprocess finishes turn 2 in the background (billed).
+                    // With checkpoint draining enabled, don't break — keep
+                    // consuming invisibly through every deny, the digest, and the
+                    // canonical result that makes the assistant UUID durable.
+                    // Without it (kill switch), preserve the old wire
+                    // behavior by breaking here, then evict the noncanonical
+                    // session mapping because closing the query interrupts its tail.
                     if (
                       passthrough &&
                       eventType === "message_delta" &&
@@ -3455,6 +3509,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         awaitingEarlyStopDrain = true
                         continue
                       }
+                      exitedBeforeCanonicalTerminal = true
                       break
                     }
 
@@ -3547,24 +3602,32 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 plog(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
               }
 
-              // Store session for future resume.
-              // Fork/subagent requests don't write to the cache (see lookupSession
-              // block for rationale). Duplicate-aborted sessions are never
-              // offered for resume — their history holds a dangling dropped
-              // call that diverges from the client's view (#552). Early-stop
-              // aborts are safe to store: every deny was persisted before the
-              // abort. See the non-stream store above.
+              // Store only canonical, durable checkpoint turns. Fork/subagent
+              // requests and duplicate-aborted sessions never write the cache.
+              // A live PTY E2E proved assistant/deny iterator messages may be
+              // yielded before their JSONL records are committed, so a tool turn
+              // also requires both a valid assistant checkpoint and SDK result.
               if (currentSessionId && !isIndependentSession && !sawDuplicateToolUse) {
-                storeSession(
-                  profileSessionId,
-                  body.messages || [],
-                  currentSessionId,
-                  profileScopedCwd,
-                  sdkUuidMap,
-                  lastUsage,
-                  earlyStopFired ? nextPassthroughResumeUuid : null
-                )
-                commitSessionTurn()
+                const checkpointTurn = passthrough && streamedToolUseIds.size > 0
+                if (
+                  exitedBeforeCanonicalTerminal ||
+                  (checkpointTurn && (!earlyStopFired || !sawCanonicalResult))
+                ) {
+                  evictSession(profileSessionId, profileScopedCwd, body.messages || [])
+                  claudeLog("passthrough.noncanonical_session_evicted", { mode: "stream" })
+                } else {
+                  storeSession(
+                    profileSessionId,
+                    body.messages || [],
+                    currentSessionId,
+                    profileScopedCwd,
+                    sdkUuidMap,
+                    lastUsage,
+                    earlyStopFired ? nextPassthroughToolCallAssistantUuid : null,
+                    earlyStopFired ? nextPassthroughToolCallIds : null
+                  )
+                  commitSessionTurn()
+                }
               }
 
               // Last chance to save a silent turn. The three known causes are
@@ -3573,7 +3636,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               //
               // Runs only where recovery is still possible: the stream is open,
               // so the recovered answer can actually be forwarded. A turn that
-              // already closed (early stop, turn-2 suppression) carries tool
+              // already closed for a passthrough tool turn carries tool
               // calls by construction and is never silent.
               //
               // One classification, read twice: here, to decide whether a
@@ -3620,7 +3683,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // call made here comes back as a tool_result for a tool_use the
                 // resumable session never saw.
                 let recoverySessionId: string | undefined
-                let recoveryBoundaryUuid: string | undefined
+                let recoveryToolCallAssistantUuid: string | undefined
+                const recoveryEarlyStop = createEarlyStopTracker()
                 try {
                   // Bounded by the same idle limit as the main stream. Iterating
                   // the recovery query directly left a stalled recovery holding
@@ -3639,7 +3703,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     // Fork rather than extend: the silent turn is now this
                     // session's tail, and appending to it is what compounds an
                     // empty turn into an empty session (#768 client-abort).
-                    resumeSessionAtUuid: nextPassthroughResumeUuid,
+                    resumeSessionAtUuid: nextPassthroughToolCallAssistantUuid,
                     forkSession: true,
                     sdkHooks, blockedTools: pipelineCtx.blockedTools,
                     incompatibleTools: pipelineCtx.incompatibleTools,
@@ -3662,7 +3726,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "silent_recovery")) {
                     const recoveryMessage = event as any
                     if (recoveryMessage.session_id) recoverySessionId = recoveryMessage.session_id
-                    recoveryBoundaryUuid = resumeBoundaryUuid(recoveryMessage) ?? recoveryBoundaryUuid
+                    if (recoveryMessage.type === "assistant") {
+                      noteAssistantMessage(recoveryEarlyStop, recoveryMessage)
+                    } else if (recoveryMessage.type === "user") {
+                      noteUserContent(recoveryEarlyStop, recoveryMessage.message?.content)
+                      recoveryToolCallAssistantUuid = settledToolCallAssistantUuid(recoveryEarlyStop)
+                    }
                     if (recoveryMessage.type !== "stream_event") continue
                     // Only text is lifted into the already-open message; the
                     // re-indexing handshake lives in createRecoveryLifter. A
@@ -3708,7 +3777,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   !isIndependentSession && !sawDuplicateToolUse
                 ) {
                   currentSessionId = recoverySessionId
-                  nextPassthroughResumeUuid = recoveryBoundaryUuid
+                  nextPassthroughToolCallAssistantUuid = recoveryToolCallAssistantUuid
+                  nextPassthroughToolCallIds = recoveryToolCallAssistantUuid
+                    ? [...recoveryEarlyStop.expected]
+                    : undefined
                   sdkUuidMap.length = 0
                   for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                   storeSession(
@@ -3718,7 +3790,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     profileScopedCwd,
                     sdkUuidMap,
                     lastUsage,
-                    recoveryBoundaryUuid ?? null
+                    recoveryToolCallAssistantUuid ?? null,
+                    recoveryToolCallAssistantUuid ? [...recoveryEarlyStop.expected] : null
                   )
                   commitSessionTurn()
                 }
@@ -3956,25 +4029,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   profileSessionId,
                   currentSessionId,
                   sawDuplicateToolUse,
-                  resumeBoundaryUuid: nextPassthroughResumeUuid,
+                  toolCallAssistantUuid: nextPassthroughToolCallAssistantUuid,
                   passthrough,
                 })
-                if (disposition.action === "store" && currentSessionId) {
-                  storeSession(
-                    profileSessionId,
-                    body.messages || [],
-                    currentSessionId,
-                    profileScopedCwd,
-                    sdkUuidMap,
-                    lastUsage,
-                    disposition.resumeUuid
-                  )
-                  commitSessionTurn()
-                } else if (disposition.action === "evict") {
+                if (disposition.action === "evict") {
                   evictSession(profileSessionId, profileScopedCwd, body.messages || [])
                 }
                 claudeLog("passthrough.client_abort_settled", { action: disposition.action })
                 return
+              }
+
+              if (passthrough && streamedToolUseIds.size > 0 && !sawCanonicalResult) {
+                // The client may already have advanced past this tool turn, so
+                // a failed hidden drain invalidates even an older cached mapping.
+                evictSession(profileSessionId, profileScopedCwd, body.messages || [])
+                claudeLog("passthrough.noncanonical_session_evicted", { mode: "stream", reason: "drain_error" })
               }
 
               const stderrOutput = stderrLines.join("\n").trim()
@@ -4013,10 +4082,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // tools and drives the next turn (the same outcome as a normal
               // tool-use cycle). Without this, the client sees a 500 even
               // though we already streamed everything it needs.
-              // "aborted" is accepted only for the proxy's own aborts — the
-              // single-step duplicate abort (sawDuplicateToolUse) or the
-              // early stop (earlyStopFired) — a client-disconnect abort must
-              // not be recorded as a recovered success.
+              // "aborted" is accepted only for the proxy's own remaining
+              // single-step duplicate abort. Checkpoint settlement no longer
+              // aborts, and a client-disconnect abort must not be recovered.
               // "upstream_idle" joins them for the same reason (#770): the guard
               // killed a stalled stream, but the tool calls were already
               // captured and are exactly what the client needs to make progress.
@@ -4027,7 +4095,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 reason: sdkTerm.reason,
                 passthrough,
                 capturedToolUses: capturedToolUses.length,
-                abortIsOurs: sawDuplicateToolUse || earlyStopFired,
+                abortIsOurs: sawDuplicateToolUse,
               }) && messageStartEmitted
 
               if (canRecoverAsToolUse) {
@@ -4255,6 +4323,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           cancel(reason) {
             requestAbort.abort(reason)
             requestAbort.detach()
+            if (!isIndependentSession) {
+              // Cancellation can terminate the iterator without producing the
+              // closed-controller error handled above. Evict synchronously so
+              // no interrupted tail remains resumable even if the SDK never yields.
+              evictSession(profileSessionId, profileScopedCwd, body.messages || [])
+              claudeLog("passthrough.client_abort_settled", { action: "evict", source: "stream_cancel" })
+            }
           },
         })
 

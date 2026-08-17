@@ -105,7 +105,7 @@ describe("Shared session store", () => {
     expect(byClaudeId?.messageBlockHashes).toEqual([["block-hash-a", "block-hash-b"]])
   })
 
-  it("should persist and clear the passthrough resume boundary", () => {
+  it("should persist and clear the passthrough assistant resume checkpoint", () => {
     storeSharedSession(
       "session-boundary",
       "claude-sess-boundary",
@@ -115,9 +115,11 @@ describe("Shared session store", () => {
       undefined,
       undefined,
       undefined,
-      "deny-uuid"
+      "assistant-uuid",
+      ["tool-1", "tool-2"]
     )
-    expect(lookupSharedSession("session-boundary")?.passthroughResumeUuid).toBe("deny-uuid")
+    expect(lookupSharedSession("session-boundary")?.passthroughToolCallAssistantUuid).toBe("assistant-uuid")
+    expect(lookupSharedSession("session-boundary")?.passthroughToolCallIds).toEqual(["tool-1", "tool-2"])
 
     storeSharedSession(
       "session-boundary",
@@ -128,9 +130,27 @@ describe("Shared session store", () => {
       undefined,
       undefined,
       undefined,
+      null,
       null
     )
-    expect(lookupSharedSession("session-boundary")?.passthroughResumeUuid).toBeUndefined()
+    expect(lookupSharedSession("session-boundary")?.passthroughToolCallAssistantUuid).toBeUndefined()
+    expect(lookupSharedSession("session-boundary")?.passthroughToolCallIds).toBeUndefined()
+  })
+
+  it("ignores legacy user-denial boundaries after upgrade", () => {
+    writeFileSync(join(tmpDir, "sessions.json"), JSON.stringify({
+      "legacy-boundary": {
+        claudeSessionId: "claude-legacy",
+        createdAt: 1,
+        lastUsedAt: 1,
+        messageCount: 1,
+        passthroughResumeUuid: "user-denial-uuid",
+      },
+    }))
+
+    // Force a one-time fresh replay instead of resuming the invalid tail.
+    expect(lookupSharedSession("legacy-boundary")).toBeUndefined()
+    expect(lookupSharedSessionByClaudeId("claude-legacy")).toBeUndefined()
   })
 
   it("should return the freshest match when multiple keys share a Claude session ID", () => {

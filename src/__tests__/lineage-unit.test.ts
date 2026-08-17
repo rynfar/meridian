@@ -14,6 +14,7 @@ import {
   measureSuffixOverlap,
   verifyLineage,
   normalizeContextUsage,
+  withClientAssistantUuid,
   MIN_SUFFIX_FOR_COMPACTION,
   type SessionState,
 } from "../proxy/session/lineage"
@@ -920,5 +921,25 @@ describe("verifyLineage compaction that reaches the end of the incoming array", 
     const result = verifyLineage(session, compacted)
     expect(result.type).toBe("compaction")
     if (result.type === "compaction") expect(result.resumeFrom).toBeLessThan(compacted.length)
+  })
+})
+
+
+describe("withClientAssistantUuid", () => {
+  it("overwrites parallel SDK fragments at one future client-assistant slot", () => {
+    let map: Array<string | null> = [null]
+    map = withClientAssistantUuid(map, 1, "assistant-fragment-1")
+    map = withClientAssistantUuid(map, 1, "assistant-fragment-2")
+    expect(map).toEqual([null, "assistant-fragment-2"])
+  })
+
+  it("clears an older fragment when a later assistant UUID is missing", () => {
+    const map = withClientAssistantUuid([null, "older-fragment"], 1, undefined)
+    expect(map).toEqual([null, null])
+  })
+
+  it("pads missing client user slots without shifting the assistant UUID", () => {
+    expect(withClientAssistantUuid([null, "prior-assistant"], 3, "next-assistant"))
+      .toEqual([null, "prior-assistant", null, "next-assistant"])
   })
 })

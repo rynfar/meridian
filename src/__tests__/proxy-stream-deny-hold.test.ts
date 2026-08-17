@@ -33,6 +33,7 @@ let capturedResume: string | undefined
 let capturedResumeSessionAt: string | undefined
 let capturedForkSession: boolean | undefined
 let denyUuids: string[] = []
+let assistantToolUuids: string[] = []
 let timeline: string[] = []
 // Deny persistence delay — simulates the CLI's post-release deny latency that
 // makes the store land after the client response (the fast-client race).
@@ -54,11 +55,15 @@ const blockDelta = (idx: number, json: string) =>
   streamEvent({ type: "content_block_delta", index: idx, delta: { type: "input_json_delta", partial_json: json } })
 const blockStop = (idx: number) => streamEvent({ type: "content_block_stop", index: idx })
 const msgDelta = () => streamEvent({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 30 } })
-const assistantMsg = (blocks: any[]) => ({
-  type: "assistant",
-  message: { id: "m1", type: "message", role: "assistant", content: blocks, model: "claude-sonnet-4-5-20250929", stop_reason: "tool_use", usage: { input_tokens: 10, output_tokens: 30 } },
-  parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session",
-})
+const assistantMsg = (blocks: any[]) => {
+  const uuid = crypto.randomUUID()
+  if (blocks.some((block) => block?.type === "tool_use")) assistantToolUuids.push(uuid)
+  return {
+    type: "assistant",
+    message: { id: "m1", type: "message", role: "assistant", content: blocks, model: "claude-sonnet-4-5-20250929", stop_reason: "tool_use", usage: { input_tokens: 10, output_tokens: 30 } },
+    parent_tool_use_id: null, uuid, session_id: "test-session",
+  }
+}
 const denyMsg = (ids: string[]) => {
   const uuid = crypto.randomUUID()
   denyUuids.push(uuid)
@@ -131,10 +136,11 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       if (denyDelayMs > 0) await sleep(denyDelayMs)
       yield denyMsg(["tb1"])
       yield denyMsg(["tg1"])
-      // Early stop aborts here; nothing further should be pulled.
       timeline.push("post_denies")
       yield assistantMsg([{ type: "text", text: "turn 2 digest garbage" }])
       timeline.push("turn2_consumed")
+      yield { type: "result", subtype: "success", is_error: false, session_id: "test-session" }
+      timeline.push("canonical_result")
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
@@ -196,6 +202,7 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     capturedResumeSessionAt = undefined
     capturedForkSession = undefined
     denyUuids = []
+    assistantToolUuids = []
     clearSessionCache()
   })
 
@@ -219,13 +226,13 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     // Client contract: both tool blocks, fully terminated.
     expect(toolStarts.map((t: any) => t.id).sort()).toEqual(["tb1", "tg1"])
     expect(dangling).toEqual([])
-    // The client response ends at the turn boundary while the drain (denies →
-    // early stop → abort) finishes in the background — poll briefly for it.
+    // The client response ends at turn 1 while the digest drains invisibly to
+    // the canonical durability boundary in the background.
     const deadline = Date.now() + 1500
-    while (!capturedController!.signal.aborted && Date.now() < deadline) await sleep(10)
-    // Early stop aborted before the digest turn was consumed.
-    expect(capturedController!.signal.aborted).toBe(true)
-    expect(timeline).not.toContain("turn2_consumed")
+    while (!timeline.includes("canonical_result") && Date.now() < deadline) await sleep(10)
+    expect(capturedController!.signal.aborted).toBe(false)
+    expect(timeline).toContain("turn2_consumed")
+    expect(timeline).toContain("canonical_result")
   })
 
   it("kill switch: cancel path still cannot leave an unterminated block (flush guard)", async () => {
@@ -234,10 +241,7 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     const events = await postStream(app, "hold-2", [{ role: "user", content: "test tools" }])
     const { dangling } = envelope(events)
 
-    // Without the hold the mock cancels (legacy field behavior)...
     expect(timeline).toContain("CANCELED")
-    // ...but every started block is still closed before the stream ends —
-    // the render can no longer be `glob {}` "Tool execution aborted".
     expect(dangling).toEqual([])
   })
 
@@ -259,9 +263,10 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
         { type: "tool_result", tool_use_id: "tg1", content: "ok" },
       ]},
     ])
-    const resumeBoundary = denyUuids[1]
+    const resumeBoundary = assistantToolUuids[1]
     expect(capturedResume ?? "(fresh)").toBe("test-session")
     expect(capturedResumeSessionAt).toBe(resumeBoundary)
-    expect(capturedForkSession).toBe(true)
+    expect(denyUuids).not.toContain(capturedResumeSessionAt)
+    expect(capturedForkSession).toBeUndefined()
   })
 })

@@ -46,6 +46,29 @@ function toolTurn(toolId: string, toolName: string, input: Record<string, unknow
   }
 }
 
+
+function textTurn(text: string) {
+  return {
+    type: "assistant",
+    message: {
+      id: "msg_digest",
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text }],
+      model: "claude-sonnet-4-5-20250929",
+      stop_reason: "end_turn",
+      usage: { input_tokens: 10, output_tokens: 10 },
+    },
+    parent_tool_use_id: null,
+    uuid: crypto.randomUUID(),
+    session_id: "test-session",
+  }
+}
+
+function canonicalResult() {
+  return { type: "result", subtype: "success", is_error: false, session_id: "test-session" }
+}
+
 function streamMessageStart() {
   return {
     type: "stream_event",
@@ -376,12 +399,12 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     }
   }
 
-  it("non-stream: both parallel reads are captured with full inputs; digest turn never consumed", async () => {
+  it("non-stream: both parallel reads are captured while the digest drains invisibly", async () => {
     mockTurns = [
       parallelReadTurn(),
       denyUser(["toolu_pa", "toolu_pb"]),
-      // Digest/fabrication turn — early stop must abort before this is consumed.
-      toolTurn("toolu_garbage", "get_time", { tz: "UTC" }),
+      textTurn("hidden digest"),
+      canonicalResult(),
     ]
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
 
@@ -395,12 +418,17 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     // Full inputs — no argument-less 'red read'.
     expect(toolUses.find((t: any) => t.id === "toolu_pa").input).toEqual({ filePath: "a.txt" })
     expect(toolUses.find((t: any) => t.id === "toolu_pb").input).toEqual({ filePath: "b.txt" })
-    // Early stop aborted the query after the denies were persisted.
-    expect(capturedController!.signal.aborted).toBe(true)
+    // Durability requires consuming the canonical result, never aborting.
+    expect(capturedController!.signal.aborted).toBe(false)
   })
 
   it("the parallel-capture session is stored — the follow-up RESUMES instead of fresh-replaying", async () => {
-    mockTurns = [parallelReadTurn(), denyUser(["toolu_pa", "toolu_pb"])]
+    mockTurns = [
+      parallelReadTurn(),
+      denyUser(["toolu_pa", "toolu_pb"]),
+      textTurn("hidden digest"),
+      canonicalResult(),
+    ]
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
     const first = await post(app, false)
     expect(first.status).toBe(200)
@@ -455,6 +483,8 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
       streamEvent({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 30 } }),
       parallelReadTurn(),
       denyUser(["toolu_pa", "toolu_pb"]),
+      textTurn("hidden digest"),
+      canonicalResult(),
     ]
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
 
@@ -472,13 +502,9 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     const startIdxs = events.filter((e: any) => e.event === "content_block_start").map((e: any) => e.data.index)
     const stopIdxs = events.filter((e: any) => e.event === "content_block_stop").map((e: any) => e.data.index)
     for (const idx of startIdxs) expect(stopIdxs).toContain(idx)
-    // The response ends at the turn boundary; the early-stop abort lands in
-    // the background drain a moment later — poll briefly.
-    const deadline = Date.now() + 1500
-    while (!capturedController!.signal.aborted && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 10))
-    }
-    expect(capturedController!.signal.aborted).toBe(true)
+    // The response ends at turn 1 while the digest drains invisibly through
+    // the canonical result. The SDK query must not be aborted.
+    expect(capturedController!.signal.aborted).toBe(false)
   })
 
   it("kill switch restores the legacy semantics: mid-hook abort + session NOT stored", async () => {

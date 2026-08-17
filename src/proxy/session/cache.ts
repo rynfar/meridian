@@ -187,7 +187,8 @@ export function lookupSession(
         messageHashes: shared.messageHashes,
         messageBlockHashes: shared.messageBlockHashes,
         sdkMessageUuids: shared.sdkMessageUuids,
-        passthroughResumeUuid: shared.passthroughResumeUuid,
+        passthroughToolCallAssistantUuid: shared.passthroughToolCallAssistantUuid,
+        passthroughToolCallIds: shared.passthroughToolCallIds,
         contextUsage: shared.contextUsage,
       }
       const result = classifyLineage(state, messages, sessionId)
@@ -217,7 +218,8 @@ export function lookupSession(
         messageHashes: shared.messageHashes,
         messageBlockHashes: shared.messageBlockHashes,
         sdkMessageUuids: shared.sdkMessageUuids,
-        passthroughResumeUuid: shared.passthroughResumeUuid,
+        passthroughToolCallAssistantUuid: shared.passthroughToolCallAssistantUuid,
+        passthroughToolCallIds: shared.passthroughToolCallIds,
         contextUsage: shared.contextUsage,
       }
       const result = classifyLineage(state, messages, fp)
@@ -256,7 +258,8 @@ export function getSessionByClaudeId(claudeSessionId: string): SessionState | un
       messageHashes: shared.messageHashes,
       messageBlockHashes: shared.messageBlockHashes,
       sdkMessageUuids: shared.sdkMessageUuids,
-      passthroughResumeUuid: shared.passthroughResumeUuid,
+      passthroughToolCallAssistantUuid: shared.passthroughToolCallAssistantUuid,
+      passthroughToolCallIds: shared.passthroughToolCallIds,
       contextUsage: shared.contextUsage,
     })
   }
@@ -275,7 +278,8 @@ export function storeSession(
   workingDirectory?: string,
   sdkMessageUuids?: Array<string | null>,
   contextUsage?: TokenUsage,
-  passthroughResumeUuid?: string | null
+  passthroughToolCallAssistantUuid?: string | null,
+  passthroughToolCallIds?: string[] | null
 ) {
   if (!claudeSessionId) return
   const lineageHash = computeLineageHash(messages)
@@ -289,7 +293,8 @@ export function storeSession(
     messageHashes,
     messageBlockHashes,
     sdkMessageUuids,
-    ...(passthroughResumeUuid ? { passthroughResumeUuid } : {}),
+    ...(passthroughToolCallAssistantUuid ? { passthroughToolCallAssistantUuid } : {}),
+    ...(passthroughToolCallIds ? { passthroughToolCallIds } : {}),
     ...(contextUsage ? { contextUsage } : {}),
   }
   // In-memory cache
@@ -313,8 +318,9 @@ export function storeSession(
       sdkMessageUuids,
       contextUsage,
       messageBlockHashes,
-      // undefined would preserve the stored boundary; a full store must rewrite it.
-      passthroughResumeUuid ?? null
+      // undefined would preserve the stored checkpoint; a full store must rewrite it.
+      passthroughToolCallAssistantUuid ?? null,
+      passthroughToolCallIds ?? null
     )
   }
 }

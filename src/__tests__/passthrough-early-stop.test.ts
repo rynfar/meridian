@@ -14,10 +14,13 @@ import { describe, it, expect } from "bun:test"
 import {
   clientAbortDisposition,
   createEarlyStopTracker,
+  allForwardedCallsResolved,
   isClientForwardedToolUse,
+  isCompleteToolResultContinuation,
   noteAssistantContent,
+  noteAssistantMessage,
   noteUserContent,
-  resumeBoundaryUuid,
+  settledToolCallAssistantUuid,
   shouldEarlyStop,
 } from "../proxy/passthroughEarlyStop"
 
@@ -25,6 +28,11 @@ import { PASSTHROUGH_MCP_PREFIX } from "../proxy/passthroughTools"
 
 const toolUse = (id: string, name: string) => ({ type: "tool_use", id, name })
 const toolResult = (id: string) => ({ type: "tool_result", tool_use_id: id, is_error: true })
+const sdkAssistant = (uuid: unknown, content: unknown) => ({
+  type: "assistant",
+  uuid,
+  message: { role: "assistant", content },
+})
 
 describe("prefix cross-check", () => {
   it("tracker's duplicated prefix matches the passthrough MCP prefix", () => {
@@ -67,26 +75,26 @@ describe("clientAbortDisposition", () => {
     profileSessionId: "s1",
     currentSessionId: "claude-1",
     sawDuplicateToolUse: false,
-    resumeBoundaryUuid: "u1",
+    toolCallAssistantUuid: "a1",
     passthrough: true,
   }
 
-  it("stores the boundary when one was persisted before the abort", () => {
-    expect(clientAbortDisposition(base)).toEqual({ action: "store", resumeUuid: "u1" })
+  it("evicts even when an assistant UUID was observed before the abort", () => {
+    expect(clientAbortDisposition(base)).toEqual({ action: "evict" })
   })
 
-  it("evicts when no deny was persisted — nothing is safe to resume from", () => {
+  it("evicts when no assistant checkpoint exists — nothing is safe to resume from", () => {
     // The interrupted tail would make the SDK synthesize a continuation the
     // model answers with an empty turn, and every empty turn becomes the next
     // tail. A fresh replay is the cost of not wedging the conversation.
-    expect(clientAbortDisposition({ ...base, resumeBoundaryUuid: undefined })).toEqual({ action: "evict" })
+    expect(clientAbortDisposition({ ...base, toolCallAssistantUuid: undefined })).toEqual({ action: "evict" })
   })
 
   // A deny boundary is a passthrough concept. In internal mode the SDK runs the
   // tools itself, so a user message carrying tool_results is an ordinary turn —
   // persisting its uuid as a spent deny would make the next continuation fork
   // from a point that was never a boundary.
-  it("never records a deny boundary for an internal-mode abort", () => {
+  it("never records a passthrough checkpoint for an internal-mode abort", () => {
     expect(clientAbortDisposition({ ...base, passthrough: false })).toEqual({ action: "evict" })
   })
 
@@ -107,38 +115,66 @@ describe("clientAbortDisposition", () => {
   })
 })
 
-describe("resumeBoundaryUuid", () => {
-  const userMsg = (uuid: unknown, content: unknown) => ({
-    type: "user",
+describe("assistant resume checkpoint", () => {
+  const assistantMsg = (uuid: unknown, content: unknown) => ({
+    type: "assistant",
     uuid,
-    message: { role: "user", content },
+    message: { role: "assistant", content },
   })
 
-  it("returns the uuid of a user message carrying a tool_result", () => {
-    expect(resumeBoundaryUuid(userMsg("u1", [toolResult("t1")]))).toBe("u1")
+  it("stores the UUID of an assistant message carrying a forwarded tool_use", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, assistantMsg("a1", [toolUse("t1", "read")]))
+    expect(tracker.toolCallAssistantUuid).toBe("a1")
   })
 
-  it("returns the uuid when tool_results mix with other blocks", () => {
-    expect(resumeBoundaryUuid(userMsg("u2", [{ type: "text", text: "hi" }, toolResult("t1")]))).toBe("u2")
+  it("advances to the final assistant fragment for parallel tool calls", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, assistantMsg("a1", [toolUse("t1", "read")]))
+    noteAssistantMessage(tracker, assistantMsg("a2", [toolUse("t2", "grep")]))
+    noteUserContent(tracker, [toolResult("t1"), toolResult("t2")])
+    expect(settledToolCallAssistantUuid(tracker)).toBe("a2")
   })
 
-  it("ignores assistant messages", () => {
-    expect(resumeBoundaryUuid({ type: "assistant", uuid: "a1", message: { content: [toolResult("t1")] } })).toBeUndefined()
+  it("never accepts a user/tool-result UUID as a resume checkpoint", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, {
+      type: "user",
+      uuid: "u1",
+      message: { role: "user", content: [toolResult("t1")] },
+    })
+    expect(tracker.toolCallAssistantUuid).toBeUndefined()
   })
 
-  it("ignores user messages without tool_results", () => {
-    expect(resumeBoundaryUuid(userMsg("u3", [{ type: "text", text: "hi" }]))).toBeUndefined()
+  it("does not expose a boundary until every forwarded call settled", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, assistantMsg("a1", [
+      toolUse("t1", "read"),
+      toolUse("t2", "grep"),
+    ]))
+    noteUserContent(tracker, [toolResult("t1")])
+    expect(allForwardedCallsResolved(tracker)).toBe(false)
+    expect(settledToolCallAssistantUuid(tracker)).toBeUndefined()
+    noteUserContent(tracker, [toolResult("t2")])
+    expect(allForwardedCallsResolved(tracker)).toBe(true)
+    expect(settledToolCallAssistantUuid(tracker)).toBe("a1")
   })
 
-  it("ignores messages with no usable uuid", () => {
-    expect(resumeBoundaryUuid(userMsg(undefined, [toolResult("t1")]))).toBeUndefined()
-    expect(resumeBoundaryUuid(userMsg("", [toolResult("t1")]))).toBeUndefined()
+  it("fails closed when the tool-bearing assistant message has no usable UUID", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, assistantMsg(undefined, [toolUse("t1", "read")]))
+    noteUserContent(tracker, [toolResult("t1")])
+    expect(settledToolCallAssistantUuid(tracker)).toBeUndefined()
+    expect(shouldEarlyStop(tracker)).toBe(false)
   })
 
-  it("tolerates malformed content", () => {
-    expect(resumeBoundaryUuid(userMsg("u4", "just a string"))).toBeUndefined()
-    expect(resumeBoundaryUuid(null)).toBeUndefined()
-    expect(resumeBoundaryUuid({})).toBeUndefined()
+  it("invalidates an older checkpoint when a later tool-bearing message has no UUID", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, assistantMsg("a1", [toolUse("t1", "read")]))
+    noteAssistantMessage(tracker, assistantMsg(undefined, [toolUse("t2", "grep")]))
+    noteUserContent(tracker, [toolResult("t1"), toolResult("t2")])
+    expect(settledToolCallAssistantUuid(tracker)).toBeUndefined()
+    expect(shouldEarlyStop(tracker)).toBe(false)
   })
 })
 
@@ -156,7 +192,7 @@ describe("early-stop tracking", () => {
 
   it("stops after the single tool call's deny is observed", () => {
     const t = createEarlyStopTracker()
-    noteAssistantContent(t, [toolUse("t1", "mcp__oc__read")])
+    noteAssistantMessage(t, sdkAssistant("a-single", [toolUse("t1", "mcp__oc__read")]))
     expect(shouldEarlyStop(t)).toBe(false) // deny not yet persisted
     noteUserContent(t, [toolResult("t1")])
     expect(shouldEarlyStop(t)).toBe(true)
@@ -164,11 +200,11 @@ describe("early-stop tracking", () => {
 
   it("waits for ALL parallel tool calls' denies before stopping", () => {
     const t = createEarlyStopTracker()
-    noteAssistantContent(t, [
+    noteAssistantMessage(t, sdkAssistant("a-parallel", [
       { type: "text", text: "reading both" },
       toolUse("t1", "mcp__oc__read"),
       toolUse("t2", "mcp__oc__grep"),
-    ])
+    ]))
     noteUserContent(t, [toolResult("t1")])
     expect(shouldEarlyStop(t)).toBe(false) // t2's deny still pending — do NOT drop it
     noteUserContent(t, [toolResult("t2")])
@@ -177,7 +213,7 @@ describe("early-stop tracking", () => {
 
   it("fires only once (idempotent after stop)", () => {
     const t = createEarlyStopTracker()
-    noteAssistantContent(t, [toolUse("t1", "read")])
+    noteAssistantMessage(t, sdkAssistant("a-idempotent", [toolUse("t1", "read")]))
     noteUserContent(t, [toolResult("t1")])
     expect(shouldEarlyStop(t)).toBe(true)
     expect(shouldEarlyStop(t)).toBe(false)
@@ -190,7 +226,7 @@ describe("early-stop tracking", () => {
     noteUserContent(t, [toolResult("ts1")]) // real ToolSearch result
     expect(shouldEarlyStop(t)).toBe(false)
     // Turn 2: the actual client tool call
-    noteAssistantContent(t, [toolUse("t1", "mcp__oc__read")])
+    noteAssistantMessage(t, sdkAssistant("a-single", [toolUse("t1", "mcp__oc__read")]))
     noteUserContent(t, [toolResult("t1")])
     expect(shouldEarlyStop(t)).toBe(true)
   })
@@ -209,5 +245,41 @@ describe("early-stop tracking", () => {
     noteUserContent(t, undefined as unknown)
     noteUserContent(t, [{ type: "text", text: "hi" }])
     expect(shouldEarlyStop(t)).toBe(false)
+  })
+})
+
+
+describe("isCompleteToolResultContinuation", () => {
+  const result = (id: string, content: unknown = "ok") => ({ type: "tool_result", tool_use_id: id, content })
+
+  it("accepts one complete parallel result batch", () => {
+    expect(isCompleteToolResultContinuation([
+      { role: "user", content: [result("t1"), result("t2")] },
+    ], ["t1", "t2"])).toBe(true)
+  })
+
+  it("rejects a partial batch and an unknown result id", () => {
+    expect(isCompleteToolResultContinuation([
+      { role: "user", content: [result("t1")] },
+    ], ["t1", "t2"])).toBe(false)
+    expect(isCompleteToolResultContinuation([
+      { role: "user", content: [result("unknown")] },
+    ], ["t1"])).toBe(false)
+  })
+
+  it("rejects multiple user messages so multimodal results stay on the final SDK input", () => {
+    expect(isCompleteToolResultContinuation([
+      { role: "user", content: [result("t1")] },
+      { role: "user", content: [{ type: "text", text: "continue" }] },
+    ], ["t1"])).toBe(false)
+  })
+
+  it("requires tool results before ordinary user content", () => {
+    expect(isCompleteToolResultContinuation([
+      { role: "user", content: [{ type: "text", text: "first" }, result("t1")] },
+    ], ["t1"])).toBe(false)
+    expect(isCompleteToolResultContinuation([
+      { role: "user", content: [result("t1"), { type: "text", text: "then continue" }] },
+    ], ["t1"])).toBe(true)
   })
 })

@@ -180,42 +180,6 @@ export function frameReplayTurns(turns: Array<{ role: string; text: string }>): 
 }
 
 /**
- * Lead-in for a passthrough continuation that forks from a deny boundary.
- *
- * Every forwarded tool call is denied with "do not generate further text —
- * end your turn now" (the nudge that stops the model fabricating results for
- * calls the client will execute). That deny is persisted as the tool_result,
- * and the deny boundary fork puts it IMMEDIATELY before the continuation's
- * user turn. So the last instruction in the model's context tells it to emit
- * no text — and the next thing it must do is answer. Observed live: the model
- * obeys the nearer instruction and returns thinking plus an EMPTY text block
- * with stop_reason "end_turn"; the CLI's own "previous response had no visible
- * output" nudge does not help, because the deny is still there. The proxy
- * forwards zero text deltas, reports 200, and the client's run goes quiet with
- * the tool results unanswered (three occurrences in 500 requests, all on a
- * session's second turn — where the deny is the largest thing in context).
- *
- * The deny cannot be rewritten after the fact: it lives in the CLI's session
- * file. So the continuation says plainly that the instruction is spent. Framing
- * only — no transcript markers, nothing for the model to imitate (#496/#619).
- */
-export const PASSTHROUGH_CONTINUATION_LEAD_IN =
-  "The tool calls from your previous turn were forwarded to the client, which has now executed them — " +
-  "their results follow. The instruction to end that turn without further text applied to it alone and " +
-  "is now discharged: continue the work and respond."
-
-/**
- * Prefix a passthrough continuation delta with the lead-in above.
- *
- * An empty delta is returned unchanged — there is nothing to answer, so the
- * lead-in would be the only content and would read as the user's own turn.
- */
-export function framePassthroughContinuation(delta: string): string {
-  if (!delta) return delta
-  return `${PASSTHROUGH_CONTINUATION_LEAD_IN}\n\n${delta}`
-}
-
-/**
  * Remove fields the Claude Agent SDK attaches to streamed events that are not
  * part of the public Anthropic streaming schema.
  *

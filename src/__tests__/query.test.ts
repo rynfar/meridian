@@ -189,6 +189,16 @@ describe("buildQueryOptions", () => {
     expect((result.options as any).resumeSessionAt).toBe("uuid-abc")
   })
 
+  it("resumes passthrough at an assistant boundary without creating a new session", () => {
+    const result = buildQueryOptions(makeContext({
+      resumeSessionId: "sdk-123",
+      resumeSessionAtUuid: "assistant-uuid",
+    }))
+    expect((result.options as any).resume).toBe("sdk-123")
+    expect((result.options as any).resumeSessionAt).toBe("assistant-uuid")
+    expect((result.options as any).forkSession).toBeUndefined()
+  })
+
   it("includes agents when provided", () => {
     const agents = { explore: { model: "sonnet" } }
     const result = buildQueryOptions(makeContext({ sdkAgents: agents }))

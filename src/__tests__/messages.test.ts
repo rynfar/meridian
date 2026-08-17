@@ -2,7 +2,7 @@
  * Unit tests for message parsing utilities.
  */
 import { describe, it, expect } from "bun:test"
-import { frameReplayTurns, framePassthroughContinuation, PASSTHROUGH_CONTINUATION_LEAD_IN, normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, buildToolUseIndex, describeToolCall, extractSystemText } from "../proxy/messages"
+import { frameReplayTurns, normalizeContent, getLastUserMessage, extractAdvisorModel, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, buildToolUseIndex, describeToolCall, extractSystemText } from "../proxy/messages"
 
 const img = (id: string) => ({ type: "image", source: { type: "base64", media_type: "image/png", data: id } })
 function userMsg(content: unknown) {
@@ -542,34 +542,6 @@ describe("frameReplayTurns (#619)", () => {
     expect(out).not.toContain("Human:")
     expect(out).toEndWith("final question")
     expect(out).toContain("[your bash ls]:")
-  })
-})
-
-describe("framePassthroughContinuation", () => {
-  // The deny boundary fork places the spent "end your turn now" deny
-  // immediately before this delta. Without the lead-in the model obeys it and
-  // answers with an empty text block (see the doc comment on the constant).
-  const delta = "[your shell ls]:\nfile.txt"
-
-  it("puts the lead-in ahead of the delta and keeps the delta terminal", () => {
-    const out = framePassthroughContinuation(delta)
-    expect(out).toStartWith(PASSTHROUGH_CONTINUATION_LEAD_IN)
-    expect(out).toEndWith(delta)
-  })
-
-  it("says the end-turn instruction is discharged", () => {
-    expect(framePassthroughContinuation(delta).toLowerCase()).toContain("discharged")
-  })
-
-  it("leaves an empty delta alone — the lead-in must never be the whole turn", () => {
-    expect(framePassthroughContinuation("")).toBe("")
-  })
-
-  it("adds no transcript markers for the model to imitate (#496)", () => {
-    const out = framePassthroughContinuation(delta)
-    expect(out).not.toContain("Human:")
-    expect(out).not.toContain("[Assistant:")
-    expect(out).not.toContain("<conversation_history>")
   })
 })
 
