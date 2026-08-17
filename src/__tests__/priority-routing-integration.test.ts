@@ -223,6 +223,16 @@ describe("priority routing", () => {
     expect(body.content[0]?.text).toContain("prof-personal")
   }, 20_000)
 
+  it("fails over on the CLI's 'You're out of usage credits' wording", async () => {
+    failureMessage = "Claude Code returned an error result: You're out of usage credits. /model to switch models."
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+    const res = await post(app)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { content: Array<{ text: string }> }
+    expect(body.content[0]?.text).toContain("prof-personal")
+  }, 20_000)
+
   it("surfaces the LAST tried profile's error when every profile is exhausted", async () => {
     failingDirs.add("prof-work")
     failingDirs.add("prof-personal")
