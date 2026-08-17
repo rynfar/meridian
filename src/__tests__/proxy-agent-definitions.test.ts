@@ -130,6 +130,12 @@ describe("mapModelTier", () => {
     expect(mapModelTier("anthropic/claude-sonnet-4-5")).toBe("sonnet")
   })
 
+  it("should map fable and mythos models to the base fable tier", () => {
+    expect(mapModelTier("claude-fable-5")).toBe("fable")
+    expect(mapModelTier("claude-mythos-5")).toBe("fable")
+    expect(mapModelTier("fable[1m]")).toBe("fable")
+  })
+
   it("should map haiku models", () => {
     expect(mapModelTier("anthropic/claude-haiku-4-5")).toBe("haiku")
   })

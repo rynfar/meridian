@@ -143,6 +143,22 @@ describe("Subagent model selection", () => {
     expect(capturedModel).toBe("opus")
   })
 
+  it("preserves the legacy OpenCode mode header on non-OpenCode adapters", async () => {
+    await post({ ...BASE_REQUEST, model: "claude-opus-4-6" }, {
+      "x-meridian-agent": "pi",
+      "x-opencode-agent-mode": "subagent",
+    })
+    expect(capturedModel).toBe("opus")
+  })
+
+  it("lets a generic subagent source override a conflicting primary mode", async () => {
+    await post({ ...BASE_REQUEST, model: "claude-opus-4-6" }, {
+      "x-opencode-agent-mode": "primary",
+      "x-meridian-source": "subagent-reviewer",
+    })
+    expect(capturedModel).toBe("opus")
+  })
+
   it("keeps an Opus primary on 1M while native Task agents use base opus", async () => {
     const response = await post({ ...BASE_REQUEST, model: "claude-opus-4-6", tools: [TASK_TOOL] }, {
       "x-opencode-agent-mode": "primary",

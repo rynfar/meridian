@@ -96,6 +96,19 @@ describe("explicit session keys override the independence guard", () => {
     expect(capturedOptions[1].resume).toBe("test-session")
   })
 
+  it("keyed OpenCode subagent mode resumes across turns", async () => {
+    const app = createTestApp()
+    const headers = {
+      "x-opencode-agent-mode": "subagent",
+      "x-opencode-session": "opencode-subagent-run",
+    }
+    expect((await post(app, TURN_1, headers)).status).toBe(200)
+    expect((await post(app, TURN_2, headers)).status).toBe(200)
+    expect(capturedOptions).toHaveLength(2)
+    expect(capturedOptions[0].resume).toBeUndefined()
+    expect(capturedOptions[1].resume).toBe("test-session")
+  })
+
   it("pi subagent-worker WITHOUT a session key keeps the independence guard (no resume)", async () => {
     const app = createTestApp()
     const headers = { "x-meridian-agent": "pi", "x-meridian-source": "subagent-worker" }

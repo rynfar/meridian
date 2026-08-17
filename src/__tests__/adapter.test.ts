@@ -46,6 +46,11 @@ describe("openCodeAdapter", () => {
     expect(openCodeAdapter.getAgentMode!(mockContext as any)).toBe("subagent")
   })
 
+  it("returns undefined when the OpenCode agent mode header is missing", () => {
+    const mockContext = { req: { header: () => undefined } }
+    expect(openCodeAdapter.getAgentMode!(mockContext as any)).toBeUndefined()
+  })
+
   it("extracts working directory from system prompt env block", () => {
     const body = {
       system: "<env>\n  Working directory: /Users/test/project\n</env>"

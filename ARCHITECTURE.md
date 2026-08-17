@@ -145,6 +145,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | Method | What It Does |
 |--------|-------------|
 | `getSessionId(c)` | Extract session ID from request headers |
+| `getAgentMode(c, body)` | Normalize an adapter-specific primary/subagent declaration |
 | `extractWorkingDirectory(body)` | Parse working directory from request body |
 | `normalizeContent(content)` | Normalize message content for hashing |
 | `getBlockedBuiltinTools()` | SDK tools replaced by agent's MCP equivalents |
@@ -156,7 +157,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 
 | Logic | Location | Status |
 |-------|----------|--------|
-| `buildAgentDefinitions` | `agentDefs.ts` | Parses OpenCode Task tool format. To be adapter method. |
+| `buildAgentDefinitions` | `agentDefs.ts`, `transforms/opencode.ts` | Pure OpenCode Task parser invoked by the adapter transform. |
 | Passthrough mode | `passthroughTools.ts` | Agent-agnostic but OpenCode-motivated. Keep as-is. |
 | `ALLOWED_MCP_TOOLS` usage in `server.ts` | Line ~176 | Used for `buildAgentDefinitions`. Move when adapter handles agent defs. |
 

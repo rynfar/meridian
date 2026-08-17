@@ -269,6 +269,24 @@ describe("SDK and Session concurrency coordination", () => {
     expect(queryCalls).toBe(2)
   })
 
+  it("lets an OpenCode subagent mode replay instead of refusing it", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const messages = [{ role: "user", content: "same request" }]
+    const firstP = app.fetch(request(messages, "declared-mode"))
+    const firstControl = await waitForControl(0)
+    const secondP = app.fetch(
+      request(messages, "declared-mode", false, { "x-opencode-agent-mode": "subagent" }),
+    )
+
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+
+    const secondControl = await waitForControl(1)
+    secondControl.release()
+    expect((await secondP).status).toBe(200)
+    expect(queryCalls).toBe(2)
+  })
+
   it("force-releases a wedged turn instead of deadlocking the session", async () => {
     process.env.MERIDIAN_MAX_CONCURRENT = "2"
     process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = "50"

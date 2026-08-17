@@ -27,7 +27,7 @@ const DEFAULT_AGENT_TYPES: Record<string, string> = {
 }
 
 /** SDK-compatible agent definition */
-export type AgentModelTier = "sonnet" | "opus" | "haiku" | "inherit"
+export type AgentModelTier = "sonnet" | "opus" | "haiku" | "fable" | "inherit"
 
 export interface AgentDefinition {
   description: string
@@ -64,8 +64,8 @@ export function parseAgentDescriptions(taskDescription: string): Map<string, str
 /**
  * Map an OpenCode model string to an SDK model tier.
  *
- * The SDK only accepts 'sonnet' | 'opus' | 'haiku' | 'inherit'.
- * We map based on the model name pattern, defaulting to 'inherit'
+ * Agent definitions must use base model aliases rather than extended-context
+ * variants. We map based on the model name pattern, defaulting to 'inherit'
  * for non-Anthropic models (they'll use the parent session's model).
  */
 export function mapModelTier(model?: string): AgentModelTier {
@@ -75,6 +75,7 @@ export function mapModelTier(model?: string): AgentModelTier {
   // parent would keep native Task subagents on the expensive 1M window;
   // selecting "opus" explicitly preserves the intended 200k subagent tier.
   if (lower.includes("opus")) return "opus"
+  if (lower.includes("fable") || lower.includes("mythos")) return "fable"
   if (lower.includes("haiku")) return "haiku"
   if (lower.includes("sonnet")) return "sonnet"
   return "inherit"

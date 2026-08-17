@@ -1027,7 +1027,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Logged for observability; fork-*/subagent-* values also skip fingerprint cache (see below).
         // Examples: "main", "fork-memory-extract", "subagent-scout".
         const requestSource = c.req.header("x-meridian-source")?.slice(0, 64) || undefined
-        const declaredAgentMode = adapter.getAgentMode?.(c, body) ?? null
+        // NOTE: OpenCode-specific legacy fallback. Older integrations sent
+        // this header even when another adapter was selected; preserve that
+        // behavior while adapters migrate to the normalized extension point.
+        const declaredAgentMode =
+          adapter.getAgentMode?.(c, body) ?? c.req.header("x-opencode-agent-mode") ?? null
         // A generic subagent source and an adapter-specific mode declaration
         // describe the same semantic fact. Treat either as authoritative so a
         // client cannot accidentally get cache isolation without the base model
@@ -1307,13 +1311,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (lineageResult.type === "undo" && adapterBase === "opencode" && !agentSessionId) {
           lineageResult = { type: "diverged", reason: "missing-session-header" }
         }
-        // Clients that declare a concurrent flow (x-meridian-source fork-/
-        // subagent-) knowingly run parallel turns under one session key — see
+        // Clients that declare a concurrent flow (a fork source or either
+        // subagent signal) knowingly run parallel turns under one session key — see
         // the keyed fork/subagent note above. Serializing them is still worth
         // doing, but a reclassification is their normal cost; refusing them
         // would break flows that worked before turn coordination existed.
         const declaresConcurrentFlow =
-          requestSource?.startsWith("fork-") === true || requestSource?.startsWith("subagent-") === true
+          requestSource?.startsWith("fork-") === true || isSubagentRequest
         if (
           profileSessionId &&
           !declaresConcurrentFlow &&
