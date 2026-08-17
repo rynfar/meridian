@@ -220,7 +220,14 @@ export async function runCli(
   // ever call process.exit() on a signal.
   let shuttingDown = false
   const handleShutdownSignal = (signal: NodeJS.Signals) => {
-    if (shuttingDown) return
+    if (shuttingDown) {
+      // Second signal = force. The drain window is up to 30s and a wedged
+      // stream can hold it open for all of it; swallowing every later signal
+      // made the process unkillable by Ctrl-C or a supervisor's retry, short
+      // of SIGKILL. First signal drains, second one gives up.
+      console.log(`\n[meridian] Received ${signal} again, exiting immediately.`)
+      process.exit(130)
+    }
     shuttingDown = true
     console.log(`\n[meridian] Received ${signal}, shutting down gracefully...`)
     proxy.close()

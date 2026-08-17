@@ -26,8 +26,10 @@ export function trackServerConnections(server: Server): ServerConnectionTracker 
     forceCloseAll() {
       // Native Node closes HTTP(S) connections efficiently. Explicit socket
       // destruction is the compatibility backstop for runtimes whose Node API
-      // shim exposes closeAllConnections() without fully implementing it.
-      server.closeAllConnections()
+      // shim exposes closeAllConnections() without fully implementing it —
+      // or omits it entirely, which is why the call is optional rather
+      // than assumed present.
+      server.closeAllConnections?.()
       for (const socket of sockets) socket.destroy()
     },
     dispose() {
@@ -91,6 +93,6 @@ export async function closeServerWithGracePeriod(
   // Call after server.close() to avoid accepting a new connection between the
   // force-close and the server entering its closed state (Node.js guidance).
   if (options.forceCloseConnections) options.forceCloseConnections()
-  else server.closeAllConnections()
+  else server.closeAllConnections?.()
   await closePromise
 }

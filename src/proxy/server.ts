@@ -9,7 +9,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { linkRequestAbort } from "./requestAbort"
-import { AbortableSemaphore, getProcessSdkSemaphore } from "./concurrency"
+import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
@@ -175,17 +175,25 @@ function totalQueueWaitMs(meta: RequestMeta): number {
  * Derive an independent telemetry identity for one failover candidate.
  *
  * Each candidate is its own upstream attempt: sharing the caller's meta would
- * make every attempt overwrite the previous one's telemetry row (same
- * requestId) and inherit its accumulated SDK timings, so the surviving row
- * would bill the winner for every account that refused first. The session-turn
- * lease is deliberately shared by reference — the request holds exactly one
- * turn no matter how many accounts it tries.
+ * make every attempt inherit the previous one's accumulated SDK timings, so
+ * the surviving row would bill the winner for every account that refused
+ * first. The session-turn lease is deliberately shared by reference — the
+ * request holds exactly one turn no matter how many accounts it tries.
+ *
+ * `requestId` is deliberately NOT forked. Both telemetry backends append
+ * (SQLite always INSERTs against a non-unique `request_id`; the memory store
+ * is a ring buffer), so distinct ids were never needed to keep the rows — and
+ * rewriting a caller-supplied `x-request-id` to `<id>.1` silently breaks the
+ * client's ability to correlate its own request with the row that served it.
+ * Attempts stay distinguishable without it: the served row carries `profileId`
+ * plus a 2xx status, the refusals carry the failure in `error`/`status`.
+ * (The refusal row does not yet record which profile refused — a pre-existing
+ * gap on the error path, unrelated to the id.)
  */
 function forkAttemptMeta(meta: RequestMeta, attempt: number): RequestMeta {
   if (attempt === 0) return meta
   return {
     ...meta,
-    requestId: `${meta.requestId}.${attempt}`,
     queueEnteredAt: Date.now(),
     // The wait happened once, before the first attempt; re-reporting it on
     // every row would multiply one queue delay across the whole failover.
@@ -510,13 +518,71 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   let draining = false
   let inFlightRequests = 0
 
+  // Admission belongs at the PUBLIC entrypoint. /v1/chat/completions and
+  // /v1/responses translate their body before re-entering /v1/messages, so
+  // gating only the inner hop let a request accepted while healthy be refused
+  // halfway through its own translation — and the refusal then arrived wearing
+  // the wrong contract. Public routes check the gate; the internal hop is
+  // exempted by a per-instance token rather than a fixed header name, so the
+  // exemption can never be claimed from the wire.
+  const internalHopToken = randomUUID()
+  const drainingResponse = (): Response => new Response(JSON.stringify({
+    type: "error",
+    error: { type: "overloaded_error", message: "Meridian is shutting down and is not accepting new requests. Retry against another instance." },
+  }), { status: 503, headers: { "Content-Type": "application/json", "x-meridian-draining": "1" } })
+
+  /**
+   * Relay what the internal /v1/messages hop actually said.
+   *
+   * The compat routes used to flatten every inner failure into
+   * `upstream_error` with the raw JSON stringified into `message`. That
+   * collapsed two contracts a caller must be able to act on: the drain 503
+   * lost its `x-meridian-draining` header, and the session-conflict 400 —
+   * "your history is stale, refetch it" — arrived as an opaque upstream fault
+   * that a gateway would retry or fail over instead of resolving.
+   */
+  async function relayInnerError(
+    internalRes: Response,
+    shape: "anthropic" | "openai",
+  ): Promise<Response> {
+    const errBody = await internalRes.text()
+    let innerType: string | undefined
+    let innerMessage: string | undefined
+    try {
+      const parsed = JSON.parse(errBody) as { error?: { type?: string; message?: string } }
+      innerType = parsed?.error?.type
+      innerMessage = parsed?.error?.message
+    } catch { /* not JSON — fall back to the raw text */ }
+    const type = innerType ?? "upstream_error"
+    const message = innerMessage ?? errBody
+    const payload = shape === "anthropic"
+      ? { type: "error", error: { type, message } }
+      : { error: { type, message, code: null } }
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    const drainingHeader = internalRes.headers.get("x-meridian-draining")
+    if (drainingHeader) headers["x-meridian-draining"] = drainingHeader
+    return new Response(JSON.stringify(payload), { status: internalRes.status, headers })
+  }
+
   async function* runSdkQueryAttempt(
     params: Parameters<typeof query>[0],
     signal: AbortSignal,
     requestMeta: RequestMeta,
     mode: string,
   ) {
-    const lease = await sdkSemaphore.acquire(signal)
+    // Measured around the wait itself, not read from the granted lease: an
+    // aborted wait never produces a lease, and crediting queue time only on
+    // success dumped the entire wait of every cancelled request into
+    // proxyOverheadMs — corrupting the one number that says "the proxy is the
+    // bottleneck" precisely under the load that makes clients cancel.
+    const acquireStartedAt = Date.now()
+    let lease: SemaphoreLease
+    try {
+      lease = await sdkSemaphore.acquire(signal)
+    } catch (error) {
+      requestMeta.sdkQueueWaitMs += Date.now() - acquireStartedAt
+      throw error
+    }
     requestMeta.sdkQueueWaitMs += lease.waitedMs
     const startedAt = Date.now()
     requestMeta.currentSdkStartedAt = startedAt
@@ -4262,11 +4328,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   }
 
   const handleWithQueue = async (c: Context, endpoint: string) => {
-    if (draining) {
-      return new Response(JSON.stringify({
-        type: "error",
-        error: { type: "overloaded_error", message: "Meridian is shutting down and is not accepting new requests. Retry against another instance." },
-      }), { status: 503, headers: { "Content-Type": "application/json", "x-meridian-draining": "1" } })
+    // An internal hop carries a request the public route already admitted;
+    // re-checking the gate here would refuse work that is legitimately in
+    // flight. Everything arriving from the wire is gated normally.
+    if (draining && c.req.header("x-meridian-internal-hop") !== internalHopToken) {
+      return drainingResponse()
     }
     const requestId = c.req.header("x-request-id") || randomUUID()
     const queueEnteredAt = Date.now()
@@ -4332,6 +4398,39 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             leaseWatchdog.unref?.()
           } catch (error) {
             if (c.req.raw.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+              // This return happens before RequestMeta exists, so no other
+              // telemetry path can see it — without a row here, every request
+              // cancelled while queued behind another turn is invisible, and
+              // "clients give up waiting on the session lock" is exactly the
+              // symptom this whole feature can cause.
+              const cancelledWaitMs = Date.now() - queueEnteredAt
+              telemetryStore.record({
+                requestId,
+                timestamp: Date.now(),
+                adapter: adapter.name,
+                model: "unknown",
+                requestModel: undefined,
+                mode: "non-stream",
+                isResume: false,
+                isPassthrough: envBool("PASSTHROUGH"),
+                hasDeferredTools: undefined,
+                deferredToolCount: undefined,
+                toolCount: undefined,
+                lineageType: undefined,
+                messageCount: Array.isArray(body?.messages) ? body.messages.length : undefined,
+                sdkSessionId: undefined,
+                status: 499,
+                queueWaitMs: cancelledWaitMs,
+                sessionQueueWaitMs: cancelledWaitMs,
+                sdkQueueWaitMs: 0,
+                proxyOverheadMs: 0,
+                ttfbMs: null,
+                upstreamDurationMs: 0,
+                totalDurationMs: cancelledWaitMs,
+                contentBlocks: 0,
+                textEvents: 0,
+                error: "request_cancelled",
+              })
               finishRequest()
               return new Response(JSON.stringify({
                 type: "error",
@@ -4715,6 +4814,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // No network roundtrip — Hono resolves the route in-process.
   // See src/proxy/openai.ts for the translation logic and design rationale.
   app.post("/v1/chat/completions", async (c) => {
+    if (draining) return drainingResponse()
     const rawBody = await c.req.json() as Record<string, unknown>
     const userAgent = c.req.header("user-agent") ?? ""
     const jcodeSessionId = userAgent.startsWith("jcode/")
@@ -4751,6 +4851,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     if (xApiKey) internalHeaders["x-api-key"] = xApiKey
     const authz = c.req.header("authorization")
     if (authz) internalHeaders["authorization"] = authz
+    internalHeaders["x-meridian-internal-hop"] = internalHopToken
     const internalReq = new Request("http://internal/v1/messages", {
       method: "POST",
       headers: internalHeaders,
@@ -4759,13 +4860,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     })
     const internalRes = await app.fetch(internalReq)
 
-    if (!internalRes.ok) {
-      const errBody = await internalRes.text()
-      return c.json(
-        { type: "error", error: { type: "upstream_error", message: errBody } },
-        internalRes.status as 400 | 401 | 429 | 500
-      )
-    }
+    if (!internalRes.ok) return relayInnerError(internalRes, "anthropic")
 
     const completionId = `chatcmpl-${randomUUID()}`
     const created = Math.floor(Date.now() / 1000)
@@ -4859,6 +4954,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // the codex adapter is selected (forces passthrough; preset OFF).
   // See src/proxy/openaiResponses.ts for the translation logic.
   app.post("/v1/responses", async (c) => {
+    if (draining) return drainingResponse()
     const rawBody = await c.req.json() as ResponsesRequest
     const anthropicBody = translateResponsesToAnthropic(rawBody)
 
@@ -4895,6 +4991,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const xProfile = c.req.header("x-meridian-profile")
     if (xProfile) internalHeaders["x-meridian-profile"] = xProfile
 
+    internalHeaders["x-meridian-internal-hop"] = internalHopToken
     const internalReq = new Request("http://internal/v1/messages", {
       method: "POST",
       headers: internalHeaders,
@@ -4903,13 +5000,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     })
     const internalRes = await app.fetch(internalReq)
 
-    if (!internalRes.ok) {
-      const errBody = await internalRes.text()
-      return c.json(
-        { error: { type: "upstream_error", message: errBody, code: null } },
-        internalRes.status as 400 | 401 | 429 | 500
-      )
-    }
+    if (!internalRes.ok) return relayInnerError(internalRes, "openai")
 
     const responseId = `resp_${randomUUID().replace(/-/g, "")}`
     const created = Math.floor(Date.now() / 1000)
