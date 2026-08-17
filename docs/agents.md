@@ -280,8 +280,8 @@ export default function (pi: ExtensionAPI) {
         reasoning: true,
         input: ["text", "image"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        contextWindow: 200000,
-        maxTokens: 32000,
+        contextWindow: 1000000,
+        maxTokens: 64000,
       },
     ],
   })
@@ -300,6 +300,23 @@ export default function (pi: ExtensionAPI) {
 ```
 
 Then pick a model with `/model` or `--provider meridian --model claude-opus-5`.
+
+**`contextWindow` must say `1000000`.** Provider models registered this way are
+static — Prime Agent never calls `GET /v1/models` for them — so this literal is
+the *only* thing driving the TUI footer and auto-compaction
+(`contextTokens > contextWindow - reserveTokens`). Meridian routes every primary
+`opus` request to the SDK's `opus[1m]` alias, so a `200000` here compacts the
+conversation at a fifth of the window you are actually paying for. Restart Prime
+Agent after editing: providers are registered once per process.
+
+Set it back to `200000` if you opt out of extended context on the proxy side —
+`MERIDIAN_1M_CONTEXT_SUPPORT=0`, `MERIDIAN_OPUS_MODEL=opus`, or a plan that
+doesn't include Opus 1M (Meridian then falls back to plain `opus` after one
+Extra-Usage rejection). Leaving `1000000` in that case surfaces as upstream
+errors on long conversations instead of local compaction.
+
+`maxTokens: 64000` is a conservative output cap; Opus 5 supports up to 128000
+and Meridian does not clamp it.
 
 Registering a **new** provider rather than overriding `anthropic` means
 installing this changes nothing until you select one of its models, so an
