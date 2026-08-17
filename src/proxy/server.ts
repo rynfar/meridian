@@ -64,7 +64,7 @@ import {
   DESIGN_UPSTREAM_ORIGIN,
 } from "./design"
 import { checkPluginConfigured } from "./setup"
-import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable } from "./models"
+import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, subscriptionIncludesExtendedContext } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
@@ -4727,11 +4727,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   // --- Model Discovery ---
   // Returns available Claude models in OpenAI-compatible format.
-  // Context window reflects the subscription tier (Max = 1M, others = 200k).
+  // Context window reflects the subscription tier: Max/Team/Enterprise get 1M
+  // on the Opus/Fable tiers, everything else 200k. The tier check is shared
+  // with models.ts (subscriptionIncludesExtendedContext) — an "=== max"
+  // comparison here used to advertise 200k to Team accounts that Meridian was
+  // already routing to opus[1m] (#826).
   app.get("/v1/models", async (c) => {
     const authStatus = await getClaudeAuthStatusAsync()
-    const isMax = authStatus?.subscriptionType === "max"
-    return c.json({ object: "list", data: buildModelList(isMax) })
+    const extendedContext = subscriptionIncludesExtendedContext(authStatus?.subscriptionType)
+    return c.json({ object: "list", data: buildModelList(extendedContext) })
   })
 
   // --- Subscription Quota ---

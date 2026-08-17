@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -402,6 +402,37 @@ describe("hasExtendedContext", () => {
     expect(hasExtendedContext("opus")).toBe(false)
     expect(hasExtendedContext("sonnet")).toBe(false)
     expect(hasExtendedContext("haiku")).toBe(false)
+  })
+})
+
+describe("subscriptionIncludesExtendedContext", () => {
+  it("includes max and its usage variants", () => {
+    expect(subscriptionIncludesExtendedContext("max")).toBe(true)
+    expect(subscriptionIncludesExtendedContext("max_5x")).toBe(true)
+    expect(subscriptionIncludesExtendedContext("max_20x")).toBe(true)
+  })
+
+  it("includes team and enterprise", () => {
+    expect(subscriptionIncludesExtendedContext("team")).toBe(true)
+    expect(subscriptionIncludesExtendedContext("enterprise")).toBe(true)
+  })
+
+  it("excludes pro, free, and unknown tiers", () => {
+    expect(subscriptionIncludesExtendedContext("pro")).toBe(false)
+    expect(subscriptionIncludesExtendedContext("free")).toBe(false)
+    expect(subscriptionIncludesExtendedContext("something-else")).toBe(false)
+  })
+
+  it("is case and whitespace insensitive", () => {
+    expect(subscriptionIncludesExtendedContext("  Team ")).toBe(true)
+    expect(subscriptionIncludesExtendedContext("MAX_20X")).toBe(true)
+  })
+
+  it("excludes missing or empty tiers", () => {
+    expect(subscriptionIncludesExtendedContext(undefined)).toBe(false)
+    expect(subscriptionIncludesExtendedContext(null)).toBe(false)
+    expect(subscriptionIncludesExtendedContext("")).toBe(false)
+    expect(subscriptionIncludesExtendedContext("   ")).toBe(false)
   })
 })
 

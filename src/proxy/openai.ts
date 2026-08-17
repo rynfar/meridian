@@ -938,9 +938,15 @@ const FULL_CAPABILITIES: ModelCapabilities = Object.freeze({
 
 /**
  * Return the static list of available Claude models in OpenAI format.
- * Context windows reflect subscription capabilities.
+ *
+ * @param extendedContextIncluded - whether the caller's subscription includes
+ *   the 1M window on the Opus/Fable tiers (Max, Team, Enterprise). Callers
+ *   derive this from `subscriptionIncludesExtendedContext` in models.ts so the
+ *   advertised window matches what the proxy actually routes to. Sonnet stays
+ *   200k on every plan because Sonnet 1M is always billed as Extra Usage, and
+ *   Haiku has no 1M variant at all.
  */
-export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date.now() / 1000)): OpenAiModel[] {
+export function buildModelList(extendedContextIncluded: boolean, now = Math.floor(Date.now() / 1000)): OpenAiModel[] {
   return [
     {
       id: "claude-sonnet-5",
@@ -966,7 +972,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Opus 5",
-      context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      context_window: extendedContextIncluded ? 1_000_000 : 200_000,
       capabilities: FULL_CAPABILITIES,
     },
     {
@@ -975,7 +981,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Opus 4.6",
-      context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      context_window: extendedContextIncluded ? 1_000_000 : 200_000,
       capabilities: FULL_CAPABILITIES,
     },
     {
@@ -984,7 +990,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Opus 4.7",
-      context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      context_window: extendedContextIncluded ? 1_000_000 : 200_000,
       capabilities: FULL_CAPABILITIES,
     },
     {
@@ -993,7 +999,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Opus 4.8",
-      context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      context_window: extendedContextIncluded ? 1_000_000 : 200_000,
       capabilities: FULL_CAPABILITIES,
     },
     {
@@ -1002,7 +1008,7 @@ export function buildModelList(isMaxSubscription: boolean, now = Math.floor(Date
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Fable 5",
-      context_window: isMaxSubscription ? 1_000_000 : 200_000,
+      context_window: extendedContextIncluded ? 1_000_000 : 200_000,
       capabilities: FULL_CAPABILITIES,
     },
     {

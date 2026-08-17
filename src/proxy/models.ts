@@ -279,6 +279,36 @@ export function hasExtendedContext(model: ClaudeModel): boolean {
   return model.endsWith("[1m]")
 }
 
+/**
+ * Subscription tiers that include the Opus/Fable 1M extended context window
+ * at no Extra Usage cost, per Anthropic's docs
+ * (https://code.claude.com/docs/en/model-config#extended-context): Max, Team,
+ * and Enterprise. Pro and unknown tiers are not included.
+ *
+ * Max is matched by prefix because the auth payload reports plan variants
+ * ("max", "max_5x", "max_20x", ...) rather than a bare tier name.
+ */
+const EXTENDED_CONTEXT_SUBSCRIPTION_PREFIXES: readonly string[] = ["max", "team", "enterprise"]
+
+/**
+ * Whether a subscription tier includes 1M context on the Opus/Fable tiers.
+ *
+ * This is the single source of truth for *advertising* the extended window
+ * (e.g. `GET /v1/models`). It deliberately does NOT gate routing:
+ * mapModelToClaudeModel stays optimistic and lets the runtime Extra-Usage
+ * fallback (recordExtendedContextUnavailable) downgrade when a plan turns out
+ * not to include it — an unknown or stale tier string must never silently cost
+ * a user their 1M window mid-conversation.
+ *
+ * Pure — string inspection only, no I/O.
+ */
+export function subscriptionIncludesExtendedContext(subscriptionType?: string | null): boolean {
+  if (!subscriptionType) return false
+  const normalized = subscriptionType.trim().toLowerCase()
+  if (!normalized) return false
+  return EXTENDED_CONTEXT_SUBSCRIPTION_PREFIXES.some((tier) => normalized.startsWith(tier))
+}
+
 /** Per-profile auth status cache for multi-account support */
 interface AuthCache {
   status: ClaudeAuthStatus | null
