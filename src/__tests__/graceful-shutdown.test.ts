@@ -128,6 +128,28 @@ describe("graceful shutdown", () => {
     expect(typeof body.version === "string" || body.version === undefined).toBe(true)
   })
 
+  // The Stable API Contract entry that plugins depend on. Draining adds a
+  // fourth value to a `status` field that already varied, behind a 503 the
+  // endpoint already returned for "unhealthy" — so the guarantee worth pinning
+  // is that an undrained health check is untouched by any of it.
+  it("leaves the undrained /health contract alone: same keys, never 'draining'", async () => {
+    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const response = await server.app.fetch(new Request("http://localhost/health"))
+    const body = await response.json() as Record<string, unknown>
+
+    expect(body.status).not.toBe("draining")
+    expect(["healthy", "degraded", "unhealthy"]).toContain(String(body.status))
+    expect(typeof body.version).toBe("string")
+    // 200 when authed, 503 when not — both predate this change; the point is
+    // that no new status code appears until beginDrain() is actually called.
+    expect([200, 503]).toContain(response.status)
+    expect(response.headers.get("x-meridian-draining")).toBeNull()
+
+    server.beginDrain!()
+    const drained = await server.app.fetch(new Request("http://localhost/health"))
+    expect((await drained.json() as Record<string, unknown>).status).toBe("draining")
+  }, 20_000)
+
   it("rejects new /v1/messages requests with 503 once draining, without invoking the SDK", async () => {
     const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
     server.beginDrain!()

@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
+import Database from "libsql"
 import { createSqliteStores } from "../telemetry/sqlite"
 import type { ITelemetryStore, IDiagnosticLogStore, RequestMetric } from "../telemetry/types"
 
@@ -370,17 +371,88 @@ describe("SqliteTelemetryStore — memory-store parity for newer fields", () => 
     expect(summary.envelopeViolationCount).toBe(1)
   })
 
-  it("migrates a pre-existing DB created before the new columns", () => {
+  it("migrates a genuinely legacy DB that predates the added columns", () => {
     const dbPath = join(tmpDir, "t3.db")
-    // First open creates the schema (current); to simulate an OLD db we drop
-    // the new columns' data path by writing a metric without them, closing,
-    // and re-opening — the ALTER TABLE migrations must be idempotent.
-    const first = createSqliteStores(dbPath, 7)
-    first.telemetry.record(makeMetric({ requestId: "req-old" }))
-    const second = createSqliteStores(dbPath, 7)
-    second.telemetry.record(makeMetric({ requestId: "req-new", profileId: "work" }))
-    const rows = second.telemetry.getRecent({ limit: 10 })
-    expect(rows.find(r => r.requestId === "req-new")!.profileId).toBe("work")
-    expect(rows.find(r => r.requestId === "req-old")!.profileId).toBeUndefined()
+
+    // Build the OLD table by hand. Opening through createSqliteStores would
+    // create today's schema, so every ALTER TABLE could be deleted and the
+    // test would still pass — it has to start from a table that really is
+    // missing the columns.
+    const legacy = new Database(dbPath)
+    legacy.exec(`
+      CREATE TABLE metrics (
+        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id           TEXT    NOT NULL,
+        timestamp            INTEGER NOT NULL,
+        adapter              TEXT,
+        model                TEXT    NOT NULL,
+        request_model        TEXT,
+        mode                 TEXT    NOT NULL,
+        is_resume            INTEGER NOT NULL,
+        is_passthrough       INTEGER NOT NULL,
+        lineage_type         TEXT,
+        has_deferred_tools   INTEGER,
+        deferred_tool_count  INTEGER,
+        tool_count           INTEGER,
+        discovered_tools     TEXT,
+        session_discovered_count INTEGER,
+        message_count        INTEGER,
+        sdk_session_id       TEXT,
+        status               INTEGER NOT NULL,
+        queue_wait_ms        REAL    NOT NULL,
+        proxy_overhead_ms    REAL    NOT NULL,
+        ttfb_ms              REAL,
+        upstream_duration_ms REAL    NOT NULL,
+        total_duration_ms    REAL    NOT NULL,
+        content_blocks       INTEGER NOT NULL,
+        text_events          INTEGER NOT NULL,
+        error                TEXT,
+        input_tokens         INTEGER,
+        output_tokens        INTEGER,
+        cache_read_input_tokens INTEGER,
+        cache_creation_input_tokens INTEGER,
+        cache_hit_rate       REAL
+      );
+    `)
+    const legacyColumns = (legacy.prepare("PRAGMA table_info(metrics)").all() as Array<{ name: string }>)
+      .map(c => c.name)
+    expect(legacyColumns).not.toContain("session_queue_wait_ms")
+    expect(legacyColumns).not.toContain("sdk_queue_wait_ms")
+    expect(legacyColumns).not.toContain("profile_id")
+
+    legacy.exec(`
+      INSERT INTO metrics (
+        request_id, timestamp, model, mode, is_resume, is_passthrough, status,
+        queue_wait_ms, proxy_overhead_ms, ttfb_ms, upstream_duration_ms,
+        total_duration_ms, content_blocks, text_events
+      ) VALUES ('req-old', ${Date.now()}, 'sonnet', 'stream', 0, 0, 200, 5, 12, 120, 800, 850, 3, 10);
+    `)
+    legacy.close()
+
+    // Opening through the real entrypoint must run the ALTERs in place.
+    const migrated = createSqliteStores(dbPath, 7)
+    migrated.telemetry.record(makeMetric({
+      requestId: "req-new",
+      profileId: "work",
+      sessionQueueWaitMs: 42,
+      sdkQueueWaitMs: 7,
+    }))
+
+    const rows = migrated.telemetry.getRecent({ limit: 10 })
+    const fresh = rows.find(r => r.requestId === "req-new")!
+    expect(fresh.profileId).toBe("work")
+    expect(fresh.sessionQueueWaitMs).toBe(42)
+    expect(fresh.sdkQueueWaitMs).toBe(7)
+
+    // The pre-existing row survives and reads back on the NOT NULL DEFAULT 0
+    // columns rather than throwing or coming back null.
+    const old = rows.find(r => r.requestId === "req-old")!
+    expect(old).toBeDefined()
+    expect(old.profileId).toBeUndefined()
+    expect(old.sessionQueueWaitMs ?? 0).toBe(0)
+    expect(old.sdkQueueWaitMs ?? 0).toBe(0)
+
+    // Idempotent: a second open re-runs the ALTERs and must not throw.
+    expect(() => createSqliteStores(dbPath, 7)).not.toThrow()
   })
 })
