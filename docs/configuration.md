@@ -221,7 +221,11 @@ other and never see this concurrency error. Three further exemptions:
   `x-meridian-source` starts with `fork-` or `subagent-` has told Meridian it
   is knowingly running a parallel turn under a shared session key. Those
   turns are still serialized, but a stale lineage costs them a replay rather
-  than a `400` — the behavior they had before serialization existed.
+  than a `400` — the behavior they had before serialization existed. A
+  `subagent-` source also selects the base 200k model tier (for example,
+  `opus` instead of `opus[1m]`) across adapters. Headerless subagent flows skip
+  the shared fingerprint cache to avoid colliding with their parent; provide a
+  distinct session key for multi-turn subagents that need warm cache resume.
 - **The lease cannot wedge a session forever.** A turn holds its session's
   serialization lease until its response body completes. If that never
   happens, the lease is force-released after
