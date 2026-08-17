@@ -94,6 +94,7 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, invalidateDiskProfileCache, type ResolvedProfile } from "./profiles"
+import { organizationNames, organizationNeedsRefresh, refreshOrganizationNameSoon } from "./organizationName"
 import {
   getRoutingMode,
   classifyRouteKind,
@@ -7888,6 +7889,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   app.get("/profiles/list", async (c) => {
     const profiles = listProfiles(finalConfig.profiles, finalConfig.defaultProfile)
+    const organizations = organizationNames()
     // Enrich with live auth status
     const enriched = await Promise.all(profiles.map(async (p) => {
       const resolved = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile, p.id)
@@ -7897,6 +7899,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         envOverrides
       )
       const cacheInfo = getAuthCacheInfo(p.id !== "default" ? p.id : undefined)
+      const organization = organizations[p.id]
+      // Only claude-max profiles have an OAuth account to ask about, and only
+      // their credentials are a directory this can name — an API-key profile
+      // would otherwise be looked up against the host's own ~/.claude and
+      // labelled with an unrelated organization.
+      if (resolved.type === "claude-max" && organizationNeedsRefresh(organization, Date.now())) {
+        refreshOrganizationNameSoon(p.id, { claudeConfigDir: resolved.env.CLAUDE_CONFIG_DIR })
+      }
       // The tier that sizes the plan is never in `claude auth status` — only
       // the family (`max`), which covers both 5x and 20x. It is on disk, in
       // the profile's own credential file.
@@ -7923,6 +7933,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         ...p,
         email: auth?.email || null,
         subscriptionType: auth?.subscriptionType || null,
+        organizationName: organization?.name ?? null,
         rateLimitTier: plan.rateLimitTier ?? null,
         seatTier: plan.seatTier ?? null,
         allowance: allowance.multiplier,

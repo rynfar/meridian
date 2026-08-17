@@ -4,6 +4,7 @@
  */
 
 import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
+import { profileFactsJs } from "./profileFacts"
 import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrder"
 import { WINDOW_LABELS } from "./profileUsage"
 
@@ -215,6 +216,7 @@ ${reorderLiveRegionHtml}
 </div>
 
 <script>
+` + profileFactsJs + `
 // Inlined from src/telemetry/profileUsage.ts. The TS source is unit-tested
 // (see profile-usage.test.ts) and the labels object is interpolated here so
 // the browser script and TS module share their data.
@@ -358,6 +360,16 @@ async function refresh() {
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+function factRows(facts) {
+  return facts.map(function (f) {
+    var tone = f.tone === 'ok' ? ' status-ok' : f.tone === 'err' ? ' status-err' : '';
+    var title = f.title ? ' title="' + esc(f.title) + '"' : '';
+    var cached = f.cached ? ' <span class="cached-tag">(cached)</span>' : '';
+    return '<span class="detail-label">' + esc(f.label) + '</span>'
+      + '<span class="detail-value' + tone + '"' + title + '>' + esc(f.value) + cached + '</span>';
+  }).join('');
+}
+
 // Mirrors src/telemetry/cachedFacts.ts (unit-tested there). Marked per value
 // rather than per card: a card mixes a live status with a remembered email, so
 // one banner across it would mislabel whichever half it doesn't apply to.
@@ -429,8 +441,6 @@ function renderSpentNote(spent) {
     + '. Refused ' + esc(timeAgo(s.at)) + '.'
     + '<div class="spent-why">' + esc(s.why) + '. The percentages below are the last successful read, not live.</div>'
     + '</div>';
-}
-}
 
 function renderUsageSection(profileQuota) {
   // No quota data for this profile yet (cold start or fetch failed) — hide
@@ -582,53 +592,7 @@ function render(data, quotaData) {
       html += '<div class="rename-error">' + esc(renameError) + '</div>';
     }
 
-    html += '<div class="profile-details">';
-    var authProvenance = p.authProvenance || 'live';
-    var authStale = authProvenance !== 'live';
-    html += '<span class="detail-label">Status</span>';
-    html += renderFactValue(
-      authProvenance === 'never' ? null : (p.loggedIn ? '\u2713 Authenticated' : '\u2717 Not logged in'),
-      authStale,
-      p.loggedIn ? 'status-ok' : 'status-err');
-
-    var emailCell = renderFactValue(p.email, authStale);
-    if (emailCell) html += "<span class=\"detail-label\">Email</span>" + emailCell;
-
-    // Two rows, because two different fields answer two different questions
-    // and either can be known without the other: a Team seat whose seat_tier
-    // is missing has a trustworthy family and an unknowable plan.
-    if (p.accountType) {
-      html += '<span class="detail-label">Account</span>';
-      html += '<span class="detail-value">' + esc(p.accountType) + '</span>';
-    }
-    var planName = p.planName || p.planLabel || p.subscriptionType;
-    if (planName) {
-      html += '<span class="detail-label">Plan</span>';
-      html += '<span class="detail-value" title="' + esc(p.seatTier || p.rateLimitTier || '') + '">'
-        + esc(planName) + cachedTag(factProvenance(planName, authStale)) + '</span>';
-    }
-    if (p.allowance) {
-      // The number that says how much work the account can do. The plan alone
-      // does not: Max 5x and Max 20x both report "max" and differ 4x.
-      html += '<span class="detail-label">Allowance</span>';
-      html += '<span class="detail-value" title="' + esc(p.rateLimitTier || '') + '">' + esc(p.allowance)
-        + ' <span style="color:var(--muted);font-weight:400">of a Pro plan\u2019s Claude Code usage</span></span>';
-    }
-
-    if (p.aliases && p.aliases.length > 0) {
-      html += "<span class=\"detail-label\">Former names</span>";
-      html += "<span class=\"detail-value\" title=\"Requests naming these are served by this profile, until the name is added again\">"
-        + p.aliases.map(esc).join(", ") + "</span>";
-    }
-    if (p.lastSuccessAt) {
-      html += '<span class="detail-label">Last Verified</span>';
-      html += '<span class="detail-value" style="color:var(--green)">' + timeAgo(p.lastSuccessAt) + '</span>';
-    }
-    if (p.lastCheckedAt && (!p.lastSuccessAt || p.lastCheckedAt !== p.lastSuccessAt)) {
-      html += '<span class="detail-label">Last Checked</span>';
-      html += '<span class="detail-value">' + timeAgo(p.lastCheckedAt) + '</span>';
-    }
-    html += '</div>';
+    html += '<div class="profile-details">' + factRows(profileFacts(p)) + '</div>';
 
     if (!p.loggedIn) {
       html += '<div style="margin-top:12px;padding:10px 14px;background:rgba(210,153,34,0.1);border:1px solid rgba(210,153,34,0.3);border-radius:8px;font-size:12px">';
@@ -658,16 +622,6 @@ function render(data, quotaData) {
   html += '</div>';
   document.getElementById('content').innerHTML = html;
   meridianReorder.restoreFocus(refocusId);
-}
-
-function timeAgo(ts) {
-  if (!ts) return '\u2014';
-  var s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 5) return 'just now';
-  if (s < 60) return s + 's ago';
-  if (s < 3600) return Math.floor(s/60) + 'm ago';
-  if (s < 86400) return Math.floor(s/3600) + 'h ago';
-  return new Date(ts).toLocaleString();
 }
 
 function copyCmd(btn) {
