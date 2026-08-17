@@ -7,7 +7,6 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
-import { PriorityPromotionLockQueue, holdPromotionLock } from "./priorityFailback"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { linkRequestAbort } from "./requestAbort"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
@@ -891,7 +890,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   const priorityAssignments = new AssignmentStore(PRIORITY_ASSIGNMENTS_MAX)
   // The per-window reset cap lives in routing.ts (cooldownCapMs): a single
   // constant here is what let a 6-hour bound flatten a weekly reset (#790).
-  const priorityPromotionLocks = new PriorityPromotionLockQueue()
   const PRIORITY_DEFAULT_COOLDOWN_MS = 10 * 60_000
 
   function priorityProfileOrderSetting(): string[] | undefined {
@@ -1345,59 +1343,33 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     requestKind,
                   })
               }
-              let assignment = sessionKey ? priorityAssignments.get(sessionKey) : undefined
-              let releasePromotionLock: (() => void) | undefined
-              let streamOwnsPromotionLock = false
-              if (sessionKey !== null && shouldPromote(assignment)) {
-                try {
-                  releasePromotionLock = await priorityPromotionLocks.acquire(sessionKey, c.req.raw.signal)
-                } catch (error) {
-                  if (requestAbort.controller.signal.aborted) {
-                    return new Response(null, { status: 499, statusText: "Client Closed Request" })
-                  }
-                  throw error
-                }
-                assignment = priorityAssignments.get(sessionKey)
-              }
-              try {
-                const promoting = shouldPromote(assignment)
-                const assignedProfile = assignment?.profileId
-                const assignmentIsHealthy = assignedProfile !== undefined
-                  && order.includes(assignedProfile)
-                  && !priorityExhaustion.isExhausted(assignedProfile)
-                const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
-                const first = promoting
-                  ? preferred
-                  : assignmentIsHealthy
-                    ? assignedProfile
-                    : pick?.id ?? preferred
-                const candidates = [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
-                const assignmentRequestId = requestKind === "human" && requestId !== undefined
-                  ? requestId
-                  : assignment?.requestId
-                const response = await dispatchPriority({
-                  context: c,
-                  body,
-                  requestMeta,
-                  candidateIds: candidates,
-                  sessionKey,
-                  wantsStream: body.stream === true,
-                  freshCandidateId: promoting ? preferred : null,
-                  turnWatchdogSignal: options.turnWatchdogSignal,
-                  assignmentRequestId,
-                  expectedAssignment: assignment,
-                })
-                if (promoting && body.stream === true && releasePromotionLock !== undefined) {
-                  const lockedResponse = holdPromotionLock(response, c.req.raw.signal, releasePromotionLock)
-                  const completion = responseCompletions.get(response)
-                  if (completion) responseCompletions.set(lockedResponse, completion)
-                  streamOwnsPromotionLock = true
-                  return lockedResponse
-                }
-                return response
-              } finally {
-                if (!streamOwnsPromotionLock) releasePromotionLock?.()
-              }
+              const assignment = sessionKey ? priorityAssignments.get(sessionKey) : undefined
+              const promoting = shouldPromote(assignment)
+              const assignedProfile = assignment?.profileId
+              const assignmentIsHealthy = assignedProfile !== undefined
+                && order.includes(assignedProfile)
+                && !priorityExhaustion.isExhausted(assignedProfile)
+              const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
+              const first = promoting
+                ? preferred
+                : assignmentIsHealthy
+                  ? assignedProfile
+                  : pick?.id ?? preferred
+              const candidates = [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
+              const assignmentRequestId = requestKind === "human" && requestId !== undefined
+                ? requestId
+                : assignment?.requestId
+              return dispatchPriority({
+                context: c,
+                body,
+                requestMeta,
+                candidateIds: candidates,
+                sessionKey,
+                wantsStream: body.stream === true,
+                freshCandidateId: promoting ? preferred : null,
+                assignmentRequestId,
+                expectedAssignment: assignment,
+              })
             }
 
           }

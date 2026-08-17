@@ -25,21 +25,33 @@ type PromotionConcurrencyGate = {
   maxActive: number
   blocked: boolean
   readonly entered: Promise<void>
-  readonly secondEntered: Promise<void>
   readonly release: Promise<void>
   readonly signalEntered: () => void
-  readonly signalSecondEntered: () => void
+  readonly open: () => void
+}
+
+type StreamCompletionGate = {
+  readonly phase: number
+  readonly entered: Promise<void>
+  readonly release: Promise<void>
+  readonly signalEntered: () => void
   readonly open: () => void
 }
 
 function createPromotionConcurrencyGate(phase: number): PromotionConcurrencyGate {
   let signalEntered = (): void => {}
-  let signalSecondEntered = (): void => {}
   let open = (): void => {}
   const entered = new Promise<void>(resolve => { signalEntered = resolve })
-  const secondEntered = new Promise<void>(resolve => { signalSecondEntered = resolve })
   const release = new Promise<void>(resolve => { open = resolve })
-  return { phase, calls: 0, active: 0, maxActive: 0, blocked: false, entered, secondEntered, release, signalEntered, signalSecondEntered, open }
+  return { phase, calls: 0, active: 0, maxActive: 0, blocked: false, entered, release, signalEntered, open }
+}
+
+function createStreamCompletionGate(phase: number): StreamCompletionGate {
+  let signalEntered = (): void => {}
+  let open = (): void => {}
+  const entered = new Promise<void>(resolve => { signalEntered = resolve })
+  const release = new Promise<void>(resolve => { open = resolve })
+  return { phase, entered, release, signalEntered, open }
 }
 
 let capturedEnvs: string[] = []
@@ -50,6 +62,7 @@ let failingDirs = new Set<string>()
 // lands behind message_start, where the sniffer must not touch it.
 let failAfterContentDirs = new Set<string>()
 let promotionConcurrencyGate: PromotionConcurrencyGate | null = null
+let streamCompletionGate: StreamCompletionGate | null = null
 const DEFAULT_FAILURE = "429 rate limit reached for this account"
 // Classifies as billing_error (402): an account whose subscription lapsed or
 // whose card was declined. Per-account like a quota refusal, but with no reset
@@ -81,7 +94,6 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       const tracksPromotion = gate !== null && gate.phase === phase
       if (tracksPromotion) {
         gate.calls += 1
-        if (gate.calls === 2) gate.signalSecondEntered()
         gate.active += 1
         gate.maxActive = Math.max(gate.maxActive, gate.active)
         if (!gate.blocked) {
@@ -104,6 +116,11 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         }
         if (streaming) {
           yield withReturnedSessionId(messageStart("msg-1"))
+          const completionGate = streamCompletionGate
+          if (completionGate !== null && completionGate.phase === phase) {
+            completionGate.signalEntered()
+            await completionGate.release
+          }
           yield withReturnedSessionId(textBlockStart(0))
           yield withReturnedSessionId(textDelta(0, "ok from " + dir))
           yield withReturnedSessionId(blockStop(0))
@@ -248,6 +265,7 @@ beforeEach(() => {
   failureMessage = DEFAULT_FAILURE
   failAfterContentDirs = new Set()
   promotionConcurrencyGate = null
+  streamCompletionGate = null
   capturedSdkCalls = []
   capturePhase = 0
   savedPriorityFailbackSetting = loadSettings().priorityFailback
@@ -663,44 +681,48 @@ describe("priority routing", () => {
     expect(gate.maxActive).toBe(1)
   })
 
-  it("does not let a stale fallback completion overwrite a newer preferred assignment", async () => {
+  it("releases a queued turn when the promoted stream completes", async () => {
     // Given
     process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
     const app = createTestApp()
-    await assignToFallback(app, "assignment-race-session")
-    const racePhase = ++capturePhase
-    const gate = createPromotionConcurrencyGate(racePhase)
+    await assignToFallback(app, "completed-promotion-session")
+    const promotionPhase = ++capturePhase
+    const gate = createPromotionConcurrencyGate(promotionPhase)
     promotionConcurrencyGate = gate
-    const staleFallback = post(app, {
-      "x-opencode-session": "assignment-race-session",
-      "x-opencode-request": "request-1",
-      "x-opencode-request-kind": "human",
-    }, TOOL_CONTINUATION)
+    const first = postStream(app, {
+      headers: {
+        "x-opencode-session": "completed-promotion-session",
+        "x-opencode-request": "request-2",
+        "x-opencode-request-kind": "human",
+      },
+      content: CONTINUED_AFTER_PERSONAL,
+    })
     await gate.entered
-
-    // When
-    const preferred = await post(app, {
-      "x-opencode-session": "assignment-race-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
-    await preferred.text()
-    gate.open()
-    const staleResponse = await staleFallback
-    await staleResponse.text()
-    promotionConcurrencyGate = null
-    process.env.MERIDIAN_PRIORITY_FAILBACK = "new-conversation"
-    capturedEnvs = []
-    const followUp = await post(app, {
-      "x-opencode-session": "assignment-race-session",
+    const queued = post(app, {
+      "x-opencode-session": "completed-promotion-session",
       "x-opencode-request": "request-3",
       "x-opencode-request-kind": "human",
     }, CONTINUED_AFTER_PERSONAL)
-    const followUpBody = await followUp.text()
+    await new Promise<void>(resolve => setImmediate(resolve))
+    gate.open()
+
+    // When
+    const firstResponse = await first
+    const firstBody = await firstResponse.text()
+    const queuedResponse = await queued
+    const queuedBody = await queuedResponse.json()
 
     // Then
-    expect(followUpBody).toContain("prof-work")
-    expect(capturedEnvs.every(dir => dir.includes("prof-work"))).toBe(true)
+    expect(firstBody).toContain("prof-work")
+    expect(gate.maxActive).toBe(1)
+    expect(queuedResponse.status).toBe(400)
+    expect(queuedBody).toEqual({
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID.",
+      },
+    })
   })
 
   it("releases a queued promotion when the promoted stream is cancelled", async () => {
@@ -741,14 +763,16 @@ describe("priority routing", () => {
     expect(gate.maxActive).toBe(1)
   })
 
-  it("releases a queued promotion when the promoted request signal aborts", async () => {
+  it("holds the turn lease until an aborted promoted stream completes", async () => {
     // Given
     process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
     const app = createTestApp()
     await assignToFallback(app, "signal-cancelled-promotion-session")
     const promotionPhase = ++capturePhase
     const gate = createPromotionConcurrencyGate(promotionPhase)
+    const completionGate = createStreamCompletionGate(promotionPhase)
     promotionConcurrencyGate = gate
+    streamCompletionGate = completionGate
     const requestController = new AbortController()
     const first = postStream(app, {
       headers: {
@@ -760,32 +784,44 @@ describe("priority routing", () => {
       signal: requestController.signal,
     })
     await gate.entered
+    let queuedPromotionResolved = false
     const second = post(app, {
       "x-opencode-session": "signal-cancelled-promotion-session",
       "x-opencode-request": "request-3",
       "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    }, CONTINUED_AFTER_PERSONAL).then(response => {
+      queuedPromotionResolved = true
+      return response
+    })
     await new Promise<void>(resolve => setImmediate(resolve))
     gate.open()
     const firstResponse = await first
+    await completionGate.entered
 
     // When
     requestController.abort("client timeout")
-    const queuedPromotionStarted = await Promise.race([
-      gate.secondEntered.then(() => true),
-      new Promise<boolean>(resolve => setImmediate(() => setImmediate(() => resolve(false)))),
-    ])
+    await new Promise<void>(resolve => setImmediate(() => setImmediate(resolve)))
+    const queuedPromotionResolvedBeforeCompletion = queuedPromotionResolved
+    completionGate.open()
     const firstBody = firstResponse.body
     if (firstBody !== null) await firstBody.cancel("test cleanup")
     const secondResponse = await second
-    const secondBody = await secondResponse.text()
+    const secondBody = await secondResponse.json()
 
     // Then
-    expect(queuedPromotionStarted).toBe(true)
-    expect(secondBody).toContain("prof-work")
+    expect(queuedPromotionResolvedBeforeCompletion).toBe(false)
+    expect(secondResponse.status).toBe(400)
+    expect(secondBody).toEqual({
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID.",
+      },
+    })
+    expect(gate.maxActive).toBe(1)
   })
 
-  it("removes an aborted waiter without returning a generic 500", async () => {
+  it("returns 499 for an aborted waiter and rejects a superseded following turn", async () => {
     // Given
     process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
     const app = createTestApp()
@@ -820,14 +856,26 @@ describe("priority routing", () => {
     // When
     requestController.abort("client timeout")
     const cancelledResponse = await cancelled
+    const cancelledBody = await cancelledResponse.json()
     gate.open()
     const [firstResponse, thirdResponse] = await Promise.all([first, third])
     await firstResponse.text()
-    const thirdBody = await thirdResponse.text()
+    const thirdBody = await thirdResponse.json()
 
     // Then
     expect(cancelledResponse.status).toBe(499)
-    expect(thirdBody).toContain("prof-work")
+    expect(cancelledBody).toEqual({
+      type: "error",
+      error: { type: "request_cancelled", message: "The request was cancelled" },
+    })
+    expect(thirdResponse.status).toBe(400)
+    expect(thirdBody).toEqual({
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID.",
+      },
+    })
   })
 
   it("does not replay a promoted stream on fallback after content starts", async () => {
