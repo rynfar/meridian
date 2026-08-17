@@ -25,6 +25,19 @@
 import { createHash } from "node:crypto"
 
 export type RoutingMode = "active" | "sticky" | "priority"
+export type PriorityFailbackPolicy = "new-conversation" | "next-user-turn"
+
+export type PriorityAssignment = {
+  readonly profileId: string
+  readonly requestId: string | undefined
+}
+
+export type PriorityPromotionInput = {
+  readonly policy: PriorityFailbackPolicy
+  readonly assignment: PriorityAssignment
+  readonly requestId: string | undefined
+  readonly requestKind: string | undefined
+}
 
 /**
  * Parse a routing mode string (from settings or MERIDIAN_ROUTING).
@@ -36,6 +49,18 @@ export function getRoutingMode(raw: string | undefined): RoutingMode {
   if (lower === "sticky") return "sticky"
   if (lower === "priority") return "priority"
   return "active"
+}
+
+export function getPriorityFailbackPolicy(raw: string | undefined): PriorityFailbackPolicy {
+  return raw?.toLowerCase() === "next-user-turn" ? "next-user-turn" : "new-conversation"
+}
+
+export function shouldPromotePriorityAssignment(input: PriorityPromotionInput): boolean {
+  // Request ID equality, not kind alone, keeps same-turn tool continuations on fallback.
+  return input.policy === "next-user-turn"
+    && input.requestKind === "human"
+    && input.requestId !== undefined
+    && input.requestId !== input.assignment.requestId
 }
 
 /**
@@ -120,11 +145,12 @@ export function choosePriorityProfile(
   order: readonly string[],
   isExhausted: (id: string) => boolean,
 ): { id: string; allExhausted: boolean } | undefined {
-  if (order.length === 0) return undefined
+  const preferred = order[0]
+  if (preferred === undefined) return undefined
   for (const id of order) {
     if (!isExhausted(id)) return { id, allExhausted: false }
   }
-  return { id: order[0]!, allExhausted: true }
+  return { id: preferred, allExhausted: true }
 }
 
 export interface ExhaustionEntry {
@@ -183,12 +209,12 @@ export class ProfileExhaustion {
  * After a restart the next request re-establishes the assignment.
  */
 export class AssignmentStore {
-  private readonly entries = new Map<string, string>()
+  private readonly entries = new Map<string, PriorityAssignment>()
 
   constructor(private readonly max: number) {}
 
   /** Read an assignment, marking it most-recently-used. */
-  get(key: string): string | undefined {
+  get(key: string): PriorityAssignment | undefined {
     const value = this.entries.get(key)
     if (value === undefined) return undefined
     this.entries.delete(key)
@@ -197,13 +223,23 @@ export class AssignmentStore {
   }
 
   /** Write an assignment, marking it most-recently-used and evicting if over capacity. */
-  set(key: string, value: string): void {
+  set(key: string, value: PriorityAssignment): void {
     this.entries.delete(key)
     this.entries.set(key, value)
     if (this.entries.size > this.max) {
       const oldest = this.entries.keys().next().value
       if (oldest !== undefined) this.entries.delete(oldest)
     }
+  }
+
+  compareAndSet(
+    key: string,
+    expected: PriorityAssignment | undefined,
+    value: PriorityAssignment,
+  ): boolean {
+    if (this.entries.get(key) !== expected) return false
+    this.set(key, value)
+    return true
   }
 
   get size(): number {
