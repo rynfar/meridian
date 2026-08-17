@@ -114,7 +114,8 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // variants seen so far and the daily/monthly/5-hour ones that would
   // otherwise be the next report.
   if (HTTP_429.test(lower) || lower.includes("rate limit") || lower.includes("too many requests")
-    || HIT_YOUR_LIMIT.test(lower) || lower.includes("usage limit reached")) {
+    || HIT_YOUR_LIMIT.test(lower) || lower.includes("usage limit reached")
+    || lower.includes("out of usage credits")) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? extendedContextHint(model)
       : ""

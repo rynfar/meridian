@@ -620,6 +620,12 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(r.status).toBe(429)
   })
 
+  it("maps the CLI's 'You're out of usage credits' to rate_limit_error", () => {
+    const r = classifyError("Claude Code returned an error result: You're out of usage credits. /model to switch models.")
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
   // #764 and #787 were the same bug twice: a new qualifier, a 500 instead of
   // failover, a PR. These pin the shape so the next variant is already covered.
   it.each([
