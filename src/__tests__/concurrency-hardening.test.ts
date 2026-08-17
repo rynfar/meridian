@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import {
   assistantMessage,
   messageStart,
@@ -65,6 +65,14 @@ mock.module("../mcpTools", () => ({
 
 const { createProxyServer } = await import("../proxy/server")
 const { telemetryStore } = await import("../telemetry")
+const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
+
+// The SDK semaphore is a process-wide singleton cached on first use, so a file
+// that leaves one behind silently overrides the next file's maxConcurrent.
+// Reset on both sides: the permit-wait test below depends on its own limit of
+// 1, and proxy-concurrency-limiter.test.ts depends on getting a fresh one.
+beforeEach(() => { resetProcessSdkSemaphoreForTests() })
+afterEach(() => { resetProcessSdkSemaphoreForTests() })
 
 function metricFor(requestId: string) {
   return telemetryStore.getRecent({ limit: 500 }).find(m => m.requestId === requestId)

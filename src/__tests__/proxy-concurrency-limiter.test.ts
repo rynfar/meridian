@@ -54,6 +54,7 @@ mock.module("../mcpTools", () => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
+const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
 
 const PROFILES = [
   { id: "work", claudeConfigDir: "/tmp/meridian-test-conc-work" },
@@ -110,6 +111,11 @@ const savedEnv: Record<string, string | undefined> = {}
 
 describe("SDK concurrency limiter", () => {
   beforeEach(() => {
+    // The SDK semaphore is a process-wide singleton cached on first use, so
+    // these bounds only mean anything if this file gets a fresh one. Without
+    // the reset the assertions quietly measure whichever limit some earlier
+    // test file happened to install first.
+    resetProcessSdkSemaphoreForTests()
     sdkActive = 0
     sdkPeak = 0
     sdkGate = Promise.resolve()
@@ -125,6 +131,7 @@ describe("SDK concurrency limiter", () => {
 
   afterEach(() => {
     openGate()
+    resetProcessSdkSemaphoreForTests()
     __setFetchOAuthUsageOverride(null)
     for (const [k, v] of Object.entries(savedEnv)) {
       if (v === undefined) delete process.env[k]
