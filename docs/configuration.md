@@ -156,6 +156,11 @@ While draining:
   }
   ```
 
+  `/v1/responses` reports errors in the OpenAI envelope, so it returns the same
+  status, header and `type` in its own shape — `{"error": {"type":
+  "overloaded_error", "message": "...", "code": null}}`. Match on the status
+  code or the `x-meridian-draining` header rather than the body shape.
+
 - Requests already in flight when draining started are left to finish; the
   port only closes once they're all done or the grace period elapses,
   whichever comes first. If the grace period elapses first, a warning is

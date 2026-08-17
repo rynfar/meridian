@@ -104,12 +104,14 @@ describe("drain contract on the OpenAI-compatible routes", () => {
 
     expect(res.status).toBe(503)
     expect(res.headers.get("x-meridian-draining")).toBe("1")
-    const body = await res.json() as { error?: { type?: string; message?: string } }
+    const body = await res.json() as { type?: string; error?: { type?: string; message?: string } }
     // The bug: the inner 503 was rewrapped as `upstream_error` with the whole
     // inner JSON stringified into `message`, and the header was dropped.
     expect(body.error?.type).toBe("overloaded_error")
     expect(body.error?.message).toContain("shutting down")
     expect(body.error?.message).not.toContain("{")
+    // ...and in this route's own envelope, which is the Anthropic one.
+    expect(body.type).toBe("error")
   })
 
   it("refuses /v1/responses with the drain contract", async () => {
@@ -124,8 +126,13 @@ describe("drain contract on the OpenAI-compatible routes", () => {
 
     expect(res.status).toBe(503)
     expect(res.headers.get("x-meridian-draining")).toBe("1")
-    const body = await res.json() as { error?: { type?: string } }
+    // /v1/responses answers every other error -- including the two 400s
+    // beside it -- in the OpenAI envelope, so the drain 503 must match rather
+    // than hand a Codex-style client the one reply it parses differently.
+    const body = await res.json() as { type?: string; error?: { type?: string; code?: unknown } }
     expect(body.error?.type).toBe("overloaded_error")
+    expect(body).toHaveProperty("error.code", null)
+    expect(body.type).toBeUndefined()
   })
 
   it("cannot be talked out of draining by a spoofed internal-hop header", async () => {

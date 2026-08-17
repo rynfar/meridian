@@ -526,10 +526,22 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // exempted by a per-instance token rather than a fixed header name, so the
   // exemption can never be claimed from the wire.
   const internalHopToken = randomUUID()
-  const drainingResponse = (): Response => new Response(JSON.stringify({
-    type: "error",
-    error: { type: "overloaded_error", message: "Meridian is shutting down and is not accepting new requests. Retry against another instance." },
-  }), { status: 503, headers: { "Content-Type": "application/json", "x-meridian-draining": "1" } })
+  /** Which error envelope a public route speaks. */
+  type ErrorShape = "anthropic" | "openai"
+  const errorEnvelope = (shape: ErrorShape, type: string, message: string) =>
+    shape === "anthropic"
+      ? { type: "error", error: { type, message } }
+      : { error: { type, message, code: null } }
+  const DRAIN_MESSAGE = "Meridian is shutting down and is not accepting new requests. Retry against another instance."
+  // Each route answers in its own envelope. /v1/responses reports every other
+  // error (both 400s below it) in the OpenAI shape, so handing it the
+  // Anthropic one here would make the drain 503 the single reply on that route
+  // a Codex-style client cannot parse the way it parses everything else.
+  const drainingResponse = (shape: ErrorShape = "anthropic"): Response =>
+    new Response(JSON.stringify(errorEnvelope(shape, "overloaded_error", DRAIN_MESSAGE)), {
+      status: 503,
+      headers: { "Content-Type": "application/json", "x-meridian-draining": "1" },
+    })
 
   /**
    * Relay what the internal /v1/messages hop actually said.
@@ -543,7 +555,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    */
   async function relayInnerError(
     internalRes: Response,
-    shape: "anthropic" | "openai",
+    shape: ErrorShape,
   ): Promise<Response> {
     const errBody = await internalRes.text()
     let innerType: string | undefined
@@ -553,11 +565,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       innerType = parsed?.error?.type
       innerMessage = parsed?.error?.message
     } catch { /* not JSON — fall back to the raw text */ }
-    const type = innerType ?? "upstream_error"
-    const message = innerMessage ?? errBody
-    const payload = shape === "anthropic"
-      ? { type: "error", error: { type, message } }
-      : { error: { type, message, code: null } }
+    const payload = errorEnvelope(shape, innerType ?? "upstream_error", innerMessage ?? errBody)
     const headers: Record<string, string> = { "Content-Type": "application/json" }
     const drainingHeader = internalRes.headers.get("x-meridian-draining")
     if (drainingHeader) headers["x-meridian-draining"] = drainingHeader
@@ -4954,7 +4962,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // the codex adapter is selected (forces passthrough; preset OFF).
   // See src/proxy/openaiResponses.ts for the translation logic.
   app.post("/v1/responses", async (c) => {
-    if (draining) return drainingResponse()
+    if (draining) return drainingResponse("openai")
     const rawBody = await c.req.json() as ResponsesRequest
     const anthropicBody = translateResponsesToAnthropic(rawBody)
 
