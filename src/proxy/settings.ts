@@ -11,6 +11,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { homedir } from "node:os"
+import type { PriorityFailbackPolicy } from "./routing"
 
 /**
  * Resolve the settings file path.
@@ -40,6 +41,7 @@ export interface MeridianSettings {
   /** Priority-mode pool order (highest priority first). Falls back to
    *  profiles.json order. MERIDIAN_PROFILE_ORDER env var takes precedence. */
   profileOrder?: string[]
+  priorityFailback?: PriorityFailbackPolicy
 }
 
 /** Read settings from disk. Returns empty object if file doesn't exist or is invalid. */

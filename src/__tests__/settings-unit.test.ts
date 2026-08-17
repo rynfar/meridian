@@ -16,17 +16,22 @@ describe("settings module", () => {
   const tempDir = join(tmpdir(), `meridian-settings-unit-${process.pid}`)
   const settingsFile = join(tempDir, "settings.json")
   let savedConfigDir: string | undefined
+  let savedPriorityFailback: string | undefined
 
   beforeEach(() => {
     savedConfigDir = process.env.MERIDIAN_CONFIG_DIR
+    savedPriorityFailback = process.env.MERIDIAN_PRIORITY_FAILBACK
     rmSync(tempDir, { recursive: true, force: true })
     mkdirSync(tempDir, { recursive: true })
     process.env.MERIDIAN_CONFIG_DIR = tempDir
+    delete process.env.MERIDIAN_PRIORITY_FAILBACK
   })
 
   afterEach(() => {
     if (savedConfigDir !== undefined) process.env.MERIDIAN_CONFIG_DIR = savedConfigDir
     else delete process.env.MERIDIAN_CONFIG_DIR
+    if (savedPriorityFailback !== undefined) process.env.MERIDIAN_PRIORITY_FAILBACK = savedPriorityFailback
+    else delete process.env.MERIDIAN_PRIORITY_FAILBACK
     rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -71,6 +76,17 @@ describe("settings module", () => {
   test("profileOrder array survives a roundtrip", () => {
     setSetting("profileOrder", ["work", "personal"])
     expect(getSetting("profileOrder")).toEqual(["work", "personal"])
+  })
+
+  test("priorityFailback survives a settings roundtrip", () => {
+    // Given
+    const priorityFailback = "next-user-turn"
+
+    // When
+    setSetting("priorityFailback", priorityFailback)
+
+    // Then
+    expect(loadSettings().priorityFailback).toBe(priorityFailback)
   })
 
   test("settings file is written with owner-only permissions", () => {
