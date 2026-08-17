@@ -910,6 +910,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
       // Hoist adapter detection before try so it's available in the catch block for telemetry
       const adapter = detectAdapter(c)
+      // Hoisted for the same reason: the outer catch records a telemetry row,
+      // but `profile`/`model` are block-scoped inside the try. Without these,
+      // a priority-routing failover files its refusal row with no profileId,
+      // so the row cannot say WHICH account refused — and since #825 stopped
+      // forking requestId per attempt, profileId is what distinguishes the
+      // attempts. Assigned as soon as each value is known; still undefined
+      // when the request fails before that point (early validation), which is
+      // exactly when the row genuinely has nothing to report. See #829.
+      let attemptedProfileId: string | undefined
+      let attemptedModel: string | undefined
+      let attemptedRequestModel: string | undefined
       try {
         const body = options.body
 
@@ -1008,6 +1019,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             ? { routingMode, stickySessionKey: adapter.getSessionId(c, body) }
             : undefined
         )
+        // Every routing mode funnels through this single resolveProfile call —
+        // the priority path re-enters handleMessages with forcedProfileId, so
+        // one assignment here covers failover attempts and direct requests.
+        attemptedProfileId = profile.id
 
         const authStatus = await getClaudeAuthStatusAsync(
           profile.id !== "default" ? profile.id : undefined,
@@ -1021,6 +1036,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const requestSource = c.req.header("x-meridian-source")?.slice(0, 64) || undefined
         const requestedModel = typeof body.model === "string" ? body.model : "sonnet"
         let model = mapModelToClaudeModel(requestedModel, authStatus?.subscriptionType, agentMode)
+        // Captured for the outer catch's telemetry row (see #829): the model
+        // this attempt was dispatched with. Later [1m] fallbacks reassign the
+        // local `model` inside the retry loops and are deliberately not
+        // mirrored here — the dispatched model is what identifies the attempt,
+        // and mirroring would mean touching four sites in the retry control
+        // flow for no observability gain.
+        attemptedModel = model
+        attemptedRequestModel = typeof body.model === "string" ? body.model : undefined
         // Explicitly versioned ids override their tier's canonical pin for
         // this request (spread last in query.ts env, so they also beat
         // operator env) — a proxy must never substitute models. Bare aliases
@@ -4301,8 +4324,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           requestId: requestMeta.requestId,
           timestamp: Date.now(),
           adapter: adapter.name,
-          model: "unknown",
-          requestModel: undefined,
+          // #829: name the account that failed. On a priority-routing failover
+          // the refusal row is otherwise indistinguishable from any other
+          // attempt under the same requestId. Still "unknown"/absent when the
+          // request died before profile/model resolution.
+          profileId: attemptedProfileId,
+          model: attemptedModel ?? "unknown",
+          requestModel: attemptedRequestModel,
           mode: "non-stream",
           isResume: false,
           isPassthrough: envBool("PASSTHROUGH"),
