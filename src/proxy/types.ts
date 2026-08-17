@@ -60,6 +60,13 @@ export interface ProxyServer {
   beginDrain?(): void
   /** Count of requests admitted past the draining gate that haven't finished yet. */
   getInFlightCount?(): number
+  /**
+   * Abort every in-flight request's SDK query, returning how many controllers
+   * were aborted. Used by `startProxyServer`'s `close()` on the hard-deadline
+   * path so the SDK subprocesses actually stop (and get a bounded chance to
+   * flush session state) before the process exits.
+   */
+  abortInFlightRequests?(reason?: unknown): number
 }
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {

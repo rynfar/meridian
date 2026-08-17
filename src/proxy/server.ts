@@ -5463,6 +5463,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     initPlugins: initPluginsAsync,
     beginDrain: () => { draining = true },
     getInFlightCount: () => inFlightRequests,
+    abortInFlightRequests: (reason?: unknown) => requestAbortRegistry.abortAll(reason),
   }
 }
 
@@ -5492,7 +5493,14 @@ export function installProxyProcessErrorHandlers(): void {
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
   claudeExecutable = await resolveClaudeExecutableAsync()
-  const { app, config: finalConfig, initPlugins, beginDrain, getInFlightCount } = createProxyServer(config)
+  const {
+    app,
+    config: finalConfig,
+    initPlugins,
+    beginDrain,
+    getInFlightCount,
+    abortInFlightRequests,
+  } = createProxyServer(config)
   if (initPlugins) await initPlugins()
 
   if (finalConfig.installProcessErrorHandlers) {
@@ -5599,6 +5607,13 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
             getInFlightCount: () => getInFlightCount?.() ?? 0,
             warn: finalConfig.silent ? undefined : (message) => console.warn(message),
             forceCloseConnections: () => connectionTracker.forceCloseAll(),
+            // Sockets alone are not the work: aborting the request controllers
+            // is what stops the SDK subprocesses, and shutdown then waits
+            // (inside the same grace budget) for them to finish unwinding —
+            // bin/cli.ts calls process.exit(0) as soon as close() resolves.
+            abortInFlight: abortInFlightRequests
+              ? (reason?: unknown) => abortInFlightRequests(reason)
+              : undefined,
           })
         } finally {
           connectionTracker.dispose()
