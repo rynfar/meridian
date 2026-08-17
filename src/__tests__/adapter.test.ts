@@ -39,6 +39,13 @@ describe("openCodeAdapter", () => {
     expect(openCodeAdapter.getSessionId(mockContext as any)).toBeUndefined()
   })
 
+  it("extracts the OpenCode agent mode through the adapter boundary", () => {
+    const mockContext = {
+      req: { header: (name: string) => name === "x-opencode-agent-mode" ? "subagent" : undefined }
+    }
+    expect(openCodeAdapter.getAgentMode!(mockContext as any)).toBe("subagent")
+  })
+
   it("extracts working directory from system prompt env block", () => {
     const body = {
       system: "<env>\n  Working directory: /Users/test/project\n</env>"
@@ -104,6 +111,12 @@ describe("openCodeAdapter.buildSdkAgents", () => {
       expect((def as any).prompt.toLowerCase()).toContain(name.toLowerCase())
       expect((def as any).model).toBe("inherit")
     }
+  })
+
+  it("assigns native Task agents the base Opus tier for an Opus request", () => {
+    const body = { model: "claude-opus-5", tools: [SAMPLE_TASK_TOOL] }
+    const agents = openCodeAdapter.buildSdkAgents!(body, [])
+    for (const def of Object.values(agents)) expect((def as any).model).toBe("opus")
   })
 
   it("passes mcpToolNames to agent definitions", () => {

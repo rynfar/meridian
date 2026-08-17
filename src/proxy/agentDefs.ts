@@ -27,10 +27,12 @@ const DEFAULT_AGENT_TYPES: Record<string, string> = {
 }
 
 /** SDK-compatible agent definition */
+export type AgentModelTier = "sonnet" | "opus" | "haiku" | "inherit"
+
 export interface AgentDefinition {
   description: string
   prompt: string
-  model?: "sonnet" | "opus" | "haiku" | "inherit"
+  model?: AgentModelTier
   tools?: string[]
   disallowedTools?: string[]
 }
@@ -66,10 +68,13 @@ export function parseAgentDescriptions(taskDescription: string): Map<string, str
  * We map based on the model name pattern, defaulting to 'inherit'
  * for non-Anthropic models (they'll use the parent session's model).
  */
-export function mapModelTier(model?: string): "sonnet" | "opus" | "opus[1m]" | "haiku" | "inherit" {
+export function mapModelTier(model?: string): AgentModelTier {
   if (!model) return "inherit"
   const lower = model.toLowerCase()
-  if (lower.includes("opus")) return "opus[1m]"
+  // AgentDefinition only accepts base SDK tiers. Inheriting an opus[1m]
+  // parent would keep native Task subagents on the expensive 1M window;
+  // selecting "opus" explicitly preserves the intended 200k subagent tier.
+  if (lower.includes("opus")) return "opus"
   if (lower.includes("haiku")) return "haiku"
   if (lower.includes("sonnet")) return "sonnet"
   return "inherit"
@@ -81,15 +86,17 @@ export function mapModelTier(model?: string): "sonnet" | "opus" | "opus[1m]" | "
  * Each agent gets:
  * - description: from the Task tool text (user-configured)
  * - prompt: instructional prompt incorporating the description
- * - model: 'inherit' (uses parent session model — all requests go through our proxy)
+ * - model: the caller-selected base SDK tier; unknown models inherit the parent
  * - tools: undefined (inherit all tools from parent)
  *
  * @param taskDescription - The full Task tool description text from OpenCode
  * @param mcpToolNames - Optional list of MCP tool names to make available to agents
+ * @param modelTier - Base SDK tier for native Task subagents
  */
 export function buildAgentDefinitions(
   taskDescription: string,
-  mcpToolNames?: string[]
+  mcpToolNames?: string[],
+  modelTier: AgentModelTier = "inherit"
 ): Record<string, AgentDefinition> {
   const descriptions = parseAgentDescriptions(taskDescription)
   const agents: Record<string, AgentDefinition> = {}
@@ -98,7 +105,7 @@ export function buildAgentDefinitions(
     agents[name] = {
       description,
       prompt: buildAgentPrompt(name, description),
-      model: "inherit",
+      model: modelTier,
       // Give agents access to MCP tools if provided
       ...(mcpToolNames?.length ? { tools: [...mcpToolNames] } : {}),
     }
@@ -107,7 +114,7 @@ export function buildAgentDefinitions(
   // Inject defaults only when parsing yielded at least one agent.
   // If parsing yielded nothing, leave empty so the SDK uses its built-in types.
   if (descriptions.size > 0) {
-    ensureDefaultAgents(agents, mcpToolNames)
+    ensureDefaultAgents(agents, mcpToolNames, modelTier)
     addCaseVariants(agents)
   }
 
@@ -120,14 +127,15 @@ export function buildAgentDefinitions(
  */
 function ensureDefaultAgents(
   agents: Record<string, AgentDefinition>,
-  mcpToolNames?: string[]
+  mcpToolNames: string[] | undefined,
+  modelTier: AgentModelTier
 ): void {
   for (const [name, description] of Object.entries(DEFAULT_AGENT_TYPES)) {
     if (!agents[name]) {
       agents[name] = {
         description,
         prompt: buildAgentPrompt(name, description),
-        model: "inherit",
+        model: modelTier,
         ...(mcpToolNames?.length ? { tools: [...mcpToolNames] } : {}),
       }
     }
@@ -196,11 +204,12 @@ export function parseAgentNamesFromSchema(taskTool: unknown): string[] {
 
 export function buildAgentDefinitionsFromTool(
   taskTool: unknown,
-  mcpToolNames?: string[]
+  mcpToolNames?: string[],
+  modelTier: AgentModelTier = "inherit"
 ): Record<string, AgentDefinition> {
   const rawDescription = getNested(taskTool, "description")
   const description = typeof rawDescription === "string" ? rawDescription : ""
-  const fromDescription = buildAgentDefinitions(description, mcpToolNames)
+  const fromDescription = buildAgentDefinitions(description, mcpToolNames, modelTier)
   if (Object.keys(fromDescription).length > 0) return fromDescription
 
   const names = parseAgentNamesFromSchema(taskTool)
@@ -213,11 +222,11 @@ export function buildAgentDefinitionsFromTool(
     agents[name] = {
       description: desc,
       prompt: buildAgentPrompt(name, desc),
-      model: "inherit",
+      model: modelTier,
       ...(mcpToolNames?.length ? { tools: [...mcpToolNames] } : {}),
     }
   }
-  ensureDefaultAgents(agents, mcpToolNames)
+  ensureDefaultAgents(agents, mcpToolNames, modelTier)
   addCaseVariants(agents)
   return agents
 }

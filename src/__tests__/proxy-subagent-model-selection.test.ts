@@ -9,9 +9,11 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test"
 
 let capturedModel: string | null = null
+let capturedOptions: any = null
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
+    capturedOptions = opts.options
     capturedModel = opts.options?.model ?? null
     return (async function* () {
       yield {
@@ -30,7 +32,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       }
     })()
   },
-  createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
+  createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { registerTool: () => {} } }),
   tool: () => ({}),
 }))
 
@@ -89,10 +91,17 @@ const BASE_REQUEST = {
   messages: [{ role: "user", content: "hi" }],
 }
 
+const TASK_TOOL = {
+  name: "Task",
+  description: "Available agent types:\n- reviewer: Reviews code",
+  input_schema: { type: "object", properties: {} },
+}
+
 describe("Subagent model selection", () => {
   beforeEach(() => {
     clearSessionCache()
     capturedModel = null
+    capturedOptions = null
   })
 
   it("primary agent gets sonnet (200k) for max subscription", async () => {
@@ -119,6 +128,32 @@ describe("Subagent model selection", () => {
   it("primary agent with opus gets opus[1m]", async () => {
     await post({ ...BASE_REQUEST, model: "claude-opus-4-6" }, { "x-opencode-agent-mode": "primary" })
     expect(capturedModel).toBe("opus[1m]")
+  })
+
+  it("a generic subagent source selects base opus without the OpenCode mode header", async () => {
+    await post({ ...BASE_REQUEST, model: "claude-opus-4-6" }, { "x-meridian-source": "subagent-reviewer" })
+    expect(capturedModel).toBe("opus")
+  })
+
+  it("a non-OpenCode adapter can select base opus through the generic source", async () => {
+    await post({ ...BASE_REQUEST, model: "claude-opus-4-6" }, {
+      "x-meridian-agent": "pi",
+      "x-meridian-source": "subagent-reviewer",
+    })
+    expect(capturedModel).toBe("opus")
+  })
+
+  it("keeps an Opus primary on 1M while native Task agents use base opus", async () => {
+    const response = await post({ ...BASE_REQUEST, model: "claude-opus-4-6", tools: [TASK_TOOL] }, {
+      "x-opencode-agent-mode": "primary",
+    })
+    if (response.status !== 200) throw new Error(await response.text())
+    expect(capturedModel).toBe("opus[1m]")
+    expect(Object.keys(capturedOptions.agents).length).toBeGreaterThan(0)
+    for (const def of Object.values(capturedOptions.agents) as any[]) {
+      expect(def.model).toBe("opus")
+    }
+    expect(capturedOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-4-6")
   })
 
   it("haiku is unaffected by agent mode", async () => {

@@ -65,6 +65,20 @@ describe("OpenCode transform parity", () => {
     expect(ctx.sdkAgents).toEqual(openCodeAdapter.buildSdkAgents!(body, openCodeAdapter.getAllowedMcpTools()))
   })
 
+  it("matches base-tier SDK agents for an Opus Task request", () => {
+    const body = {
+      model: "claude-opus-5",
+      tools: [{
+        name: "Task",
+        description: "Available agent types:\n- reviewer: Reviews code",
+        input_schema: { type: "object", properties: {} },
+      }],
+    }
+    const ctx = runTransformHook(openCodeTransforms, "onRequest", makeCtx("opencode", body), "opencode")
+    expect(ctx.sdkAgents).toEqual(openCodeAdapter.buildSdkAgents!(body, openCodeAdapter.getAllowedMcpTools()))
+    for (const def of Object.values(ctx.sdkAgents)) expect(def.model).toBe("opus")
+  })
+
   it("matches buildSystemContextAddendum with no agents", () => {
     const body = { tools: [] }
     const ctx = runTransformHook(

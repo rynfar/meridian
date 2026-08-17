@@ -250,7 +250,7 @@ describe("SDK agents option", () => {
     const oracle = capturedQueryParams.options.agents["oracle"]
     expect(oracle.description).toContain("Read-only consultation")
     expect(oracle.prompt).toContain("oracle")
-    expect(oracle.model).toBe("inherit")
+    expect(oracle.model).toBe("sonnet")
   })
 
   it("should not pass agents when no Task tool in request", async () => {

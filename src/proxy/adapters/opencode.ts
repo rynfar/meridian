@@ -11,7 +11,7 @@ import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { extractClientCwd } from "../session/fingerprint"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../tools"
-import { buildAgentDefinitionsFromTool } from "../agentDefs"
+import { buildAgentDefinitionsFromTool, mapModelTier } from "../agentDefs"
 import { fuzzyMatchAgentName } from "../agentMatch"
 import { resolvePassthrough } from "../../env"
 
@@ -20,6 +20,11 @@ export const openCodeAdapter: AgentAdapter = {
 
   getSessionId(c: Context): string | undefined {
     return c.req.header("x-opencode-session") ?? c.req.header("x-session-affinity")
+  },
+
+  /** NOTE: OpenCode-specific. The plugin marks client-managed subagent turns. */
+  getAgentMode(c: Context): string | undefined {
+    return c.req.header("x-opencode-agent-mode")
   },
 
   extractWorkingDirectory(body: any): string | undefined {
@@ -75,7 +80,7 @@ export const openCodeAdapter: AgentAdapter = {
     if (!Array.isArray(body.tools)) return {}
     const taskTool = body.tools.find((t: any) => t.name === "task" || t.name === "Task")
     if (!taskTool) return {}
-    return buildAgentDefinitionsFromTool(taskTool, [...mcpToolNames])
+    return buildAgentDefinitionsFromTool(taskTool, [...mcpToolNames], mapModelTier(body.model))
   },
 
   /**

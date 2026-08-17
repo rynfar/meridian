@@ -24,6 +24,12 @@ export interface AgentIdentity {
   getSessionId(c: Context, body?: unknown): string | undefined
 
   /**
+   * Optional client-declared agent mode. Adapters own their header/protocol
+   * details; the proxy uses the normalized value for model-tier selection.
+   */
+  getAgentMode?(c: Context, body?: unknown): string | undefined
+
+  /**
    * Extract the SDK subprocess working directory from the request body.
    *
    * This path must exist on the proxy host because it becomes the SDK

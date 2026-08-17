@@ -110,6 +110,15 @@ describe("x-meridian-source: fingerprint cache skip for independent sessions", (
     expect(result.type).toBe("diverged")
   })
 
+  it("does NOT write a headerless OpenCode subagent mode to the fingerprint cache", async () => {
+    const app = createTestApp()
+    const cwd = process.cwd()
+    await post(app, BASE_BODY, { "x-opencode-agent-mode": "subagent" })
+
+    const result = lookupSession(undefined, nextTurn, cwd)
+    expect(result.type).toBe("diverged")
+  })
+
   it("DOES write to the fingerprint cache when source=main", async () => {
     // Sanity: main requests (non-fork, non-subagent) must still populate the
     // cache so the normal resume optimization works for regular chat turns.
