@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
-import { linkRequestAbort } from "./requestAbort"
+import { createRequestAbortRegistry } from "./requestAbort"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult } from "./oauthUsage"
@@ -517,6 +517,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // separate bookkeeping of queued vs. active is needed.
   let draining = false
   let inFlightRequests = 0
+  // Per-instance (never module-global): shutdown must abort THIS proxy's
+  // in-flight SDK queries and no other instance's. See requestAbort.ts.
+  const requestAbortRegistry = createRequestAbortRegistry()
 
   // Admission belongs at the PUBLIC entrypoint. /v1/chat/completions and
   // /v1/responses translate their body before re-entering /v1/messages, so
@@ -904,7 +907,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     options: HandleMessagesOptions,
   ) => {
     const requestStartAt = requestMeta.queueEnteredAt
-    const requestAbort = linkRequestAbort(c.req.raw.signal)
+    const requestAbort = requestAbortRegistry.link(c.req.raw.signal)
     let streamOwnsAbortLink = false
 
     return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
