@@ -13,7 +13,7 @@ import { linkRequestAbort, type RequestAbortLink } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
-import { fetchOAuthUsage, fetchOAuthUsageResult } from "./oauthUsage"
+import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
@@ -8216,21 +8216,24 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // came to be labelled `no_token`. Older consumers that only switch on
   // `no_token` fall through to their default branch, which is why these are new
   // values rather than reuses.
+  //
+  // When the check that just ran produced nothing, `windows`/`extraUsage` are
+  // the last successful reading rather than empty, marked `stale: true` with
+  // `fetchedAt` saying when it was taken, and `failure` saying why the newer
+  // check didn't land and how many have failed in a row. `error` keeps its old
+  // meaning exactly — set when there was nothing fresh AND no recent-enough
+  // reading to stand in — so a consumer ignoring the new fields is unaffected.
   app.get("/v1/usage/quota/all", async (c) => {
     const profilesList = getEffectiveProfiles(finalConfig.profiles)
     const activeId = getActiveProfileId() || finalConfig.defaultProfile || profilesList[0]?.id || null
 
     if (profilesList.length === 0) {
       // Single-account mode — just return the default OAuth account's data.
-      const { snapshot: oauth, error } = await fetchOAuthUsageResult({})
       return c.json({
         profiles: [{
           id: "default",
           isActive: true,
-          windows: oauth?.windows ?? [],
-          extraUsage: oauth?.extraUsage ?? null,
-          fetchedAt: oauth?.fetchedAt ?? null,
-          error,
+          ...toUsageEntry(await fetchOAuthUsageResult({})),
         }],
         activeProfile: "default",
         asOf: Date.now(),
@@ -8248,21 +8251,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           windows: [] as any[],
           extraUsage: null,
           fetchedAt: null,
+          stale: false,
           error: "not_oauth" as const,
+          failure: null,
         }
       }
-      const { snapshot: oauth, error } = await fetchOAuthUsageResult({
-        profileId: p.id,
-        claudeConfigDir: p.claudeConfigDir,
-      })
       return {
         id: p.id,
         isActive: p.id === activeId,
         type,
-        windows: oauth?.windows ?? [],
-        extraUsage: oauth?.extraUsage ?? null,
-        fetchedAt: oauth?.fetchedAt ?? null,
-        error,
+        ...toUsageEntry(await fetchOAuthUsageResult({
+          profileId: p.id,
+          claudeConfigDir: p.claudeConfigDir,
+        })),
       }
     }))
 

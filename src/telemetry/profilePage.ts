@@ -97,6 +97,7 @@ export const profilePageHtml = `<!DOCTYPE html>
     margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
   }
   .usage-as-of { font-size: 10px; color: var(--muted); text-transform: none; letter-spacing: 0; opacity: 0.7; }
+  .usage-stale-note { font-size: 11px; color: var(--yellow); line-height: 1.4; margin: -2px 0 10px; }
   .usage-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 8px;
@@ -258,6 +259,20 @@ async function refresh() {
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+// "last 4 checks failed (rate limited upstream)" — the run of failed checks
+// since the last good reading, or '' when the last check succeeded. Reasons map
+// through a fixed vocabulary rather than being echoed, so nothing the server
+// sends reaches the DOM.
+function describeFailedRun(failure) {
+  if (!failure) return '';
+  var why = failure.reason === 'rate_limited' ? 'rate limited upstream'
+    : failure.reason === 'no_token' ? 'no credentials readable'
+    : 'usage endpoint unavailable';
+  var n = Math.floor(Number(failure.consecutiveFailures));
+  if (!isFinite(n) || n < 1) n = 1;
+  return (n > 1 ? 'last ' + n + ' checks failed' : 'last check failed') + ' (' + why + ')';
+}
+
 function renderUsageSection(profileQuota) {
   // No quota data for this profile yet (cold start or fetch failed) — hide
   // entirely so we don't render an empty box.
@@ -270,6 +285,12 @@ function renderUsageSection(profileQuota) {
   });
   var extra = formatExtraUsage(profileQuota.extraUsage);
 
+  var failedRun = describeFailedRun(profileQuota.failure);
+
+  // No figures at all means this profile has never been read successfully —
+  // the route serves the last good reading at any age, so an empty windows
+  // array is no longer "the stale window lapsed". Saying so keeps it distinct
+  // from a profile genuinely sitting at 0%.
   if (windows.length === 0 && !extra) {
     if (profileQuota.error === 'no_token') {
       return '<div class="usage-section">'
@@ -278,12 +299,13 @@ function renderUsageSection(profileQuota) {
         + '</div>';
     }
     // Credentials are fine here — Anthropic is throttling the usage endpoint
-    // and the backoff has no snapshot left to serve. Saying "run claude login"
-    // would send the user chasing a problem they don't have.
+    // and there has never been a reading to fall back on. Saying "run claude
+    // login" would send the user chasing a problem they don't have.
     if (profileQuota.error === 'rate_limited') {
       return '<div class="usage-section">'
         + '<div class="usage-section-title">Usage</div>'
-        + '<div class="usage-empty">Usage data is rate limited upstream — retrying shortly.</div>'
+        + '<div class="usage-empty">No reading yet — '
+        +   esc(failedRun || 'rate limited upstream') + ', retrying.</div>'
         + '</div>';
     }
     return ''; // nothing fetched yet
@@ -291,6 +313,15 @@ function renderUsageSection(profileQuota) {
 
   var asOf = profileQuota.fetchedAt
     ? '<span class="usage-as-of">updated ' + timeAgo(profileQuota.fetchedAt) + '</span>'
+    : '';
+
+  // Figures are only ever this old because a later check failed, so the note
+  // and the "updated Xm ago" beside the title answer the two halves of the
+  // same question: how old these numbers are, and why they haven't moved.
+  var staleNote = failedRun
+    ? '<div class="usage-stale-note">'
+      + esc(failedRun.charAt(0).toUpperCase() + failedRun.slice(1))
+      + ' — figures below are the last successful read.</div>'
     : '';
 
   var cards = windows.map(function (w) {
@@ -326,6 +357,7 @@ function renderUsageSection(profileQuota) {
 
   return '<div class="usage-section">'
     + '<div class="usage-section-title">Usage' + asOf + '</div>'
+    + staleNote
     + (cards ? '<div class="usage-grid">' + cards + '</div>' : '')
     + extraBlock
     + '</div>';

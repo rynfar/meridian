@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, test, beforeEach } from "bun:test"
-import { fetchOAuthUsage, fetchOAuthUsageResult, resetOAuthUsageCache } from "../proxy/oauthUsage"
+import { fetchOAuthUsage, fetchOAuthUsageResult, resetOAuthUsageCache, toUsageEntry } from "../proxy/oauthUsage"
 import type { CredentialStore } from "../proxy/tokenRefresh"
 
 const SAMPLE_RESPONSE = {
@@ -502,5 +502,141 @@ describe("fetchOAuthUsageResult", () => {
     })
     expect(second.snapshot?.stale).toBe(true)
     expect(second.error).toBeNull()
+  })
+})
+
+describe("failure provenance", () => {
+  beforeEach(() => {
+    resetOAuthUsageCache()
+  })
+
+  test("a first-ever failure has a reason and nothing to fall back on", async () => {
+    const { fetchImpl } = countingFetch(() =>
+      new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+
+    const result = await fetchOAuthUsageResult({
+      force: true, store: makeStore(null), profileId: "cold", fetchImpl,
+    })
+
+    expect(result.snapshot).toBeNull()
+    expect(result.lastGood).toBeNull()
+    expect(result.failure?.reason).toBe("no_token")
+    expect(result.failure?.consecutiveFailures).toBe(1)
+  })
+
+  test("a failure after a success keeps the reading and dates it", async () => {
+    const { fetchImpl } = countingFetch(calls => calls === 1
+      ? new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+      : new Response("boom", { status: 500 }))
+    const opts = { force: true, store: makeStore("t"), profileId: "after-success", fetchImpl }
+
+    const good = await fetchOAuthUsageResult(opts)
+    expect(good.failure).toBeNull()
+
+    const failed = await fetchOAuthUsageResult(opts)
+    expect(failed.snapshot?.stale).toBe(true)
+    expect(failed.snapshot?.fetchedAt).toBe(good.snapshot!.fetchedAt)
+    expect(failed.failure?.reason).toBe("upstream_error")
+    expect(failed.failure?.consecutiveFailures).toBe(1)
+  })
+
+  test("counts the run of consecutive failed checks", async () => {
+    const { fetchImpl } = countingFetch(() => new Response("boom", { status: 500 }))
+    const opts = { force: true, store: makeStore("t"), profileId: "run", fetchImpl }
+
+    await fetchOAuthUsageResult(opts)
+    await fetchOAuthUsageResult(opts)
+    const third = await fetchOAuthUsageResult(opts)
+
+    expect(third.failure?.consecutiveFailures).toBe(3)
+    expect(third.failure?.reason).toBe("upstream_error")
+  })
+
+  test("a success clears the run rather than zeroing it", async () => {
+    const { fetchImpl } = countingFetch(calls => calls <= 2
+      ? new Response("boom", { status: 500 })
+      : new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+    const opts = { force: true, store: makeStore("t"), profileId: "recovers", fetchImpl }
+
+    await fetchOAuthUsageResult(opts)
+    expect((await fetchOAuthUsageResult(opts)).failure?.consecutiveFailures).toBe(2)
+
+    const recovered = await fetchOAuthUsageResult(opts)
+    expect(recovered.snapshot?.stale).toBeUndefined()
+    expect(recovered.failure).toBeNull()
+  })
+
+  // The page polls every 10s against a backoff measured in minutes, so counting
+  // polls the cooldown refused would report the poll interval, not the account.
+  test("polls the cooldown turns away do not advance the count", async () => {
+    const { fetchImpl, getCalls } = countingFetch(() =>
+      new Response("rate limited", { status: 429, headers: { "Retry-After": "120" } }))
+    const opts = { force: true, store: makeStore("t"), profileId: "suppressed-run", fetchImpl }
+
+    expect((await fetchOAuthUsageResult(opts)).failure?.consecutiveFailures).toBe(1)
+    await fetchOAuthUsageResult(opts)
+    const third = await fetchOAuthUsageResult(opts)
+
+    expect(third.failure?.consecutiveFailures).toBe(1)
+    expect(third.failure?.reason).toBe("rate_limited")
+    expect(getCalls()).toBe(1)
+  })
+})
+
+describe("toUsageEntry", () => {
+  beforeEach(() => {
+    resetOAuthUsageCache()
+  })
+
+  test("a profile never read has no figures and is not called stale", async () => {
+    const { fetchImpl } = countingFetch(() =>
+      new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+
+    const entry = toUsageEntry(await fetchOAuthUsageResult({
+      force: true, store: makeStore(null), profileId: "entry-cold", fetchImpl,
+    }))
+
+    expect(entry.windows).toEqual([])
+    expect(entry.fetchedAt).toBeNull()
+    expect(entry.stale).toBe(false)
+    expect(entry.error).toBe("no_token")
+    expect(entry.failure?.reason).toBe("no_token")
+  })
+
+  test("a reading taken by the check that just ran is not stale", async () => {
+    const fetchImpl = fixedFetch(() => new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 }))
+
+    const entry = toUsageEntry(await fetchOAuthUsageResult({
+      force: true, store: makeStore("t"), profileId: "entry-fresh", fetchImpl,
+    }))
+
+    expect(entry.windows.length).toBeGreaterThan(0)
+    expect(entry.fetchedAt).not.toBeNull()
+    expect(entry.stale).toBe(false)
+    expect(entry.error).toBeNull()
+    expect(entry.failure).toBeNull()
+  })
+
+  // The whole point of the change: figures outlive the window `staleOr` will
+  // serve them in, and arrive labelled with when they were taken and why they
+  // have stopped moving.
+  test("keeps the last good reading past the stale bound, labelled", async () => {
+    const { fetchImpl } = countingFetch(calls => calls === 1
+      ? new Response(JSON.stringify(SAMPLE_RESPONSE), { status: 200 })
+      : new Response("boom", { status: 500 }))
+    const store = makeStore("t")
+
+    const good = await fetchOAuthUsageResult({ force: true, store, profileId: "entry-aged", fetchImpl })
+    const aged = await fetchOAuthUsageResult({
+      force: true, store, profileId: "entry-aged", fetchImpl, staleMaxMs: 0,
+    })
+    expect(aged.snapshot).toBeNull()
+
+    const entry = toUsageEntry(aged)
+    expect(entry.windows).toEqual(good.snapshot!.windows)
+    expect(entry.fetchedAt).toBe(good.snapshot!.fetchedAt)
+    expect(entry.stale).toBe(true)
+    expect(entry.error).toBe("upstream_error")
+    expect(entry.failure?.consecutiveFailures).toBe(1)
   })
 })
