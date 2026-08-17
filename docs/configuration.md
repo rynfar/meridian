@@ -137,9 +137,10 @@ While draining:
 - `GET /health` returns `503` with `{ "status": "draining", ... }` immediately,
   ahead of the usual auth-status check, so a fleet manager or load balancer
   polling this endpoint learns to stop routing here as fast as possible.
-- New `/v1/messages` requests (and `/v1/chat/completions`, `/v1/responses`,
-  which route through the same handler) are rejected with `503` and header
-  `x-meridian-draining: 1`:
+- New `/v1/messages`, `/v1/chat/completions` and `/v1/responses` requests are
+  rejected with `503` and header `x-meridian-draining: 1`. Each is checked at
+  its own public entrypoint, so a request the proxy already accepted is never
+  refused part-way through the internal translation hop:
 
   ```json
   HTTP/1.1 503
