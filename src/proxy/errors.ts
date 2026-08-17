@@ -114,6 +114,22 @@ const HTTP_401 = /(?:^|[^0-9a-f])401(?![0-9a-f]|:\d)/
 const HTTP_429 = /(?:^|[^0-9a-f])429(?![0-9a-f]|:\d)/
 const HTTP_500 = /(?:^|[^0-9a-f])500(?![0-9a-f]|:\d)/
 const HTTP_503 = /(?:^|[^0-9a-f])503(?![0-9a-f]|:\d)/
+/** A request whose input exceeds the model's context window.
+ *
+ *  Distinct from a rate limit in the one way that matters to a caller: waiting
+ *  does not fix it. An identical retry burns a whole upstream turn to fail
+ *  identically, so this must not classify as a 5xx — see the branch in
+ *  classifyError for why the status code is the actual fix.
+ *
+ *  Wordings: the CLI's bare "Prompt is too long", the API's fuller
+ *  "prompt is too long: N tokens > M maximum" (same prefix), its max_tokens
+ *  phrasing (backtick-quoted upstream, matched loosely here), and the
+ *  OpenAI-compatible code the openai adapter can surface. */
+const CONTEXT_OVERFLOW_SIGNALS: readonly RegExp[] = [
+  /prompt is too long/,
+  /input length and .?max_tokens.? exceed context limit/,
+  /context[_ ]length[_ ]exceeded/,
+]
 
 /**
  * Detect specific SDK errors and return helpful messages to the client.
@@ -181,6 +197,24 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
       status: 402,
       type: "billing_error",
       message: "Claude Max subscription issue. Check your subscription status at https://claude.ai/settings/subscription"
+    }
+  }
+
+  // Context overflow. Ordered before the process-crash branch deliberately:
+  // when the CLI surfaces an oversized prompt by exiting rather than returning
+  // a result, that branch reads a bare code-1 exit as an auth failure and tells
+  // the operator to run `claude login` — advice that cannot work and that hides
+  // the real cause.
+  //
+  // The status code is the fix, not the wording. The default 500 reads as
+  // "transient, try again" to every client retry policy, so an overflow that
+  // can only ever fail identically gets replayed at full upstream cost. 400
+  // says the request itself is the problem.
+  if (CONTEXT_OVERFLOW_SIGNALS.some(rx => rx.test(lower))) {
+    return {
+      status: 400,
+      type: "invalid_request_error",
+      message: "Prompt exceeds the model's context window. Compact or trim the conversation before retrying — an identical retry fails the same way."
     }
   }
 
@@ -403,7 +437,7 @@ export function isExtraUsageRequiredError(errMsg: string): boolean {
  * collapses into a generic api_error.
  */
 export interface SdkTermination {
-  reason: "max_turns" | "process_exit" | "aborted" | "upstream_idle" | "unknown"
+  reason: "max_turns" | "process_exit" | "aborted" | "upstream_idle" | "context_overflow" | "unknown"
   /** Turn count when reason=max_turns and parseable. */
   turns?: number
   /** Exit code when reason=process_exit and parseable. */
@@ -513,6 +547,16 @@ export function extractSdkTermination(errMsg: string): SdkTermination {
     return {
       reason: "max_turns",
       ...(m ? { turns: Number(m[1]) } : {}),
+      ...(stderrTail ? { stderrTail } : {}),
+    }
+  }
+
+  // Same ordering rationale as classifyError: an oversized prompt that arrives
+  // as a process exit must name the overflow, not the exit, or the diagnostic
+  // log points at the wrong thing.
+  if (CONTEXT_OVERFLOW_SIGNALS.some(rx => rx.test(lower))) {
+    return {
+      reason: "context_overflow",
       ...(stderrTail ? { stderrTail } : {}),
     }
   }
