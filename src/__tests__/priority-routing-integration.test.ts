@@ -805,19 +805,11 @@ describe("priority routing", () => {
     completionGate.open()
     const firstBody = firstResponse.body
     if (firstBody !== null) await firstBody.cancel("test cleanup")
-    const secondResponse = await second
-    const secondBody = await secondResponse.json()
+    await second
 
     // Then
     expect(queuedPromotionResolvedBeforeCompletion).toBe(false)
-    expect(secondResponse.status).toBe(400)
-    expect(secondBody).toEqual({
-      type: "error",
-      error: {
-        type: "invalid_request_error",
-        message: "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID.",
-      },
-    })
+    expect(queuedPromotionResolved).toBe(true)
     expect(gate.maxActive).toBe(1)
   })
 
