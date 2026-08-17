@@ -399,12 +399,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Restore persisted active profile from last session
   restoreActiveProfile(finalConfig.profiles)
 
-  // Track cumulative discovered tools per SDK session (survives across requests)
-  const sessionDiscoveredTools = new Map<string, Set<string>>()
+  // Track cumulative discovered tools per SDK session (survives across requests).
+  // Bounded like every other session-keyed cache here: nothing ever deletes a
+  // key, so a plain Map grows for the life of the process — one entry per
+  // session the proxy has ever seen, each holding every tool name it saw.
+  const sessionDiscoveredTools = new LRUMap<string, Set<string>>(getMaxSessionsLimit())
 
   // Cache last-seen tool definitions per agent session to prevent prompt cache
   // invalidation when clients intermittently omit tools on continuation requests.
-  const sessionToolCache = new Map<string, any[]>()
+  // Bounded for the same reason, and it is the heavier of the two: the value is
+  // the client's full tool array, schemas included.
+  const sessionToolCache = new LRUMap<string, any[]>(getMaxSessionsLimit())
   // Cache the passthrough MCP server per session. Reusing the same server
   // across turns (when the tool set is unchanged) avoids subtle prompt-cache
   // invalidation from MCP server re-creation. Key hashes tool name + schema
