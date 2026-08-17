@@ -10,12 +10,46 @@
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId } from "./helpers"
+import type { PriorityFailbackPolicy } from "../proxy/routing"
+
+type CapturedSdkCall = {
+  readonly dir: string
+  readonly phase: number
+  readonly resume: unknown
+}
+
+type PromotionConcurrencyGate = {
+  readonly phase: number
+  calls: number
+  active: number
+  maxActive: number
+  blocked: boolean
+  readonly entered: Promise<void>
+  readonly secondEntered: Promise<void>
+  readonly release: Promise<void>
+  readonly signalEntered: () => void
+  readonly signalSecondEntered: () => void
+  readonly open: () => void
+}
+
+function createPromotionConcurrencyGate(phase: number): PromotionConcurrencyGate {
+  let signalEntered = (): void => {}
+  let signalSecondEntered = (): void => {}
+  let open = (): void => {}
+  const entered = new Promise<void>(resolve => { signalEntered = resolve })
+  const secondEntered = new Promise<void>(resolve => { signalSecondEntered = resolve })
+  const release = new Promise<void>(resolve => { open = resolve })
+  return { phase, calls: 0, active: 0, maxActive: 0, blocked: false, entered, secondEntered, release, signalEntered, signalSecondEntered, open }
+}
 
 let capturedEnvs: string[] = []
+let capturedSdkCalls: CapturedSdkCall[] = []
+let capturePhase = 0
 let failingDirs = new Set<string>()
 // Accounts that fail only AFTER streaming some content — the error frame then
 // lands behind message_start, where the sniffer must not touch it.
 let failAfterContentDirs = new Set<string>()
+let promotionConcurrencyGate: PromotionConcurrencyGate | null = null
 const DEFAULT_FAILURE = "429 rate limit reached for this account"
 // Classifies as billing_error (402): an account whose subscription lapsed or
 // whose card was declined. Per-account like a quota refusal, but with no reset
@@ -35,32 +69,52 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     const dir = params.options?.env?.CLAUDE_CONFIG_DIR ?? "default"
     capturedEnvs.push(dir)
+    const phase = capturePhase
+    capturedSdkCalls.push({ dir, phase, resume: params.options?.resume })
     const streaming = params.options?.includePartialMessages === true
     const returnedSessionId = resolveMockSdkSessionId(params.options)
     const withReturnedSessionId = (message: any) => returnedSessionId
       ? { ...message, session_id: returnedSessionId }
       : message
     return (async function* () {
-      if ([...failingDirs].some((f) => dir.includes(f))) {
-        throw new Error(failureMessage)
+      const gate = promotionConcurrencyGate
+      const tracksPromotion = gate !== null && gate.phase === phase
+      if (tracksPromotion) {
+        gate.calls += 1
+        if (gate.calls === 2) gate.signalSecondEntered()
+        gate.active += 1
+        gate.maxActive = Math.max(gate.maxActive, gate.active)
+        if (!gate.blocked) {
+          gate.blocked = true
+          gate.signalEntered()
+          await gate.release
+        }
       }
-      if ([...failAfterContentDirs].some((f) => dir.includes(f))) {
+      try {
+        if ([...failingDirs].some((f) => dir.includes(f))) {
+          throw new Error(failureMessage)
+        }
+        if ([...failAfterContentDirs].some((f) => dir.includes(f))) {
+          if (streaming) {
+            yield messageStart("msg-1")
+            yield textBlockStart(0)
+            yield textDelta(0, "partial from " + dir)
+          }
+          throw new Error(failureMessage)
+        }
         if (streaming) {
           yield withReturnedSessionId(messageStart("msg-1"))
           yield withReturnedSessionId(textBlockStart(0))
-          yield withReturnedSessionId(textDelta(0, "partial from " + dir))
+          yield withReturnedSessionId(textDelta(0, "ok from " + dir))
+          yield withReturnedSessionId(blockStop(0))
+          yield withReturnedSessionId(messageDelta("end_turn"))
+          yield withReturnedSessionId(messageStop())
         }
-        throw new Error(failureMessage)
+        yield withReturnedSessionId(assistantMessage([{ type: "text", text: "ok from " + dir }]))
+      } finally {
+        if (tracksPromotion) gate.active -= 1
       }
-      if (streaming) {
-        yield withReturnedSessionId(messageStart("msg-1"))
-        yield withReturnedSessionId(textBlockStart(0))
-        yield withReturnedSessionId(textDelta(0, "ok from " + dir))
-        yield withReturnedSessionId(blockStop(0))
-        yield withReturnedSessionId(messageDelta("end_turn"))
-        yield withReturnedSessionId(messageStop())
-      }
-      yield withReturnedSessionId(assistantMessage([{ type: "text", text: "ok from " + dir }]))
+
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
@@ -81,28 +135,92 @@ const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency"
 const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
+const { loadSettings, saveSettings } = await import("../proxy/settings")
 
 const PROFILES = [
   { id: "work", claudeConfigDir: "/tmp/meridian-test-prof-work" },
   { id: "personal", claudeConfigDir: "/tmp/meridian-test-prof-personal" },
 ]
 
-function createTestApp() {
+type TestApp = {
+  readonly fetch: (request: Request) => Response | Promise<Response>
+}
+
+function createTestApp(): TestApp {
   const { app } = createProxyServer({ port: 0, host: "127.0.0.1", profiles: PROFILES, defaultProfile: "work" })
   return app
 }
 
-async function post(app: any, headers: Record<string, string> = {}, content = "hello") {
+type TestMessage = {
+  readonly role: "user" | "assistant"
+  readonly content: string | readonly Record<string, unknown>[]
+}
+
+type PostMessagesOptions = {
+  readonly headers?: Record<string, string>
+  readonly content?: string | readonly TestMessage[]
+  readonly stream: boolean
+  readonly signal?: AbortSignal
+}
+
+async function postMessages(app: TestApp, options: PostMessagesOptions): Promise<Response> {
+  const content = options.content ?? "hello"
+  const messages = typeof content === "string" ? [{ role: "user", content }] : content
   return app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
+    headers: { "Content-Type": "application/json", ...options.headers },
     body: JSON.stringify({
       model: "claude-sonnet-4-5",
       max_tokens: 128,
-      stream: false,
-      messages: [{ role: "user", content }],
+      stream: options.stream,
+      messages,
     }),
+    ...(options.signal ? { signal: options.signal } : {}),
   }))
+}
+
+async function post(app: TestApp, headers: Record<string, string> = {}, content: string | readonly TestMessage[] = "hello"): Promise<Response> {
+  return postMessages(app, { headers, content, stream: false })
+}
+
+async function postStream(app: TestApp, options: Omit<PostMessagesOptions, "stream">): Promise<Response> {
+  return postMessages(app, { ...options, stream: true })
+}
+
+const OPENING_MESSAGE = "shared opening"
+const CONTINUED_AFTER_PERSONAL: readonly TestMessage[] = [
+  { role: "user", content: OPENING_MESSAGE },
+  { role: "assistant", content: [{ type: "text", text: "ok from /tmp/meridian-test-prof-personal" }] },
+  { role: "user", content: "next human turn" },
+]
+const TOOL_CONTINUATION: readonly TestMessage[] = [
+  { role: "user", content: OPENING_MESSAGE },
+  { role: "assistant", content: [{ type: "tool_use", id: "tool-1", name: "read", input: {} }] },
+  { role: "user", content: [{ type: "tool_result", tool_use_id: "tool-1", content: "done" }] },
+]
+
+async function assignToFallback(app: TestApp, sessionId: string, requestId = "request-1"): Promise<void> {
+  process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+  const response = await post(app, {
+    "x-opencode-session": sessionId,
+    "x-opencode-request": requestId,
+    "x-opencode-request-kind": "human",
+  }, OPENING_MESSAGE)
+  await response.json()
+  process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+  capturedEnvs = []
+  capturedSdkCalls = []
+}
+
+async function seedPreferredAndFallbackSessions(app: TestApp, sessionId: string): Promise<void> {
+  const preferred = await post(app, {
+    "x-meridian-profile": "work",
+    "x-opencode-session": sessionId,
+    "x-opencode-request": "stale-preferred-request",
+    "x-opencode-request-kind": "human",
+  }, OPENING_MESSAGE)
+  await preferred.json()
+  await assignToFallback(app, sessionId)
 }
 
 async function exhaustedMarks(app: { fetch: (r: Request) => Response | Promise<Response> }) {
@@ -112,6 +230,7 @@ async function exhaustedMarks(app: { fetch: (r: Request) => Response | Promise<R
 }
 
 const savedEnv: Record<string, string | undefined> = {}
+let savedPriorityFailbackSetting: PriorityFailbackPolicy | undefined
 
 // File-level: every test in this file exhausts a profile through
 // dispatchPriority at some point, which fires refinePriorityCooldown ->
@@ -128,10 +247,16 @@ const savedEnv: Record<string, string | undefined> = {}
 beforeEach(() => {
   failureMessage = DEFAULT_FAILURE
   failAfterContentDirs = new Set()
+  promotionConcurrencyGate = null
+  capturedSdkCalls = []
+  capturePhase = 0
+  savedPriorityFailbackSetting = loadSettings().priorityFailback
+  saveSettings({ priorityFailback: undefined })
   __setFetchOAuthUsageOverride(async () => null)
 })
 
 afterEach(() => {
+  saveSettings({ priorityFailback: savedPriorityFailbackSetting })
   __setFetchOAuthUsageOverride(null)
 })
 
@@ -150,6 +275,7 @@ describe("priority routing", () => {
     resetActiveProfile()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
     // A profile with no claudeConfigDir of its own inherits the ambient
     // CLAUDE_CONFIG_DIR, so the SDK mock sees the developer's real config
     // directory instead of falling back to its "default" sentinel. A test that
@@ -161,6 +287,7 @@ describe("priority routing", () => {
     savedEnv.MERIDIAN_MAX_CONCURRENT = process.env.MERIDIAN_MAX_CONCURRENT
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    delete process.env.MERIDIAN_PRIORITY_FAILBACK
   })
 
   afterEach(() => {
@@ -284,6 +411,447 @@ describe("priority routing", () => {
     // ...but work is still marked exhausted (cooldown hasn't expired), so a
     // NEW session ALSO goes to personal for now — exhaustion outlives one
     // success elsewhere. This asserts the assignment layer specifically.
+  }, 20_000)
+
+  it("defaults an unset priority failback policy to new-conversation affinity", async () => {
+    // Given
+    const app = createTestApp()
+    await assignToFallback(app, "unset-policy-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "unset-policy-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("defaults an invalid priority failback policy to new-conversation affinity", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "eventually"
+    const app = createTestApp()
+    await assignToFallback(app, "invalid-policy-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "invalid-policy-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("accepts next-user-turn and promotes on a changed human request", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "human-promotion-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "human-promotion-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-work")
+    expect(capturedEnvs[0]).toContain("prof-work")
+  })
+
+  it("uses persisted priorityFailback when the environment is unset", async () => {
+    // Given
+    saveSettings({ priorityFailback: "next-user-turn" })
+    const app = createTestApp()
+    await assignToFallback(app, "persisted-policy-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "persisted-policy-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-work")
+  })
+
+  it("lets MERIDIAN_PRIORITY_FAILBACK override persisted priorityFailback", async () => {
+    // Given
+    saveSettings({ priorityFailback: "next-user-turn" })
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "new-conversation"
+    const app = createTestApp()
+    await assignToFallback(app, "env-policy-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "env-policy-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("does not promote a same-ID tool continuation even when kind remains human", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "tool-continuation-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "tool-continuation-session",
+      "x-opencode-request": "request-1",
+      "x-opencode-request-kind": "human",
+    }, TOOL_CONTINUATION)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("does not promote a changed synthetic request", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "synthetic-request-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "synthetic-request-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "synthetic",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("does not promote a changed request with an unknown kind", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "unknown-request-session")
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "unknown-request-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "unknown",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("ignores spoofed OpenCode turn headers on a non-OpenCode adapter", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+    const assigned = await post(app, { "x-meridian-agent": "pi" }, OPENING_MESSAGE)
+    await assigned.text()
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    capturedEnvs = []
+
+    // When
+    const response = await post(app, {
+      "x-meridian-agent": "pi",
+      "x-opencode-session": "spoofed-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("prof-personal")
+    expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+  })
+
+  it("starts a fresh preferred backing session when promoting", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await seedPreferredAndFallbackSessions(app, "fresh-promotion-session")
+    const promotionPhase = ++capturePhase
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "fresh-promotion-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    expect(capturedSdkCalls.filter(call => call.phase === promotionPhase && call.dir.includes("prof-work")).map(call => call.resume)).toEqual([undefined])
+    expect(body).toContain("prof-work")
+  })
+
+  it("retains and resumes fallback after a pre-content preferred quota failure", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await seedPreferredAndFallbackSessions(app, "failed-promotion-session")
+    failingDirs.add("prof-work")
+    const promotionPhase = ++capturePhase
+
+    // When
+    const response = await post(app, {
+      "x-opencode-session": "failed-promotion-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const body = await response.text()
+
+    // Then
+    const promotionCalls = capturedSdkCalls.filter(call => call.phase === promotionPhase)
+    const preferredCalls = promotionCalls.filter(call => call.dir.includes("prof-work"))
+    expect(preferredCalls.length).toBeGreaterThan(0)
+    expect(preferredCalls.every(call => call.resume === undefined)).toBe(true)
+    expect(promotionCalls.filter(call => call.dir.includes("prof-personal")).map(call => call.resume)).toEqual(["sdk-session-personal"])
+    expect(body).toContain("prof-personal")
+  }, 20_000)
+
+  it("serializes concurrent next-user-turn promotions for one logical session", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "concurrent-promotion-session")
+    const promotionPhase = ++capturePhase
+    const gate = createPromotionConcurrencyGate(promotionPhase)
+    promotionConcurrencyGate = gate
+    const first = post(app, {
+      "x-opencode-session": "concurrent-promotion-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    await gate.entered
+
+    // When
+    const second = post(app, {
+      "x-opencode-session": "concurrent-promotion-session",
+      "x-opencode-request": "request-3",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    await new Promise<void>(resolve => setImmediate(resolve))
+    gate.open()
+    const responses = await Promise.all([first, second])
+    await Promise.all(responses.map(response => response.text()))
+
+    // Then
+    expect(gate.maxActive).toBe(1)
+  })
+
+  it("does not let a stale fallback completion overwrite a newer preferred assignment", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "assignment-race-session")
+    const racePhase = ++capturePhase
+    const gate = createPromotionConcurrencyGate(racePhase)
+    promotionConcurrencyGate = gate
+    const staleFallback = post(app, {
+      "x-opencode-session": "assignment-race-session",
+      "x-opencode-request": "request-1",
+      "x-opencode-request-kind": "human",
+    }, TOOL_CONTINUATION)
+    await gate.entered
+
+    // When
+    const preferred = await post(app, {
+      "x-opencode-session": "assignment-race-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    await preferred.text()
+    gate.open()
+    const staleResponse = await staleFallback
+    await staleResponse.text()
+    promotionConcurrencyGate = null
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "new-conversation"
+    capturedEnvs = []
+    const followUp = await post(app, {
+      "x-opencode-session": "assignment-race-session",
+      "x-opencode-request": "request-3",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    const followUpBody = await followUp.text()
+
+    // Then
+    expect(followUpBody).toContain("prof-work")
+    expect(capturedEnvs.every(dir => dir.includes("prof-work"))).toBe(true)
+  })
+
+  it("releases a queued promotion when the promoted stream is cancelled", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "cancelled-promotion-session")
+    const promotionPhase = ++capturePhase
+    const gate = createPromotionConcurrencyGate(promotionPhase)
+    promotionConcurrencyGate = gate
+    const first = postStream(app, {
+      headers: {
+        "x-opencode-session": "cancelled-promotion-session",
+        "x-opencode-request": "request-2",
+        "x-opencode-request-kind": "human",
+      },
+      content: CONTINUED_AFTER_PERSONAL,
+    })
+    await gate.entered
+    const second = post(app, {
+      "x-opencode-session": "cancelled-promotion-session",
+      "x-opencode-request": "request-3",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    await new Promise<void>(resolve => setImmediate(resolve))
+    gate.open()
+    const firstResponse = await first
+
+    // When
+    const firstBody = firstResponse.body
+    expect(firstBody).not.toBeNull()
+    if (firstBody === null) return
+    await firstBody.cancel("test cancellation")
+    const secondResponse = await second
+    await secondResponse.text()
+
+    // Then
+    expect(gate.maxActive).toBe(1)
+  })
+
+  it("releases a queued promotion when the promoted request signal aborts", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "signal-cancelled-promotion-session")
+    const promotionPhase = ++capturePhase
+    const gate = createPromotionConcurrencyGate(promotionPhase)
+    promotionConcurrencyGate = gate
+    const requestController = new AbortController()
+    const first = postStream(app, {
+      headers: {
+        "x-opencode-session": "signal-cancelled-promotion-session",
+        "x-opencode-request": "request-2",
+        "x-opencode-request-kind": "human",
+      },
+      content: CONTINUED_AFTER_PERSONAL,
+      signal: requestController.signal,
+    })
+    await gate.entered
+    const second = post(app, {
+      "x-opencode-session": "signal-cancelled-promotion-session",
+      "x-opencode-request": "request-3",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    await new Promise<void>(resolve => setImmediate(resolve))
+    gate.open()
+    const firstResponse = await first
+
+    // When
+    requestController.abort("client timeout")
+    const queuedPromotionStarted = await Promise.race([
+      gate.secondEntered.then(() => true),
+      new Promise<boolean>(resolve => setImmediate(() => setImmediate(() => resolve(false)))),
+    ])
+    const firstBody = firstResponse.body
+    if (firstBody !== null) await firstBody.cancel("test cleanup")
+    const secondResponse = await second
+    const secondBody = await secondResponse.text()
+
+    // Then
+    expect(queuedPromotionStarted).toBe(true)
+    expect(secondBody).toContain("prof-work")
+  })
+
+  it("removes an aborted waiter without returning a generic 500", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "aborted-waiter-session")
+    const promotionPhase = ++capturePhase
+    const gate = createPromotionConcurrencyGate(promotionPhase)
+    promotionConcurrencyGate = gate
+    const first = post(app, {
+      "x-opencode-session": "aborted-waiter-session",
+      "x-opencode-request": "request-2",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    await gate.entered
+    const requestController = new AbortController()
+    const cancelled = postMessages(app, {
+      headers: {
+        "x-opencode-session": "aborted-waiter-session",
+        "x-opencode-request": "request-3",
+        "x-opencode-request-kind": "human",
+      },
+      content: CONTINUED_AFTER_PERSONAL,
+      stream: false,
+      signal: requestController.signal,
+    })
+    const third = post(app, {
+      "x-opencode-session": "aborted-waiter-session",
+      "x-opencode-request": "request-4",
+      "x-opencode-request-kind": "human",
+    }, CONTINUED_AFTER_PERSONAL)
+    await new Promise<void>(resolve => setImmediate(resolve))
+
+    // When
+    requestController.abort("client timeout")
+    const cancelledResponse = await cancelled
+    gate.open()
+    const [firstResponse, thirdResponse] = await Promise.all([first, third])
+    await firstResponse.text()
+    const thirdBody = await thirdResponse.text()
+
+    // Then
+    expect(cancelledResponse.status).toBe(499)
+    expect(thirdBody).toContain("prof-work")
+  })
+
+  it("does not replay a promoted stream on fallback after content starts", async () => {
+    // Given
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const app = createTestApp()
+    await assignToFallback(app, "contentful-promotion-session")
+    failAfterContentDirs.add("prof-work")
+
+    // When
+    const response = await postStream(app, {
+      headers: {
+        "x-opencode-session": "contentful-promotion-session",
+        "x-opencode-request": "request-2",
+        "x-opencode-request-kind": "human",
+      },
+      content: CONTINUED_AFTER_PERSONAL,
+    })
+    const body = await response.text()
+
+    // Then
+    expect(body).toContain("partial from /tmp/meridian-test-prof-work")
+    expect(body).toContain("rate_limit_error")
+    expect(capturedEnvs.every(dir => dir.includes("prof-work"))).toBe(true)
   }, 20_000)
 
   it("skips a profile marked exhausted without re-attempting it", async () => {
@@ -509,6 +1077,7 @@ describe("priority cooldown resolution", () => {
     resetActiveProfile()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
     // A profile with no claudeConfigDir of its own inherits the ambient
     // CLAUDE_CONFIG_DIR, so the SDK mock sees the developer's real config
     // directory instead of falling back to its "default" sentinel. A test that
@@ -519,6 +1088,7 @@ describe("priority cooldown resolution", () => {
     delete process.env.CLAUDE_CONFIG_DIR
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    delete process.env.MERIDIAN_PRIORITY_FAILBACK
     rateLimitStore.clear()
     __setFetchOAuthUsageOverride(async () => null)
   })
@@ -861,6 +1431,7 @@ describe("keyless priority affinity", () => {
     // and the shared `savedEnv` object is restored wholesale in afterEach.
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
     // A profile with no claudeConfigDir of its own inherits the ambient
     // CLAUDE_CONFIG_DIR, so the SDK mock sees the developer's real config
     // directory instead of falling back to its "default" sentinel. A test that
@@ -871,6 +1442,7 @@ describe("keyless priority affinity", () => {
     delete process.env.CLAUDE_CONFIG_DIR
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    delete process.env.MERIDIAN_PRIORITY_FAILBACK
   })
 
   afterEach(() => {
