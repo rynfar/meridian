@@ -9,6 +9,8 @@
  */
 
 import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
+import { DEFAULT_PROFILE_SORT, PROFILE_SORT_MODES } from "./profileSort"
+import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT } from "./profileSpent"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -83,6 +85,19 @@ export const landingHtml = `<!DOCTYPE html>
   .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase;
     letter-spacing: 1px; margin-bottom: 12px; }
 
+  /* Tabs rather than a dropdown: the current order stays legible without
+     opening anything, which is the whole job of this page. */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin-bottom: 12px; }
+  .section-head .section-title { margin-bottom: 0; }
+  .sort-tabs { display: flex; gap: 2px; flex-shrink: 0; }
+  .sort-tab { background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--muted); font-family: inherit; font-size: 11px; font-weight: 500;
+    letter-spacing: 0.3px; padding: 2px 8px 3px; cursor: pointer; }
+  .sort-tab:hover { color: var(--text); }
+  .sort-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .sort-tab:focus-visible { outline: none; color: var(--accent); border-bottom-color: var(--accent); }
+
   .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border);
     font-size: 11px; color: var(--muted); text-align: center; }
   .footer a { color: var(--accent); text-decoration: none; }
@@ -127,6 +142,84 @@ function paceColor(pc){return pc.status==='over'?'var(--red)':pc.status==='ahead
 
 function resetIn(ts){if(ts==null)return '';var d=ts-Date.now();if(d<=0)return 'resetting…';var m=Math.ceil(d/60000);if(m<60)return 'in '+m+'m';var h=Math.floor(m/60);if(h<24)return 'in '+h+'h'+(m%60?' '+(m%60)+'m':'');var days=Math.floor(h/24);return 'in '+days+'d'+(h%24?' '+(h%24)+'h':'')}
 
+// Inlined from src/telemetry/profileSpent.ts, unit-tested in
+// profile-spent.test.ts — same arrangement as weeklyPace above.
+var GENERAL_WINDOW_TYPES=${JSON.stringify(GENERAL_WINDOW_TYPES)};
+var FADE_FROM=${FADE_FROM};
+var SPENT_AT=${SPENT_AT};
+function isUnusable(p){if(p.loggedIn===false)return true;return p.error==='no_token'}
+function generalUtilization(windows){
+  var worst=null;
+  for(var i=0;i<(windows||[]).length;i++){
+    var w=windows[i];
+    if(GENERAL_WINDOW_TYPES.indexOf(w.type)<0)continue;
+    if(w.utilization==null||!isFinite(w.utilization))continue;
+    var c=Math.max(0,Math.min(1,w.utilization));
+    if(worst==null||c>worst)worst=c;
+  }
+  return worst;
+}
+function computeProfileSpend(p){
+  if(isUnusable(p))return {fraction:1,state:'spent',fade:0,reason:'unusable'};
+  var f=generalUtilization(p.windows);
+  if(f==null)return {fraction:null,state:'unknown',fade:0,reason:null};
+  if(f>=SPENT_AT)return {fraction:f,state:'spent',fade:1,reason:'usage'};
+  if(f>=FADE_FROM)return {fraction:f,state:'fading',fade:(f-FADE_FROM)/(SPENT_AT-FADE_FROM),reason:null};
+  return {fraction:f,state:'available',fade:0,reason:null};
+}
+
+// Inlined from src/telemetry/profileSort.ts, unit-tested in
+// profile-sort.test.ts.
+var PROFILE_SORT_MODES=${JSON.stringify(PROFILE_SORT_MODES)};
+var viewSort=${JSON.stringify(DEFAULT_PROFILE_SORT)};
+function sortProfilesForView(items,mode,spentOf){
+  var list=items.slice();
+  if(mode==='configured')return list;
+  var direction=mode==='spent-desc'?-1:1;
+  return list
+    .map(function(item,index){return {item:item,index:index,spent:spentOf(item)}})
+    .sort(function(a,b){
+      if(a.spent==null||b.spent==null){
+        if(a.spent==null&&b.spent==null)return a.index-b.index;
+        return a.spent==null?1:-1;
+      }
+      if(a.spent!==b.spent)return (a.spent-b.spent)*direction;
+      return a.index-b.index;
+    })
+    .map(function(entry){return entry.item});
+}
+function sortTabs(count){
+  if(count<2)return '';
+  var out='';
+  for(var i=0;i<PROFILE_SORT_MODES.length;i++){
+    var m=PROFILE_SORT_MODES[i];var on=m.id===viewSort;
+    out+='<button type="button" class="sort-tab'+(on?' active':'')+'" data-sort="'+esc(m.id)+'"'
+      +' title="'+esc(m.title)+'" aria-pressed="'+(on?'true':'false')+'">'+esc(m.label)+'</button>';
+  }
+  return '<div class="sort-tabs" role="group" aria-label="Sort accounts">'+out+'</div>';
+}
+
+// Re-sorting must not wait for the next 10s poll, so the last payload is
+// kept and re-rendered from memory. The choice is a view preference and is
+// never sent to the server — the saved pool order (/settings) is untouched.
+var SORT_STORAGE_KEY='meridian.accountSort';
+var lastData=null;
+function readStoredSort(){
+  try{
+    var stored=localStorage.getItem(SORT_STORAGE_KEY);
+    for(var i=0;i<PROFILE_SORT_MODES.length;i++)if(PROFILE_SORT_MODES[i].id===stored)return stored;
+  }catch(_){/* storage blocked (private mode) — the default is fine */}
+  return null;
+}
+function setViewSort(mode){
+  if(mode===viewSort)return;
+  var refocus=!!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.sort-tab'));
+  viewSort=mode;
+  try{localStorage.setItem(SORT_STORAGE_KEY,mode)}catch(_){/* a lost preference is not worth failing over */}
+  if(lastData)render(lastData[0],lastData[1],lastData[2],lastData[3]);
+  if(refocus){var el=document.querySelector('.sort-tab[data-sort="'+mode+'"]');if(el)el.focus()}
+}
+
 function introSection(h){
   var meta=[];
   if(h.auth&&h.auth.loggedIn)meta.push(esc(h.auth.email||'')+(h.auth.subscriptionType?' ('+esc(h.auth.subscriptionType)+')':''));
@@ -142,7 +235,7 @@ function introSection(h){
 function profileSection(q,s,pl,h){
   var byProfile=(s&&s.costEstimate&&s.costEstimate.byProfile)||{};
   var quotaByProfile={};
-  if(q&&Array.isArray(q.profiles))for(var i=0;i<q.profiles.length;i++){var qid=q.profiles[i].id||q.profiles[i].profile||'default';quotaByProfile[qid]=q.profiles[i].windows||[]}
+  if(q&&Array.isArray(q.profiles))for(var i=0;i<q.profiles.length;i++){var qid=q.profiles[i].id||q.profiles[i].profile||'default';quotaByProfile[qid]=q.profiles[i]}
   var profs=[];var seen={};
   var configured=(pl&&Array.isArray(pl.profiles))?pl.profiles:[];
   var multi=configured.length>1;
@@ -150,7 +243,7 @@ function profileSection(q,s,pl,h){
     // Real profiles exist: show exactly those. Traffic that predates
     // per-profile attribution (the synthetic "default" bucket) still
     // counts in the totals strip but doesn't render as a fake account.
-    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,configured:true});seen[p.id]=1}
+    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,loggedIn:p.loggedIn,configured:true});seen[p.id]=1}
   }else{
     // Single-account setup: one card, labeled with the logged-in email.
     var email=(h&&h.auth&&h.auth.loggedIn&&h.auth.email)||'';
@@ -158,10 +251,15 @@ function profileSection(q,s,pl,h){
     for(var k in byProfile){if(!seen[k])profs.push({id:k,label:k==='default'?(email||'account'):k,configured:false});seen[k]=1}
   }
   if(profs.length===0)return '';
+  function spentOf(p){
+    var quota=quotaByProfile[p.id]||{};
+    return computeProfileSpend({windows:quota.windows,error:quota.error,loggedIn:p.loggedIn}).fraction;
+  }
+  profs=sortProfilesForView(profs,viewSort,spentOf);
   var cards='';
   for(var i=0;i<profs.length;i++){
     var p=profs[i];var cost=byProfile[p.id];
-    var wins=(quotaByProfile[p.id]||[]).filter(function(w){return w.utilization!=null});
+    var wins=((quotaByProfile[p.id]||{}).windows||[]).filter(function(w){return w.utilization!=null});
     if(!p.configured&&wins.length===0&&!cost)continue;
     var rows='';
     for(var j=0;j<wins.length;j++){
@@ -209,7 +307,8 @@ function profileSection(q,s,pl,h){
       +rows+'</div>';
   }
   if(!cards)return '';
-  return '<div class="section"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div><div class="profile-grid">'+cards+'</div></div>';
+  return '<div class="section"><div class="section-head"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div>'+sortTabs(profs.length)+'</div>'
+    +'<div class="profile-grid">'+cards+'</div></div>';
 }
 
 function strip(items){
@@ -235,6 +334,7 @@ async function refresh(){
 function tokens(v){if(v==null)return '—';if(v>=1e6)return (v/1e6).toFixed(1)+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'k';return String(v)}
 
 function render(h,s,q,pl){
+  lastData=[h,s,q,pl];
   let o='';
   o+=introSection(h);
 
@@ -268,6 +368,8 @@ function switchProfile(id){
     .catch(function(){});
 }
 document.getElementById('content').addEventListener('click',function(e){
+  var tab=e.target.closest('.sort-tab');
+  if(tab&&tab.dataset.sort){setViewSort(tab.dataset.sort);return}
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile)switchProfile(card.dataset.profile);
 });
@@ -276,6 +378,7 @@ document.getElementById('content').addEventListener('keydown',function(e){
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile){e.preventDefault();switchProfile(card.dataset.profile)}
 });
+viewSort=readStoredSort()||viewSort;
 refresh();setInterval(refresh,10000);
 ` + profileBarJs + `
 </script>
