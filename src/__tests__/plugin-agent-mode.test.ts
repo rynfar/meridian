@@ -23,9 +23,8 @@ async function headersFor(
   hooks: Hooks,
   agent: unknown,
   providerID = "anthropic",
-  preexisting: Record<string, string> = {},
 ): Promise<Record<string, string>> {
-  const output = { headers: { ...preexisting } }
+  const output = { headers: {} as Record<string, string> }
   await hooks["chat.headers"]!(
     {
       sessionID: "ses_test",
@@ -121,30 +120,19 @@ describe("plugin/meridian.ts agent-mode header", () => {
   })
 
   // title/summary/compaction race the primary build turn under the same
-  // opencode sessionID; the plugin strips their session-identity headers so
-  // meridian routes them headerless and they can't collide.
-  it("headerless agents get no session or affinity headers", async () => {
+  // opencode sessionID; the plugin overrides their affinity headers with a
+  // distinct key so they can't collide.
+  it("headerless agents get a distinct affinity key instead of x-opencode-session", async () => {
     const hooks = await instance()
     for (const name of ["title", "summary", "compaction"]) {
       const h = await headersFor(hooks, name)
       expect(h["x-opencode-session"]).toBeUndefined()
-      expect(h["x-session-affinity"]).toBeUndefined()
-      expect(h["X-Session-Id"]).toBeUndefined()
+      expect(h["x-session-affinity"]).toBe(`ses_test:headerless:${name}`)
+      expect(h["X-Session-Id"]).toBe(`ses_test:headerless:${name}`)
       expect(h["x-opencode-request"]).toBe("msg_test")
       expect(h["x-opencode-agent-mode"]).toBe("subagent")
       expect(h["x-opencode-agent-name"]).toBe(name)
     }
-  })
-
-  it("headerless agents drop the affinity headers opencode's binary sets", async () => {
-    const hooks = await instance()
-    const h = await headersFor(hooks, "title", "anthropic", {
-      "x-session-affinity": "ses_test",
-      "X-Session-Id": "ses_test",
-    })
-    expect(h["x-session-affinity"]).toBeUndefined()
-    expect(h["X-Session-Id"]).toBeUndefined()
-    expect(h["x-opencode-session"]).toBeUndefined()
   })
 
   it("non-headerless agents keep x-opencode-session and emit no affinity headers", async () => {

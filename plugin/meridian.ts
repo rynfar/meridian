@@ -52,10 +52,10 @@ const BUILTIN_AGENT_MODES: Record<string, string> = {
 
 /**
  * Single-turn hidden agents (title/summary/compaction) run concurrently
- * with the primary build turn under the same opencode sessionID, which
+ * with the primary build turn under the SAME opencode sessionID, which
  * meridian's turn coordinator refuses as "session advanced while waiting".
- * Strip their session-identity headers so meridian routes them headerless
- * (no lease, fingerprint cache skipped) and they can't collide with build.
+ * They are one-shot, so route them on a distinct key instead of the shared
+ * one — meridian then treats them as independent and they can't collide.
  */
 const HEADERLESS_AGENTS = new Set(["title", "summary", "compaction"])
 
@@ -99,12 +99,13 @@ const MeridianPlugin: Plugin = async () => {
 
       if (isHeaderless) {
         // opencode's binary natively sends x-session-affinity / X-Session-Id
-        // for all non-opencode providers, and getSessionId falls back to it.
-        // Delete them so getSessionId returns undefined and meridian takes
-        // its headerless path (no lease, no fingerprint cache) instead of
-        // serializing these against the primary build turn.
-        delete output.headers["x-session-affinity"]
-        delete output.headers["X-Session-Id"]
+        // for all non-opencode providers, and getSessionId falls back to it —
+        // so omitting x-opencode-session alone isn't enough. Overwrite with a
+        // distinct key so the turn coordinator doesn't serialize these against
+        // the primary build turn.
+        const distinctKey = `${incoming.sessionID}:headerless:${name}`
+        output.headers["x-session-affinity"] = distinctKey
+        output.headers["X-Session-Id"] = distinctKey
       } else {
         output.headers["x-opencode-session"] = incoming.sessionID
       }
