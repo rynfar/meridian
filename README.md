@@ -104,12 +104,42 @@ The Claude Agent SDK provides programmatic access to Claude. But your favorite c
 | [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars — file editing, streaming; `--no-stream` broken (litellm bug) |
 | [Open WebUI](https://github.com/open-webui/open-webui) | ✅ Verified | OpenAI-compatible endpoints — set base URL to `http://127.0.0.1:3456` |
 | [Pi](https://github.com/mariozechner/pi-coding-agent) | ✅ Verified | models.json config (see [Agent Setup](docs/agents.md)) — full tool support via passthrough; detected via `x-meridian-agent: pi` header |
-| [Prime Agent](https://www.npmjs.com/package/prime-agent) | ✅ Verified | Extension config (see [Agent Setup](docs/agents.md)) — a Pi fork with its own `prime` adapter; single `ipython` tool via passthrough, RLM subagents get distinct session keys, sessions survive long idle gaps. The extension's `metadata.user_id` stamp is **required**, not optional. Cron/scheduled ticks are [not yet verified](docs/agents.md#prime-agent) |
+| [Prime Agent](https://www.npmjs.com/package/prime-agent) | ⚠️ Single-agent verified | Extension config (see [Agent Setup](docs/agents.md)) — reliable with one active agent. Concurrent RLM subagents receive distinct session keys, but are not yet production-safe; see [Prime Agent subagents](#prime-agent-subagents). The extension's `metadata.user_id` stamp is **required**, not optional. |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
 | [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see [Agent Setup](docs/agents.md)) — chat client with Claude's built-in web search via internal mode |
 | Jcode | ✅ Verified | `/v1/chat/completions` + `x-jcode-session` header — dedicated `jcode` adapter keeps append-only history intact, so retained sessions resume on one SDK session (90.9% cache hit on turn 2 of a two-turn Opus session) |
 | [Codex CLI](https://github.com/openai/codex) | ✅ Verified | `/v1/responses` (see [Agent Setup](docs/agents.md)) — Responses-API provider, passthrough tool execution; verified on 0.144 (plain + tool-driving turns) |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
+
+### Prime Agent subagents
+
+Prime Agent is reliable through Meridian with one active agent. RLM children have
+separate session identities and can execute successfully, but concurrent subagent
+orchestration is not yet production-safe. Observed failure modes include overload
+amplification, expensive cache churn after fresh-session replay, loss of child-task
+context during recovery, undelivered tool envelopes, and incomplete parent-to-child
+cancellation. Use a single active Prime Agent for unattended or usage-sensitive work
+until coordinated fixes land in Prime Agent and Meridian.
+
+Prime Agent can keep Opus on the root session while selecting Sol for an individual
+child. A child inherits its parent's model unless the `rlm` call supplies an exact
+`provider/model` selector returned by `rlm.find_models()`:
+
+```python
+sol_models = await rlm.find_models("sol")
+print(sol_models)  # choose an available exact selector for your authenticated providers
+
+child = await rlm(
+    "Review this change and report your findings to the parent.",
+    name="sol-reviewer",
+    model="openai-codex/gpt-5.6-sol",
+)
+```
+
+The selector above requires an authenticated OpenAI Codex provider in Prime Agent;
+Prime Inference may expose a different Sol selector. Explicit child model selection
+reduces Claude Max pressure, but does not by itself fix the orchestration and
+cancellation limitations above.
 
 Tested an agent or built a plugin? [Open an issue](https://github.com/rynfar/meridian/issues) and we'll add it.
 
