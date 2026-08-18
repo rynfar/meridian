@@ -50,6 +50,15 @@ const BUILTIN_AGENT_MODES: Record<string, string> = {
   compaction: "subagent",
 }
 
+/**
+ * Single-turn hidden agents (title/summary/compaction) run concurrently
+ * with the primary build turn under the SAME opencode sessionID, which
+ * meridian's turn coordinator refuses as "session advanced while waiting".
+ * They are one-shot, so route them on a distinct key instead of the shared
+ * one — meridian then treats them as independent and they can't collide.
+ */
+const HEADERLESS_AGENTS = new Set(["title", "summary", "compaction"])
+
 const MeridianPlugin: Plugin = async () => {
   // Modes from the merged config, per plugin instance. Replaced wholesale on
   // every config-hook fire so a reload can't leave stale entries behind.
@@ -82,16 +91,29 @@ const MeridianPlugin: Plugin = async () => {
       // Only inject headers for Anthropic provider requests
       if (incoming.model.providerID !== "anthropic") return
 
-      // Session tracking
-      output.headers["x-opencode-session"] = incoming.sessionID
+      const { name, mode } = resolve(incoming.agent)
+      const isSubagent = mode === "subagent"
+      const isHeaderless = HEADERLESS_AGENTS.has(name)
+
       output.headers["x-opencode-request"] = incoming.message.id
 
-      const { name, mode } = resolve(incoming.agent)
+      if (isHeaderless) {
+        // opencode's binary natively sends x-session-affinity / X-Session-Id
+        // for all non-opencode providers, and getSessionId falls back to it —
+        // so omitting x-opencode-session alone isn't enough. Overwrite with a
+        // distinct key so the turn coordinator doesn't serialize these against
+        // the primary build turn.
+        const distinctKey = `${incoming.sessionID}:headerless:${name}`
+        output.headers["x-session-affinity"] = distinctKey
+        output.headers["X-Session-Id"] = distinctKey
+      } else {
+        output.headers["x-opencode-session"] = incoming.sessionID
+      }
 
       // The proxy expects primary|subagent. "all" agents can act as either;
       // without per-request context, treat them as primary (full tier) to
       // preserve capability.
-      output.headers["x-opencode-agent-mode"] = mode === "subagent" ? "subagent" : "primary"
+      output.headers["x-opencode-agent-mode"] = isSubagent ? "subagent" : "primary"
       // Strip non-ASCII characters (e.g. zero-width spaces) that cause
       // "Header has invalid value" errors in Node.js / undici.
       output.headers["x-opencode-agent-name"] = name.replace(/[^\x20-\x7E]/g, "").trim() || "unknown"

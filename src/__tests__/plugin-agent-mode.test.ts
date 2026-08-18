@@ -118,4 +118,28 @@ describe("plugin/meridian.ts agent-mode header", () => {
     await hooks.config?.({ agent: {} })
     expect((await headersFor(hooks, "general"))["x-opencode-agent-mode"]).toBe("subagent")
   })
+
+  // title/summary/compaction race the primary build turn under the same
+  // opencode sessionID; the plugin overrides their affinity headers with a
+  // distinct key so they can't collide.
+  it("headerless agents get a distinct affinity key instead of x-opencode-session", async () => {
+    const hooks = await instance()
+    for (const name of ["title", "summary", "compaction"]) {
+      const h = await headersFor(hooks, name)
+      expect(h["x-opencode-session"]).toBeUndefined()
+      expect(h["x-session-affinity"]).toBe(`ses_test:headerless:${name}`)
+      expect(h["X-Session-Id"]).toBe(`ses_test:headerless:${name}`)
+      expect(h["x-opencode-request"]).toBe("msg_test")
+      expect(h["x-opencode-agent-mode"]).toBe("subagent")
+      expect(h["x-opencode-agent-name"]).toBe(name)
+    }
+  })
+
+  it("non-headerless agents keep x-opencode-session and emit no affinity headers", async () => {
+    const hooks = await instance()
+    const h = await headersFor(hooks, "build")
+    expect(h["x-opencode-session"]).toBe("ses_test")
+    expect(h["x-session-affinity"]).toBeUndefined()
+    expect(h["X-Session-Id"]).toBeUndefined()
+  })
 })
