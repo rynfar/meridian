@@ -65,7 +65,8 @@ import {
   DESIGN_UPSTREAM_ORIGIN,
 } from "./design"
 import { checkPluginConfigured } from "./setup"
-import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, subscriptionIncludesExtendedContext } from "./models"
+import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveClaudeExecutableSync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, subscriptionIncludesExtendedContext } from "./models"
+import { livenessReport, readinessReport, renderProbe } from "./probes"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
@@ -4670,6 +4671,33 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return c.body(body, 200, {
       "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
     })
+  })
+
+  // Liveness — would restarting this process help? Answered without touching
+  // anything: no subprocess, no credential read, no upstream. /health is NOT
+  // this, and pointing a supervisor at it is a restart loop, because it 503s
+  // when the active profile is logged out and no restart re-authenticates an
+  // account. See ./probes.ts.
+  app.get("/livez", (c) => {
+    return c.text(renderProbe("livez", livenessReport(), c.req.query("verbose") !== undefined), 200)
+  })
+
+  // Readiness — should traffic come HERE rather than to another instance? Only
+  // per-instance checks earn a place; one that every instance fails together
+  // cannot move traffic anywhere and only turns a clear error into a 502.
+  app.get("/readyz", (c) => {
+    const report = readinessReport({
+      profileCount: listProfiles(finalConfig.profiles, finalConfig.defaultProfile).length,
+      // Cached answer first, so the steady state costs nothing; the sync
+      // lookup runs only before the first SDK call has populated that cache,
+      // where the alternative is reporting a freshly started instance unready.
+      claudeExecutableResolved:
+        (getResolvedClaudeExecutableInfo() ?? resolveClaudeExecutableSync()) !== null,
+    })
+    return c.text(
+      renderProbe("readyz", report, c.req.query("verbose") !== undefined),
+      report.ok ? 200 : 503,
+    )
   })
 
   // Health check endpoint — verifies auth status

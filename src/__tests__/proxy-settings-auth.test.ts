@@ -91,10 +91,23 @@ describe("MERIDIAN_API_KEY — /settings/api/* (regression for #477)", () => {
 // Audit: any sensitive route added in the future must go through requireAuth.
 // ---------------------------------------------------------------------------
 describe("auth audit: every registered prefix is protected when MERIDIAN_API_KEY is set", () => {
-  // Routes that are *intentionally* public. Both serve read-only,
-  // non-sensitive content (landing page; auth status). If you're adding to
-  // this list, that's a security review. When in doubt, gate it.
-  const PUBLIC_PREFIXES = new Set(["/", "/health"])
+  // Routes that are *intentionally* public. They serve read-only,
+  // non-sensitive content (landing page; auth status; the two probes). If
+  // you're adding to this list, that's a security review. When in doubt, gate
+  // it.
+  //
+  // The review for `/livez` and `/readyz`, since this list is where it belongs:
+  //
+  //   what they emit  `ok`, or a check NAME and pass/fail per check. No
+  //                   account, no email, no token, no profile id - strictly
+  //                   less than `/health` beside them, which answers with the
+  //                   signed-in email and subscription type to anyone.
+  //   why not gated   a 401 is what a load balancer reads as "this backend is
+  //                   down". Gating these would make every instance look
+  //                   unhealthy the moment MERIDIAN_API_KEY is set, so an auth
+  //                   setting would become a total outage of whatever sits in
+  //                   front - the failure this pair exists to prevent.
+  const PUBLIC_PREFIXES = new Set(["/", "/health", "/livez", "/readyz"])
 
   it("rejects unauthenticated requests to every non-public route prefix", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
