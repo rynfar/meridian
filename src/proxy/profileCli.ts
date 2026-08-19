@@ -19,7 +19,7 @@ import { resolveClaudeExecutableSync } from "./models"
 import { fetchOAuthPlanFields, type OAuthPlanFields } from "./oauthPlan"
 import type { ProfileConfig } from "./profiles"
 import { envBool } from "../env"
-import { getSetting } from "./settings"
+
 import {
   applyProfileRename,
   defaultProfilesConfigFile,
@@ -28,7 +28,7 @@ import {
   reclaimAlias,
   saveProfileConfigTo,
 } from "./profileRename"
-import { setSetting } from "./settings"
+import { getSetting, setSetting } from "../settings"
 import { createPlatformCredentialStore, type CredentialsFile } from "./tokenRefresh"
 
 const OAUTH_AUTHORIZE_URL = "https://claude.com/cai/oauth/authorize"

@@ -17,7 +17,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { configPath, defaultConfigDir } from "../configDir"
-import { setSetting, getSetting } from "./settings"
+import { setSetting, getSetting } from "../settings"
 import { pickStickyProfile, type RoutingMode } from "./routing"
 
 /** Disk profile cache with short TTL so new profiles are picked up quickly */

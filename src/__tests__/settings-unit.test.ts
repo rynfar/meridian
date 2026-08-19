@@ -10,7 +10,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { loadSettings, saveSettings, getSetting, setSetting } from "../proxy/settings"
+import { loadSettings, saveSettings, getSetting, setSetting } from "../settings"
 
 describe("settings module", () => {
   const tempDir = join(tmpdir(), `meridian-settings-unit-${process.pid}`)

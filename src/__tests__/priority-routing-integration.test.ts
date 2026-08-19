@@ -214,7 +214,7 @@ const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency"
 const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
-const { loadSettings, saveSettings } = await import("../proxy/settings")
+const { loadSettings, saveSettings } = await import("../settings")
 const {
   evictSharedSession,
   lookupPriorityAssignmentResult,

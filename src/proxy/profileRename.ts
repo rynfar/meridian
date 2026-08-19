@@ -23,7 +23,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { configPath } from "../configDir"
-import { getSetting, setSetting } from "./settings"
+import { getSetting, setSetting } from "../settings"
 import type { ProfileConfig } from "./profiles"
 
 /** Profile names are restricted to exactly what `meridian profile add` accepts. */

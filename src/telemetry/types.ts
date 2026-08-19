@@ -317,6 +317,27 @@ export interface SessionTreeSummary {
 }
 
 /**
+ * The telemetry configuration that WOULD be used if the proxy started now.
+ *
+ * Distinct from TelemetryRetention, which describes the store that is actually
+ * running, and the pair only agrees until somebody edits a setting: the stores
+ * are built once at startup, so this is the intent and that is the fact.
+ * Comparing the two is how a settings page knows to say "restart to apply"
+ * instead of implying a change already took effect.
+ */
+export interface ResolvedTelemetryConfig {
+  persist: boolean
+  /** Where SQLite would write. Meaningful only when `persist`. */
+  dbPath: string
+  /** Days before a persisted row is deleted. Meaningful only when `persist`. */
+  retentionDays: number
+  /** Rows the metric ring would hold. Meaningful only when NOT `persist`. */
+  telemetrySize: number
+  /** Entries the diagnostic ring would hold. Meaningful only when NOT `persist`. */
+  diagnosticLogSize: number
+}
+
+/**
  * What the store actually holds, so a page can say so instead of implying it
  * holds everything.
  *

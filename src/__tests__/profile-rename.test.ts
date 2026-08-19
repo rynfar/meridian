@@ -21,7 +21,7 @@ import {
   resetActiveProfile,
   type ProfileConfig,
 } from "../proxy/profiles"
-import { setSetting, getSetting } from "../proxy/settings"
+import { setSetting, getSetting } from "../settings"
 
 const PROFILES_DIR = "/cfg/meridian/profiles"
 

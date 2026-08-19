@@ -378,7 +378,7 @@ describe("routing settings", () => {
   // but it is shared by every test file in this process, and the sticky/priority
   // suites fall back to getSetting("routing") when MERIDIAN_ROUTING is unset.
   afterEach(() => {
-    const { setSetting } = require("../proxy/settings") as typeof import("../proxy/settings")
+    const { setSetting } = require("../settings") as typeof import("../settings")
     setSetting("routing", undefined)
   })
 
