@@ -900,6 +900,50 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
   })
 
+  it("stream: preserves a settled checkpoint at the one-turn SDK boundary", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "single-turn-tool", name: "read", input: { file_path: "x" } },
+    ])
+    mockMessages = [
+      messageStart("msg_single_turn"),
+      toolUseBlockStart(0, "read", "single-turn-tool"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("single-turn-tool"),
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x once" }],
+    }, "es-single-turn-boundary")
+    expect(first.status).toBe(200)
+    const firstBody = await first.text()
+    expect(firstBody).toContain('"type":"tool_use"')
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says X" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x once" },
+        { role: "assistant", content: [{ type: "tool_use", id: "single-turn-tool", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "single-turn-tool", content: "X" }] },
+      ],
+    }, "es-single-turn-boundary")
+    expect(second.status).toBe(200)
+    expect(capturedQueryParamsAll[1].options.resume).toBe("test-session")
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
   it("stream: closes at turn 1 while digest and canonical result drain invisibly", async () => {
     mockMessages = [
       messageStart("msg_es"),

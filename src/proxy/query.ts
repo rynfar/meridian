@@ -164,13 +164,16 @@ export interface BuildQueryResult {
  *
  * Compute maxTurns based on which SDK features are active. Each phase the SDK
  * walks before returning control to the host costs a turn:
- *   - Base (3): turn 1 generates content (extended thinking + tool_use blocks
- *     captured by PreToolUse hook); turn 2 receives the deny and may emit a
- *     follow-up (text or further tool_use); turn 3 wraps the stream cleanly.
- *     Was 2 historically — bumped after telemetry showed opus[1m] requests with
- *     thinking + tool_use exhausting the 2-turn budget mid-handoff and returning
- *     500s on fresh (non-resume) requests. See errors.ts sdk_termination
- *     diagnostic + telemetry.
+ *   - Streaming base (1): turn 1 generates the client-visible content and tool_use blocks.
+ *     The PreToolUse denial is only a handoff acknowledgement; allowing the SDK
+ *     to run another model turn creates a hidden side branch that is discarded
+ *     by the next resumeSessionAt rewind. Besides wasting a model call, that
+ *     moves the automatic prompt-cache breakpoint onto the discarded branch,
+ *     so long tool loops rewrite the full conversation after the ancestor cache
+ *     entry expires. A one-turn SDK termination is recovered as a successful
+ *     tool_use response and its settled assistant checkpoint is persisted by
+ *     server.ts. Non-streaming retains the three-turn durability drain until
+ *     its synchronous recovery path can persist the same boundary safely.
  *   - Deferred tools (+1): a ToolSearch discovery is a real model round-trip
  *     that consumes a turn before the model can emit the real tool_use. The
  *     old model wrongly assumed a lone deferred set fit in base 3, so the
@@ -183,9 +186,10 @@ export interface BuildQueryResult {
 function computePassthroughMaxTurns(
   hasDeferredTools: boolean,
   advisorModel: string | undefined,
+  stream: boolean,
 ): number {
   const deferredBump = hasDeferredTools ? 1 : 0
-  const defaultBase = 3 + deferredBump
+  const defaultBase = (stream ? 1 : 3) + deferredBump
   // The base is the SDK's internal-loop budget before it must return control.
   // It's normally enough (the capture path drops re-emitted duplicates and
   // stops the loop when the model starts repeating), but wide parallel tool
@@ -318,7 +322,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       // is not in PATH — causing subprocess spawns to fail.
       executable: "node" as const,
       maxTurns: passthrough
-        ? computePassthroughMaxTurns(hasDeferredTools, ctx.advisorModel)
+        ? computePassthroughMaxTurns(hasDeferredTools, ctx.advisorModel, stream)
         : 200,
       cwd: workingDirectory,
       model,
