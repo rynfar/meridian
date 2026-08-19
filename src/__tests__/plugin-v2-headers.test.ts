@@ -84,13 +84,28 @@ describe("plugin/meridian-v2.ts parent-session one-shots", () => {
 
   for (const agent of ["build", "compaction", "general", "explore"]) {
     test(`${agent} keeps the session header`, async () => {
-      const headers = await run(agent)
+      const headers = await run(agent, { parentID: "ses_parent" })
 
       expect(headers["x-opencode-session"]).toBe("ses_abc")
       expect(headers["x-session-affinity"]).toBe("ses_abc")
+      expect(headers["X-Session-Id"]).toBe("ses_abc")
+      expect(headers["x-parent-session-id"]).toBe("ses_parent")
       expect(headers["x-meridian-source"]).toBeUndefined()
     })
   }
+
+  test("an agent padded like a one-shot keeps the session header", async () => {
+    const headers = await run(" title ")
+
+    expect(headers["x-opencode-session"]).toBe("ses_abc")
+    expect(headers["x-meridian-source"]).toBeUndefined()
+  })
+
+  test("an agent containing a zero-width character keeps the session header", async () => {
+    const headers = await run("ti\u200btle")
+
+    expect(headers["x-opencode-session"]).toBe("ses_abc")
+  })
 })
 
 describe("plugin/meridian-v2.ts agent mode", () => {
@@ -102,9 +117,15 @@ describe("plugin/meridian-v2.ts agent mode", () => {
   })
 
   test("a configured agent takes its mode from the runtime, not the table", async () => {
-    const headers = await run("reviewer", { modes: { reviewer: "subagent" } })
+    const headers = await run("réviewer", { modes: { "réviewer": "subagent" } })
 
     expect(headers["x-opencode-agent-mode"]).toBe("subagent")
+  })
+
+  test("a non-ASCII agent name is sanitized only for the header", async () => {
+    const headers = await run("réviewer")
+
+    expect(headers["x-opencode-agent-name"]).toBe("rviewer")
   })
 
   test("an unknown agent falls back to primary", async () => {

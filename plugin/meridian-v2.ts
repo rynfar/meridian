@@ -90,12 +90,17 @@ export default {
     return context.session.hook("model.request", async (input: ModelRequest) => {
       if (!MERIDIAN_PROVIDERS.has(String(input.model?.providerID ?? ""))) return
 
-      // Strip non-ASCII characters (zero-width spaces and the like) that make
-      // undici reject the whole request with "Header has invalid value".
-      const name = String(input.agent ?? "unknown").replace(/[^\x20-\x7E]/g, "").trim() || "unknown"
-      const mode = (await resolveMode(name)) === "subagent" ? "subagent" : "primary"
+      const raw = String(input.agent ?? "")
+      // The built-ins arrive under exactly these names. A user-defined agent
+      // that merely sanitizes to the same name is distinct and keeps affinity.
+      const isOneShot = PARENT_SESSION_ONE_SHOTS.has(raw)
+      const mode = (await resolveMode(raw)) === "subagent" ? "subagent" : "primary"
 
-      if (PARENT_SESSION_ONE_SHOTS.has(name)) {
+      // Strip non-ASCII characters (zero-width spaces and the like) only at
+      // the header boundary, where undici otherwise rejects the request.
+      const name = raw.replace(/[^\x20-\x7E]/g, "").trim() || "unknown"
+
+      if (isOneShot) {
         for (const header of SESSION_AFFINITY_HEADERS) delete input.headers[header]
         input.headers["x-meridian-source"] = `subagent-${name}`
       } else {
