@@ -3,6 +3,7 @@
  */
 
 import { describe, expect, test } from "bun:test"
+import { Hono } from "hono"
 import MeridianV2Plugin, {
   applyMeridianV2Headers,
   fallbackAgentTraits,
@@ -27,6 +28,17 @@ function coreHeaders(sessionID: string, parentID = "ses_parent"): Record<string,
   }
 }
 
+async function sessionKeyFor(headers: Record<string, string>): Promise<string | undefined> {
+  let sessionKey: string | undefined
+  const app = new Hono()
+  app.get("/", (context) => {
+    sessionKey = openCodeAdapter.getSessionId(context)
+    return context.body(null)
+  })
+  await app.request("http://localhost/", { headers: new Headers(headers) })
+  return sessionKey
+}
+
 function rewrite(
   agent: string,
   traits: AgentTraits = fallbackAgentTraits(agent),
@@ -45,7 +57,7 @@ describe("plugin/meridian-v2.ts export", () => {
 
 describe("plugin/meridian-v2.ts hidden parent-session one-shots", () => {
   for (const agent of ["title", "summary"]) {
-    test(`${agent} is detached from the parent session`, () => {
+    test(`${agent} is detached from the parent session`, async () => {
       const headers = rewrite(agent)
 
       expect(headers["x-opencode-session"]).toBeUndefined()
@@ -55,6 +67,7 @@ describe("plugin/meridian-v2.ts hidden parent-session one-shots", () => {
       expect(headers["x-meridian-source"]).toBe(`subagent-${agent}`)
       expect(headers["x-opencode-agent-mode"]).toBe("subagent")
       expect(headers["x-opencode-project"]).toBe("prj_1")
+      expect(await sessionKeyFor(headers)).toBeUndefined()
     })
   }
 
@@ -87,17 +100,13 @@ describe("plugin/meridian-v2.ts hidden parent-session one-shots", () => {
     expect(headers["x-meridian-source"]).toBeUndefined()
   })
 
-  test("compaction remains on the primary key but gets the subagent tier", () => {
+  test("compaction remains on the primary key but gets the subagent tier", async () => {
     const headers = rewrite("compaction", { mode: "primary", hidden: false })
 
     expect(headers["x-opencode-session"]).toBe("ses_abc")
     expect(headers["x-meridian-source"]).toBe("subagent-compaction")
     expect(headers["x-opencode-agent-mode"]).toBe("primary")
-
-    const sessionKey = Reflect.apply(openCodeAdapter.getSessionId, openCodeAdapter, [{
-      req: { header: (name: string) => headers[name.toLowerCase()] },
-    }])
-    expect(sessionKey).toBe("ses_abc")
+    expect(await sessionKeyFor(headers)).toBe("ses_abc")
   })
 
   test("exact beta built-ins fall back to their native primary traits", () => {
@@ -109,17 +118,18 @@ describe("plugin/meridian-v2.ts hidden parent-session one-shots", () => {
 
 describe("plugin/meridian-v2.ts primary and subagent identity", () => {
   for (const agent of ["build", "plan"]) {
-    test(`${agent} keeps the primary session`, () => {
+    test(`${agent} keeps the primary session`, async () => {
       const headers = rewrite(agent)
       expect(headers["x-opencode-session"]).toBe("ses_abc")
       expect(headers["x-session-affinity"]).toBe("ses_abc")
       expect(headers["x-session-id"]).toBe("ses_abc")
       expect(headers["x-opencode-agent-mode"]).toBe("primary")
+      expect(await sessionKeyFor(headers)).toBe("ses_abc")
     })
   }
 
   for (const agent of ["general", "explore", "code-reviewer"]) {
-    test(`${agent} keeps its own session as a subagent`, () => {
+    test(`${agent} keeps its own session as a subagent`, async () => {
       const traits = agent === "code-reviewer"
         ? { mode: "subagent" as const, hidden: false }
         : fallbackAgentTraits(agent)
@@ -129,6 +139,7 @@ describe("plugin/meridian-v2.ts primary and subagent identity", () => {
       expect(headers["x-opencode-agent-name"]).toBe(agent)
       expect(headers["x-opencode-agent-mode"]).toBe("subagent")
       expect(headers["x-meridian-source"]).toBeUndefined()
+      expect(await sessionKeyFor(headers)).toBe(`ses_abc#${agent}`)
     })
   }
 
