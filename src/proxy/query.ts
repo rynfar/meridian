@@ -164,16 +164,23 @@ export interface BuildQueryResult {
  *
  * Compute maxTurns based on which SDK features are active. Each phase the SDK
  * walks before returning control to the host costs a turn:
- *   - Streaming base (1): turn 1 generates the client-visible content and tool_use blocks.
- *     The PreToolUse denial is only a handoff acknowledgement; allowing the SDK
- *     to run another model turn creates a hidden side branch that is discarded
- *     by the next resumeSessionAt rewind. Besides wasting a model call, that
- *     moves the automatic prompt-cache breakpoint onto the discarded branch,
- *     so long tool loops rewrite the full conversation after the ancestor cache
- *     entry expires. A one-turn SDK termination is recovered as a successful
- *     tool_use response and its settled assistant checkpoint is persisted by
- *     server.ts. Non-streaming retains the three-turn durability drain until
- *     its synchronous recovery path can persist the same boundary safely.
+ *   - Streaming base (1): turn 1 generates the client-visible content and
+ *     tool_use blocks. The PreToolUse denial means "hand this call to the
+ *     client"; it is not model feedback that needs another Claude turn. The
+ *     old base (3) let the SDK feed that denial back to Claude and drain to a
+ *     canonical result. That produced a hidden side branch which the next
+ *     client tool_result discarded by rewinding to the tool-bearing assistant
+ *     with resumeSessionAt. The hidden branch wasted a model call and moved the
+ *     automatic prompt-cache breakpoint onto history the client could not
+ *     reuse. With base 1, max_turns is the expected handoff boundary: server.ts
+ *     returns the captured tool_use as success and persists the settled
+ *     assistant UUID/tool IDs for the next client-driven turn.
+ *   - Non-streaming base (3): keep the historical durability drain. The base
+ *     was originally 2, but opus[1m] requests with extended thinking + tool_use
+ *     could exhaust it while processing the denial and return HTTP 500 on a
+ *     fresh request. Unlike streaming, the synchronous path does not yet
+ *     persist the one-turn checkpoint safely, so lowering this would restore
+ *     that failure mode. See errors.ts sdk_termination recovery/diagnostics.
  *   - Deferred tools (+1): a ToolSearch discovery is a real model round-trip
  *     that consumes a turn before the model can emit the real tool_use. The
  *     old model wrongly assumed a lone deferred set fit in base 3, so the
