@@ -6,6 +6,8 @@
  *   - `meridian setup`  — writes the plugin entry
  *   - `meridian` startup — warns if plugin is missing
  *   - `GET /health`     — reports plugin status
+ *   - every request      — warns when an OpenCode client sends no plugin
+ *                          headers (see notePluginlessOpenCodeRequest)
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
@@ -13,6 +15,7 @@ import { homedir, platform } from "os"
 import { dirname, join } from "path"
 import { fileURLToPath } from "url"
 import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
+import { LRUMap } from "../utils/lruMap"
 
 /**
  * Thrown when an existing OpenCode config can't be parsed (even tolerantly).
@@ -98,6 +101,80 @@ export function checkPluginConfigured(configPath?: string): boolean {
   if (config === null) return false
   const plugins: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
   return plugins.some(p => typeof p === "string" && isMeridianEntry(p))
+}
+
+// ---------------------------------------------------------------------------
+// Request-time plugin check
+// ---------------------------------------------------------------------------
+
+/**
+ * Sessions already warned about. Bounded: a proxy that runs for weeks must not
+ * accumulate one entry per conversation forever. Eviction only costs a repeated
+ * warning, which is the harmless direction.
+ */
+const pluginlessWarned = new LRUMap<string, true>(256)
+
+/** Reset the warned-session memory. Used by tests. */
+export function clearPluginlessWarnings(): void {
+  pluginlessWarned.clear()
+}
+
+/**
+ * NOTE: OpenCode-specific. Warn when an OpenCode client reaches the proxy
+ * without the plugin's agent headers, once per session.
+ *
+ * This exists because the exposure it reports cannot be fixed from inside
+ * Meridian. OpenCode 1.18.11 sends `x-session-affinity` natively, so a
+ * plugin-less client is fully keyed and never reaches the fingerprint fallback
+ * — and its internal `title` / `summary` / `compaction` agents run under the
+ * SAME session id as the user's chat. One real key, two unrelated
+ * conversations. Live, both attempts of a plugin-less run returned HTTP 400
+ * `session_turn_conflict` on the user's first turn after an ~8s wait.
+ *
+ * The fix for that collision scopes the session key by agent, which it reads
+ * from the plugin's `x-opencode-agent-mode`. A client that sends none cannot be
+ * scoped, and inferring the agent from request shape was tried and reverted:
+ * "tool-less, one message" is equally the first turn of an ordinary tool-less
+ * chat, and keying that apart broke resume for it.
+ *
+ * So the remaining job is to stop the exposure being silent. The startup
+ * warning in `bin/cli.ts` does not cover it — that one is gated on an OpenCode
+ * config FILE existing, deliberately, so Meridian stays quiet for the many
+ * clients that are not OpenCode. Run the documented
+ * `ANTHROPIC_BASE_URL=… opencode` with no config file and nothing warns.
+ *
+ * Keyed on the `opencode/` User-Agent rather than the resolved adapter:
+ * `MERIDIAN_DEFAULT_AGENT` defaults to opencode, so unrelated clients land on
+ * that adapter, and telling a Pi user to configure an OpenCode plugin is worse
+ * than saying nothing. The User-Agent has no such ambiguity.
+ *
+ * Returns the message to log, or undefined when there is nothing to say.
+ * Stateful but I/O-free — the caller owns the logging.
+ */
+export function notePluginlessOpenCodeRequest(input: {
+  userAgent: string | undefined
+  /** The plugin's `x-opencode-agent-mode` header, if it sent one. */
+  agentModeHeader: string | undefined
+  /** Client session id — used only to warn once per conversation. */
+  sessionId: string | undefined
+}): string | undefined {
+  if (!input.userAgent?.toLowerCase().startsWith("opencode/")) return undefined
+  // A plugin old enough to omit the agent headers is equally unable to prevent
+  // the collision, so it gets the same warning.
+  if (input.agentModeHeader) return undefined
+
+  const key = input.sessionId || "(keyless)"
+  if (pluginlessWarned.get(key)) return undefined
+  pluginlessWarned.set(key, true)
+
+  // Truncated: the line is meant to be pasteable into an issue.
+  const shortId = input.sessionId ? `${input.sessionId.slice(0, 12)}…` : "(no session header)"
+  return (
+    `OpenCode request without the Meridian plugin's agent headers (session ${shortId}). ` +
+    `OpenCode runs its internal title/summary agents under your session id, so Meridian ` +
+    `cannot tell them apart from your conversation: the first turn of each session can fail ` +
+    `with a 400 or replay against a cold cache. Fix: meridian setup (or update the plugin).`
+  )
 }
 
 // ---------------------------------------------------------------------------

@@ -64,7 +64,7 @@ import {
   isDesignAuthFailure,
   DESIGN_UPSTREAM_ORIGIN,
 } from "./design"
-import { checkPluginConfigured } from "./setup"
+import { checkPluginConfigured, notePluginlessOpenCodeRequest } from "./setup"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, subscriptionIncludesExtendedContext } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
@@ -1236,6 +1236,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
         // Session resume: look up cached Claude SDK session and classify mutation
         const agentSessionId = adapter.getSessionId(c, body)
+        // NOTE: agent-specific (opencode). A plugin-less OpenCode client cannot
+        // have its internal title/summary agents told apart from the user's
+        // conversation, and that exposure is otherwise silent — the startup
+        // warning is gated on an OpenCode config file existing. Once per
+        // session; the helper owns the bookkeeping.
+        const pluginlessWarning = notePluginlessOpenCodeRequest({
+          userAgent: c.req.header("user-agent"),
+          agentModeHeader: c.req.header("x-opencode-agent-mode"),
+          sessionId: agentSessionId,
+        })
+        if (pluginlessWarning) {
+          plog(`[PROXY] ${requestMeta.requestId} ${pluginlessWarning}`)
+          diagnosticLog.log({
+            level: "warn",
+            category: "session",
+            message: `${requestMeta.requestId} ${pluginlessWarning}`,
+            requestId: requestMeta.requestId,
+          })
+        }
         // Scope session keys by profile to isolate resume state across accounts.
         // For agents with session IDs (OpenCode): prefix the key.
         // For agents without (Pi): pass profile-scoped workingDirectory to fingerprint lookup.
