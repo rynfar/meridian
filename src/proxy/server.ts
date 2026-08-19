@@ -4070,13 +4070,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 return
               }
 
-              if (passthrough && streamedToolUseIds.size > 0 && !sawCanonicalResult) {
-                // The client may already have advanced past this tool turn, so
-                // a failed hidden drain invalidates even an older cached mapping.
-                evictSession(profileSessionId, profileScopedCwd, body.messages || [])
-                claudeLog("passthrough.noncanonical_session_evicted", { mode: "stream", reason: "drain_error" })
-              }
-
               const stderrOutput = stderrLines.join("\n").trim()
               if (stderrOutput && error instanceof Error && !error.message.includes(stderrOutput)) {
                 error.message = `${error.message}\nSubprocess stderr: ${stderrOutput}`
@@ -4128,6 +4121,36 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 capturedToolUses: capturedToolUses.length,
                 abortIsOurs: sawDuplicateToolUse,
               }) && messageStartEmitted
+
+              // maxTurns=1 is the normal passthrough tool handoff. By the time
+              // the SDK reports that boundary, the iterator has observed the
+              // assistant tool-use UUID and its synthetic denial, so the
+              // checkpoint is settled and the subprocess has flushed its
+              // transcript while terminating. Preserve that checkpoint instead
+              // of evicting it: the next request rewinds here and appends the
+              // client's real tool_result without traversing a hidden digest
+              // branch. Other drain failures remain unsafe and are evicted.
+              const recoverableCheckpoint =
+                canRecoverAsToolUse &&
+                sdkTerm.reason === "max_turns" &&
+                Boolean(currentSessionId) &&
+                Boolean(nextPassthroughToolCallAssistantUuid) &&
+                Boolean(nextPassthroughToolCallIds?.length) &&
+                earlyStopFired &&
+                !isIndependentSession &&
+                !sawDuplicateToolUse
+
+              if (
+                passthrough &&
+                streamedToolUseIds.size > 0 &&
+                !sawCanonicalResult &&
+                !recoverableCheckpoint
+              ) {
+                // The client may already have advanced past this tool turn, so
+                // a failed hidden drain invalidates even an older cached mapping.
+                evictSession(profileSessionId, profileScopedCwd, body.messages || [])
+                claudeLog("passthrough.noncanonical_session_evicted", { mode: "stream", reason: "drain_error" })
+              }
 
               if (canRecoverAsToolUse) {
                 // Log the recovery at session level (not error) — it's a
@@ -4191,6 +4214,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 ), "recover_message_stop")
 
                 recordEnvelopeViolations(checkUndeliveredToolUses(capturedToolUses, streamedToolUseIds))
+
+                if (recoverableCheckpoint) {
+                  storeSession(
+                    profileSessionId,
+                    body.messages || [],
+                    currentSessionId!,
+                    profileScopedCwd,
+                    sdkUuidMap,
+                    lastUsage,
+                    nextPassthroughToolCallAssistantUuid!,
+                    nextPassthroughToolCallIds!,
+                  )
+                  commitSessionTurn()
+                  claudeLog("passthrough.checkpoint_persisted", {
+                    mode: "stream",
+                    reason: "single_turn_boundary",
+                    toolCalls: nextPassthroughToolCallIds!.length,
+                  })
+                }
+
                 // Record as success — the client got a usable response.
                 const recoverTotalMs = Date.now() - requestStartAt
                 const recoverQueueWaitMs = totalQueueWaitMs(requestMeta)
