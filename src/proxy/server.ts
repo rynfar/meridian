@@ -7588,6 +7588,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         loggedIn: presence === "absent" ? false : (auth?.loggedIn ?? false),
         lastCheckedAt: cacheInfo.lastCheckedAt || null,
         lastSuccessAt: cacheInfo.lastSuccessAt || null,
+        // Additive: which reading the three fields above came from. A failed
+        // check returns getClaudeAuthStatusAsync's lastKnownGood rather than
+        // nothing, so they routinely hold a remembered value in the exact shape
+        // of a fresh one. "never" — failed with nothing to fall back on — is a
+        // different fact from "cached" and must not render as the same blank.
+        authProvenance: cacheInfo.isFailure ? (auth ? "cached" : "never") : "live",
       }
     }))
     const routingModeNow = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))

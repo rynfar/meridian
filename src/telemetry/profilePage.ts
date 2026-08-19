@@ -42,6 +42,8 @@ export const profilePageHtml = `<!DOCTYPE html>
   }
   .detail-label { color: var(--muted); }
   .detail-value { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px; }
+  .cached-tag { color: var(--muted); font-size: 10px; font-style: italic; margin-left: 6px; white-space: nowrap; }
+  .detail-unknown { color: var(--muted); font-style: italic; }
   .status-ok { color: var(--green); }
   .status-err { color: var(--red); }
   .switch-btn {
@@ -259,6 +261,26 @@ async function refresh() {
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+// Mirrors src/telemetry/cachedFacts.ts (unit-tested there). Marked per value
+// rather than per card: a card mixes a live status with a remembered email, so
+// one banner across it would mislabel whichever half it doesn't apply to.
+function factProvenance(value, stale) {
+  if (value == null || value === '') return 'never';
+  return stale ? 'cached' : 'live';
+}
+function cachedTag(provenance) {
+  return provenance === 'cached' ? '<span class="cached-tag">(cached)</span>' : '';
+}
+function renderFactValue(value, stale, extraClass) {
+  var provenance = factProvenance(value, stale);
+  if (provenance === 'never' && !stale) return null;
+  var classes = 'detail-value' + (extraClass ? ' ' + extraClass : '');
+  if (provenance === 'never') {
+    return '<span class="' + classes + ' detail-unknown">never read</span>';
+  }
+  return '<span class="' + classes + '">' + esc(String(value)) + cachedTag(provenance) + '</span>';
+}
+
 // "last 4 checks failed (rate limited upstream)" — the run of failed checks
 // since the last good reading, or '' when the last check succeeded. Reasons map
 // through a fixed vocabulary rather than being echoed, so nothing the server
@@ -286,6 +308,7 @@ function renderUsageSection(profileQuota) {
   var extra = formatExtraUsage(profileQuota.extraUsage);
 
   var failedRun = describeFailedRun(profileQuota.failure);
+  var usageTag = cachedTag(profileQuota.stale ? 'cached' : 'live');
 
   // No figures at all means this profile has never been read successfully —
   // the route serves the last good reading at any age, so an empty windows
@@ -334,7 +357,7 @@ function renderUsageSection(profileQuota) {
     return '<div class="usage-card status-' + esc(status) + '" title="' + esc(tip) + '">'
       + '<div class="usage-row">'
       +   '<span class="usage-label">' + esc(label) + '</span>'
-      +   '<span class="usage-pct">' + pctRound + '%</span>'
+      +   '<span class="usage-pct">' + pctRound + '%' + usageTag + '</span>'
       + '</div>'
       + '<div class="usage-bar"><div class="usage-fill" style="width:' + (pct * 100).toFixed(1) + '%"></div></div>'
       + (reset ? '<div class="usage-reset">' + esc(reset) + '</div>' : '')
@@ -346,7 +369,7 @@ function renderUsageSection(profileQuota) {
     extraBlock = '<div class="usage-extra status-' + esc(extra.status) + '">'
       +   '<div class="usage-extra-row">'
       +     '<span class="usage-label">Extra usage</span>'
-      +     '<span class="usage-pct">' + extra.utilizationPct + '%</span>'
+      +     '<span class="usage-pct">' + extra.utilizationPct + '%' + usageTag + '</span>'
       +   '</div>'
       +   '<div class="usage-bar"><div class="usage-fill" style="width:' + extra.utilizationPct + '%"></div></div>'
       +   '<div class="usage-extra-row" style="margin-top:4px">'
@@ -397,18 +420,19 @@ function render(data, quotaData) {
     html += '</div>';
 
     html += '<div class="profile-details">';
+    var authProvenance = p.authProvenance || 'live';
+    var authStale = authProvenance !== 'live';
     html += '<span class="detail-label">Status</span>';
-    html += '<span class="detail-value ' + (p.loggedIn ? 'status-ok' : 'status-err') + '">'
-      + (p.loggedIn ? '\u2713 Authenticated' : '\u2717 Not logged in') + '</span>';
+    html += renderFactValue(
+      authProvenance === 'never' ? null : (p.loggedIn ? '\u2713 Authenticated' : '\u2717 Not logged in'),
+      authStale,
+      p.loggedIn ? 'status-ok' : 'status-err');
 
-    if (p.email) {
-      html += '<span class="detail-label">Email</span>';
-      html += '<span class="detail-value">' + esc(p.email) + '</span>';
-    }
-    if (p.subscriptionType) {
-      html += '<span class="detail-label">Plan</span>';
-      html += '<span class="detail-value">' + esc(p.subscriptionType) + '</span>';
-    }
+    var emailCell = renderFactValue(p.email, authStale);
+    if (emailCell) html += '<span class="detail-label">Email</span>' + emailCell;
+
+    var planCell = renderFactValue(p.subscriptionType, authStale);
+    if (planCell) html += '<span class="detail-label">Plan</span>' + planCell;
     if (p.lastSuccessAt) {
       html += '<span class="detail-label">Last Verified</span>';
       html += '<span class="detail-value" style="color:var(--green)">' + timeAgo(p.lastSuccessAt) + '</span>';
