@@ -168,6 +168,16 @@ Sessions map an agent's conversation ID to a Claude SDK session ID. Two caches w
 - **Session cache**: keyed by agent header (`x-opencode-session`)
 - **Fingerprint cache**: keyed by hash of first user message + working directory (fallback when no header)
 
+**A client's session header is not always a conversation identity.** OpenCode
+runs its internal one-shot agents (`title`, `summary`, `compaction`) under the
+*user's* session id, so `x-opencode-session` alone named two unrelated
+conversations at once — the title prompt and the user's chat. They shared one
+lineage and one turn lease, which cost the user's first turn either a 400
+`session_turn_conflict` or a cold-cache full replay. `openCodeAdapter.getSessionId`
+therefore appends the agent name for non-primary agents (`ses_x#title`), leaving
+the primary agent's key byte-identical to the header. An adapter whose client
+multiplexes agents over one session id needs the same treatment.
+
 Both are LRU with coordinated eviction — evicting from one removes the corresponding entry in the other.
 
 ### Lineage Verification

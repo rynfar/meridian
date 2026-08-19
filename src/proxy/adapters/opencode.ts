@@ -18,8 +18,45 @@ import { resolvePassthrough } from "../../env"
 export const openCodeAdapter: AgentAdapter = {
   name: "opencode",
 
+  /**
+   * NOTE: OpenCode-specific. OpenCode runs its internal one-shot agents —
+   * `title`, `summary`, `compaction` — under the USER'S session id, so the
+   * raw header is not a conversation identity on its own. Verified live
+   * against OpenCode 1.18.11: the title turn and the user's build turn arrive
+   * within milliseconds of each other carrying the same `x-opencode-session`.
+   * OpenCode also sends that value as `x-session-affinity` natively, so a
+   * client with no plugin has no agent header and cannot be scoped here — see
+   * the note in the body, and `meridian setup` (required, warned about at
+   * startup and reported by /health).
+   *
+   * Sharing one key made two unrelated conversations share one lineage and one
+   * per-session turn lease. The title turn wins the race, commits its
+   * one-message lineage, and the user's real turn — after waiting 5-12s behind
+   * the lease — is measured against it as `unrelated-history`: refused with
+   * HTTP 400 `session_turn_conflict` since #825, and before that replayed in
+   * full against a cold prompt cache.
+   *
+   * Scoping by agent gives every non-primary agent its own lineage and lease.
+   * The primary agent's key is deliberately left byte-identical to the raw
+   * header so existing conversations, the shared session store, and the
+   * `x-opencode-session` contract are unaffected.
+   *
+   * Real task-tool subagents are scoped too, which is strictly better than the
+   * status quo: they also carried the parent's key, so their turns and the
+   * parent's competed for one lease and one lineage.
+   */
   getSessionId(c: Context): string | undefined {
-    return c.req.header("x-opencode-session") ?? c.req.header("x-session-affinity")
+    const base = c.req.header("x-opencode-session") ?? c.req.header("x-session-affinity")
+    if (!base) return undefined
+    // Only non-primary agents are scoped, and only when the plugin says so.
+    // Inferring the agent from the request's shape was tried and reverted: the
+    // only available signal — a tool-less single-message conversation — is also
+    // the first turn of an ordinary tool-less chat, so scoping on it broke
+    // resume for those on turn 2 (5 suites red, incl. session-lineage's strict
+    // continuation). A plugin too old to send the name gets today's behavior.
+    if (c.req.header("x-opencode-agent-mode") !== "subagent") return base
+    const agent = c.req.header("x-opencode-agent-name")?.trim()
+    return agent ? `${base}#${agent}` : base
   },
 
   /** NOTE: OpenCode-specific. The plugin marks client-managed subagent turns. */

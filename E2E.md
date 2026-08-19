@@ -91,6 +91,7 @@ kill $(lsof -ti :3456)
 | E36 | [Client detection after an upgrade (#733)](#e36-client-detection-after-an-upgrade-733) | **Automated**: `bun scripts/e2e-client-detection.mjs` — drives each installed client against a local stub, captures its real headers, and asserts the adapter Meridian resolves. **Run after upgrading any client**; costs no tokens | 2026-07-31 |
 | E37 | [WebFetch preflight scope (#748)](#e37-webfetch-preflight-scope-748) | **Automated**: `bun scripts/e2e-webfetch-preflight.mjs` — stubbed `claude` + isolated HOME: the toggle reaches the right adapter's `--settings`, and only `cherry` can actually run the built-in WebFetch, so the documented scope is asserted rather than assumed. **Run before releases touching sdkFeatures, query settings, or tool config**; costs no tokens | 2026-08-03 |
 | E38 | [Silent turns (#768)](#e38-silent-turns-768) | **Automated**: `bun scripts/e2e-silent-turn.mjs` — real CLI, SSE mode. Asserts four things per attempt: the client got text or a tool call; recovered content sits BEFORE the terminal `message_delta` (content behind it is dropped by a correct client); exactly one `message_delta` per message; and a third turn after a recovery still resumes. Attribution is read from `/telemetry/logs`, not stdout. Pair `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1` against `MERIDIAN_SILENT_TURN_RECOVERY=0` for the before/after. **Run before any release touching the passthrough tool loop, prompt assembly, or session resume** | 2026-08-11 |
+| E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3397,3 +3398,79 @@ recovery-ON run against nothing tells you almost nothing.
 text deltas. Uninjected, both settings: 3/3 pass, no silences — the live rate is
 far below what a run this size can see, which is the whole reason injection
 exists.
+
+---
+
+## E39: OpenCode internal-agent session key (#845)
+
+**Verifies:** OpenCode's internal `title` agent cannot break or de-cache the
+user's conversation.
+
+OpenCode runs `title` (and `summary`, `compaction`) under the **user's** session
+id, and fires it concurrently with the user's first real turn. Both requests
+carried the same `x-opencode-session`, so they shared one lineage and one
+per-session turn lease. Whichever arrived first committed its own conversation
+under the shared key; the other was then measured against a history that was not
+its own.
+
+Mocked tests cover the key derivation and the HTTP outcome. This exists because
+neither can prove OpenCode still *sends* what the fix keys on — a client upgrade
+that renames or drops `x-opencode-agent-mode` / `x-opencode-agent-name` puts the
+collision straight back with every suite green.
+
+```bash
+# Isolated OpenCode config. OPENCODE_CONFIG_DIR alone is NOT enough — OpenCode
+# merges ~/.config/opencode/opencode.json on top of it, which drags in the real
+# config's MCP servers and can hang `init` for minutes. XDG_CONFIG_HOME is what
+# actually isolates it.
+BASE=/tmp/e39; rm -rf $BASE; mkdir -p $BASE/{proj,cfg}
+printf 'alpha\nbeta\ngamma\n' > $BASE/proj/notes.txt
+cat > $BASE/cfg/opencode.json <<'JSON'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["/absolute/path/to/meridian/plugin/meridian.ts"],
+  "provider": { "anthropic": { "options": { "apiKey": "dummy", "baseURL": "http://127.0.0.1:3499" } } },
+  "model": "anthropic/claude-haiku-4-5",
+  "small_model": "anthropic/claude-haiku-4-5"
+}
+JSON
+
+MERIDIAN_TELEMETRY_PERSIST=1 MERIDIAN_TELEMETRY_DB=$BASE/t.db MERIDIAN_PORT=3499 \
+  node dist/cli.js > $BASE/proxy.log 2>&1 &
+sleep 6
+
+cd $BASE/proj
+export OPENCODE_CONFIG_DIR=$BASE/cfg XDG_CONFIG_HOME=$BASE/xdg
+OUT=$(opencode run --model anthropic/claude-haiku-4-5 --format json \
+  "Read notes.txt and report how many lines it has." 2>&1)
+SID=$(echo "$OUT" | grep -o '"sessionID":"[^"]*"' | head -1 | cut -d'"' -f4)
+opencode run --model anthropic/claude-haiku-4-5 --session "$SID" --format json \
+  "Append a line 'delta' to notes.txt using the edit tool." >/dev/null 2>&1
+opencode run --model anthropic/claude-haiku-4-5 --session "$SID" --format json \
+  "Read notes.txt and list every line." >/dev/null 2>&1
+
+grep -c session_turn_conflict $BASE/proxy.log     # → 0
+grep 'agent=primary' $BASE/proxy.log | head -1    # → sessionWait=0ms, lineage=new
+grep -c 'lineage=continuation' $BASE/proxy.log    # → ≥1 per later request
+```
+
+**Pass criteria:**
+- No `session_turn_conflict` anywhere in the log, and no `"session advanced
+  while the request was waiting"` in any turn's JSON output
+- The first `agent=primary` request shows `sessionWait=0ms` — it does not queue
+  behind the `agent=subagent` title request
+- The title request appears with `agent=subagent` and a session key of its own
+- Every request after the first carries `lineage=continuation` with a non-zero
+  `cache_read`
+
+**Verified:** 2026-08-19, OpenCode 1.18.11. Before the fix, 3/3 runs: the title
+request took the lease, the user's turn waited 9,836 ms and returned HTTP 400
+`session_turn_conflict`, and OpenCode reported it as a non-retryable `APIError` —
+the first turn was simply lost. After: 0 conflicts, `sessionWait=0ms` on the
+user's turn, and 6/6 later requests `lineage=continuation` at 83-99% cache hit.
+
+**Related:** `node scripts/audit-token-spend.mjs` reports the same corpus by
+cause (cold starts vs discarded passthrough turns), which is how to tell a
+"Meridian costs more" report apart from a caching failure. On this machine's
+history: cold starts 35.4% of spend and 63.3% of all cache writes; discarded
+passthrough turns 1.2%.
