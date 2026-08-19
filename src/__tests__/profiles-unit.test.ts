@@ -3,7 +3,7 @@
  */
 import { describe, test, expect, beforeEach } from "bun:test"
 import { join } from "node:path"
-import { homedir } from "node:os"
+import { meridianConfigDir } from "../proxy/settings"
 import {
   resolveProfile,
   listProfiles,
@@ -107,7 +107,7 @@ describe("resolveProfile", () => {
     expect(result.type).toBe("oauth-token")
     expect(result.env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-foo")
     expect(result.env.CLAUDE_CONFIG_DIR).toBe(
-      join(homedir(), ".config", "meridian", "profiles", "ci"),
+      join(meridianConfigDir(), "profiles", "ci"),
     )
   })
 
@@ -117,7 +117,7 @@ describe("resolveProfile", () => {
     expect(result.type).toBe("oauth-token")
     expect(result.env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-bar")
     expect(result.env.CLAUDE_CONFIG_DIR).toBe(
-      join(homedir(), ".config", "meridian", "profiles", "ci"),
+      join(meridianConfigDir(), "profiles", "ci"),
     )
   })
 
@@ -129,7 +129,7 @@ describe("resolveProfile", () => {
     expect(result.type).toBe("oauth-token")
     expect(result.env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-baz")
     expect(result.env.CLAUDE_CONFIG_DIR).toBe(
-      join(homedir(), ".config", "meridian", "profiles", "ci"),
+      join(meridianConfigDir(), "profiles", "ci"),
     )
     expect(result.env.CLAUDE_CONFIG_DIR).not.toBe("/ignored")
   })
@@ -160,7 +160,7 @@ describe("resolveProfile", () => {
     expect(result.type).toBe("oauth-token")
     expect(result.env.CLAUDE_CODE_OAUTH_TOKEN).toBe("sk-ant-oat01-qux")
     expect(result.env.CLAUDE_CONFIG_DIR).toBe(
-      join(homedir(), ".config", "meridian", "profiles", "ci"),
+      join(meridianConfigDir(), "profiles", "ci"),
     )
   })
 })

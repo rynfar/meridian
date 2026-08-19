@@ -14,6 +14,7 @@ import { settingsPageHtml } from "../telemetry/settingsPage"
 import { profilePageHtml } from "../telemetry/profilePage"
 import { pluginPageHtml } from "../proxy/plugins/pluginPage"
 import { profileBarHtml, profileBarJs } from "../telemetry/profileBar"
+import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
 
 const allPages: Array<[string, string]> = [
   ["landing", landingHtml],
@@ -53,6 +54,16 @@ describe("shared site header", () => {
       const count = html.split("meridian-header").length - 1
       expect(count, `${name} page should embed the header once`).toBeGreaterThanOrEqual(1)
     }
+  })
+
+  test("the OAuth callback page is the deliberate exception", () => {
+    // /callback is reachable WITHOUT the API key — Anthropic's redirect carries
+    // none — while the header polls /health and /profiles/list, which are gated.
+    // Embedding it would render broken "offline" chrome on the one page a user
+    // sees mid-login. This pins that exception so it is not "fixed" by hand.
+    const html = renderLoginCallbackPage({ ok: true, profileId: "personal" })
+    expect(html).not.toContain("meridian-header")
+    expect(html).toContain("href=\"/profiles\"")
   })
 })
 
@@ -101,6 +112,7 @@ describe("design-system conformance (DESIGN.md)", () => {
     "src/telemetry/dashboard.ts",
     "src/telemetry/settingsPage.ts",
     "src/telemetry/profilePage.ts",
+    "src/telemetry/loginCallbackPage.ts",
     "src/proxy/plugins/pluginPage.ts",
   ]
 
@@ -118,6 +130,47 @@ describe("design-system conformance (DESIGN.md)", () => {
       const bodyRule = src.match(/body \{[^}]*\}/)?.[0] ?? ""
       expect(bodyRule.includes("background"), `${path} body rule must not set background`).toBe(false)
     }
+  })
+})
+
+describe("profiles page — the sign-in control is a real link", () => {
+  // Someone signed into several Claude accounts needs the browser's own
+  // context menu — "Open Link in Incognito Window", "Copy Link Address" — to
+  // choose which session answers the sign-in. Chrome and Firefox offer that
+  // for an anchor with an href and for nothing else, so these assertions are
+  // the feature, not decoration.
+  test("renders an anchor with an href, not a button", () => {
+    expect(profilePageHtml).toContain('<a class="login-btn login-link"')
+    expect(profilePageHtml).toContain("loginHrefFor(p.id)")
+    expect(profilePageHtml).toContain('rel="noopener noreferrer"')
+    expect(profilePageHtml).not.toContain('<button class="login-btn" onclick="startLogin')
+  })
+
+  test("nothing in the login flow opens a window from script", () => {
+    // A scripted window.open is exactly what denies the context menu, and it
+    // also ignores ctrl-click and middle-click. Scoped to the login section so
+    // this says something precise about THIS flow rather than policing every
+    // other feature on the page.
+    const start = profilePageHtml.indexOf("// --- Browser login ---")
+    expect(start).toBeGreaterThan(-1)
+    const next = profilePageHtml.indexOf("// --- ", start + 24)
+    const loginSection = next === -1 ? profilePageHtml.slice(start) : profilePageHtml.slice(start, next)
+    expect(loginSection).not.toContain("window.open(")
+  })
+
+  test("the fallback to pasting a code is also a real link", () => {
+    expect(profilePageHtml).toContain('onclick="switchToPaste();return true;"')
+    expect(profilePageHtml).not.toContain('href="#" onclick="switchToPaste()')
+  })
+
+  test("hrefs survive a re-render and are refreshed before they expire", () => {
+    expect(profilePageHtml).toContain("applyLoginHrefs()")
+    expect(profilePageHtml).toContain("ensureLoginLinks(profiles)")
+  })
+
+  test("no PKCE material is ever put in a link", () => {
+    expect(profilePageHtml).not.toContain("codeVerifier")
+    expect(profilePageHtml).not.toContain("code_verifier")
   })
 })
 

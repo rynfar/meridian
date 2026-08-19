@@ -700,9 +700,11 @@ export function resetCachedClaudeAuthStatus(): void {
   profileAuthCaches.clear()
 }
 
-/** Expire the auth status cache without clearing lastKnownGoodAuthStatus — for testing only.
- *  This simulates the TTL expiring so the next call re-executes `claude auth status`,
- *  while preserving the "last known good" fallback state. */
+/** Expire the auth status cache without clearing lastKnownGoodAuthStatus.
+ *  The next call re-executes `claude auth status` while the "last known good"
+ *  fallback state survives. Used by tests to simulate the TTL elapsing, and by
+ *  the login route so a just-authenticated profile stops reporting the cached
+ *  "not logged in". */
 export function expireAuthStatusCache(): void {
   cachedAuthStatusAt = 0
   cachedAuthStatusPromise = null

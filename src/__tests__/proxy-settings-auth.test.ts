@@ -91,10 +91,31 @@ describe("MERIDIAN_API_KEY — /settings/api/* (regression for #477)", () => {
 // Audit: any sensitive route added in the future must go through requireAuth.
 // ---------------------------------------------------------------------------
 describe("auth audit: every registered prefix is protected when MERIDIAN_API_KEY is set", () => {
-  // Routes that are *intentionally* public. Both serve read-only,
-  // non-sensitive content (landing page; auth status). If you're adding to
-  // this list, that's a security review. When in doubt, gate it.
-  const PUBLIC_PREFIXES = new Set(["/", "/health"])
+  // Routes that are *intentionally* public. If you're adding to this list,
+  // that's a security review — write it here. When in doubt, gate it.
+  //
+  //   /         landing page — read-only, non-sensitive
+  //   /health   auth status — read-only, non-sensitive
+  //
+  //   /callback OAuth redirect target for profile login.
+  //
+  //     Cannot be gated: Anthropic redirects the user's BROWSER here after
+  //     sign-in, and that redirect carries no API key. Gating it would make
+  //     the browser login flow fail on exactly the instances that took the
+  //     trouble to set MERIDIAN_API_KEY.
+  //
+  //     Safe to leave open because reaching it proves nothing and grants
+  //     nothing. It acts only on a `state` that (a) was minted by
+  //     /profiles/login/start, which IS gated, (b) is 256 bits of CSPRNG
+  //     output that never leaves this process except into the authorize URL,
+  //     and (c) is single-use and expires in 10 minutes. Without a matching
+  //     open login it returns 410 and does nothing at all. It cannot start a
+  //     login, cannot name a profile, cannot enumerate anything: the response
+  //     is the same page whether the `state` was wrong or merely expired.
+  //     An attacker who could guess a live `state` would still be handing
+  //     Anthropic's own authorization code to the user's own profile — the
+  //     PKCE verifier it would be exchanged against is held here, not by them.
+  const PUBLIC_PREFIXES = new Set(["/", "/health", "/callback"])
 
   it("rejects unauthenticated requests to every non-public route prefix", async () => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })

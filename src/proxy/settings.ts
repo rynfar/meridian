@@ -13,22 +13,28 @@ import { join, dirname } from "node:path"
 import { homedir } from "node:os"
 
 /**
- * Resolve the settings file path.
+ * Resolve Meridian's own config directory — the one holding `settings.json`,
+ * `profiles.json`, and the per-profile `CLAUDE_CONFIG_DIR`s under `profiles/`.
  *
  * Resolved per call rather than frozen at import time so tests can redirect
  * it via MERIDIAN_CONFIG_DIR (see `src/__tests__/preload.ts`). Without the
  * override the path is exactly what it has always been, so existing installs
  * are unaffected.
  *
+ * Shared by settings.ts, profiles.ts and profileCli.ts so the override moves
+ * all of Meridian's state together. A reader and a writer disagreeing about
+ * where profiles.json lives is a profile that gets written and never seen.
+ *
  * NOTE: deliberately does NOT honour XDG_CONFIG_HOME — anyone who has that
  * set would silently relocate to a different settings file and appear to
  * lose their configuration.
  */
+export function meridianConfigDir(): string {
+  return process.env.MERIDIAN_CONFIG_DIR ?? join(homedir(), ".config", "meridian")
+}
+
 function settingsFile(): string {
-  const override = process.env.MERIDIAN_CONFIG_DIR
-  return override
-    ? join(override, "settings.json")
-    : join(homedir(), ".config", "meridian", "settings.json")
+  return join(meridianConfigDir(), "settings.json")
 }
 
 export interface MeridianSettings {
