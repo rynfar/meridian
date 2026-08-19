@@ -33,13 +33,21 @@ let capturedOptions: any[] = []
 /** Set to hold the title request inside query() so it keeps the turn lease
  *  while the user's turn arrives — the live race, made deterministic. */
 let holdTitleUntil: Promise<void> | undefined
+/** Fired when the title request's generator body starts running. The lease is
+ *  taken in the route handler before the SDK call, so by this point the title
+ *  request definitively holds it — which is what makes the race a signal and
+ *  not a sleep. */
+let onTitleEnteredQuery: (() => void) | undefined
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     capturedOptions.push(params.options || {})
     const isTitle = typeof params.prompt === "string" && params.prompt.includes("Generate a title")
     return (async function* () {
-      if (isTitle && holdTitleUntil) await holdTitleUntil
+      if (isTitle) {
+        onTitleEnteredQuery?.()
+        if (holdTitleUntil) await holdTitleUntil
+      }
       for (const msg of mockMessages) yield msg
     })()
   },
@@ -57,6 +65,7 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { telemetryStore } = await import("../telemetry")
 
 function createTestApp() {
   const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
@@ -116,9 +125,15 @@ describe("OpenCode title agent vs the user's conversation", () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedOptions = []
     holdTitleUntil = undefined
+    onTitleEnteredQuery = undefined
+    telemetryStore.clear()
     clearSessionCache()
   })
-  afterEach(() => { holdTitleUntil = undefined; clearSessionCache() })
+  afterEach(() => {
+    holdTitleUntil = undefined
+    onTitleEnteredQuery = undefined
+    clearSessionCache()
+  })
 
   it("does not refuse the user's turn after a title turn on the same session id", async () => {
     const app = createTestApp()
@@ -159,14 +174,22 @@ describe("OpenCode title agent vs the user's conversation", () => {
   it("does not refuse the user's turn that queued behind an in-flight title turn", async () => {
     const app = createTestApp()
     let release!: () => void
+    let titleHasLease!: Promise<void>
     holdTitleUntil = new Promise<void>((resolve) => { release = resolve })
+    titleHasLease = new Promise<void>((resolve) => { onTitleEnteredQuery = resolve })
 
     const titlePromise = post(app, TITLE_BODY, TITLE_HEADERS)
-    // Let the title request reach query() and take the lease before the user's
-    // turn arrives, so the user's turn genuinely waits on it.
-    await new Promise((r) => setTimeout(r, 20))
+    // Signal, not sleep: wait until the title request is inside query(), which
+    // is after the route handler took the turn lease.
+    await titleHasLease
+
     const userPromise = post(app, USER_TURN_1, USER_HEADERS)
-    await new Promise((r) => setTimeout(r, 20))
+    // Give the user's turn time to reach the lease and block on it. Bounded,
+    // and the sessionQueueWaitMs assertion below fails loudly if it did not —
+    // a race harness that silently stops racing is worse than no test.
+    for (let i = 0; i < 50 && capturedOptions.length < 2; i++) {
+      await new Promise((r) => setTimeout(r, 2))
+    }
     release()
 
     const [title, user] = await Promise.all([titlePromise, userPromise])
@@ -174,5 +197,17 @@ describe("OpenCode title agent vs the user's conversation", () => {
     expect(user.status).toBe(200)
     const userBody = await user.json() as any
     expect(JSON.stringify(userBody)).not.toContain("session advanced")
+
+    // The title turn held its own lease for the whole duration of the user's
+    // turn, and the user's turn did not wait on it for a millisecond. That
+    // zero IS the fix: live, this wait was 9,836 ms and ended in a 400.
+    //
+    // Asserted as 0 rather than "> 0 to prove the harness raced": the harness
+    // is proven live by running this file against the unscoped key, where the
+    // wait is non-zero and the status is 400. Demanding contention here would
+    // be demanding the bug.
+    const userMetric = telemetryStore.getRecent({ limit: 10 }).find((m) => m.toolCount === 1)
+    expect(userMetric).toBeDefined()
+    expect(userMetric!.sessionQueueWaitMs ?? 0).toBe(0)
   })
 })
