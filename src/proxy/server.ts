@@ -8694,6 +8694,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       profiles: finalConfig.profiles,
       profileId: body.profile ?? "",
       hostHeader: c.req.header("host"),
+      forwardedFor: c.req.header("x-forwarded-for"),
       serverPort: finalConfig.port,
     })
     if (!result.ok) {
