@@ -4122,14 +4122,27 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 abortIsOurs: sawDuplicateToolUse,
               }) && messageStartEmitted
 
-              // maxTurns=1 is the normal passthrough tool handoff. By the time
-              // the SDK reports that boundary, the iterator has observed the
-              // assistant tool-use UUID and its synthetic denial, so the
-              // checkpoint is settled and the subprocess has flushed its
-              // transcript while terminating. Preserve that checkpoint instead
-              // of evicting it: the next request rewinds here and appends the
-              // client's real tool_result without traversing a hidden digest
-              // branch. Other drain failures remain unsafe and are evicted.
+              // A turn-cap stop is the one drain failure whose checkpoint is
+              // safe to keep, and the reason is specific: the SDK can only
+              // report `max_turns` from a `result` message it has already
+              // enqueued, and it awaits its transcript flush on `result`
+              // (Query.readMessages in the bundled agent SDK builds the error
+              // text from lastErrorResultText, which only a delivered result
+              // populates). So the transcript is committed by the time we see
+              // this — categorically unlike the abort-shaped failure that
+              // motivated the eviction, where a SIGTERM'd subprocess emits no
+              // result at all. That is the invariant passthroughEarlyStop.ts
+              // requires before a resumeSessionAt UUID may be published.
+              //
+              // Which also means `sawCanonicalResult` is already true here, so
+              // the eviction below would not have fired on this path anyway;
+              // naming the case in the guard is belt-and-braces, and the
+              // load-bearing half is the storeSession further down.
+              //
+              // Keeping it lets the next request rewind to the tool-use
+              // boundary and append the client's real tool_result, instead of
+              // replaying the conversation against a cold cache. Other drain
+              // failures remain unsafe and are evicted.
               const recoverableCheckpoint =
                 canRecoverAsToolUse &&
                 sdkTerm.reason === "max_turns" &&
