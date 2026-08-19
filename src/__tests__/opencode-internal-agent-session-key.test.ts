@@ -122,7 +122,13 @@ describe("openCodeAdapter.getSessionId — internal agent isolation", () => {
  * So the shape is left alone, and this test pins that: an unkeyed-agent request
  * keeps the raw session id, whatever it looks like. Plugin-less OpenCode stays
  * exposed to the collision, which is consistent with `meridian setup` being
- * required — it is warned about at startup and reported by /health.
+ * required. Note where that guardrail stops short: /health always reports
+ * `plugin: not-configured`, but the startup warning in bin/cli.ts is gated on
+ * an OpenCode config FILE existing (so meridian stays quiet for the many
+ * clients that are not OpenCode). Run the documented step 2 alone —
+ * `ANTHROPIC_BASE_URL=… opencode`, no config file — and there is no warning at
+ * all. Closing that would mean warning at request time, when an OpenCode
+ * request arrives carrying no plugin headers; deliberately not done here.
  */
 describe("openCodeAdapter.getSessionId — shape is never used to infer an agent", () => {
   const AFFINITY = "ses_fe4c090d9ffeymDAOxKAoBeqQ2"
