@@ -2545,6 +2545,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // Do not rethrow — execution continues into the merge block, which
               // backfills contentBlocks from capturedToolUses and builds a clean
               // stop_reason:"tool_use" response.
+            } else if (passthrough && sdkTerm.reason === "max_turns" && contentBlocks.length > 0) {
+              // The turn hit its budget without producing a forwardable tool
+              // call, but it did produce content. Throwing here would answer a
+              // 200-able turn with a 500 — and the streaming path already does
+              // the honest thing instead, reporting the turn as truncated. Match
+              // it: `max_tokens` is the signal a client can act on (retry or
+              // continue), where a 500 is a dead end and `end_turn` would be the
+              // silent-turn lie #768 exists to prevent.
+              //
+              // Reachable before this change too (any max_turns with nothing
+              // captured), just rarer while the budget was 3. The single-turn
+              // cap makes max_turns the ordinary terminal state, so the
+              // degradation has to be honest rather than incidental.
+              lastStopReason = "max_tokens"
+              claudeLog("passthrough.capped_turn_truncated", {
+                mode: "non_stream",
+                blocks: contentBlocks.length,
+              })
+              plog(`[PROXY] ${requestMeta.requestId} capped turn produced no forwardable tool call — reporting as truncated`)
+              if (lastUsage) logUsage(requestMeta.requestId, lastUsage)
             } else {
               claudeLog("upstream.failed", {
                 mode: "non_stream",

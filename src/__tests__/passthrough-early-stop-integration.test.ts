@@ -1179,6 +1179,58 @@ describe("Integration: passthrough early stop", () => {
     expect(usageLine).toContain("output=42")
   })
 
+  // ADVERSARIAL: the cap makes max_turns the ordinary terminal state, so a turn
+  // that trips it with NOTHING captured must still produce a usable envelope.
+  // This is reachable: a thinking-only turn makes the CLI take another turn for
+  // its no-visible-output nudge (audit-token-spend.mjs counts these), and under
+  // the cap that turn is refused. Before the cap it could not happen, because
+  // the SDK had budget to finish. A 500 here is a hard user-visible regression.
+  it("stream: a capped turn that captured no tool call does not fail the request", async () => {
+    mockMessages = [
+      messageStart("msg_capped_nothing"),
+      assistantMessage([{ type: "thinking", thinking: "pondering", signature: "sig" }]),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "think only" }],
+    }, "es-capped-nothing")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    // The streaming path already degrades honestly (#768): the turn is reported
+    // truncated, never as a clean finish. Pin that — a future change must not
+    // quietly turn this into `end_turn`, which is the silent-turn shape.
+    expect(body).toContain('"stop_reason":"max_tokens"')
+    expect(body).not.toContain('"stop_reason":"end_turn"')
+  })
+
+  it("non-stream: a capped turn that captured no tool call does not fail the request", async () => {
+    mockMessages = [
+      assistantMessage([{ type: "thinking", thinking: "pondering", signature: "sig" }]),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "think only" }],
+    }, "es-capped-nothing-ns")
+    // Was a 500 before: a turn with content but no forwardable tool call is
+    // answerable, so it must report truncation rather than dead-ending.
+    expect(res.status).toBe(200)
+    const json = await res.json() as any
+    expect(json.stop_reason).toBe("max_tokens")
+    expect(json.stop_reason).not.toBe("end_turn")
+  })
+
   // A turn that ends on its own never asks the SDK for a second turn, so the
   // cap is invisible to it. Verified against the live SDK: text-only at
   // maxTurns=1 returns subtype "success", not error_max_turns.
