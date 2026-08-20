@@ -108,7 +108,7 @@ const READ_TOOL = {
 
 const usedSessionKeys = new Set<string>()
 
-async function post(app: any, body: any, sessionHeader = "es-session") {
+async function post(app: any, body: any, sessionHeader = "es-session", extraHeaders: Record<string, string> = {}) {
   const sessionKey = `${sessionHeader}-${TEST_RUN_ID}`
   usedSessionKeys.add(sessionKey)
   return app.fetch(new Request("http://localhost/v1/messages", {
@@ -118,6 +118,7 @@ async function post(app: any, body: any, sessionHeader = "es-session") {
       "x-api-key": "dummy",
       "x-opencode-session": sessionKey,
       "user-agent": "opencode/1.0.0",
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   }))
@@ -1068,22 +1069,27 @@ describe("Integration: passthrough early stop", () => {
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
 
+    // Correlate by request id. Ordering is NOT safe here: the capped turn drains
+    // asynchronously after its stream closes, so an earlier test's drain can
+    // land a row after this one starts — reading getRecent()[0] then picks up
+    // the straggler and compares against the wrong turn's tokens.
+    const requestId = `capped-usage-${TEST_RUN_ID}`
     const res = await post(app, {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
       stream: true,
       tools: [READ_TOOL],
       messages: [{ role: "user", content: "read x usage" }],
-    }, "es-capped-usage")
+    }, "es-capped-usage", { "x-request-id": requestId })
     expect(res.status).toBe(200)
     await res.text()
 
     // The client stream closes at the tool boundary, so the response resolves
     // before the hidden drain reaches the capped stop and records the turn.
-    // Wait for the recovery to land rather than sampling the store too early.
+    // Wait for THIS turn's row rather than sampling the store too early.
     let row: any
-    for (let i = 0; i < 100 && !row; i++) {
-      row = telemetryStore.getRecent({ limit: 50 })[0]
+    for (let i = 0; i < 500 && !row; i++) {
+      row = telemetryStore.getRecent({ limit: 200 }).find((m: any) => m.requestId === requestId)
       if (!row) await new Promise((r) => setTimeout(r, 10))
     }
     expect(row).toBeDefined()
@@ -1118,6 +1124,11 @@ describe("Integration: passthrough early stop", () => {
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
 
+    // Match on this turn's request id: a concurrently-draining turn from an
+    // earlier test logs its own `usage:` line, and a bare substring search
+    // would assert against whichever landed first.
+    const requestId = `capped-logline-${TEST_RUN_ID}`
+    const isMine = (l: string) => l.includes("usage:") && l.includes(requestId)
     const lines: string[] = []
     const realError = console.error
     console.error = (...args: unknown[]) => { lines.push(args.join(" ")) }
@@ -1128,16 +1139,16 @@ describe("Integration: passthrough early stop", () => {
         stream: true,
         tools: [READ_TOOL],
         messages: [{ role: "user", content: "read x logline" }],
-      }, "es-capped-logline")
+      }, "es-capped-logline", { "x-request-id": requestId })
       await res.text()
-      for (let i = 0; i < 100 && !lines.some((l) => l.includes("usage:")); i++) {
+      for (let i = 0; i < 500 && !lines.some(isMine); i++) {
         await new Promise((r) => setTimeout(r, 10))
       }
     } finally {
       console.error = realError
     }
 
-    const usageLine = lines.find((l) => l.includes("usage:"))
+    const usageLine = lines.find(isMine)
     expect(usageLine).toBeDefined()
     expect(usageLine).toContain("output=66")
   })
@@ -1156,6 +1167,8 @@ describe("Integration: passthrough early stop", () => {
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
 
+    const requestId = `capped-ns-logline-${TEST_RUN_ID}`
+    const isMine = (l: string) => l.includes("usage:") && l.includes(requestId)
     const lines: string[] = []
     const realError = console.error
     console.error = (...args: unknown[]) => { lines.push(args.join(" ")) }
@@ -1167,14 +1180,14 @@ describe("Integration: passthrough early stop", () => {
         stream: false,
         tools: [READ_TOOL],
         messages: [{ role: "user", content: "read y logline" }],
-      }, "es-capped-ns-logline")
+      }, "es-capped-ns-logline", { "x-request-id": requestId })
       await res.json()
     } finally {
       console.error = realError
     }
 
     expect(res.status).toBe(200)
-    const usageLine = lines.find((l) => l.includes("usage:"))
+    const usageLine = lines.find(isMine)
     expect(usageLine).toBeDefined()
     expect(usageLine).toContain("output=42")
   })
