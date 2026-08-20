@@ -21,6 +21,8 @@ import {
 // Track query calls to verify retry behavior
 let queryCalls: Array<{ model: string; callIndex: number; resume?: string }> = []
 let queryCallCount = 0
+/** Benches recorded when a [1m] model is stripped after a rate limit (#862). */
+let rateLimitBenches: Array<{ profileId: string | undefined; until: number }> = []
 
 // Control what the mock does
 let mockBehavior: "extra_usage_then_succeed" | "always_extra_usage" | "out_of_extra_usage_then_succeed" | "resume_extra_usage_then_succeed" | "succeed" | "error_assistant_then_ratelimit" = "succeed"
@@ -42,6 +44,9 @@ mock.module("../proxy/models", () => ({
   stripExtendedContext: (model: string) => model.replace("[1m]", ""),
   isClosedControllerError: () => false,
   recordExtendedContextUnavailable: () => {},
+  recordExtendedContextRateLimited: (profileId: string | undefined, until: number) => {
+    rateLimitBenches.push({ profileId, until })
+  },
   isExtendedContextKnownUnavailable: () => false,
   getAuthCacheInfo: () => ({ lastCheckedAt: 0, lastSuccessAt: 0, isFailure: false }),
 }))
@@ -157,6 +162,7 @@ describe("Extra usage required fallback", () => {
   beforeEach(() => {
     clearSessionCache()
     queryCalls = []
+    rateLimitBenches = []
     queryCallCount = 0
     mockBehavior = "succeed"
   })
@@ -322,6 +328,24 @@ describe("Extra usage required fallback", () => {
       expect(queryCalls.length).toBe(2)
       expect(queryCalls[0]!.model).toBe("sonnet[1m]")
       expect(queryCalls[1]!.model).toBe("sonnet")
+    })
+
+    it("benches [1m] after a rate-limit strip so the next request does not flap back (#862)", async () => {
+      // Stripping [1m] without recording anything means the NEXT request maps
+      // straight back to [1m] — two model switches, and a cold prompt cache in
+      // both directions, for one rate-limit event.
+      mockBehavior = "error_assistant_then_ratelimit"
+      const app = createTestApp()
+
+      const response = await post(app, {
+        model: "sonnet",
+        stream: false,
+        messages: [{ role: "user", content: "hello" }],
+      })
+      expect(response.status).toBe(200)
+
+      expect(rateLimitBenches.length).toBe(1)
+      expect(rateLimitBenches[0]!.until).toBeGreaterThan(Date.now())
     })
   })
 })

@@ -150,7 +150,7 @@ function supports1mContext(model: string): boolean {
   return true
 }
 
-export function mapModelToClaudeModel(model: string, subscriptionType?: string | null, agentMode?: string | null): ClaudeModel {
+export function mapModelToClaudeModel(model: string, subscriptionType?: string | null, agentMode?: string | null, profileId?: string): ClaudeModel {
   if (model.includes("haiku")) return "haiku"
 
   const use1m = supports1mContext(model)
@@ -186,7 +186,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
     if (fableOverrideRaw && fableOverride !== "fable[1m]") {
       warnUnrecognizedTierOverride("FABLE_MODEL", fableOverrideRaw, "fable")
     }
-    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable()) return "fable[1m]"
+    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable(profileId)) return "fable[1m]"
     return "fable"
   }
 
@@ -209,7 +209,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
     if (opusOverrideRaw && opusOverride !== "opus[1m]") {
       warnUnrecognizedTierOverride("OPUS_MODEL", opusOverrideRaw, "opus")
     }
-    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable()) return "opus[1m]"
+    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable(profileId)) return "opus[1m]"
     return "opus"
   }
 
@@ -219,7 +219,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // avoid unexpected charges. Users opt in via MERIDIAN_SONNET_MODEL=sonnet[1m].
   const sonnetOverride = process.env.MERIDIAN_SONNET_MODEL ?? process.env.CLAUDE_PROXY_SONNET_MODEL
   if (sonnetOverride === "sonnet[1m]") {
-    if (!use1m || isSubagent || isExtendedContextKnownUnavailable()) return "sonnet"
+    if (!use1m || isSubagent || isExtendedContextKnownUnavailable(profileId)) return "sonnet"
     return "sonnet[1m]"
   }
 
@@ -233,7 +233,36 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
 /** How long to skip [1m] models after confirming Extra Usage is not enabled. */
 const EXTRA_USAGE_RETRY_MS = 60 * 60 * 1000 // 1 hour
 
-let extraUsageUnavailableAt = 0
+/**
+ * Per-profile "[1m] is benched until" timestamps.
+ *
+ * Keyed by profile because both reasons to bench are account-scoped: Extra
+ * Usage is a subscription setting, and a rate limit is charged against one
+ * account's window. This was a single process-global timestamp, which benched
+ * [1m] for EVERY profile the moment any one of them failed — so an account
+ * whose plan includes the 1M window lost it for an hour because an unrelated
+ * account ran out of Extra Usage (#862).
+ *
+ * Requests carrying no profile share one default bucket, which leaves the
+ * single-profile case behaving exactly as it did.
+ */
+const DEFAULT_BENCH_KEY = "__default__"
+const extendedContextBenchedUntil = new Map<string, number>()
+
+/**
+ * Bench a profile's [1m] access until `until`.
+ *
+ * A later mark extends an earlier one; an earlier mark never shortens a longer
+ * bench. Two concurrent failures must not un-learn the longer reset — the same
+ * rule `ProfileExhaustion.mark` follows, and for the same reason.
+ */
+function benchExtendedContext(profileId: string | undefined, until: number): void {
+  if (until <= Date.now()) return
+  const key = profileId || DEFAULT_BENCH_KEY
+  const existing = extendedContextBenchedUntil.get(key)
+  if (existing !== undefined && existing >= until) return
+  extendedContextBenchedUntil.set(key, until)
+}
 
 /**
  * Record that Extra Usage is not enabled on this subscription.
@@ -242,23 +271,44 @@ let extraUsageUnavailableAt = 0
  * the next request probes [1m] once; if Extra Usage was enabled in the
  * meantime it succeeds and the flag is never set again.
  */
-export function recordExtendedContextUnavailable(): void {
-  extraUsageUnavailableAt = Date.now()
+export function recordExtendedContextUnavailable(profileId?: string): void {
+  benchExtendedContext(profileId, Date.now() + EXTRA_USAGE_RETRY_MS)
 }
 
 /**
- * Returns true while within the cooldown window after a confirmed
- * Extra Usage failure. After the window expires this returns false,
- * allowing one probe to check whether Extra Usage has been enabled.
+ * Record that a [1m] request was rate-limited, benching it until `until`.
+ *
+ * Callers derive `until` from the account's own observed reset rather than a
+ * constant. Stripping [1m] on a rate limit while recording nothing is what
+ * makes the next request map straight back to [1m]: the conversation then
+ * flaps between two models and pays a cold prompt cache in BOTH directions,
+ * which routinely costs more than the rate limit it was routing around (#862).
  */
-export function isExtendedContextKnownUnavailable(): boolean {
-  return extraUsageUnavailableAt > 0 &&
-    Date.now() - extraUsageUnavailableAt < EXTRA_USAGE_RETRY_MS
+export function recordExtendedContextRateLimited(profileId: string | undefined, until: number): void {
+  benchExtendedContext(profileId, until)
 }
 
-/** Reset the Extended Context unavailability timer — for testing only. */
-export function resetExtendedContextUnavailable(): void {
-  extraUsageUnavailableAt = 0
+/**
+ * Returns true while this profile's [1m] access is benched. Expired marks are
+ * dropped on read, so the next request probes [1m] once — and if the window
+ * has genuinely reset, it simply succeeds.
+ */
+export function isExtendedContextKnownUnavailable(profileId?: string): boolean {
+  const key = profileId || DEFAULT_BENCH_KEY
+  const until = extendedContextBenchedUntil.get(key)
+  if (until === undefined) return false
+  if (until <= Date.now()) {
+    extendedContextBenchedUntil.delete(key)
+    return false
+  }
+  return true
+}
+
+/** Clear extended-context benches — for testing only. Clears every profile
+ *  when no id is given. */
+export function resetExtendedContextUnavailable(profileId?: string): void {
+  if (profileId) extendedContextBenchedUntil.delete(profileId)
+  else extendedContextBenchedUntil.clear()
 }
 
 /**

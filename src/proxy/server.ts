@@ -65,7 +65,7 @@ import {
   DESIGN_UPSTREAM_ORIGIN,
 } from "./design"
 import { checkPluginConfigured, notePluginlessOpenCodeRequest } from "./setup"
-import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, subscriptionIncludesExtendedContext } from "./models"
+import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, subscriptionIncludesExtendedContext } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
@@ -1040,7 +1040,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           declaredAgentMode === "subagent" || requestSource?.startsWith("subagent-") === true
         const agentMode = isSubagentRequest ? "subagent" : declaredAgentMode
         const requestedModel = typeof body.model === "string" ? body.model : "sonnet"
-        let model = mapModelToClaudeModel(requestedModel, authStatus?.subscriptionType, agentMode)
+        let model = mapModelToClaudeModel(requestedModel, authStatus?.subscriptionType, agentMode, profile.id)
         // Explicitly versioned ids override their tier's canonical pin for
         // this request (spread last in query.ts env, so they also beat
         // operator env) — a proxy must never substitute models. Bare aliases
@@ -2214,7 +2214,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   if (isExtraUsageRequiredError(errMsg) && hasExtendedContext(model)) {
                     const from = model
                     model = stripExtendedContext(model)
-                    recordExtendedContextUnavailable()
+                    recordExtendedContextUnavailable(profile.id)
                     claudeLog("upstream.context_fallback", {
                       mode: "non_stream",
                       from,
@@ -2275,6 +2275,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     if (hasExtendedContext(model)) {
                       const from = model
                       model = stripExtendedContext(model)
+                      // Bench [1m] for this profile until its window resets. Without
+                      // this the next request maps straight back to [1m], so one rate
+                      // limit costs TWO model switches and a cold prompt cache in both
+                      // directions — routinely more than the rate limit itself (#862).
+                      recordExtendedContextRateLimited(profile.id, priorityCooldownUntil(profile.id, Date.now()))
                       claudeLog("upstream.context_fallback", {
                         mode: "non_stream",
                         from,
@@ -3061,7 +3066,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     if (isExtraUsageRequiredError(errMsg) && hasExtendedContext(model)) {
                       const from = model
                       model = stripExtendedContext(model)
-                      recordExtendedContextUnavailable()
+                      recordExtendedContextUnavailable(profile.id)
                       claudeLog("upstream.context_fallback", {
                         mode: "stream",
                         from,
@@ -3122,6 +3127,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (hasExtendedContext(model)) {
                         const from = model
                         model = stripExtendedContext(model)
+                        // Bench [1m] for this profile until its window resets. Without
+                        // this the next request maps straight back to [1m], so one rate
+                        // limit costs TWO model switches and a cold prompt cache in both
+                        // directions — routinely more than the rate limit itself (#862).
+                        recordExtendedContextRateLimited(profile.id, priorityCooldownUntil(profile.id, Date.now()))
                         claudeLog("upstream.context_fallback", {
                           mode: "stream",
                           from,
