@@ -83,6 +83,7 @@ mock.module("../mcpTools", () => ({
 const { createProxyServer } = await import("../proxy/server")
 const { clearSessionCache } = await import("../proxy/session/cache")
 const { evictSharedSession } = await import("../proxy/sessionStore")
+const { telemetryStore } = await import("../telemetry")
 
 function userDenyMessage(toolUseId: string) {
   return {
@@ -942,6 +943,263 @@ describe("Integration: passthrough early stop", () => {
     expect(second.status).toBe(200)
     expect(capturedQueryParamsAll[1].options.resume).toBe("test-session")
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
+  // The live SDK delivers its error result BEFORE the iterator throws — verified
+  // against the real Agent SDK, which enqueues the result then replaces the exit
+  // error with the result text. The fixture above omits that result, so it
+  // exercises sawCanonicalResult=false; this one is the shape production
+  // actually sees now that maxTurns is capped at 1.
+  it("stream: stores the checkpoint when the capped stop delivers its result before throwing", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "capped-stream-tool", name: "read", input: { file_path: "x" } },
+    ])
+    mockMessages = [
+      messageStart("msg_capped_stream"),
+      toolUseBlockStart(0, "read", "capped-stream-tool"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("capped-stream-tool"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x capped" }],
+    }, "es-capped-stream")
+    expect(first.status).toBe(200)
+    expect(await first.text()).toContain('"type":"tool_use"')
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says X" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x capped" },
+        { role: "assistant", content: [{ type: "tool_use", id: "capped-stream-tool", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "capped-stream-tool", content: "X" }] },
+      ],
+    }, "es-capped-stream")
+    expect(second.status).toBe(200)
+    expect(capturedQueryParamsAll[1].options.resume).toBe("test-session")
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
+  it("non-stream: stores the checkpoint at the capped stop so the next turn resumes", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "capped-ns-tool", name: "read", input: { file_path: "y" } },
+    ])
+    mockMessages = [
+      toolTurn,
+      userDenyMessage("capped-ns-tool"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read y capped" }],
+    }, "es-capped-nonstream")
+    expect(first.status).toBe(200)
+    const firstJson = await first.json() as any
+    expect(firstJson.stop_reason).toBe("tool_use")
+    expect(firstJson.content.some((b: any) => b.type === "tool_use")).toBe(true)
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says Y" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read y capped" },
+        { role: "assistant", content: [{ type: "tool_use", id: "capped-ns-tool", name: "read", input: { file_path: "y" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "capped-ns-tool", content: "Y" }] },
+      ],
+    }, "es-capped-nonstream")
+    expect(second.status).toBe(200)
+    expect(capturedQueryParamsAll[1].options.resume).toBe("test-session")
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
+  // The capped stop routes every passthrough tool turn through the error
+  // recovery path. That path must still report tokens: it is now the common
+  // case, and a metric with null token columns would blind exactly the
+  // dashboards used to watch passthrough spend.
+  it("stream: records token usage for a capped tool turn", async () => {
+    telemetryStore.clear()
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "capped-usage-tool", name: "read", input: { file_path: "x" } },
+    ])
+    mockMessages = [
+      messageStart("msg_capped_usage"),
+      toolUseBlockStart(0, "read", "capped-usage-tool"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("capped-usage-tool"),
+      {
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        session_id: "test-session",
+        usage: {
+          input_tokens: 11,
+          output_tokens: 66,
+          cache_read_input_tokens: 4242,
+          cache_creation_input_tokens: 7,
+        },
+      },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x usage" }],
+    }, "es-capped-usage")
+    expect(res.status).toBe(200)
+    await res.text()
+
+    // The client stream closes at the tool boundary, so the response resolves
+    // before the hidden drain reaches the capped stop and records the turn.
+    // Wait for the recovery to land rather than sampling the store too early.
+    let row: any
+    for (let i = 0; i < 100 && !row; i++) {
+      row = telemetryStore.getRecent({ limit: 50 })[0]
+      if (!row) await new Promise((r) => setTimeout(r, 10))
+    }
+    expect(row).toBeDefined()
+    expect(row!.outputTokens).toBe(66)
+    expect(row!.cacheReadInputTokens).toBe(4242)
+    expect(row!.cacheCreationInputTokens).toBe(7)
+    expect(row!.inputTokens).toBe(11)
+  })
+
+  // The operator-facing usage line is how a capped tool turn's spend shows up
+  // in `tail -f` on the proxy. It is emitted on the normal completion path
+  // only, which the capped stop bypasses — so every tool turn would go quiet.
+  it("stream: logs the usage line for a capped tool turn", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "capped-log-tool", name: "read", input: { file_path: "x" } },
+    ])
+    mockMessages = [
+      messageStart("msg_capped_log"),
+      toolUseBlockStart(0, "read", "capped-log-tool"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("capped-log-tool"),
+      {
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        session_id: "test-session",
+        usage: { input_tokens: 11, output_tokens: 66, cache_read_input_tokens: 4242 },
+      },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const lines: string[] = []
+    const realError = console.error
+    console.error = (...args: unknown[]) => { lines.push(args.join(" ")) }
+    try {
+      const res = await post(app, {
+        model: "claude-sonnet-4-5",
+        max_tokens: 400,
+        stream: true,
+        tools: [READ_TOOL],
+        messages: [{ role: "user", content: "read x logline" }],
+      }, "es-capped-logline")
+      await res.text()
+      for (let i = 0; i < 100 && !lines.some((l) => l.includes("usage:")); i++) {
+        await new Promise((r) => setTimeout(r, 10))
+      }
+    } finally {
+      console.error = realError
+    }
+
+    const usageLine = lines.find((l) => l.includes("usage:"))
+    expect(usageLine).toBeDefined()
+    expect(usageLine).toContain("output=66")
+  })
+
+  it("non-stream: logs the usage line for a capped tool turn", async () => {
+    mockMessages = [
+      assistantMessage([{ type: "tool_use", id: "capped-ns-log", name: "read", input: { file_path: "y" } }]),
+      userDenyMessage("capped-ns-log"),
+      {
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        session_id: "test-session",
+        usage: { input_tokens: 9, output_tokens: 42, cache_read_input_tokens: 1234 },
+      },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const lines: string[] = []
+    const realError = console.error
+    console.error = (...args: unknown[]) => { lines.push(args.join(" ")) }
+    let res: any
+    try {
+      res = await post(app, {
+        model: "claude-sonnet-4-5",
+        max_tokens: 400,
+        stream: false,
+        tools: [READ_TOOL],
+        messages: [{ role: "user", content: "read y logline" }],
+      }, "es-capped-ns-logline")
+      await res.json()
+    } finally {
+      console.error = realError
+    }
+
+    expect(res.status).toBe(200)
+    const usageLine = lines.find((l) => l.includes("usage:"))
+    expect(usageLine).toBeDefined()
+    expect(usageLine).toContain("output=42")
+  })
+
+  // A turn that ends on its own never asks the SDK for a second turn, so the
+  // cap is invisible to it. Verified against the live SDK: text-only at
+  // maxTurns=1 returns subtype "success", not error_max_turns.
+  it("passthrough: a text-only turn completes normally under the cap", async () => {
+    mockMessages = [
+      assistantMessage([{ type: "text", text: "no tools needed" }]),
+      { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+    ]
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "just answer" }],
+    }, "es-capped-text-only")
+    expect(res.status).toBe(200)
+    const json = await res.json() as any
+    expect(json.stop_reason).toBe("end_turn")
+    expect(json.content[0].text).toBe("no tools needed")
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
   })
 
   it("stream: closes at turn 1 while digest and canonical result drain invisibly", async () => {

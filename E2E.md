@@ -92,6 +92,7 @@ kill $(lsof -ti :3456)
 | E37 | [WebFetch preflight scope (#748)](#e37-webfetch-preflight-scope-748) | **Automated**: `bun scripts/e2e-webfetch-preflight.mjs` — stubbed `claude` + isolated HOME: the toggle reaches the right adapter's `--settings`, and only `cherry` can actually run the built-in WebFetch, so the documented scope is asserted rather than assumed. **Run before releases touching sdkFeatures, query settings, or tool config**; costs no tokens | 2026-08-03 |
 | E38 | [Silent turns (#768)](#e38-silent-turns-768) | **Automated**: `bun scripts/e2e-silent-turn.mjs` — real CLI, SSE mode. Asserts four things per attempt: the client got text or a tool call; recovered content sits BEFORE the terminal `message_delta` (content behind it is dropped by a correct client); exactly one `message_delta` per message; and a third turn after a recovery still resumes. Attribution is read from `/telemetry/logs`, not stdout. Pair `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1` against `MERIDIAN_SILENT_TURN_RECOVERY=0` for the before/after. **Run before any release touching the passthrough tool loop, prompt assembly, or session resume** | 2026-08-11 |
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
+| E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3474,3 +3475,53 @@ cause (cold starts vs discarded passthrough turns), which is how to tell a
 "Meridian costs more" report apart from a caching failure. On this machine's
 history: cold starts 35.4% of spend and 63.3% of all cache writes; discarded
 passthrough turns 1.2%.
+
+---
+
+## E40: Passthrough digest-turn cap
+
+**What it proves:** that capping `maxTurns` at 1 for passthrough turns removes
+the billed digest turn *without* costing the session.
+
+**Why it needs a live SDK:** the thing under test is the SDK's own turn
+accounting — when it decides a turn is finished, when it declines to start
+another, and whether it still flushes its transcript on the way out. A mocked
+SDK can only replay assumptions about that; this asserts them.
+
+```bash
+bun scripts/e2e-digest-turn-cap.mjs
+```
+
+**Pass criteria** (the script asserts all of these and exits non-zero on any):
+
+- Capped, the tool call still reaches the client, the SDK stops with
+  `subtype: error_max_turns`, and **no digest text is generated**
+- Uncapped (`maxTurns: 3`) *does* generate digest text, costs more, and emits
+  more output tokens on the identical prompt
+- The capped session **resumes** at the captured assistant UUID and answers from
+  the client's real `tool_result`
+- A text-only turn returns `success`, not `error_max_turns`
+- Parallel tool calls are all still forwarded
+
+**Do not assert an assistant-message count.** The SDK splits one turn across
+several assistant messages — a thinking message, then one per parallel tool
+call — so the count tracks the model's phrasing, not turns. The digest turn's
+signature is text produced *after* the tool call.
+
+**If the resume check ever fails, take the cap off.** It is the claim #837 was
+defending: a lost transcript costs a full cold replay on every tool call, which
+is far worse than the digest turn the cap removes.
+
+**Verified:** 2026-08-20, sonnet. Capped vs uncapped on one tool call:
+121 vs 244 output tokens and $0.0046 vs $0.0469 (10.3x) in one run, $0.0046 vs
+$0.7687 (168x) in another where the uncapped digest turn wrote a large cache
+entry. Through the live proxy (E17 shape): output 306 → 144 and cache_read
+12k → 4k on the tool turn. The discarded digest text was captured verbatim —
+*"I attempted to read that file, but the tool call w…"* — content the client
+never sees and the account is billed for.
+
+**Related:** `node scripts/audit-token-spend.mjs` attributes historical spend by
+cause. Read its `digest turns` line against the corpus it scanned: a machine
+running mostly internal-mode Claude Code has almost no passthrough transcripts,
+so a `0.0%` there means "little passthrough traffic here", not "the digest turn
+is cheap". Per-turn cost is what E40 measures.

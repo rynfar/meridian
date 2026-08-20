@@ -13,9 +13,18 @@
  * checkpoint, but they are NOT a durability acknowledgement: a live PTY E2E
  * observed the assistant and deny in the iterator while neither existed in the
  * session JSONL after an immediate abort. The proxy therefore freezes the
- * assistant UUID/tool IDs at deny settlement, drains the hidden digest without
- * forwarding it, and stores the checkpoint only after the SDK's canonical
- * terminal result commits the transcript.
+ * assistant UUID/tool IDs at deny settlement and stores the checkpoint only
+ * after the SDK's canonical terminal result commits the transcript.
+ *
+ * What stops the digest turn is the maxTurns cap in query.ts, not this module:
+ * capped at 1, the SDK reaches the tool-use boundary and then declines to start
+ * another turn, so the digest never generates AND the terminal result still
+ * arrives (as `error_max_turns`) to commit the transcript. That is the
+ * combination an immediate abort could not give — it skipped the commit.
+ *
+ * This module still drains rather than aborts, because the cap is lifted for
+ * deferred tools, advisors, structured output, and the kill switch. In those
+ * configurations the digest turn does generate and is discarded here.
  *
  * Pure module — no I/O, no imports from server.ts or session/.
  */

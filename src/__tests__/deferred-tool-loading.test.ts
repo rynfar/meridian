@@ -258,7 +258,7 @@ describe("auto-defer — threshold-based deferral via HTTP", () => {
     expect(capturedQueryParams.options.maxTurns).toBe(4)
   })
 
-  it("sets maxTurns to 3 when no deferred tools (passthrough base budget)", async () => {
+  it("caps maxTurns at 1 when no deferred tools — nothing needs a turn past the tool handoff", async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "Hello" }])]
 
     await app().fetch(new Request("http://localhost/v1/messages", {
@@ -271,7 +271,7 @@ describe("auto-defer — threshold-based deferral via HTTP", () => {
       })),
     }))
 
-    expect(capturedQueryParams.options.maxTurns).toBe(3)
+    expect(capturedQueryParams.options.maxTurns).toBe(1)
   })
 
   it("disables auto-defer when threshold is 0", async () => {
