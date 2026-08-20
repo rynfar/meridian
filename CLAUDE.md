@@ -9,10 +9,20 @@ A proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK). 
 ## Commands
 
 ```bash
-npm test          # Run all tests (bun test)
+npm test          # Run all tests — ALWAYS use this, never bare `bun test`
 npm run build     # Build with tsup
 npm start         # Start the proxy server
+npm run typecheck # tsc --noEmit (CI runs this separately; tests do not typecheck)
 ```
+
+**`npm test` is not a thin wrapper around `bun test`.** Ten test files mock
+modules with `mock.module`, which is process-global in bun and leaks across
+files, so `npm test` runs each of them in its own `bun test` invocation and
+excludes them from the main pass. Running bare `bun test` puts them back in one
+process and produces ~11 failures that look pre-existing and have nothing to do
+with your change. If you see failures in `models-auth-status`, `mcpTools grep
+tool`, `models.test`, or the session-store files, check which command you ran
+before investigating anything else.
 
 ## Code Rules
 
