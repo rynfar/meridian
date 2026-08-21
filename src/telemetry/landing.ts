@@ -187,8 +187,10 @@ function profileSection(q,s,pl,h){
     }
     if(!rows)rows='<div class="no-usage">no usage data yet</div>';
     var isPriority=pl&&pl.routing==='priority';
-    var switchable=multi&&p.configured&&!p.isActive&&!isPriority;
+    var follow=pl&&pl.follow;
+    var switchable=multi&&p.configured&&!p.isActive&&!isPriority&&!follow;
     var badge=isPriority?'':p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
+    if(follow&&p.isActive)badge+=' <span class="pool-chip">'+(follow.activeProfile?'following '+esc(follow.url):'local — '+esc(follow.url)+' unreachable')+(follow.stale?' · stale':'')+'</span>';
     if(isPriority){
       var orderIdx=(pl.profileOrder||[]).indexOf(p.id);
       if(orderIdx>=0)badge+='<span class="pool-chip">#'+(orderIdx+1)+' in pool</span>';
@@ -264,7 +266,7 @@ function render(h,s,q,pl){
 function switchProfile(id){
   fetch('/profiles/active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:id})})
     .then(function(r){return r.json()})
-    .then(function(data){if(data.success){refresh();if(window.meridianHeaderRefresh)window.meridianHeaderRefresh()}})
+    .then(function(data){if(data.success){refresh();if(window.meridianHeaderRefresh)window.meridianHeaderRefresh()}else if(data.error)alert(data.error)})
     .catch(function(){});
 }
 document.getElementById('content').addEventListener('click',function(e){

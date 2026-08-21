@@ -10,6 +10,12 @@ import { join } from "node:path"
 // Auth middleware reads this at request time; clear it so tests don't need API keys
 delete process.env.MERIDIAN_API_KEY
 
+// Follow mode replaces the active profile for EVERY profile resolution, so a
+// developer with this exported in their shell would silently change what the
+// profile/routing suites resolve to.
+delete process.env.MERIDIAN_FOLLOW_ACTIVE
+delete process.env.CLAUDE_PROXY_FOLLOW_ACTIVE
+
 // Point settings.ts at a throwaway directory so the suite never reads the
 // developer's real ~/.config/meridian/settings.json. A live
 // `routing: "priority"` setting made the sticky- and priority-routing

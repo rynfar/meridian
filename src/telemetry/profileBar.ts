@@ -123,6 +123,10 @@ export const profileBarCss = `
   .meridian-header .mh-profile .mh-profile-type {
     color: var(--muted, #8b949e); font-size: 10px;
   }
+  .meridian-header .mh-profile.following { border-color: var(--accent2, #bc8cff); }
+  .meridian-header .mh-profile .mh-profile-follow {
+    color: var(--accent2, #bc8cff); font-size: 10px;
+  }
   .meridian-header .mh-status {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 11px; color: var(--muted, #8b949e); white-space: nowrap;
@@ -191,7 +195,20 @@ export const profileBarJs = `
     fetch('/profiles/list').then(function(r) { return r.json(); }).then(function(data) {
       var current = (data.profiles || []).find(function(p) { return p.isActive; });
       if (!current) { profileChip.classList.remove('visible'); return; }
-      profileChip.innerHTML = esc(current.id) + ' <span class="mh-profile-type">' + esc(current.type || '') + '</span>';
+      // Follow mode: say so on every page. An instance quietly taking its
+      // active profile from another one, with a picker that won't stick, is
+      // otherwise an hour of confusion.
+      var follow = data.follow;
+      var followLabel = follow ? (follow.activeProfile ? 'following' : 'follow: local') : '';
+      if (follow && follow.stale) followLabel += ' (stale)';
+      profileChip.innerHTML = esc(current.id) + ' <span class="mh-profile-type">' + esc(current.type || '') + '</span>'
+        + (follow ? ' <span class="mh-profile-follow">' + esc(followLabel) + '</span>' : '');
+      profileChip.classList.toggle('following', !!follow);
+      profileChip.title = follow
+        ? 'Active profile follows ' + follow.url + ' (MERIDIAN_FOLLOW_ACTIVE)'
+          + (follow.activeProfile ? '' : ' — no usable value from it, using the local profile')
+          + '. Switching here is refused; switch on the followed instance.'
+        : 'Active profile — switch from the home page';
       profileChip.classList.add('visible');
     }).catch(function() {});
   }
