@@ -2,7 +2,7 @@
  * Unit tests for IdleStallTracker — pure, no server or clock needed.
  */
 import { describe, it, expect } from "bun:test"
-import { IdleStallTracker } from "../proxy/idleStallCeiling"
+import { IdleStallCeilingError, IdleStallTracker } from "../proxy/idleStallCeiling"
 
 const IDLE = 150_000
 const SINCE = 150_012
@@ -34,6 +34,13 @@ describe("IdleStallTracker", () => {
     expect(v.status).toBe(400)
     expect(v.status).toBeLessThan(500)
     expect(v.type).toBe("invalid_request_error")
+  })
+
+  it("preserves its classified verdict through the non-stream error boundary", () => {
+    const verdict = new IdleStallTracker(1, 10).record("sess-a", IDLE, SINCE)
+    const error = new IdleStallCeilingError(verdict)
+    expect(error.verdict).toBe(verdict)
+    expect(error.message).toBe(verdict.message)
   })
 
   it("stays terminal past the ceiling", () => {

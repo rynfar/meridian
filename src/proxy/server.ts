@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
-import { IdleStallTracker } from "./idleStallCeiling"
+import { IdleStallCeilingError, IdleStallTracker } from "./idleStallCeiling"
 import { linkRequestAbort } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
@@ -332,7 +332,6 @@ function forkAttemptMeta(meta: RequestMeta, attempt: number): RequestMeta {
     ttfbMs: undefined,
   }
 }
-
 function credentialStoreForProfile(profile: ResolvedProfile): CredentialStore | undefined {
   if (profile.type !== "claude-max") return undefined
   return createPlatformCredentialStore(
@@ -3751,7 +3750,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             const sessId = currentSessionId || resumeSessionId
             // A turn that completed is proof the session can still make
             // progress, so its stall streak starts over.
-            if (sessId) idleStalls.clear(sessId)
+            idleStalls.clear(profileSessionId || sessId || "")
             if (sessId && discoveredTools.size > 0) {
               if (!sessionDiscoveredTools.has(sessId)) sessionDiscoveredTools.set(sessId, new Set())
               for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
@@ -3802,6 +3801,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // that never triggered the loop-break (e.g. wide parallel exceeding
             // the turn budget) land here.
             const sdkTerm = extractSdkTermination(error instanceof Error ? error.message : String(error))
+            const idleVerdict = error instanceof UpstreamIdleError
+              ? idleStalls.record(
+                  profileSessionId || currentSessionId || resumeSessionId || "",
+                  UPSTREAM_IDLE_MS,
+                  error.sinceLastMs,
+                )
+              : undefined
             const canRecoverAsToolUse = canRecoverCapturedToolUses({
               reason: sdkTerm.reason,
               passthrough,
@@ -3810,6 +3816,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               abortIsOurs: true,
             })
             if (canRecoverAsToolUse) {
+              if (idleVerdict) {
+                idleStalls.clear(profileSessionId || currentSessionId || resumeSessionId || "")
+              }
               diagnosticLog.session(
                 `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
                   model, requestSource, isResume, hasDeferredTools, sdkSessionId: currentSessionId || resumeSessionId,
@@ -3859,7 +3868,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 error: error instanceof Error ? error.message : String(error),
                 ...(stderrOutput ? { stderr: stderrOutput } : {})
               })
-              throw error
+              throw idleVerdict ? new IdleStallCeilingError(idleVerdict) : error
             }
           }
 
@@ -5136,7 +5145,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               const sessId = currentSessionId || resumeSessionId
               // A turn that completed is proof the session can still make
               // progress, so its stall streak starts over.
-              if (sessId) idleStalls.clear(sessId)
+              idleStalls.clear(profileSessionId || sessId || "")
               if (sessId && discoveredTools.size > 0) {
                 if (!sessionDiscoveredTools.has(sessId)) sessionDiscoveredTools.set(sessId, new Set())
                 for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
@@ -5919,7 +5928,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // the same way over and over is not, and only the status code
                 // can say so — the proxy does not retry, the client does.
                 const verdict = idleStalls.record(
-                  currentSessionId || resumeSessionId || "",
+                  profileSessionId || currentSessionId || resumeSessionId || "",
                   UPSTREAM_IDLE_MS,
                   error.sinceLastMs,
                 )
@@ -6037,7 +6046,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // session is making progress and its streak starts over. Without
                 // this the counter climbs through stalls that were absorbed, and
                 // the first genuinely unrecoverable one reads as terminal.
-                const recoveredSessId = currentSessionId || resumeSessionId
+                const recoveredSessId = profileSessionId || currentSessionId || resumeSessionId
                 if (recoveredSessId) idleStalls.clear(recoveredSessId)
 
                 // Log the recovery at session level (not error) — it's a
@@ -6532,7 +6541,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Detect specific error types and return helpful messages
         const classified = requestAbort.controller.signal.aborted
           ? { status: 499, type: "request_cancelled", message: "The request was cancelled" }
-          : classifyError(errMsg)
+          : error instanceof IdleStallCeilingError
+            ? error.verdict
+            : classifyError(errMsg)
 
         // Non-streaming failures still own their headers here, so the hint goes
         // out as a real `Retry-After` (#901). `resolvedProfileId` is undefined
