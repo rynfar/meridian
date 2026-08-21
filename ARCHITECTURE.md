@@ -46,6 +46,8 @@ src/
 │   ├── query.ts               ← SDK query options builder (shared between stream/non-stream paths)
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── models.ts              ← Model mapping, Claude executable resolution
+│   ├── buildInfo.ts           ← Build provenance: source detection, semver compare (PURE)
+│   ├── updateCheck.ts         ← Cached npm registry lookup for the newest published version
 │   ├── tools.ts               ← Tool blocking lists, MCP server name, allowed tools
 │   ├── messages.ts            ← Content normalization, message parsing
 │   ├── types.ts               ← ProxyConfig, ProxyInstance, ProxyServer types
@@ -115,7 +117,7 @@ server.ts (HTTP layer)
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 
-3. **`errors.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`.
+3. **`errors.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts` is additionally pure — every export is a function of its arguments plus `process.env`, so the registry I/O lives in `updateCheck.ts` instead.
 
 4. **`server.ts` is the only module that imports from Hono** or touches HTTP concerns.
 

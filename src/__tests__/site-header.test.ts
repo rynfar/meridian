@@ -13,7 +13,7 @@ import { dashboardHtml } from "../telemetry/dashboard"
 import { settingsPageHtml } from "../telemetry/settingsPage"
 import { profilePageHtml } from "../telemetry/profilePage"
 import { pluginPageHtml } from "../proxy/plugins/pluginPage"
-import { profileBarHtml, profileBarJs } from "../telemetry/profileBar"
+import { profileBarCss, profileBarHtml, profileBarJs } from "../telemetry/profileBar"
 
 const allPages: Array<[string, string]> = [
   ["landing", landingHtml],
@@ -46,6 +46,34 @@ describe("shared site header", () => {
     expect(profileBarHtml).not.toContain("<select")
     expect(profileBarHtml).toContain("mhProfile")
     expect(profileBarJs).toContain("/profiles/list")
+  })
+
+  test("header shows a build chip fed by /health's build block", () => {
+    expect(profileBarHtml).toContain("mhBuild")
+    expect(profileBarJs).toContain("renderBuild")
+    expect(profileBarJs).toContain("updateAvailable")
+  })
+
+  test("build chip colours follow the DESIGN.md role split", () => {
+    // Blue = interactive: the update chip is a link to the releases page.
+    // Violet = meta: the provenance chip has no href and must not be blue.
+    // Swapping these is the single easiest way to break the design language,
+    // and it is invisible in a screenshot review.
+    expect(profileBarCss).toContain(".mh-build.update")
+    expect(profileBarCss).toContain(".mh-build.provenance")
+
+    const updateRule = profileBarCss.slice(
+      profileBarCss.indexOf(".meridian-header .mh-build.update"),
+      profileBarCss.indexOf(".meridian-header .mh-build.provenance"),
+    )
+    expect(updateRule).toContain("var(--accent, #58a6ff)")
+    expect(updateRule).not.toContain("--accent2")
+
+    const provenanceRule = profileBarCss.slice(profileBarCss.indexOf(".meridian-header .mh-build.provenance"))
+    expect(provenanceRule).toContain("var(--accent2, #bc8cff)")
+    // Non-interactive: no href is set for this state, so no pointer affordance.
+    expect(provenanceRule).toContain("cursor: default")
+    expect(profileBarJs).toContain("removeAttribute('href')")
   })
 
   test("every page embeds the shared header exactly once", () => {

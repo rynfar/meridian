@@ -45,6 +45,11 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_BETA_POLICY` | — | `allow-safe` | Client `anthropic-beta` header handling: `allow-safe`, `strip-all`, or `allow-all` |
 | `MERIDIAN_DEFAULT_{FABLE,OPUS,SONNET,HAIKU}_MODEL` | — | canonical ids | Pin the model id the SDK resolves for each tier alias (e.g. `MERIDIAN_DEFAULT_OPUS_MODEL`) |
 | `MERIDIAN_SESSION_DIR` | `CLAUDE_PROXY_SESSION_DIR` | `~/.cache/meridian` | Directory for the persisted session store |
+| `MERIDIAN_NO_UPDATE_CHECK` | — | unset | Set to `1` to disable the once-a-day npm registry lookup that fills in `build.latest` on `/health`. No outbound request is made at all when set. See [Build provenance](#build-provenance-and-staying-current). |
+| `MERIDIAN_UPDATE_CHECK_URL` | — | npm dist-tags | Registry endpoint for the update check. Point it at a mirror on restricted networks; it must return `{"latest":"<version>"}`. |
+| `MERIDIAN_UPDATE_CHECK_PATH` | — | `~/.cache/meridian/update-check.json` | Where the update check caches its result. |
+| `MERIDIAN_BUILD_SOURCE` | — | *(derived from the install path)* | Overrides the `build.source` reported by `/health`: `npm`, `local`, or `dev`. Normally set by [`bin/meridian-launchd.sh`](#running-as-a-service-without-drift), not by hand. |
+| `MERIDIAN_BUILD_SHA`, `MERIDIAN_BUILD_BRANCH`, `MERIDIAN_BUILD_DIRTY` | — | unset | Optional commit stamps surfaced in `/health` `build`. Absent unless something sets them at launch. |
 | `MERIDIAN_DEBUG` | `CLAUDE_PROXY_DEBUG` | unset | Set to `1` for verbose request/session logging |
 | `MERIDIAN_SILENT` | `CLAUDE_PROXY_SILENT` | unset | Set to `1` to suppress startup output (used by embedding plugins) |
 | `MERIDIAN_PLUGIN_DIR` | — | `~/.config/meridian/plugins` | Plugin auto-discovery directory |
@@ -116,6 +121,7 @@ Health response example:
 {
   "status": "healthy",
   "version": "1.50.0",
+  "build": { "source": "npm", "version": "1.50.0", "latest": "1.50.0", "updateAvailable": false },
   "auth": { "loggedIn": true, "email": "you@example.com", "subscriptionType": "max" },
   "mode": "internal",
   "plugin": { "opencode": "configured" }
@@ -123,6 +129,61 @@ Health response example:
 ```
 
 `plugin.opencode` is `"configured"` when `meridian setup` has been run, `"not-configured"` otherwise.
+
+## Build provenance and staying current
+
+`version` alone cannot tell you what an instance is running. It is read from
+`package.json`, so a build made from a feature branch reports the same string
+as the release it branched from. An instance serving uncommitted code is
+indistinguishable from one serving the published version.
+
+`build` answers the question `version` cannot:
+
+| Field | Meaning |
+|-------|---------|
+| `source` | `npm` — resolved from a `node_modules` install, so `version` is trustworthy. `local` — running from a checkout or a build next to sources. `dev` — explicitly stamped as a development build. |
+| `version` | The `package.json` version. Proof of what is running **only** when `source` is `npm`. |
+| `sha`, `branch`, `dirty` | Present only when the launcher stamped them. `dirty` means uncommitted changes were in the tree. |
+| `latest` | Newest published version, from the cached registry check. Absent until the check resolves, and on the first run of a fresh install. |
+| `updateAvailable` | `latest` is strictly newer than `version`. Absent — not `false` — while `latest` is unknown, because "not checked" and "current" are different claims. |
+
+The site header renders this: a blue chip links to the releases page when an
+update is available, and a violet chip marks a non-npm build.
+
+**The update check** runs once a day, caches to
+`~/.cache/meridian/update-check.json`, times out after 5s, and never touches
+the request path. If the registry is unreachable it keeps reporting the last
+version it saw rather than dropping the field. Set `MERIDIAN_NO_UPDATE_CHECK=1`
+to turn it off entirely.
+
+### Running as a service without drift
+
+A service unit pointed straight at a checkout's `dist/cli.js` runs whatever was
+last built there — so building on a branch and then restarting (a crash, a
+reboot, `KeepAlive`) silently serves unreleased code.
+
+`bin/meridian-launchd.sh` avoids that. It runs the **installed** package,
+updates it when the registry is ahead (rate-limited to once an hour so a crash
+loop cannot flood the registry), and falls back to whatever is installed if the
+network is down. Every path ends in `exec` — a launcher that refuses to start
+is a proxy that is simply down.
+
+```xml
+<key>ProgramArguments</key>
+<array>
+    <string>/path/to/meridian/bin/meridian-launchd.sh</string>
+</array>
+```
+
+To run a local build instead, opt in explicitly — it will announce itself as a
+`dev` build in `/health` and in the site header:
+
+```bash
+MERIDIAN_DEV_BUILD=1 MERIDIAN_PORT=3457 bin/meridian-launchd.sh
+```
+
+Set `MERIDIAN_NO_SELF_UPDATE=1` to keep the launcher's package resolution but
+skip the update step.
 
 ## Graceful shutdown
 

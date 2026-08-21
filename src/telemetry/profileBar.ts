@@ -123,6 +123,29 @@ export const profileBarCss = `
   .meridian-header .mh-profile .mh-profile-type {
     color: var(--muted, #8b949e); font-size: 10px;
   }
+  /* Build chip — two mutually exclusive states, and the colour is not a
+     style choice: "update available" is a link to the releases page, so it
+     is blue (interactive); "local/dev build" is a meta annotation with no
+     href, so it is violet. Swapping them would break the DESIGN.md rule. */
+  .meridian-header .mh-build {
+    display: none; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 500; white-space: nowrap;
+    padding: 3px 10px; border-radius: 20px; text-decoration: none;
+    transition: background 0.15s;
+  }
+  .meridian-header .mh-build.visible { display: inline-flex; }
+  .meridian-header .mh-build.update {
+    color: var(--accent, #58a6ff);
+    background: rgba(88,166,255,0.12);
+    border: 1px solid rgba(88,166,255,0.35);
+  }
+  .meridian-header .mh-build.update:hover { background: rgba(88,166,255,0.18); }
+  .meridian-header .mh-build.provenance {
+    color: var(--accent2, #bc8cff);
+    background: rgba(188,140,255,0.12);
+    border: 1px solid rgba(188,140,255,0.35);
+    cursor: default;
+  }
   .meridian-header .mh-status {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 11px; color: var(--muted, #8b949e); white-space: nowrap;
@@ -155,6 +178,7 @@ export const profileBarHtml = `
     <a href="/plugins" id="nav-plugins">Plugins</a>
   </nav>
   <div class="mh-right">
+    <a class="mh-build" id="mhBuild" target="_blank" rel="noopener"></a>
     <a class="mh-profile" id="mhProfile" href="/" title="Active profile — switch from the home page"></a>
     <span class="mh-status" id="mhStatus"><span class="mh-dot" id="mhDot"></span><span class="mh-status-text" id="mhStatusText"></span></span>
   </div>
@@ -164,6 +188,7 @@ export const profileBarHtml = `
 export const profileBarJs = `
 (function() {
   var profileChip = document.getElementById('mhProfile');
+  var buildChip = document.getElementById('mhBuild');
   var statusDot = document.getElementById('mhDot');
   var statusText = document.getElementById('mhStatusText');
 
@@ -178,11 +203,38 @@ export const profileBarJs = `
 
   function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+  // Build provenance chip. Hidden entirely for a current npm install, which
+  // is the case that needs no comment.
+  function renderBuild(build) {
+    if (!buildChip) return;
+    if (!build) { buildChip.className = 'mh-build'; return; }
+    if (build.source !== 'npm') {
+      buildChip.textContent = (build.source === 'dev' ? 'dev build' : 'local build') + (build.dirty ? ' *' : '');
+      buildChip.removeAttribute('href');
+      buildChip.title = 'Not an npm release — the reported version ' + build.version +
+        ' is the tree\\'s last release, not proof of what is running' +
+        (build.branch ? '\\nbranch: ' + build.branch : '') +
+        (build.sha ? '\\ncommit: ' + build.sha.slice(0, 8) : '') +
+        (build.dirty ? '\\nuncommitted changes present' : '');
+      buildChip.className = 'mh-build provenance visible';
+      return;
+    }
+    if (build.updateAvailable) {
+      buildChip.textContent = build.latest + ' available';
+      buildChip.href = 'https://github.com/rynfar/meridian/releases';
+      buildChip.title = 'Running ' + build.version + ' — update with:\\nnpm install -g @rynfar/meridian@latest';
+      buildChip.className = 'mh-build update visible';
+      return;
+    }
+    buildChip.className = 'mh-build';
+  }
+
   function loadHeader() {
     fetch('/health').then(function(r) { return r.json(); }).then(function(h) {
       var st = h.status === 'healthy' ? 'healthy' : h.status === 'degraded' ? 'degraded' : 'unhealthy';
       statusDot.className = 'mh-dot ' + st;
       statusText.textContent = st === 'healthy' ? 'Operational' : st === 'degraded' ? 'Degraded' : 'Offline';
+      renderBuild(h.build);
     }).catch(function() {
       statusDot.className = 'mh-dot unhealthy';
       statusText.textContent = 'Offline';

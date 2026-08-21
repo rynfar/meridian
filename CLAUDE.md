@@ -77,6 +77,8 @@ adapters/
 query.ts           → buildQueryOptions (shared stream/non-stream SDK call builder)
 errors.ts          → classifyError (pure)
 models.ts          → mapModelToClaudeModel, resolveClaudeExecutableAsync
+buildInfo.ts       → build provenance + semver compare (PURE)
+updateCheck.ts     → cached npm registry check for the newest release
 tools.ts           → BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME
 messages.ts        → normalizeContent, getLastUserMessage (pure)
 fileChanges.ts     → PostToolUse hook: file write/edit tracking + summary formatting (pure)
@@ -100,6 +102,7 @@ External plugins depend on these interfaces. **Do not change without project own
 | `x-opencode-session` header | `adapters/opencode.ts` | Session tracking from agent plugins |
 | `x-meridian-profile` header | `server.ts`, `profiles.ts` | Per-request profile selection |
 | `GET /health` response shape | `server.ts` | Plugin health checks |
+| `/health` `build` block | `buildInfo.ts` | Version/provenance drift detection |
 | `POST /v1/messages` request/response format | `server.ts` | All agents (Anthropic API contract) |
 | `GET /profiles/list` response shape | `server.ts` | Profile management UI and CLI |
 | `POST /profiles/active` request/response | `server.ts` | Profile switching from CLI and UI |

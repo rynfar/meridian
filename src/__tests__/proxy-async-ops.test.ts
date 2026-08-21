@@ -39,7 +39,7 @@ describe("proxy async ops", () => {
       // got picked"). Accept either shape so this test is independent of
       // whether a sibling test already triggered resolution in the same
       // process.
-      const expectedKeys = ["auth", "mode", "plugin", "status", "version"]
+      const expectedKeys = ["auth", "build", "mode", "plugin", "status", "version"]
       if (body.claudeExecutable !== undefined) {
         expect(typeof body.claudeExecutable.path).toBe("string")
         expect([
@@ -57,12 +57,12 @@ describe("proxy async ops", () => {
     if (body.status === "unhealthy") {
       expect(typeof body.error).toBe("string")
       expect(body.auth.loggedIn).toBe(false)
-      expect(Object.keys(body).sort()).toEqual(["auth", "error", "status", "version"])
+      expect(Object.keys(body).sort()).toEqual(["auth", "build", "error", "status", "version"])
     }
 
     if (body.status === "degraded") {
       expect(typeof body.error).toBe("string")
-      expect(Object.keys(body).sort()).toEqual(["error", "mode", "status", "version"])
+      expect(Object.keys(body).sort()).toEqual(["build", "error", "mode", "status", "version"])
     }
 
     expect(response.status).toBe(body.status === "unhealthy" ? 503 : 200)

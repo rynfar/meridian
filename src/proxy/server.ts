@@ -65,6 +65,8 @@ import {
   DESIGN_UPSTREAM_ORIGIN,
 } from "./design"
 import { checkPluginConfigured, notePluginlessOpenCodeRequest } from "./setup"
+import { describeBuildDrift, getBuildInfo } from "./buildInfo"
+import { getLatestVersion, startUpdateCheck, stopUpdateCheck } from "./updateCheck"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, subscriptionIncludesExtendedContext } from "./models"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
@@ -473,6 +475,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   const finalConfig = { ...DEFAULT_PROXY_CONFIG, ...config }
   proxyLogSilent = finalConfig.silent
   const serverVersion = finalConfig.version ?? "unknown"
+
+  // What code is actually running, for /health. Recomputed per request rather
+  // than frozen at startup because `latest` arrives asynchronously from the
+  // registry check — everything else in it is static.
+  const currentBuild = () =>
+    getBuildInfo({ version: serverVersion, modulePath: import.meta.url, latest: getLatestVersion() })
 
   // Restore persisted active profile from last session
   restoreActiveProfile(finalConfig.profiles)
@@ -4827,6 +4835,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         return c.json({
           status: "degraded",
           version: serverVersion,
+          build: currentBuild(),
           error: "Could not verify auth status",
           mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
         })
@@ -4835,6 +4844,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         return c.json({
           status: "unhealthy",
           version: serverVersion,
+          build: currentBuild(),
           error: "Not logged in. Run: claude login",
           auth: { loggedIn: false }
         }, 503)
@@ -4863,6 +4873,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       return c.json({
         status: "healthy",
         version: serverVersion,
+        build: currentBuild(),
         auth: {
           loggedIn: true,
           email: auth.email,
@@ -4877,6 +4888,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       return c.json({
         status: "degraded",
         version: serverVersion,
+        build: currentBuild(),
         error: "Could not verify auth status",
         mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
       })
@@ -5709,6 +5721,23 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
   const { app, config: finalConfig, initPlugins, beginDrain, getInFlightCount } = createProxyServer(config)
   if (initPlugins) await initPlugins()
 
+  // Cached, once a day, never on the request path. Opt out with
+  // MERIDIAN_NO_UPDATE_CHECK=1. The banner below reports build-source drift
+  // synchronously; this callback reports version drift whenever it resolves.
+  startUpdateCheck({
+    onResolved: (latest) => {
+      if (finalConfig.silent) return
+      const build = getBuildInfo({
+        version: finalConfig.version ?? "unknown",
+        modulePath: import.meta.url,
+        latest,
+      })
+      if (build.source !== "npm" || !build.updateAvailable) return
+      console.log(`\n[meridian] Update available: ${build.version} → ${latest}`)
+      console.log(`  npm install -g @rynfar/meridian@latest`)
+    },
+  })
+
   if (finalConfig.installProcessErrorHandlers) {
     installProxyProcessErrorHandlers()
   }
@@ -5732,6 +5761,15 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
       if (claudeInfo) {
         console.log(`Claude executable: ${claudeInfo.path} (resolved via ${claudeInfo.source})`)
       }
+      // A build that did not come from npm reports the tree's last released
+      // version, which is indistinguishable from the real thing. Say so once,
+      // at startup, rather than letting the version string imply otherwise.
+      const buildDrift = describeBuildDrift(getBuildInfo({
+        version: finalConfig.version ?? "unknown",
+        modulePath: import.meta.url,
+        latest: getLatestVersion(),
+      }))
+      if (buildDrift) console.log(`Build: ${buildDrift}`)
       console.log(`\nPoint any Anthropic-compatible tool at this endpoint:`)
       console.log(`  ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://${finalConfig.host}:${info.port}`)
     }
@@ -5801,6 +5839,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
         clearInterval(profileTokenRefreshInterval)
         if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
         stopBackgroundRefresh()
+        stopUpdateCheck()
 
         // Stop admitting new requests, then give whatever is already in flight
         // up to SHUTDOWN_GRACE_MS to finish naturally before pulling the plug.
