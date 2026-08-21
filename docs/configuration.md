@@ -29,6 +29,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `crush`, `droid`, `cherry`, `claudecode`, `passthrough`. Requires restart. |
 | `MERIDIAN_ROUTING` | — | `active` | Session-to-profile routing: `active` (all traffic to the active profile), `sticky` ([sticky session routing](profiles.md#sticky-session-routing)), or `priority` ([priority failover](profiles.md#priority-failover-routing)) |
 | `MERIDIAN_PROFILE_ORDER` | — | *(config order)* | Priority-mode pool order, comma-separated, highest priority first (e.g. `work,personal`). Also editable at `/settings`. |
+| `MERIDIAN_FOLLOW_ACTIVE` | `CLAUDE_PROXY_FOLLOW_ACTIVE` | unset | Base URL of another Meridian instance to take the active profile from, e.g. `http://127.0.0.1:3456`. For a development instance running beside a primary one — see [Following another instance's active profile](#following-another-instances-active-profile). |
 | `MERIDIAN_PASSTHROUGH_EARLY_STOP` | — | `1` | Set to `0` to disable [digest-turn elimination](#how-tool-calling-works-in-passthrough) and restore the old end-of-turn behavior |
 | `MERIDIAN_PASSTHROUGH_MAX_TURNS` | `CLAUDE_PROXY_PASSTHROUGH_MAX_TURNS` | *(unset — capped at 1)* | Pin the passthrough SDK turn budget. **Setting this opts out of [digest-turn elimination](#how-tool-calling-works-in-passthrough)** — an explicit value always wins over the cap, so a turn budget set to work around an older issue keeps paying for the discarded digest turn. Unset it unless you still need it. |
 | `MERIDIAN_SILENT_TURN_RECOVERY` | `CLAUDE_PROXY_SILENT_TURN_RECOVERY` | `1` | Set to `0` to stop spending a recovery turn on a [silent turn](#silent-turns). Detection and telemetry stay on either way |
@@ -51,6 +52,59 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_PLUGIN_CONFIG` | — | `~/.config/meridian/plugins.json` | Plugin manifest path |
 
 †Sonnet 1M requires Extra Usage on all plans including Max ([docs](https://code.claude.com/docs/en/model-config#extended-context)). Opus 1M is included with Max/Team/Enterprise at no extra cost. Fable 1M is also included at no Extra Usage cost, verified live on both Max and Team.
+
+### Following another instance's active profile
+
+`MERIDIAN_FOLLOW_ACTIVE=http://127.0.0.1:3456` makes an instance take its
+active profile from the instance at that URL instead of from its own
+`settings.json`.
+
+This exists for running a development build beside a primary instance and
+comparing them. `MERIDIAN_CONFIG_DIR` relocates `settings.json` and nothing
+else, so a second instance keeps its **own** `activeProfile` — whatever moves
+the primary's active profile (a click in the UI, `meridian profile use`, an
+external scheduler) leaves the second instance serving from a different
+account, and the comparison is no longer like-for-like.
+
+The value is a Meridian base URL. A bare `host:port` is accepted and assumed
+to be `http`. The followed instance is polled every 10s on `GET /profiles/list`
+and the value is cached, so the request path never waits on the network.
+
+What it does and does not change:
+
+- **Replaces exactly one input** to profile resolution — the active profile.
+  An explicit `x-meridian-profile` header still wins, per request.
+- **Refuses to follow a profile this instance does not have.** The local active
+  profile is used instead and the reason is reported; routing to a name that is
+  not configured here would silently resolve to an unrelated account.
+- **Never fails closed.** If the followed instance is down, slow, or answers
+  something unusable, the last known value keeps being served. If a good value
+  has never been read, the local active profile is used. A poll failure is
+  logged once per outage, not once per poll.
+- **A value that has not been confirmed for two minutes is still served**, and
+  is flagged `stale` on `/profiles/list` and in the header chip. Falling back
+  to the local value on a timeout would split the comparison exactly when you
+  are least likely to notice.
+- **`POST /profiles/active` is refused with `409`**, naming the followed URL.
+  A local write would be shadowed on the next resolution and erased by the next
+  poll — a picker that appears to work and silently doesn't. The web UI's
+  account cards stop being clickable and `meridian profile use` prints the
+  refusal.
+- **No effect under `MERIDIAN_ROUTING=priority`** for unpinned requests, which
+  are dispatched across the pool without consulting the active profile. Startup
+  says so if both are set.
+- **Following your own address is refused** at startup: the followed value
+  could never change and local switching would be refused, freezing the active
+  profile permanently.
+
+The mode is announced at startup and surfaced on `/profiles/list` as a `follow`
+object (`url`, `activeProfile`, `followedValue`, `reason`, `stale`,
+`lastSyncedAt`, `lastError`), which the shared header chip renders on every
+page.
+
+Limitation: the poll sends no credentials, so a followed instance behind
+`MERIDIAN_API_KEY` will always fail the poll and the follower will fall back to
+its local active profile.
 
 ### Subprocess traffic
 

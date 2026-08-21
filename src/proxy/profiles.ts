@@ -8,7 +8,8 @@
  *
  * Profile selection priority:
  *   1. x-meridian-profile request header (per-request override)
- *   2. Active profile (set via POST /profiles/active or UI)
+ *   2. Active profile (set via POST /profiles/active or UI, or taken from
+ *      another instance under MERIDIAN_FOLLOW_ACTIVE — see followActive.ts)
  *   3. First configured profile (or implicit "default" if none configured)
  *
  * This is a leaf module — no imports from server.ts or session/.
@@ -19,6 +20,7 @@ import { join } from "node:path"
 import { homedir } from "node:os"
 import { setSetting, getSetting } from "./settings"
 import { pickStickyProfile, type RoutingMode } from "./routing"
+import { adoptedProfiles, followedActiveProfile } from "./followActive"
 
 const CONFIG_FILE = join(homedir(), ".config", "meridian", "profiles.json")
 
@@ -96,15 +98,55 @@ export function setActiveProfile(profileId: string): void {
 }
 
 /**
- * Get the current active profile ID.
+ * Get the LOCAL active profile ID — this instance's own choice, ignoring
+ * follow mode. Callers that want the profile actually in effect want
+ * `resolveActiveProfileId` instead.
  */
 export function getActiveProfileId(): string | undefined {
   return activeProfileId
 }
 
+/** Last followed value warned about, so the warning is once per value. */
+let warnedUnknownFollowed: string | undefined
+
+/**
+ * The active profile actually in effect: the followed instance's choice under
+ * MERIDIAN_FOLLOW_ACTIVE, otherwise this instance's own.
+ *
+ * This is the ONE input follow mode replaces. Everything around it — the
+ * header override, sticky assignment, the config default, the first-profile
+ * fallback — is unchanged.
+ *
+ * @param availableIds profile IDs this instance actually has, so a followed
+ *   value it cannot serve is rejected here rather than resolving to an
+ *   unrelated account further down `resolveProfile`.
+ */
+export function resolveActiveProfileId(availableIds: readonly string[]): string | undefined {
+  const outcome = followedActiveProfile(availableIds)
+  if (!outcome) return activeProfileId
+  if (outcome.follow) {
+    warnedUnknownFollowed = undefined
+    return outcome.profileId
+  }
+  if (outcome.reason === "unknown-profile" && outcome.followedValue !== warnedUnknownFollowed) {
+    warnedUnknownFollowed = outcome.followedValue
+    console.warn(
+      `[meridian] Followed instance is on profile "${outcome.followedValue}", which is not configured here. ` +
+      `Using this instance's own active profile instead.`
+    )
+  }
+  return activeProfileId
+}
+
+/** The active profile in effect, resolved against the effective profile list. */
+export function getEffectiveActiveProfileId(configProfiles: ProfileConfig[] | undefined): string | undefined {
+  return resolveActiveProfileId(getEffectiveProfiles(configProfiles).map(p => p.id))
+}
+
 /** Reset active profile — for testing only. */
 export function resetActiveProfile(): void {
   activeProfileId = undefined
+  warnedUnknownFollowed = undefined
 }
 
 /**
@@ -144,11 +186,33 @@ export function enableDiskProfileDiscovery(): void {
 
 export function getEffectiveProfiles(configProfiles: ProfileConfig[] | undefined): ProfileConfig[] {
   const fromConfig = configProfiles ?? []
-  if (!diskDiscoveryEnabled) return fromConfig
-  const fromDisk = loadProfilesFromDisk()
-  // Config (env var) takes precedence; disk fills in anything not already defined
   const configIds = new Set(fromConfig.map(p => p.id))
-  return [...fromConfig, ...fromDisk.filter(p => !configIds.has(p.id))]
+  // Config (env var) takes precedence; disk fills in anything not already defined
+  const fromDisk = diskDiscoveryEnabled ? loadProfilesFromDisk().filter(p => !configIds.has(p.id)) : []
+  const localIds = new Set([...configIds, ...fromDisk.map(p => p.id)])
+  // Adopted last: an id spelled out locally is an explicit local statement and
+  // outranks the mirror, the same way config already outranks disk.
+  const adopted = adoptedProfiles()
+    .filter(p => !localIds.has(p.id))
+    .map(p => ({ id: p.id, claudeConfigDir: p.credentialDir }))
+  return [...fromConfig, ...fromDisk, ...adopted]
+}
+
+/**
+ * Where another instance on this machine could read this profile's credentials,
+ * or null when it could not.
+ *
+ * The test is that the resolved environment is a config directory and NOTHING
+ * else. That is what makes it derived rather than a second opinion about
+ * profile types: a profile whose credentials are an inline API key or OAuth
+ * token carries that secret in its env, fails the test, and is reported by id
+ * alone. A secret must never leave the process holding it, so there is no
+ * shape of this function that returns one.
+ */
+export function shareableCredentialDir(resolved: ResolvedProfile): string | null {
+  const keys = Object.keys(resolved.env)
+  if (keys.length !== 1 || keys[0] !== "CLAUDE_CONFIG_DIR") return null
+  return resolved.env.CLAUDE_CONFIG_DIR ?? null
 }
 
 /** Check if any profiles are available from any source */
@@ -199,7 +263,8 @@ export function resolveProfile(
       : undefined
 
   // Priority: header > sticky > active > config default > first profile
-  const resolvedId = requestedId || stickyId || activeProfileId || defaultProfile || effective[0]!.id
+  const activeId = resolveActiveProfileId(effective.map(p => p.id))
+  const resolvedId = requestedId || stickyId || activeId || defaultProfile || effective[0]!.id
   const profile = effective.find(p => p.id === resolvedId)
 
   if (!profile) {
@@ -252,7 +317,7 @@ export function listProfiles(
   const effective = getEffectiveProfiles(profiles)
   if (effective.length === 0) return []
 
-  const currentActive = activeProfileId || defaultProfile || effective[0]!.id
+  const currentActive = resolveActiveProfileId(effective.map(p => p.id)) || defaultProfile || effective[0]!.id
   return effective.map(p => ({
     id: p.id,
     type: p.type ?? "claude-max",

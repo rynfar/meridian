@@ -80,7 +80,8 @@ import { runTransformHook, buildPipeline, createRequestContext } from "./transfo
 import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
-import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, type ResolvedProfile } from "./profiles"
+import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, resolveActiveProfileId, getEffectiveProfiles, restoreActiveProfile, shareableCredentialDir, type ResolvedProfile } from "./profiles"
+import { followStatus, startFollowPolling, stopFollowPolling, logFollowBanner, FOLLOW_POLL_INTERVAL_MS } from "./followActive"
 import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, AssignmentStore, resolveCooldownUntil } from "./routing"
 import { getSetting, setSetting } from "./settings"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
@@ -4903,6 +4904,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         loggedIn: auth?.loggedIn ?? false,
         lastCheckedAt: cacheInfo.lastCheckedAt || null,
         lastSuccessAt: cacheInfo.lastSuccessAt || null,
+        // Present for EVERY profile, null included, so a follower can tell an
+        // instance too old to answer (field absent) from one saying this
+        // profile cannot be shared (field null). Never a secret — see
+        // shareableCredentialDir.
+        credentialDir: shareableCredentialDir(resolved),
       }
     }))
     const routingModeNow = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))
@@ -4914,12 +4920,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           exhausted: priorityExhaustion.snapshot(),
         }
       : {}
+    // Additive: follow state, so UIs can say where the active profile comes
+    // from and why switching is refused. Absent unless MERIDIAN_FOLLOW_ACTIVE.
+    const follow = followStatus(profiles.map(p => p.id))
     return c.json({
       profiles: enriched,
-      activeProfile: getActiveProfileId() || finalConfig.defaultProfile || profiles[0]?.id || "default",
+      activeProfile: resolveActiveProfileId(profiles.map(p => p.id)) || finalConfig.defaultProfile || profiles[0]?.id || "default",
       // Additive (#383): current routing mode so UIs can surface it.
       routing: routingModeNow,
       ...priorityInfo,
+      ...(follow ? { follow } : {}),
     })
   })
 
@@ -4929,6 +4939,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   })
 
   app.post("/profiles/active", async (c) => {
+    // Refuse rather than accept-and-lose. Under follow mode the write would
+    // persist locally, be shadowed by the followed value on the very next
+    // resolve, and be erased by the next poll — a picker that appears to work
+    // and silently doesn't. 409 because the request is well-formed and
+    // conflicts with the instance's operating mode, not with its input.
+    const following = followStatus(getEffectiveProfiles(finalConfig.profiles).map(p => p.id))
+    if (following) {
+      return c.json({
+        error: `This instance follows ${following.url} for its active profile (MERIDIAN_FOLLOW_ACTIVE). ` +
+          `Switch there instead — a local change would be overwritten within ` +
+          `${Math.round(FOLLOW_POLL_INTERVAL_MS / 1000)}s. ` +
+          `For a single request, send the x-meridian-profile header.`,
+        following,
+      }, 409)
+    }
     let body: { profile?: string }
     try {
       body = await c.req.json() as { profile?: string }
@@ -5339,7 +5364,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const requestedProfile = c.req.query("profile")
     const profilesList = getEffectiveProfiles(finalConfig.profiles)
     const targetProfileId = requestedProfile
-      || getActiveProfileId()
+      || resolveActiveProfileId(profilesList.map(p => p.id))
       || finalConfig.defaultProfile
       || profilesList[0]?.id
       || null
@@ -5451,7 +5476,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // values rather than reuses.
   app.get("/v1/usage/quota/all", async (c) => {
     const profilesList = getEffectiveProfiles(finalConfig.profiles)
-    const activeId = getActiveProfileId() || finalConfig.defaultProfile || profilesList[0]?.id || null
+    const activeId = resolveActiveProfileId(profilesList.map(p => p.id)) || finalConfig.defaultProfile || profilesList[0]?.id || null
 
     if (profilesList.length === 0) {
       // Single-account mode — just return the default OAuth account's data.
@@ -5719,6 +5744,10 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     hostname: finalConfig.host,
     overrideGlobalObjects: false,
   }, (info) => {
+    // Armed here, not before serve(), because the self-follow guard needs the
+    // port actually bound — the configured one may be 0.
+    startFollowPolling({ host: finalConfig.host, port: info.port })
+    logFollowBanner(getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing")))
     if (!finalConfig.silent) {
       console.log(`Meridian running at http://${finalConfig.host}:${info.port}`)
       console.log(`Telemetry dashboard: http://${finalConfig.host}:${info.port}/telemetry`)
@@ -5800,6 +5829,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
       closePromise ??= (async () => {
         clearInterval(profileTokenRefreshInterval)
         if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
+        stopFollowPolling()
         stopBackgroundRefresh()
 
         // Stop admitting new requests, then give whatever is already in flight
