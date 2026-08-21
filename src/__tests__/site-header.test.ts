@@ -14,6 +14,7 @@ import { settingsPageHtml } from "../telemetry/settingsPage"
 import { profilePageHtml } from "../telemetry/profilePage"
 import { pluginPageHtml } from "../proxy/plugins/pluginPage"
 import { profileBarHtml, profileBarJs } from "../telemetry/profileBar"
+import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT } from "../telemetry/profileSpent"
 
 const allPages: Array<[string, string]> = [
   ["landing", landingHtml],
@@ -85,6 +86,32 @@ describe("landing page layout", () => {
     expect(landingHtml).not.toContain("Median TTFB")
     // Envelope violations render only when noteworthy
     expect(landingHtml).toContain("envelopeViolationCount>0")
+  })
+
+  test("spent accounts recede and unusable ones are flagged instead", () => {
+    // The page carries a copy of the classifier's arithmetic, so its
+    // thresholds are interpolated from the tested module rather than retyped.
+    expect(landingHtml).toContain(`var FADE_FROM=${FADE_FROM}`)
+    expect(landingHtml).toContain(`var SPENT_AT=${SPENT_AT}`)
+    expect(landingHtml).toContain(`var GENERAL_WINDOW_TYPES=${JSON.stringify(GENERAL_WINDOW_TYPES)}`)
+    expect(landingHtml).toContain("--spend-fade")
+    expect(landingHtml).toContain("needs login")
+  })
+
+  test("the fade never reaches the card itself, so the active ring survives it", () => {
+    // filter and opacity apply to an element's OWN border and box-shadow, so
+    // fading .profile-card greys out the accent ring on .profile-card.active -
+    // the one mark saying which account is serving requests, gone exactly when
+    // that account hits 95% and somebody comes looking for it. A descendant
+    // cannot undo an ancestor's filter, so the fade must be scoped to the
+    // card's children.
+    expect(landingHtml).toContain(".profile-card.spend-fading > *, .profile-card.spend-spent > *")
+    expect(landingHtml).toContain(
+      ".profile-card.spend-fading:hover > *, .profile-card.spend-spent:hover > *",
+    )
+    // ...and never as a rule on the card itself, in either state.
+    expect(landingHtml).not.toContain(".profile-card.spend-fading, .profile-card.spend-spent {")
+    expect(landingHtml).not.toContain(".profile-card.spend-fading:hover, .profile-card.spend-spent:hover {")
   })
 
   test("account cards come from configured profiles, not synthetic cost buckets", () => {

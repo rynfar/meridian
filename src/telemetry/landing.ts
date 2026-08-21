@@ -9,6 +9,7 @@
  */
 
 import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
+import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT } from "./profileSpent"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -41,6 +42,33 @@ export const landingHtml = `<!DOCTYPE html>
   .profile-card.switchable { cursor: pointer; }
   .profile-card.switchable:hover { border-color: var(--accent); }
   .profile-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+  /* Spent accounts recede. --spend-fade is set per card (0..1) from the
+     shared classifier; hovering restores the card so a dimmed one can still
+     be read. An account that needs a login is NOT dimmed — it needs
+     attention, not fading, so it keeps full contrast and turns red.
+
+     The fade is on the card's CONTENTS and never on the card, because
+     filter and opacity apply to an element's OWN border and box-shadow.
+     Fading .profile-card therefore greyed out the accent ring on
+     .profile-card.active - the one mark on the page saying which account is
+     serving requests - so the active profile became unfindable the moment it
+     passed 95%, which is precisely when somebody comes looking for it. A
+     descendant cannot undo an ancestor's filter or opacity, so scoping the
+     fade to the children is the only thing that leaves the ring alone; the
+     "Active" pill sits inside those contents and fades with them. */
+  .profile-card.spend-fading > *, .profile-card.spend-spent > * {
+    filter: grayscale(var(--spend-fade, 0));
+    opacity: calc(1 - 0.55 * var(--spend-fade, 0));
+    transition: filter 0.2s, opacity 0.2s; }
+  .profile-card.spend-fading:hover > *, .profile-card.spend-spent:hover > * { filter: none; opacity: 1; }
+  .profile-card.needs-login { border-color: var(--red); }
+  .profile-card.needs-login .prof-dot { background: var(--red); }
+  .spend-pill { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--muted); background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1px 8px; }
+  .spend-pill.needs-login { color: var(--red); background: rgba(248,81,73,0.12);
+    border-color: rgba(248,81,73,0.35); }
   .profile-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
   .profile-name { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
   .profile-name .prof-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
@@ -127,6 +155,32 @@ function paceColor(pc){return pc.status==='over'?'var(--red)':pc.status==='ahead
 
 function resetIn(ts){if(ts==null)return '';var d=ts-Date.now();if(d<=0)return 'resetting…';var m=Math.ceil(d/60000);if(m<60)return 'in '+m+'m';var h=Math.floor(m/60);if(h<24)return 'in '+h+'h'+(m%60?' '+(m%60)+'m':'');var days=Math.floor(h/24);return 'in '+days+'d'+(h%24?' '+(h%24)+'h':'')}
 
+// Inlined from src/telemetry/profileSpent.ts, unit-tested in
+// profile-spent.test.ts — same arrangement as weeklyPace above.
+var GENERAL_WINDOW_TYPES=${JSON.stringify(GENERAL_WINDOW_TYPES)};
+var FADE_FROM=${FADE_FROM};
+var SPENT_AT=${SPENT_AT};
+function isUnusable(p){if(p.loggedIn===false)return true;return p.error==='no_token'}
+function generalUtilization(windows){
+  var worst=null;
+  for(var i=0;i<(windows||[]).length;i++){
+    var w=windows[i];
+    if(GENERAL_WINDOW_TYPES.indexOf(w.type)<0)continue;
+    if(w.utilization==null||!isFinite(w.utilization))continue;
+    var c=Math.max(0,Math.min(1,w.utilization));
+    if(worst==null||c>worst)worst=c;
+  }
+  return worst;
+}
+function computeProfileSpend(p){
+  if(isUnusable(p))return {fraction:1,state:'spent',fade:0,reason:'unusable'};
+  var f=generalUtilization(p.windows);
+  if(f==null)return {fraction:null,state:'unknown',fade:0,reason:null};
+  if(f>=SPENT_AT)return {fraction:f,state:'spent',fade:1,reason:'usage'};
+  if(f>=FADE_FROM)return {fraction:f,state:'fading',fade:(f-FADE_FROM)/(SPENT_AT-FADE_FROM),reason:null};
+  return {fraction:f,state:'available',fade:0,reason:null};
+}
+
 function introSection(h){
   var meta=[];
   if(h.auth&&h.auth.loggedIn)meta.push(esc(h.auth.email||'')+(h.auth.subscriptionType?' ('+esc(h.auth.subscriptionType)+')':''));
@@ -142,7 +196,7 @@ function introSection(h){
 function profileSection(q,s,pl,h){
   var byProfile=(s&&s.costEstimate&&s.costEstimate.byProfile)||{};
   var quotaByProfile={};
-  if(q&&Array.isArray(q.profiles))for(var i=0;i<q.profiles.length;i++){var qid=q.profiles[i].id||q.profiles[i].profile||'default';quotaByProfile[qid]=q.profiles[i].windows||[]}
+  if(q&&Array.isArray(q.profiles))for(var i=0;i<q.profiles.length;i++){var qid=q.profiles[i].id||q.profiles[i].profile||'default';quotaByProfile[qid]=q.profiles[i]}
   var profs=[];var seen={};
   var configured=(pl&&Array.isArray(pl.profiles))?pl.profiles:[];
   var multi=configured.length>1;
@@ -150,7 +204,7 @@ function profileSection(q,s,pl,h){
     // Real profiles exist: show exactly those. Traffic that predates
     // per-profile attribution (the synthetic "default" bucket) still
     // counts in the totals strip but doesn't render as a fake account.
-    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,configured:true});seen[p.id]=1}
+    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,loggedIn:p.loggedIn,configured:true});seen[p.id]=1}
   }else{
     // Single-account setup: one card, labeled with the logged-in email.
     var email=(h&&h.auth&&h.auth.loggedIn&&h.auth.email)||'';
@@ -161,7 +215,9 @@ function profileSection(q,s,pl,h){
   var cards='';
   for(var i=0;i<profs.length;i++){
     var p=profs[i];var cost=byProfile[p.id];
-    var wins=(quotaByProfile[p.id]||[]).filter(function(w){return w.utilization!=null});
+    var quota=quotaByProfile[p.id]||{};
+    var wins=(quota.windows||[]).filter(function(w){return w.utilization!=null});
+    var spend=computeProfileSpend({windows:quota.windows,error:quota.error,loggedIn:p.loggedIn});
     if(!p.configured&&wins.length===0&&!cost)continue;
     var rows='';
     for(var j=0;j<wins.length;j++){
@@ -202,7 +258,13 @@ function profileSection(q,s,pl,h){
           :' <span class="pool-chip exhausted">exhausted · resets '+resetIn(exh.until)+'</span>';
       }
     }
-    cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
+    if(spend.reason==='unusable')badge+=' <span class="spend-pill needs-login">needs login</span>';
+    else if(spend.state==='spent')badge+=' <span class="spend-pill">spent</span>';
+    var spendClass=spend.reason==='unusable'?' needs-login':spend.fade>0?' spend-'+spend.state:'';
+    var spendStyle=spend.fade>0?' style="--spend-fade:'+spend.fade.toFixed(2)+'"':'';
+    var spendTip=spend.reason==='unusable'?' title="Cannot serve requests \u2014 run: meridian profile login '+esc(p.id)+'"'
+      :spend.fraction!=null&&spend.fade>0?' title="'+Math.round(spend.fraction*100)+'% of this account\u2019s 5h / 7d allowance is used"':'';
+    cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+spendClass+'"'+spendStyle+spendTip+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'
       +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
       +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
