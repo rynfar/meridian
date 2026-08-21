@@ -29,6 +29,14 @@ export interface IdleStallVerdict {
   terminal: boolean
 }
 
+/** Carries a classified idle-stall response through the non-stream error path. */
+export class IdleStallCeilingError extends Error {
+  constructor(readonly verdict: IdleStallVerdict) {
+    super(verdict.message)
+    this.name = "IdleStallCeilingError"
+  }
+}
+
 /** Tracks consecutive idle stalls per session and rules on each one.
  *
  *  Bounded by construction. The session maps in server.ts that predate this are
