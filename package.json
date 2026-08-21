@@ -49,6 +49,7 @@
     "dist/",
     "plugin/",
     "assets/",
+    "bin/meridian-launchd.sh",
     "README.md"
   ],
   "keywords": [

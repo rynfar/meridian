@@ -172,12 +172,24 @@ A long-running instance is never updated underneath itself; it reports the
 newer version through `build.updateAvailable` and picks it up on the next
 restart.
 
+The script ships with the package, so a global install already has it, under
+`<package root>/bin/meridian-launchd.sh`:
+
+```bash
+# npm:   $(npm root -g)/@rynfar/meridian
+# volta: ~/.volta/tools/image/packages/@rynfar/meridian/lib/node_modules/@rynfar/meridian
+# or run from a checkout: <repo>/bin/meridian-launchd.sh
+```
+
 ```xml
 <key>ProgramArguments</key>
 <array>
-    <string>/path/to/meridian/bin/meridian-launchd.sh</string>
+    <string>/absolute/path/to/bin/meridian-launchd.sh</string>
 </array>
 ```
+
+It is a plain POSIX script with no launchd-specific logic, so it works equally
+well as a systemd `ExecStart` or any other supervisor's command.
 
 To run a local build instead, opt in explicitly — it will announce itself as a
 `dev` build in `/health` and in the site header:

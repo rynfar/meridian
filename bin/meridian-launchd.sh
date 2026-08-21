@@ -62,14 +62,22 @@ CLI="$(command -v meridian 2>/dev/null || true)"
 should_check() {
   [ "${MERIDIAN_NO_SELF_UPDATE:-}" = "1" ] && return 1
   [ -f "$UPDATE_STAMP" ] || return 0
-  now="$(date +%s)"
-  then_="$(cat "$UPDATE_STAMP" 2>/dev/null || echo 0)"
-  [ "$((now - then_))" -ge "$MIN_CHECK_INTERVAL_SECONDS" ]
+  last="$(cat "$UPDATE_STAMP" 2>/dev/null || echo "")"
+  # A truncated or garbage stamp would blow up the arithmetic below, and under
+  # `set -u` that aborts the function — permanently disabling the update check
+  # while the bad file sits there. Treat anything non-numeric as no stamp.
+  case "$last" in
+    '' | *[!0-9]*) return 0 ;;
+  esac
+  [ "$(( $(date +%s) - last ))" -ge "$MIN_CHECK_INTERVAL_SECONDS" ]
 }
 
 registry_latest() {
+  # Honours the same override as the in-process check (see updateCheck.ts), so
+  # a mirror configured for one applies to both.
   node -e '
-    const url = "https://registry.npmjs.org/-/package/'"$PACKAGE"'/dist-tags"
+    const url = process.env.MERIDIAN_UPDATE_CHECK_URL
+      || "https://registry.npmjs.org/-/package/'"$PACKAGE"'/dist-tags"
     fetch(url, { signal: AbortSignal.timeout(5000) })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => process.stdout.write(typeof d?.latest === "string" ? d.latest : ""))
