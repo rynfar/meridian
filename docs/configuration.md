@@ -162,11 +162,15 @@ A service unit pointed straight at a checkout's `dist/cli.js` runs whatever was
 last built there — so building on a branch and then restarting (a crash, a
 reboot, `KeepAlive`) silently serves unreleased code.
 
-`bin/meridian-launchd.sh` avoids that. It runs the **installed** package,
-updates it when the registry is ahead (rate-limited to once an hour so a crash
-loop cannot flood the registry), and falls back to whatever is installed if the
-network is down. Every path ends in `exec` — a launcher that refuses to start
-is a proxy that is simply down.
+`bin/meridian-launchd.sh` avoids that. It runs the **installed** package and,
+**at start**, updates it when the registry is ahead (rate-limited to once an
+hour so a crash loop cannot flood the registry), falling back to whatever is
+installed if the network is down. Every path ends in `exec` — a launcher that
+refuses to start is a proxy that is simply down.
+
+A long-running instance is never updated underneath itself; it reports the
+newer version through `build.updateAvailable` and picks it up on the next
+restart.
 
 ```xml
 <key>ProgramArguments</key>
