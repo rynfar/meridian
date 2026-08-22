@@ -714,3 +714,101 @@ describe("envelope integrity tripwire", () => {
     expect(after - before).toBe(0)
   })
 })
+
+describe("dropped duplicate tool_use is excluded from persisted checkpoint", () => {
+  let origEnv: string | undefined
+  let origEarlyStop: string | undefined
+
+  beforeEach(() => {
+    origEnv = process.env.MERIDIAN_PASSTHROUGH
+    origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP // early stop ON (default)
+    mockTurns = []
+    capturedController = undefined
+    capturedResume = undefined
+    clearSessionCache()
+  })
+
+  afterEach(() => {
+    if (origEnv === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+    else process.env.MERIDIAN_PASSTHROUGH = origEnv
+    if (origEarlyStop === undefined) delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    else process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
+  })
+
+  function duplicateTurn() {
+    // Two tool_use blocks: same name + same input → second is an exact duplicate
+    const turn = toolTurn("toolu_d1", "read", { filePath: "a.txt" })
+    ;(turn as any).message.content = [
+      { type: "tool_use", id: "toolu_d1", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+      { type: "tool_use", id: "toolu_d2", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+    ]
+    return turn
+  }
+
+  function denyUser(ids: string[]) {
+    return {
+      type: "user",
+      message: {
+        role: "user",
+        content: ids.map((id) => ({
+          type: "tool_result",
+          tool_use_id: id,
+          is_error: true,
+          content: "This tool call has been forwarded to the client for execution. " +
+            "The result will be delivered in a future turn. " +
+            "Do not retry, do not call additional tools, and do not generate further text — end your turn now.",
+        })),
+      },
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: "test-session",
+    }
+  }
+
+  it("checkpoint excludes the dropped duplicate id — follow-up resumes instead of fresh-replaying", async () => {
+    // First turn: model emits two reads, second is an exact duplicate.
+    // The hook drops toolu_d2 (isExactDuplicate) → added to droppedToolUseIds.
+    // The checkpoint must contain only toolu_d1.
+    mockTurns = [
+      duplicateTurn(),
+      denyUser(["toolu_d1", "toolu_d2"]),
+      { type: "assistant", message: {
+        id: "msg_digest", type: "message", role: "assistant",
+        content: [{ type: "text", text: "hidden digest" }],
+        model: "claude-sonnet-4-5-20250929", stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 10 },
+      }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session" },
+      { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    const first = await post(app, false)
+    expect(first.status).toBe(200)
+
+    // Follow-up: client sends back the real result for toolu_d1 only.
+    // If the checkpoint incorrectly included toolu_d2, isCompleteToolResultContinuation
+    // would fail (expected size 2, actual size 1) and the request would fresh-replay.
+    mockTurns = [
+      { type: "assistant", message: {
+        id: "msg_final", type: "message", role: "assistant",
+        content: [{ type: "text", text: "File read successfully." }],
+        model: "claude-sonnet-4-5-20250929", stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 10 },
+      }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session" },
+    ]
+    capturedResume = undefined
+    const second = await post(app, false, [
+      { role: "user", content: "Do the thing." },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "toolu_d1", name: "read", input: { filePath: "a.txt" } },
+      ]},
+      { role: "user", content: [
+        { type: "tool_result", tool_use_id: "toolu_d1", content: "contents of a.txt" },
+      ]},
+    ])
+    expect(second.status).toBe(200)
+    // Must resume — if the checkpoint included toolu_d2, this would fresh-replay
+    expect(capturedResume ?? "(not resumed)").toBe("test-session")
+  })
+})
