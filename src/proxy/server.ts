@@ -45,6 +45,7 @@ import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, createEarlyStopTracker, isCompleteToolResultContinuation, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop } from "./passthroughEarlyStop"
+import { FORWARDED_TOOL_DENY, EXACT_DUPLICATE_DENY, SAME_TOOL_REPEAT_DENY } from "./denyReasons"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -2005,27 +2006,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (isExactDuplicate || isPostCheckpointCall) {
                   return {
                     decision: "block" as const,
-                    reason:
-                      "This tool call has already been handled by the client-facing turn — do not repeat it. " +
-                      "Do not call additional tools and do not generate further text — end your turn now.",
+                    reason: EXACT_DUPLICATE_DENY,
                   }
                 }
                 if (isSameToolRepeat || exceedsForcedSingle) {
                   return {
                     decision: "block" as const,
-                    reason:
-                      "This tool call was NOT executed and was not forwarded. Your earlier tool call(s) " +
-                      "are being returned to the client now; their results arrive next turn. Re-issue this " +
-                      "call after that if it is still needed. Do not call additional tools and do not " +
-                      "generate further text — end your turn now.",
+                    reason: SAME_TOOL_REPEAT_DENY,
                   }
                 }
                 return {
                   decision: "block" as const,
-                  reason:
-                    "This tool call has been forwarded to the client for execution. " +
-                    "The result will be delivered in a future turn. " +
-                    "Do not retry, do not call additional tools, and do not generate further text — end your turn now.",
+                  reason: FORWARDED_TOOL_DENY,
                 }
               }],
             }],

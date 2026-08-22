@@ -7,6 +7,7 @@
 
 import { createHash } from "crypto"
 import { HASH_IGNORED_BLOCK_TYPES, normalizeContent } from "../messages"
+import { isPassthroughDenyToolResult } from "../denyReasons"
 
 // --- Types ---
 
@@ -501,7 +502,49 @@ export function verifyLineage(
     }
   }
 
-  // Undo: prefix preserved (beginning intact) but suffix changed,
+  // Passthrough settlement: the stored session ends with a synthetic user
+  // message whose tool_result content is a deny placeholder (the PreToolUse
+  // hook blocked the call). The client executed the tool and now sends back
+  // the real tool_result at the same position. Classify this as a continuation
+  // so the existing resumeSessionAtUuid + isCompleteToolResultContinuation
+  // wiring in server.ts takes over, instead of modified-history (which would
+  // re-fire the deny hook and loop).
+  //
+  // Conditions:
+  //   - prefixOverlap is exactly messageCount - 1 (trailing-only mismatch)
+  //   - cached.passthroughToolCallIds is present (checkpoint exists)
+  //   - incoming has at least as many messages as stored
+  //   - the incoming message at the boundary is a user message with tool_result
+  //     blocks whose content is NOT a deny placeholder
+  //   - every tool_use_id in those blocks matches a forwarded id
+  const settlementBoundary = cached.messageCount - 1
+  if (
+    settlementBoundary >= 0 &&
+    prefixOverlap === settlementBoundary &&
+    messages.length >= cached.messageCount &&
+    cached.passthroughToolCallIds?.length
+  ) {
+    const incomingBoundary = messages[settlementBoundary]
+    if (incomingBoundary?.role === "user" && Array.isArray(incomingBoundary.content)) {
+      const toolResultIds = new Set(cached.passthroughToolCallIds)
+      let matchedAll = true
+      let hasRealResult = false
+      for (const block of incomingBoundary.content) {
+        if (block?.type === "tool_result" && typeof block.tool_use_id === "string") {
+          if (!toolResultIds.has(block.tool_use_id)) { matchedAll = false; break }
+          if (!isPassthroughDenyToolResult(block.content)) hasRealResult = true
+        }
+      }
+      if (matchedAll && hasRealResult) {
+        return {
+          type: "continuation",
+          session: cached,
+          resumeFrom: settlementBoundary,
+          resumeContentFrom: 0,
+        }
+      }
+    }
+  }
   // AND the conversation shrank (fewer messages). If the conversation grew
   // after a cached message changed, the old SDK session cannot prove it has
   // the intervening history; that case is handled as divergence below.
