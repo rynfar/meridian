@@ -2207,7 +2207,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           lineageResult.type !== "continuation" &&
           lineageResult.type !== "compaction"
         )
-        if (lostRaceWhileWaiting && !declaresConcurrentFlow) {
+        if (lostRaceWhileWaiting && !declaresConcurrentFlow &&
+          !(lineageResult.type === "diverged" && lineageResult.reason === "modified-history")) {
           const reason = lineageResult.type === "diverged" ? lineageResult.reason : lineageResult.type
           const message = "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID."
           claudeLog("session.concurrent_conflict", {
@@ -2289,7 +2290,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // until the atomic route+mapping CAS wins at the terminal barrier.
           lineageResult = { type: "diverged", reason: "priority-failback" }
         }
-
+        // A modified-history request (superseding, revised in place) under a
+        // concurrent turn lease falls through to fresh-replay instead of 409.
+        // Safe: it is only produced when the history strictly grows
+        // (messages.length > cached.messageCount), so undo / replayed-request /
+        // unrelated-history still 409.
+        if (
+          profileSessionId &&
+          requestMeta.sessionTurnLease?.advancedWhileWaiting(profileSessionId) &&
+          lineageResult.type === "diverged" &&
+          lineageResult.reason === "modified-history"
+        ) {
+          claudeLog("session.concurrent_conflict", {
+            reason: "downgraded=fresh-replay",
+            sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+          })
+          diagnosticLog.session(
+            `${requestMeta.requestId} session.concurrent_conflict reason=downgraded=fresh-replay wait=${requestMeta.sessionQueueWaitMs}ms`,
+            requestMeta.requestId,
+          )
+        }
         // Publish the decision to plugins. Core has always known WHICH message
         // stopped matching; the log line only ever reported how many matched
         // ("prefix overlap 50/51"), which is why #767 had to hand-patch a build
