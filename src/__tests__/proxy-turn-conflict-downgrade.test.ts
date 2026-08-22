@@ -102,6 +102,7 @@ async function waitForControl(index: number, timeoutMs = 3000): Promise<AttemptC
 describe("modified-history conflict downgrade", () => {
   const originalMax = process.env.MERIDIAN_MAX_CONCURRENT
   const originalHold = process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS
+  const originalPassthrough = process.env.MERIDIAN_PASSTHROUGH
 
   beforeEach(() => {
     process.env.MERIDIAN_MAX_CONCURRENT = "1"
@@ -121,9 +122,12 @@ describe("modified-history conflict downgrade", () => {
     else process.env.MERIDIAN_MAX_CONCURRENT = originalMax
     if (originalHold === undefined) delete process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS
     else process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = originalHold
+    if (originalPassthrough === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+    else process.env.MERIDIAN_PASSTHROUGH = originalPassthrough
   })
 
-  it("downgrades modified-history conflict to fresh replay", async () => {
+  it("downgrades modified-history conflict to fresh replay (passthrough mode)", async () => {
+    process.env.MERIDIAN_PASSTHROUGH = "1"
     // Request A: 3 messages — acquires lease, commits turn.
     // Request B: 5 messages, same session, trailing tool_result content revised.
     //   Queued during A → should get fresh replay (200), NOT 409.
@@ -182,5 +186,39 @@ describe("modified-history conflict downgrade", () => {
     expect(body.error.message).toContain("session advanced")
     // Only one SDK query — the second request is refused
     expect(queryCalls).toBe(1)
+  })
+
+  it("does not downgrade modified-history conflict in non-passthrough mode", async () => {
+    // Without MERIDIAN_PASSTHROUGH, the downgrade must NOT fire.
+    // The request proceeds as a fresh session rather than being downgraded
+    // or getting a 409 (the turn lease mechanism determines conflict handling).
+    delete process.env.MERIDIAN_PASSTHROUGH
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const opening = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "use1", content: "original" }] },
+    ]
+    const superseding = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "use1", content: "REVISED" }] },
+      { role: "user", content: "extra turn" },
+      { role: "assistant", content: "and response" },
+    ]
+    const firstP = app.fetch(request(opening, "non-passthrough-test"))
+    const firstControl = await waitForControl(0)
+    const secondP = app.fetch(request(superseding, "non-passthrough-test"))
+
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+    // B proceeds as a fresh session (not downgraded, not 409'd).
+    // Release B's SDK query if one started.
+    try {
+      const secondControl = await waitForControl(1, 500)
+      secondControl.release()
+    } catch { /* B may not start an SDK query */ }
+    const second = await secondP
+    expect(second.status).toBe(200)
   })
 })

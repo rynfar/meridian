@@ -2182,6 +2182,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           ? findCompleteToolResultCheckpoint(body.messages || [], durableCheckpointIds)
           : undefined
         const advancesDurableCheckpoint = Boolean(durableCheckpointContinuation)
+        // Passthrough mode — resolved early so the concurrent-conflict guards
+        // below can gate on passthrough status. When enabled, ALL tool execution
+        // is forwarded to OpenCode instead of being handled internally.
+        // Adapter can override the global passthrough env var per-agent.
+        // Instance passthrough override (#476) beats the adapter transform's
+        // default, which beats the global env var.
+        const passthrough = adapter.instancePassthrough !== undefined
+          ? adapter.instancePassthrough
+          : pipelineCtx.passthrough !== undefined
+            ? pipelineCtx.passthrough
+            : envBool("PASSTHROUGH")
         if (
           advancesDurableCheckpoint &&
           lineageResult.type !== "continuation" &&
@@ -2208,7 +2219,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           lineageResult.type !== "compaction"
         )
         if (lostRaceWhileWaiting && !declaresConcurrentFlow &&
-          !(lineageResult.type === "diverged" && lineageResult.reason === "modified-history")) {
+          !(passthrough && lineageResult.type === "diverged" && lineageResult.reason === "modified-history")) {
           const reason = lineageResult.type === "diverged" ? lineageResult.reason : lineageResult.type
           const message = "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID."
           claudeLog("session.concurrent_conflict", {
@@ -2294,8 +2305,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // concurrent turn lease falls through to fresh-replay instead of 409.
         // Safe: it is only produced when the history strictly grows
         // (messages.length > cached.messageCount), so undo / replayed-request /
-        // unrelated-history still 409.
+        // unrelated-history still 409. Only applies to passthrough sessions —
+        // non-passthrough (internal) sessions must surface a loud 409 so the
+        // concurrent-request race is visible to operators.
         if (
+          passthrough &&
           profileSessionId &&
           requestMeta.sessionTurnLease?.advancedWhileWaiting(profileSessionId) &&
           lineageResult.type === "diverged" &&
@@ -2342,19 +2356,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         let isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
         let resumeSessionId = cachedSession?.claudeSessionId
-        // --- Passthrough mode ---
-        // When enabled, ALL tool execution is forwarded to OpenCode instead of
-        // being handled internally. This enables multi-model agent delegation
-        // (e.g., oracle on GPT-5.2, explore on Gemini via oh-my-opencode).
-        // Adapter can override the global passthrough env var per-agent.
-        // Droid always uses internal mode; OpenCode defers to the env var.
-        // Instance passthrough override (#476) beats the adapter transform's
-        // default, which beats the global env var.
-        const passthrough = adapter.instancePassthrough !== undefined
-          ? adapter.instancePassthrough
-          : pipelineCtx.passthrough !== undefined
-            ? pipelineCtx.passthrough
-            : envBool("PASSTHROUGH")
         const resumeFrom = lineageResult.type === "continuation" || lineageResult.type === "compaction"
           ? lineageResult.resumeFrom
           : undefined
