@@ -74,7 +74,7 @@ import { translateResponsesToAnthropic, translateAnthropicToResponses, createRes
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, describeToolCall, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
-import { buildQueryOptions, type QueryContext } from "./query"
+import { buildQueryOptions, type QueryContext, type ReplayDegradationReason } from "./query"
 import { normalizeEffort } from "./effort"
 import { parseOutputFormat, structuredOutputText } from "./structuredOutput"
 import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
@@ -1352,6 +1352,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           : pipelineCtx.passthrough !== undefined
             ? pipelineCtx.passthrough
             : envBool("PASSTHROUGH")
+        let replayDegradationReason: ReplayDegradationReason | undefined
         if (
           profileSessionId &&
           !declaresConcurrentFlow &&
@@ -1431,6 +1432,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           lineageResult.type === "diverged" &&
           lineageResult.reason === "modified-history"
         ) {
+          replayDegradationReason = "concurrent-modified-history"
           claudeLog("session.concurrent_conflict", {
             reason: "downgraded=fresh-replay",
             sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
@@ -1587,6 +1589,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         passthroughToolCallAssistantUuid &&
         !isCompleteToolResultContinuation(messagesToConvert, passthroughToolCallIds ?? [])
       ) {
+        replayDegradationReason = "checkpoint-incomplete"
         claudeLog("passthrough.checkpoint_replay", {
           expectedToolIds: passthroughToolCallIds?.length ?? 0,
           reason: "incomplete_or_mismatched_results",
@@ -2128,6 +2131,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
                     advisorModel,
+                    replayDegradationReason,
                   }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream")) {
                     // Capture Claude Max subscription quota updates emitted by
                     // the SDK as rate_limit_event. We snapshot them in this
@@ -2219,6 +2223,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
+                      replayDegradationReason,
                     }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh")
                     return
                   }
@@ -2269,6 +2274,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
+                      replayDegradationReason,
                     }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh")
                     return
                   }
@@ -3005,6 +3011,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
+                      replayDegradationReason,
                     }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream")) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
@@ -3075,6 +3082,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
+                        replayDegradationReason,
                       }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh")
                       return
                     }
@@ -3121,6 +3129,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
+                        replayDegradationReason,
                       }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh")
                       return
                     }
@@ -3808,6 +3817,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
                     advisorModel,
+                    replayDegradationReason,
                   }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "silent_recovery")) {
                     const recoveryMessage = event as any
                     if (recoveryMessage.session_id) recoverySessionId = recoveryMessage.session_id

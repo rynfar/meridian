@@ -360,6 +360,30 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.options.resume).toBeUndefined()
     expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
     expect(typeof capturedQueryParams.prompt).toBe("string")
+    // The fresh replay should carry the checkpoint-incomplete replay degradation note
+    const sp = capturedQueryParams.options.systemPrompt
+    const append = typeof sp === "object" && sp !== null ? sp.append : sp
+    expect(append).toContain("parallel tool-call batch")
+    expect(append).toContain("<meridian-note>")
+  })
+
+  it("non-stream: first-ever request does NOT set replayDegradationReason", async () => {
+    // A normal first request with no prior session must not carry the reason.
+    capturedQueryParams = null
+    mockMessages = [
+      assistantMessage([{ type: "text", text: "First response." }]),
+    ]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "hello" }],
+    }, "es-first-ever")).status).toBe(200)
+    const sp = capturedQueryParams.options.systemPrompt
+    const append = typeof sp === "object" && sp !== null ? sp.append : sp
+    expect(append).not.toContain("full conversation replay")
+    expect(append).not.toContain("This turn required a full conversation replay")
   })
 
   it("non-stream: preserves a nested multimodal tool_result wrapper", async () => {

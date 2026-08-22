@@ -221,4 +221,41 @@ describe("modified-history conflict downgrade", () => {
     const second = await secondP
     expect(second.status).toBe(200)
   })
+
+  it("sets replayDegradationReason on the downgraded SDK query in passthrough mode", async () => {
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const opening = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "use1", content: "original" }] },
+    ]
+    const superseding = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "use1", content: "REVISED" }] },
+      { role: "user", content: "extra turn" },
+      { role: "assistant", content: "and response" },
+    ]
+    const firstP = app.fetch(request(opening, "replay-reason-test"))
+    const firstControl = await waitForControl(0)
+    const secondP = app.fetch(request(superseding, "replay-reason-test"))
+
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+    const secondControl = await waitForControl(1)
+    secondControl.release()
+    const second = await secondP
+    expect(second.status).toBe(200)
+
+    // The second SDK query (index 1) is the fresh replay — its system prompt
+    // should contain the concurrent-modified-history replay degradation note.
+    const replayQuery = capturedParams[1] as any
+    expect(replayQuery).toBeDefined()
+    const sp = replayQuery.options?.systemPrompt
+    const append = typeof sp === "object" && sp !== null ? (sp as { append?: string }).append : sp
+    expect(append).toContain("another request")
+    expect(append).toContain("in flight")
+    expect(append).toContain("<meridian-note>")
+  })
 })

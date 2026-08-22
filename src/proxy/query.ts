@@ -155,6 +155,9 @@ export interface QueryContext {
   additionalDirectories?: string[]
   /** Advisor model for server-side advisor tool support */
   advisorModel?: string
+  /** Set when this request had to fall back to a full replay instead of an
+   *  incremental resume — surfaces a one-turn note explaining why. */
+  replayDegradationReason?: ReplayDegradationReason
 }
 
 /**
@@ -264,6 +267,37 @@ export function buildCwdNote(sdkCwd: string, clientCwd?: string): string {
   )
 }
 
+export type ReplayDegradationReason =
+  | "checkpoint-incomplete"        // trigger (a): passthrough tool results incomplete/mismatched
+  | "concurrent-modified-history"  // trigger (b): modified-history conflict downgraded to fresh replay
+
+/**
+ * Build an addendum that tells the model why this turn required a full
+ * conversation replay instead of a fast incremental resume. Applied when
+ * either the passthrough checkpoint-replay path fires (trigger a) or the
+ * modified-history concurrent-conflict downgrade fires (trigger b).
+ *
+ * These two triggers are mutually exclusive within a single request by
+ * construction, so a single local variable is sufficient.
+ */
+export function buildReplayDegradationNote(reason: ReplayDegradationReason | undefined): string {
+  if (!reason) return ""
+  const explanation = reason === "checkpoint-incomplete"
+    ? "the client's tool results for a parallel tool-call batch arrived incomplete or in a shape that didn't match what was expected"
+    : "another request for this same session was still in flight when this one arrived"
+  return (
+    `\n\n<meridian-note>\n` +
+    `This turn required a full conversation replay instead of a fast incremental ` +
+    `resume, because ${explanation}. This does not affect correctness or the ` +
+    `content of your answer — it only means this turn re-sent more context than ` +
+    `usual, so it may be slightly slower or larger than a typical turn. Nothing ` +
+    `for the user to fix. Mention this in one short, low-key sentence at the end ` +
+    `of your response (for example: "Note: this turn needed a full context ` +
+    `replay — nothing wrong on your end.") and then continue normally.\n` +
+    `</meridian-note>`
+  )
+}
+
 /**
  * Correct the provenance claim on the preset's `gitStatus` block.
  *
@@ -308,6 +342,7 @@ function resolveSystemPrompt(
   codeSystemPrompt: boolean | undefined,
   clientSystemPrompt: boolean | undefined,
   cwdNote: string,
+  replayNote: string,
 ): { systemPrompt?: string | { type: "preset"; preset: "claude_code"; append?: string } } {
   const hasSettings = settingSources != null && settingSources.length > 0
   const usePreset = codeSystemPrompt ?? (hasSettings || (!passthrough && !!systemContext))
@@ -317,10 +352,10 @@ function resolveSystemPrompt(
   if (usePreset) {
     // Always non-empty: the gitStatus correction applies to every preset
     // request, whether or not the client sent a system prompt.
-    const append = [clientContext, cwdNote, GIT_STATUS_PROVENANCE_NOTE].filter(Boolean).join("")
+    const append = [clientContext, cwdNote, replayNote, GIT_STATUS_PROVENANCE_NOTE].filter(Boolean).join("")
     return { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } }
   }
-  const append = [clientContext, cwdNote].filter(Boolean).join("") || undefined
+  const append = [clientContext, cwdNote, replayNote].filter(Boolean).join("") || undefined
   if (append) return { systemPrompt: append }
   // Defensive: when `codeSystemPrompt: false` is explicit and there's
   // nothing to append, force an empty-string system prompt so the SDK
@@ -342,6 +377,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
     memory, dreaming, sharedMemory, maxBudgetUsd, fallbackModel, sdkDebug, additionalDirectories,
   } = ctx
   const cwdNote = buildCwdNote(workingDirectory, clientWorkingDirectory)
+  const replayNote = buildReplayDegradationNote(ctx.replayDegradationReason)
 
   const allBlockedTools = [...blockedTools, ...incompatibleTools]
 
@@ -369,7 +405,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       ...(stream ? { includePartialMessages: true } : {}),
       permissionMode: "bypassPermissions" as const,
       allowDangerouslySkipPermissions: true,
-      ...resolveSystemPrompt(systemContext, passthrough, settingSources, codeSystemPrompt, clientSystemPrompt, cwdNote),
+      ...resolveSystemPrompt(systemContext, passthrough, settingSources, codeSystemPrompt, clientSystemPrompt, cwdNote, replayNote),
       ...(passthrough
         ? {
             // Strip the SDK's ~25k-token built-in tool catalog from the
