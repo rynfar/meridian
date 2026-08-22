@@ -1345,7 +1345,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           !declaresConcurrentFlow &&
           requestMeta.sessionTurnLease?.advancedWhileWaiting(profileSessionId) &&
           lineageResult.type !== "continuation" &&
-          lineageResult.type !== "compaction"
+          lineageResult.type !== "compaction" &&
+          !(lineageResult.type === "diverged" && lineageResult.reason === "modified-history")
         ) {
           const reason = lineageResult.type === "diverged" ? lineageResult.reason : lineageResult.type
           const message = "This session advanced while the request was waiting. Retry with the latest conversation history or use a distinct session ID."
@@ -1402,6 +1403,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               status: 400,
               headers: { "Content-Type": "application/json" },
             },
+          )
+        }
+        // A modified-history request (superseding, revised in place) under a
+        // concurrent turn lease falls through to fresh-replay instead of 409.
+        // Safe: it is only produced when the history strictly grows
+        // (messages.length > cached.messageCount), so undo / replayed-request /
+        // unrelated-history still 409.
+        if (
+          profileSessionId &&
+          requestMeta.sessionTurnLease?.advancedWhileWaiting(profileSessionId) &&
+          lineageResult.type === "diverged" &&
+          lineageResult.reason === "modified-history"
+        ) {
+          claudeLog("session.concurrent_conflict", {
+            reason: "downgraded=fresh-replay",
+            sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+          })
+          diagnosticLog.session(
+            `${requestMeta.requestId} session.concurrent_conflict reason=downgraded=fresh-replay wait=${requestMeta.sessionQueueWaitMs}ms`,
+            requestMeta.requestId,
           )
         }
         // Publish the decision to plugins. Core has always known WHICH message
