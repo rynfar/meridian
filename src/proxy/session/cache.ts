@@ -285,6 +285,7 @@ export function storeSession(
   const lineageHash = computeLineageHash(messages)
   const messageHashes = computeMessageHashes(messages)
   const messageBlockHashes = computeMessageBlockHashes(messages)
+  const existing: SessionState | undefined = sessionId ? sessionCache.get(sessionId) : undefined
   const state: SessionState = {
     claudeSessionId,
     lastAccess: Date.now(),
@@ -293,8 +294,14 @@ export function storeSession(
     messageHashes,
     messageBlockHashes,
     sdkMessageUuids,
-    ...(passthroughToolCallAssistantUuid ? { passthroughToolCallAssistantUuid } : {}),
-    ...(passthroughToolCallIds ? { passthroughToolCallIds } : {}),
+    // Three-state merge for checkpoint fields: undefined preserves existing,
+    // null clears, a value sets. Mirrors the contract in sessionStore.ts.
+    passthroughToolCallAssistantUuid: passthroughToolCallAssistantUuid === undefined
+      ? existing?.passthroughToolCallAssistantUuid
+      : passthroughToolCallAssistantUuid ?? undefined,
+    passthroughToolCallIds: passthroughToolCallIds === undefined
+      ? existing?.passthroughToolCallIds
+      : passthroughToolCallIds ?? undefined,
     ...(contextUsage ? { contextUsage } : {}),
   }
   // In-memory cache
@@ -318,9 +325,9 @@ export function storeSession(
       sdkMessageUuids,
       contextUsage,
       messageBlockHashes,
-      // undefined would preserve the stored checkpoint; a full store must rewrite it.
-      passthroughToolCallAssistantUuid ?? null,
-      passthroughToolCallIds ?? null
+      // undefined preserves a checkpoint set by an earlier turn; only null clears it.
+      passthroughToolCallAssistantUuid,
+      passthroughToolCallIds
     )
   }
 }

@@ -45,7 +45,7 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
-const { storeSession } = await import("../proxy/session/cache")
+const { storeSession, getSessionByClaudeId } = await import("../proxy/session/cache")
 
 function post(app: any, messages: any[], headers: Record<string, string> = {}) {
   return app.fetch(
@@ -345,5 +345,70 @@ describe("MERIDIAN_STRIP_THINKING env escape hatch", () => {
     const prompt = capturedPrompts[0] as string
     expect(prompt).not.toContain("<thinking>")
     expect(prompt).toContain("the question")
+  })
+})
+
+describe("passthrough checkpoint preservation across storeSession calls", () => {
+  beforeEach(() => {
+    clearSessionCache()
+  })
+
+  it("preserves checkpoint when storeSession is called with undefined passthrough fields", () => {
+    const messages = [{ role: "user", content: "hello" }]
+    // First call: store a checkpoint
+    storeSession(
+      "checkpoint-preserve-test",
+      messages,
+      "sdk-checkpoint",
+      undefined,
+      [null],
+      undefined,
+      "uuid-123",
+      ["toolA", "toolB"]
+    )
+    // Second call: no checkpoint (undefined passthrough fields) — must preserve
+    storeSession(
+      "checkpoint-preserve-test",
+      messages,
+      "sdk-checkpoint",
+      undefined,
+      [null],
+      undefined,
+      undefined,
+      undefined
+    )
+    // Verify checkpoint is still intact
+    const state = getSessionByClaudeId("sdk-checkpoint")
+    expect(state?.passthroughToolCallAssistantUuid).toBe("uuid-123")
+    expect(state?.passthroughToolCallIds).toEqual(["toolA", "toolB"])
+  })
+
+  it("clears checkpoint when storeSession is called with null passthrough fields", () => {
+    const messages = [{ role: "user", content: "hello" }]
+    // First call: store a checkpoint
+    storeSession(
+      "checkpoint-clear-test",
+      messages,
+      "sdk-clear",
+      undefined,
+      [null],
+      undefined,
+      "uuid-456",
+      ["toolC"]
+    )
+    // Second call: explicit null — must clear
+    storeSession(
+      "checkpoint-clear-test",
+      messages,
+      "sdk-clear",
+      undefined,
+      [null],
+      undefined,
+      null,
+      null
+    )
+    const state = getSessionByClaudeId("sdk-clear")
+    expect(state?.passthroughToolCallAssistantUuid).toBeUndefined()
+    expect(state?.passthroughToolCallIds).toBeUndefined()
   })
 })

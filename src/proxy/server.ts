@@ -2782,8 +2782,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     profileScopedCwd,
                     sdkUuidMap,
                     lastUsage,
-                    earlyStopFired ? nextPassthroughToolCallAssistantUuid : null,
-                    earlyStopFired ? nextPassthroughToolCallIds : null
+                    earlyStopFired ? nextPassthroughToolCallAssistantUuid : undefined,
+                    earlyStopFired ? nextPassthroughToolCallIds : undefined
                   )
                   commitSessionTurn()
                 }
@@ -3707,8 +3707,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     profileScopedCwd,
                     sdkUuidMap,
                     lastUsage,
-                    earlyStopFired ? nextPassthroughToolCallAssistantUuid : null,
-                    earlyStopFired ? nextPassthroughToolCallIds : null
+                    earlyStopFired ? nextPassthroughToolCallAssistantUuid : undefined,
+                    earlyStopFired ? nextPassthroughToolCallIds : undefined
                   )
                   commitSessionTurn()
                 }
