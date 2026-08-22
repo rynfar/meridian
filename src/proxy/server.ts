@@ -2372,7 +2372,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 noteUserContent(earlyStop, (message as any).message?.content)
                 if (earlyStopEnabled && shouldEarlyStop(earlyStop)) {
                   nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
-                  nextPassthroughToolCallIds = [...earlyStop.expected]
+                  nextPassthroughToolCallIds = [...earlyStop.expected].filter(id => !droppedToolUseIds.has(id))
                   earlyStopFired = true
                   // A digest hook can race just ahead of iterator consumption.
                   // Retain only calls proven to belong to the visible assistant
@@ -3269,7 +3269,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       shouldEarlyStop(earlyStop)
                     ) {
                       nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
-                      nextPassthroughToolCallIds = [...earlyStop.expected]
+                      nextPassthroughToolCallIds = [...earlyStop.expected].filter(id => !droppedToolUseIds.has(id))
                       earlyStopFired = true
                       for (let i = capturedToolUses.length - 1; i >= 0; i--) {
                         if (!earlyStop.expected.has(capturedToolUses[i]!.id)) capturedToolUses.splice(i, 1)
