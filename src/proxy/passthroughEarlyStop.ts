@@ -143,17 +143,19 @@ export function allForwardedCallsResolved(tracker: EarlyStopTracker): boolean {
 
 /**
  * Verify that a resumed tool-result delta settles exactly the tool calls at the
- * stored assistant checkpoint. Tool results must precede any ordinary user
- * content, matching the Anthropic Messages protocol.
+ * stored assistant checkpoint, then coalesce queued user turns into one SDK
+ * input. Tool results must precede any ordinary user content, matching the
+ * Anthropic Messages protocol.
  */
-export function isCompleteToolResultContinuation(
+export function coalesceCompleteToolResultContinuation(
   messages: Array<{ role?: unknown; content?: unknown }>,
   expectedIds: readonly string[]
-): boolean {
-  if (expectedIds.length === 0 || messages.length === 0) return false
+): Array<{ role: "user"; content: unknown[] }> | undefined {
+  if (expectedIds.length === 0 || messages.length === 0) return undefined
   const expected = new Set(expectedIds)
   const actual = new Set<string>()
   const echoedCalls = new Set<string>()
+  const content: unknown[] = []
   let sawUser = false
   let sawNonToolResult = false
 
@@ -166,28 +168,41 @@ export function isCompleteToolResultContinuation(
         for (const rawBlock of message.content) {
           const block = rawBlock as { type?: unknown; id?: unknown } | null | undefined
           if (block?.type !== "tool_use") continue
-          if (typeof block.id !== "string" || !expected.has(block.id) || echoedCalls.has(block.id)) return false
+          if (typeof block.id !== "string" || !expected.has(block.id) || echoedCalls.has(block.id)) return undefined
           echoedCalls.add(block.id)
         }
       }
       continue
     }
-    if (message.role !== "user" || !Array.isArray(message.content) || sawUser) return false
+    if (message.role !== "user") return undefined
+    // A queued user turn may follow only after the first turn settled the full
+    // checkpoint batch. Splitting results across turns is not a valid resume.
+    if (sawUser && actual.size !== expected.size) return undefined
+    const userContent = Array.isArray(message.content)
+      ? message.content
+      : typeof message.content === "string"
+        ? [{ type: "text", text: message.content }]
+        : undefined
+    if (!userContent) return undefined
     sawUser = true
-    for (const rawBlock of message.content) {
+    for (const rawBlock of userContent) {
       const block = rawBlock as { type?: unknown; tool_use_id?: unknown } | null | undefined
       if (block?.type === "tool_result") {
-        if (sawNonToolResult || typeof block.tool_use_id !== "string") return false
-        if (!expected.has(block.tool_use_id) || actual.has(block.tool_use_id)) return false
+        if (sawNonToolResult || typeof block.tool_use_id !== "string") return undefined
+        if (!expected.has(block.tool_use_id) || actual.has(block.tool_use_id)) return undefined
         actual.add(block.tool_use_id)
       } else {
         sawNonToolResult = true
       }
+      content.push(rawBlock)
     }
   }
 
-  return actual.size === expected.size &&
-    (echoedCalls.size === 0 || echoedCalls.size === expected.size)
+  if (
+    actual.size !== expected.size ||
+    (echoedCalls.size !== 0 && echoedCalls.size !== expected.size)
+  ) return undefined
+  return [{ role: "user", content }]
 }
 
 /** The cache-stable assistant boundary after every forwarded call settled. */

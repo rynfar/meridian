@@ -44,7 +44,7 @@ import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, createEarlyStopTracker, isCompleteToolResultContinuation, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop } from "./passthroughEarlyStop"
+import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -1565,21 +1565,28 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         messagesToConvert = allMessages
       }
 
-      // Rewinding to a tool-use checkpoint is valid only when the immediate
-      // delta settles that exact batch. Partial, late, duplicate, or unknown
-      // results get one safe fresh replay rather than an invalid SDK resume.
-      if (
-        passthroughToolCallAssistantUuid &&
-        !isCompleteToolResultContinuation(messagesToConvert, passthroughToolCallIds ?? [])
-      ) {
-        claudeLog("passthrough.checkpoint_replay", {
-          expectedToolIds: passthroughToolCallIds?.length ?? 0,
-          reason: "incomplete_or_mismatched_results",
-        })
-        isResume = false
-        resumeSessionId = undefined
-        passthroughToolCallAssistantUuid = undefined
-        messagesToConvert = allMessages
+      if (passthroughToolCallAssistantUuid) {
+        // Rewinding to a tool-use checkpoint is valid only when the immediate
+        // delta settles that exact batch. Coalesce any subsequent queued user
+        // turns so multimodal tool results remain on the final SDK input.
+        const checkpointContinuation = coalesceCompleteToolResultContinuation(
+          messagesToConvert,
+          passthroughToolCallIds ?? []
+        )
+        if (checkpointContinuation) {
+          messagesToConvert = checkpointContinuation
+        } else {
+          // Partial, late, duplicate, or unknown results get one safe fresh
+          // replay rather than an invalid SDK resume.
+          claudeLog("passthrough.checkpoint_replay", {
+            expectedToolIds: passthroughToolCallIds?.length ?? 0,
+            reason: "incomplete_or_mismatched_results",
+          })
+          isResume = false
+          resumeSessionId = undefined
+          passthroughToolCallAssistantUuid = undefined
+          messagesToConvert = allMessages
+        }
       }
 
       // Multimodal blocks and passthrough tool results must remain structured.

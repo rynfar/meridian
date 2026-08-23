@@ -268,6 +268,45 @@ describe("Integration: passthrough early stop", () => {
     ])
   })
 
+  it("non-stream: keeps the checkpoint when queued user text follows tool results", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "queued-tool", name: "read", input: { file_path: "x" } },
+    ])
+    mockMessages = [toolTurn, userDenyMessage("queued-tool")]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x" }],
+    }, "es-queued-user")).status).toBe(200)
+
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says X" }])]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "assistant", content: toolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "queued-tool", content: "X" }] },
+        { role: "user", content: "also summarize it" },
+      ],
+    }, "es-queued-user")).status).toBe(200)
+
+    const resumed = capturedQueryParamsAll[1]
+    expect(resumed.options.resume).toBe("test-session")
+    expect(resumed.options.resumeSessionAt).toBe(toolTurn.uuid)
+    const promptMessages: any[] = []
+    for await (const message of resumed.prompt) promptMessages.push(message)
+    expect(promptMessages).toHaveLength(1)
+    expect(promptMessages[0].message.content).toEqual([
+      { type: "tool_result", tool_use_id: "queued-tool", content: "X" },
+      { type: "text", text: "also summarize it" },
+    ])
+  })
+
   it("non-stream: advances the assistant checkpoint across repeated tool rounds without forking", async () => {
     const firstToolTurn = assistantMessage([
       { type: "tool_use", id: "tu-round-1", name: "read", input: { file_path: "a" } },

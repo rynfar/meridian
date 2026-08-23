@@ -13,10 +13,10 @@
 import { describe, it, expect } from "bun:test"
 import {
   clientAbortDisposition,
+  coalesceCompleteToolResultContinuation,
   createEarlyStopTracker,
   allForwardedCallsResolved,
   isClientForwardedToolUse,
-  isCompleteToolResultContinuation,
   noteAssistantContent,
   noteAssistantMessage,
   noteUserContent,
@@ -249,37 +249,60 @@ describe("early-stop tracking", () => {
 })
 
 
-describe("isCompleteToolResultContinuation", () => {
+describe("coalesceCompleteToolResultContinuation", () => {
   const result = (id: string, content: unknown = "ok") => ({ type: "tool_result", tool_use_id: id, content })
 
   it("accepts one complete parallel result batch", () => {
-    expect(isCompleteToolResultContinuation([
-      { role: "user", content: [result("t1"), result("t2")] },
-    ], ["t1", "t2"])).toBe(true)
+    const results = [result("t1"), result("t2")]
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: results },
+    ], ["t1", "t2"])).toEqual([{ role: "user", content: results }])
   })
 
   it("rejects a partial batch and an unknown result id", () => {
-    expect(isCompleteToolResultContinuation([
+    expect(coalesceCompleteToolResultContinuation([
       { role: "user", content: [result("t1")] },
-    ], ["t1", "t2"])).toBe(false)
-    expect(isCompleteToolResultContinuation([
+    ], ["t1", "t2"])).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation([
       { role: "user", content: [result("unknown")] },
-    ], ["t1"])).toBe(false)
+    ], ["t1"])).toBeUndefined()
   })
 
-  it("rejects multiple user messages so multimodal results stay on the final SDK input", () => {
-    expect(isCompleteToolResultContinuation([
-      { role: "user", content: [result("t1")] },
-      { role: "user", content: [{ type: "text", text: "continue" }] },
-    ], ["t1"])).toBe(false)
+  it("coalesces queued user messages so results stay on the final SDK input", () => {
+    const toolResult = result("t1")
+    const queuedText = { type: "text", text: "continue" }
+    const queuedImage = { type: "image", source: { type: "base64", data: "abc" } }
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: [toolResult] },
+      { role: "user", content: "continue" },
+      { role: "user", content: [queuedImage] },
+    ], ["t1"])).toEqual([{ role: "user", content: [toolResult, queuedText, queuedImage] }])
   })
 
   it("requires tool results before ordinary user content", () => {
-    expect(isCompleteToolResultContinuation([
+    expect(coalesceCompleteToolResultContinuation([
       { role: "user", content: [{ type: "text", text: "first" }, result("t1")] },
-    ], ["t1"])).toBe(false)
-    expect(isCompleteToolResultContinuation([
+    ], ["t1"])).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation([
       { role: "user", content: [result("t1"), { type: "text", text: "then continue" }] },
-    ], ["t1"])).toBe(true)
+    ], ["t1"])).toBeDefined()
+  })
+
+  it("rejects results split across turns, duplicated, or sent after queued content", () => {
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: [result("t1")] },
+      { role: "user", content: [result("t2")] },
+    ], ["t1", "t2"])).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: [result("t1"), result("t1")] },
+    ], ["t1"])).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: [result("t1")] },
+      { role: "user", content: [{ type: "text", text: "continue" }, result("t1")] },
+    ], ["t1"])).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: [result("t1")] },
+      { role: "assistant", content: [{ type: "text", text: "late" }] },
+    ], ["t1"])).toBeUndefined()
   })
 })
