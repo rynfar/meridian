@@ -6,10 +6,22 @@
  * for users to dig through stderr to report issues.
  */
 
+import { envInt } from "../env"
 import type { DiagnosticLog, IDiagnosticLogStore } from "./types"
 export type { DiagnosticLog } from "./types"
 
 const DEFAULT_CAPACITY = 500
+
+/**
+ * Tunable for the same reason the metric ring is: 500 entries is the tightest
+ * window in the telemetry system - the metric ring holds twice as many rows of
+ * a rarer event - and it was the only one with no way to change it, so the
+ * logs a bug report needs had usually scrolled away by the time anyone looked.
+ */
+function getCapacity(): number {
+  const parsed = envInt("DIAGNOSTIC_LOG_SIZE", DEFAULT_CAPACITY)
+  return parsed > 0 ? parsed : DEFAULT_CAPACITY
+}
 
 export class MemoryDiagnosticLogStore implements IDiagnosticLogStore {
   private buffer: (DiagnosticLog | null)[]
@@ -18,7 +30,7 @@ export class MemoryDiagnosticLogStore implements IDiagnosticLogStore {
   private readonly capacity: number
 
   constructor(capacity?: number) {
-    this.capacity = capacity ?? DEFAULT_CAPACITY
+    this.capacity = capacity ?? getCapacity()
     this.buffer = new Array(this.capacity).fill(null)
   }
 

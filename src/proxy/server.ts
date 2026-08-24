@@ -11,7 +11,7 @@ import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { linkRequestAbort } from "./requestAbort"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
-import { fetchOAuthUsage, fetchOAuthUsageResult } from "./oauthUsage"
+import { fetchOAuthUsage, fetchOAuthUsageResult, peekOAuthUsage } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
 import { DEFAULT_PROXY_CONFIG } from "./types"
@@ -83,7 +83,9 @@ import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
 import { resolveProfile, listProfiles, setActiveProfile, getActiveProfileId, getEffectiveProfiles, restoreActiveProfile, type ResolvedProfile } from "./profiles"
-import { getRoutingMode, resolvePriorityOrder, choosePriorityProfile, ProfileExhaustion, AssignmentStore, resolveCooldownUntil } from "./routing"
+import { getRoutingMode, classifyRouteKind, resolvePriorityOrder, choosePriorityProfile, chooseActivePriorityCandidates, isPoolRouting, ACTIVE_PRIORITY, ROUTING_MODES, ProfileExhaustion, AssignmentStore, resolveCooldownUntil, cooldownCapMs, type RoutingMode } from "./routing"
+import { diagnoseLimit, type LimitDiagnosis } from "./limitDetection"
+import { SpentStore, FailoverEventLog } from "./profileHealth"
 import { getSetting, setSetting } from "./settings"
 import { filterBetasForProfile, getBetaPolicyFromEnv } from "./betas"
 import { createFileChangeHook, extractFileChangesFromMessages, formatFileChangeSummary, type FileChange } from "./fileChanges"
@@ -163,6 +165,13 @@ interface RequestMeta {
    */
   ttfbMs?: number
   sessionTurnLease?: SessionTurnLease
+  /**
+   * Which attempt of a priority failover this is, 1-based, and set only on
+   * one. `forkAttemptMeta` carries `requestId` across every attempt, so that
+   * id is what groups the hops back together on the read path - this says
+   * where in the chain a hop sits, and that it is one at all.
+   */
+  routeAttempt?: number
 }
 
 interface HandleMessagesOptions {
@@ -680,6 +689,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // constant here is what let a 6-hour bound flatten a weekly reset (#790).
   const PRIORITY_DEFAULT_COOLDOWN_MS = 10 * 60_000
 
+  // Refusal bookkeeping, live in EVERY routing mode - not just the pool ones.
+  // A refusal reaches the client as an `event: error` frame inside a stream
+  // whose HTTP status was committed as 200 long before the SDK failed, so
+  // nothing downstream of the response can see it; recording it here is the
+  // only point where the account, the raw wording and the failure are all in
+  // hand at once. Without this an exhausted account keeps advertising the
+  // percentages of its last successful read (measured: `5h 67% / 7d 7%` while
+  // every request through it was being refused).
+  const spentProfiles = new SpentStore()
+  const failoverEvents = new FailoverEventLog()
+
   function priorityProfileOrderSetting(): string[] | undefined {
     const env = process.env.MERIDIAN_PROFILE_ORDER
     if (env && env.trim()) return env.split(",").map(s => s.trim()).filter(Boolean)
@@ -701,12 +721,73 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
    *  the conservative default so tier 2 isn't left refining a wrong mark
    *  it has no way to challenge. */
   function priorityCooldownUntil(profileId: string, now: number): number {
+    // Tier 0: Anthropic named the window and when it reopens. Measured live:
+    // "You've hit your session limit · resets 12:30am (America/Chicago)" - a
+    // real reset instant, where the tiers below would have guessed 10 minutes.
+    // Restricted to `five_hour` on purpose: a weekly reset printed as a bare
+    // clock time says nothing about which DAY it lands on, so adopting it would
+    // suppress an account for hours on the strength of a misreading. Under-
+    // suppressing is the safe direction, exactly as tiers 1 and 2 argue.
+    const spent = spentProfiles.get(profileId)
+    const namedReset = spent?.diagnosis.reported
+      && spent.diagnosis.bucket === "five_hour"
+      && (spent.diagnosis.resetsAt ?? 0) > now
+      ? spent.diagnosis.resetsAt ?? undefined
+      : undefined
+    if (namedReset !== undefined) return Math.min(namedReset, now + cooldownCapMs("five_hour"))
+    // Tiers 1 + 3 (#790): prefer the longest exhausted account-wide window, so a
+    // weekly-capped account is not re-probed every ten minutes for days.
     const windows = rateLimitStore.getAll(profileId).map(e => ({
       type: e.rateLimitType ?? "",
       resetsAt: e.resetsAt,
       exhausted: e.status === "rejected" || (e.utilization ?? 0) >= 1,
     }))
     return resolveCooldownUntil(windows, now, PRIORITY_DEFAULT_COOLDOWN_MS)
+  }
+
+  /**
+   * Record that an account refused, and publish it.
+   *
+   * Called from the terminal error paths in EVERY routing mode, because the
+   * account that just said no is worth knowing about whether or not anything
+   * routed around it. `message` must be the raw SDK text: by the time
+   * `classifyError` is done it reads "Claude Max rate limit reached", which has
+   * lost the bucket and the reset clock that the CLI's own wording carries.
+   */
+  function recordProfileRefusal(opts: {
+    profileId: string | null
+    message: string
+    routing: RoutingMode
+    internalHop: boolean
+    sessionKey?: string | null
+  }): LimitDiagnosis | null {
+    if (!opts.profileId) return null
+    const diagnosis = diagnoseLimit({
+      message: opts.message,
+      now: Date.now(),
+      sdkEntries: rateLimitStore.getAll(opts.profileId),
+      windows: peekOAuthUsage(opts.profileId)?.windows,
+    })
+    const record = spentProfiles.record(opts.profileId, diagnosis, opts.message)
+    failoverEvents.append({
+      kind: "refused",
+      profile: opts.profileId,
+      servedBy: null,
+      reason: "rate_limit_error",
+      routing: opts.routing,
+      sessionKey: opts.sessionKey ?? null,
+      internalHop: opts.internalHop,
+      until: record.until,
+      limit: diagnosis,
+    })
+    claudeLog("profile.refused", {
+      profile: opts.profileId,
+      bucket: diagnosis.bucket,
+      source: diagnosis.source,
+      reported: diagnosis.reported,
+      until: record.until,
+    })
+    return diagnosis
   }
 
   /** Tier 2: the authoritative per-account reset from Anthropic's usage
@@ -852,19 +933,39 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return { failed: false, errorPayload: null, errorType: null, response }
   }
 
-  async function dispatchPriority(c: Context, body: any, requestMeta: RequestMeta, orderedCandidateIds: string[], sessionKey: string | null, wantsStream: boolean): Promise<Response> {
+  async function dispatchPriority(c: Context, body: any, requestMeta: RequestMeta, orderedCandidateIds: string[], sessionKey: string | null, wantsStream: boolean, routing: RoutingMode): Promise<Response> {
     let lastError: unknown = null
     let lastStatus = 429
     let previous: string | null = null
     let previousReason = "rate_limit_error"
     for (const [attempt, candidate] of orderedCandidateIds.entries()) {
-      const inner = await handleMessages(c, forkAttemptMeta(requestMeta, attempt), { body, forcedProfileId: candidate })
+      // Each hop writes its own telemetry row. `routeAttempt` is what marks a
+      // row as a hop and orders it, and the `requestId` forkAttemptMeta keeps
+      // across attempts is what groups them - so the read path can stitch a
+      // failover back into one row with its account chain
+      // (telemetry/routeChain.ts). Nothing is correlated here.
+      const attemptMeta = { ...forkAttemptMeta(requestMeta, attempt), routeAttempt: attempt + 1 }
+      const inner = await handleMessages(c, attemptMeta, { body, forcedProfileId: candidate })
       const sniffed = await sniffAccountFailure(inner)
       if (!sniffed.failed) {
         if (sessionKey) priorityAssignments.set(sessionKey, candidate)
         if (previous) {
           claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey })
           plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
+          // The client is about to receive a normal answer and will never learn
+          // that an account dropped out. A supervisor watching for spent
+          // accounts has to hear about it from here or not at all.
+          failoverEvents.append({
+            kind: "failover",
+            profile: previous,
+            servedBy: candidate,
+            reason: previousReason,
+            routing,
+            sessionKey,
+            internalHop: false,
+            until: spentProfiles.get(previous)?.until ?? null,
+            limit: spentProfiles.get(previous)?.diagnosis ?? null,
+          })
         }
         return sniffed.response
       }
@@ -888,6 +989,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       lastStatus = inner.status
       previous = candidate
       previousReason = reason
+    }
+    if (previous) {
+      failoverEvents.append({
+        kind: "pool_exhausted",
+        profile: previous,
+        servedBy: null,
+        reason: "rate_limit_error",
+        routing,
+        sessionKey,
+        internalHop: false,
+        until: spentProfiles.get(previous)?.until ?? null,
+        limit: spentProfiles.get(previous)?.diagnosis ?? null,
+      })
     }
     // Every candidate failed: surface the LAST tried profile's error (owner
     // decision). Stream sniff consumed the inner body, so reconstruct the
@@ -930,6 +1044,23 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
       // Hoist adapter detection before try so it's available in the catch block for telemetry
       const adapter = detectAdapter(c)
+      // Set by dispatchPriority on each internal hop. Hoisted for the same
+      // reason as the adapter: a hop that fails records from the catch block,
+      // and it is precisely the failed hops that a route chain is made of.
+      const routeAttempt = requestMeta.routeAttempt
+      const routeGroupId = routeAttempt === undefined ? undefined : requestMeta.requestId
+      // Which account to blame, for the outer catch's two consumers: the
+      // refusal bookkeeping and the telemetry row. Seeded from the forced pin
+      // rather than left null until resolveProfile, because a hop that fails
+      // EARLY is still a hop that refused - unattributed, it books no refusal
+      // at all and renders as a chain of "default ✗ -> default ✗", which
+      // defeats the point of both. Upgraded to the resolved id below.
+      let attributedProfileId = options.forcedProfileId || c.req.header("x-meridian-profile") || undefined
+      // Captured rather than re-read in the catch: the mode is already resolved
+      // once per request below, and both consumers there want the mode that was
+      // in effect WHEN the request ran, not whatever /settings holds by the time
+      // it failed.
+      let attributedRoutingMode: RoutingMode | undefined
       try {
         const body = options.body
 
@@ -980,11 +1111,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Meridian already uses for session tracking is the assignment key,
         // so a session and its subagent/fork requests land on one account.
         const routingMode = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))
+        attributedRoutingMode = routingMode
         // Priority mode (opt-in): unpinned requests are dispatched across the
         // ordered pool with per-request failover. Pinned requests (explicit
         // x-meridian-profile — including our own internal hops) bypass the
         // pool entirely and take the normal path below.
-        if (routingMode === "priority" && !options.forcedProfileId && !c.req.header("x-meridian-profile")) {
+        if (isPoolRouting(routingMode) && !options.forcedProfileId && !c.req.header("x-meridian-profile")) {
           const effectivePool = getEffectiveProfiles(finalConfig.profiles)
           if (effectivePool.length > 1) {
             const { order, unknown } = resolvePriorityOrder(effectivePool.map(p => p.id), priorityProfileOrderSetting())
@@ -1006,18 +1138,31 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               assignmentCwd,
             )
             const assigned = sessionKey ? priorityAssignments.get(sessionKey) : undefined
-            // Assignment affinity: an existing conversation stays on its
-            // account while that account is healthy (protects warm prompt
-            // caches). Only NEW sessions drain back after a reset.
-            let first: string
-            if (assigned && order.includes(assigned) && !priorityExhaustion.isExhausted(assigned)) {
-              first = assigned
+            let candidates: string[]
+            if (routingMode === ACTIVE_PRIORITY) {
+              // No header and no options: this is the "active" chain verbatim,
+              // so the pool head is whatever the UI/CLI last selected.
+              const activeId = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile).id
+              candidates = chooseActivePriorityCandidates(
+                activeId,
+                order,
+                id => priorityExhaustion.isExhausted(id),
+                assigned,
+              )
             } else {
-              const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
-              first = pick?.id ?? order[0]!
+              // Assignment affinity: an existing conversation stays on its
+              // account while that account is healthy (protects warm prompt
+              // caches). Only NEW sessions drain back after a reset.
+              let first: string
+              if (assigned && order.includes(assigned) && !priorityExhaustion.isExhausted(assigned)) {
+                first = assigned
+              } else {
+                const pick = choosePriorityProfile(order, id => priorityExhaustion.isExhausted(id))
+                first = pick?.id ?? order[0]!
+              }
+              candidates = [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
             }
-            const candidates = [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
-            return dispatchPriority(c, body, requestMeta, candidates, sessionKey, body.stream === true)
+            return dispatchPriority(c, body, requestMeta, candidates, sessionKey, body.stream === true, routingMode)
           }
         }
         const profile = resolveProfile(
@@ -1028,6 +1173,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             ? { routingMode, stickySessionKey: adapter.getSessionId(c, body) }
             : undefined
         )
+        attributedProfileId = profile.id
+
+        // Attribution for /telemetry: how this account was chosen. One header
+        // read, one flag and a pure call — the chain itself is assembled on
+        // the read path, never here.
+        const routeKind = classifyRouteKind({
+          pinnedProfileHeader: c.req.header("x-meridian-profile"),
+          priorityHop: routeAttempt !== undefined,
+          routingMode,
+        })
 
         const authStatus = await getClaudeAuthStatusAsync(
           profile.id !== "default" ? profile.id : undefined,
@@ -2706,6 +2861,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             timestamp: Date.now(),
             adapter: adapter.name,
             profileId: profile.id,
+            routeKind,
+            routeGroupId,
+            routeAttempt,
             requestSource,
             model,
             requestModel: body.model || undefined,
@@ -4028,6 +4186,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   adapter: adapter.name,
             profileId: profile.id,
             requestSource,
+                  routeKind,
+                  routeGroupId,
+                  routeAttempt,
                   model,
                   requestModel: body.model || undefined,
                   mode: "stream",
@@ -4140,6 +4301,22 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   }
                 : classifyError(errMsg, model)
               claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
+
+              // This is where a spent account is actually discovered. The
+              // response committed 200 + SSE headers long before the SDK
+              // failed, so the refusal can only reach the client as an
+              // `event: error` frame in the body - invisible to anything
+              // inspecting status codes, which is why an exhausted account went
+              // on reporting healthy percentages until now.
+              const refusal = streamErr.type === "rate_limit_error"
+                ? recordProfileRefusal({
+                    profileId: profile.id,
+                    message: errMsg,
+                    routing: routingMode,
+                    internalHop: Boolean(options.forcedProfileId),
+                    sessionKey: adapter.getSessionId(c, body),
+                  })
+                : null
 
               // Surface the SDK termination reason (max_turns / process_exit / aborted)
               // and stderr tail to /telemetry/logs?category=error so failures are
@@ -4304,6 +4481,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   timestamp: Date.now(),
                   adapter: adapter.name,
                   profileId: profile.id,
+                  routeKind,
+                  routeGroupId,
+                  routeAttempt,
                   requestSource,
                   model,
                   requestModel: body.model || undefined,
@@ -4372,6 +4552,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 timestamp: Date.now(),
                 adapter: adapter.name,
                 profileId: profile.id,
+                routeKind,
+                routeGroupId,
+                routeAttempt,
+                routeRefusedBucket: refusal?.bucket ?? undefined,
                 requestSource,
                 model,
                 requestModel: body.model || undefined,
@@ -4509,6 +4693,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
         claudeLog("proxy.error", { error: errMsg, classified: classified.type })
 
+        const refusal = classified.type === "rate_limit_error"
+          ? recordProfileRefusal({
+              profileId: attributedProfileId ?? null,
+              message: errMsg,
+              routing: attributedRoutingMode ?? getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing")),
+              internalHop: Boolean(options.forcedProfileId),
+            })
+          : null
+
         // Surface the SDK termination reason. Outer-catch context is limited —
         // model/isResume/etc. may not be assigned yet if the error fired early —
         // so include only the request-source header (resolved before any work).
@@ -4526,6 +4719,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           requestId: requestMeta.requestId,
           timestamp: Date.now(),
           adapter: adapter.name,
+          profileId: attributedProfileId,
+          routeKind: classifyRouteKind({
+            pinnedProfileHeader: c.req.header("x-meridian-profile"),
+            priorityHop: routeAttempt !== undefined,
+            routingMode: attributedRoutingMode,
+          }),
+          routeGroupId,
+          routeAttempt,
+          routeRefusedBucket: refusal?.bucket ?? undefined,
           model: "unknown",
           requestModel: undefined,
           mode: "non-stream",
@@ -4744,6 +4946,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const profiles = listProfiles(finalConfig.profiles, finalConfig.defaultProfile)
     return c.json({
       routing: getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing")),
+      modes: ROUTING_MODES,
       profileOrder: resolvePriorityOrder(profiles.map(p => p.id), priorityProfileOrderSetting()).order,
       profiles: profiles.map(p => p.id),
       envOverride: {
@@ -4756,8 +4959,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     let body: { routing?: unknown; profileOrder?: unknown }
     try { body = await c.req.json() } catch { return c.json({ error: "Invalid JSON" }, 400) }
     if (body.routing !== undefined) {
-      if (typeof body.routing !== "string" || !["active", "sticky", "priority"].includes(body.routing)) {
-        return c.json({ error: 'routing must be "active", "sticky", or "priority"' }, 400)
+      if (typeof body.routing !== "string" || !ROUTING_MODES.includes(body.routing as RoutingMode)) {
+        return c.json({ error: `routing must be one of: ${ROUTING_MODES.join(", ")}` }, 400)
       }
       setSetting("routing", body.routing)
     }
@@ -4920,7 +5123,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const routingModeNow = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))
     // Additive (priority spec): pool order + live exhaustion state so UIs
     // (meridian home, pylon's switcher) can render the pool.
-    const priorityInfo = routingModeNow === "priority"
+    const priorityInfo = isPoolRouting(routingModeNow)
       ? {
           profileOrder: resolvePriorityOrder(profiles.map(p => p.id), priorityProfileOrderSetting()).order,
           exhausted: priorityExhaustion.snapshot(),
@@ -4931,7 +5134,50 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       activeProfile: getActiveProfileId() || finalConfig.defaultProfile || profiles[0]?.id || "default",
       // Additive (#383): current routing mode so UIs can surface it.
       routing: routingModeNow,
+      // Reported in every mode, unlike `exhausted` above: an account that is
+      // refusing is worth showing whether or not routing is avoiding it.
+      spent: spentProfiles.snapshot(),
       ...priorityInfo,
+    })
+  })
+
+  /**
+   * Refusal and failover events for a polling supervisor.
+   *
+   * `since` is the `nextSince` from the previous poll (omit or 0 to start
+   * cold); events are returned oldest-first with `seq` strictly greater than
+   * it. `nextSince` is the last RETURNED event's seq, not the newest one held,
+   * so a page truncated by `limit` resumes exactly where it stopped instead of
+   * skipping the remainder. `dropped` says the ring evicted events the caller
+   * had not read yet - the thing `/telemetry/requests` cannot tell you, which
+   * is why polling it can silently miss a failover between two polls.
+   */
+  app.get("/profiles/events", (c) => {
+    const since = Number.parseInt(c.req.query("since") ?? "0", 10)
+    const limit = Number.parseInt(c.req.query("limit") ?? "100", 10)
+    const page = failoverEvents.since(Number.isFinite(since) ? since : 0, Number.isFinite(limit) ? limit : 100)
+    return c.json({ ...page, asOf: Date.now() })
+  })
+
+  /**
+   * Which accounts are in trouble right now, and nothing else.
+   *
+   * Deliberately NOT part of /profiles/list, which awaits an auth status per
+   * profile. That check is cached for 60s on success but only 5s on FAILURE,
+   * so a page polling /profiles/list every few seconds would spawn a
+   * `claude auth status` subprocess per unhealthy account per poll — worst
+   * exactly when an account has gone bad, which is when you are watching.
+   * Everything here is an in-memory snapshot: no I/O, no subprocess, safe to
+   * poll on a timer.
+   */
+  app.get("/profiles/health", (c) => {
+    const routingModeNow = getRoutingMode(process.env.MERIDIAN_ROUTING ?? getSetting("routing"))
+    return c.json({
+      routing: routingModeNow,
+      activeProfile: getActiveProfileId() || finalConfig.defaultProfile || undefined,
+      spent: spentProfiles.snapshot(),
+      exhausted: priorityExhaustion.snapshot(),
+      asOf: Date.now(),
     })
   })
 
@@ -5476,6 +5722,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           extraUsage: oauth?.extraUsage ?? null,
           fetchedAt: oauth?.fetchedAt ?? null,
           error,
+          spent: spentProfiles.get("default") ?? null,
         }],
         activeProfile: "default",
         asOf: Date.now(),
@@ -5494,6 +5741,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           extraUsage: null,
           fetchedAt: null,
           error: "not_oauth" as const,
+          spent: spentProfiles.get(p.id) ?? null,
         }
       }
       const { snapshot: oauth, error } = await fetchOAuthUsageResult({
@@ -5508,6 +5756,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         extraUsage: oauth?.extraUsage ?? null,
         fetchedAt: oauth?.fetchedAt ?? null,
         error,
+        // Separate from `windows` on purpose: those are what we last READ, this
+        // is what the API is doing right now. An account can be refusing while
+        // its last read still says 67%, so one must never overwrite the other.
+        spent: spentProfiles.get(p.id) ?? null,
       }
     }))
 

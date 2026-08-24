@@ -5,7 +5,7 @@
  * No disk I/O in the hot path. Data resets on proxy restart.
  */
 
-import type { RequestMetric, TelemetrySummary, ITelemetryStore } from "./types"
+import type { RequestMetric, TelemetrySummary, ITelemetryStore, TelemetryRetention } from "./types"
 import { computeSummary } from "./percentiles"
 import { getPricingOverrides } from "./pricingStore"
 
@@ -40,6 +40,20 @@ export class MemoryTelemetryStore implements ITelemetryStore {
   /** Get the total number of stored metrics. */
   get size(): number {
     return this.count
+  }
+
+  describe(): TelemetryRetention {
+    // The oldest live entry sits `count` slots behind the write head, so this
+    // is O(1) rather than a scan of the ring for a minimum timestamp.
+    const oldest = this.count === 0
+      ? null
+      : this.buffer[(this.head - this.count + this.capacity) % this.capacity]
+    return {
+      kind: "memory",
+      held: this.count,
+      capacity: this.capacity,
+      oldestTimestamp: oldest?.timestamp ?? null,
+    }
   }
 
   /**

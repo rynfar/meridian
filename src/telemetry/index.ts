@@ -24,8 +24,15 @@ function createStores(): { telemetry: ITelemetryStore; diagnostics: IDiagnosticL
     const stores = createSqliteStores(dbPath, retention)
     console.error(`[telemetry] SQLite persistence enabled: ${dbPath} (${retention}d retention)`)
     return { telemetry: stores.telemetry, diagnostics: stores.diagnostics }
-  } catch {
-    console.warn("[telemetry] MERIDIAN_TELEMETRY_PERSIST is set but libsql is not installed. Run: npm install libsql")
+  } catch (err) {
+    // This catch covers the whole setup, not just the import: a bad
+    // MERIDIAN_TELEMETRY_DB path, a directory that cannot be created, a file
+    // owned by another user. Naming libsql as the cause was a guess, and a
+    // wrong one for every failure but the first - libsql is a regular
+    // dependency, so "run npm install libsql" sends a user with a permissions
+    // problem to reinstall something they already have. Say what happened.
+    const reason = err instanceof Error ? err.message : String(err)
+    console.warn(`[telemetry] MERIDIAN_TELEMETRY_PERSIST is set but SQLite could not be opened, falling back to in-memory telemetry: ${reason}`)
     return {
       telemetry: new MemoryTelemetryStore(),
       diagnostics: new MemoryDiagnosticLogStore(),
@@ -43,10 +50,16 @@ export { MemoryDiagnosticLogStore } from "./logStore"
 export { createTelemetryRoutes } from "./routes"
 export { landingHtml } from "./landing"
 export { computePercentiles, computeSummary } from "./percentiles"
+export { collapseRouteChains, summarizeRoutes } from "./routeChain"
 export { renderPrometheusMetrics } from "./prometheus"
 export { createSqliteStores } from "./sqlite"
 export type {
   RequestMetric,
+  RouteHop,
+  RouteKind,
+  RouteProfileTally,
+  RouteSummary,
+  TelemetryRetention,
   TelemetrySummary,
   PhaseTiming,
   ITelemetryStore,

@@ -53,6 +53,7 @@ export const dashboardHtml = `<!DOCTYPE html>
   }
   .refresh-bar button:hover { border-color: var(--accent); }
   .refresh-indicator { font-size: 11px; color: var(--muted); }
+  .retention { font-size: 11px; color: var(--muted); margin: -8px 0 16px; }
   .empty { text-align: center; padding: 48px; color: var(--muted); }
 
   /* Tabs */
@@ -97,6 +98,8 @@ export const dashboardHtml = `<!DOCTYPE html>
   <label><input type="checkbox" id="autoRefresh" checked> Auto (5s)</label>
   <span class="refresh-indicator" id="lastUpdate"></span>
 </div>
+
+<div class="retention" id="retention"></div>
 
 <div id="content"><div class="empty">Loading…</div></div>
 
@@ -171,19 +174,218 @@ function setLogFilter(filter) {
 async function refresh() {
   const w = $('#window').value;
   try {
-    const [summary, reqs, logs] = await Promise.all([
+    const [summary, reqs, logs, routes, health, retention] = await Promise.all([
       fetch('/telemetry/summary?window=' + w).then(r => r.json()),
       fetch('/telemetry/requests?limit=50&since=' + (Date.now() - Number(w))).then(r => r.json()),
       fetch('/telemetry/logs?limit=200&since=' + (Date.now() - Number(w))).then(r => r.json()),
+      fetch('/telemetry/routes?window=' + w).then(r => r.json()),
+      // Lives on the proxy app, not under /telemetry, so it is absent when the
+      // telemetry routes are mounted standalone. The accounts table degrades to
+      // "no live state known" rather than failing the whole refresh.
+      fetch('/profiles/health').then(r => r.json()).catch(function() { return null; }),
+      fetch('/telemetry/retention').then(r => r.json()),
     ]);
-    render(summary, reqs, logs);
+    render(summary, reqs, logs, routes, health);
+    renderRetention(retention);
     $('#lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
   } catch (e) {
     $('#content').innerHTML = '<div class="empty">Failed to load telemetry</div>';
   }
 }
 
-function render(s, reqs, logs) {
+function bytes(n) {
+  if (n == null) return null;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  return (n / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+}
+
+// How far back the data actually goes. Null when the store is empty, which is
+// NOT the same as zero coverage — an empty store constrains no window, whereas
+// a store holding 40 minutes makes every longer window a partial answer.
+function coverageMs(r) {
+  return (r && r.oldestTimestamp) ? Date.now() - r.oldestTimestamp : null;
+}
+
+// One line saying what the page can actually show you. The window selector
+// offers 24 hours against a ring buffer that is well under an hour of traffic
+// here, and until this line existed the page looked identical whether a window
+// was empty because nothing happened or because the rows were overwritten.
+function renderRetention(r) {
+  var el = $('#retention');
+  if (!el || !r) return;
+  var parts = [];
+  var span = coverageMs(r);
+  if (r.kind === 'sqlite') {
+    parts.push(r.held.toLocaleString() + ' request' + (r.held === 1 ? '' : 's') + ' in SQLite');
+    if (r.retentionDays != null) parts.push(r.retentionDays + 'd retention');
+    if (span != null) parts.push('back to ' + ago(r.oldestTimestamp).replace(' ago', ''));
+    var size = bytes(r.dbBytes);
+    if (size) parts.push(size);
+    parts.push('survives restart');
+  } else {
+    parts.push(r.held.toLocaleString() + (r.capacity != null ? ' of ' + r.capacity.toLocaleString() : '') + ' requests in memory');
+    if (span != null) parts.push('back to ' + ago(r.oldestTimestamp).replace(' ago', ''));
+    // Named because it is the surprising half: a dashboard that has been
+    // reporting all day still starts from nothing after a restart, and the
+    // fix — MERIDIAN_TELEMETRY_PERSIST — is not discoverable from the page.
+    parts.push('lost on restart');
+  }
+  el.textContent = parts.join(' · ');
+  el.title = r.kind === 'sqlite'
+    ? 'Persistent telemetry at ' + r.dbPath
+    : 'In-memory ring buffer. Set MERIDIAN_TELEMETRY_PERSIST=1 to keep telemetry across restarts.';
+  annotateWindows(r);
+}
+
+// Mark the windows this store cannot fill. Deliberately NOT disabled: the data
+// grows, a partial answer is still an answer, and a selector that refuses the
+// option a user wants is worse than one that tells them what they will get.
+function annotateWindows(r) {
+  var span = coverageMs(r);
+  var sel = $('#window');
+  if (!sel) return;
+  for (var i = 0; i < sel.options.length; i++) {
+    var opt = sel.options[i];
+    if (!opt.dataset.label) opt.dataset.label = opt.textContent;
+    var short = span != null && Number(opt.value) > span;
+    opt.textContent = opt.dataset.label + (short ? ' — only ' + ago(r.oldestTimestamp).replace(' ago', '') + ' held' : '');
+    opt.style.color = short ? 'var(--muted)' : '';
+  }
+}
+
+// Colour groups by family — the pool modes share one, the internal hops
+// another — and the badge TEXT carries which mode it actually was. Giving
+// active+priority its own colour would imply a difference in kind where the
+// difference is only in what sits at the head of the pool.
+var ROUTE_KIND_COLOR = {
+  pinned: 'var(--blue)',
+  active: 'var(--muted)',
+  sticky: 'var(--purple)',
+  priority: 'var(--yellow)',
+  'active+priority': 'var(--yellow)',
+  'priority-hop': 'var(--muted)',
+  'active+priority-hop': 'var(--muted)',
+};
+
+// routeChain arrives oldest attempt first; the last entry is the one that answered.
+function routeHtml(r) {
+  var badge = r.routeKind
+    ? '<br><span style="font-size:9px;padding:1px 5px;border-radius:3px;background:'
+      + (ROUTE_KIND_COLOR[r.routeKind] || 'var(--muted)') + ';color:var(--bg)">' + esc(r.routeKind) + '</span>'
+    : '';
+  if (r.routeChain && r.routeChain.length > 0) {
+    return r.routeChain.map(function(h) {
+      var why = h.error || ('status ' + h.status);
+      if (h.refusedBucket) why += ' · ' + h.refusedBucket;
+      return '<span style="color:' + (h.ok ? 'var(--green)' : 'var(--red)') + '" title="'
+        + esc(why) + '">' + esc(h.profileId) + (h.ok ? ' ✓' : ' ✗') + '</span>';
+    }).join('<span style="color:var(--muted)"> → </span>') + badge;
+  }
+  var refused = r.routeRefusedBucket
+    ? ' <span style="color:var(--red);font-size:10px" title="the allowance Anthropic refused on">'
+      + esc(r.routeRefusedBucket) + '</span>'
+    : '';
+  return (r.profileId ? esc(r.profileId) : '—') + refused + badge;
+}
+
+function until(ts) {
+  if (ts == null) return '';
+  var sec = Math.round((ts - Date.now()) / 1000);
+  if (sec <= 0) return 'any moment';
+  if (sec < 60) return 'in ' + sec + 's';
+  if (sec < 3600) return 'in ' + Math.round(sec/60) + 'm';
+  if (sec < 86400) return 'in ' + Math.round(sec/3600) + 'h';
+  return 'in ' + Math.round(sec/86400) + 'd';
+}
+
+// Shown only once more than one account is in play: with a single account
+// there is nothing to fail over TO, so a permanent "0" would be noise.
+function failoverCard(routes) {
+  if (!routes || !routes.requests) return '';
+  var accounts = Object.keys(routes.byProfile || {}).length;
+  if (routes.failedOver === 0 && routes.unserved === 0 && accounts < 2) return '';
+  var pct = ((routes.failedOver / routes.requests) * 100).toFixed(1);
+  return '<div class="card"><div class="card-label">Failovers</div>'
+    + '<div class="card-value" style="color:' + (routes.failedOver > 0 ? 'var(--yellow)' : 'var(--green)') + '">' + routes.failedOver + '</div>'
+    // Names its own denominator on purpose: the Requests card beside it counts
+    // one per internal hop, so a failover is 2 there and 1 here. Saying just
+    // "% of requests" next to a larger Requests number reads as broken maths.
+    + '<div class="card-detail">' + pct + '% of ' + routes.requests + ' client request' + (routes.requests === 1 ? '' : 's')
+    + (routes.unserved > 0 ? ' · ' + routes.unserved + ' unserved' : '')
+    + '</div></div>';
+}
+
+// One row per account that did anything this window, or that is in trouble
+// right now. Three independent sources keyed by profile id: the route tally
+// (served/refused), the cost rollup, and the live spent/benched state.
+function accountsHtml(routes, s, health) {
+  var cost = (s.costEstimate && s.costEstimate.byProfile) || {};
+  var tally = (routes && routes.byProfile) || {};
+  var spent = {}, benched = {};
+  if (health) {
+    (health.spent || []).forEach(function(x) { spent[x.profileId] = x; });
+    (health.exhausted || []).forEach(function(x) { benched[x.id] = x; });
+  }
+
+  var ids = {};
+  [tally, cost, spent, benched].forEach(function(src) {
+    Object.keys(src).forEach(function(k) { ids[k] = 1; });
+  });
+  var list = Object.keys(ids);
+  if (list.length === 0) return '';
+
+  var anyTrouble = list.some(function(id) {
+    return (tally[id] && tally[id].refused > 0) || spent[id] || benched[id];
+  });
+  // A single-account setup with nothing wrong learns nothing from this table.
+  if (list.length < 2 && !anyTrouble) return '';
+
+  list.sort(function(a, b) {
+    return ((tally[b] && tally[b].served) || 0) - ((tally[a] && tally[a].served) || 0)
+      || ((tally[b] && tally[b].refused) || 0) - ((tally[a] && tally[a].refused) || 0)
+      || a.localeCompare(b);
+  });
+
+  var html = '<div class="section"><div class="section-title">Accounts</div>'
+    + '<table><thead><tr><th>Account</th><th>Served</th><th>Refused</th><th>Refused on</th>'
+    + '<th>Est. Cost</th><th>State</th></tr></thead><tbody>';
+
+  for (var i = 0; i < list.length; i++) {
+    var id = list[i];
+    var t = tally[id] || { served: 0, refused: 0, refusedBuckets: {} };
+    var buckets = Object.keys(t.refusedBuckets || {}).map(function(b) {
+      return esc(b) + ' ×' + t.refusedBuckets[b];
+    }).join(', ');
+
+    var state = '<span style="color:var(--muted)">—</span>';
+    if (spent[id]) {
+      var d = spent[id].diagnosis || {};
+      state = '<span style="color:var(--red)" title="' + esc(d.rationale || '') + '">refusing'
+        + (d.bucket ? ' (' + esc(d.bucket) + (d.reported ? '' : ', guess') + ')' : '')
+        + '</span>'
+        + (spent[id].until ? '<br><span style="font-size:10px;color:var(--muted)">back ' + until(spent[id].until) + '</span>' : '');
+    } else if (benched[id]) {
+      state = '<span style="color:var(--yellow)" title="' + esc(benched[id].reason || '') + '">benched</span>'
+        + '<br><span style="font-size:10px;color:var(--muted)">back ' + until(benched[id].until) + '</span>';
+    }
+
+    html += '<tr>'
+      + '<td>' + esc(id) + (health && health.activeProfile === id ? ' <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--blue);color:var(--bg)">active</span>' : '') + '</td>'
+      + '<td class="mono">' + t.served + '</td>'
+      + '<td class="mono"' + (t.refused > 0 ? ' style="color:var(--red)"' : '') + '>' + t.refused + '</td>'
+      + '<td class="mono" style="font-size:11px;color:var(--muted)">' + (buckets || '—') + '</td>'
+      + '<td class="mono">' + (cost[id] ? usd(cost[id].estimatedUsd) : '—') + '</td>'
+      + '<td>' + state + '</td>'
+      + '</tr>';
+  }
+  return html + '</tbody></table>'
+    + '<div class="usage-note" style="margin-top:8px">Refusals include the ones a failover hid from the client,'
+    + ' which never reach the client as an error and are counted nowhere else.</div></div>';
+}
+
+function render(s, reqs, logs, routes, health) {
   if (s.totalRequests === 0 && (!logs || logs.length === 0)) {
     $('#content').innerHTML = '<div class="empty">No requests recorded yet. Send a request through the proxy to see telemetry.</div>';
     return;
@@ -211,12 +413,15 @@ function render(s, reqs, logs) {
   html += '<div class="cards">'
     + card('Requests', s.totalRequests, s.requestsPerMinute.toFixed(1) + ' req/min')
     + card('Errors', s.errorCount, s.totalRequests > 0 ? ((s.errorCount/s.totalRequests)*100).toFixed(1) + '% error rate' : '')
+    + failoverCard(routes)
     + '<div class="card"><div class="card-label">Envelope</div><div class="card-value" style="color:' + ((s.envelopeViolationCount || 0) > 0 ? 'var(--red)' : 'var(--green)') + '">' + (s.envelopeViolationCount || 0) + '</div><div class="card-detail">' + ((s.envelopeViolationCount || 0) > 0 ? 'wire-contract violations — check logs' : 'wire contract clean') + '</div></div>'
     + card('Median Total', ms(s.totalDuration.p50), 'p95: ' + ms(s.totalDuration.p95))
     + card('Median TTFB', ms(s.ttfb.p50), 'p95: ' + ms(s.ttfb.p95))
     + card('Proxy Overhead', ms(s.proxyOverhead.p50), 'p95: ' + ms(s.proxyOverhead.p95))
     + card('Queue Wait', ms(s.queueWait.p50), 'p95: ' + ms(s.queueWait.p95))
     + '</div>';
+
+  html += accountsHtml(routes, s, health);
 
   // Token usage cards
   if (s.tokenUsage) {
@@ -313,7 +518,7 @@ function render(s, reqs, logs) {
     + '<span><span class="legend-dot" style="background:var(--yellow)"></span>Proxy</span>'
     + '<span><span class="legend-dot" style="background:var(--upstream)"></span>Response</span>'
     + '</div>'
-    + '<table><thead><tr><th>Time</th><th>Adapter</th><th>Model</th><th>Mode</th><th>Session</th><th>Status</th>'
+    + '<table><thead><tr><th>Time</th><th>Adapter</th><th>Route</th><th>Model</th><th>Mode</th><th>Session</th><th>Status</th>'
     + '<th>Queue</th><th>Proxy</th><th>TTFB</th><th>Total</th><th>Tokens</th><th>Cache</th><th>Waterfall</th></tr></thead><tbody>';
 
   const maxTotal = Math.max(...reqs.map(r => r.totalDurationMs), 1);
@@ -338,6 +543,7 @@ function render(s, reqs, logs) {
     html += '<tr>'
       + '<td class="mono">' + ago(r.timestamp) + '</td>'
       + '<td>' + (r.adapter || '—') + sourceBadge + '</td>'
+      + '<td>' + routeHtml(r) + '</td>'
       + '<td>' + (r.requestModel || r.model) + '<br><span style="font-size:10px;color:var(--muted)">' + r.model + '</span></td>'
       + '<td>' + r.mode + (r.hasDeferredTools ? (function() { var sessDisc = r.sessionDiscoveredCount || 0; var loaded = ((r.toolCount || 0) - (r.deferredToolCount || 0)) + sessDisc; var deferred = Math.max(0, (r.deferredToolCount || 0) - sessDisc); var newDisc = r.discoveredTools || []; return '<br><span style="font-size:10px;color:var(--purple)">loaded=' + loaded + ' deferred=' + deferred + '</span>' + (newDisc.length > 0 ? '<br><span style="font-size:10px;color:var(--green)">+' + newDisc.join(', +') + '</span>' : ''); })() : '') + '</td>'
       + '<td class="mono">' + sessionShort + ' ' + lineageBadge + envBadge + '<br><span style="font-size:10px;color:var(--muted)">' + msgCount + ' msgs</span></td>'

@@ -10,6 +10,42 @@
  *   ├──────────────────── total duration ────────────────────────────────────┤
  */
 
+/**
+ * How a request's account was chosen, as rendered in /telemetry's Route column.
+ *
+ * Lives here rather than in proxy/routing.ts because it is part of the
+ * RequestMetric wire shape, and telemetry may never import from proxy —
+ * dependencies flow proxy → telemetry only. `classifyRouteKind` produces it.
+ *
+ * The `-hop` kinds are one INTERNAL attempt of a pool dispatch. They are
+ * separate kinds rather than a flag because the collapsed row has to name the
+ * MODE that produced it: `priority` drains the pool in configured order,
+ * `active+priority` puts the selected account at its head, and those are
+ * different answers to "why this account" even when the chain looks alike.
+ */
+export type RouteKind =
+  | "pinned"
+  | "active"
+  | "sticky"
+  | "priority"
+  | "active+priority"
+  | "priority-hop"
+  | "active+priority-hop"
+
+/** One account attempt within a client request's route. */
+export interface RouteHop {
+  profileId: string
+  /** Whether this attempt succeeded. The LAST hop answered the client
+   *  whether or not it did — a chain ending `ok: false` means the pool ran out. */
+  ok: boolean
+  status: number
+  error: string | null
+  /** Which allowance the account refused on ("five_hour", "seven_day_opus", …)
+   *  when the refusal named one. Absent on hops that did not refuse, and on
+   *  refusals Anthropic never attributed to a window. */
+  refusedBucket?: string
+}
+
 export interface RequestMetric {
   /** Unique request identifier */
   requestId: string
@@ -31,9 +67,35 @@ export interface RequestMetric {
   /** Original model string from the client request (e.g. "claude-sonnet-4-6-20250312") */
   requestModel?: string
 
-  /** Profile that served the request (multi-account); absent on early
-   *  parse-error records where profile resolution never ran. */
+  /** Profile that served the request (multi-account). On records written
+   *  before profile resolution ran this falls back to the pinned profile
+   *  header, and is absent only when there was no pin either. */
   profileId?: string
+
+  /** How that profile was chosen — see proxy/routing.ts classifyRouteKind.
+   *  Absent when the record was written before routing resolved. */
+  routeKind?: RouteKind
+
+  /** Which allowance the serving account refused on, when this request was
+   *  refused and Anthropic's wording or the SDK named a window. Recorded from
+   *  the diagnosis the refusal bookkeeping already produced — nothing extra is
+   *  computed for it. */
+  routeRefusedBucket?: string
+
+  /** Correlates the internal hops of ONE client request. Priority routing
+   *  re-enters the proxy once per candidate account, so a failover writes
+   *  several rows; they share this id (the outer request's id). Absent on
+   *  requests that were never dispatched through the pool. */
+  routeGroupId?: string
+
+  /** 1-based position of this hop within its routeGroupId. */
+  routeAttempt?: number
+
+  /** The full account chain for this client request, oldest attempt first,
+   *  ending with the account that answered. DERIVED at read time by folding
+   *  a routeGroupId's hops together — never stored, never computed on the
+   *  request path. Absent on rows that were not part of a dispatch group. */
+  routeChain?: RouteHop[]
 
   /** Streaming or non-streaming */
   mode: "stream" | "non-stream"
@@ -164,6 +226,37 @@ export interface CostEstimate {
   byProfile: Record<string, { requests: number; estimatedUsd: number }>
 }
 
+/** What one account did in a window. */
+export interface RouteProfileTally {
+  /** Requests this account answered. */
+  served: number
+  /** Attempts this account refused, including the ones a failover hid from
+   *  the client — those never reach it as an error, so nothing else counts them. */
+  refused: number
+  /** Refusals by allowance ("five_hour", "seven_day_opus", …), for the ones
+   *  Anthropic attributed to a window. Sums to at most `refused`. */
+  refusedBuckets: Record<string, number>
+}
+
+/**
+ * Where a window's requests went and which accounts refused them.
+ *
+ * DERIVED at read time from collapsed rows (telemetry/routeChain.ts) — nothing
+ * here is stored, and nothing is computed for it on the request path.
+ */
+export interface RouteSummary {
+  /** Client requests in the window. A failover counts ONCE, not once per hop. */
+  requests: number
+  /** Requests that touched more than one account before being answered. */
+  failedOver: number
+  /** Requests no account answered — the client received the refusal. */
+  unserved: number
+  /** How the account was chosen, keyed by RouteKind. */
+  byKind: Record<string, number>
+  /** Per-account tally, keyed by profileId ("default" when a row carried none). */
+  byProfile: Record<string, RouteProfileTally>
+}
+
 export interface TelemetrySummary {
   /** Time window these stats cover */
   windowMs: number
@@ -206,12 +299,46 @@ export interface TelemetrySummary {
   costEstimate: CostEstimate
 }
 
+/**
+ * What the store actually holds, so a page can say so instead of implying it
+ * holds everything.
+ *
+ * The dashboard offers a 24-hour window against a ring buffer that is under an
+ * hour of traffic at a working pace, and shows the difference nowhere: the page
+ * looks the same whether a window is empty because nothing happened or because
+ * the rows were overwritten. Reading the source is not an acceptable way to
+ * learn which.
+ */
+export interface TelemetryRetention {
+  /** "memory" is lost on restart; "sqlite" survives it. */
+  kind: "memory" | "sqlite"
+  /** Rows held right now. */
+  held: number
+  /** Ring capacity — the oldest row is dropped past this (memory only). */
+  capacity?: number
+  /** Days before cleanup deletes a row (sqlite only). */
+  retentionDays?: number
+  /** Database file and its size on disk, WAL included (sqlite only). */
+  dbPath?: string
+  dbBytes?: number
+  /**
+   * Timestamp of the oldest row held, null when empty.
+   *
+   * This is the honest bound on every window the page offers: a window
+   * reaching further back than this shows less than it names, whether because
+   * rows were evicted or because the proxy has not been up that long.
+   */
+  oldestTimestamp: number | null
+}
+
 /** Storage backend for request metrics. */
 export interface ITelemetryStore {
   /** Record a completed request metric. */
   record(metric: RequestMetric): void
   /** Number of stored metrics. */
   readonly size: number
+  /** What this store holds and for how long — see TelemetryRetention. */
+  describe(): TelemetryRetention
   /** Retrieve recent metrics, newest first. */
   getRecent(options?: {
     limit?: number

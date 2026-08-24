@@ -13,6 +13,11 @@ import { fileURLToPath } from "node:url"
 import { Hono } from "hono"
 import { telemetryStore, diagnosticLog } from "./index"
 import { dashboardHtml } from "./dashboard"
+import { collapseRouteChains, summarizeRoutes } from "./routeChain"
+
+/** Upper bound on the rows one /routes tally reads, matching the memory
+ *  store's ring capacity so a window inside it is covered exactly. */
+const ROUTE_SUMMARY_MAX_ROWS = 1000
 
 // Read once at module load — src/telemetry/ is two levels below the package root
 const _iconPath = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "assets", "icon.svg")
@@ -47,7 +52,27 @@ export function createTelemetryRoutes() {
       model,
     })
 
-    return c.json(requests)
+    // Priority failover writes one row per account attempted; fold them back
+    // into one row per client request, carrying the chain. `?hops=1` opts out
+    // and returns the raw attempts.
+    if (c.req.query("hops") === "1") return c.json(requests)
+    return c.json(collapseRouteChains(requests))
+  })
+
+  // Where the window's requests went, and which accounts refused them.
+  // Same store read and the same fold the requests view uses — a failover is
+  // one request here, not one per account it tried.
+  routes.get("/routes", (c) => {
+    const raw = Number.parseInt(c.req.query("window") || "3600000", 10)
+    const windowMs = Number.isFinite(raw) && raw > 0 ? raw : 3600000
+    const metrics = telemetryStore.getRecent({ limit: ROUTE_SUMMARY_MAX_ROWS, since: Date.now() - windowMs })
+    return c.json({ windowMs, ...summarizeRoutes(collapseRouteChains(metrics)) })
+  })
+
+  // What the store holds and for how long, so the page can say which of its
+  // offered windows it can actually cover.
+  routes.get("/retention", (c) => {
+    return c.json({ ...telemetryStore.describe(), asOf: Date.now() })
   })
 
   // Aggregate summary

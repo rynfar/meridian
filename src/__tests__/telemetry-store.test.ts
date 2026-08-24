@@ -1,5 +1,6 @@
-import { describe, expect, it, beforeEach } from "bun:test"
+import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import { MemoryTelemetryStore } from "../telemetry/store"
+import { MemoryDiagnosticLogStore } from "../telemetry/logStore"
 import type { RequestMetric, ITelemetryStore } from "../telemetry/types"
 
 function makeMetric(overrides: Partial<RequestMetric> = {}): RequestMetric {
@@ -61,6 +62,29 @@ describe("MemoryTelemetryStore", () => {
 
     const recent = store.getRecent({ limit: 3 })
     expect(recent.length).toBe(3)
+  })
+
+  it("describes an empty store without inventing a coverage bound", () => {
+    const described = store.describe()
+
+    expect(described.kind).toBe("memory")
+    expect(described.held).toBe(0)
+    expect(described.capacity).toBe(10)
+    expect(described.oldestTimestamp).toBeNull()
+    expect(described.retentionDays).toBeUndefined()
+    expect(described.dbPath).toBeUndefined()
+  })
+
+  it("reports the oldest row it still holds, not the oldest it ever saw", () => {
+    for (let i = 0; i < 15; i++) {
+      store.record(makeMetric({ requestId: `r${i}`, timestamp: 1_000 + i }))
+    }
+
+    const described = store.describe()
+    expect(described.held).toBe(10)
+    // r0-r4 were overwritten; the honest bound is r5's timestamp, and claiming
+    // r0's would tell the page it covers five requests it can no longer show.
+    expect(described.oldestTimestamp).toBe(1_005)
   })
 
   it("filters by model", () => {
@@ -188,6 +212,41 @@ describe("MemoryTelemetryStore.summarize", () => {
     const summary = store.summarize()
     // TTFB should only include non-null values
     expect(summary.ttfb.p50).toBe(100)
+  })
+})
+
+describe("MemoryDiagnosticLogStore capacity", () => {
+  const saved = process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE
+
+  afterEach(() => {
+    if (saved === undefined) delete process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE
+    else process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE = saved
+  })
+
+  it("holds 500 entries by default", () => {
+    delete process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE
+    const store = new MemoryDiagnosticLogStore()
+    for (let i = 0; i < 600; i++) store.session(`m${i}`)
+
+    expect(store.getRecent({ limit: 10_000 }).length).toBe(500)
+  })
+
+  it("honours MERIDIAN_DIAGNOSTIC_LOG_SIZE", () => {
+    process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE = "3"
+    const store = new MemoryDiagnosticLogStore()
+    for (const m of ["a", "b", "c", "d"]) store.session(m)
+
+    const held = store.getRecent({ limit: 10 })
+    expect(held.length).toBe(3)
+    expect(held.map(l => l.message)).toEqual(["d", "c", "b"])
+  })
+
+  it("ignores a value that would leave nowhere to write", () => {
+    process.env.MERIDIAN_DIAGNOSTIC_LOG_SIZE = "0"
+    const store = new MemoryDiagnosticLogStore()
+    store.session("still recorded")
+
+    expect(store.getRecent({ limit: 10 }).length).toBe(1)
   })
 })
 
