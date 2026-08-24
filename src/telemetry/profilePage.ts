@@ -37,6 +37,10 @@ export const profilePageHtml = `<!DOCTYPE html>
   }
   .badge-active { background: rgba(88,166,255,0.15); color: var(--accent); }
   .badge-type { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+  .badge-spent { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.35); }
+  .spent-note { margin: 10px 0; padding: 10px 14px; border-radius: 8px; font-size: 12px; line-height: 1.5;
+    background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.3); color: var(--text); }
+  .spent-note .spent-why { color: var(--muted); }
   .profile-details {
     display: grid; grid-template-columns: 120px 1fr; gap: 6px 16px; font-size: 13px;
   }
@@ -258,6 +262,45 @@ async function refresh() {
 
 function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+// A refusal and the cached percentages are different kinds of fact, so they
+// are rendered as different things: the badge states what the API is doing
+// now, the bars below stay as the last successful read. Measured: an account
+// showed 5h 67% / 7d 7% while every request through it was refused.
+function spentSummary(spent) {
+  if (!spent) return null;
+  var bucket = spent.diagnosis && spent.diagnosis.bucket
+    ? labelForWindow(spent.diagnosis.bucket)
+    : 'unknown limit';
+  var reported = !!(spent.diagnosis && spent.diagnosis.reported);
+  var reset = formatResetCountdown(spent.until);
+  return {
+    bucket: bucket,
+    reported: reported,
+    label: bucket + (reported ? '' : ' (guess)'),
+    reset: reset,
+    why: (spent.diagnosis && spent.diagnosis.rationale) || '',
+    at: spent.at,
+  };
+}
+
+function renderSpentBadge(spent) {
+  var s = spentSummary(spent);
+  if (!s) return '';
+  return '<span class="profile-badge badge-spent" title="' + esc(s.why) + '">out of ' + esc(s.label) + '</span>';
+}
+
+function renderSpentNote(spent) {
+  var s = spentSummary(spent);
+  if (!s) return '';
+  return '<div class="spent-note">'
+    + '<strong style="color:var(--red)">\u26a0 Anthropic is refusing this account</strong> - '
+    + 'out of <strong>' + esc(s.label) + '</strong>'
+    + (s.reset ? ', expected back ' + esc(s.reset) : '')
+    + '. Refused ' + esc(timeAgo(s.at)) + '.'
+    + '<div class="spent-why">' + esc(s.why) + '. The percentages below are the last successful read, not live.</div>'
+    + '</div>';
+}
+
 function renderUsageSection(profileQuota) {
   // No quota data for this profile yet (cold start or fetch failed) — hide
   // entirely so we don't render an empty box.
@@ -362,7 +405,9 @@ function render(data, quotaData) {
     html += '<span class="profile-name">' + esc(p.id) + '</span>';
     if (isActive) html += '<span class="profile-badge badge-active">active</span>';
     html += '<span class="profile-badge badge-type">' + esc(p.type || 'claude-max') + '</span>';
+    html += renderSpentBadge((quotaById[p.id] || {}).spent);
     html += '</div>';
+    html += renderSpentNote((quotaById[p.id] || {}).spent);
 
     html += '<div class="profile-details">';
     html += '<span class="detail-label">Status</span>';

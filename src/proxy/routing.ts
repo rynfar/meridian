@@ -24,18 +24,40 @@
 
 import { createHash } from "node:crypto"
 
-export type RoutingMode = "active" | "sticky" | "priority"
+export type RoutingMode = "active" | "sticky" | "priority" | "active+priority"
+
+export const ACTIVE_PRIORITY = "active+priority" as const
+
+/**
+ * Every selectable mode, in the order the settings UI offers them. Single
+ * source of truth: the mode list was previously written out again inside the
+ * settings route's validator and a third time in the page's `<select>`, so a
+ * new mode parsed correctly and still could not be selected.
+ */
+export const ROUTING_MODES: readonly RoutingMode[] = ["active", "sticky", "priority", ACTIVE_PRIORITY]
 
 /**
  * Parse a routing mode string (from settings or MERIDIAN_ROUTING).
  * Unknown values fall back to "active" — a typo must never change
  * routing behavior into something surprising.
+ *
+ * The three original branches stay exact-match, so every value that falls back
+ * to "active" today still does. Only the new mode accepts separator variants
+ * ("active-priority", "active_priority", "active priority"): its canonical
+ * spelling carries a `+`, which a query string decodes to a space, and being
+ * strict there would turn one plausible transport detail into silently routing
+ * all traffic to the active profile with no failover.
  */
 export function getRoutingMode(raw: string | undefined): RoutingMode {
   const lower = raw?.toLowerCase()
   if (lower === "sticky") return "sticky"
   if (lower === "priority") return "priority"
+  if (lower && lower.replace(/[\s+_-]/g, "") === "activepriority") return ACTIVE_PRIORITY
   return "active"
+}
+
+export function isPoolRouting(mode: RoutingMode): boolean {
+  return mode === "priority" || mode === ACTIVE_PRIORITY
 }
 
 /**
@@ -125,6 +147,47 @@ export function choosePriorityProfile(
     if (!isExhausted(id)) return { id, allExhausted: false }
   }
   return { id: order[0]!, allExhausted: true }
+}
+
+/**
+ * Candidate order for `active+priority`: the active profile first, then the
+ * priority order behind it as fallbacks.
+ *
+ * The active profile OUTRANKS an existing session assignment, which is the one
+ * place this mode deliberately disagrees with `priority`. In `priority` the
+ * pool head moves on its own (a cooldown expires) and affinity protects a
+ * conversation from being dragged along - worth protecting, since a live
+ * request here showed a 441k-token cache read at a 99.8% hit rate, all of which
+ * is thrown away by a move. In `active+priority` the head only ever moves
+ * because a human or a supervisor moved it, and moving running conversations is
+ * precisely what they moved it FOR. Honouring the old assignment would mean
+ * switching the active profile changed nothing for any conversation already
+ * under way, which is every conversation that matters and leaves the mode
+ * indistinguishable from plain `priority`.
+ *
+ * Affinity still applies BELOW the active profile: while the active profile is
+ * refusing, a session returns to the same fallback it used last time rather
+ * than being re-picked each turn, so an outage costs one cold cache instead of
+ * one per turn.
+ */
+export function chooseActivePriorityCandidates(
+  activeId: string,
+  order: readonly string[],
+  isExhausted: (id: string) => boolean,
+  assigned?: string,
+): string[] {
+  // Deduped because a repeated id would make the dispatcher attempt the same
+  // account twice, breaking its "each profile at most once per request" rule.
+  const pool = [...new Set(order.includes(activeId) ? order : [activeId, ...order])]
+  let first: string
+  if (!isExhausted(activeId)) {
+    first = activeId
+  } else if (assigned && assigned !== activeId && pool.includes(assigned) && !isExhausted(assigned)) {
+    first = assigned
+  } else {
+    first = pool.find(id => !isExhausted(id)) ?? activeId
+  }
+  return [first, ...pool.filter(id => id !== first && !isExhausted(id))]
 }
 
 export interface ExhaustionEntry {

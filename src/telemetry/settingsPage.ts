@@ -135,7 +135,13 @@ ${profileBarHtml}
     selected profile. <strong style="color:var(--text)">Sticky</strong> distributes sessions across profiles evenly
     (cache-affine). <strong style="color:var(--text)">Priority</strong> drains the pool in order — highest first —
     and fails over per request when an account runs out; conversations keep their account, and new sessions
-    return to the preferred account after its window resets. An explicit <code>x-meridian-profile</code> header
+    return to the preferred account after its window resets.
+    <strong style="color:var(--text)">Active+priority</strong> keeps you in charge - every request goes to the
+    profile you selected - but the moment that account is refused, the request is re-sent to the next healthy
+    account in the pool order and answered from there, so the client never sees the error. Switching the active
+    profile moves running conversations too, which is the difference from priority. It reuses the same pool
+    order below; the active profile always goes first, wherever it sits in that list.
+    An explicit <code>x-meridian-profile</code> header
     always overrides. Changes apply to the next request — no restart needed.
   </p>
   <div class="adapter-card" id="routing-card">
@@ -439,10 +445,14 @@ async function loadRouting() {
   let h = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'
     + '<label style="color:var(--muted);font-size:13px;width:90px">Mode</label>'
     + '<select id="routing-mode" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
-    + ['active','sticky','priority'].map(m => '<option value="'+m+'"'+(cfg.routing===m?' selected':'')+'>'+m+'</option>').join('')
+    + (cfg.modes || ['active','sticky','priority']).map(m => '<option value="'+m+'"'+(cfg.routing===m?' selected':'')+'>'+m+'</option>').join('')
     + '</select>' + envNote(cfg.envOverride.routing) + '</div>';
-  h += '<div id="routing-order-wrap" style="'+(cfg.routing==='priority'?'':'display:none')+'">'
-    + '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">Pool order — highest priority first. Drained top to bottom.'
+  var usesPool = cfg.routing === 'priority' || cfg.routing === 'active+priority';
+  h += '<div id="routing-order-wrap" style="'+(usesPool?'':'display:none')+'">'
+    + '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">'
+    + (cfg.routing === 'active+priority'
+        ? 'Fallback order - used when the active profile runs out. The active profile always goes first, wherever it sits in this list.'
+        : 'Pool order — highest priority first. Drained top to bottom.')
     + envNote(cfg.envOverride.profileOrder) + '</div>'
     + '<ol id="routing-order" style="margin:0;padding-left:22px">'
     + cfg.profileOrder.map((id, i) =>

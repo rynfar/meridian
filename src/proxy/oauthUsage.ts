@@ -430,6 +430,19 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
   return promise
 }
 
+/**
+ * Last-read snapshot for a profile, without fetching.
+ *
+ * For the error path, which needs the cached windows to work out WHICH
+ * allowance was just refused and must not add a network round trip to a request
+ * that has already failed. Returns undefined when nothing has been read yet;
+ * a stale snapshot is deliberately still returned, because "what we last read"
+ * is exactly the evidence being reasoned about there.
+ */
+export function peekOAuthUsage(profileId?: string | null): OAuthUsageSnapshot | undefined {
+  return cacheByProfile.get(profileId ?? DEFAULT_KEY)
+}
+
 /** Test-only / shutdown helper — clears all cached snapshots and pending fetches. */
 export function resetOAuthUsageCache(): void {
   cacheByProfile.clear()
