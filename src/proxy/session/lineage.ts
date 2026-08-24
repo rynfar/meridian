@@ -481,7 +481,8 @@ function droppedEphemeralBlocksOnly(
 
     const hashes = blocks.map((block) => hashNormalizedContent([block]))
     // Strictly fewer blocks, every survivor byte-identical and still in order.
-    // Equal or more is growth, handled by the append-only path above.
+    // Equal or more is growth, which the append-only path in verifyLineage
+    // handles.
     if (hashes.length === 0 || hashes.length >= stored.length) return false
     if (!isOrderedSubsequence(stored, hashes)) return false
 
@@ -653,9 +654,8 @@ export function verifyLineage(
     }
   }
 
-  // Ephemeral injected blocks the client dropped. Subtractive-only, so the SDK
-  // session is a superset of the claimed history and a resume cannot skip
-  // anything the client believes it sent — see droppedEphemeralBlocksOnly.
+  // Ephemeral injected blocks the client dropped — droppedEphemeralBlocksOnly
+  // carries the shape and why resuming on it is sound.
   if (droppedEphemeralBlocksOnly(cached, messages, incomingHashes)) {
     return { type: "continuation", session: cached, resumeFrom: cached.messageCount }
   }
