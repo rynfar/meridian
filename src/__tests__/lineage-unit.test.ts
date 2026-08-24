@@ -644,23 +644,26 @@ describe("formatLineageMismatch", () => {
   })
 })
 
-describe("verifyLineage append-only tool-result extension", () => {
-  const toolResult = (id: string, content: string) => ({
-    type: "tool_result",
-    tool_use_id: id,
-    content,
+// Shared by the two block-level suites below. Both need a session whose per-block
+// hashes were recorded — that is what makes block-granular classification
+// possible, and a session without them is expected to keep replaying.
+const toolResult = (id: string, content: string) => ({
+  type: "tool_result",
+  tool_use_id: id,
+  content,
+})
+
+function sessionWithBlockHashes(messages: Array<{ role: string; content: any }>): SessionState {
+  return makeSession({
+    lastAccess: 0,
+    lineageHash: computeLineageHash(messages),
+    messageCount: messages.length,
+    messageHashes: computeMessageHashes(messages),
+    messageBlockHashes: computeMessageBlockHashes(messages),
   })
+}
 
-  function sessionFor(messages: Array<{ role: string; content: any }>): SessionState {
-    return makeSession({
-      lastAccess: 0,
-      lineageHash: computeLineageHash(messages),
-      messageCount: messages.length,
-      messageHashes: computeMessageHashes(messages),
-      messageBlockHashes: computeMessageBlockHashes(messages),
-    })
-  }
-
+describe("verifyLineage append-only tool-result extension", () => {
   it("resumes from only the newly appended parallel tool result", () => {
     const stored = [
       { role: "user", content: [{ type: "text", text: "run both" }] },
@@ -683,9 +686,9 @@ describe("verifyLineage append-only tool-result extension", () => {
       { role: "user", content: [toolResult("call-c", "c-result")] },
     ]
 
-    expect(verifyLineage(sessionFor(stored), incoming)).toEqual({
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming)).toEqual({
       type: "continuation",
-      session: sessionFor(stored),
+      session: sessionWithBlockHashes(stored),
       resumeFrom: 2,
       resumeContentFrom: 1,
     })
@@ -725,7 +728,7 @@ describe("verifyLineage append-only tool-result extension", () => {
     ]
     expect(incoming.length).toBe(53)
 
-    const result = verifyLineage(sessionFor(stored), incoming)
+    const result = verifyLineage(sessionWithBlockHashes(stored), incoming)
     expect(result.type).toBe("continuation")
     if (result.type === "continuation") {
       expect(result.resumeFrom).toBe(50)
@@ -781,7 +784,7 @@ describe("verifyLineage append-only tool-result extension", () => {
       { role: "assistant", content: "next" },
     ]
 
-    expect(verifyLineage(sessionFor(stored), incoming)).toMatchObject({
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming)).toMatchObject({
       type: "diverged",
       reason: "modified-history",
       prefixOverlap: 2,
@@ -800,7 +803,7 @@ describe("verifyLineage append-only tool-result extension", () => {
       { role: "assistant", content: "next" },
     ]
 
-    expect(verifyLineage(sessionFor(stored), incoming).type).toBe("diverged")
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).toBe("diverged")
   })
 
   it("still diverges when a prior tool result is appended again", () => {
@@ -815,7 +818,167 @@ describe("verifyLineage append-only tool-result extension", () => {
       { role: "assistant", content: "next" },
     ]
 
-    expect(verifyLineage(sessionFor(stored), incoming).type).toBe("diverged")
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).toBe("diverged")
+  })
+
+  // #767: OpenCode appends reminder/notification text after the tool results of
+  // a turn, so the trailing user message grows from [tool_result, ...] to
+  // [tool_result, ..., text, ...]. Before this, the appended text failed the
+  // "every appended block is a new tool_result" test and the whole turn
+  // diverged as modified-history with prefix overlap exactly messageCount - 1.
+  it("continues when the trailing tool-result turn gains appended text blocks", () => {
+    const stored = [
+      { role: "user", content: [{ type: "text", text: "do the thing" }] },
+      { role: "assistant", content: [
+        { type: "tool_use", id: "call-a", name: "bash", input: { command: "a" } },
+        { type: "tool_use", id: "call-b", name: "bash", input: { command: "b" } },
+      ] },
+      { role: "user", content: [toolResult("call-a", "a-result"), toolResult("call-b", "b-result")] },
+    ]
+    const incoming = [
+      stored[0]!,
+      stored[1]!,
+      { role: "user", content: [
+        toolResult("call-a", "a-result"),
+        toolResult("call-b", "b-result"),
+        { type: "text", text: "<system-reminder>agent usage</system-reminder>" },
+        { type: "text", text: "continue" },
+      ] },
+    ]
+
+    const result = verifyLineage(sessionWithBlockHashes(stored), incoming)
+    expect(result.type).toBe("continuation")
+    if (result.type === "continuation") {
+      expect(result.resumeFrom).toBe(2)
+      expect(result.resumeContentFrom).toBe(2)
+    }
+  })
+
+  it("does not resume when an appended tool_result repeats a stored tool_use_id", () => {
+    const stored = [
+      { role: "user", content: [{ type: "text", text: "do the thing" }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "call-a", name: "bash", input: { command: "a" } }] },
+      { role: "user", content: [toolResult("call-a", "a-result")] },
+    ]
+    const incoming = [
+      stored[0]!,
+      stored[1]!,
+      { role: "user", content: [
+        toolResult("call-a", "a-result"),
+        { type: "text", text: "note" },
+        toolResult("call-a", "a-result-again"),
+      ] },
+    ]
+
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).not.toBe("continuation")
+  })
+})
+
+describe("verifyLineage dropped ephemeral blocks", () => {
+  const hookBlock = {
+    type: "text",
+    text: "<user-prompt-submit-hook>\n{\"continue\":true}\n</user-prompt-submit-hook>",
+  }
+  const userText = { type: "text", text: "Read data.txt and tell me the third line." }
+
+  // The live shape: a Claude Code UserPromptSubmit hook's stdout, bridged into
+  // OpenCode by oh-my-openagent, rides along on the submitting turn only. The
+  // next turn re-sends message[0] without it, so prefix overlap is 0 and the
+  // whole conversation reads as unrelated-history — every turn replaying
+  // against a cold cache, and a turn that also waited behind the session lease
+  // refused outright with session_turn_conflict.
+  it("continues when an injected block is dropped from the first user message", () => {
+    const stored = [{ role: "user", content: [hookBlock, userText] }]
+    const incoming = [
+      { role: "user", content: [userText] },
+      { role: "assistant", content: [{ type: "tool_use", id: "call-a", name: "read", input: {} }] },
+      { role: "user", content: [toolResult("call-a", "alpha\nbravo\ncharlie")] },
+    ]
+
+    const result = verifyLineage(sessionWithBlockHashes(stored), incoming)
+    expect(result.type).toBe("continuation")
+    if (result.type === "continuation") {
+      // The SDK session already holds message[0]; only the new turns are sent.
+      expect(result.resumeFrom).toBe(1)
+    }
+  })
+
+  it("continues when the dropped block sat between two surviving blocks", () => {
+    const before = { type: "text", text: "before" }
+    const after = { type: "text", text: "after" }
+    const stored = [{ role: "user", content: [before, hookBlock, after] }]
+    const incoming = [
+      { role: "user", content: [before, after] },
+      { role: "assistant", content: "ok" },
+    ]
+
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).toBe("continuation")
+  })
+
+  // Subtractive only. Everything below is the dangerous direction — the client
+  // claiming history the SDK session cannot prove it holds (#689, #692, #712).
+  it("does not resume when a surviving block was edited rather than dropped", () => {
+    const stored = [{ role: "user", content: [hookBlock, userText] }]
+    const incoming = [
+      { role: "user", content: [{ type: "text", text: "a different question entirely" }] },
+      { role: "assistant", content: "ok" },
+    ]
+
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).not.toBe("continuation")
+  })
+
+  it("does not resume when the survivors came back out of order", () => {
+    const first = { type: "text", text: "first" }
+    const second = { type: "text", text: "second" }
+    const stored = [{ role: "user", content: [first, second, hookBlock] }]
+    const incoming = [
+      { role: "user", content: [second, first] },
+      { role: "assistant", content: "ok" },
+    ]
+
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).not.toBe("continuation")
+  })
+
+  it("does not resume when an assistant turn lost blocks", () => {
+    const stored = [
+      { role: "user", content: [userText] },
+      { role: "assistant", content: [
+        { type: "text", text: "thinking out loud" },
+        { type: "tool_use", id: "call-a", name: "read", input: {} },
+      ] },
+    ]
+    const incoming = [
+      { role: "user", content: [userText] },
+      { role: "assistant", content: [{ type: "tool_use", id: "call-a", name: "read", input: {} }] },
+      { role: "user", content: [toolResult("call-a", "x")] },
+    ]
+
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).not.toBe("continuation")
+  })
+
+  it("does not resume when the conversation did not move forward", () => {
+    // Same length: an undo or a retype, not a continuation.
+    const stored = [{ role: "user", content: [hookBlock, userText] }]
+    const incoming = [{ role: "user", content: [userText] }]
+
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).not.toBe("continuation")
+  })
+
+  it("does not resume a session stored without block hashes", () => {
+    const stored = [{ role: "user", content: [hookBlock, userText] }]
+    const legacy = makeSession({
+      lastAccess: 0,
+      lineageHash: computeLineageHash(stored),
+      messageCount: stored.length,
+      messageHashes: computeMessageHashes(stored),
+      // messageBlockHashes absent — pre-1.61.0 cache entry.
+    })
+    const incoming = [
+      { role: "user", content: [userText] },
+      { role: "assistant", content: "ok" },
+    ]
+
+    expect(verifyLineage(legacy, incoming).type).not.toBe("continuation")
   })
 })
 
