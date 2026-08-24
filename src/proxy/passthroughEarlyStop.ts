@@ -164,14 +164,17 @@ export function coalesceCompleteToolResultContinuation(
     // result. That assistant turn already exists at resumeSessionAt, so the
     // structured SDK delta below intentionally filters it out.
     if (message.role === "assistant" && !sawUser) {
+      let sawToolUse = false
       if (Array.isArray(message.content)) {
         for (const rawBlock of message.content) {
           const block = rawBlock as { type?: unknown; id?: unknown } | null | undefined
           if (block?.type !== "tool_use") continue
+          sawToolUse = true
           if (typeof block.id !== "string" || !expected.has(block.id) || echoedCalls.has(block.id)) return undefined
           echoedCalls.add(block.id)
         }
       }
+      if (!sawToolUse) return undefined
       continue
     }
     if (message.role !== "user") return undefined

@@ -259,6 +259,14 @@ describe("coalesceCompleteToolResultContinuation", () => {
     ], ["t1", "t2"])).toEqual([{ role: "user", content: results }])
   })
 
+  it("accepts a parallel result batch in a different order", () => {
+    // Anthropic protocol matches tool_result by tool_use_id, not by position.
+    const results = [result("t2"), result("t1")]
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: results },
+    ], ["t1", "t2"])).toEqual([{ role: "user", content: results }])
+  })
+
   it("rejects a partial batch and an unknown result id", () => {
     expect(coalesceCompleteToolResultContinuation([
       { role: "user", content: [result("t1")] },
@@ -286,6 +294,28 @@ describe("coalesceCompleteToolResultContinuation", () => {
     expect(coalesceCompleteToolResultContinuation([
       { role: "user", content: [result("t1"), { type: "text", text: "then continue" }] },
     ], ["t1"])).toBeDefined()
+  })
+
+  it("rejects a text-only assistant message before user results", () => {
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "assistant", content: [{ type: "text", text: "intervening turn" }] },
+      { role: "user", content: [result("t1")] },
+    ], ["t1"])).toBeUndefined()
+  })
+
+  it("rejects an extra text-only assistant message after the complete echo", () => {
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "read", input: {} }] },
+      { role: "assistant", content: [{ type: "text", text: "intervening turn" }] },
+      { role: "user", content: [result("t1")] },
+    ], ["t1"])).toBeUndefined()
+  })
+
+  it("rejects tool results in a turn after queued user text", () => {
+    expect(coalesceCompleteToolResultContinuation([
+      { role: "user", content: [{ type: "text", text: "first" }] },
+      { role: "user", content: [result("t1")] },
+    ], ["t1"])).toBeUndefined()
   })
 
   it("rejects results split across turns, duplicated, or sent after queued content", () => {

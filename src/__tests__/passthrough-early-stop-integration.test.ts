@@ -307,6 +307,65 @@ describe("Integration: passthrough early stop", () => {
     ])
   })
 
+  it("stream: keeps the checkpoint when queued user text follows tool results", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "queued-stream-tool", name: "read", input: { file_path: "x" } },
+    ])
+    mockMessages = [
+      messageStart("msg_queued_stream"),
+      toolUseBlockStart(0, "read", "queued-stream-tool"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("queued-stream-tool"),
+    ]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x" }],
+    }, "es-queued-stream-user")
+    expect(first.status).toBe(200)
+    await first.text()
+
+    mockMessages = [
+      messageStart("msg_queued_stream_reply"),
+      textBlockStart(0),
+      textDelta(0, "the file says X"),
+      blockStop(0),
+      messageDelta("end_turn"),
+      messageStop(),
+      assistantMessage([{ type: "text", text: "the file says X" }]),
+    ]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "assistant", content: toolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "queued-stream-tool", content: "X" }] },
+        { role: "user", content: "also summarize it" },
+      ],
+    }, "es-queued-stream-user")
+    expect(second.status).toBe(200)
+    await second.text()
+
+    const resumed = capturedQueryParamsAll[1]
+    expect(resumed.options.resume).toBe("test-session")
+    expect(resumed.options.resumeSessionAt).toBe(toolTurn.uuid)
+    const promptMessages: any[] = []
+    for await (const message of resumed.prompt) promptMessages.push(message)
+    expect(promptMessages).toHaveLength(1)
+    expect(promptMessages[0].message.content).toEqual([
+      { type: "tool_result", tool_use_id: "queued-stream-tool", content: "X" },
+      { type: "text", text: "also summarize it" },
+    ])
+  })
+
   it("non-stream: advances the assistant checkpoint across repeated tool rounds without forking", async () => {
     const firstToolTurn = assistantMessage([
       { type: "tool_use", id: "tu-round-1", name: "read", input: { file_path: "a" } },
@@ -399,6 +458,39 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.options.resume).toBeUndefined()
     expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
     expect(typeof capturedQueryParams.prompt).toBe("string")
+  })
+
+  it("non-stream: preserves queued user text when partial results force a fresh replay", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "partial-queued-1", name: "read", input: { file_path: "a" } },
+      { type: "tool_use", id: "partial-queued-2", name: "read", input: { file_path: "b" } },
+    ])
+    mockMessages = [toolTurn, userDenyMessage("partial-queued-1"), userDenyMessage("partial-queued-2")]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read both" }],
+    }, "es-partial-queued-results")).status).toBe(200)
+
+    mockMessages = [assistantMessage([{ type: "text", text: "safe replay" }])]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read both" },
+        { role: "assistant", content: toolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "partial-queued-1", content: "A" }] },
+        { role: "user", content: "keep this queued" },
+      ],
+    }, "es-partial-queued-results")).status).toBe(200)
+    expect(capturedQueryParams.options.resume).toBeUndefined()
+    expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+    expect(typeof capturedQueryParams.prompt).toBe("string")
+    expect(capturedQueryParams.prompt).toContain("keep this queued")
   })
 
   it("non-stream: preserves a nested multimodal tool_result wrapper", async () => {
