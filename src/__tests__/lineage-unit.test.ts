@@ -643,7 +643,7 @@ describe("formatLineageMismatch", () => {
   })
 })
 
-// Shared by the two block-level suites below. Both need a session whose per-block
+// Shared by the block-level suites below, which need a session whose per-block
 // hashes were recorded — that is what makes block-granular classification
 // possible, and a session without them is expected to keep replaying.
 const toolResult = (id: string, content: string) => ({
