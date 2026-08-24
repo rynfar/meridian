@@ -267,6 +267,6 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     expect(capturedResume ?? "(fresh)").toBe("test-session")
     expect(capturedResumeSessionAt).toBe(resumeBoundary)
     expect(denyUuids).not.toContain(capturedResumeSessionAt)
-    expect(capturedForkSession).toBeUndefined()
+    expect(capturedForkSession).toBe(true)
   })
 })

@@ -14,6 +14,7 @@ let yieldedCount = 0
 let capturedQueryParams: any = null
 let capturedQueryParamsAll: any[] = []
 let mockTerminalError: Error | undefined
+let forkSessionSequence = 0
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
@@ -21,6 +22,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     capturedQueryParamsAll.push(params)
     const terminalError = mockTerminalError
     const preHook = params?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
+    const returnedSessionId = params?.options?.forkSession
+      ? `test-session-fork-${++forkSessionSequence}`
+      : params?.options?.resume ?? "test-session"
     return (async function* () {
       let sawSyntheticDeny = false
       let sawResult = false
@@ -36,13 +40,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           }
           continue
         }
-        if (msg?.type === "user" && msg?.message?.content?.some((b: any) => b?.type === "tool_result")) {
+        const delivered = { ...msg, session_id: returnedSessionId }
+        if (delivered?.type === "user" && delivered?.message?.content?.some((b: any) => b?.type === "tool_result")) {
           sawSyntheticDeny = true
         }
-        if (msg?.type === "result") sawResult = true
-        yield msg
-        if (preHook && msg?.type === "assistant" && Array.isArray(msg?.message?.content)) {
-          for (const block of msg.message.content) {
+        if (delivered?.type === "result") sawResult = true
+        yield delivered
+        if (preHook && delivered?.type === "assistant" && Array.isArray(delivered?.message?.content)) {
+          for (const block of delivered.message.content) {
             if (block?.type !== "tool_use") continue
             void Promise.resolve(preHook({
               tool_name: block.name,
@@ -59,7 +64,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       // after tool-deny flows unless a fixture provided one explicitly.
       if (sawSyntheticDeny && !sawResult) {
         yieldedCount++
-        yield { type: "result", subtype: "success", is_error: false, session_id: "test-session" }
+        yield { type: "result", subtype: "success", is_error: false, session_id: returnedSessionId }
       }
     })()
   },
@@ -144,6 +149,7 @@ describe("Integration: passthrough early stop", () => {
     capturedQueryParams = null
     capturedQueryParamsAll = []
     mockTerminalError = undefined
+    forkSessionSequence = 0
   })
 
   afterEach(() => {
@@ -255,9 +261,9 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.options.resume).toBe("test-session")
     expect(capturedQueryParams.options.resumeSessionAt).toBe(assistantForkUuid)
     expect(capturedQueryParams.options.resumeSessionAt).not.toBe(syntheticDeny.uuid)
-    // Normal passthrough continuation reuses the session ID. Forking is for
-    // semantic branches (undo) or the bounded busy-session fallback only.
-    expect(capturedQueryParams.options.forkSession).toBeUndefined()
+    // The fork makes this rewind durable, replacing the persisted synthetic
+    // denial tail with the client's real result in the new transcript.
+    expect(capturedQueryParams.options.forkSession).toBe(true)
 
     const promptMessages: any[] = []
     for await (const message of capturedQueryParams.prompt) promptMessages.push(message)
@@ -366,7 +372,7 @@ describe("Integration: passthrough early stop", () => {
     ])
   })
 
-  it("non-stream: advances the assistant checkpoint across repeated tool rounds without forking", async () => {
+  it("non-stream: forks every repeated checkpoint resume so delivered results replace deny tails", async () => {
     const firstToolTurn = assistantMessage([
       { type: "tool_use", id: "tu-round-1", name: "read", input: { file_path: "a" } },
     ])
@@ -397,14 +403,22 @@ describe("Integration: passthrough early stop", () => {
     const secondQuery = capturedQueryParamsAll[1]
     expect(secondQuery.options.resume).toBe("test-session")
     expect(secondQuery.options.resumeSessionAt).toBe(firstToolTurn.uuid)
-    expect(secondQuery.options.forkSession).toBeUndefined()
+    // resumeSessionAt alone rewinds only for this query. The source transcript
+    // still ends in the persisted PreToolUse denial, so a later resume from the
+    // newly produced assistant UUID serializes that marker in place of result A.
+    // Forking makes the rewind durable: the new transcript appends result A and
+    // subsequent assistant turns descend from the real client result.
+    expect(secondQuery.options.forkSession).toBe(true)
     const secondPrompt: any[] = []
     for await (const message of secondQuery.prompt) secondPrompt.push(message)
     expect(secondPrompt[0].message.content).toEqual([
       { type: "tool_result", tool_use_id: "tu-round-1", content: "A" },
     ])
 
-    mockMessages = [assistantMessage([{ type: "text", text: "done" }])]
+    const thirdToolTurn = assistantMessage([
+      { type: "tool_use", id: "tu-round-3", name: "read", input: { file_path: "c" } },
+    ])
+    mockMessages = [thirdToolTurn, userDenyMessage("tu-round-3")]
     expect((await post(app, {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
@@ -419,13 +433,41 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, "es-repeated-boundary")).status).toBe(200)
     const thirdQuery = capturedQueryParamsAll[2]
-    expect(thirdQuery.options.resume).toBe("test-session")
+    expect(thirdQuery.options.resume).toBe("test-session-fork-1")
     expect(thirdQuery.options.resumeSessionAt).toBe(secondToolTurn.uuid)
-    expect(thirdQuery.options.forkSession).toBeUndefined()
+    // Every tool boundary has its own synthetic denial tail. Repeating the fork
+    // is what keeps result B durable as the chain grows beyond three resumes.
+    expect(thirdQuery.options.forkSession).toBe(true)
     const thirdPrompt: any[] = []
     for await (const message of thirdQuery.prompt) thirdPrompt.push(message)
     expect(thirdPrompt[0].message.content).toEqual([
       { type: "tool_result", tool_use_id: "tu-round-2", content: "B" },
+    ])
+
+    mockMessages = [assistantMessage([{ type: "text", text: "done" }])]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read a" },
+        { role: "assistant", content: [{ type: "tool_use", id: "tu-round-1", name: "read", input: { file_path: "a" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "tu-round-1", content: "A" }] },
+        { role: "assistant", content: [{ type: "tool_use", id: "tu-round-2", name: "read", input: { file_path: "b" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "tu-round-2", content: "B" }] },
+        { role: "assistant", content: [{ type: "tool_use", id: "tu-round-3", name: "read", input: { file_path: "c" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "tu-round-3", content: "C" }] },
+      ],
+    }, "es-repeated-boundary")).status).toBe(200)
+    const fourthQuery = capturedQueryParamsAll[3]
+    expect(fourthQuery.options.resume).toBe("test-session-fork-2")
+    expect(fourthQuery.options.resumeSessionAt).toBe(thirdToolTurn.uuid)
+    expect(fourthQuery.options.forkSession).toBe(true)
+    const fourthPrompt: any[] = []
+    for await (const message of fourthQuery.prompt) fourthPrompt.push(message)
+    expect(fourthPrompt[0].message.content).toEqual([
+      { type: "tool_result", tool_use_id: "tu-round-3", content: "C" },
     ])
   })
 
@@ -530,7 +572,7 @@ describe("Integration: passthrough early stop", () => {
     ])
   })
 
-  it("non-stream: maps parallel SDK fragments to one final undo UUID", async () => {
+  it("non-stream: drops copied rollback UUIDs after a checkpoint fork", async () => {
     const firstFragment = assistantMessage([
       { type: "tool_use", id: "undo-parallel-1", name: "read", input: { file_path: "a" } },
     ])
@@ -552,7 +594,8 @@ describe("Integration: passthrough early stop", () => {
       messages: [{ role: "user", content: "read both for undo" }],
     }, "es-parallel-undo")).status).toBe(200)
 
-    mockMessages = [assistantMessage([{ type: "text", text: "both read" }])]
+    const forkOutput = assistantMessage([{ type: "text", text: "both read" }])
+    mockMessages = [forkOutput]
     expect((await post(app, {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
@@ -568,9 +611,9 @@ describe("Integration: passthrough early stop", () => {
       ],
     }, "es-parallel-undo")).status).toBe(200)
     expect(capturedQueryParams.options.resumeSessionAt).toBe(finalFragment.uuid)
-    expect(capturedQueryParams.options.forkSession).toBeUndefined()
+    expect(capturedQueryParams.options.forkSession).toBe(true)
 
-    mockMessages = [assistantMessage([{ type: "text", text: "changed direction" }])]
+    mockMessages = [assistantMessage([{ type: "text", text: "continued" }])]
     expect((await post(app, {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
@@ -579,14 +622,39 @@ describe("Integration: passthrough early stop", () => {
       messages: [
         { role: "user", content: "read both for undo" },
         { role: "assistant", content: combinedToolTurn },
-        { role: "user", content: "instead, take a different direction" },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "undo-parallel-1", content: "A" },
+          { type: "tool_result", tool_use_id: "undo-parallel-2", content: "B" },
+        ] },
+        { role: "assistant", content: forkOutput.message.content },
+        { role: "user", content: "continue after the fork" },
       ],
     }, "es-parallel-undo")).status).toBe(200)
-    expect(capturedQueryParams.options.resumeSessionAt).toBe(finalFragment.uuid)
-    expect(capturedQueryParams.options.forkSession).toBe(true)
+    expect(capturedQueryParams.options.resume).toBe("test-session-fork-1")
+    expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+    expect(capturedQueryParams.options.forkSession).toBeUndefined()
 
-    // The first undo must retain UUIDs for the preserved prefix so another
-    // branch from that prefix still rolls back to the final parallel fragment.
+    const rewrittenBranch = [
+      { role: "user", content: "read both for undo" },
+      { role: "assistant", content: combinedToolTurn },
+      { role: "user", content: "instead, take a different direction" },
+      { role: "assistant", content: [{ type: "text", text: "branch draft" }] },
+      { role: "user", content: "rewrite this branch" },
+    ]
+    mockMessages = [assistantMessage([{ type: "text", text: "changed direction" }])]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: rewrittenBranch,
+    }, "es-parallel-undo")).status).toBe(200)
+    expect(capturedQueryParams.options.resume).toBeUndefined()
+    expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+    expect(capturedQueryParams.options.forkSession).toBeUndefined()
+
+    // The fresh replay above has the same message count as the cached fork
+    // continuation. It must not inherit forkOutput.uuid from the older slot.
     mockMessages = [assistantMessage([{ type: "text", text: "changed again" }])]
     expect((await post(app, {
       model: "claude-sonnet-4-5",
@@ -594,13 +662,13 @@ describe("Integration: passthrough early stop", () => {
       stream: false,
       tools: [READ_TOOL],
       messages: [
-        { role: "user", content: "read both for undo" },
-        { role: "assistant", content: combinedToolTurn },
-        { role: "user", content: "take yet another direction" },
+        ...rewrittenBranch.slice(0, 4),
+        { role: "user", content: "rewrite this branch again" },
       ],
     }, "es-parallel-undo")).status).toBe(200)
-    expect(capturedQueryParams.options.resumeSessionAt).toBe(finalFragment.uuid)
-    expect(capturedQueryParams.options.forkSession).toBe(true)
+    expect(capturedQueryParams.options.resume).toBeUndefined()
+    expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+    expect(capturedQueryParams.options.forkSession).toBeUndefined()
   })
 
   it("non-stream: a plain resume with no deny boundary stays bare", async () => {
@@ -781,7 +849,7 @@ describe("Integration: passthrough early stop", () => {
     }, "es-kill-switch-undo")).status).toBe(200)
     expect(capturedQueryParams.options.resumeSessionAt).toBe(visibleToolTurn.uuid)
     expect(capturedQueryParams.options.resumeSessionAt).not.toBe(hiddenDigestTurn.uuid)
-    expect(capturedQueryParams.options.forkSession).toBeUndefined()
+    expect(capturedQueryParams.options.forkSession).toBe(true)
   })
 
   it("stream: waits for late parallel assistant metadata before freezing the checkpoint", async () => {
@@ -1125,6 +1193,77 @@ describe("Integration: passthrough early stop", () => {
     expect(second.status).toBe(200)
     expect(capturedQueryParamsAll[1].options.resume).toBe("test-session")
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
+  it("stream: a capped checkpoint fork does not store parent rollback UUIDs", async () => {
+    const parentToolTurn = assistantMessage([
+      { type: "tool_use", id: "capped-fork-parent", name: "read", input: { file_path: "parent" } },
+    ])
+    mockMessages = [parentToolTurn, userDenyMessage("capped-fork-parent")]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read parent then child" }],
+    }, "es-capped-fork-map")).status).toBe(200)
+
+    const forkToolTurn = assistantMessage([
+      { type: "tool_use", id: "capped-fork-child", name: "read", input: { file_path: "child" } },
+    ])
+    mockMessages = [
+      messageStart("msg_capped_fork_child"),
+      toolUseBlockStart(0, "read", "capped-fork-child"),
+      inputJsonDelta(0, '{"file_path":"child"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      forkToolTurn,
+      userDenyMessage("capped-fork-child"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const forkRequestId = `capped-fork-map-${TEST_RUN_ID}`
+    const forked = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read parent then child" },
+        { role: "assistant", content: parentToolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "capped-fork-parent", content: "P" }] },
+      ],
+    }, "es-capped-fork-map", { "x-request-id": forkRequestId })
+    expect(forked.status).toBe(200)
+    expect(await forked.text()).toContain('"type":"tool_use"')
+    expect(capturedQueryParamsAll[1].options.resume).toBe("test-session")
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(parentToolTurn.uuid)
+    expect(capturedQueryParamsAll[1].options.forkSession).toBe(true)
+    let forkRow: any
+    for (let i = 0; i < 500 && !forkRow; i++) {
+      forkRow = telemetryStore.getRecent({ limit: 200 }).find((row: any) => row.requestId === forkRequestId)
+      if (!forkRow) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(forkRow).toBeDefined()
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "fresh branch" }])]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read parent then child" },
+        { role: "assistant", content: parentToolTurn.message.content },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "capped-fork-parent", content: "different parent result" },
+        ] },
+      ],
+    }, "es-capped-fork-map")).status).toBe(200)
+    expect(capturedQueryParamsAll[2].options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[2].options.resumeSessionAt).toBeUndefined()
+    expect(capturedQueryParamsAll[2].options.forkSession).toBeUndefined()
   })
 
   it("non-stream: stores the checkpoint at the capped stop so the next turn resumes", async () => {

@@ -96,6 +96,7 @@ import {
   computeMessageHashes,
   normalizeContextUsage,
   withClientAssistantUuid,
+  reconcileReturnedSessionUuids,
   type LineageResult,
   type TokenUsageIteration,
   type TokenUsage,
@@ -1465,6 +1466,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           : undefined
         // For undo: fork the session at the rollback point
         const undoRollbackUuid = isUndo && lineageResult.type === "undo" ? lineageResult.rollbackUuid : undefined
+        const sdkUndo = isUndo && Boolean(undoRollbackUuid)
+        if (isUndo && !undoRollbackUuid) {
+          // Forks remap copied-history UUIDs. Without a valid boundary in the
+          // preserved prefix, replay fresh rather than first attempting a
+          // deterministic missing-message resume against the returned session.
+          resumeSessionId = undefined
+        }
         // Early-stopped sessions resume at the assistant tool-use turn, before synthetic denials.
         let passthroughToolCallAssistantUuid = passthrough && isResume ? cachedSession?.passthroughToolCallAssistantUuid : undefined
         const passthroughToolCallIds = passthrough && isResume ? cachedSession?.passthroughToolCallIds : undefined
@@ -1557,9 +1565,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             messagesToConvert = getLastUserMessage(allMessages)
           }
         } else {
-          // Undo without UUID (legacy session) — fall back to last user message
-          // to avoid the catastrophic flat text replay.
-          messagesToConvert = getLastUserMessage(allMessages)
+          // Undo without a valid SDK boundary is a fresh structured replay.
+          messagesToConvert = allMessages
         }
       } else {
         messagesToConvert = allMessages
@@ -2055,11 +2062,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // RangeError when allMessages.length was 0. Cold-start requests
           // are now also rejected at the entrypoint (#450) but the defensive
           // initializer keeps any future reentry safe.
-          let sdkUuidMap: Array<string | null> = (isResume || isUndo) && cachedSession?.sdkMessageUuids
+          let sdkUuidMap: Array<string | null> = (isResume || sdkUndo) && cachedSession?.sdkMessageUuids
             ? [...cachedSession.sdkMessageUuids]
             : []
           // Pad to current message count (the last user message has no UUID yet)
           while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
+          let currentClientAssistantUuid: string | null = null
 
           claudeLog("upstream.start", { mode: "non_stream", model })
           let lastUsage: TokenUsage | undefined
@@ -2117,7 +2125,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   for await (const event of runSdkQueryAttempt(buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                     passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
-                    resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                    resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, outputFormat, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -2398,6 +2406,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     allMessages.length,
                     (message as any).uuid
                   )
+                  currentClientAssistantUuid = sdkUuidMap[allMessages.length] ?? null
                 }
                 if (!firstChunkAt) {
                   firstChunkAt = Date.now()
@@ -2782,7 +2791,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     body.messages || [],
                     currentSessionId,
                     profileScopedCwd,
-                    sdkUuidMap,
+                    reconcileReturnedSessionUuids(
+                      sdkUuidMap,
+                      allMessages.length,
+                      currentClientAssistantUuid,
+                      resumeSessionId,
+                      currentSessionId,
+                    ),
                     lastUsage,
                     earlyStopFired ? nextPassthroughToolCallAssistantUuid : null,
                     earlyStopFired ? nextPassthroughToolCallIds : null
@@ -2871,10 +2886,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // Defensive: start empty so allMessages.length === 0 doesn't crash the
             // ReadableStream's start() with `RangeError: Invalid array length`.
             // Cold-start requests with no messages are also rejected upstream now (#450).
-            let sdkUuidMap: Array<string | null> = (isResume || isUndo) && cachedSession?.sdkMessageUuids
+            let sdkUuidMap: Array<string | null> = (isResume || sdkUndo) && cachedSession?.sdkMessageUuids
               ? [...cachedSession.sdkMessageUuids]
               : []
             while (sdkUuidMap.length < allMessages.length) sdkUuidMap.push(null)
+            let currentClientAssistantUuid: string | null = null
 
             let messageStartEmitted = false
             let lastUsage: TokenUsage | undefined
@@ -2994,7 +3010,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     for await (const event of runSdkQueryAttempt(buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
                       passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
-                      resumeSessionId, isUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
+                      resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
@@ -3282,6 +3298,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       allMessages.length,
                       (message as any).uuid
                     )
+                    currentClientAssistantUuid = sdkUuidMap[allMessages.length] ?? null
                   }
                   if (message.type === "result") {
                     sawCanonicalResult = true
@@ -3707,7 +3724,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     body.messages || [],
                     currentSessionId,
                     profileScopedCwd,
-                    sdkUuidMap,
+                    reconcileReturnedSessionUuids(
+                      sdkUuidMap,
+                      allMessages.length,
+                      currentClientAssistantUuid,
+                      resumeSessionId,
+                      currentSessionId,
+                    ),
                     lastUsage,
                     earlyStopFired ? nextPassthroughToolCallAssistantUuid : null,
                     earlyStopFired ? nextPassthroughToolCallIds : null
@@ -4289,7 +4312,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     body.messages || [],
                     currentSessionId!,
                     profileScopedCwd,
-                    sdkUuidMap,
+                    reconcileReturnedSessionUuids(
+                      sdkUuidMap,
+                      allMessages.length,
+                      currentClientAssistantUuid,
+                      resumeSessionId,
+                      currentSessionId,
+                    ),
                     lastUsage,
                     nextPassthroughToolCallAssistantUuid!,
                     nextPassthroughToolCallIds!,

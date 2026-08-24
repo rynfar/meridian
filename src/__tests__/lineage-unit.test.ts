@@ -15,6 +15,7 @@ import {
   verifyLineage,
   normalizeContextUsage,
   withClientAssistantUuid,
+  reconcileReturnedSessionUuids,
   MIN_SUFFIX_FOR_COMPACTION,
   type SessionState,
 } from "../proxy/session/lineage"
@@ -941,5 +942,67 @@ describe("withClientAssistantUuid", () => {
   it("pads missing client user slots without shifting the assistant UUID", () => {
     expect(withClientAssistantUuid([null, "prior-assistant"], 3, "next-assistant"))
       .toEqual([null, "prior-assistant", null, "next-assistant"])
+  })
+})
+
+describe("reconcileReturnedSessionUuids", () => {
+  it("clears copied UUIDs after an observed session change and keeps the current output", () => {
+    expect(reconcileReturnedSessionUuids(
+      [null, "copied-assistant", null, "current-assistant"],
+      3,
+      "current-assistant",
+      "source-session",
+      "fork-session",
+    )).toEqual([null, null, null, "current-assistant"])
+  })
+
+  it("keeps the UUID map when the SDK returns the resumed session", () => {
+    const map = [null, "existing-assistant", null, "current-assistant"]
+    expect(reconcileReturnedSessionUuids(map, 3, "current-assistant", "same-session", "same-session"))
+      .toBe(map)
+  })
+
+  it("does not discard fresh-request UUIDs", () => {
+    const map = [null, "fresh-assistant"]
+    expect(reconcileReturnedSessionUuids(map, 1, "fresh-assistant", undefined, "fresh-session"))
+      .toBe(map)
+  })
+})
+
+describe("fork-remapped undo boundaries", () => {
+  const stored = [
+    msg("user", "one"),
+    msg("assistant", "reply one"),
+    msg("user", "two"),
+    msg("assistant", "reply two"),
+    msg("user", "three"),
+    msg("assistant", "new fork output"),
+    msg("user", "four"),
+  ]
+  const session = makeSession({
+    messageCount: stored.length,
+    lineageHash: computeLineageHash(stored),
+    messageHashes: computeMessageHashes(stored),
+    sdkMessageUuids: [null, null, null, null, null, "new-fork-output-uuid", null],
+  })
+
+  it("leaves an undo boundary empty when the preserved prefix has only remapped UUIDs", () => {
+    const result = verifyLineage(session, [
+      ...stored.slice(0, 2),
+      msg("user", "branch before the new fork output"),
+    ])
+    expect(result).toMatchObject({ type: "undo", prefixOverlap: 2, rollbackUuid: undefined })
+  })
+
+  it("uses the newly observed fork output UUID when the undo preserves it", () => {
+    const result = verifyLineage(session, [
+      ...stored.slice(0, 6),
+      msg("user", "branch after the new fork output"),
+    ])
+    expect(result).toMatchObject({
+      type: "undo",
+      prefixOverlap: 6,
+      rollbackUuid: "new-fork-output-uuid",
+    })
   })
 })

@@ -85,6 +85,27 @@ export function withClientAssistantUuid(
 }
 
 /**
+ * Reconcile rollback UUIDs with the session the SDK actually returned.
+ *
+ * A fork remaps every copied transcript UUID, so UUIDs inherited from the
+ * resumed session are invalid in the returned session. The one UUID observed
+ * for this request's new client-visible assistant remains valid and occupies
+ * its future client message slot.
+ */
+export function reconcileReturnedSessionUuids(
+  existing: Array<string | null>,
+  clientMessageCount: number,
+  currentAssistantUuid: string | null,
+  resumeSessionId: string | undefined,
+  returnedSessionId: string | undefined,
+): Array<string | null> {
+  if (!resumeSessionId || !returnedSessionId || returnedSessionId === resumeSessionId) return existing
+  const next = new Array<string | null>(clientMessageCount + 1).fill(null)
+  next[clientMessageCount] = currentAssistantUuid
+  return next
+}
+
+/**
  * Result of lineage verification — classifies the mutation and provides
  * the information needed to take the correct SDK action.
  */

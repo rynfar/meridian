@@ -471,7 +471,11 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       },
       ...(Object.keys(sdkAgents).length > 0 ? { agents: sdkAgents } : {}),
       ...(resumeSessionId ? { resume: resumeSessionId } : {}),
-      ...(isUndo || forkSession ? { forkSession: true } : {}),
+      // A passthrough checkpoint sits immediately before a persisted
+      // PreToolUse denial. resumeSessionAt rewinds that tail for one query but
+      // does not replace it in the source transcript; forking makes the rewind
+      // durable so the client's real tool_result becomes the new ancestry.
+      ...(isUndo || forkSession || (passthrough && resumeSessionAtUuid) ? { forkSession: true } : {}),
       ...(resumeSessionAtUuid ? { resumeSessionAt: resumeSessionAtUuid } : {}),
       ...(sdkHooks ? { hooks: sdkHooks } : {}),
       ...(effort ? { effort } : {}),

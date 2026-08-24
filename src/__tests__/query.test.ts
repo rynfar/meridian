@@ -214,14 +214,15 @@ describe("buildQueryOptions", () => {
     expect((result.options as any).resumeSessionAt).toBe("uuid-abc")
   })
 
-  it("resumes passthrough at an assistant boundary without creating a new session", () => {
+  it("forks a passthrough assistant-boundary resume so its replacement tail is durable", () => {
     const result = buildQueryOptions(makeContext({
+      passthrough: true,
       resumeSessionId: "sdk-123",
       resumeSessionAtUuid: "assistant-uuid",
     }))
     expect((result.options as any).resume).toBe("sdk-123")
     expect((result.options as any).resumeSessionAt).toBe("assistant-uuid")
-    expect((result.options as any).forkSession).toBeUndefined()
+    expect((result.options as any).forkSession).toBe(true)
   })
 
   it("includes agents when provided", () => {
