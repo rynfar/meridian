@@ -135,7 +135,13 @@ ${profileBarHtml}
     selected profile. <strong style="color:var(--text)">Sticky</strong> distributes sessions across profiles evenly
     (cache-affine). <strong style="color:var(--text)">Priority</strong> drains the pool in order — highest first —
     and fails over per request when an account runs out; conversations keep their account, and new sessions
-    return to the preferred account after its window resets. An explicit <code>x-meridian-profile</code> header
+    return to the preferred account after its window resets.
+    <strong style="color:var(--text)">Active+priority</strong> keeps you in charge - every request goes to the
+    profile you selected - but the moment that account is refused, the request is re-sent to the next healthy
+    account in the pool order and answered from there, so the client never sees the error. Switching the active
+    profile moves running conversations too, which is the difference from priority. It reuses the same pool
+    order below; the active profile always goes first, wherever it sits in that list.
+    An explicit <code>x-meridian-profile</code> header
     always overrides. Changes apply to the next request — no restart needed.
   </p>
   <div class="adapter-card" id="routing-card">
@@ -166,6 +172,19 @@ ${profileBarHtml}
       input rate (the 5-minute cache TTL multipliers). Verify current list prices at
       <a href="https://claude.com/pricing" target="_blank" rel="noreferrer" style="color:var(--accent)">claude.com/pricing</a>.
     </div>
+  </div>
+
+  <h1 style="margin-top:40px">Telemetry Storage</h1>
+  <p class="subtitle" style="max-width:720px;line-height:1.6">
+    What <a href="/telemetry" style="color:var(--accent)">/telemetry</a> remembers, and for how long. By default
+    telemetry lives in a fixed-size ring in memory: fast, free, and gone the moment the proxy restarts — which is
+    also why a window longer than an hour or so usually shows less than it names. Persisting moves it to SQLite,
+    where rows survive a restart and are deleted by age instead of by count.
+    <strong style="color:var(--text)">These settings apply on the next start, not to the running proxy.</strong>
+    The stores are built once at startup and cannot be swapped out from under requests already in flight.
+  </p>
+  <div class="adapter-card" id="telemetry-card">
+    <div id="telemetry-body">Loading…</div>
   </div>
 </div>
 
@@ -439,10 +458,14 @@ async function loadRouting() {
   let h = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">'
     + '<label style="color:var(--muted);font-size:13px;width:90px">Mode</label>'
     + '<select id="routing-mode" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
-    + ['active','sticky','priority'].map(m => '<option value="'+m+'"'+(cfg.routing===m?' selected':'')+'>'+m+'</option>').join('')
+    + (cfg.modes || ['active','sticky','priority']).map(m => '<option value="'+m+'"'+(cfg.routing===m?' selected':'')+'>'+m+'</option>').join('')
     + '</select>' + envNote(cfg.envOverride.routing) + '</div>';
-  h += '<div id="routing-order-wrap" style="'+(cfg.routing==='priority'?'':'display:none')+'">'
-    + '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">Pool order — highest priority first. Drained top to bottom.'
+  var usesPool = cfg.routing === 'priority' || cfg.routing === 'active+priority';
+  h += '<div id="routing-order-wrap" style="'+(usesPool?'':'display:none')+'">'
+    + '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">'
+    + (cfg.routing === 'active+priority'
+        ? 'Fallback order - used when the active profile runs out. The active profile always goes first, wherever it sits in this list.'
+        : 'Pool order — highest priority first. Drained top to bottom.')
     + envNote(cfg.envOverride.profileOrder) + '</div>'
     + '<ol id="routing-order" style="margin:0;padding-left:22px">'
     + cfg.profileOrder.map((id, i) =>
@@ -467,9 +490,134 @@ async function loadRouting() {
   }));
 }
 
+function telemetryBytes(n) {
+  if (n == null) return null;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  return (n / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+}
+
+function telemetryEsc(s) {
+  return String(s).replace(/[&<>"']/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
+}
+
+// The saved value drives the form; the EFFECTIVE one is what the proxy is
+// actually doing. Rendering only the former is the failure mode this whole card
+// exists to avoid — a form that reads back what you typed and implies it landed.
+function telemetryRow(label, control, effective, note) {
+  return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">'
+    + '<label style="color:var(--muted);font-size:13px;width:150px">' + label + '</label>'
+    + control
+    + '<span style="color:var(--muted);font-size:12px">now: ' + effective + '</span>'
+    + (note || '')
+    + '</div>';
+}
+
+async function loadTelemetry() {
+  const res = await fetch('/settings/api/telemetry');
+  const cfg = await res.json();
+  const el = document.getElementById('telemetry-body');
+  const live = cfg.effective || {};
+  const lim = cfg.limits || {};
+  const envNote = (on) => on ? ' <span style="font-size:11px;color:var(--yellow)">(env override active — setting saved but env wins)</span>' : '';
+  const persisting = live.kind === 'sqlite';
+
+  const num = (key, value, suffix) => {
+    const l = lim[key] || { min: 1, max: 1000000 };
+    return '<input type="number" id="tel-' + key + '" value="' + (value == null ? '' : value) + '"'
+      + ' min="' + l.min + '" max="' + l.max + '" step="1" placeholder="default"'
+      + ' style="width:110px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
+      + (suffix ? ' <span style="color:var(--muted);font-size:12px">' + suffix + '</span>' : '');
+  };
+
+  let h = telemetryRow('Persist to SQLite',
+    '<input type="checkbox" id="tel-persist"' + (cfg.wanted.persist ? ' checked' : '') + '>',
+    persisting ? 'SQLite' : 'memory',
+    envNote(cfg.envOverride.telemetryPersist));
+
+  h += telemetryRow('Retention',
+    num('telemetryRetentionDays', cfg.saved.telemetryRetentionDays, 'days'),
+    persisting ? (live.retentionDays + 'd') : 'n/a while in memory',
+    envNote(cfg.envOverride.telemetryRetentionDays));
+
+  h += telemetryRow('Request ring size',
+    num('telemetrySize', cfg.saved.telemetrySize, 'rows'),
+    persisting ? 'n/a while persisting' : (live.capacity == null ? '—' : live.capacity.toLocaleString()),
+    envNote(cfg.envOverride.telemetrySize));
+
+  h += telemetryRow('Diagnostic log size',
+    num('diagnosticLogSize', cfg.saved.diagnosticLogSize, 'entries'),
+    persisting ? 'n/a while persisting' : (live.diagnosticLogCapacity == null ? '—' : live.diagnosticLogCapacity.toLocaleString()),
+    envNote(cfg.envOverride.diagnosticLogSize));
+
+  const held = (live.held == null ? 0 : live.held).toLocaleString();
+  let state = 'Holding ' + held + ' request' + (live.held === 1 ? '' : 's');
+  if (persisting) {
+    state += ' in ' + telemetryEsc(live.dbPath || 'SQLite');
+    const size = telemetryBytes(live.dbBytes);
+    if (size) state += ' (' + size + ')';
+  } else {
+    state += ' in memory — lost on restart';
+  }
+  h += '<div class="pricing-note" style="margin-top:4px">' + state + '</div>';
+
+  // The only honest thing a page can offer for a restart-scoped setting: name
+  // the exact command for how THIS proxy was started. Guessing systemctl at a
+  // process started by hand sends someone chasing a unit that does not exist.
+  if (cfg.pendingRestart && cfg.pendingRestart.length > 0) {
+    const sup = cfg.supervision || {};
+    h += '<div class="pricing-note" style="margin-top:10px;color:var(--yellow)">'
+      + 'Saved, but not in effect: <strong>' + cfg.pendingRestart.map(telemetryEsc).join('</strong>, <strong>') + '</strong>. '
+      + (sup.restartCommand
+          ? 'Restart to apply: <code style="color:var(--text)">' + telemetryEsc(sup.restartCommand) + '</code>'
+          : 'Restart Meridian to apply.')
+      + '</div>';
+  }
+
+  h += '<div class="pricing-note" style="margin-top:10px">'
+    + 'Leave a number blank to use the default. The database path is set with '
+    + '<code>MERIDIAN_TELEMETRY_DB</code> and is deliberately not editable here.'
+    + '</div>';
+
+  el.innerHTML = h;
+
+  document.getElementById('tel-persist').addEventListener('change', async (e) => {
+    await putTelemetry({ telemetryPersist: e.target.checked });
+  });
+  ['telemetryRetentionDays', 'telemetrySize', 'diagnosticLogSize'].forEach((key) => {
+    const input = document.getElementById('tel-' + key);
+    if (!input) return;
+    input.addEventListener('change', async () => {
+      const raw = input.value.trim();
+      const body = {};
+      body[key] = raw === '' ? null : Number(raw);
+      await putTelemetry(body);
+    });
+  });
+}
+
+async function putTelemetry(body) {
+  const res = await fetch('/settings/api/telemetry', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Failed to save telemetry settings');
+  } else {
+    showSaved();
+  }
+  await loadTelemetry();
+}
+
 loadConfig();
 loadPricing();
 loadRouting();
+loadTelemetry();
 ${profileBarJs}
 </script>
 </body>

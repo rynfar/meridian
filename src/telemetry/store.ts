@@ -5,18 +5,26 @@
  * No disk I/O in the hot path. Data resets on proxy restart.
  */
 
-import type { RequestMetric, TelemetrySummary, ITelemetryStore } from "./types"
+import type { RequestMetric, TelemetrySummary, ITelemetryStore, TelemetryRetention } from "./types"
 import { computeSummary } from "./percentiles"
 import { getPricingOverrides } from "./pricingStore"
+import { getSetting } from "../settings"
 
 const DEFAULT_CAPACITY = 1000
 
-function getCapacity(): number {
+/** Env beats the saved setting, which beats the default — the chain `routing`
+ *  uses. A value that is not a positive integer is discarded at each step
+ *  rather than falling through, so a typo cannot produce a zero-length ring. */
+export function resolveTelemetryCapacity(): number {
   const raw = process.env.MERIDIAN_TELEMETRY_SIZE ?? process.env.CLAUDE_PROXY_TELEMETRY_SIZE
-  if (!raw) return DEFAULT_CAPACITY
-  const parsed = Number.parseInt(raw, 10)
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_CAPACITY
-  return parsed
+  if (raw) {
+    const parsed = Number.parseInt(raw, 10)
+    if (Number.isFinite(parsed) && parsed > 0) return parsed
+    return DEFAULT_CAPACITY
+  }
+  const saved = getSetting("telemetrySize")
+  if (typeof saved === "number" && Number.isFinite(saved) && saved > 0) return Math.floor(saved)
+  return DEFAULT_CAPACITY
 }
 
 export class MemoryTelemetryStore implements ITelemetryStore {
@@ -26,7 +34,7 @@ export class MemoryTelemetryStore implements ITelemetryStore {
   private readonly capacity: number
 
   constructor(capacity?: number) {
-    this.capacity = capacity ?? getCapacity()
+    this.capacity = capacity ?? resolveTelemetryCapacity()
     this.buffer = new Array(this.capacity).fill(null)
   }
 
@@ -40,6 +48,20 @@ export class MemoryTelemetryStore implements ITelemetryStore {
   /** Get the total number of stored metrics. */
   get size(): number {
     return this.count
+  }
+
+  describe(): TelemetryRetention {
+    // The oldest live entry sits `count` slots behind the write head, so this
+    // is O(1) rather than a scan of the ring for a minimum timestamp.
+    const oldest = this.count === 0
+      ? null
+      : this.buffer[(this.head - this.count + this.capacity) % this.capacity]
+    return {
+      kind: "memory",
+      held: this.count,
+      capacity: this.capacity,
+      oldestTimestamp: oldest?.timestamp ?? null,
+    }
   }
 
   /**

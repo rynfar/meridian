@@ -1,5 +1,6 @@
 import Database from "libsql"
-import type { RequestMetric, TelemetrySummary, ITelemetryStore, IDiagnosticLogStore, DiagnosticLog } from "./types"
+import { statSync } from "node:fs"
+import type { RequestMetric, TelemetrySummary, ITelemetryStore, IDiagnosticLogStore, DiagnosticLog, TelemetryRetention } from "./types"
 import { computeSummary } from "./percentiles"
 import { getPricingOverrides } from "./pricingStore"
 
@@ -40,7 +41,11 @@ CREATE TABLE IF NOT EXISTS metrics (
   cache_creation_input_tokens INTEGER,
   cache_hit_rate       REAL,
   profile_id           TEXT,
-  envelope_violations  TEXT
+  envelope_violations  TEXT,
+  route_kind           TEXT,
+  route_group_id       TEXT,
+  route_attempt        INTEGER,
+  route_refused_bucket TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_metrics_ts    ON metrics(timestamp);
 CREATE INDEX IF NOT EXISTS idx_metrics_model ON metrics(model);
@@ -59,6 +64,10 @@ const METRICS_MIGRATIONS = [
   "ALTER TABLE metrics ADD COLUMN envelope_violations TEXT",
   "ALTER TABLE metrics ADD COLUMN session_queue_wait_ms REAL NOT NULL DEFAULT 0",
   "ALTER TABLE metrics ADD COLUMN sdk_queue_wait_ms REAL NOT NULL DEFAULT 0",
+  "ALTER TABLE metrics ADD COLUMN route_kind TEXT",
+  "ALTER TABLE metrics ADD COLUMN route_group_id TEXT",
+  "ALTER TABLE metrics ADD COLUMN route_attempt INTEGER",
+  "ALTER TABLE metrics ADD COLUMN route_refused_bucket TEXT",
 ]
 
 const LOGS_SCHEMA = `
@@ -93,12 +102,15 @@ function openDatabase(dbPath: string): Database.Database {
 class SqliteTelemetryStore implements ITelemetryStore {
   private db: Database.Database
   private retentionMs: number
+  private retentionDays: number
   private insertCount = 0
   private insertStmt: Database.Statement
   private countStmt: Database.Statement
+  private oldestStmt: Database.Statement
 
-  constructor(db: Database.Database, retentionDays: number) {
+  constructor(db: Database.Database, retentionDays: number, private readonly dbPath: string) {
     this.db = db
+    this.retentionDays = retentionDays
     this.retentionMs = retentionDays * 24 * 60 * 60 * 1000
 
     this.insertStmt = db.prepare(`
@@ -110,7 +122,8 @@ class SqliteTelemetryStore implements ITelemetryStore {
         status, queue_wait_ms, session_queue_wait_ms, sdk_queue_wait_ms, proxy_overhead_ms, ttfb_ms,
         upstream_duration_ms, total_duration_ms, content_blocks, text_events, error,
         input_tokens, output_tokens, cache_read_input_tokens,
-        cache_creation_input_tokens, cache_hit_rate, profile_id, envelope_violations
+        cache_creation_input_tokens, cache_hit_rate, profile_id, envelope_violations,
+        route_kind, route_group_id, route_attempt, route_refused_bucket
       ) VALUES (
         @requestId, @timestamp, @adapter, @requestSource, @model, @requestModel, @mode,
         @isResume, @isPassthrough, @lineageType,
@@ -119,11 +132,15 @@ class SqliteTelemetryStore implements ITelemetryStore {
         @status, @queueWaitMs, @sessionQueueWaitMs, @sdkQueueWaitMs, @proxyOverheadMs, @ttfbMs,
         @upstreamDurationMs, @totalDurationMs, @contentBlocks, @textEvents, @error,
         @inputTokens, @outputTokens, @cacheReadInputTokens,
-        @cacheCreationInputTokens, @cacheHitRate, @profileId, @envelopeViolations
+        @cacheCreationInputTokens, @cacheHitRate, @profileId, @envelopeViolations,
+        @routeKind, @routeGroupId, @routeAttempt, @routeRefusedBucket
       )
     `)
 
     this.countStmt = db.prepare("SELECT COUNT(*) as cnt FROM metrics")
+    // Served by idx_metrics_ts, so this stays a b-tree seek rather than the
+    // table scan a MIN() over an unindexed column would be.
+    this.oldestStmt = db.prepare("SELECT MIN(timestamp) as oldest FROM metrics")
   }
 
   record(metric: RequestMetric): void {
@@ -167,6 +184,10 @@ class SqliteTelemetryStore implements ITelemetryStore {
         envelopeViolations: metric.envelopeViolations && metric.envelopeViolations.length > 0
           ? JSON.stringify(metric.envelopeViolations)
           : null,
+        routeKind: metric.routeKind ?? null,
+        routeGroupId: metric.routeGroupId ?? null,
+        routeAttempt: metric.routeAttempt ?? null,
+        routeRefusedBucket: metric.routeRefusedBucket ?? null,
       })
     } catch (err) {
       console.error("[telemetry] SQLite write failed, skipping:", err)
@@ -183,6 +204,33 @@ class SqliteTelemetryStore implements ITelemetryStore {
     } catch {
       return 0
     }
+  }
+
+  describe(): TelemetryRetention {
+    let oldestTimestamp: number | null = null
+    try {
+      oldestTimestamp = (this.oldestStmt.get() as { oldest: number | null }).oldest ?? null
+    } catch { /* reported as unknown rather than failing the whole page */ }
+    return {
+      kind: "sqlite",
+      held: this.size,
+      retentionDays: this.retentionDays,
+      dbPath: this.dbPath,
+      dbBytes: this.fileBytes(),
+      oldestTimestamp,
+    }
+  }
+
+  /** Database plus its write-ahead log, which after a busy hour and before a
+   *  checkpoint holds a real share of the bytes on disk. */
+  private fileBytes(): number | undefined {
+    let total: number | undefined
+    for (const suffix of ["", "-wal"]) {
+      try {
+        total = (total ?? 0) + statSync(`${this.dbPath}${suffix}`).size
+      } catch { /* absent: no WAL yet, or the db itself is gone */ }
+    }
+    return total
   }
 
   getRecent(options: { limit?: number; since?: number; model?: string } = {}): RequestMetric[] {
@@ -368,13 +416,17 @@ function rowToMetric(r: Record<string, unknown>): RequestMetric {
     cacheHitRate: (r.cache_hit_rate as number) ?? undefined,
     profileId: (r.profile_id as string) ?? undefined,
     envelopeViolations: parseEnvelopeViolations(r.envelope_violations),
+    routeKind: (r.route_kind as RequestMetric["routeKind"]) ?? undefined,
+    routeGroupId: (r.route_group_id as string) ?? undefined,
+    routeAttempt: (r.route_attempt as number) ?? undefined,
+    routeRefusedBucket: (r.route_refused_bucket as string) ?? undefined,
   }
 }
 
 export function createSqliteStores(dbPath: string, retentionDays: number) {
   const db = openDatabase(dbPath)
   return {
-    telemetry: new SqliteTelemetryStore(db, retentionDays) as ITelemetryStore,
+    telemetry: new SqliteTelemetryStore(db, retentionDays, dbPath) as ITelemetryStore,
     diagnostics: new SqliteDiagnosticLogStore(db) as IDiagnosticLogStore,
     close: () => { try { db.close() } catch { /* ignore */ } },
   }

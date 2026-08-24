@@ -5,7 +5,13 @@
  * Shared between CLI, UI, and API — browser localStorage is only used
  * for client-only preferences (theme, collapsed sections, etc.).
  *
- * This is a leaf module — no imports from server.ts or session/.
+ * Lives at the src root, beside env.ts, rather than under proxy/, because
+ * telemetry reads it too and telemetry may not import from proxy —
+ * dependencies flow proxy → telemetry only. env.ts is the existing precedent
+ * for "configuration both layers need"; a copy of the path logic in each
+ * would be two things to keep agreeing about MERIDIAN_CONFIG_DIR.
+ *
+ * Leaf module: node builtins only, no imports from anywhere in the tree.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
@@ -40,7 +46,46 @@ export interface MeridianSettings {
   /** Priority-mode pool order (highest priority first). Falls back to
    *  profiles.json order. MERIDIAN_PROFILE_ORDER env var takes precedence. */
   profileOrder?: string[]
+
+  /**
+   * Keep telemetry in SQLite instead of memory, so it survives a restart.
+   * MERIDIAN_TELEMETRY_PERSIST takes precedence.
+   *
+   * The four telemetry keys below differ from every other setting here in one
+   * way that the UI must not hide: the stores are built once at startup, so a
+   * change to any of them does nothing until the proxy is restarted. Routing
+   * is re-read per request; these are not, and cannot be without swapping a
+   * store out from under in-flight writes.
+   */
+  telemetryPersist?: boolean
+  /** Days before persisted telemetry is deleted. MERIDIAN_TELEMETRY_RETENTION_DAYS wins. */
+  telemetryRetentionDays?: number
+  /** Rows the in-memory ring holds. Ignored when persisting. MERIDIAN_TELEMETRY_SIZE wins. */
+  telemetrySize?: number
+  /** Entries the in-memory diagnostic log ring holds. MERIDIAN_DIAGNOSTIC_LOG_SIZE wins. */
+  diagnosticLogSize?: number
 }
+
+/**
+ * Accepted range for each numeric telemetry setting, and the reason for it.
+ *
+ * Lives here rather than in the route so the form and the validator read the
+ * same numbers: a page that offers a value the API rejects is a worse bug than
+ * either bound being slightly wrong.
+ *
+ * The upper bounds guard a value that only takes effect on the next start, so
+ * a typo is not discovered until a restart that then fails or thrashes. Both
+ * ring sizes are whole request/log records held in memory; a million rows is
+ * hundreds of megabytes of resident heap, which is not a setting anyone means
+ * to type. Retention is capped at ten years because SQLite cleanup deletes by
+ * a cutoff, and a cutoff further out than the data's usefulness simply never
+ * deletes anything.
+ */
+export const TELEMETRY_SETTING_LIMITS = {
+  telemetryRetentionDays: { min: 1, max: 3650 },
+  telemetrySize: { min: 10, max: 1_000_000 },
+  diagnosticLogSize: { min: 10, max: 1_000_000 },
+} as const satisfies Record<string, { min: number; max: number }>
 
 /** Read settings from disk. Returns empty object if file doesn't exist or is invalid. */
 export function loadSettings(): MeridianSettings {

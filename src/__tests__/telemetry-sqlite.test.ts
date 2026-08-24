@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { tmpdir } from "node:os"
 import Database from "libsql"
 import { createSqliteStores } from "../telemetry/sqlite"
+import { collapseRouteChains, summarizeRoutes } from "../telemetry/routeChain"
 import type { ITelemetryStore, IDiagnosticLogStore, RequestMetric } from "../telemetry/types"
 
 function makeMetric(overrides: Partial<RequestMetric> = {}): RequestMetric {
@@ -64,6 +65,21 @@ describe("SqliteTelemetryStore", () => {
     }
     const recent = store.getRecent({ limit: 3 })
     expect(recent.length).toBe(3)
+  })
+
+  it("describes itself as durable, with the retention and file behind it", () => {
+    store.record(makeMetric({ timestamp: 5_000 }))
+    store.record(makeMetric({ timestamp: 9_000 }))
+
+    const described = store.describe()
+    expect(described.kind).toBe("sqlite")
+    expect(described.held).toBe(2)
+    expect(described.retentionDays).toBe(7)
+    expect(described.oldestTimestamp).toBe(5_000)
+    expect(described.dbPath).toBe(join(tmpDir, "test.db"))
+    expect(described.dbBytes).toBeGreaterThan(0)
+    // A ring capacity would be a lie here: nothing is evicted by count.
+    expect(described.capacity).toBeUndefined()
   })
 
   it("filters by model", () => {
@@ -419,6 +435,8 @@ describe("SqliteTelemetryStore — memory-store parity for newer fields", () => 
     expect(legacyColumns).not.toContain("session_queue_wait_ms")
     expect(legacyColumns).not.toContain("sdk_queue_wait_ms")
     expect(legacyColumns).not.toContain("profile_id")
+    expect(legacyColumns).not.toContain("route_kind")
+    expect(legacyColumns).not.toContain("route_refused_bucket")
 
     legacy.exec(`
       INSERT INTO metrics (
@@ -436,6 +454,10 @@ describe("SqliteTelemetryStore — memory-store parity for newer fields", () => 
       profileId: "work",
       sessionQueueWaitMs: 42,
       sdkQueueWaitMs: 7,
+      routeKind: "active+priority-hop",
+      routeGroupId: "g1",
+      routeAttempt: 2,
+      routeRefusedBucket: "five_hour",
     }))
 
     const rows = migrated.telemetry.getRecent({ limit: 10 })
@@ -443,6 +465,10 @@ describe("SqliteTelemetryStore — memory-store parity for newer fields", () => 
     expect(fresh.profileId).toBe("work")
     expect(fresh.sessionQueueWaitMs).toBe(42)
     expect(fresh.sdkQueueWaitMs).toBe(7)
+    expect(fresh.routeKind).toBe("active+priority-hop")
+    expect(fresh.routeGroupId).toBe("g1")
+    expect(fresh.routeAttempt).toBe(2)
+    expect(fresh.routeRefusedBucket).toBe("five_hour")
 
     // The pre-existing row survives and reads back on the NOT NULL DEFAULT 0
     // columns rather than throwing or coming back null.
@@ -454,5 +480,55 @@ describe("SqliteTelemetryStore — memory-store parity for newer fields", () => 
 
     // Idempotent: a second open re-runs the ALTERs and must not throw.
     expect(() => createSqliteStores(dbPath, 7)).not.toThrow()
+  })
+
+  it("rebuilds a failover's account chain from a database reopened after a restart", () => {
+    // The point of persisting the route columns at all: the ring buffer holds
+    // under an hour, so "which account refused last night" is only answerable
+    // if the hops survive the process. Reopening the file is the restart.
+    const dbPath = join(tmpDir, "reopen.db")
+    const first = createSqliteStores(dbPath, 7)
+    first.telemetry.record(makeMetric({
+      requestId: "req-1", profileId: "corp4", timestamp: 1000,
+      routeKind: "priority-hop", routeGroupId: "g1", routeAttempt: 1,
+      status: 429, error: "rate_limit_error", routeRefusedBucket: "seven_day",
+    }))
+    first.telemetry.record(makeMetric({
+      requestId: "req-1", profileId: "corp2", timestamp: 2000,
+      routeKind: "priority-hop", routeGroupId: "g1", routeAttempt: 2,
+    }))
+    first.close()
+
+    const reopened = createSqliteStores(dbPath, 7)
+    const collapsed = collapseRouteChains(reopened.telemetry.getRecent({ limit: 10 }))
+    reopened.close()
+
+    expect(collapsed).toHaveLength(1)
+    expect(collapsed[0]!.routeKind).toBe("priority")
+    expect(collapsed[0]!.profileId).toBe("corp2")
+    expect(collapsed[0]!.routeChain).toEqual([
+      { profileId: "corp4", ok: false, status: 429, error: "rate_limit_error", refusedBucket: "seven_day" },
+      { profileId: "corp2", ok: true, status: 200, error: null },
+    ])
+  })
+
+  it("tallies accounts across a reopened database", () => {
+    const dbPath = join(tmpDir, "tally.db")
+    const first = createSqliteStores(dbPath, 7)
+    first.telemetry.record(makeMetric({
+      profileId: "corp4", timestamp: 1000, routeKind: "priority",
+      status: 429, error: "rate_limit_error", routeRefusedBucket: "five_hour",
+    }))
+    first.telemetry.record(makeMetric({ profileId: "corp2", timestamp: 2000, routeKind: "priority" }))
+    first.close()
+
+    const reopened = createSqliteStores(dbPath, 7)
+    const tally = summarizeRoutes(collapseRouteChains(reopened.telemetry.getRecent({ limit: 10 })))
+    reopened.close()
+
+    expect(tally.requests).toBe(2)
+    expect(tally.unserved).toBe(1)
+    expect(tally.byProfile.corp4).toEqual({ served: 0, refused: 1, refusedBuckets: { five_hour: 1 } })
+    expect(tally.byProfile.corp2!.served).toBe(1)
   })
 })

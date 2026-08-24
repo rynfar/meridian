@@ -16,7 +16,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { resolveClaudeExecutableSync } from "./models"
 import type { ProfileConfig } from "./profiles"
-import { setSetting } from "./settings"
+import { setSetting } from "../settings"
 import { createPlatformCredentialStore } from "./tokenRefresh"
 
 const PROFILES_DIR = join(homedir(), ".config", "meridian", "profiles")

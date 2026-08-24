@@ -17,7 +17,7 @@
 import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
-import { setSetting, getSetting } from "./settings"
+import { setSetting, getSetting } from "../settings"
 import { pickStickyProfile, type RoutingMode } from "./routing"
 
 const CONFIG_FILE = join(homedir(), ".config", "meridian", "profiles.json")

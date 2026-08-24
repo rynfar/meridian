@@ -63,6 +63,10 @@ export const landingHtml = `<!DOCTYPE html>
   .pace-row .w-pct { font-weight: 600; }
   .pool-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface2); color: var(--muted); margin-left: 6px; vertical-align: middle; }
   .pool-chip.exhausted { color: var(--red); background: rgba(248,81,73,0.12); }
+  .spent-banner { font-size: 12px; line-height: 1.45; color: var(--text); margin-bottom: 10px;
+    padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(248,81,73,0.35); background: rgba(248,81,73,0.1); }
+  .spent-banner strong { color: var(--red); }
+  .spent-banner-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .usage-row .w-pct { width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
   .usage-row .w-reset { color: var(--muted); font-size: 11px; width: 76px; text-align: right; }
   .no-usage { font-size: 12px; color: var(--muted); padding: 4px 0; }
@@ -142,7 +146,8 @@ function introSection(h){
 function profileSection(q,s,pl,h){
   var byProfile=(s&&s.costEstimate&&s.costEstimate.byProfile)||{};
   var quotaByProfile={};
-  if(q&&Array.isArray(q.profiles))for(var i=0;i<q.profiles.length;i++){var qid=q.profiles[i].id||q.profiles[i].profile||'default';quotaByProfile[qid]=q.profiles[i].windows||[]}
+  var spentByProfile={};
+  if(q&&Array.isArray(q.profiles))for(var i=0;i<q.profiles.length;i++){var qid=q.profiles[i].id||q.profiles[i].profile||'default';quotaByProfile[qid]=q.profiles[i].windows||[];if(q.profiles[i].spent)spentByProfile[qid]=q.profiles[i].spent}
   var profs=[];var seen={};
   var configured=(pl&&Array.isArray(pl.profiles))?pl.profiles:[];
   var multi=configured.length>1;
@@ -187,13 +192,18 @@ function profileSection(q,s,pl,h){
     }
     if(!rows)rows='<div class="no-usage">no usage data yet</div>';
     var isPriority=pl&&pl.routing==='priority';
+    // active+priority keeps the active profile meaningful - switching it is how
+    // you move traffic, so the card stays clickable, unlike in pure priority.
+    var isActivePriority=pl&&pl.routing==='active+priority';
     var switchable=multi&&p.configured&&!p.isActive&&!isPriority;
     var badge=isPriority?'':p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
-    if(isPriority){
+    if(isPriority||isActivePriority){
       var orderIdx=(pl.profileOrder||[]).indexOf(p.id);
-      if(orderIdx>=0)badge+='<span class="pool-chip">#'+(orderIdx+1)+' in pool</span>';
+      if(orderIdx>=0)badge+='<span class="pool-chip">'+(isActivePriority?'#'+(orderIdx+1)+' fallback':'#'+(orderIdx+1)+' in pool')+'</span>';
       var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];
-      if(exh){
+      // Suppressed when a refusal is being reported below: both say the same
+      // thing, and the banner says it better.
+      if(exh&&!spentByProfile[p.id]){
         // A billing refusal has no reset to wait for — the pool re-probes on the
         // same timer, but nothing changes until a human fixes the account.
         // Showing it as 'resets in 9m' promises a recovery that never comes.
@@ -202,11 +212,26 @@ function profileSection(q,s,pl,h){
           :' <span class="pool-chip exhausted">exhausted · resets '+resetIn(exh.until)+'</span>';
       }
     }
+    var sp=spentByProfile[p.id];
+    var spentBanner='';
+    if(sp){
+      var spBucket=(sp.diagnosis&&sp.diagnosis.bucket)?winLabel(sp.diagnosis.bucket):'its limit';
+      var spGuess=(sp.diagnosis&&sp.diagnosis.reported)?'':' (guess)';
+      badge+=' <span class="pool-chip exhausted">out of '+esc(spBucket+spGuess)+'</span>';
+      // A full-width line immediately above the usage bars, not a chip beside
+      // the name: measured in review, a 10px chip wraps to four lines in a
+      // narrow card and loses to the large "67%" rendered right below it -
+      // which is the exact misreading this whole feature exists to stop.
+      spentBanner='<div class="spent-banner" title="'+esc((sp.diagnosis&&sp.diagnosis.rationale)||'')+'">'
+        +'<strong>⚠ Anthropic is refusing this account</strong> - out of '+esc(spBucket+spGuess)
+        +(sp.until?', back '+resetIn(sp.until):'')
+        +'<div class="spent-banner-sub">figures below are the last successful read, not live</div></div>';
+    }
     cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
       +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'
       +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
       +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
-      +rows+'</div>';
+      +spentBanner+rows+'</div>';
   }
   if(!cards)return '';
   return '<div class="section"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div><div class="profile-grid">'+cards+'</div></div>';
