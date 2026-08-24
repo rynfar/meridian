@@ -19,13 +19,18 @@ import { describe, expect, it, mock, afterEach } from "bun:test"
 // crash somewhere unrelated.
 import * as realModels from "../proxy/models"
 
+const authCalls: Array<{ profileId?: string; envOverrides?: Record<string, string> }> = []
+
 mock.module("../proxy/models", () => ({
   ...realModels,
-  getClaudeAuthStatusAsync: async () => ({
-    loggedIn: true,
-    email: "test@example.com",
-    subscriptionType: "max",
-  }),
+  getClaudeAuthStatusAsync: async (profileId?: string, envOverrides?: Record<string, string>) => {
+    authCalls.push({ profileId, envOverrides })
+    return {
+      loggedIn: true,
+      email: "test@example.com",
+      subscriptionType: profileId === "pro" ? "pro" : "max",
+    }
+  },
   resolveClaudeExecutableAsync: async () => "claude",
 }))
 
@@ -57,7 +62,55 @@ const STAMPS = [
 
 afterEach(() => {
   for (const key of STAMPS) delete process.env[key]
+  authCalls.length = 0
   stopUpdateCheck()
+})
+
+describe("/v1/models profile auth context", () => {
+  it("uses the legacy auth context when no profiles are configured", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+
+    const response = await app.fetch(new Request("http://localhost/v1/models"))
+
+    expect(response.status).toBe(200)
+    expect(authCalls).toEqual([{ profileId: undefined, envOverrides: undefined }])
+  })
+
+  it("advertises 1M Opus and Fable context from the configured Max profile", async () => {
+    const { app } = createProxyServer({
+      port: 0,
+      host: "127.0.0.1",
+      profiles: [{ id: "work", type: "claude-max", claudeConfigDir: "/profiles/work" }],
+      defaultProfile: "work",
+    })
+
+    const response = await app.fetch(new Request("http://localhost/v1/models"))
+    const body = await response.json() as { data: Array<{ id: string; context_window: number }> }
+    const models = new Map(body.data.map((model) => [model.id, model]))
+
+    expect(response.status).toBe(200)
+    expect(authCalls).toEqual([{
+      profileId: "work",
+      envOverrides: { CLAUDE_CONFIG_DIR: "/profiles/work" },
+    }])
+    expect(models.get("claude-opus-4-6")?.context_window).toBe(1_000_000)
+    expect(models.get("claude-fable-5")?.context_window).toBe(1_000_000)
+  })
+
+  it("keeps the 200k catalog for a non-Max profile", async () => {
+    const { app } = createProxyServer({
+      port: 0,
+      host: "127.0.0.1",
+      profiles: [{ id: "pro", type: "claude-max", claudeConfigDir: "/profiles/pro" }],
+      defaultProfile: "pro",
+    })
+
+    const response = await app.fetch(new Request("http://localhost/v1/models"))
+    const body = await response.json() as { data: Array<{ id: string; context_window: number }> }
+
+    expect(response.status).toBe(200)
+    expect(body.data.every((model) => model.context_window === 200_000)).toBe(true)
+  })
 })
 
 describe("/health build provenance", () => {
