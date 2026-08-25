@@ -110,6 +110,26 @@ export const openCodeAdapter: AgentAdapter = {
     return extractClientCwd(body)
   },
 
+  /**
+   * Same parse, exposed separately on purpose.
+   *
+   * `extractWorkingDirectory` feeds `resolveSdkWorkingDirectory`, where
+   * `MERIDIAN_WORKDIR` / `CLAUDE_PROXY_WORKDIR` outrank it. An operator who
+   * pins the SDK to one directory therefore erases the client's path from
+   * `claimedWorkingDirectory`, which is what `server.ts` falls back to when an
+   * adapter leaves this method undefined. `buildCwdNote` then compares the
+   * pinned path against itself, emits nothing, and the SDK's own env block
+   * advertises the proxy's directory to the model.
+   *
+   * Reading the client's path here keeps it out of reach of that override, so
+   * the note still names the user's directory and fingerprint bucketing still
+   * separates unrelated projects. `piAdapter` does the same for the same
+   * reason.
+   */
+  extractClientWorkingDirectory(body: any): string | undefined {
+    return extractClientCwd(body)
+  },
+
   normalizeContent(content: any): string {
     return normalizeContent(content)
   },
