@@ -156,11 +156,19 @@ export function getLastUserMessage(messages: Array<{ role: string; content: any 
  * rather than answer the user: self-played turns, confabulated tool output.
  *
  * This wraps everything before the final user turn in an explicit
- * `<conversation_history>` envelope with a context-only instruction, and
- * presents the final user message separately as the live prompt — mirroring
- * the structure the OpenAI-compat path has always used. Single-turn prompts
- * and histories that don't end with a user turn are returned as a plain
- * join (nothing to separate).
+ * `<conversation_history>` envelope, and presents the final user message
+ * separately as the live prompt — mirroring the structure the OpenAI-compat
+ * path has always used. Single-turn prompts and histories that don't end with
+ * a user turn are returned as a plain join (nothing to separate).
+ *
+ * The envelope asserts the history is true before it forbids imitating it.
+ * Wording that only says "context only" and "never invent tool output" reads
+ * as a warning that the transcript itself may be invented: models then discard
+ * tool results they really received and retract correct findings drawn from
+ * them. The instruction has to separate the format (do not imitate) from the
+ * content (real, and safe to quote). A replayed turn is also inherited by
+ * every later resumed turn, so a frame that induces distrust poisons the whole
+ * session, not just the turn that replayed.
  */
 export function frameReplayTurns(turns: Array<{ role: string; text: string }>): string {
   const nonEmpty = turns.filter((t) => t.text)
@@ -171,9 +179,11 @@ export function frameReplayTurns(turns: Array<{ role: string; text: string }>): 
   const history = nonEmpty.slice(0, -1).map((t) => t.text).join("\n\n")
   return (
     `<conversation_history>\n${history}\n</conversation_history>\n\n` +
-    `The above is a replay of your prior conversation with this user — the original session could not be resumed. ` +
-    `It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, ` +
-    `and never invent tool output — use your actual tools when action is needed. ` +
+    `The above is your prior conversation with this user, replayed because the original session could not be ` +
+    `resumed. Everything in it happened: the user's messages are real, and the tool results are genuine output ` +
+    `from tools that ran. Rely on it and quote from it. ` +
+    `Do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, and do not write ` +
+    `tool output yourself — call your tools when you need something not already in the history. ` +
     `Respond only as the assistant to the user's message below.\n\n` +
     last.text
   )

@@ -79,7 +79,8 @@ describe("fresh-session replay envelope (#619)", () => {
     expect(typeof prompt).toBe("string")
     expect(prompt).toContain("<conversation_history>")
     expect(prompt).toContain("</conversation_history>")
-    expect(prompt).toContain("context only")
+    expect(prompt).toContain("imitate its transcript format")
+    expect(prompt).toContain("the tool results are genuine output")
     // Live message is terminal, outside the envelope
     expect(prompt.trimEnd()).toEndWith("now change the port to 4000")
     expect(prompt.indexOf("</conversation_history>")).toBeLessThan(prompt.indexOf("now change the port to 4000"))
