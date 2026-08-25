@@ -31,6 +31,19 @@ describe("buildCwdNote", () => {
     expect(note).toContain("</meridian-note>")
   })
 
+  // The CLI always emits its own environment block from the subprocess cwd,
+  // so the note must disown BOTH of its lines by name, not only the path:
+  // left unmentioned, "Is a git repository: false" is taken as true and the
+  // model reports the contradiction to the user.
+  it("names the CLI's own working-directory and git-repository lines as proxy-host facts", () => {
+    const note = buildCwdNote("/app", "C:\\projects\\example-app")
+    expect(note).toContain('"Primary working directory: /app"')
+    expect(note).toContain('"Is a git repository: ..."')
+    expect(note).toContain("describes that host, not the user's machine")
+    expect(note).toContain("client's own environment block")
+    expect(note).toContain("two different machines")
+  })
+
   it("places the <env> override before the meridian-note so the subprocess sees it first", () => {
     const note = buildCwdNote("/srv/proxy", "/Users/alice/app")
     const envIdx = note.indexOf("<env>")
