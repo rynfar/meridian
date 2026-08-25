@@ -240,26 +240,33 @@ function computePassthroughMaxTurns(
  * Build an addendum that tells the model which path belongs to the real user.
  * Applied when the SDK subprocess runs in one directory on the proxy host but
  * the client is working in a different directory on their own machine
- * (typical of a remote Claude Code → network-proxy setup). Without this note
- * the SDK's env block leaks `sdkCwd` into the model's context and Claude
- * reports that as its working directory.
+ * (typical of a remote Claude Code → network-proxy setup).
+ *
+ * The CLI computes its own environment block from the subprocess cwd and
+ * always emits it, whatever the system prompt already contains: "Primary
+ * working directory: <sdkCwd>" and "Is a git repository: <bool>" describe the
+ * proxy host, and nothing the proxy appends suppresses them. The note has to
+ * name both lines, or the model accepts the git-status line as true, reports
+ * the contradiction to the user, and reasons about the wrong tree.
  */
 export function buildCwdNote(sdkCwd: string, clientCwd?: string): string {
   if (!clientCwd || clientCwd === sdkCwd) return ""
-  // Emit in the `<env>Working directory: …</env>` shape the Claude Code
-  // subprocess uses itself, so it doesn't auto-inject a second env block
-  // pointing at its own process.cwd() (which would be the proxy host path).
-  // Placed at the top of the append so it's the first env block the model
-  // sees. The subsequent notice tells the model to prefer this over any
-  // contradictory path that might slip through later in the context.
+  // The `<env>` block is the client's working directory in the shape the
+  // client itself uses, first in the append so it precedes the note that
+  // explains it. The note then names the CLI's own lines as proxy-host facts.
   return (
     `\n\n<env>\n` +
     `Working directory: ${clientCwd}\n` +
     `</env>\n` +
     `<meridian-note>\n` +
     `You are reached through a proxy. The subprocess running you resides at ` +
-    `"${sdkCwd}" on the proxy host, but that is not the user's working directory. ` +
-    `Always treat "${clientCwd}" as the working directory when referring to files or paths.\n` +
+    `"${sdkCwd}" on the proxy host, and the environment block it generated ` +
+    `("Primary working directory: ${sdkCwd}", "Is a git repository: ...") describes ` +
+    `that host, not the user's machine. The user's working directory is "${clientCwd}"; ` +
+    `always treat it as the working directory when referring to files or paths. ` +
+    `Whether it is a git repository is stated by the client's own environment block ` +
+    `when one is present; otherwise \`git status\` tells you. The two blocks describe ` +
+    `two different machines.\n` +
     `</meridian-note>`
   )
 }
