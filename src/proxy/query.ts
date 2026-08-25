@@ -366,7 +366,13 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       model,
       pathToClaudeCodeExecutable: claudeExecutable,
       ...(abortController ? { abortController } : {}),
-      ...(stream ? { includePartialMessages: true } : {}),
+      // Passthrough needs them on BOTH paths, not just streaming: the deny-hold
+      // and the early-stop checkpoint both key off the turn-generation boundary,
+      // and `message_start`/`message_delta` are the only place it is observable.
+      // Without them non-stream releases its holds on the first assistant
+      // message and freezes the checkpoint there, so a parallel turn hands the
+      // client the first call and silently drops the rest (measured 1 of 3).
+      ...(stream || passthrough ? { includePartialMessages: true } : {}),
       permissionMode: "bypassPermissions" as const,
       allowDangerouslySkipPermissions: true,
       ...resolveSystemPrompt(systemContext, passthrough, settingSources, codeSystemPrompt, clientSystemPrompt, cwdNote),

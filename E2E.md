@@ -93,6 +93,7 @@ kill $(lsof -ti :3456)
 | E38 | [Silent turns (#768)](#e38-silent-turns-768) | **Automated**: `bun scripts/e2e-silent-turn.mjs` — real CLI, SSE mode. Asserts four things per attempt: the client got text or a tool call; recovered content sits BEFORE the terminal `message_delta` (content behind it is dropped by a correct client); exactly one `message_delta` per message; and a third turn after a recovery still resumes. Attribution is read from `/telemetry/logs`, not stdout. Pair `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1` against `MERIDIAN_SILENT_TURN_RECOVERY=0` for the before/after. **Run before any release touching the passthrough tool loop, prompt assembly, or session resume** | 2026-08-11 |
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
+| E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -122,6 +123,8 @@ cat /tmp/proxy-e2e.log | strings | grep "\[PROXY\]" | tail -5
 ```
 
 **Session header.** All curl tests use `x-opencode-session` to control session identity. This is the header the OpenCode adapter reads.
+
+**Diagnostics vs gates.** `scripts/e2e-*.mjs` are gates: they assert and exit non-zero. `scripts/probe-*.mjs` are not — they drive the same real stack but print findings for a human to read, and are deliberately absent from the index above so a green run is never mistaken for a passing gate. The passthrough probes reconstruct what `resumeSessionAt` would keep by reading the session JSONL the CLI wrote, which is the one thing the mocked suites cannot check. They need Claude Max and cost real tokens.
 
 **Cleanup.** Each test section is independent. Kill the proxy and clear the session store between sections if you need isolation:
 ```bash
@@ -3525,3 +3528,58 @@ cause. Read its `digest turns` line against the corpus it scanned: a machine
 running mostly internal-mode Claude Code has almost no passthrough transcripts,
 so a `0.0%` there means "little passthrough traffic here", not "the digest turn
 is cheap". Per-turn cost is what E40 measures.
+
+## E41: Passthrough multi-turn: one call, one answer
+
+**What it proves:** across dependent and parallel forwarded tool calls, the active
+SDK session contains exactly one answer per delivered call — the client's real
+result — and never replays the forwarding hook's denial.
+
+**Why it needs the real SDK and several turns:** `resumeSessionAt` only trims a
+suffix of the source transcript. A plain resume leaves the denial in that source,
+and the CLI loader can splice it back on a later turn. Meridian therefore resumes
+the assistant checkpoint with the supported `forkSession` option. The child fork
+makes the replacement tail durable while the superseded source becomes dead
+history. Mocked tests cannot prove the CLI loader or prompt-cache behavior.
+
+Run the full matrix:
+
+```bash
+bun scripts/e2e-passthrough-turns.mjs
+bun scripts/e2e-passthrough-turns.mjs --stream
+PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs
+PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs --stream
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Chain mode returns three batches of one call; parallel mode returns one batch
+  of all three calls. Eventually returning three serial calls does not pass the
+  parallel gate.
+- The final answer quotes all three delivered results and never claims a call
+  went unanswered.
+- Every result round advances to a distinct continuation session, proving the
+  replacement tail was committed to a fork rather than only rewound for one
+  query.
+- A follow-up resumes the active fork. Its JSONL contains exactly one real
+  `tool_result` for every delivered id and no forwarding denial for those ids.
+  Superseded parent files may retain the deny tail that was cut; they are not
+  live history and are reported separately for retention accounting.
+- Every continuation, including the follow-up, reads at least 95% of the prior
+  turn's `cache_read_input_tokens + cache_creation_input_tokens`.
+
+**Mechanism-level A/B:**
+
+```bash
+bun scripts/probe-passthrough-accumulation.mjs
+bun scripts/probe-passthrough-accumulation.mjs --fork
+```
+
+The raw-SDK probe records the actual Anthropic request bodies through a local
+`ANTHROPIC_BASE_URL` tap. The first command demonstrates the stale denial winning;
+`--fork` proves the supported replacement branch sends only the real result.
+
+**Verified:** 2026-08-26, sonnet, chain and parallel, stream and non-stream.
+The active fork held one real answer per delivered call and every continuation
+read the prior cached prefix in full.
+

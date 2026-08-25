@@ -22,6 +22,7 @@ import {
   noteUserContent,
   settledToolCallAssistantUuid,
   shouldEarlyStop,
+  trackerCoversStreamedCalls,
 } from "../proxy/passthroughEarlyStop"
 
 import { PASSTHROUGH_MCP_PREFIX } from "../proxy/passthroughTools"
@@ -175,6 +176,35 @@ describe("assistant resume checkpoint", () => {
     noteUserContent(tracker, [toolResult("t1"), toolResult("t2")])
     expect(settledToolCallAssistantUuid(tracker)).toBeUndefined()
     expect(shouldEarlyStop(tracker)).toBe(false)
+  })
+})
+
+describe("trackerCoversStreamedCalls", () => {
+  it("is false while an assistant fragment is still in flight", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, sdkAssistant("a1", [toolUse("t1", "read")]))
+    // The wire carried two calls; only one has been armed so far.
+    expect(trackerCoversStreamedCalls(tracker, new Set(["t1", "t2"]))).toBe(false)
+  })
+
+  it("is true once every streamed call is armed", () => {
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, sdkAssistant("a1", [toolUse("t1", "read")]))
+    noteAssistantMessage(tracker, sdkAssistant("a2", [toolUse("t2", "read")]))
+    expect(trackerCoversStreamedCalls(tracker, new Set(["t1", "t2"]))).toBe(true)
+  })
+
+  it("is false when nothing was streamed, so an empty turn cannot settle", () => {
+    const tracker = createEarlyStopTracker()
+    expect(trackerCoversStreamedCalls(tracker, new Set())).toBe(false)
+  })
+
+  it("is false when the sets are the same size but disagree", () => {
+    // Equal sizes must not be mistaken for equal sets — a regenerated call
+    // carries a fresh id, so a stale id would otherwise pass the count check.
+    const tracker = createEarlyStopTracker()
+    noteAssistantMessage(tracker, sdkAssistant("a1", [toolUse("t1", "read")]))
+    expect(trackerCoversStreamedCalls(tracker, new Set(["t-other"]))).toBe(false)
   })
 })
 
