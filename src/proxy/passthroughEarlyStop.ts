@@ -26,6 +26,18 @@
  * deferred tools, advisors, structured output, and the kill switch. In those
  * configurations the digest turn does generate and is discarded here.
  *
+ * Settlement is necessary but NOT sufficient to freeze the checkpoint. Two
+ * further conditions belong to the caller, which owns the wire:
+ *
+ *   - the turn has stopped generating, so no further call can appear, and
+ *   - trackerCoversStreamedCalls agrees the tracker has caught up with every
+ *     forwarded call the wire carried.
+ *
+ * Both exist because `expected` is armed from assistant messages, which the SDK
+ * can surface after the deny that settles them — so "everything I know about is
+ * answered" is true long before "everything is answered". Freezing on the
+ * former drops the calls still in flight, silently, from the client's set.
+ *
  * Pure module — no I/O, no imports from server.ts or session/.
  */
 
@@ -188,6 +200,33 @@ export function isCompleteToolResultContinuation(
 
   return actual.size === expected.size &&
     (echoedCalls.size === 0 || echoedCalls.size === expected.size)
+}
+
+/**
+ * Has the tracker caught up with every forwarded call the wire actually
+ * carried?
+ *
+ * `expected` is armed from assistant messages, which the SDK can surface AFTER
+ * the deny that settles them. Settlement alone therefore proves only that the
+ * calls seen SO FAR are answered — freeze on that and any call whose assistant
+ * fragment is still in flight lands past the checkpoint and is dropped from the
+ * client-facing set. Silently: a dropped call is not a malformed envelope, so
+ * nothing downstream looks wrong.
+ *
+ * `streamedToolUseIds` comes from content_block_start, which cannot lag, so it
+ * is the completeness oracle both paths gate on. Callers build it with
+ * isClientForwardedToolUse so the two sets are comparable by construction.
+ */
+export function trackerCoversStreamedCalls(
+  tracker: EarlyStopTracker,
+  streamedToolUseIds: ReadonlySet<string>
+): boolean {
+  if (streamedToolUseIds.size === 0) return false
+  if (tracker.expected.size !== streamedToolUseIds.size) return false
+  for (const id of streamedToolUseIds) {
+    if (!tracker.expected.has(id)) return false
+  }
+  return true
 }
 
 /** The cache-stable assistant boundary after every forwarded call settled. */

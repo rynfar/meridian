@@ -93,6 +93,7 @@ kill $(lsof -ti :3456)
 | E38 | [Silent turns (#768)](#e38-silent-turns-768) | **Automated**: `bun scripts/e2e-silent-turn.mjs` — real CLI, SSE mode. Asserts four things per attempt: the client got text or a tool call; recovered content sits BEFORE the terminal `message_delta` (content behind it is dropped by a correct client); exactly one `message_delta` per message; and a third turn after a recovery still resumes. Attribution is read from `/telemetry/logs`, not stdout. Pair `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1` against `MERIDIAN_SILENT_TURN_RECOVERY=0` for the before/after. **Run before any release touching the passthrough tool loop, prompt assembly, or session resume** | 2026-08-11 |
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
+| E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy, real SDK, an OpenCode-shaped client replaying history with tool_results over a chain of dependent calls (`PROBE_PARALLEL=1`: one parallel turn). Asserts the model's final answer quotes every delivered result and never claims a call went unanswered, that no forwarded denial remains stored for a delivered id, and that every continuation turn reads the previous turn's prompt cache in full — the repaired rows must not cost a byte of prefix. **Run before any release touching passthrough resume, the deny hook, or `passthroughTranscript.ts`** | 2026-08-25 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -122,6 +123,8 @@ cat /tmp/proxy-e2e.log | strings | grep "\[PROXY\]" | tail -5
 ```
 
 **Session header.** All curl tests use `x-opencode-session` to control session identity. This is the header the OpenCode adapter reads.
+
+**Diagnostics vs gates.** `scripts/e2e-*.mjs` are gates: they assert and exit non-zero. `scripts/probe-*.mjs` are not — they drive the same real stack but print findings for a human to read, and are deliberately absent from the index above so a green run is never mistaken for a passing gate. The passthrough probes reconstruct what `resumeSessionAt` would keep by reading the session JSONL the CLI wrote, which is the one thing the mocked suites cannot check. They need Claude Max and cost real tokens.
 
 **Cleanup.** Each test section is independent. Kill the proxy and clear the session store between sections if you need isolation:
 ```bash
@@ -3525,3 +3528,63 @@ cause. Read its `digest turns` line against the corpus it scanned: a machine
 running mostly internal-mode Claude Code has almost no passthrough transcripts,
 so a `0.0%` there means "little passthrough traffic here", not "the digest turn
 is cheap". Per-turn cost is what E40 measures.
+
+## E41: Passthrough multi-turn: one call, one answer
+
+**What it proves:** that across a *chain* of forwarded tool calls the model is
+only ever shown the client's real result for each call, never the hook's
+denial that the CLI wrote for it at the time of the call.
+
+**Why it needs a live SDK and several turns:** `resumeSessionAt` cuts a suffix,
+so it removes the current turn's denial and never a previous turn's; on the
+resume after that the CLI's loader splices the stale denial back beside the
+real result and keeps the first one. Nothing is wrong until the third turn,
+which is why every single-turn check passed while a live OpenCode session was
+telling the user its tools returned nothing. The mocked suites cannot see any
+of this — it lives in the CLI's transcript loader.
+
+```bash
+bun scripts/e2e-passthrough-turns.mjs            # non-stream
+bun scripts/e2e-passthrough-turns.mjs --stream   # stream
+```
+
+An OpenCode-shaped client asks for three files to be read one after another,
+executes each forwarded call itself, and replays the full history with the
+`tool_result` on the next request, until the model answers in text.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- The final answer quotes all three delivered results and does not say a call
+  went unanswered
+- Every continuation turn, including a follow-up turn sent after the final
+  answer, reports `cache_read_input_tokens` of at least 95% of what the previous
+  turn had cached (`cache_read + cache_creation`). The follow-up turn is the one
+  whose prompt the CLI's loader builds *through* the repaired rows, so this is
+  where a repair that wrote anything other than what turn N+1 sent would show
+  up as a lost prefix. Measured 2026-08-25 on all four combinations
+  (chain/parallel x stream/non-stream): equal to the token, every turn
+- The session JSONL of every session the proxy **resumed** (`lineage=continuation`
+  in the per-turn readout) holds **no** forwarded denial for an id whose real
+  result was delivered (the denial was rewritten in place by
+  `passthroughTranscript.ts`). Sessions the proxy abandoned are not counted: a
+  passthrough tool turn without a checkpoint is evicted, so its transcript is
+  never loaded again and a denial left in it is dead, not stale. A run in which
+  no turn resumed (e.g. `MERIDIAN_PASSTHROUGH_EARLY_STOP=0`, where every turn is
+  `lineage=new`) says so and fails as inconclusive rather than passing vacuously
+
+**Proving the gate bites:** `git stash push src/proxy/server.ts`, run it, `git
+stash pop`. Unfixed it fails on both counts by the third turn — the model
+answers *"[Error: tool call forwarded to client, no content returned]"* for the
+first two files.
+
+`PROBE_PARALLEL=1` asks for the three reads in one turn instead of a chain, so
+the hook's denies arrive mid-generation and are held.
+
+**Mechanism at the SDK level:** `bun scripts/probe-passthrough-accumulation.mjs`
+drives the raw SDK the same way behind a recording proxy on
+`ANTHROPIC_BASE_URL`, so it shows the actual request bodies the model received
+— the denial winning and the real result gone — and with `--rewrite` applies
+the shipped repair before each resume. It is the reproduction; E41 is the gate.
+
+**Verified:** 2026-08-25, sonnet, both paths. Fixed: 4 turns, 3/3 quoted, 0
+stale denials. Stashed: 3 turns, 0/3 quoted, 2 stale denials.

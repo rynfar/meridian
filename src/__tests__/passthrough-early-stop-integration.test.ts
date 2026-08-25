@@ -710,6 +710,85 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(finalFragment.uuid)
   })
 
+  // The non-stream counterpart of the late-parallel-metadata case above.
+  // Passthrough asks for partial messages on both paths, so non-stream has the
+  // same turn boundary AND the same hazard: after message_delta the tracker
+  // knows only the calls whose assistant fragments it has consumed, and a deny
+  // arriving before the final fragment settles that partial set. Freezing there
+  // hands the client a SUBSET of what the model called — the calls past the
+  // checkpoint are dropped, not replayed, so nothing on the wire looks wrong.
+  it("non-stream: waits for late parallel assistant metadata before freezing the checkpoint", async () => {
+    const firstFragment = assistantMessage([
+      { type: "tool_use", id: "ns-late-1", name: "read", input: { file_path: "a" } },
+    ])
+    const finalFragment = assistantMessage([
+      { type: "tool_use", id: "ns-late-2", name: "read", input: { file_path: "b" } },
+    ])
+    mockMessages = [
+      messageStart("msg_ns_late_parallel"),
+      toolUseBlockStart(0, "read", "ns-late-1"),
+      inputJsonDelta(0, '{"file_path":"a"}'),
+      blockStop(0),
+      toolUseBlockStart(1, "read", "ns-late-2"),
+      inputJsonDelta(1, '{"file_path":"b"}'),
+      blockStop(1),
+      messageDelta("tool_use"),
+      firstFragment,
+      userDenyMessage("ns-late-1"),
+      finalFragment,
+      userDenyMessage("ns-late-2"),
+    ]
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read a and b" }],
+    }, "es-ns-late-parallel")
+    expect(res.status).toBe(200)
+    const body = await res.json() as any
+    const toolUses = body.content.filter((b: any) => b.type === "tool_use")
+    expect(toolUses.map((t: any) => t.id).sort()).toEqual(["ns-late-1", "ns-late-2"])
+  })
+
+  // The other half of the same gate. Above, the tracker lags the wire; here it
+  // matches it exactly — but only because the turn has not finished emitting.
+  // Settling on that agreement mid-generation freezes the checkpoint before the
+  // remaining blocks exist, so the completeness oracle alone is not sufficient:
+  // generation must also have ended.
+  it("non-stream: does not freeze when the tracker matches the wire mid-generation", async () => {
+    mockMessages = [
+      messageStart("msg_ns_midgen"),
+      toolUseBlockStart(0, "read", "ns-mid-1"),
+      inputJsonDelta(0, '{"file_path":"a"}'),
+      blockStop(0),
+      // Armed and settled while the turn is still generating: at this point
+      // expected and the streamed set agree on exactly {ns-mid-1}.
+      assistantMessage([{ type: "tool_use", id: "ns-mid-1", name: "read", input: { file_path: "a" } }]),
+      userDenyMessage("ns-mid-1"),
+      // ...and only now does the second call reach the wire.
+      toolUseBlockStart(1, "read", "ns-mid-2"),
+      inputJsonDelta(1, '{"file_path":"b"}'),
+      blockStop(1),
+      messageDelta("tool_use"),
+      assistantMessage([{ type: "tool_use", id: "ns-mid-2", name: "read", input: { file_path: "b" } }]),
+      userDenyMessage("ns-mid-2"),
+    ]
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read a and b" }],
+    }, "es-ns-midgen")
+    expect(res.status).toBe(200)
+    const body = await res.json() as any
+    const toolUses = body.content.filter((b: any) => b.type === "tool_use")
+    expect(toolUses.map((t: any) => t.id).sort()).toEqual(["ns-mid-1", "ns-mid-2"])
+  })
+
   // #742: a deny can become iterator-visible while a later tool_use block is
   // still mid-input_json_delta. Freezing or closing solely from the tracker's
   // currently-known set can force-emit that block's content_block_stop, so the client
