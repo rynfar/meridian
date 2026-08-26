@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 // ─── controllable sdk-features state ──────────────────────────────────────────
 // `explicitThinking` = the raw, user-configured value (undefined = unset/default).
@@ -50,7 +50,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: { prompt: unknown; options: Record<string, unknown> }) => {
     capturedOptions = params.options ?? {}
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, params.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),

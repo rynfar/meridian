@@ -92,4 +92,16 @@ describe("resolveSdkWorkingDirectory", () => {
     })
     expect(r.workingDirectory).toBe("/adapter/path")
   })
+
+  it("normalizes relative SDK directories to absolute paths", () => {
+    const result = resolveSdkWorkingDirectory({
+      envOverride: ".",
+      adapterCwd: undefined,
+      fallback: ".",
+      exists: () => true,
+    })
+    expect(result.workingDirectory.startsWith("/")).toBe(true)
+    expect(result.claimedWorkingDirectory.startsWith("/")).toBe(true)
+  })
+
 })

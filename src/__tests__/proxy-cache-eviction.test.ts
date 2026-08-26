@@ -1,5 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 const originalMaxSessions = process.env.CLAUDE_PROXY_MAX_SESSIONS
 process.env.CLAUDE_PROXY_MAX_SESSIONS = "2"
@@ -8,13 +11,14 @@ type MockSdkMessage = Record<string, unknown>
 type TestApp = { fetch: (req: Request) => Promise<Response> }
 
 let mockMessages: MockSdkMessage[] = []
-let capturedQueryParams: { options?: { resume?: string } } | null = null
-let queuedSessionIds: string[] = []
+let capturedQueryParams: { options?: { resume?: string; sessionId?: string } } | null = null
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: unknown) => {
-    capturedQueryParams = params as { options?: { resume?: string } }
-    const sessionId = queuedSessionIds.shift() || "sdk-session-default"
+    const queryParams = params as { options?: { resume?: string; sessionId?: string } }
+    capturedQueryParams = queryParams
+    const sessionId = resolveMockSdkSessionId(queryParams.options)
+    if (typeof sessionId !== "string") throw new Error("Expected Meridian to select or resume an SDK session ID")
     return (async function* () {
       for (const msg of mockMessages) {
         yield { ...msg, session_id: sessionId }
@@ -34,13 +38,10 @@ mock.module("../mcpTools", () => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
-mock.module("../proxy/sessionStore", () => ({
-  lookupSharedSession: () => undefined,
-  storeSharedSession: () => {},
-  clearSharedSessions: () => {},
-}))
-
 const { createProxyServer, clearSessionCache, getMaxSessionsLimit } = await import("../proxy/server")
+const { setSessionStoreDir } = await import("../proxy/sessionStore")
+const testSessionDir = mkdtempSync(join(tmpdir(), "meridian-lru-test-"))
+setSessionStoreDir(testSessionDir)
 
 function createTestApp() {
   const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
@@ -59,8 +60,7 @@ async function post(app: TestApp, body: Record<string, unknown>, headers: Record
   return app.fetch(req)
 }
 
-async function send(app: TestApp, session: string | undefined, firstMessage: string, sessionId: string) {
-  queuedSessionIds.push(sessionId)
+async function send(app: TestApp, session: string | undefined, firstMessage: string): Promise<string> {
   const headers: Record<string, string> = session ? { "x-opencode-session": session } : {}
   const response = await post(app, {
     model: "claude-sonnet-4-5",
@@ -69,10 +69,12 @@ async function send(app: TestApp, session: string | undefined, firstMessage: str
     messages: [{ role: "user", content: firstMessage }],
   }, headers)
   await response.json()
+  const sessionId = capturedQueryParams?.options?.sessionId
+  if (typeof sessionId !== "string") throw new Error("Expected a caller-selected fresh session ID")
+  return sessionId
 }
 
-async function sendContinuation(app: TestApp, session: string, firstMessage: string, followUp: string, sessionId: string) {
-  queuedSessionIds.push(sessionId)
+async function sendContinuation(app: TestApp, session: string, firstMessage: string, followUp: string) {
   const response = await post(app, {
     model: "claude-sonnet-4-5",
     max_tokens: 128,
@@ -89,63 +91,63 @@ async function sendContinuation(app: TestApp, session: string, firstMessage: str
 beforeEach(() => {
   mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
   capturedQueryParams = null
-  queuedSessionIds = []
   clearSessionCache()
 })
 
 afterAll(() => {
   if (originalMaxSessions === undefined) delete process.env.CLAUDE_PROXY_MAX_SESSIONS
   else process.env.CLAUDE_PROXY_MAX_SESSIONS = originalMaxSessions
+  rmSync(testSessionDir, { recursive: true, force: true })
 })
 
 describe("Session cache LRU eviction", () => {
-  it("evicts the least-recently-used session entry", async () => {
+  it("does not resume an exact replay after the least-recently-used entry leaves memory", async () => {
     const app = createTestApp()
 
-    await send(app, "oc-A", "first-A", "sdk-A")
-    await send(app, "oc-B", "first-B", "sdk-B")
-    await send(app, "oc-C", "first-C", "sdk-C")
+    await send(app, "oc-A", "first-A")
+    await send(app, "oc-B", "first-B")
+    await send(app, "oc-C", "first-C")
 
-    await send(app, "oc-A", "first-A", "sdk-A-new")
+    await send(app, "oc-A", "first-A")
     expect(capturedQueryParams?.options?.resume).toBeUndefined()
   })
 
-  it("refreshes recency when a key is accessed", async () => {
+  it("keeps durable resume after a key is accessed", async () => {
     const app = createTestApp()
 
     // Store two sessions (cache limit = 2)
-    await send(app, "oc-A", "first-A", "sdk-A")
-    await send(app, "oc-B", "first-B", "sdk-B")
+    const sdkA = await send(app, "oc-A", "first-A")
+    const sdkB = await send(app, "oc-B", "first-B")
 
     // Access A with a continuation (growing messages) to refresh its recency
-    await sendContinuation(app, "oc-A", "first-A", "follow-up-A", "sdk-A")
-    expect(capturedQueryParams?.options?.resume).toBe("sdk-A")
+    await sendContinuation(app, "oc-A", "first-A", "follow-up-A")
+    expect(capturedQueryParams?.options?.resume).toBe(sdkA)
 
     // Store C — should evict B (not A, since A was accessed more recently)
-    await send(app, "oc-C", "first-C", "sdk-C")
+    await send(app, "oc-C", "first-C")
 
-    // B should be evicted — continuation attempt should not resume
-    await sendContinuation(app, "oc-B", "first-B", "follow-up-B", "sdk-B-new")
-    expect(capturedQueryParams?.options?.resume).toBeUndefined()
+    // B may leave the in-memory LRU, but the durable mapping must rehydrate it.
+    await sendContinuation(app, "oc-B", "first-B", "follow-up-B")
+    expect(capturedQueryParams?.options?.resume).toBe(sdkB)
   })
 
   it("coordinates eviction across session and fingerprint caches", async () => {
     const app = createTestApp()
 
-    await send(app, "oc-A", "alpha", "sdk-A")
-    await send(app, "oc-B", "beta", "sdk-B")
-    await send(app, "oc-C", "gamma", "sdk-C")
+    await send(app, "oc-A", "alpha")
+    await send(app, "oc-B", "beta")
+    await send(app, "oc-C", "gamma")
 
-    await send(app, undefined, "alpha", "sdk-alpha-new")
+    await send(app, undefined, "alpha")
     expect(capturedQueryParams?.options?.resume).toBeUndefined()
 
     clearSessionCache()
 
-    await send(app, "oc-A", "alpha", "sdk-A2")
-    await send(app, undefined, "fp-X", "sdk-X")
-    await send(app, undefined, "fp-Y", "sdk-Y")
+    await send(app, "oc-A", "alpha")
+    await send(app, undefined, "fp-X")
+    await send(app, undefined, "fp-Y")
 
-    await send(app, "oc-A", "alpha", "sdk-A3")
+    await send(app, "oc-A", "alpha")
     expect(capturedQueryParams?.options?.resume).toBeUndefined()
   })
 })

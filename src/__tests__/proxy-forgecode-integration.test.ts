@@ -8,10 +8,21 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { mkdirSync } from "node:fs"
-import { assistantMessage, textBlockStart, textDelta, blockStop, messageDelta, messageStop, messageStart } from "./helpers"
+import { setSessionStoreDir } from "../proxy/sessionStore"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-http-test-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
+import { assistantMessage, textBlockStart, textDelta, blockStop, messageDelta, messageStop, messageStart, withMockSdkSessionId } from "./helpers"
 
 // Use a real, existent directory so server.ts:resolveSdkWorkingDirectory's
 // existsSync check passes — otherwise the SDK cwd silently falls back to
@@ -26,7 +37,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     capturedQueryParams = params
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, params.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),

@@ -18,11 +18,13 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: (_params: unknown) => (async function* () {
-    for (const m of mockMessages) yield m
+  query: (params: any) => (async function* () {
+    for (const m of mockMessages) {
+      yield withMockSdkSessionId(m, params.options)
+    }
   })(),
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
   tool: () => ({}),

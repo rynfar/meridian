@@ -76,13 +76,15 @@ function resultMessage(withStructuredOutput: boolean) {
   return base
 }
 
+import { withMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: { options?: Record<string, unknown> }) => {
     capturedOptions = opts.options ?? {}
     return (async function* () {
       const preHook = (opts.options as any)?.hooks?.PreToolUse?.[0]?.hooks?.[0]
       const turn = structuredOutputTurn()
-      yield turn
+      yield withMockSdkSessionId(turn, opts.options)
       let denied = false
       if (preHook) {
         const res = await preHook({
@@ -93,7 +95,8 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         denied = !!res && res.decision === "block"
       }
       hookDeniedStructuredOutput = denied
-      yield resultMessage(!denied)
+      const result = resultMessage(!denied)
+      yield withMockSdkSessionId(result, opts.options)
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),

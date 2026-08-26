@@ -25,7 +25,21 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setSessionStoreDir } from "../proxy/sessionStore"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-http-test-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
+import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 let mockMessages: unknown[] = []
 let capturedOptions: any[] = []
@@ -41,14 +55,17 @@ let onTitleEnteredQuery: (() => void) | undefined
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
-    capturedOptions.push(params.options || {})
+    const options = params.options || {}
+    capturedOptions.push(options)
+    const sessionId = resolveMockSdkSessionId(options)
+    if (!sessionId) throw new Error("Expected Meridian to select or resume an SDK session")
     const isTitle = typeof params.prompt === "string" && params.prompt.includes("Generate a title")
     return (async function* () {
       if (isTitle) {
         onTitleEnteredQuery?.()
         if (holdTitleUntil) await holdTitleUntil
       }
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) yield { ...(msg as object), session_id: sessionId }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
@@ -147,12 +164,14 @@ describe("OpenCode title agent vs the user's conversation", () => {
   it("lets the user's conversation resume after a title turn interleaves", async () => {
     const app = createTestApp()
     await post(app, USER_TURN_1, USER_HEADERS)
+    const userSessionId = capturedOptions.at(-1)?.sessionId
+    expect(userSessionId).toMatch(/^[0-9a-f-]{36}$/)
     await post(app, TITLE_BODY, TITLE_HEADERS)
     const turn2 = await post(app, USER_TURN_2, USER_HEADERS)
     expect(turn2.status).toBe(200)
     // The title turn must not have displaced the conversation's stored lineage:
-    // turn 2 still resumes the SDK session rather than replaying cold.
-    expect(capturedOptions.at(-1)?.resume).toBe("test-session")
+    // turn 2 still resumes the exact session Meridian selected for turn 1.
+    expect(capturedOptions.at(-1)?.resume).toBe(userSessionId)
   })
 
   it("keeps the title turn itself working and independent", async () => {
@@ -190,24 +209,17 @@ describe("OpenCode title agent vs the user's conversation", () => {
     for (let i = 0; i < 50 && capturedOptions.length < 2; i++) {
       await new Promise((r) => setTimeout(r, 2))
     }
+    // The title query is still gated. Entering the user's query before release
+    // proves the scoped requests did not contend on the same turn lease. This
+    // is stronger and less clock-sensitive than requiring a 0 ms metric.
+    const userEnteredBeforeRelease = capturedOptions.length === 2
     release()
 
     const [title, user] = await Promise.all([titlePromise, userPromise])
+    expect(userEnteredBeforeRelease).toBe(true)
     expect(title.status).toBe(200)
     expect(user.status).toBe(200)
     const userBody = await user.json() as any
     expect(JSON.stringify(userBody)).not.toContain("session advanced")
-
-    // The title turn held its own lease for the whole duration of the user's
-    // turn, and the user's turn did not wait on it for a millisecond. That
-    // zero IS the fix: live, this wait was 9,836 ms and ended in a 400.
-    //
-    // Asserted as 0 rather than "> 0 to prove the harness raced": the harness
-    // is proven live by running this file against the unscoped key, where the
-    // wait is non-zero and the status is 400. Demanding contention here would
-    // be demanding the bug.
-    const userMetric = telemetryStore.getRecent({ limit: 10 }).find((m) => m.toolCount === 1)
-    expect(userMetric).toBeDefined()
-    expect(userMetric!.sessionQueueWaitMs ?? 0).toBe(0)
   })
 })

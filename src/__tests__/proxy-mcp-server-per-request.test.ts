@@ -16,6 +16,8 @@ import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 let mcpServerCreateCount = 0
 let capturedMcpServers: any[] = []
 
+import { resolveMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     if (params.options?.mcpServers) {
@@ -33,7 +35,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: `sess-${Date.now()}`,
+        session_id: resolveMockSdkSessionId(params.options, `sess-${Date.now()}`),
       }
     })()
   },

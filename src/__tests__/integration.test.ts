@@ -20,6 +20,7 @@ import {
   messageStop,
   assistantMessage,
   parseSSE,
+  withMockSdkSessionId,
 } from "./helpers"
 
 // --- Mock SDK ---
@@ -31,7 +32,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     capturedQueryParams = params
     return (async function* () {
       for (const msg of mockMessages) {
-        yield msg
+        yield withMockSdkSessionId(msg, params.options)
       }
     })()
   },

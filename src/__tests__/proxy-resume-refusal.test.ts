@@ -13,8 +13,23 @@
  * session is different — an identical attempt fails identically — and stays
  * one-shot.
  */
-import { describe, it, expect, mock, beforeEach } from "bun:test"
-import { messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop } from "./helpers"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setSessionStoreDir } from "../proxy/sessionStore"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-http-test-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  // Request completion releases the cross-process lease asynchronously.
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
+import { messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId } from "./helpers"
 
 // Linear backoff is real time; the retry path is what is under test, not the wait.
 process.env.MERIDIAN_BUSY_RETRY_DELAY_MS = "5"
@@ -34,6 +49,10 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     const callIndex = queryCallCount
     queryCalls.push(opts.options || {})
     const isStreaming = opts.options?.includePartialMessages === true
+    const returnedSessionId = resolveMockSdkSessionId(opts.options)
+    const withReturnedSessionId = (message: any) => returnedSessionId
+      ? { ...message, session_id: returnedSessionId }
+      : message
     return (async function* () {
       // The CLI refuses the resume while the previous subprocess for this
       // session is still exiting. The session itself is intact.
@@ -53,12 +72,12 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         )
       }
       if (isStreaming) {
-        yield messageStart(`msg-${callIndex}`)
-        yield textBlockStart(0)
-        yield textDelta(0, `response-${callIndex}`)
-        yield blockStop(0)
-        yield messageDelta("end_turn")
-        yield messageStop()
+        yield withReturnedSessionId(messageStart(`msg-${callIndex}`))
+        yield withReturnedSessionId(textBlockStart(0))
+        yield withReturnedSessionId(textDelta(0, `response-${callIndex}`))
+        yield withReturnedSessionId(blockStop(0))
+        yield withReturnedSessionId(messageDelta("end_turn"))
+        yield withReturnedSessionId(messageStop())
       }
       yield {
         type: "assistant",
@@ -72,7 +91,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: "sdk-original",
+        session_id: resolveMockSdkSessionId(opts.options, "sdk-original"),
       }
     })()
   },

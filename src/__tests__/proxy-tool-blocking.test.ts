@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 let capturedQueryParams: any = null
 let mockMessages: any[] = []
@@ -26,7 +26,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     capturedQueryParams = params
     return (async function* () {
       for (const msg of mockMessages) {
-        yield { ...msg, session_id: "sdk-test" }
+        yield { ...msg, session_id: resolveMockSdkSessionId(params.options, "sdk-test") }
       }
     })()
   },

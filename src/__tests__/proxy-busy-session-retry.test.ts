@@ -11,7 +11,22 @@
  * failure the client will blindly re-trigger.
  */
 
-import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setSessionStoreDir } from "../proxy/sessionStore"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-http-test-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  // Request completion releases the cross-process lease asynchronously.
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
 import {
   messageStart,
   textBlockStart,
@@ -19,6 +34,7 @@ import {
   blockStop,
   messageDelta,
   messageStop,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 // Shrink retry backoff so tests run fast (read at server.ts import time)
@@ -47,13 +63,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         opts.options?.stderr?.(BUSY_LINE)
         throw new Error("Claude Code process exited with code 1")
       }
+      const returnedSessionId = resolveMockSdkSessionId(opts.options, `sdk-after-${callIndex}`)
       if (isStreaming) {
-        yield messageStart(`msg-${callIndex}`)
-        yield textBlockStart(0)
-        yield textDelta(0, `response-${callIndex}`)
-        yield blockStop(0)
-        yield messageDelta("end_turn")
-        yield messageStop()
+        yield { ...messageStart(`msg-${callIndex}`), session_id: returnedSessionId }
+        yield { ...textBlockStart(0), session_id: returnedSessionId }
+        yield { ...textDelta(0, `response-${callIndex}`), session_id: returnedSessionId }
+        yield { ...blockStop(0), session_id: returnedSessionId }
+        yield { ...messageDelta("end_turn"), session_id: returnedSessionId }
+        yield { ...messageStop(), session_id: returnedSessionId }
       }
       yield {
         type: "assistant",
@@ -67,7 +84,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: `sdk-after-${callIndex}`,
+        session_id: returnedSessionId,
       }
     })()
   },
@@ -138,17 +155,19 @@ describe("Busy-session resume retry (#630)", () => {
     const body = await response.json()
     expect(body.content.some((b: any) => b.type === "text")).toBe(true)
 
-    // Attempt 1 and the retry must target the SAME session — not fresh
+    // Attempt 1 and the retry use the same preallocated isolated fork.
     expect(queryCalls.length).toBe(2)
     expect(queryCalls[0]!.resume).toBe("sdk-original")
     expect(queryCalls[1]!.resume).toBe("sdk-original")
-    expect(queryCalls[1]!.forkSession).toBeUndefined()
+    expect(queryCalls[0]!.forkSession).toBe(true)
+    expect(queryCalls[1]!.forkSession).toBe(true)
+    expect(queryCalls[1]!.sessionId).not.toBe(queryCalls[0]!.sessionId)
   })
 
   it("falls back to forkSession when the session stays busy (non-streaming)", async () => {
     const app = createTestApp()
     seed("sess-busy-2")
-    // initial + 3 same-resume retries all busy; the 5th attempt forks
+    // Every resume is already isolated; retries retain one preallocated fork.
     busyFailCount = 4
 
     const response = await post(
@@ -161,8 +180,9 @@ describe("Busy-session resume retry (#630)", () => {
     expect(queryCalls.length).toBe(5)
     for (let i = 0; i < 4; i++) {
       expect(queryCalls[i]!.resume).toBe("sdk-original")
-      expect(queryCalls[i]!.forkSession).toBeUndefined()
+      expect(queryCalls[i]!.forkSession).toBe(true)
     }
+    expect(new Set(queryCalls.map((call) => call.sessionId)).size).toBe(5)
     expect(queryCalls[4]!.resume).toBe("sdk-original")
     expect(queryCalls[4]!.forkSession).toBe(true)
   })
@@ -186,6 +206,9 @@ describe("Busy-session resume retry (#630)", () => {
     expect(queryCalls.length).toBe(2)
     expect(queryCalls[0]!.resume).toBe("sdk-original")
     expect(queryCalls[1]!.resume).toBe("sdk-original")
+    expect(queryCalls[0]!.forkSession).toBe(true)
+    expect(queryCalls[1]!.forkSession).toBe(true)
+    expect(queryCalls[1]!.sessionId).not.toBe(queryCalls[0]!.sessionId)
   })
 
   it("falls back to forkSession when the session stays busy (streaming)", async () => {

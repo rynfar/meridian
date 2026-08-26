@@ -10,8 +10,10 @@ import { describe, it, expect, mock, beforeEach } from "bun:test"
 // Make the SDK throw specific errors
 let mockError: Error | null = null
 
+import { resolveMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => {
+  query: (params: any) => {
     if (mockError) {
       return (async function* () {
         throw mockError
@@ -29,7 +31,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: "sess-1",
+        session_id: resolveMockSdkSessionId(params.options, "sess-1"),
       }
     })()
   },

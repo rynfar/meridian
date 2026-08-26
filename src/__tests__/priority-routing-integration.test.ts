@@ -9,7 +9,7 @@
  * is byte-identical to today's behavior.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop } from "./helpers"
+import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId } from "./helpers"
 
 let capturedEnvs: string[] = []
 let failingDirs = new Set<string>()
@@ -36,27 +36,31 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     const dir = params.options?.env?.CLAUDE_CONFIG_DIR ?? "default"
     capturedEnvs.push(dir)
     const streaming = params.options?.includePartialMessages === true
+    const returnedSessionId = resolveMockSdkSessionId(params.options)
+    const withReturnedSessionId = (message: any) => returnedSessionId
+      ? { ...message, session_id: returnedSessionId }
+      : message
     return (async function* () {
       if ([...failingDirs].some((f) => dir.includes(f))) {
         throw new Error(failureMessage)
       }
       if ([...failAfterContentDirs].some((f) => dir.includes(f))) {
         if (streaming) {
-          yield messageStart("msg-1")
-          yield textBlockStart(0)
-          yield textDelta(0, "partial from " + dir)
+          yield withReturnedSessionId(messageStart("msg-1"))
+          yield withReturnedSessionId(textBlockStart(0))
+          yield withReturnedSessionId(textDelta(0, "partial from " + dir))
         }
         throw new Error(failureMessage)
       }
       if (streaming) {
-        yield messageStart("msg-1")
-        yield textBlockStart(0)
-        yield textDelta(0, "ok from " + dir)
-        yield blockStop(0)
-        yield messageDelta("end_turn")
-        yield messageStop()
+        yield withReturnedSessionId(messageStart("msg-1"))
+        yield withReturnedSessionId(textBlockStart(0))
+        yield withReturnedSessionId(textDelta(0, "ok from " + dir))
+        yield withReturnedSessionId(blockStop(0))
+        yield withReturnedSessionId(messageDelta("end_turn"))
+        yield withReturnedSessionId(messageStop())
       }
-      yield assistantMessage([{ type: "text", text: "ok from " + dir }])
+      yield withReturnedSessionId(assistantMessage([{ type: "text", text: "ok from " + dir }]))
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),

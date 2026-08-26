@@ -8,6 +8,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { getSessionStoreDir } from "../proxy/sessionStore"
 import {
   messageStart,
   textBlockStart,
@@ -16,13 +19,20 @@ import {
   messageDelta,
   messageStop,
   parseSSE,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 // Track query calls to verify retry behavior
-let queryCalls: Array<{ model: string; callIndex: number; resume?: string }> = []
+interface LifecycleResourceSnapshot {
+  locator?: { sessionId?: string }
+  state?: string
+}
+
+let queryCalls: Array<{ model: string; callIndex: number; resume?: string; sessionId?: string }> = []
 let queryCallCount = 0
 /** Benches recorded when a [1m] model is stripped after a rate limit (#862). */
 let rateLimitBenches: Array<{ profileId: string | undefined; until: number }> = []
+let lifecycleStateAtSpawn: Array<{ sessionId: string; state: string | undefined }> = []
 
 // Control what the mock does
 let mockBehavior: "extra_usage_then_succeed" | "always_extra_usage" | "out_of_extra_usage_then_succeed" | "resume_extra_usage_then_succeed" | "succeed" | "error_assistant_then_ratelimit" = "succeed"
@@ -56,7 +66,15 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     queryCallCount++
       const callIndex = queryCallCount
       const model = opts.options?.model || "sonnet"
-      queryCalls.push({ model, callIndex, resume: opts.options?.resume })
+      const sessionId = opts.options?.sessionId
+      queryCalls.push({ model, callIndex, resume: opts.options?.resume, sessionId })
+      const returnedSessionId = resolveMockSdkSessionId(opts.options, `sdk-session-${callIndex}`)
+      if (sessionId) {
+        const sidecar = JSON.parse(readFileSync(join(getSessionStoreDir(), "session-gc.json"), "utf8"))
+        const resource = Object.values(sidecar.resources as Record<string, LifecycleResourceSnapshot>)
+          .find((candidate) => candidate.locator?.sessionId === sessionId)
+        lifecycleStateAtSpawn.push({ sessionId, state: resource?.state })
+      }
       const isStreaming = opts.options?.includePartialMessages === true
 
     return (async function* () {
@@ -74,7 +92,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
 
       if (
         mockBehavior === "resume_extra_usage_then_succeed" &&
-        opts.options?.resume === "sdk-session-1" &&
+        opts.options?.resume === queryCalls[0]?.sessionId &&
         (model === "sonnet[1m]" || model === "sonnet")
       ) {
         throw new Error(OUT_OF_EXTRA_USAGE_ERROR)
@@ -98,19 +116,19 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
             stop_reason: "stop_sequence",
             usage: { input_tokens: 0, output_tokens: 0 },
           },
-          session_id: `sdk-session-${callIndex}`,
+          session_id: returnedSessionId,
         }
         throw new Error("429 rate limit exceeded for 1m context")
       }
 
       // Success path
       if (isStreaming) {
-        yield messageStart(`msg-${callIndex}`)
-        yield textBlockStart(0)
-        yield textDelta(0, `response-${callIndex}`)
-        yield blockStop(0)
-        yield messageDelta("end_turn")
-        yield messageStop()
+        yield { ...messageStart(`msg-${callIndex}`), session_id: returnedSessionId }
+        yield { ...textBlockStart(0), session_id: returnedSessionId }
+        yield { ...textDelta(0, `response-${callIndex}`), session_id: returnedSessionId }
+        yield { ...blockStop(0), session_id: returnedSessionId }
+        yield { ...messageDelta("end_turn"), session_id: returnedSessionId }
+        yield { ...messageStop(), session_id: returnedSessionId }
       }
       yield {
         type: "assistant",
@@ -124,7 +142,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: `sdk-session-${callIndex}`,
+        session_id: returnedSessionId,
       }
     })()
   },
@@ -142,6 +160,7 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { lookupSharedSession } = await import("../proxy/sessionStore")
 
 function createTestApp() {
   const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
@@ -163,6 +182,7 @@ describe("Extra usage required fallback", () => {
     clearSessionCache()
     queryCalls = []
     rateLimitBenches = []
+    lifecycleStateAtSpawn = []
     queryCallCount = 0
     mockBehavior = "succeed"
   })
@@ -182,6 +202,8 @@ describe("Extra usage required fallback", () => {
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.content).toBeDefined()
+      expect(lifecycleStateAtSpawn.map((entry) => entry.state)).toEqual(["prepared", "prepared"])
+      expect(new Set(lifecycleStateAtSpawn.map((entry) => entry.sessionId)).size).toBe(2)
     })
 
     it("propagates error when model is already base (no [1m] to strip)", async () => {
@@ -231,6 +253,8 @@ describe("Extra usage required fallback", () => {
       const text = await response.text()
       // Should contain successful stream content after fallback
       expect(text).toContain("event: message_start")
+      expect(lifecycleStateAtSpawn.map((entry) => entry.state)).toEqual(["prepared", "prepared"])
+      expect(new Set(lifecycleStateAtSpawn.map((entry) => entry.sessionId)).size).toBe(2)
     })
 
     it("returns error event when model is already base", async () => {
@@ -276,12 +300,22 @@ describe("Extra usage required fallback", () => {
       }, { "x-opencode-session": "sess-1" })
 
       expect(response.status).toBe(200)
+      expect(response.headers.get("x-claude-session-id")).toBeNull()
       const text = await response.text()
       expect(text).toContain("event: message_start")
+      const initialSessionId = queryCalls[0]?.sessionId
+      const extendedForkSessionId = queryCalls[1]?.sessionId
+      const baseForkSessionId = queryCalls[2]?.sessionId
+      const freshFallbackSessionId = queryCalls[3]?.sessionId
+      for (const sessionId of [initialSessionId, extendedForkSessionId, baseForkSessionId, freshFallbackSessionId]) {
+        expect(sessionId).toMatch(/^[0-9a-f-]{36}$/)
+      }
+      expect(new Set([initialSessionId, extendedForkSessionId, baseForkSessionId, freshFallbackSessionId]).size).toBe(4)
+      expect(lookupSharedSession("sess-1")?.claudeSessionId).toBe(freshFallbackSessionId)
       expect(queryCalls.slice(-3)).toEqual([
-        { model: "sonnet[1m]", callIndex: 2, resume: "sdk-session-1" },
-        { model: "sonnet", callIndex: 3, resume: "sdk-session-1" },
-        { model: "sonnet", callIndex: 4, resume: undefined },
+        { model: "sonnet[1m]", callIndex: 2, resume: initialSessionId, sessionId: extendedForkSessionId },
+        { model: "sonnet", callIndex: 3, resume: initialSessionId, sessionId: baseForkSessionId },
+        { model: "sonnet", callIndex: 4, resume: undefined, sessionId: freshFallbackSessionId },
       ])
     })
   })

@@ -17,6 +17,7 @@ import {
   parseSSE,
   assistantMessage,
   makeRequest,
+  withMockSdkSessionId,
 } from "./helpers"
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk"
 
@@ -28,7 +29,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedQueryParams = opts
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, opts.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({

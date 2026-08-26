@@ -8,12 +8,16 @@
  * while leaving the structured telemetry (claudeLog) and HTTP responses intact.
  */
 import { describe, it, expect, mock, beforeEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 let mockMessages: unknown[] = []
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => (async function* () { for (const msg of mockMessages) yield msg })(),
+  query: (params: any) => (async function* () {
+    for (const msg of mockMessages) {
+      yield withMockSdkSessionId(msg, params.options)
+    }
+  })(),
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
 }))

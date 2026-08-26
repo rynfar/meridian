@@ -8,7 +8,7 @@
  * request unfindable by the id the client sent.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 let failingDirs = new Set<string>()
 
@@ -19,7 +19,8 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       if ([...failingDirs].some(f => dir.includes(f))) {
         throw new Error("429 rate limit reached for this account")
       }
-      yield assistantMessage([{ type: "text", text: "ok from " + dir }])
+      const message = assistantMessage([{ type: "text", text: "ok from " + dir }])
+      yield withMockSdkSessionId(message, params.options)
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),

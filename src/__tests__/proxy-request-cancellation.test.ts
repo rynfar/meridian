@@ -24,13 +24,16 @@ function assistantMessage() {
   }
 }
 
+import { withMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: (params: { options?: { abortController?: AbortController } }) => {
+  query: (params: { options?: { abortController?: AbortController; sessionId?: string } }) => {
     capturedController = params.options?.abortController
     notifyQueryStarted?.()
     return (async function* () {
       if (mode === "complete") {
-        yield assistantMessage()
+        const message = assistantMessage()
+        yield withMockSdkSessionId(message, params.options)
         return
       }
 

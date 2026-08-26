@@ -25,7 +25,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { makeRequest } from "./helpers"
+import { makeRequest, withMockSdkSessionId } from "./helpers"
 
 const PASSTHROUGH_PREFIX = "mcp__oc__"
 
@@ -57,7 +57,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     (async function* () {
       const preHook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
       for (const turn of mockTurns) {
-        yield turn
+        yield withMockSdkSessionId(turn, opts.options)
         // Simulate the SDK executing this turn's tool call: the passthrough
         // PreToolUse hook fires (captures + blocks) BEFORE the next turn is
         // produced. If the consumer has already broken, this never runs for

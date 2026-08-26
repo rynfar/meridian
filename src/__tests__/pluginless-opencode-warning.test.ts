@@ -26,6 +26,7 @@
  * exposed case.
  */
 import { describe, it, expect, beforeEach } from "bun:test"
+import { resolveMockSdkSessionId } from "./helpers"
 import { notePluginlessOpenCodeRequest, clearPluginlessWarnings } from "../proxy/setup"
 
 const OPENCODE_UA = "opencode/1.18.11 ai-sdk/provider-utils/4.0.27 runtime/bun/1.3.14"
@@ -140,11 +141,11 @@ describe("plugin-less warning through the HTTP path", () => {
   it("records a diagnostic for a plugin-less OpenCode request, and not for a plugin-ful one", async () => {
     const { mock } = await import("bun:test")
     mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-      query: () => (async function* () {
+      query: (params: any) => (async function* () {
         yield {
           type: "assistant",
           uuid: "u1",
-          session_id: "test-session",
+          session_id: resolveMockSdkSessionId(params.options, "test-session"),
           message: { id: "m1", type: "message", role: "assistant", model: "m",
             content: [{ type: "text", text: "ok" }], stop_reason: "end_turn",
             usage: { input_tokens: 1, output_tokens: 1 } },

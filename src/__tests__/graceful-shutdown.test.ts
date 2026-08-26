@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
 import type { AddressInfo } from "node:net"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { lookupSharedSession, setSessionStoreDir } from "../proxy/sessionStore"
 import {
   assistantMessage,
   messageStart,
@@ -8,6 +12,7 @@ import {
   blockStop,
   messageDelta,
   messageStop,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 interface AttemptControl {
@@ -27,11 +32,11 @@ function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted:
 }
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => {
+  query: (params: any) => {
     queryCalls++
     const control = deferredAttempt()
     controls.push(control)
-    const sessionId = `sdk-drain-${queryCalls}`
+    const sessionId = resolveMockSdkSessionId(params?.options, `sdk-drain-${queryCalls}`)
     const generator = (async function* () {
       control.markStarted()
       yield { ...messageStart(), session_id: sessionId }
@@ -105,10 +110,19 @@ async function waitForControl(index: number, timeoutMs = 3000): Promise<AttemptC
 }
 
 describe("graceful shutdown", () => {
+  let isolatedSessionDir = ""
+
   beforeEach(() => {
+    isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-shutdown-test-"))
+    setSessionStoreDir(isolatedSessionDir)
     queryCalls = 0
     controls = []
     clearSessionCache()
+  })
+
+  afterEach(async () => {
+    await Bun.sleep(25)
+    rmSync(isolatedSessionDir, { recursive: true, force: true })
   })
 
   it("exposes beginDrain and getInFlightCount, starting undrained with no in-flight requests", () => {
@@ -183,6 +197,83 @@ describe("graceful shutdown", () => {
     await response.text()
     await Bun.sleep(10)
     expect(server.getInFlightCount!()).toBe(0)
+  })
+
+  it("revokes durable publication when forced shutdown aborts an admitted request", async () => {
+    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const responseP = server.app.fetch(request("forced-shutdown", true))
+    const control = await waitForControl(0)
+
+    server.forceAbortInFlight!()
+    // The mock deliberately ignores AbortSignal and completes normally. This
+    // proves revocation, not cooperative SDK cancellation, fences the late
+    // publication callback after the shutdown deadline.
+    control.release()
+
+    const response = await responseP
+    await response.text()
+    for (let index = 0; index < 100 && server.getInFlightCount!() !== 0; index++) {
+      await Bun.sleep(1)
+    }
+    expect(server.getInFlightCount!()).toBe(0)
+    expect(lookupSharedSession("forced-shutdown")).toBeUndefined()
+  })
+
+  it("evicts an existing mapping when forced shutdown interrupts its next turn", async () => {
+    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const opening = [{ role: "user", content: "hi" }]
+    const firstP = server.app.fetch(request("forced-existing", true, opening))
+    const firstControl = await waitForControl(0)
+    const first = await firstP
+    firstControl.release()
+    await first.text()
+    expect(lookupSharedSession("forced-existing")).toBeDefined()
+
+    const continuation = [
+      ...opening,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ]
+    const interruptedP = server.app.fetch(request("forced-existing", true, continuation))
+    const interruptedControl = await waitForControl(1)
+    const interrupted = await interruptedP
+
+    // The mock ignores AbortSignal and exposes target content after shutdown.
+    // Cleanup must evict the source mapping so that partial fork output cannot
+    // be treated as if it already existed in that immutable source.
+    server.forceAbortInFlight!()
+    interruptedControl.release()
+    await interrupted.text()
+    for (let index = 0; index < 100 && server.getInFlightCount!() !== 0; index++) {
+      await Bun.sleep(1)
+    }
+    expect(server.getInFlightCount!()).toBe(0)
+    expect(lookupSharedSession("forced-existing")).toBeUndefined()
+  })
+
+  it("preserves the source when shutdown cancels a non-stream fork before response", async () => {
+    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const opening = [{ role: "user", content: "hi" }]
+    const firstP = server.app.fetch(request("forced-existing-nonstream", false, opening))
+    const firstControl = await waitForControl(0)
+    firstControl.release()
+    const first = await firstP
+    await first.text()
+    const sourceSessionId = lookupSharedSession("forced-existing-nonstream")?.claudeSessionId
+    expect(sourceSessionId).toBeDefined()
+
+    const continuation = [
+      ...opening,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ]
+    const interruptedP = server.app.fetch(request("forced-existing-nonstream", false, continuation))
+    const interruptedControl = await waitForControl(1)
+    server.forceAbortInFlight!()
+    interruptedControl.release()
+    const interrupted = await interruptedP
+    await interrupted.text()
+    expect(lookupSharedSession("forced-existing-nonstream")?.claudeSessionId).toBe(sourceSessionId)
   })
 
   it("counts a same-session request while it waits for the active turn", async () => {

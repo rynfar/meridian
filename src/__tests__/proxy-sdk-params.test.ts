@@ -18,6 +18,7 @@ import {
   messageDelta,
   messageStop,
   assistantMessage,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 
@@ -28,8 +29,15 @@ let mockMessages: unknown[] = []
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: { prompt: unknown; options: Record<string, unknown> }) => {
     capturedOptions = params.options ?? {}
+    const sessionId = resolveMockSdkSessionId(params.options)
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        if (typeof sessionId === "string" && msg !== null && typeof msg === "object") {
+          yield { ...msg, session_id: sessionId }
+        } else {
+          yield msg
+        }
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
@@ -391,7 +399,6 @@ describe("Usage logging", () => {
       },
       parent_tool_use_id: null,
       uuid: crypto.randomUUID(),
-      session_id: "test-session-fmt",
     }]
     const logSpy = spyOn(console, "error")
     const app = createTestApp()
@@ -437,7 +444,6 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
   })
 
   it("returns usage after a completed request", async () => {
-    const claudeSessionId = "sess_usage_test_001"
     mockMessages = [{
       type: "assistant",
       message: {
@@ -451,7 +457,6 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
       },
       parent_tool_use_id: null,
       uuid: crypto.randomUUID(),
-      session_id: claudeSessionId,
     }]
 
     const app = createTestApp()
@@ -459,6 +464,7 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
     await post(app, { ...BASE_BODY, "x-opencode-session": "agent-session-abc" }, {
       "x-opencode-session": "agent-session-abc",
     })
+    const claudeSessionId = capturedOptions.sessionId as string
 
     const res = await app.fetch(
       new Request(`http://localhost/v1/sessions/${claudeSessionId}/context-usage`)
@@ -473,7 +479,6 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
   })
 
   it("returns usage for sessions tracked only by fingerprint fallback", async () => {
-    const claudeSessionId = "sess_usage_fingerprint_only"
     mockMessages = [{
       type: "assistant",
       message: {
@@ -487,11 +492,11 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
       },
       parent_tool_use_id: null,
       uuid: crypto.randomUUID(),
-      session_id: claudeSessionId,
     }]
 
     const app = createTestApp()
     await post(app, BASE_BODY)
+    const claudeSessionId = capturedOptions.sessionId as string
 
     const res = await app.fetch(
       new Request(`http://localhost/v1/sessions/${claudeSessionId}/context-usage`)
@@ -505,7 +510,6 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
   })
 
   it("returns the last usage iteration when the SDK reports cumulative top-level usage", async () => {
-    const claudeSessionId = "sess_usage_iterations_001"
     mockMessages = [{
       type: "assistant",
       message: {
@@ -540,13 +544,13 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
       },
       parent_tool_use_id: null,
       uuid: crypto.randomUUID(),
-      session_id: claudeSessionId,
     }]
 
     const app = createTestApp()
     await post(app, { ...BASE_BODY, "x-opencode-session": "agent-session-iterations" }, {
       "x-opencode-session": "agent-session-iterations",
     })
+    const claudeSessionId = capturedOptions.sessionId as string
 
     const res = await app.fetch(
       new Request(`http://localhost/v1/sessions/${claudeSessionId}/context-usage`)
@@ -564,7 +568,6 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
   })
 
   it("falls back to top-level usage when iterations is empty", async () => {
-    const claudeSessionId = "sess_usage_empty_iterations_001"
     mockMessages = [{
       type: "assistant",
       message: {
@@ -584,13 +587,13 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
       },
       parent_tool_use_id: null,
       uuid: crypto.randomUUID(),
-      session_id: claudeSessionId,
     }]
 
     const app = createTestApp()
     await post(app, { ...BASE_BODY, "x-opencode-session": "agent-session-empty-iterations" }, {
       "x-opencode-session": "agent-session-empty-iterations",
     })
+    const claudeSessionId = capturedOptions.sessionId as string
 
     const res = await app.fetch(
       new Request(`http://localhost/v1/sessions/${claudeSessionId}/context-usage`)
@@ -615,8 +618,7 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
     expect(res.status).toBe(404)
   })
 
-  it("uses the Claude session ID from the response, not the agent session ID", async () => {
-    const claudeSessionId = "sess_claude_id_check"
+  it("uses the caller-selected Claude session ID, not the agent session ID", async () => {
     const agentSessionId = "agent-id-xyz-different"
 
     mockMessages = [{
@@ -632,11 +634,11 @@ describe("GET /v1/sessions/:claudeSessionId/context-usage", () => {
       },
       parent_tool_use_id: null,
       uuid: crypto.randomUUID(),
-      session_id: claudeSessionId,
     }]
 
     const app = createTestApp()
     await post(app, BASE_BODY, { "x-opencode-session": agentSessionId })
+    const claudeSessionId = capturedOptions.sessionId as string
 
     // Agent session ID → 404
     const byAgent = await app.fetch(

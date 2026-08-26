@@ -20,7 +20,22 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { makeRequest, parseSSE } from "./helpers"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setSessionStoreDir } from "../proxy/sessionStore"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-http-test-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  // Request completion releases the cross-process lease asynchronously.
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
+import { makeRequest, parseSSE, resolveMockSdkSessionId } from "./helpers"
 
 const PASSTHROUGH_PREFIX = "mcp__oc__"
 
@@ -101,11 +116,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     capturedResume = opts?.options?.resume
     return (async function* () {
       const preHook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
+      const sessionId = resolveMockSdkSessionId(opts?.options, "test-session")
       for (const turn of mockTurns) {
         if (capturedController?.signal.aborted) {
           throw new Error("Claude Code process aborted by user")
         }
-        yield turn
+        // The real SDK honors Options.sessionId for a fork. Keep this mock
+        // faithful so managed-fork identity validation exercises that contract.
+        yield { ...turn, session_id: sessionId }
         if (preHook && turn.type === "assistant") {
           for (const block of turn.message.content) {
             if (block.type === "tool_use") {
@@ -432,6 +450,9 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
     const first = await post(app, false)
     expect(first.status).toBe(200)
+    const firstSessionId = first.headers.get("x-claude-session-id")
+    expect(firstSessionId).toBeTruthy()
+    if (!firstSessionId) throw new Error("missing caller-selected session ID")
 
     mockTurns = [
       {
@@ -462,7 +483,7 @@ describe("parallel same-tool calls are captured and forwarded (#552 kabo regress
     // '[your read ...]: Tool execution aborted' confusion loop.
     // (?? guard defeats TS narrowing from the `= undefined` reset above —
     // the mock closure reassigns it during the request.)
-    expect(capturedResume ?? "(not resumed)").toBe("test-session")
+    expect(capturedResume ?? "(not resumed)").toBe(firstSessionId)
   })
 
   it("stream: both parallel read blocks reach the client fully terminated, no error", async () => {

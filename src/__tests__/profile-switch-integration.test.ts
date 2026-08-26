@@ -8,15 +8,17 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { mock } from "bun:test"
 
 // Mock the SDK before importing server
+import { resolveMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: (opts: Record<string, unknown>) => {
+  query: (opts: { options?: { sessionId?: string } }) => {
     return (async function* () {
       yield {
         type: "assistant",
         message: { type: "assistant", content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" },
         parent_tool_use_id: null,
         uuid: crypto.randomUUID(),
-        session_id: `session-${Date.now()}`,
+        session_id: resolveMockSdkSessionId(opts.options, `session-${Date.now()}`),
       }
     })()
   },

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 let capturedQueryParams: any = null
 
@@ -25,7 +25,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: "sess-1",
+        session_id: resolveMockSdkSessionId(params.options, "sess-1"),
       }
     })()
   },

@@ -9,12 +9,17 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import {
   lookupSharedSession,
   lookupSharedSessionByClaudeId,
+  lookupSharedSessionResult,
+  evictSharedSession,
   storeSharedSession,
   clearSharedSessions,
+  getSessionStoreDir,
+  readSessionStoreSnapshot,
+  readSessionStoreGenerationSnapshot,
   setSessionStoreDir,
 } from "../proxy/sessionStore"
 import { join } from "node:path"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 
 describe("Shared session store", () => {
@@ -186,12 +191,193 @@ describe("Shared session store", () => {
     }
   })
 
-  it("should handle corrupted file gracefully", () => {
-    writeFileSync(join(tmpDir, "sessions.json"), "not json{{{")
-    const result = lookupSharedSession("anything")
-    expect(result).toBeUndefined()
-    // Should still be able to write after corruption
-    storeSharedSession("new-sess", "claude-new")
-    expect(lookupSharedSession("new-sess")!.claudeSessionId).toBe("claude-new")
+  it("keeps tolerant lookups but rejects strict reads and mutations on corruption", () => {
+    const sessionsPath = join(tmpDir, "sessions.json")
+    writeFileSync(sessionsPath, "not json{{{")
+
+    expect(lookupSharedSession("anything")).toBeUndefined()
+    expect(() => readSessionStoreSnapshot()).toThrow()
+    expect(() => storeSharedSession("new-sess", "claude-new")).toThrow()
+    expect(() => clearSharedSessions()).toThrow()
+    expect(readFileSync(sessionsPath, "utf8")).toBe("not json{{{")
   })
+
+  it("reports the overridden session store directory", () => {
+    expect(getSessionStoreDir()).toBe(tmpDir)
+  })
+
+  it("moves the exact transcript locator when the Claude session ID changes", () => {
+    const original = { sessionId: "claude-old", configDir: "/config-a", projectDir: "/project-a" }
+    const replacement = { sessionId: "claude-new", configDir: "/config-b" }
+    storeSharedSession(
+      "located-session", "claude-old", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, original
+    )
+
+    storeSharedSession(
+      "located-session", "claude-new", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, replacement,
+      { sessionId: "claude-old", configDir: "/fallback-must-not-win" }
+    )
+    expect(lookupSharedSession("located-session")).toMatchObject({
+      claudeSessionId: "claude-new",
+      previousClaudeSessionId: "claude-old",
+      currentTranscript: replacement,
+      previousTranscript: original,
+    })
+
+    // Updating the same ID without another locator preserves both locations.
+    storeSharedSession("located-session", "claude-new", 3)
+    expect(lookupSharedSession("located-session")).toMatchObject({
+      currentTranscript: replacement,
+      previousTranscript: original,
+    })
+
+    storeSharedSession("located-session", "claude-third")
+    expect(lookupSharedSession("located-session")?.currentTranscript).toBeUndefined()
+    expect(lookupSharedSession("located-session")?.previousTranscript).toEqual(replacement)
+
+    // Never reuse a locator that belongs to an older, non-immediate ID.
+    storeSharedSession("located-session", "claude-fourth")
+    expect(lookupSharedSession("located-session")?.previousTranscript).toBeUndefined()
+  })
+
+  it("uses a validated legacy source locator for the first managed fork", () => {
+    const source = { sessionId: "claude-legacy", configDir: "/legacy-config", projectDir: "/legacy-project" }
+    const current = { sessionId: "claude-managed", configDir: "/managed-config" }
+    storeSharedSession("legacy-fork", "claude-legacy")
+    storeSharedSession(
+      "legacy-fork", "claude-managed", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, current, source
+    )
+
+    expect(lookupSharedSession("legacy-fork")).toMatchObject({
+      previousClaudeSessionId: "claude-legacy",
+      currentTranscript: current,
+      previousTranscript: source,
+    })
+  })
+
+  it("validates transcript locators before changing the stored mapping", () => {
+    storeSharedSession("validated", "claude-original")
+    const before = readSessionStoreSnapshot()
+
+    expect(() => storeSharedSession(
+      "validated", "claude-new", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined,
+      { sessionId: "wrong-id", configDir: "/config" }
+    )).toThrow("currentTranscript.sessionId")
+    expect(() => storeSharedSession(
+      "validated", "claude-new", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined,
+      { sessionId: "claude-new", configDir: "relative/config" }
+    )).toThrow("currentTranscript.configDir")
+    expect(() => storeSharedSession(
+      "validated", "claude-new", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined,
+      { sessionId: "claude-new", configDir: "/config", projectDir: "relative/project" }
+    )).toThrow("currentTranscript.projectDir")
+    expect(() => storeSharedSession(
+      "validated", "claude-new", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, undefined,
+      { sessionId: "not-claude-original", configDir: "/legacy-config" }
+    )).toThrow("sourceTranscript.sessionId")
+    expect(() => storeSharedSession(
+      "validated", "claude-new", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, undefined,
+      { sessionId: "claude-original", configDir: "relative/legacy-config" }
+    )).toThrow("sourceTranscript.configDir")
+    expect(() => storeSharedSession(
+      "validated", "claude-new", undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, undefined,
+      { sessionId: "claude-original", configDir: "/legacy-config", projectDir: "relative/project" }
+    )).toThrow("sourceTranscript.projectDir")
+
+    expect(readSessionStoreSnapshot()).toEqual(before)
+  })
+
+  it("uses a key-bound expected-generation CAS and increments durable revisions", () => {
+    const first = storeSharedSession("cas", "sdk-a")
+    expect(typeof first).toBe("string")
+    expect(String(first)).toStartWith("p:")
+    expect(lookupSharedSession("cas")?.revision).toBe(1)
+
+    expect(storeSharedSession(
+      "cas", "sdk-stale", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, "wrong-source",
+    )).toBe(false)
+    expect(lookupSharedSession("cas")?.claudeSessionId).toBe("sdk-a")
+    expect(lookupSharedSession("cas")?.revision).toBe(1)
+
+    const second = storeSharedSession(
+      "cas", "sdk-b", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, first || undefined,
+    )
+    expect(typeof second).toBe("string")
+    expect(second).not.toBe(first)
+    expect(lookupSharedSession("cas")?.claudeSessionId).toBe("sdk-b")
+    expect(lookupSharedSession("cas")?.revision).toBe(2)
+  })
+
+  it("snapshots key-bound absence for every configured profile scope", () => {
+    const snapshot = readSessionStoreGenerationSnapshot("client-session", ["default", "work", "personal"])
+    expect(snapshot["client-session"]).toMatch(/^a:/)
+    expect(snapshot["work:client-session"]).toMatch(/^a:/)
+    expect(snapshot["personal:client-session"]).toMatch(/^a:/)
+    expect(new Set(Object.values(snapshot))).toHaveLength(3)
+  })
+
+  it("rejects replacement, delete/recreate, and absent-key ABA by exact generation", () => {
+    const first = storeSharedSession("aba", "sdk-a")
+    expect(typeof first).toBe("string")
+    const second = storeSharedSession(
+      "aba", "sdk-b", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, first || undefined,
+    )
+    const third = storeSharedSession(
+      "aba", "sdk-a", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, second || undefined,
+    )
+    expect(typeof third).toBe("string")
+    expect(storeSharedSession(
+      "aba", "sdk-stale", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, first || undefined,
+    )).toBe(false)
+    expect(evictSharedSession("aba", first || undefined)).toBe(false)
+    expect(evictSharedSession("aba", third || undefined)).toBe(true)
+
+    const absentAfterDelete = lookupSharedSessionResult("aba")
+    expect(absentAfterDelete.status).toBe("missing")
+    const recreated = storeSharedSession(
+      "aba", "sdk-recreated", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined,
+      absentAfterDelete.status === "missing" ? absentAfterDelete.generation : undefined,
+    )
+    expect(typeof recreated).toBe("string")
+    expect(storeSharedSession(
+      "aba", "sdk-stale-after-recreate", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, third || undefined,
+    )).toBe(false)
+
+    const neverSeen = lookupSharedSessionResult("never-seen")
+    expect(neverSeen.status).toBe("missing")
+    const initialAbsence = neverSeen.status === "missing" ? neverSeen.generation : undefined
+    const created = storeSharedSession(
+      "never-seen", "sdk-created", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, initialAbsence,
+    )
+    expect(typeof created).toBe("string")
+    expect(evictSharedSession("never-seen", created || undefined)).toBe(true)
+    const alreadyAbsent = lookupSharedSessionResult("never-seen")
+    expect(alreadyAbsent.status).toBe("missing")
+    expect(evictSharedSession(
+      "never-seen",
+      alreadyAbsent.status === "missing" ? alreadyAbsent.generation : undefined,
+    )).toBe(true)
+    expect(storeSharedSession(
+      "never-seen", "sdk-stale-absence", undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, initialAbsence,
+    )).toBe(false)
+  })
+
 })

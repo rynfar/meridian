@@ -23,10 +23,10 @@ import {
   parseSSE,
   toolUseBlockStart,
   inputJsonDelta,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 let mockMessages: unknown[] = []
-let mockSdkSessionId: string | undefined
 let capturedPromptMessages: unknown[] = []
 let capturedOptions: Record<string, unknown> | null = null
 let capturedOptionHistory: Array<Record<string, unknown>> = []
@@ -35,6 +35,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: ({ prompt, options }: { prompt: string | AsyncIterable<unknown>; options?: Record<string, unknown> }) => {
     capturedOptions = options ?? null
     capturedOptionHistory.push(options ?? {})
+    const sessionId = resolveMockSdkSessionId(options)
     return (async function* () {
       capturedPromptMessages = []
       if (typeof prompt === "string") {
@@ -45,8 +46,8 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         }
       }
       for (const msg of mockMessages) {
-        if (mockSdkSessionId && msg !== null && typeof msg === "object") {
-          yield { ...msg, session_id: mockSdkSessionId }
+        if (typeof sessionId === "string" && msg !== null && typeof msg === "object") {
+          yield { ...msg, session_id: sessionId }
         } else {
           yield msg
         }
@@ -274,7 +275,6 @@ describe("POST /v1/chat/completions — Jcode session continuity", () => {
 
   beforeEach(() => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
-    mockSdkSessionId = "sdk-1"
     capturedPromptMessages = []
     capturedOptions = null
     capturedOptionHistory = []
@@ -293,7 +293,8 @@ describe("POST /v1/chat/completions — Jcode session continuity", () => {
 
     expect(capturedOptionHistory).toHaveLength(2)
     expect(capturedOptionHistory[0]?.resume).toBeUndefined()
-    expect(capturedOptionHistory[1]?.resume).toBe("sdk-1")
+    expect(capturedOptionHistory[0]?.sessionId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(capturedOptionHistory[1]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
     expect(capturedOptionHistory[1]?.systemPrompt).toBe("stable system")
   })
 

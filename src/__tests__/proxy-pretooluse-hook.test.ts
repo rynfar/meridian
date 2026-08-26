@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop } from "./helpers"
+import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, withMockSdkSessionId } from "./helpers"
 
 let mockMessages: any[] = []
 let capturedQueryParams: any = null
@@ -22,7 +22,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     capturedQueryParams = params
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, params.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),

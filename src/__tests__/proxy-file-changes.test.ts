@@ -19,6 +19,7 @@ import {
   messageDelta,
   messageStop,
   parseSSE,
+  withMockSdkSessionId,
 } from "./helpers"
 
 let mockMessages: any[] = []
@@ -33,8 +34,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     return (async function* () {
       const postToolUseHooks = params.options?.hooks?.PostToolUse
       for (const msg of mockMessages) {
-        yield msg
-
+        yield withMockSdkSessionId(msg, params.options)
         // After yielding an assistant message with tool results, fire PostToolUse
         // for any MCP tool blocks (simulating the SDK's internal tool execution)
         if (msg.type === "assistant" && postToolUseHooks) {

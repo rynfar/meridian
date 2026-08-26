@@ -18,6 +18,7 @@
  */
 
 import { existsSync } from "node:fs"
+import { resolve } from "node:path"
 
 export interface CwdResolution {
   /** Path passed to the SDK as `cwd:`. Always exists on the proxy host. */
@@ -45,9 +46,10 @@ export interface ResolveCwdOpts {
 
 export function resolveSdkWorkingDirectory(opts: ResolveCwdOpts): CwdResolution {
   const exists = opts.exists ?? existsSync
-  const claimed = opts.envOverride || opts.adapterCwd || opts.fallback
+  const claimed = resolve(opts.envOverride || opts.adapterCwd || opts.fallback)
+  const fallback = resolve(opts.fallback)
   if (exists(claimed)) {
     return { workingDirectory: claimed, claimedWorkingDirectory: claimed, fellBack: false }
   }
-  return { workingDirectory: opts.fallback, claimedWorkingDirectory: claimed, fellBack: true }
+  return { workingDirectory: fallback, claimedWorkingDirectory: claimed, fellBack: true }
 }

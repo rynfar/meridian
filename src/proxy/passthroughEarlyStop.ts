@@ -12,7 +12,7 @@
  * fires the hidden digest turn. Those messages identify a stable assistant
  * checkpoint, but they are NOT a durability acknowledgement: a live PTY E2E
  * observed the assistant and deny in the iterator while neither existed in the
- * session JSONL after an immediate abort. The proxy therefore freezes the
+ * durable SDK transcript after an immediate abort. The proxy therefore freezes the
  * assistant UUID/tool IDs at deny settlement and stores the checkpoint only
  * after the SDK's canonical terminal result commits the transcript.
  *
@@ -220,6 +220,32 @@ export function coalesceCompleteToolResultContinuation(
   return [{ role: "user", content }]
 }
 
+/** Find and validate the exact echoed assistant checkpoint plus its result tail. */
+export function findCompleteToolResultCheckpoint(
+  messages: Array<{ role?: unknown; content?: unknown }>,
+  expectedIds: readonly string[],
+): Array<{ role: "user"; content: unknown[] }> | undefined {
+  if (expectedIds.length === 0) return undefined
+  const expected = new Set(expectedIds)
+  if (expected.size !== expectedIds.length) return undefined
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    if (message?.role !== "assistant" || !Array.isArray(message.content)) continue
+    const ids: string[] = []
+    let malformed = false
+    for (const rawBlock of message.content) {
+      const block = rawBlock as { type?: unknown; id?: unknown } | null | undefined
+      if (block?.type !== "tool_use") continue
+      if (typeof block.id !== "string") { malformed = true; break }
+      ids.push(block.id)
+    }
+    if (malformed || ids.length !== expected.size || new Set(ids).size !== ids.length) continue
+    if (!ids.every((id) => expected.has(id))) continue
+    return coalesceCompleteToolResultContinuation(messages.slice(index), expectedIds)
+  }
+  return undefined
+}
+
 /**
  * Has the tracker caught up with every forwarded call the wire actually
  * carried?
@@ -272,7 +298,7 @@ export type ClientAbortDisposition =
  * A client abort leaves the SDK session ending in an interrupted tail. Even an
  * assistant UUID already seen in the iterator is not known durable until the
  * canonical result: the live PTY regression yielded that UUID but never wrote
- * it to JSONL after abort. Therefore every owned mapping is evicted; a replay
+ * it durably after abort. Therefore every owned mapping is evicted; a replay
  * costs one cache miss but cannot wedge on a missing or interrupted boundary.
  */
 export function clientAbortDisposition(input: {

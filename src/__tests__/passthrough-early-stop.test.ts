@@ -14,6 +14,7 @@ import { describe, it, expect } from "bun:test"
 import {
   clientAbortDisposition,
   coalesceCompleteToolResultContinuation,
+  findCompleteToolResultCheckpoint,
   createEarlyStopTracker,
   allForwardedCallsResolved,
   isClientForwardedToolUse,
@@ -364,5 +365,25 @@ describe("coalesceCompleteToolResultContinuation", () => {
       { role: "user", content: [result("t1")] },
       { role: "assistant", content: [{ type: "text", text: "late" }] },
     ], ["t1"])).toBeUndefined()
+  })
+})
+
+describe("findCompleteToolResultCheckpoint", () => {
+  const assistant = { role: "assistant", content: [{ type: "tool_use", id: "a" }, { type: "tool_use", id: "b" }] }
+  const result = (id: string) => ({ type: "tool_result", tool_use_id: id, content: id })
+
+  it("accepts only the exact immediate assistant checkpoint batch", () => {
+    expect(findCompleteToolResultCheckpoint([
+      { role: "user", content: "volatile old envelope" },
+      assistant,
+      { role: "user", content: [result("a"), result("b")] },
+    ], ["a", "b"])).toBeDefined()
+  })
+
+  it("rejects duplicate, extra, missing, and wrong-role result tails", () => {
+    expect(findCompleteToolResultCheckpoint([assistant, { role: "user", content: [result("a"), result("a")] }], ["a", "b"])).toBeUndefined()
+    expect(findCompleteToolResultCheckpoint([assistant, { role: "user", content: [result("a"), result("b"), result("extra")] }], ["a", "b"])).toBeUndefined()
+    expect(findCompleteToolResultCheckpoint([assistant, { role: "user", content: [result("a")] }], ["a", "b"])).toBeUndefined()
+    expect(findCompleteToolResultCheckpoint([assistant, { role: "assistant", content: [result("a"), result("b")] }], ["a", "b"])).toBeUndefined()
   })
 })

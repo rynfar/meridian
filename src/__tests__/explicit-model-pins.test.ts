@@ -62,6 +62,8 @@ describe("canonical opus pin", () => {
 
 let queryEnvs: Array<Record<string, string | undefined>> = []
 
+import { resolveMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     queryEnvs.push(opts.options?.env || {})
@@ -78,7 +80,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 5, output_tokens: 2 },
         },
-        session_id: "sdk-1",
+        session_id: resolveMockSdkSessionId(opts.options, "sdk-1"),
       }
     })()
   },

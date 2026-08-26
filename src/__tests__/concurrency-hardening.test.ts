@@ -7,6 +7,7 @@ import {
   blockStop,
   messageDelta,
   messageStop,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 /**
@@ -32,11 +33,11 @@ function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted:
 }
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => {
+  query: (params: any) => {
     queryCalls++
     const control = deferredAttempt()
     controls.push(control)
-    const sessionId = `sdk-harden-${queryCalls}`
+    const sessionId = resolveMockSdkSessionId(params.options, `sdk-harden-${queryCalls}`)
     const generator = (async function* () {
       control.markStarted()
       yield { ...messageStart(), session_id: sessionId }

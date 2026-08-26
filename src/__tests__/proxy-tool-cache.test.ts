@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
-import { assistantMessage, makeRequest, READ_TOOL } from "./helpers"
+import { assistantMessage, makeRequest, READ_TOOL, withMockSdkSessionId } from "./helpers"
 
 let capturedQueryParams: any = null
 let mockMessages: any[] = []
@@ -14,7 +14,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     capturedQueryParams = params
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, params.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({

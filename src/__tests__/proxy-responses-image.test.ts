@@ -15,6 +15,8 @@ const RED_PNG_B64 =
 // iterable of user messages; a dropped image degrades this to a plain string.
 let capturedPrompt: any = null
 
+import { resolveMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedPrompt = opts.prompt
@@ -31,7 +33,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 20, output_tokens: 5 },
         },
-        session_id: "sdk-1",
+        session_id: resolveMockSdkSessionId(opts.options, "sdk-1"),
       }
     })()
   },

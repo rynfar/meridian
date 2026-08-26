@@ -15,7 +15,7 @@
  * subprocesses run at once.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 let sdkActive = 0
 let sdkPeak = 0
@@ -28,12 +28,13 @@ function gateClosed() {
 }
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => (async function* () {
+  query: (params: any) => (async function* () {
     sdkActive++
     sdkPeak = Math.max(sdkPeak, sdkActive)
     try {
       await sdkGate
-      yield assistantMessage([{ type: "text", text: "ok" }])
+      const message = assistantMessage([{ type: "text", text: "ok" }])
+      yield withMockSdkSessionId(message, params.options)
     } finally {
       sdkActive--
     }

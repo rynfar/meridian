@@ -4,7 +4,7 @@
  * SDK subprocess env (CLAUDE_CONFIG_DIR carries the profile's config dir).
  */
 import { describe, it, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 let mockMessages: any[] = []
 let capturedEnvs: Array<Record<string, string | undefined>> = []
@@ -13,7 +13,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     capturedEnvs.push(params.options?.env ?? {})
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, params.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),

@@ -5,7 +5,8 @@
  * between the streaming and non-streaming paths in server.ts.
  */
 
-import { join } from "node:path"
+import { homedir } from "node:os"
+import { isAbsolute, join, resolve } from "node:path"
 import type { Options, OutputFormat, SdkBeta, SettingSource } from "@anthropic-ai/claude-agent-sdk"
 import { createOpencodeMcpServer } from "../mcpTools"
 import { createPassthroughMcpServer, PASSTHROUGH_MCP_NAME } from "./passthroughTools"
@@ -53,6 +54,26 @@ function stripConfigDir(env: Record<string, string | undefined>): Record<string,
   const out = { ...env }
   delete out.CLAUDE_CONFIG_DIR
   return out
+}
+
+/** Resolve the exact config root the child SDK process will use. Lifecycle GC
+ * stores this absolute locator at creation time so later profile changes cannot
+ * redirect deletion at a different root. */
+export function resolveQueryConfigDir(
+  cleanEnv: Record<string, string | undefined>,
+  sharedMemory: boolean | undefined,
+  workingDirectory: string = process.cwd(),
+): string {
+  const effectiveEnv = sharedMemory ? stripConfigDir(cleanEnv) : cleanEnv
+  const absoluteWorkingDirectory = resolve(workingDirectory)
+  const configured = effectiveEnv.CLAUDE_CONFIG_DIR
+  if (configured) return isAbsolute(configured)
+    ? resolve(configured)
+    : resolve(absoluteWorkingDirectory, configured)
+  const home = effectiveEnv.HOME || homedir()
+  return isAbsolute(home)
+    ? resolve(home, ".claude")
+    : resolve(absoluteWorkingDirectory, home, ".claude")
 }
 
 export interface QueryContext {
@@ -107,6 +128,10 @@ export interface QueryContext {
    *  fallback — the original stays registered as a bg agent; the fork gets a
    *  fresh id with the full history). */
   forkSession?: boolean
+  /** Preallocated SDK session ID for any Meridian-created transcript. Persisting
+   *  this ID before spawn lets lifecycle recovery identify a fresh session or
+   *  fork even if the proxy crashes before the SDK emits its first event. */
+  forkSessionId?: string
   /** SDK hooks (PreToolUse etc.) */
   sdkHooks?: any
   /** Blocked SDK built-in tools (from pipeline) */
@@ -336,7 +361,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
   const {
     prompt, model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
     passthrough, stream, sdkAgents, passthroughMcp, cleanEnv, hasDeferredTools,
-    resumeSessionId, isUndo, resumeSessionAtUuid, forkSession, sdkHooks, blockedTools, incompatibleTools,
+    resumeSessionId, isUndo, resumeSessionAtUuid, forkSession, forkSessionId, sdkHooks, blockedTools, incompatibleTools,
     mcpServerName, allowedMcpTools, onStderr,
     effort, thinking, taskBudget, outputFormat, betas, settingSources, codeSystemPrompt, clientSystemPrompt,
     memory, dreaming, sharedMemory, maxBudgetUsd, fallbackModel, sdkDebug, additionalDirectories,
@@ -481,7 +506,13 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       // PreToolUse denial. resumeSessionAt rewinds that tail for one query but
       // does not replace it in the source transcript; forking makes the rewind
       // durable so the client's real tool_result becomes the new ancestry.
-      ...(isUndo || forkSession || (passthrough && resumeSessionAtUuid) ? { forkSession: true } : {}),
+      ...(isUndo || forkSession || (resumeSessionId && forkSessionId) || (passthrough && resumeSessionAtUuid)
+        ? { forkSession: true }
+        : {}),
+      // Every Meridian-created transcript is preallocated and journaled before
+      // spawn. For resumes this identifies the fork; for fresh turns it closes
+      // the same crash-created-orphan window without enabling forkSession.
+      ...(forkSessionId ? { sessionId: forkSessionId } : {}),
       ...(resumeSessionAtUuid ? { resumeSessionAt: resumeSessionAtUuid } : {}),
       ...(sdkHooks ? { hooks: sdkHooks } : {}),
       ...(effort ? { effort } : {}),

@@ -22,6 +22,7 @@ import {
   makeRequest,
   makeToolResultRequest,
   parseSSE,
+  withMockSdkSessionId,
 } from "./helpers"
 
 // --- Capture SDK calls ---
@@ -35,7 +36,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     queryCallCount++
     return (async function* () {
       for (const msg of mockMessages) {
-        yield msg
+        yield withMockSdkSessionId(msg, params.options)
       }
     })()
   },

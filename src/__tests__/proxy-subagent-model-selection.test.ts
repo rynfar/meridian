@@ -11,6 +11,8 @@ import { describe, it, expect, mock, beforeEach } from "bun:test"
 let capturedModel: string | null = null
 let capturedOptions: any = null
 
+import { resolveMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedOptions = opts.options
@@ -28,7 +30,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 5, output_tokens: 2 },
         },
-        session_id: "sdk-session-1",
+        session_id: resolveMockSdkSessionId(opts.options, "sdk-session-1"),
       }
     })()
   },

@@ -16,7 +16,7 @@
  * into the map — an evicted session simply stops having its tools restored.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage, makeRequest } from "./helpers"
+import { assistantMessage, makeRequest, withMockSdkSessionId } from "./helpers"
 
 let mockMessages: any[] = []
 let capturedQueryParams: any = {}
@@ -25,7 +25,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedQueryParams = opts
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, opts.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({

@@ -17,6 +17,7 @@ import {
   messageDelta,
   messageStop,
   parseSSE,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 // Track query calls to verify retry behavior
@@ -33,6 +34,10 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     const model = opts.options?.model || "sonnet"
     queryCalls.push({ model, callIndex })
     const isStreaming = opts.options?.includePartialMessages === true
+    const returnedSessionId = resolveMockSdkSessionId(opts.options)
+    const withReturnedSessionId = (message: any) => returnedSessionId
+      ? { ...message, session_id: returnedSessionId }
+      : message
 
     return (async function* () {
       if (mockBehavior === "always_rate_limit") {
@@ -54,12 +59,12 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
 
       // Success path
       if (isStreaming) {
-        yield messageStart(`msg-${callIndex}`)
-        yield textBlockStart(0)
-        yield textDelta(0, `response-${callIndex}`)
-        yield blockStop(0)
-        yield messageDelta("end_turn")
-        yield messageStop()
+        yield withReturnedSessionId(messageStart(`msg-${callIndex}`))
+        yield withReturnedSessionId(textBlockStart(0))
+        yield withReturnedSessionId(textDelta(0, `response-${callIndex}`))
+        yield withReturnedSessionId(blockStop(0))
+        yield withReturnedSessionId(messageDelta("end_turn"))
+        yield withReturnedSessionId(messageStop())
       }
       yield {
         type: "assistant",
@@ -73,7 +78,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: `sdk-session-${callIndex}`,
+        session_id: resolveMockSdkSessionId(opts.options, `sdk-session-${callIndex}`),
       }
     })()
   },

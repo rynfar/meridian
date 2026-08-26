@@ -15,6 +15,8 @@ import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 let capturedQueryOptions: any = null
 const savedEnv: Record<string, string | undefined> = {}
 
+import { resolveMockSdkSessionId } from "./helpers"
+
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
     capturedQueryOptions = params.options
@@ -30,7 +32,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: "sess-env-test",
+        session_id: resolveMockSdkSessionId(params.options, "sess-env-test"),
       }
     })()
   },

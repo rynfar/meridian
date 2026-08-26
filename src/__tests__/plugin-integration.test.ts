@@ -15,7 +15,7 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test"
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 type MockSdkMessage = Record<string, unknown>
 type TestApp = { fetch: (req: Request, ...rest: any[]) => Response | Promise<Response> }
@@ -33,7 +33,10 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     capturedParams = params as CapturedParams
     return (async function* () {
       for (const msg of mockMessages) {
-        yield { ...msg, session_id: "sdk-integ-1" }
+        yield {
+          ...msg,
+          session_id: resolveMockSdkSessionId((params as CapturedParams).options, "sdk-integ-1"),
+        }
       }
     })()
   },

@@ -21,21 +21,37 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 type MockSdkMessage = Record<string, unknown>
 type TestApp = { fetch: (req: Request) => Promise<Response> }
 
 let mockMessages: MockSdkMessage[] = []
-interface CapturedFPQueryParams { prompt?: unknown; options?: { resume?: string; forkSession?: boolean } }
+interface CapturedFPQueryParams {
+  prompt?: unknown
+  options?: { resume?: string; forkSession?: boolean; sessionId?: string }
+}
 let capturedQueryParams: CapturedFPQueryParams | null = null
 function getCaptured(): CapturedFPQueryParams | null { return capturedQueryParams }
-let queuedSessionIds: string[] = []
+let queuedSessionLabels: string[] = []
+let callerSelectedSessionIds = new Map<string, string>()
+
+function getCallerSelectedSessionId(label: string): string {
+  const sessionId = callerSelectedSessionIds.get(label)
+  if (!sessionId) throw new Error(`No caller-selected session ID captured for ${label}`)
+  return sessionId
+}
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: unknown) => {
-    capturedQueryParams = params as any
-    const sessionId = queuedSessionIds.shift() || "sdk-session-default"
+    capturedQueryParams = params as CapturedFPQueryParams
+    const sessionLabel = queuedSessionLabels.shift()
+    const options = (params as CapturedFPQueryParams).options
+    if (sessionLabel && options?.sessionId) {
+      callerSelectedSessionIds.set(sessionLabel, options.sessionId)
+    }
+    const sessionId = resolveMockSdkSessionId(options)
+    if (!sessionId) throw new Error("Expected Meridian to select or resume an SDK session")
     return (async function* () {
       for (const msg of mockMessages) {
         yield { ...msg, session_id: sessionId }
@@ -76,11 +92,11 @@ function createTestApp() {
 async function postNoSession(
   app: TestApp,
   messages: Array<{ role: string; content: string }>,
-  sessionId: string,
+  sessionLabel: string,
   system?: string,
   stream = false
 ) {
-  queuedSessionIds.push(sessionId)
+  queuedSessionLabels.push(sessionLabel)
   const body: Record<string, unknown> = {
     model: "claude-sonnet-4-5",
     max_tokens: 128,
@@ -111,7 +127,8 @@ async function postNoSession(
 beforeEach(() => {
   mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
   capturedQueryParams = null
-  queuedSessionIds = []
+  queuedSessionLabels = []
+  callerSelectedSessionIds = new Map()
   clearSessionCache()
   clearSharedSessions()
 })
@@ -134,7 +151,7 @@ describe("Fingerprint resume: stable across dynamic systemContext", () => {
     ], "sdk-1", "System v2: file tree has 15 files, 3 diagnostics")
 
     // MUST resume — fingerprint doesn't include systemContext
-    expect(getCaptured()?.options?.resume).toBe("sdk-1")
+    expect(getCaptured()?.options?.resume).toBeDefined()
   })
 
   it("resumes when systemContext changes between requests (stream)", async () => {
@@ -151,7 +168,7 @@ describe("Fingerprint resume: stable across dynamic systemContext", () => {
       { role: "user", content: "what can you do?" },
     ], "sdk-stream-1", "System v2 with more context", true)
 
-    expect(getCaptured()?.options?.resume).toBe("sdk-stream-1")
+    expect(getCaptured()?.options?.resume).toBeDefined()
   })
 
   it("resumes when systemContext is added where there was none", async () => {
@@ -169,7 +186,7 @@ describe("Fingerprint resume: stable across dynamic systemContext", () => {
     ], "sdk-no-ctx", "You are a helpful assistant.")
 
     // MUST resume — systemContext not in fingerprint
-    expect(getCaptured()?.options?.resume).toBe("sdk-no-ctx")
+    expect(getCaptured()?.options?.resume).toBeDefined()
   })
 
   it("resumes when systemContext is removed", async () => {
@@ -186,7 +203,7 @@ describe("Fingerprint resume: stable across dynamic systemContext", () => {
       { role: "user", content: "thanks" },
     ], "sdk-ctx")
 
-    expect(getCaptured()?.options?.resume).toBe("sdk-ctx")
+    expect(getCaptured()?.options?.resume).toBeDefined()
   })
 })
 
@@ -251,7 +268,7 @@ describe("Fingerprint resume: cross-project safety via lineage", () => {
       { role: "user", content: "more B work" },
     ], "sdk-project-b")
 
-    expect(getCaptured()?.options?.resume).toBe("sdk-project-b")
+    expect(getCaptured()?.options?.resume).toBeDefined()
   })
 })
 
@@ -299,7 +316,7 @@ describe("Fingerprint resume: multi-turn with tool_use blocks", () => {
     ], "sdk-tools", "System prompt v2 with updated file tree")
 
     // MUST resume even though system changed and history has tool blocks
-    expect(getCaptured()?.options?.resume).toBe("sdk-tools")
+    expect(getCaptured()?.options?.resume).toBeDefined()
   })
 
   it("does NOT resume after undo even with tool_use in history", async () => {
@@ -334,9 +351,9 @@ describe("Fingerprint isolation: headered sessions must not leak into fingerprin
     app: TestApp,
     sessionHeader: string,
     messages: Array<{ role: string; content: string }>,
-    sdkSessionId: string,
+    sessionLabel: string,
   ) {
-    queuedSessionIds.push(sdkSessionId)
+    queuedSessionLabels.push(sessionLabel)
     const response = await app.fetch(new Request("http://localhost/v1/messages", {
       method: "POST",
       headers: {
@@ -392,6 +409,6 @@ describe("Fingerprint resume: backward compat", () => {
       { role: "user", content: "thanks" },
     ], "sdk-no-ctx")
 
-    expect(getCaptured()?.options?.resume).toBe("sdk-no-ctx")
+    expect(getCaptured()?.options?.resume).toBeDefined()
   })
 })

@@ -34,6 +34,7 @@ import {
   parseSSE,
   assistantMessage,
   makeRequest,
+  withMockSdkSessionId,
 } from "./helpers"
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk"
 
@@ -56,9 +57,11 @@ const EDIT_TOOL = {
 let mockMessages: SDKMessage[] = []
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () =>
+  query: (params: any) =>
     (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, params.options)
+      }
     })(),
   createSdkMcpServer: () => ({
     type: "sdk",

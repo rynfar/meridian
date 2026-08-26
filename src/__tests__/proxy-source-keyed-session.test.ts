@@ -15,16 +15,18 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 let mockMessages: unknown[] = []
 let capturedOptions: any[] = []
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
-    capturedOptions.push(params.options || {})
+    const options = params.options || {}
+    capturedOptions.push(options)
+    const sessionId = resolveMockSdkSessionId(options, "test-session")
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) yield { ...(msg as object), session_id: sessionId }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
@@ -93,7 +95,7 @@ describe("explicit session keys override the independence guard", () => {
     expect((await post(app, TURN_2, headers)).status).toBe(200)
     expect(capturedOptions).toHaveLength(2)
     expect(capturedOptions[0].resume).toBeUndefined()
-    expect(capturedOptions[1].resume).toBe("test-session")
+    expect(capturedOptions[1].resume).toBe(capturedOptions[0].sessionId)
   })
 
   it("keyed OpenCode subagent mode resumes across turns", async () => {
@@ -106,7 +108,7 @@ describe("explicit session keys override the independence guard", () => {
     expect((await post(app, TURN_2, headers)).status).toBe(200)
     expect(capturedOptions).toHaveLength(2)
     expect(capturedOptions[0].resume).toBeUndefined()
-    expect(capturedOptions[1].resume).toBe("test-session")
+    expect(capturedOptions[1].resume).toBe(capturedOptions[0].sessionId)
   })
 
   it("pi subagent-worker WITHOUT a session key keeps the independence guard (no resume)", async () => {
@@ -136,7 +138,7 @@ describe("explicit session keys override the independence guard", () => {
     await post(app, TURN_1, headers)
     await post(app, TURN_2, headers)
     expect(capturedOptions).toHaveLength(2)
-    expect(capturedOptions[1].resume).toBe("test-session")
+    expect(capturedOptions[1].resume).toBe(capturedOptions[0].sessionId)
   })
 })
 
@@ -188,7 +190,7 @@ describe("OMP body session identity survives the tool-result bypass (#734)", () 
     expect((await post(app, TOOL_TURN_2, headers)).status).toBe(200)
     expect(capturedOptions).toHaveLength(2)
     expect(capturedOptions[0].resume).toBeUndefined()
-    expect(capturedOptions[1].resume).toBe("test-session")
+    expect(capturedOptions[1].resume).toBe(capturedOptions[0].sessionId)
   })
 
   it("still refuses to resume a tool-result turn with no identity at all", async () => {
@@ -222,6 +224,6 @@ describe("OMP body session identity survives the tool-result bypass (#734)", () 
     await post(app, { ...TOOL_TURN_2, ...OMP("a-different-body-id") }, headers)
     expect(capturedOptions).toHaveLength(2)
     // Same header across both turns, so it resumes despite the body id changing.
-    expect(capturedOptions[1].resume).toBe("test-session")
+    expect(capturedOptions[1].resume).toBe(capturedOptions[0].sessionId)
   })
 })

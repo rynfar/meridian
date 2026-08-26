@@ -14,10 +14,13 @@ import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assistantMessage } from "./helpers"
+import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: (_params: unknown) => (async function* () { yield assistantMessage([{ type: "text", text: "ok" }]) })(),
+  query: (params: any) => (async function* () {
+    const message = assistantMessage([{ type: "text", text: "ok" }])
+    yield withMockSdkSessionId(message, params.options)
+  })(),
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
 }))

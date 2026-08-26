@@ -14,6 +14,7 @@ import {
   blockStop,
   messageDelta,
   messageStop,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 let capturedOptions: any[] = []
@@ -22,16 +23,20 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedOptions.push(opts.options || {})
     const isStreaming = opts.options?.includePartialMessages === true
+    const sessionId = resolveMockSdkSessionId(opts.options)
+    const withReturnedSessionId = (message: any) => sessionId
+      ? { ...message, session_id: sessionId }
+      : message
     return (async function* () {
       // Fire the PreToolUse deny hook if present (passthrough capture path)
       const preHook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
       if (isStreaming) {
-        yield messageStart("msg-1")
-        yield textBlockStart(0)
-        yield textDelta(0, "Hello from Codex")
-        yield blockStop(0)
-        yield messageDelta("end_turn")
-        yield messageStop()
+        yield withReturnedSessionId(messageStart("msg-1"))
+        yield withReturnedSessionId(textBlockStart(0))
+        yield withReturnedSessionId(textDelta(0, "Hello from Codex"))
+        yield withReturnedSessionId(blockStop(0))
+        yield withReturnedSessionId(messageDelta("end_turn"))
+        yield withReturnedSessionId(messageStop())
       }
       void preHook
       yield {
@@ -46,7 +51,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 11, output_tokens: 4 },
         },
-        session_id: "sdk-1",
+        session_id: sessionId,
       }
     })()
   },
@@ -183,7 +188,8 @@ describe("/v1/responses session continuity via prompt_cache_key (#655)", () => {
     expect(r2.status).toBe(200)
     expect(capturedOptions).toHaveLength(2)
     expect(capturedOptions[0].resume).toBeUndefined()
-    expect(capturedOptions[1].resume).toBe("sdk-1")
+    expect(capturedOptions[0].sessionId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(capturedOptions[1].resume).toBe(capturedOptions[0].sessionId)
   })
 
   it("does not resume across different prompt_cache_keys", async () => {

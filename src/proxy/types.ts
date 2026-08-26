@@ -58,8 +58,12 @@ export interface ProxyServer {
    * to drain in-flight requests before the HTTP server actually shuts down.
    */
   beginDrain?(): void
+  /** Revoke durable writes and abort work that outlived the shutdown grace. */
+  forceAbortInFlight?(): void
   /** Count of requests admitted past the draining gate that haven't finished yet. */
   getInFlightCount?(): number
+  /** Run one fail-closed transcript maintenance sweep. */
+  sweepSessionGc?(): Promise<void>
 }
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {

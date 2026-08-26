@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import {
   assistantMessage,
   messageStart,
@@ -7,6 +10,7 @@ import {
   blockStop,
   messageDelta,
   messageStop,
+  resolveMockSdkSessionId,
 } from "./helpers"
 
 interface AttemptControl {
@@ -18,7 +22,8 @@ let activeQueries = 0
 let maxActiveQueries = 0
 let queryCalls = 0
 let controls: AttemptControl[] = []
-let capturedParams: Array<{ options?: { resume?: string } }> = []
+let capturedParams: Array<{ options?: { resume?: string; sessionId?: string; env?: Record<string, string> } }> = []
+let rateLimitWorkQueries = false
 
 function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted: () => void } {
   let release = () => {}
@@ -29,17 +34,20 @@ function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted:
 }
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: (params: { options?: { resume?: string } }) => {
+  query: (params: { options?: { resume?: string; sessionId?: string; env?: Record<string, string> } }) => {
     capturedParams.push(params)
     queryCalls++
     const control = deferredAttempt()
     controls.push(control)
-    const sessionId = `sdk-concurrency-${queryCalls}`
+    const sessionId = resolveMockSdkSessionId(params.options, `sdk-concurrency-${queryCalls}`)
     const generator = (async function* () {
       activeQueries++
       maxActiveQueries = Math.max(maxActiveQueries, activeQueries)
       control.markStarted()
       try {
+        if (rateLimitWorkQueries && params.options?.env?.CLAUDE_CONFIG_DIR?.includes("hot-work")) {
+          throw new Error("429 rate limit reached for this account")
+        }
         yield { ...messageStart(), session_id: sessionId }
         await control.wait
         yield { ...textBlockStart(0), session_id: sessionId }
@@ -70,12 +78,15 @@ mock.module("../mcpTools", () => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
 const { telemetryStore } = await import("../telemetry")
+const { setSessionStoreDir, storeSharedSession } = await import("../proxy/sessionStore")
+const { processSessionTurns } = await import("../proxy/session/turnCoordinator")
 
 function request(
   messages: Array<{ role: string; content: unknown }>,
   sessionId: string,
   stream = false,
   extraHeaders: Record<string, string> = {},
+  signal?: AbortSignal,
 ): Request {
   return new Request("http://localhost/v1/messages", {
     method: "POST",
@@ -85,6 +96,7 @@ function request(
       ...extraHeaders,
     },
     body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages }),
+    signal,
   })
 }
 
@@ -102,16 +114,21 @@ async function waitForControl(index: number, timeoutMs = 3000): Promise<AttemptC
 }
 
 describe("SDK and Session concurrency coordination", () => {
+  let testSessionDir: string
   const originalMax = process.env.MERIDIAN_MAX_CONCURRENT
   const originalHold = process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS
+  const originalRouting = process.env.MERIDIAN_ROUTING
 
   beforeEach(() => {
+    testSessionDir = mkdtempSync(join(tmpdir(), "meridian-concurrency-"))
+    setSessionStoreDir(testSessionDir)
     process.env.MERIDIAN_MAX_CONCURRENT = "1"
     activeQueries = 0
     maxActiveQueries = 0
     queryCalls = 0
     controls = []
     capturedParams = []
+    rateLimitWorkQueries = false
     clearSessionCache()
     resetProcessSdkSemaphoreForTests()
     telemetryStore.clear()
@@ -119,10 +136,14 @@ describe("SDK and Session concurrency coordination", () => {
 
   afterEach(() => {
     resetProcessSdkSemaphoreForTests()
+    setSessionStoreDir(null)
+    rmSync(testSessionDir, { recursive: true, force: true })
     if (originalMax === undefined) delete process.env.MERIDIAN_MAX_CONCURRENT
     else process.env.MERIDIAN_MAX_CONCURRENT = originalMax
     if (originalHold === undefined) delete process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS
     else process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = originalHold
+    if (originalRouting === undefined) delete process.env.MERIDIAN_ROUTING
+    else process.env.MERIDIAN_ROUTING = originalRouting
   })
 
   it("holds the SDK permit for the complete streaming lifecycle", async () => {
@@ -182,7 +203,8 @@ describe("SDK and Session concurrency coordination", () => {
     expect((await firstP).status).toBe(200)
 
     const secondControl = await waitForControl(1)
-    expect(capturedParams[1]?.options?.resume).toBe("sdk-concurrency-1")
+    expect(capturedParams[0]?.options?.sessionId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(capturedParams[1]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
     secondControl.release()
     expect((await secondP).status).toBe(200)
   })
@@ -248,6 +270,40 @@ describe("SDK and Session concurrency coordination", () => {
     expect(queryCalls).toBe(2)
   })
 
+  it("rejects a stale turn when a hot priority profile appears after the arrival snapshot", async () => {
+    process.env.MERIDIAN_ROUTING = "priority"
+    const profiles = [
+      { id: "work", claudeConfigDir: "/tmp/meridian-test-hot-work" },
+    ]
+    const app = createProxyServer({
+      port: 0,
+      host: "127.0.0.1",
+      silent: true,
+      profiles,
+      defaultProfile: "work",
+    }).app
+    const sessionId = `hot-profile-${crypto.randomUUID()}`
+    const lease = await processSessionTurns.acquire(`session:${sessionId}`)
+    const pending = app.fetch(request([{ role: "user", content: "stale body" }], sessionId))
+
+    // Let handleWithQueue take its coherent arrival snapshot, then make a new
+    // profile and its durable mapping visible before the queued turn is granted.
+    await Bun.sleep(20)
+    profiles.push({ id: "hot", claudeConfigDir: "/tmp/meridian-test-hot-new" })
+    storeSharedSession(`hot:${sessionId}`, "hot-existing-sdk", 2, "hot-lineage", ["old-a", "old-b"])
+    rateLimitWorkQueries = true
+    lease.release()
+
+    const response = await pending
+    expect(response.status).toBe(400)
+    expect((await response.json() as { error?: { message?: string } }).error?.message)
+      .toContain("advanced while the request was waiting")
+    expect(capturedParams.length).toBeGreaterThan(0)
+    expect(capturedParams.every((params) =>
+      params.options?.env?.CLAUDE_CONFIG_DIR?.includes("hot-work") === true
+    )).toBe(true)
+  }, 10_000)
+
   it("lets a declared concurrent flow replay instead of refusing it", async () => {
     // fork-/subagent- sources knowingly run parallel turns under one session
     // key; a reclassification is their normal cost. Refusing them would break
@@ -287,26 +343,34 @@ describe("SDK and Session concurrency coordination", () => {
     expect(queryCalls).toBe(2)
   })
 
-  it("force-releases a wedged turn instead of deadlocking the session", async () => {
+  it("aborts a wedged turn without releasing its fencing lease early", async () => {
     process.env.MERIDIAN_MAX_CONCURRENT = "2"
-    process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = "50"
+    process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS = "2000"
     resetProcessSdkSemaphoreForTests()
     const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
 
-    // Never released and never read: the response body stays open, so this
-    // request never finishes and would hold its lease for the lifetime of the
-    // process without the watchdog.
+    // This mock intentionally ignores AbortSignal while blocked. The watchdog
+    // may request cancellation, but must retain the lease until the SDK attempt
+    // actually settles or an older request could overwrite its successor.
     const wedged = await app.fetch(request([{ role: "user", content: "one" }], "wedged", true))
     const wedgedControl = await waitForControl(0)
+    const waiterAbort = new AbortController()
+    const secondP = app.fetch(request(
+      [{ role: "user", content: "two" }],
+      "wedged",
+      true,
+      {},
+      waiterAbort.signal,
+    ))
+    await new Promise((resolve) => setTimeout(resolve, 2100))
+    expect(queryCalls).toBe(1)
 
-    const secondP = app.fetch(request([{ role: "user", content: "two" }], "wedged", true))
-    // Only reachable once the wedged turn's lease is force-released.
-    const secondControl = await waitForControl(1)
-    expect(queryCalls).toBe(2)
-
-    secondControl.release()
-    await (await secondP).text()
+    // A waiter can still cancel cleanly; it never enters the SDK while the old
+    // attempt is unfenced. Settle the mock before cancelling the response body
+    // so the test does not intentionally leave background work behind.
+    waiterAbort.abort()
+    expect((await secondP).status).toBe(499)
     wedgedControl.release()
-    await wedged.text()
-  })
+    await wedged.body?.cancel()
+  }, 10_000)
 })

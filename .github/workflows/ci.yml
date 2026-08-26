@@ -70,6 +70,11 @@ jobs:
       - run: bun test src/__tests__/claude-executable-resolver.test.ts
         shell: bash
 
+      # Exercise the real Windows SDK process wrapper, PowerShell incarnation
+      # capture, abort handling, stderr draining, and exact join semantics.
+      - run: bun test src/__tests__/sdk-process-gate.test.ts src/__tests__/process-incarnation.test.ts
+        shell: bash
+
       # Plugin loader exercises `await import(absolutePath)` which on Windows
       # rejects raw backslash paths with `Received protocol c:`. The test
       # writes a real plugin file to a tempdir and loads it, so it actually

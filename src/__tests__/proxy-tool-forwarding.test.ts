@@ -26,16 +26,17 @@ import {
   parseSSE,
   READ_TOOL,
   makeToolRequest,
+  withMockSdkSessionId,
 } from "./helpers"
 
 // --- Mock the Claude SDK ---
 let mockMessages: any[] = []
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => {
+  query: (params: any) => {
     return (async function* () {
       for (const msg of mockMessages) {
-        yield msg
+        yield withMockSdkSessionId(msg, params.options)
       }
     })()
   },

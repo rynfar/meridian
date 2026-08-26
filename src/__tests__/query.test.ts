@@ -2,7 +2,7 @@
  * Tests for the SDK query options builder.
  */
 import { describe, it, expect } from "bun:test"
-import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, type QueryContext } from "../proxy/query"
+import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, resolveQueryConfigDir, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 import { CHERRY_BLOCKED_BUILTIN_TOOLS, CHERRY_INCOMPATIBLE_TOOLS, CHERRY_WEB_TOOLS } from "../proxy/adapters/cherry"
 
@@ -27,6 +27,39 @@ function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
     ...overrides,
   }
 }
+
+
+describe("resolveQueryConfigDir", () => {
+  it("uses the exact custom profile root", () => {
+    expect(resolveQueryConfigDir({ CLAUDE_CONFIG_DIR: "/profiles/custom", HOME: "/home/test" }, false))
+      .toBe("/profiles/custom")
+  })
+
+  it("uses the child HOME default when shared memory strips a custom root", () => {
+    expect(resolveQueryConfigDir({ CLAUDE_CONFIG_DIR: "/profiles/custom", HOME: "/home/test" }, true))
+      .toBe("/home/test/.claude")
+  })
+
+  it("resolves a relative custom root from the SDK child working directory", () => {
+    expect(resolveQueryConfigDir(
+      { CLAUDE_CONFIG_DIR: "profiles/custom", HOME: "/home/test" },
+      false,
+      "/srv/project",
+    )).toBe("/srv/project/profiles/custom")
+  })
+
+  it("keeps oauth-token profile isolation with shared memory", () => {
+    expect(resolveQueryConfigDir({
+      CLAUDE_CONFIG_DIR: "/profiles/oauth",
+      CLAUDE_CODE_OAUTH_TOKEN: "secret",
+      HOME: "/home/test",
+    }, true)).toBe("/profiles/oauth")
+  })
+  it("resolves a relative HOME from the SDK child working directory", () => {
+    expect(resolveQueryConfigDir({ HOME: "relative-home" }, false, "/srv/project"))
+      .toBe("/srv/project/relative-home/.claude")
+  })
+})
 
 describe("buildQueryOptions", () => {
   it("forces node as the executable to avoid bun auto-detection on embedded hosts", () => {
@@ -214,15 +247,24 @@ describe("buildQueryOptions", () => {
     expect((result.options as any).resumeSessionAt).toBe("uuid-abc")
   })
 
-  it("forks a passthrough assistant-boundary resume so its replacement tail is durable", () => {
+  it("forks a passthrough assistant-boundary resume with its journaled target ID", () => {
     const result = buildQueryOptions(makeContext({
       passthrough: true,
       resumeSessionId: "sdk-123",
       resumeSessionAtUuid: "assistant-uuid",
+      forkSessionId: "11111111-1111-4111-8111-111111111111",
     }))
     expect((result.options as any).resume).toBe("sdk-123")
     expect((result.options as any).resumeSessionAt).toBe("assistant-uuid")
     expect((result.options as any).forkSession).toBe(true)
+    expect((result.options as { sessionId?: string }).sessionId).toBe("11111111-1111-4111-8111-111111111111")
+  })
+
+  it("applies a preallocated target ID to a fresh session without enabling fork", () => {
+    const sessionId = "11111111-1111-4111-8111-111111111111"
+    const result = buildQueryOptions(makeContext({ forkSessionId: sessionId }))
+    expect((result.options as { forkSession?: boolean }).forkSession).toBeUndefined()
+    expect((result.options as { sessionId?: string }).sessionId).toBe(sessionId)
   })
 
   it("includes agents when provided", () => {

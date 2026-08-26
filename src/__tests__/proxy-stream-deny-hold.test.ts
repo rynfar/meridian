@@ -24,11 +24,27 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
-import { makeRequest, parseSSE } from "./helpers"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setSessionStoreDir } from "../proxy/sessionStore"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-http-test-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  // Request completion releases the cross-process lease asynchronously.
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
+import { makeRequest, parseSSE, resolveMockSdkSessionId } from "./helpers"
 
 const PREFIX = "mcp__oc__"
 
 let capturedController: AbortController | undefined
+let capturedSessionId: string | undefined
 let capturedResume: string | undefined
 let capturedResumeSessionAt: string | undefined
 let capturedForkSession: boolean | undefined
@@ -41,36 +57,36 @@ let denyDelayMs = 0
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-const streamEvent = (event: any) => ({
+const streamEvent = (event: any, sessionId: string) => ({
   type: "stream_event", event, parent_tool_use_id: null,
-  uuid: crypto.randomUUID(), session_id: "test-session",
+  uuid: crypto.randomUUID(), session_id: sessionId,
 })
-const msgStart = () => streamEvent({
+const msgStart = (sessionId: string) => streamEvent({
   type: "message_start",
   message: { id: "m1", type: "message", role: "assistant", content: [], model: "claude-sonnet-4-5-20250929", stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0 } },
-})
-const blockStart = (idx: number, name: string, id: string) =>
-  streamEvent({ type: "content_block_start", index: idx, content_block: { type: "tool_use", id, name: `${PREFIX}${name}`, input: {} } })
-const blockDelta = (idx: number, json: string) =>
-  streamEvent({ type: "content_block_delta", index: idx, delta: { type: "input_json_delta", partial_json: json } })
-const blockStop = (idx: number) => streamEvent({ type: "content_block_stop", index: idx })
-const msgDelta = () => streamEvent({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 30 } })
-const assistantMsg = (blocks: any[]) => {
+}, sessionId)
+const blockStart = (idx: number, name: string, id: string, sessionId: string) =>
+  streamEvent({ type: "content_block_start", index: idx, content_block: { type: "tool_use", id, name: `${PREFIX}${name}`, input: {} } }, sessionId)
+const blockDelta = (idx: number, json: string, sessionId: string) =>
+  streamEvent({ type: "content_block_delta", index: idx, delta: { type: "input_json_delta", partial_json: json } }, sessionId)
+const blockStop = (idx: number, sessionId: string) => streamEvent({ type: "content_block_stop", index: idx }, sessionId)
+const msgDelta = (sessionId: string) => streamEvent({ type: "message_delta", delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 30 } }, sessionId)
+const assistantMsg = (blocks: any[], sessionId: string) => {
   const uuid = crypto.randomUUID()
   if (blocks.some((block) => block?.type === "tool_use")) assistantToolUuids.push(uuid)
   return {
     type: "assistant",
     message: { id: "m1", type: "message", role: "assistant", content: blocks, model: "claude-sonnet-4-5-20250929", stop_reason: "tool_use", usage: { input_tokens: 10, output_tokens: 30 } },
-    parent_tool_use_id: null, uuid, session_id: "test-session",
+    parent_tool_use_id: null, uuid, session_id: sessionId,
   }
 }
-const denyMsg = (ids: string[]) => {
+const denyMsg = (ids: string[], sessionId: string) => {
   const uuid = crypto.randomUUID()
   denyUuids.push(uuid)
   return {
     type: "user",
     message: { role: "user", content: ids.map((id) => ({ type: "tool_result", tool_use_id: id, is_error: true, content: "denied" })) },
-    parent_tool_use_id: null, uuid, session_id: "test-session",
+    parent_tool_use_id: null, uuid, session_id: sessionId,
   }
 }
 
@@ -79,24 +95,26 @@ const denyMsg = (ids: string[]) => {
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     capturedController = opts?.options?.abortController
+    capturedSessionId = opts?.options?.sessionId
     capturedResume = opts?.options?.resume
     capturedResumeSessionAt = opts?.options?.resumeSessionAt
     capturedForkSession = opts?.options?.forkSession
+    const sessionId = resolveMockSdkSessionId(opts?.options, "test-session")
     const hook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
     return (async function* () {
       if (!hook) {
         // Follow-up turn (no tools emitted): plain final answer.
-        yield assistantMsg([{ type: "text", text: "All done." }])
+        yield assistantMsg([{ type: "text", text: "All done." }], sessionId)
         return
       }
-      yield msgStart()
+      yield msgStart(sessionId)
       timeline.push("message_start")
 
       // bash block streams fully, then its hook dispatches MID-STREAM.
-      yield blockStart(2, "bash", "tb1")
-      yield blockDelta(2, '{"command":"ls /tmp"}')
-      yield assistantMsg([{ type: "tool_use", id: "tb1", name: `${PREFIX}bash`, input: { command: "ls /tmp" } }])
-      yield blockStop(2)
+      yield blockStart(2, "bash", "tb1", sessionId)
+      yield blockDelta(2, '{"command":"ls /tmp"}', sessionId)
+      yield assistantMsg([{ type: "tool_use", id: "tb1", name: `${PREFIX}bash`, input: { command: "ls /tmp" } }], sessionId)
+      yield blockStop(2, sessionId)
       let bashDenied = false
       const bashHook = Promise.resolve(
         hook({ tool_name: `${PREFIX}bash`, tool_use_id: "tb1", tool_input: { command: "ls /tmp" } }, undefined, { signal: new AbortController().signal })
@@ -110,36 +128,36 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         // turn's message_delta never arrives, turn 2 begins. This is the
         // exact field behavior from kabo's v1.49.1 transcript.
         timeline.push("CANCELED")
-        yield blockStart(3, "glob", "tg1")
-        yield blockDelta(3, '{"patt') // cut mid-JSON
-        yield denyMsg(["tb1"])
-        yield msgStart() // turn 2
+        yield blockStart(3, "glob", "tg1", sessionId)
+        yield blockDelta(3, '{"patt', sessionId) // cut mid-JSON
+        yield denyMsg(["tb1"], sessionId)
+        yield msgStart(sessionId) // turn 2
         timeline.push("turn2_message_start")
         return
       }
 
       // Held deny → generation completes normally.
-      yield blockStart(3, "glob", "tg1")
-      yield blockDelta(3, '{"pattern":"*.md"}')
-      yield assistantMsg([{ type: "tool_use", id: "tg1", name: `${PREFIX}glob`, input: { pattern: "*.md" } }])
-      yield blockStop(3)
+      yield blockStart(3, "glob", "tg1", sessionId)
+      yield blockDelta(3, '{"pattern":"*.md"}', sessionId)
+      yield assistantMsg([{ type: "tool_use", id: "tg1", name: `${PREFIX}glob`, input: { pattern: "*.md" } }], sessionId)
+      yield blockStop(3, sessionId)
       timeline.push("glob_streamed")
       const globHook = Promise.resolve(
         hook({ tool_name: `${PREFIX}glob`, tool_use_id: "tg1", tool_input: { pattern: "*.md" } }, undefined, { signal: new AbortController().signal })
       ).then(() => timeline.push("glob_deny_resolved"))
 
-      yield msgDelta()
+      yield msgDelta(sessionId)
       timeline.push("message_delta")
 
       await bashHook
       await globHook
       if (denyDelayMs > 0) await sleep(denyDelayMs)
-      yield denyMsg(["tb1"])
-      yield denyMsg(["tg1"])
+      yield denyMsg(["tb1"], sessionId)
+      yield denyMsg(["tg1"], sessionId)
       timeline.push("post_denies")
-      yield assistantMsg([{ type: "text", text: "turn 2 digest garbage" }])
+      yield assistantMsg([{ type: "text", text: "turn 2 digest garbage" }], sessionId)
       timeline.push("turn2_consumed")
-      yield { type: "result", subtype: "success", is_error: false, session_id: "test-session" }
+      yield { type: "result", subtype: "success", is_error: false, session_id: sessionId }
       timeline.push("canonical_result")
     })()
   },
@@ -198,6 +216,7 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     timeline = []
     denyDelayMs = 0
     capturedController = undefined
+    capturedSessionId = undefined
     capturedResume = undefined
     capturedResumeSessionAt = undefined
     capturedForkSession = undefined
@@ -249,6 +268,9 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     denyDelayMs = 150 // denies (and thus the store) land after the client response
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
     await postStream(app, "hold-3", [{ role: "user", content: "test tools" }])
+    const initialSessionId = capturedSessionId
+    expect(initialSessionId).toMatch(/^[0-9a-f-]{36}$/)
+    if (!initialSessionId) throw new Error("missing caller-selected session ID")
 
     // Immediately send the follow-up — before the drain could have stored.
     capturedResume = undefined
@@ -264,9 +286,9 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
       ]},
     ])
     const resumeBoundary = assistantToolUuids[1]
-    expect(capturedResume ?? "(fresh)").toBe("test-session")
+    expect(capturedResume ?? "(fresh)").toBe(initialSessionId)
     expect(capturedResumeSessionAt).toBe(resumeBoundary)
-    expect(denyUuids).not.toContain(capturedResumeSessionAt)
+    expect(denyUuids).not.toContain(capturedResumeSessionAt!)
     expect(capturedForkSession).toBe(true)
   })
 })

@@ -28,21 +28,24 @@ const denyMsg = (ids: string[]) => ({
   },
 })
 
-const boundary = (type: string) => ({
-  type: "stream_event", session_id: "sdk-ns-1", event: { type },
+const boundary = (type: string, sessionId = "sdk-ns-1") => ({
+  type: "stream_event", session_id: sessionId, event: { type },
 })
+
+import { resolveMockSdkSessionId } from "./helpers"
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     return (async function* () {
       const preHook = opts?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
-      yield { type: "system", subtype: "init", session_id: "sdk-ns-1" }
+      const sessionId = resolveMockSdkSessionId(opts.options, "sdk-ns-1")
+      yield { type: "system", subtype: "init", session_id: sessionId }
       if (!preHook) {
         // No passthrough hooks — nothing to hold, so answer and stop.
         yield {
           type: "assistant", uuid: "u1",
           message: { id: "m1", type: "message", role: "assistant", content: [{ type: "text", text: "ok" }], model: "claude-sonnet-5", stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 } },
-          session_id: "sdk-ns-1",
+          session_id: sessionId,
         }
         return
       }
@@ -51,7 +54,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       // both paths — passthrough asks for partial messages regardless of whether
       // the client streams, because they are the only turn-boundary signal and
       // the deny-hold and the checkpoint both key off it.
-      yield boundary("message_start")
+      yield boundary("message_start", sessionId)
 
       // The CLI dispatches block 1's hook while block 2 is still generating.
       let settled = false
@@ -64,11 +67,11 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
 
       if (settled) {
         // Cancel-on-deny: block 2 is beheaded; only block 1 exists.
-        yield boundary("message_delta")
+        yield boundary("message_delta", sessionId)
         yield {
           type: "assistant", uuid: "u1",
           message: { id: "m1", type: "message", role: "assistant", content: [tu("tu1", "/tmp/a.txt")], model: "claude-sonnet-5", stop_reason: "tool_use", usage: { input_tokens: 1, output_tokens: 1 } },
-          session_id: "sdk-ns-1",
+          session_id: sessionId,
         }
         await deny1
         yield denyMsg(["tu1"])
@@ -76,11 +79,11 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       }
 
       // Deny held → generation completed with BOTH blocks.
-      yield boundary("message_delta")
+      yield boundary("message_delta", sessionId)
       yield {
         type: "assistant", uuid: "u1",
         message: { id: "m1", type: "message", role: "assistant", content: [tu("tu1", "/tmp/a.txt"), tu("tu2", "/tmp/b.txt")], model: "claude-sonnet-5", stop_reason: "tool_use", usage: { input_tokens: 1, output_tokens: 1 } },
-        session_id: "sdk-ns-1",
+        session_id: sessionId,
       }
       const deny2 = preHook({ tool_name: "read", tool_use_id: "tu2", tool_input: { filePath: "/tmp/b.txt" } })
       await deny1

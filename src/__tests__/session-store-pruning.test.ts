@@ -71,6 +71,17 @@ describe("Session store count-based pruning", () => {
     expect(lookupSharedSession("sess-6")).toBeDefined()
   })
 
+  it("never prunes the mapping being published when the wall clock moves backward", () => {
+    for (let i = 0; i < 5; i++) {
+      storeSharedSession(`future-${i}`, `claude-future-${i}`)
+    }
+    dateSpy.mockImplementation(() => 1)
+
+    expect(storeSharedSession("new-after-clock-step", "claude-new")).not.toBe(false)
+    expect(lookupSharedSession("new-after-clock-step")?.claudeSessionId).toBe("claude-new")
+    expect(lookupSharedSession("future-0")).toBeUndefined()
+  })
+
   it("does NOT prune by time — old sessions survive", () => {
     // Store a session, then manually set lastUsedAt to 48 hours ago
     // by writing directly. Under the old TTL system this would be pruned.

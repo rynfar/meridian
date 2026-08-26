@@ -18,14 +18,17 @@ import {
   messageStop,
   parseSSE,
   streamEvent,
+  withMockSdkSessionId,
 } from "./helpers"
 
 let mockMessages: any[] = []
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => {
+  query: (params: any) => {
     return (async function* () {
-      for (const msg of mockMessages) yield msg
+      for (const msg of mockMessages) {
+        yield withMockSdkSessionId(msg, params.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),

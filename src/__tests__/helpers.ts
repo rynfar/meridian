@@ -4,6 +4,27 @@
 
 import type { SDKMessage, SDKAssistantMessage } from "@anthropic-ai/claude-agent-sdk"
 
+type MockSdkSessionOptions = {
+  sessionId?: string
+  resume?: string
+  forkSession?: boolean
+}
+
+export function resolveMockSdkSessionId(options: unknown): string | undefined
+export function resolveMockSdkSessionId(options: unknown, fallback: string): string
+export function resolveMockSdkSessionId(options: unknown, fallback?: string): string | undefined {
+  const sessionOptions = options as MockSdkSessionOptions | undefined
+  return sessionOptions?.sessionId
+    ?? (sessionOptions?.forkSession ? undefined : sessionOptions?.resume)
+    ?? fallback
+}
+
+export function withMockSdkSessionId<T>(message: T, options: unknown): T {
+  const sessionId = resolveMockSdkSessionId(options)
+  if (!sessionId || message === null || typeof message !== "object") return message
+  return { ...message, session_id: sessionId }
+}
+
 // --- SDK Message Factories ---
 
 /** Create a stream_event message (raw Anthropic SSE event) */

@@ -6,7 +6,22 @@
  * and retry as a fresh session instead of propagating the error.
  */
 
-import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setSessionStoreDir, storeSharedSession } from "../proxy/sessionStore"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-http-test-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  // Request completion releases the cross-process lease asynchronously.
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
 import {
   messageStart,
   textBlockStart,
@@ -14,20 +29,28 @@ import {
   blockStop,
   messageDelta,
   messageStop,
+  resolveMockSdkSessionId,
+  withMockSdkSessionId,
 } from "./helpers"
 
 // Track query calls to verify retry behavior
 let queryCalls: Array<Record<string, any>> = []
+let queryParams: any[] = []
 let queryCallCount = 0
+let queryMutation: ((options: Record<string, any>) => void) | undefined
+let forcedQueryError: Error | undefined
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (opts: any) => {
     queryCallCount++
     const callIndex = queryCallCount
     queryCalls.push(opts.options || {})
+    queryParams.push(opts)
     const isStreaming = opts.options?.includePartialMessages === true
 
     return (async function* () {
+      queryMutation?.(opts.options || {})
+      if (forcedQueryError) throw forcedQueryError
       // First call with resumeSessionAt: simulate stale UUID error
       if (callIndex === 1 && opts.options?.resumeSessionAt) {
         throw new Error(
@@ -36,12 +59,12 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       }
       // Success: yield appropriate message type
       if (isStreaming) {
-        yield messageStart(`msg-${callIndex}`)
-        yield textBlockStart(0)
-        yield textDelta(0, `response-${callIndex}`)
-        yield blockStop(0)
-        yield messageDelta("end_turn")
-        yield messageStop()
+        yield withMockSdkSessionId(messageStart(`msg-${callIndex}`), opts.options)
+        yield withMockSdkSessionId(textBlockStart(0), opts.options)
+        yield withMockSdkSessionId(textDelta(0, `response-${callIndex}`), opts.options)
+        yield withMockSdkSessionId(blockStop(0), opts.options)
+        yield withMockSdkSessionId(messageDelta("end_turn"), opts.options)
+        yield withMockSdkSessionId(messageStop(), opts.options)
       }
       yield {
         type: "assistant",
@@ -55,7 +78,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
           stop_reason: "end_turn",
           usage: { input_tokens: 10, output_tokens: 5 },
         },
-        session_id: `sdk-fresh-${callIndex}`,
+        session_id: resolveMockSdkSessionId(opts.options, `sdk-fresh-${callIndex}`),
       }
     })()
   },
@@ -94,7 +117,10 @@ describe("Stale UUID retry", () => {
   beforeEach(() => {
     clearSessionCache()
     queryCalls = []
+    queryParams = []
     queryCallCount = 0
+    queryMutation = undefined
+    forcedQueryError = undefined
   })
 
   it("retries as fresh session when undo hits stale UUID (non-streaming)", async () => {
@@ -142,6 +168,54 @@ describe("Stale UUID retry", () => {
     expect(queryCalls[1]!.resume).toBeUndefined()
     expect(queryCalls[1]!.forkSession).toBeUndefined()
     expect(queryCalls[1]!.resumeSessionAt).toBeUndefined()
+    expect(queryCalls[1]!.sessionId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(queryCalls[1]!.sessionId).not.toBe(queryCalls[0]!.sessionId)
+  })
+
+  it("replays the full undo history without rollback options after project drift", async () => {
+    const app = createTestApp()
+    const sessionId = "sess-undo-project-drift"
+    const oldDir = join(isolatedSessionDir, "old-project")
+    const newDir = join(isolatedSessionDir, "new-project")
+    mkdirSync(oldDir)
+    mkdirSync(newDir)
+    const messages = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi there" },
+      { role: "user", content: "do something" },
+      { role: "assistant", content: "done" },
+    ]
+    storeSession(
+      sessionId,
+      messages,
+      "sdk-old-project",
+      oldDir,
+      [null, "uuid-assistant-1", null, "uuid-assistant-2"],
+      undefined,
+      undefined,
+      undefined,
+      { sessionId: "sdk-old-project", configDir: join(process.env.HOME!, ".claude"), projectDir: oldDir },
+    )
+    const undoMessages = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "hi there" },
+      { role: "user", content: "do something different" },
+    ]
+    const response = await post(app, {
+      model: "sonnet",
+      stream: false,
+      system: `<env>\nWorking directory: ${newDir}\n</env>`,
+      messages: undoMessages,
+    }, { "x-opencode-session": sessionId })
+
+    expect(response.status).toBe(200)
+    expect(queryCalls).toHaveLength(1)
+    expect(queryCalls[0]!.resume).toBeUndefined()
+    expect(queryCalls[0]!.resumeSessionAt).toBeUndefined()
+    expect(queryCalls[0]!.forkSession).toBeUndefined()
+    expect(String(queryParams[0].prompt)).toContain("hello")
+    expect(String(queryParams[0].prompt)).toContain("hi there")
+    expect(String(queryParams[0].prompt)).toContain("do something different")
   })
 
   it("retries as fresh session when undo hits stale UUID (streaming)", async () => {
@@ -182,6 +256,8 @@ describe("Stale UUID retry", () => {
     // Verify retry happened: first call with resumeSessionAt, second without
     expect(queryCalls[0]!.resumeSessionAt).toBe("uuid-assistant-1")
     expect(queryCalls[1]!.resumeSessionAt).toBeUndefined()
+    expect(queryCalls[1]!.sessionId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(queryCalls[1]!.sessionId).not.toBe(queryCalls[0]!.sessionId)
   })
 
   it("evicts stale session from cache after retry", async () => {
@@ -237,6 +313,45 @@ describe("Stale UUID retry", () => {
     // The second request should NOT have resumeSessionAt
     // (it may have resume if the fresh session was stored, which is fine)
     expect(queryCalls[0]!.resumeSessionAt).toBeUndefined()
+  })
+
+  it("does not quarantine an immutable source when an isolated fork loses publication CAS", async () => {
+    const app = createTestApp()
+    const sessionId = `eviction-cas-${crypto.randomUUID()}`
+    const originalMessages = [{ role: "user", content: "hello" }]
+    storeSession(sessionId, originalMessages, "sdk-source", "/tmp/test", [null])
+
+    queryMutation = () => {
+      queryMutation = undefined
+      // Simulate another proxy advancing this exact durable key after this
+      // process opened the source transcript but before mandatory invalidation.
+      storeSharedSession(sessionId, "sdk-successor", 1, "successor", ["successor"])
+    }
+    forcedQueryError = new Error("terminal resumed query failure")
+    const continuation = [
+      ...originalMessages,
+      { role: "assistant", content: "hi" },
+      { role: "user", content: "continue" },
+    ]
+    const failed = await post(
+      app,
+      { model: "sonnet", stream: false, messages: continuation },
+      { "x-opencode-session": sessionId },
+    )
+    expect(failed.status).toBe(500)
+    expect(queryCallCount).toBe(1)
+
+    const abort = new AbortController()
+    const timer = setTimeout(() => abort.abort(), 50)
+    const blocked = await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-opencode-session": sessionId },
+      body: JSON.stringify({ model: "sonnet", stream: false, messages: continuation }),
+      signal: abort.signal,
+    }))
+    clearTimeout(timer)
+    expect(blocked.status).toBe(500)
+    expect(queryCallCount).toBe(2)
   })
 
   it("propagates non-stale errors normally", async () => {

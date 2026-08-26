@@ -28,17 +28,18 @@ import {
   textDelta,
   blockStop,
   parseSSE,
+  withMockSdkSessionId,
 } from "./helpers"
 
 let mockMessages: any[] = []
 let mockErrorAfter: number | null = null
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  query: () => {
+  query: (params: any) => {
     return (async function* () {
       let yielded = 0
       for (const msg of mockMessages) {
-        yield msg
+        yield withMockSdkSessionId(msg, params.options)
         yielded++
         if (mockErrorAfter !== null && yielded >= mockErrorAfter) {
           throw new Error("429 Too Many Requests - rate limit exceeded")

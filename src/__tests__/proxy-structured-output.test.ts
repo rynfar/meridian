@@ -3,13 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 let capturedOptions: Record<string, unknown> = {}
 let mockMessages: unknown[] = []
 let queryCalls = 0
+let waitBeforeMessages: Promise<void> | undefined
+
+import { withMockSdkSessionId } from "./helpers"
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: { options?: Record<string, unknown> }) => {
     queryCalls += 1
     capturedOptions = params.options ?? {}
     return (async function* () {
-      for (const message of mockMessages) yield message
+      if (waitBeforeMessages) await waitBeforeMessages
+      for (const message of mockMessages) {
+        yield withMockSdkSessionId(message, params.options)
+      }
     })()
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
@@ -26,6 +32,11 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const {
+  clearSharedSessions,
+  evictSharedSession,
+  lookupSharedSessionResult,
+} = await import("../proxy/sessionStore")
 
 const schema = {
   type: "object",
@@ -58,11 +69,15 @@ function resultMessage(structuredOutput: unknown) {
 function request(
   stream: boolean,
   outputConfig: unknown = { format: { type: "json_schema", schema } },
-  extra: Record<string, unknown> = {}
+  extra: Record<string, unknown> = {},
+  sessionId?: string,
 ) {
   return new Request("http://localhost/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(sessionId ? { "x-opencode-session": sessionId } : {}),
+    },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: 512,
@@ -83,7 +98,9 @@ describe("native structured output", () => {
     capturedOptions = {}
     mockMessages = []
     queryCalls = 0
+    waitBeforeMessages = undefined
     clearSessionCache()
+    clearSharedSessions()
   })
 
   afterEach(() => {
@@ -119,6 +136,77 @@ describe("native structured output", () => {
     expect(body).toContain('"text":"{\\"answer\\":\\"streamed\\"}"')
     expect(body).toContain('"stop_reason":"end_turn"')
     expect(body).toContain("event: message_stop")
+  })
+
+  it("withholds resumed structured success when exact publication loses its CAS", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    const sessionId = "structured-publication-order"
+    mockMessages = [resultMessage({ answer: "seed" })]
+    const seed = await app.fetch(request(false, undefined, {}, sessionId))
+    expect(seed.status).toBe(200)
+    await seed.text()
+
+    const source = lookupSharedSessionResult(sessionId)
+    expect(source.status).toBe("found")
+    if (source.status !== "found") throw new Error("seed mapping was not stored")
+    expect(source.generation).toBeDefined()
+
+    let releaseResult = () => {}
+    waitBeforeMessages = new Promise<void>((resolve) => { releaseResult = resolve })
+    mockMessages = [resultMessage({ answer: "must-not-finalize" })]
+    const responsePromise = app.fetch(request(true, undefined, {
+      messages: [
+        { role: "user", content: "Return an answer." },
+        { role: "assistant", content: '{"answer":"seed"}' },
+        { role: "user", content: "Return another answer." },
+      ],
+    }, sessionId))
+
+    for (let index = 0; index < 1_000 && queryCalls < 2; index++) await Bun.sleep(1)
+    expect(queryCalls).toBe(2)
+    expect(evictSharedSession(sessionId, source.generation)).toBe(true)
+    releaseResult()
+
+    const response = await responsePromise
+    const body = await response.text()
+    expect(body).toContain("event: error")
+    expect(body).not.toContain('"stop_reason":"end_turn"')
+    expect(body).not.toContain("must-not-finalize")
+  })
+
+  it("never publishes a resumed structured target canceled before its buffered envelope", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    const sessionId = "structured-cancel-order"
+    mockMessages = [resultMessage({ answer: "seed" })]
+    const seed = await app.fetch(request(false, undefined, {}, sessionId))
+    await seed.text()
+    const source = lookupSharedSessionResult(sessionId)
+    if (source.status !== "found") throw new Error("seed mapping was not stored")
+
+    let releaseResult = () => {}
+    waitBeforeMessages = new Promise<void>((resolve) => { releaseResult = resolve })
+    mockMessages = [resultMessage({ answer: "canceled-hidden-turn" })]
+    const response = await app.fetch(request(true, undefined, {
+      messages: [
+        { role: "user", content: "Return an answer." },
+        { role: "assistant", content: '{"answer":"seed"}' },
+        { role: "user", content: "Return another answer." },
+      ],
+    }, sessionId))
+    for (let index = 0; index < 1_000 && queryCalls < 2; index++) await Bun.sleep(1)
+    expect(queryCalls).toBe(2)
+    const canceledTarget = capturedOptions.sessionId
+    expect(canceledTarget).not.toBe(source.session.claudeSessionId)
+
+    await response.body!.cancel("structured test cancellation")
+    releaseResult()
+    await Bun.sleep(100)
+
+    const durable = lookupSharedSessionResult(sessionId)
+    expect(durable.status).toBe("found")
+    if (durable.status !== "found") throw new Error("source mapping was not preserved")
+    expect(durable.session.claudeSessionId).toBe(source.session.claudeSessionId)
+    expect(durable.session.claudeSessionId).not.toBe(canceledTarget)
   })
 
   it("rejects requests that combine tools with output_config.format", async () => {
