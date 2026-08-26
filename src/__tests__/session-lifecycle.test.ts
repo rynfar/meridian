@@ -213,6 +213,9 @@ describe("session transcript lifecycle", () => {
     await abandonFork(stale, bounded)
     await runGc([], bounded)
 
+    // Make replacement recency explicit. Equal timestamps would make the
+    // one-slot tombstone choice depend on path-derived key ordering.
+    now += 1
     const replacementTombstone = locator("replacement-tombstone")
     await prepareFork(replacementTombstone, bounded)
     await abandonFork(replacementTombstone, bounded)
