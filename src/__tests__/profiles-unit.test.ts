@@ -6,6 +6,7 @@ import { join } from "node:path"
 import { homedir } from "node:os"
 import {
   resolveProfile,
+  resolveProfileFromPool,
   listProfiles,
   getEffectiveProfiles,
   setActiveProfile,
@@ -45,6 +46,14 @@ describe("resolveProfile", () => {
     expect(result.id).toBe("personal")
     expect(result.type).toBe("claude-max")
     expect(result.env).toEqual({ CLAUDE_CONFIG_DIR: "/home/.config/meridian/profiles/personal" })
+  })
+
+  test("never expands an authoritative filtered pool back to the active profile", () => {
+    setActiveProfile("work")
+    const filtered = profiles.filter(profile => profile.id !== "work")
+
+    expect(resolveProfileFromPool(filtered, "work").id).toBe("personal")
+    expect(resolveProfileFromPool(filtered, "work", "work").id).toBe("personal")
   })
 
   test("resolves requested profile by header", () => {

@@ -40,6 +40,8 @@ export interface MeridianSettings {
   /** Priority-mode pool order (highest priority first). Falls back to
    *  profiles.json order. MERIDIAN_PROFILE_ORDER env var takes precedence. */
   profileOrder?: string[]
+  routingExcludedProfiles?: string[]
+  routingManagedExcludedProfiles?: string[]
 }
 
 /** Read settings from disk. Returns empty object if file doesn't exist or is invalid. */
