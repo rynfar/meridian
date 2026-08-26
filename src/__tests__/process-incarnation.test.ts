@@ -123,6 +123,6 @@ describe("process incarnation protocol", () => {
     expect(current).toBeDefined()
     expect(parseProcessIncarnation(current)).toEqual(current)
     expect(probeProcessIncarnation(current!))
-      .toBe(process.platform === "darwin" ? "indeterminate" : "alive")
+      .toBe(process.platform === "linux" ? "alive" : "indeterminate")
   })
 })

@@ -43,6 +43,10 @@ const LINUX_START_PATTERN = /^[1-9][0-9]{0,31}$/
 const WINDOWS_START_PATTERN = /^[1-9][0-9]{0,31}$/
 const DARWIN_START_PATTERN = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ 0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-6][0-9] [0-9]{4}$/
 const PROBE_TIMEOUT_MS = 2_000
+// PowerShell/CIM startup can exceed two seconds on a cold Windows host. This
+// path runs before the SDK command opens, so wait long enough to capture the
+// durable writer identity instead of failing every first launch closed.
+const WINDOWS_PROBE_TIMEOUT_MS = 10_000
 
 let cachedLocalBootIdentity: LocalBootIdentity | undefined
 let cachedCurrentProcessIncarnation: ProcessIncarnation | undefined
@@ -189,7 +193,7 @@ function runWindowsPowerShell(script: string): { status: number | null; stdout?:
   ], {
     encoding: "utf8",
     windowsHide: true,
-    timeout: PROBE_TIMEOUT_MS,
+    timeout: WINDOWS_PROBE_TIMEOUT_MS,
     maxBuffer: 1024 * 1024,
   })
   return {
