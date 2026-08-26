@@ -3473,12 +3473,6 @@ request took the lease, the user's turn waited 9,836 ms and returned HTTP 400
 the first turn was simply lost. After: 0 conflicts, `sessionWait=0ms` on the
 user's turn, and 6/6 later requests `lineage=continuation` at 83-99% cache hit.
 
-**Related:** `node scripts/audit-token-spend.mjs` reports the same corpus by
-cause (cold starts vs discarded passthrough turns), which is how to tell a
-"Meridian costs more" report apart from a caching failure. On this machine's
-history: cold starts 35.4% of spend and 63.3% of all cache writes; discarded
-passthrough turns 1.2%.
-
 ---
 
 ## E40: Passthrough digest-turn cap
@@ -3522,12 +3516,6 @@ entry. Through the live proxy (E17 shape): output 306 → 144 and cache_read
 12k → 4k on the tool turn. The discarded digest text was captured verbatim —
 *"I attempted to read that file, but the tool call w…"* — content the client
 never sees and the account is billed for.
-
-**Related:** `node scripts/audit-token-spend.mjs` attributes historical spend by
-cause. Read its `digest turns` line against the corpus it scanned: a machine
-running mostly internal-mode Claude Code has almost no passthrough transcripts,
-so a `0.0%` there means "little passthrough traffic here", not "the digest turn
-is cheap". Per-turn cost is what E40 measures.
 
 ## E41: Passthrough multi-turn: one call, one answer
 
