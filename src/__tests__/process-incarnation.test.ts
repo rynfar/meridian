@@ -124,5 +124,5 @@ describe("process incarnation protocol", () => {
     expect(parseProcessIncarnation(current)).toEqual(current)
     expect(probeProcessIncarnation(current!))
       .toBe(process.platform === "linux" ? "alive" : "indeterminate")
-  })
+  }, 25_000) // Windows can run two cold PowerShell probes at up to 10s each.
 })
