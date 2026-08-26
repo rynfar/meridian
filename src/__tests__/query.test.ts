@@ -256,7 +256,7 @@ describe("buildQueryOptions", () => {
     }))
     expect((result.options as any).resume).toBe("sdk-123")
     expect((result.options as any).resumeSessionAt).toBe("assistant-uuid")
-    expect((result.options as any).forkSession).toBe(true)
+    expect(result.options.forkSession).toBe(true)
     expect((result.options as { sessionId?: string }).sessionId).toBe("11111111-1111-4111-8111-111111111111")
   })
 

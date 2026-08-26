@@ -2,23 +2,22 @@
 /**
  * Multi-turn passthrough conversation through the REAL proxy.
  *
- * probe-passthrough-accumulation.mjs proves the defect and the supported
- * forkSession repair at the SDK level. This drives Meridian itself the way
- * OpenCode does: send a request with tools, execute the returned calls, replay
- * the history plus tool_results, and continue until the model answers.
+ * This drives Meridian in the same HTTP shape as OpenCode: send a request with
+ * tools, execute the returned calls, replay the history plus tool_results, and
+ * continue until the model answers.
  *
  * The gate asserts behavior, cache continuity, exact tool-call batching, and
- * the ACTIVE fork's transcript. Superseded source sessions may retain the deny
- * tail that forkSession cut; they are not live history and are reported only
- * for retention accounting.
+ * the active fork's supported SDK message history. It never reads or mutates
+ * Claude's private transcript files.
  *
  *   bun scripts/e2e-passthrough-turns.mjs [--stream]
  */
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { snapshotSessionFiles as snapshot, readRows, blocksOf } from "./lib/passthrough-jsonl.mjs"
+import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk"
 import { isForwardedDenial } from "../src/proxy/passthroughDenial.ts"
+import { readSessionStoreSnapshot, setSessionStoreDir } from "../src/proxy/sessionStore.ts"
 
 process.env.MERIDIAN_PASSTHROUGH = "1"
 process.env.OPENCODE_CLAUDE_PROVIDER_DEBUG = "1"
@@ -30,6 +29,7 @@ const MODEL = process.env.PROBE_MODEL ?? "claude-sonnet-5"
 const MAX_TURNS = Number(process.env.PROBE_TURNS ?? 6)
 
 const WORKDIR = mkdtempSync(join(tmpdir(), "meridian-probe-proxy-"))
+setSessionStoreDir(join(WORKDIR, "meridian-store"))
 const CONTENT = { "a.txt": "alpha", "b.txt": "bravo", "c.txt": "charlie" }
 const FILES = Object.keys(CONTENT).map(f => join(WORKDIR, f))
 for (const f of FILES) writeFileSync(f, CONTENT[f.slice(-5)] + "\n")
@@ -124,11 +124,9 @@ const messages = [{
       `reply with the three contents on one line and nothing else.`,
 }]
 
-const before = snapshot()
 const delivered = new Set()
 const continuationPrefixes = []
 const toolCallBatchSizes = []
-let liveSessionPrefix
 let finalText = ""
 
 for (let turn = 1; turn <= MAX_TURNS; turn++) {
@@ -142,7 +140,6 @@ for (let turn = 1; turn <= MAX_TURNS; turn++) {
   const resumedPrefix = lineage.match(/lineage=continuation session=(\S+)/)?.[1]
   if (resumedPrefix) {
     continuationPrefixes.push(resumedPrefix)
-    liveSessionPrefix = resumedPrefix
   }
   say(`\n=== turn ${turn} (stream=${STREAM}) http ${res.status} ===`)
   say(`  calls: ${calls.map(c => `${c.name}(${String(c.input?.file_path ?? "").slice(-5)})#${short(c.id)}`).join(", ") || "none"}`)
@@ -177,7 +174,6 @@ if (finalText) {
   const resumedPrefix = lineage.match(/lineage=continuation session=(\S+)/)?.[1]
   if (resumedPrefix) {
     continuationPrefixes.push(resumedPrefix)
-    liveSessionPrefix = resumedPrefix
   }
   say(`\n=== follow-up turn (stream=${STREAM}) http ${res.status} ===`)
   say(`  lineage: ${lineage}`)
@@ -185,9 +181,17 @@ if (finalText) {
   checkCache("follow-up", usage, lineage)
 }
 
-// The CLI flushes the transcript as the query settles; give it a beat.
+// Resolve Meridian's published session, then inspect it only through the
+// supported Agent SDK API. Never locate or read Claude's private transcript files.
 await new Promise(r => setTimeout(r, 1500))
-const touched = [...snapshot().entries()].filter(([p, m]) => !before.has(p) || before.get(p) !== m).map(([p]) => p)
+const storedSessions = readSessionStoreSnapshot()
+const activeStoredSession = Object.entries(storedSessions).find(([key]) =>
+  key === sessionId || key.endsWith(`:${sessionId}`)
+)?.[1]
+const activeSessionId = activeStoredSession?.claudeSessionId
+const activeMessages = activeSessionId
+  ? await getSessionMessages(activeSessionId)
+  : []
 
 say(`\n=== verdict (stream=${STREAM}, parallel=${PARALLEL}) ===`)
 const quotes = Object.values(CONTENT).filter(w => finalText.includes(w))
@@ -201,38 +205,46 @@ say(`  tool-call batches: ${toolCallBatchSizes.join(" + ") || "none"}${toolShape
 say(`  continuation session prefixes: ${[...uniqueContinuations].join(" -> ") || "none"}${forkShapeOk ? "" : "   <-- FORK CHAIN NOT DURABLE"}`)
 say(`  final reply quotes ${quotes.length}/3 contents: ${quotes.join(",") || "none"}${claimsUnanswered ? "   <-- claims a call went unanswered" : ""}`)
 
-const activeFiles = liveSessionPrefix
-  ? touched.filter(file => file.split("/").at(-1)?.startsWith(liveSessionPrefix))
-  : []
-const supersededFiles = touched.filter(file => !activeFiles.includes(file))
+const messageBlocks = activeMessages.flatMap((row) => {
+  const message = row?.message
+  if (!message || typeof message !== "object" || !Array.isArray(message.content)) return []
+  return message.content
+})
+const answerBlocks = messageBlocks.filter((block) =>
+  block?.type === "tool_result" && delivered.has(block.tool_use_id)
+)
 const activeAnswerProblems = []
-for (const file of activeFiles) {
-  const answerBlocks = readRows(file).flatMap(row => blocksOf(row).filter(block =>
-    block?.type === "tool_result" && delivered.has(block.tool_use_id)
-  ))
-  for (const id of delivered) {
-    const answers = answerBlocks.filter(block => block.tool_use_id === id)
-    const denials = answers.filter(isForwardedDenial)
-    const real = answers.filter(block => !isForwardedDenial(block))
-    if (denials.length !== 0 || real.length !== 1) {
-      activeAnswerProblems.push(`${short(id)}: real=${real.length} denial=${denials.length}`)
-    }
+for (const id of delivered) {
+  const answers = answerBlocks.filter(block => block.tool_use_id === id)
+  const denials = answers.filter(isForwardedDenial)
+  const real = answers.filter(block => !isForwardedDenial(block))
+  if (denials.length !== 0 || real.length !== 1) {
+    activeAnswerProblems.push(`${short(id)}: real=${real.length} denial=${denials.length}`)
   }
-  say(`  active fork ${file}: ${activeAnswerProblems.length ? activeAnswerProblems.join(", ") : "exactly one real answer per delivered call"}`)
 }
-say(`  superseded fork files still present: ${supersededFiles.length}`)
+const activeHistoryVerdict = !activeSessionId
+  ? "missing"
+  : activeAnswerProblems.length
+    ? activeAnswerProblems.join(", ")
+    : "exactly one real answer per delivered call"
+say(`  active fork ${activeSessionId ?? "missing"}: ${activeHistoryVerdict}`)
 say(`  prompt cache: ${cacheMisses.length ? cacheMisses.join("; ") + "   <-- PREFIX LOST" : "every continuation read the prior cached prefix"}`)
-if (touched.length === 0) say("  no session JSONL was written — inconclusive")
-if (activeFiles.length !== 1) say(`  expected one active fork, found ${activeFiles.length}`)
+if (!activeSessionId) say("  no published session was found — inconclusive")
+if (activeMessages.length === 0) say("  supported getSessionMessages() returned no active history")
 const pass = quotes.length === 3 &&
   !claimsUnanswered &&
   delivered.size === 3 &&
   toolShapeOk &&
   forkShapeOk &&
-  activeFiles.length === 1 &&
+  Boolean(activeSessionId) &&
+  activeMessages.length > 0 &&
   activeAnswerProblems.length === 0 &&
   cacheMisses.length === 0
-say(`  ${pass ? "PASS" : "FAIL"}: active history has one call, one real answer`)
+say(`  ${pass ? "PASS" : "FAIL"}: active history has one real answer per delivered call`)
+if (!pass) {
+  say("\n  recent proxy diagnostics:")
+  for (const line of proxyLog.slice(-30)) say(`    ${line}`)
+}
 
-await inst.stop?.()
+await inst.close()
 process.exit(pass ? 0 : 1)

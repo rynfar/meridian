@@ -191,8 +191,8 @@ const UPSTREAM_IDLE_MS = envInt("UPSTREAM_IDLE_MS", 90_000)
 // parallel call still generating and hands the client a truncated tool set
 // under a 200 (measured: 1 of 3 calls delivered).
 //
-// An override BELOW UPSTREAM_IDLE_MS deliberately re-enables that race; that is
-// how scripts/probe-passthrough-proxy.mjs reproduces the leak on demand.
+// An override BELOW UPSTREAM_IDLE_MS deliberately re-enables that race for
+// regression tests; production defaults must remain above the upstream guard.
 const DENY_HOLD_TIMEOUT_MS = envInt("DENY_HOLD_TIMEOUT_MS", UPSTREAM_IDLE_MS + 30_000)
 
 // Bounds how long ProxyInstance.close() waits for in-flight /v1/messages
@@ -3015,7 +3015,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // in-flight request — beheading calls 2..N and freezing the
               // checkpoint on call 1.
               if (message.type === "stream_event") {
-                const event = (message as any).event as any
+                const event = message.event
                 const eventType = event?.type
                 if (eventType === "message_delta" || eventType === "message_stop") {
                   sawTurnBoundarySignal = true

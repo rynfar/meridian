@@ -124,7 +124,7 @@ cat /tmp/proxy-e2e.log | strings | grep "\[PROXY\]" | tail -5
 
 **Session header.** All curl tests use `x-opencode-session` to control session identity. This is the header the OpenCode adapter reads.
 
-**Diagnostics vs gates.** `scripts/e2e-*.mjs` are gates: they assert and exit non-zero. `scripts/probe-*.mjs` are not — they drive the same real stack but print findings for a human to read, and are deliberately absent from the index above so a green run is never mistaken for a passing gate. The passthrough probes reconstruct what `resumeSessionAt` would keep by reading the session JSONL the CLI wrote, which is the one thing the mocked suites cannot check. They need Claude Max and cost real tokens.
+**Diagnostics vs gates.** `scripts/e2e-*.mjs` are gates: they assert and exit non-zero. Real-session gates must inspect history only through supported Agent SDK APIs such as `getSessionMessages()`. Never locate, parse, rewrite, or mutate Claude's private transcript files.
 
 **Cleanup.** Each test section is independent. Kill the proxy and clear the session store between sections if you need isolation:
 ```bash
@@ -3561,23 +3561,15 @@ PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs --stream
 - Every result round advances to a distinct continuation session, proving the
   replacement tail was committed to a fork rather than only rewound for one
   query.
-- A follow-up resumes the active fork. Its JSONL contains exactly one real
-  `tool_result` for every delivered id and no forwarding denial for those ids.
-  Superseded parent files may retain the deny tail that was cut; they are not
-  live history and are reported separately for retention accounting.
+- A follow-up resumes the active fork. Supported `getSessionMessages()` output
+  contains exactly one real `tool_result` for every delivered id and no
+  forwarding denial for those ids.
 - Every continuation, including the follow-up, reads at least 95% of the prior
   turn's `cache_read_input_tokens + cache_creation_input_tokens`.
 
-**Mechanism-level A/B:**
-
-```bash
-bun scripts/probe-passthrough-accumulation.mjs
-bun scripts/probe-passthrough-accumulation.mjs --fork
-```
-
-The raw-SDK probe records the actual Anthropic request bodies through a local
-`ANTHROPIC_BASE_URL` tap. The first command demonstrates the stale denial winning;
-`--fork` proves the supported replacement branch sends only the real result.
+The gate resolves Meridian's published session from its own durable store and
+uses the supported Agent SDK `getSessionMessages()` API for the history check.
+It does not inspect Claude's private persistence format.
 
 **Verified:** 2026-08-26, sonnet, chain and parallel, stream and non-stream.
 The active fork held one real answer per delivered call and every continuation

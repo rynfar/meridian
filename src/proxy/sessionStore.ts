@@ -911,8 +911,8 @@ export function storeSharedSession(
     }
     // Preserve the previous Claude session ID when the mapping changes.
     // This enables recovery when a lineage bug causes the original session
-    // to be abandoned — the old ID still points to the full conversation
-    // in ~/.claude/projects/.
+    // to be abandoned — the old ID still identifies the full conversation
+    // through the supported Agent SDK session APIs.
     const sessionIdChanged = existing !== undefined && existing.claudeSessionId !== claudeSessionId
     if (sourceTranscript !== undefined) {
       if (!sessionIdChanged || sourceTranscript.sessionId !== existing?.claudeSessionId) {

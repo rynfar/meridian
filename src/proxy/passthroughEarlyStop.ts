@@ -73,7 +73,13 @@ export function createEarlyStopTracker(): EarlyStopTracker {
  * or as bare names (read) — the SDK strips the prefix in some event paths.
  * Internal MCP tools (mcp__opencode__*) and ToolSearch are excluded.
  */
-export function isClientForwardedToolUse(block: unknown): boolean {
+export interface ClientForwardedToolUse {
+  type: "tool_use"
+  id: string
+  name: string
+}
+
+export function isClientForwardedToolUse(block: unknown): block is ClientForwardedToolUse {
   const b = block as { type?: unknown; id?: unknown; name?: unknown } | null | undefined
   if (!b || b.type !== "tool_use") return false
   if (typeof b.id !== "string" || b.id.length === 0) return false
@@ -90,7 +96,7 @@ export function noteAssistantContent(tracker: EarlyStopTracker, content: unknown
   if (!Array.isArray(content)) return
   for (const block of content) {
     if (isClientForwardedToolUse(block)) {
-      tracker.expected.add((block as { id: string }).id)
+      tracker.expected.add(block.id)
     }
   }
 }

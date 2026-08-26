@@ -1225,9 +1225,9 @@ describe("Integration: passthrough early stop", () => {
       messages: [{ role: "user", content: "read a and b" }],
     }, "es-ns-late-parallel")
     expect(res.status).toBe(200)
-    const body = await res.json() as any
-    const toolUses = body.content.filter((b: any) => b.type === "tool_use")
-    expect(toolUses.map((t: any) => t.id).sort()).toEqual(["ns-late-1", "ns-late-2"])
+    const body = await res.json() as { content: Array<{ type: string; id?: string }> }
+    const toolUses = body.content.filter((block) => block.type === "tool_use")
+    expect(toolUses.map((toolUse) => toolUse.id).sort()).toEqual(["ns-late-1", "ns-late-2"])
 
     mockMessages = [assistantMessage([{ type: "text", text: "both complete" }])]
     const second = await post(app, {
@@ -1281,9 +1281,9 @@ describe("Integration: passthrough early stop", () => {
       messages: [{ role: "user", content: "read a and b" }],
     }, "es-ns-midgen")
     expect(res.status).toBe(200)
-    const body = await res.json() as any
-    const toolUses = body.content.filter((b: any) => b.type === "tool_use")
-    expect(toolUses.map((t: any) => t.id).sort()).toEqual(["ns-mid-1", "ns-mid-2"])
+    const body = await res.json() as { content: Array<{ type: string; id?: string }> }
+    const toolUses = body.content.filter((block) => block.type === "tool_use")
+    expect(toolUses.map((toolUse) => toolUse.id).sort()).toEqual(["ns-mid-1", "ns-mid-2"])
   })
 
   // #742: a deny can become iterator-visible while a later tool_use block is
