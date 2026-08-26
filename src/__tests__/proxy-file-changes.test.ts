@@ -24,6 +24,7 @@ import {
 
 let mockMessages: any[] = []
 let capturedQueryParams: any = null
+let firePreToolUseHooks = false
 
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   query: (params: any) => {
@@ -35,6 +36,23 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       const postToolUseHooks = params.options?.hooks?.PostToolUse
       for (const msg of mockMessages) {
         yield withMockSdkSessionId(msg, params.options)
+        if (firePreToolUseHooks && msg.type === "assistant") {
+          const preToolUseHooks = params.options?.hooks?.PreToolUse
+          for (const block of msg.message?.content || []) {
+            if (block.type !== "tool_use") continue
+            for (const matcher of preToolUseHooks || []) {
+              for (const hookFn of matcher.hooks) {
+                await hookFn({
+                  hook_event_name: "PreToolUse",
+                  tool_name: block.name,
+                  tool_input: block.input,
+                  tool_use_id: block.id,
+                })
+              }
+            }
+          }
+        }
+
         // After yielding an assistant message with tool results, fire PostToolUse
         // for any MCP tool blocks (simulating the SDK's internal tool execution)
         if (msg.type === "assistant" && postToolUseHooks) {
@@ -78,7 +96,9 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
       }
     })()
   },
-  createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
+  createSdkMcpServer: () => ({
+    type: "sdk", name: "test", instance: { registerTool: () => ({}), tool: () => ({}) },
+  }),
   tool: () => ({}),
 }))
 
@@ -129,6 +149,7 @@ describe("File change visibility: PostToolUse hook registration", () => {
   beforeEach(() => {
     mockMessages = [assistantMessage([{ type: "text", text: "Done" }])]
     capturedQueryParams = null
+    firePreToolUseHooks = false
     clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
@@ -591,6 +612,7 @@ describe("File change visibility: other adapters still track", () => {
   beforeEach(() => {
     mockMessages = []
     capturedQueryParams = null
+    firePreToolUseHooks = false
     clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
@@ -646,5 +668,69 @@ describe("File change visibility: other adapters still track", () => {
       .join("")
     expect(allText).toContain("Files changed:")
     expect(allText).toContain("wrote src/pi-file.ts")
+  })
+
+  it("pi stream: emits backfilled tools and file summaries before the terminal delta", async () => {
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    firePreToolUseHooks = true
+    mockMessages = [
+      messageStart("msg_pi_backfill"),
+      messageDelta("tool_use"),
+      messageStop(),
+      assistantMessage([
+        { type: "tool_use", id: "toolu_pi_backfill", name: "mcp__pi__read", input: { filePath: "src/pi-file.ts" } },
+      ]),
+      { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+    ]
+
+    const app = createTestApp()
+    const response = await postAs(app, "pi", {
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      stream: true,
+      tools: [{
+        name: "read",
+        description: "Read a file",
+        input_schema: { type: "object", properties: { filePath: { type: "string" } } },
+      }],
+      messages: [
+        { role: "user", content: "Create a file" },
+        { role: "assistant", content: [{
+          type: "tool_use", id: "toolu_prior_write", name: "write",
+          input: { filePath: "src/pi-file.ts", content: "export const y = 2" },
+        }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_prior_write", content: "ok" }] },
+        { role: "user", content: "Read it now" },
+      ],
+    })
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let wire = ""
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      wire += decoder.decode(value, { stream: true })
+    }
+    const events = parseSSE(wire)
+    const terminalIndexes = events
+      .map((event, index) => event.event === "message_delta" ? index : -1)
+      .filter((index) => index >= 0)
+    expect(terminalIndexes).toHaveLength(1)
+    const terminalIndex = terminalIndexes[0]!
+    expect(JSON.stringify(events[terminalIndex]!.data)).toContain('"stop_reason":"tool_use"')
+
+    const toolIndex = events.findIndex((event) =>
+      event.event === "content_block_start"
+      && JSON.stringify(event.data).includes("toolu_pi_backfill"))
+    const summaryIndex = events.findIndex((event) =>
+      event.event === "content_block_delta"
+      && JSON.stringify(event.data).includes("Files changed:"))
+    const messageStopIndex = events.findIndex((event) => event.event === "message_stop")
+    expect(toolIndex).toBeGreaterThan(-1)
+    expect(summaryIndex).toBeGreaterThan(toolIndex)
+    expect(terminalIndex).toBeGreaterThan(summaryIndex)
+    expect(messageStopIndex).toBeGreaterThan(terminalIndex)
+    expect(events.slice(terminalIndex + 1).some((event) =>
+      event.event.startsWith("content_block_"))).toBe(false)
   })
 })

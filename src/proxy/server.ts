@@ -4995,11 +4995,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     ), "passthrough_tool_block_stop")
                   }
 
-                  // The turn really did end in tool calls, so the withheld
-                  // delta's stop_reason is wrong — override it. Emitting a
-                  // second delta here is what gave one message two conflicting
-                  // terminal frames once recovery started appending blocks.
-                  sendTerminalDelta("tool_use")
+                  // Keep the terminal delta withheld until every append-only
+                  // block below is complete. Clients may finalize as soon as
+                  // they receive message_delta, so no content can follow it.
                 }
 
                 // Passthrough mode: scan body.messages for file changes on end_turn
@@ -5580,6 +5578,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // value that actively lies, and it lies in the direction that
               // makes an autonomous loop stop.
               if (messageStartEmitted) {
+                // An upstream failure can cut a block between its start and
+                // stop. Close every forwarded block before any terminal or
+                // error frame so the client never commits a dangling envelope.
+                flushOpenClientBlocks("error")
                 const errorStopReason = "max_tokens"
                 claudeLog("response.error_envelope", {
                   mode: "stream",

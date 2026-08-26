@@ -144,6 +144,30 @@ describe("Stream error recovery after message_start", () => {
     expect((recoveryDelta?.data as any).delta.stop_reason).toBe("max_tokens")
   })
 
+  it("closes a dangling content block before the terminal error envelope", async () => {
+    mockMessages = [
+      messageStart("msg_dangling"),
+      textBlockStart(4),
+      textDelta(4, "partial"),
+    ]
+    mockErrorAfter = 3
+
+    const app = createTestApp()
+    const events = await postStream(app)
+    const eventTypes = events.map((event) => event.event)
+    const blockStopIndex = eventTypes.indexOf("content_block_stop")
+    const messageDeltaIndex = eventTypes.indexOf("message_delta")
+    const errorIndex = eventTypes.indexOf("error")
+    const messageStopIndex = eventTypes.indexOf("message_stop")
+
+    expect(blockStopIndex).toBeGreaterThan(-1)
+    expect(messageDeltaIndex).toBeGreaterThan(blockStopIndex)
+    expect(errorIndex).toBeGreaterThan(messageDeltaIndex)
+    expect(messageStopIndex).toBeGreaterThan(errorIndex)
+    expect(events.slice(messageDeltaIndex + 1).some((event) =>
+      event.event.startsWith("content_block_"))).toBe(false)
+  })
+
   it("should emit error immediately when message_start was NOT sent", async () => {
     // Error before any events are yielded
     mockMessages = []
