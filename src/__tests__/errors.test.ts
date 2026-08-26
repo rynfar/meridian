@@ -304,6 +304,15 @@ describe("classifyError", () => {
       const result = classifyError("service overloaded")
       expect(result.status).toBe(503)
     })
+
+    it("does not treat status-code digits embedded in UUIDs as HTTP signals", () => {
+      for (const code of ["401", "429", "500", "503"]) {
+        const message = `Managed SDK fork returned 00000000-0000-4${code}-8000-000000000000`
+        const result = classifyError(message)
+        expect(result.status).toBe(500)
+        expect(result.message).toBe(message)
+      }
+    })
   })
 
   describe("busy session (bg agent) detection — #630", () => {

@@ -62,6 +62,17 @@ const BILLING_SIGNALS: readonly RegExp[] = [
  *  can't drift into unrelated text that happens to contain "limit". */
 const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
 
+/** Bare HTTP codes are useful SDK signals only when they are not embedded in
+ * an opaque hexadecimal identity. Managed transcript errors include random
+ * UUIDs, so substring matching (for example `includes("503")`) made their HTTP
+ * classification random whenever a UUID happened to contain those digits.
+ * The `:\d` exclusion also avoids treating a source `:line:column` as a
+ * status code. */
+const HTTP_401 = /(?:^|[^0-9a-f])401(?![0-9a-f]|:\d)/
+const HTTP_429 = /(?:^|[^0-9a-f])429(?![0-9a-f]|:\d)/
+const HTTP_500 = /(?:^|[^0-9a-f])500(?![0-9a-f]|:\d)/
+const HTTP_503 = /(?:^|[^0-9a-f])503(?![0-9a-f]|:\d)/
+
 /**
  * Detect specific SDK errors and return helpful messages to the client.
  *
@@ -82,7 +93,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   }
 
   // Authentication failures
-  if (lower.includes("401") || lower.includes("authentication") || lower.includes("invalid auth") || lower.includes("credentials")) {
+  if (HTTP_401.test(lower) || lower.includes("authentication") || lower.includes("invalid auth") || lower.includes("credentials")) {
     return {
       status: 401,
       type: "authentication_error",
@@ -102,7 +113,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // shape instead of enumerating: "hit your <anything> limit" covers the
   // variants seen so far and the daily/monthly/5-hour ones that would
   // otherwise be the next report.
-  if (lower.includes("429") || lower.includes("rate limit") || lower.includes("too many requests")
+  if (HTTP_429.test(lower) || lower.includes("rate limit") || lower.includes("too many requests")
     || HIT_YOUR_LIMIT.test(lower) || lower.includes("usage limit reached")) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? extendedContextHint(model)
@@ -175,7 +186,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   }
 
   // Server errors from Anthropic
-  if (lower.includes("500") || lower.includes("server error") || lower.includes("internal error")) {
+  if (HTTP_500.test(lower) || lower.includes("server error") || lower.includes("internal error")) {
     return {
       status: 502,
       type: "api_error",
@@ -184,7 +195,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   }
 
   // Overloaded
-  if (lower.includes("503") || lower.includes("overloaded")) {
+  if (HTTP_503.test(lower) || lower.includes("overloaded")) {
     return {
       status: 503,
       type: "overloaded_error",

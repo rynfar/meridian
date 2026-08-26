@@ -653,7 +653,9 @@ describe("Integration: passthrough early stop", () => {
       messages: [{ role: "user", content: "read for mismatch" }],
     }, "es-managed-id-mismatch")).status).toBe(200)
 
-    const wrongSessionId = `wrong-${crypto.randomUUID()}`
+    // Keep 503 inside the opaque ID so this also proves error classification
+    // does not mistake random UUID digits for an HTTP overload response.
+    const wrongSessionId = "wrong-00000000-0000-4503-8000-000000000000"
     mockReturnedSessionIdOverride = wrongSessionId
     mockMessages = [assistantMessage([{ type: "text", text: "must not publish" }])]
     const response = await post(app, {
