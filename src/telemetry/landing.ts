@@ -9,6 +9,7 @@
  */
 
 import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
+import { profileFactsJs } from "./profileFacts"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -52,6 +53,32 @@ export const landingHtml = `<!DOCTYPE html>
     color: var(--muted); opacity: 0; transition: opacity 0.15s; }
   .profile-card.switchable:hover .switch-hint { opacity: 1; }
   .profile-cost { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+
+  /* Account details on hover. Drawn rather than a title attribute: the native
+     tooltip cannot show a label/value list, and this one has to match the grid
+     on /profiles row for row. */
+  .prof-info { position: relative; display: inline-flex; }
+  .prof-info-dot { width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--muted);
+    font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 10px;
+    font-weight: 700; line-height: 12px; text-align: center; cursor: help; }
+  .prof-info:hover .prof-info-dot, .prof-info:focus-within .prof-info-dot {
+    border-color: var(--accent); color: var(--accent); }
+  .prof-info-dot:focus-visible { outline: none; border-color: var(--accent); color: var(--accent); }
+  .prof-pop { position: absolute; top: calc(100% + 8px); left: -8px; z-index: 20;
+    min-width: 256px; padding: 12px 14px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    opacity: 0; visibility: hidden; transition: opacity 0.12s;
+    text-align: left; font-weight: 400; letter-spacing: 0; text-transform: none; cursor: default; }
+  .prof-info:hover .prof-pop, .prof-info:focus-within .prof-pop { opacity: 1; visibility: visible; }
+  .prof-pop-type { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--accent2); margin-bottom: 8px; }
+  .prof-pop-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; font-size: 11px; }
+  .prof-pop-label { color: var(--muted); white-space: nowrap; }
+  .prof-pop-value { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; word-break: break-word; }
+  .prof-pop-value.status-ok { color: var(--green); }
+  .prof-pop-value.status-err { color: var(--red); }
   .profile-sub { font-size: 11px; color: var(--muted); text-align: right; margin-bottom: 12px; }
   .usage-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 4px 0; }
   .usage-row .w-label { color: var(--muted); width: 64px; flex-shrink: 0; }
@@ -95,6 +122,7 @@ export const landingHtml = `<!DOCTYPE html>
   <div id="content"><div style="color:var(--muted);padding:40px;text-align:center">Loading…</div></div>
 </div>
 <script>
+` + profileFactsJs + `
 function ms(v){if(v==null||v===0)return '—';return v<1000?v+'ms':(v/1000).toFixed(1)+'s'}
 function esc(s){return String(s).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]})}
 function usd(v){if(v==null)return '—';if(v>0&&v<0.01)return '$'+v.toFixed(4);if(v<100)return '$'+v.toFixed(2);return '$'+Math.round(v).toLocaleString()}
@@ -139,6 +167,29 @@ function introSection(h){
     +'</div>';
 }
 
+function infoIcon(entry,type){
+  var facts=profileFacts(entry);
+  var rows='';
+  for(var i=0;i<facts.length;i++){
+    var f=facts[i];
+    var tone=f.tone==='ok'?' status-ok':f.tone==='err'?' status-err':'';
+    rows+='<span class="prof-pop-label">'+esc(f.label)+'</span>'
+      +'<span class="prof-pop-value'+tone+'">'+esc(f.value)+'</span>';
+  }
+  return '<span class="prof-info">'
+    +'<span class="prof-info-dot" tabindex="0" role="button" aria-label="Details for '+esc(entry.id)+'">i</span>'
+    +'<span class="prof-pop" role="tooltip">'
+    +'<span class="prof-pop-type">'+esc(type||'claude-max')+'</span>'
+    +'<span class="prof-pop-grid">'+rows+'</span>'
+    +'</span></span>';
+}
+
+// An open overlay is the hovered or focused element, so this needs no state of
+// its own and cannot be left stuck by an event that never arrives.
+function infoPopOpen(){
+  return !!document.querySelector('.prof-info:hover, .prof-info:focus-within');
+}
+
 function profileSection(q,s,pl,h){
   var byProfile=(s&&s.costEstimate&&s.costEstimate.byProfile)||{};
   var quotaByProfile={};
@@ -150,7 +201,9 @@ function profileSection(q,s,pl,h){
     // Real profiles exist: show exactly those. Traffic that predates
     // per-profile attribution (the synthetic "default" bucket) still
     // counts in the totals strip but doesn't render as a fake account.
-    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,configured:true});seen[p.id]=1}
+    // The whole entry rides along so the details overlay reads it directly —
+    // a copied field list here would have to grow every time profileFacts does.
+    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,configured:true,entry:p});seen[p.id]=1}
   }else{
     // Single-account setup: one card, labeled with the logged-in email.
     var email=(h&&h.auth&&h.auth.loggedIn&&h.auth.email)||'';
@@ -203,7 +256,7 @@ function profileSection(q,s,pl,h){
       }
     }
     cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
-      +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'
+      +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+(p.entry?infoIcon(p.entry,p.type):'')+esc(p.label||p.id)+' '+badge+'</span>'
       +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
       +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
       +rows+'</div>';
@@ -268,15 +321,19 @@ function switchProfile(id){
     .catch(function(){});
 }
 document.getElementById('content').addEventListener('click',function(e){
+  // The card is itself the switch button, so the icon inside one has to opt
+  // out of it or reading an account would move all traffic to that account.
+  if(e.target.closest('.prof-info'))return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile)switchProfile(card.dataset.profile);
 });
 document.getElementById('content').addEventListener('keydown',function(e){
   if(e.key!=='Enter'&&e.key!==' ')return;
+  if(e.target.closest('.prof-info'))return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile){e.preventDefault();switchProfile(card.dataset.profile)}
 });
-refresh();setInterval(refresh,10000);
+refresh();setInterval(function(){if(!infoPopOpen())refresh()},10000);
 ` + profileBarJs + `
 </script>
 </body>
