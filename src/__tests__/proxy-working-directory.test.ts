@@ -116,9 +116,10 @@ describe("Working directory", () => {
         max_tokens: 100,
         stream: false,
         messages: [{ role: "user", content: "hello" }],
-      })).json()
+      }, { "user-agent": "opencode/1.18.22" })).json()
 
       expect(capturedQueryParams.options.cwd).toBe(realPath)
+      expect(clientCwdFromAppend(capturedQueryParams)).toBeUndefined()
     } finally {
       if (original) process.env.CLAUDE_PROXY_WORKDIR = original
       else delete process.env.CLAUDE_PROXY_WORKDIR
