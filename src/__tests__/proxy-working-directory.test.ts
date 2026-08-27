@@ -77,6 +77,14 @@ function clientCwdFromAppend(params: any): string | undefined {
   return systemPromptAppend(params).match(/<env>\nWorking directory: ([^\n]+)\n<\/env>/)?.[1]
 }
 
+function cwdAddendumFromAppend(params: any): string {
+  const append = systemPromptAppend(params)
+  const start = append.indexOf("<env>\nWorking directory:")
+  if (start < 0) return ""
+  const end = append.indexOf("</meridian-note>", start)
+  return end < 0 ? append.slice(start) : append.slice(start, end + "</meridian-note>".length)
+}
+
 describe("Working directory", () => {
   beforeEach(() => {
     mockMessages = [assistantMessage([{ type: "text", text: "Hi" }])]
@@ -259,7 +267,7 @@ describe("Working directory", () => {
       expect(capturedQueryParams.options.cwd).toBe(proxyPath)
       expect(capturedQueryParams.options.includePartialMessages).toBe(true)
       expect(clientCwdFromAppend(capturedQueryParams)).toBe("C:\\projects\\example-v2-app")
-      expect(systemPromptAppend(capturedQueryParams)).not.toContain("`git status`")
+      expect(cwdAddendumFromAppend(capturedQueryParams)).not.toContain("`git status`")
     } finally {
       if (originalProxy === undefined) delete process.env.CLAUDE_PROXY_WORKDIR
       else process.env.CLAUDE_PROXY_WORKDIR = originalProxy

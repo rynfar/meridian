@@ -22,6 +22,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
+import { getConversationFingerprint } from "../proxy/session/fingerprint"
 
 type MockSdkMessage = Record<string, unknown>
 type TestApp = { fetch: (req: Request) => Promise<Response> }
@@ -73,6 +74,16 @@ mock.module("../mcpTools", () => ({
 
 const fpTmpDir = mkdtempSync(join(tmpdir(), "session-fp-context-test-"))
 process.env.CLAUDE_PROXY_SESSION_DIR = fpTmpDir
+const sessionStoreModule = new URL("../proxy/sessionStore.ts", import.meta.url).href
+const durableReaderSource = String.raw`
+const { lookupSharedSessionResult } = await import(process.env.SESSION_STORE_MODULE)
+const result = lookupSharedSessionResult(process.env.SESSION_KEY)
+if (result.status === "found" && result.session.claudeSessionId === process.env.EXPECTED_SESSION) {
+  process.exit(0)
+}
+console.error(JSON.stringify(result))
+process.exit(1)
+`
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { clearSharedSessions } = await import("../proxy/sessionStore")
@@ -441,17 +452,37 @@ describe("Fingerprint resume: OpenCode CWD-key transition", () => {
       expect(newSession).not.toBe(oldSession)
       expect(getCaptured()?.options?.resume).toBeUndefined()
 
-      // Simulate a proxy restart: discard process-local cache but retain the
-      // durable shared store written under the new client-path fingerprint.
-      clearSessionCache()
+      // A new process reads the durable file directly. This is the persistence
+      // boundary used after a proxy restart; unlike clearSessionCache(), it
+      // does not evict the mapping as part of test cleanup.
+      const sessionKey = getConversationFingerprint([
+        { role: "user", content: "hello from the migration fixture" },
+      ], clientCwd)
+      const reader = Bun.spawn([process.execPath, "-e", durableReaderSource], {
+        env: {
+          ...process.env,
+          CLAUDE_PROXY_SESSION_DIR: fpTmpDir,
+          SESSION_STORE_MODULE: sessionStoreModule,
+          SESSION_KEY: sessionKey,
+          EXPECTED_SESSION: newSession,
+        },
+        stdout: "ignore",
+        stderr: "pipe",
+      })
+      const exitCode = await reader.exited
+      if (exitCode !== 0) {
+        const stderr = reader.stderr instanceof ReadableStream
+          ? await new Response(reader.stderr).text()
+          : String(reader.stderr ?? "")
+        throw new Error(`Fresh process could not read the client-key mapping: ${stderr}`)
+      }
+
       capturedQueryParams = null
-      const restartedApp = createTestApp()
-      await postNoSession(restartedApp, [
+      await postNoSession(firstApp, [
         { role: "user", content: "hello from the migration fixture" },
         { role: "assistant", content: "ok" },
-        { role: "user", content: "continue after restart" },
-      ], "restart", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`, false, opencodeHeaders)
-
+        { role: "user", content: "continue on the new key" },
+      ], "continuation", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`, false, opencodeHeaders)
       expect(getCaptured()?.options?.resume).toBeDefined()
     } finally {
       if (originalProxy === undefined) delete process.env.CLAUDE_PROXY_WORKDIR
