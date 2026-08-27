@@ -86,7 +86,7 @@ process.exit(1)
 `
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
-const { clearSharedSessions } = await import("../proxy/sessionStore")
+const { clearSharedSessions, getSessionStoreDir } = await import("../proxy/sessionStore")
 
 afterAll(() => {
   rmSync(fpTmpDir, { recursive: true, force: true })
@@ -461,7 +461,7 @@ describe("Fingerprint resume: OpenCode CWD-key transition", () => {
       const reader = Bun.spawn([process.execPath, "-e", durableReaderSource], {
         env: {
           ...process.env,
-          CLAUDE_PROXY_SESSION_DIR: fpTmpDir,
+          CLAUDE_PROXY_SESSION_DIR: getSessionStoreDir(),
           SESSION_STORE_MODULE: sessionStoreModule,
           SESSION_KEY: sessionKey,
           EXPECTED_SESSION: newSession,
