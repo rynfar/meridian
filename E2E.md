@@ -3559,6 +3559,17 @@ The gate resolves Meridian's published session from its own durable store and
 uses the supported Agent SDK `getSessionMessages()` API for the history check.
 It does not inspect Claude's private persistence format.
 
-**Verified:** 2026-08-26 at implementation SHA `8f6a3585`, sonnet, chain and
+**Verified:** 2026-08-27 at implementation SHA `73a966f2`, sonnet, chain and
 parallel, stream and non-stream. The active fork held one real answer per
 delivered call and every continuation read the prior cached prefix in full.
+
+The same SHA also passed an actual headless OpenCode 1.18.11 gate. It performed
+a real read, three parallel reads, two ordinary continuations, a supported
+OpenCode revert, a post-undo continuation, and two full Meridian restarts. The
+ordinary and cross-process continuations used supported SDK forks with 99–100%
+cache reuse. The undo was detected as a prefix rollback and replayed into a
+fresh prepared transcript with 98% cache reuse. With
+`MERIDIAN_MAX_STORED_SESSIONS=1`, Meridian retained one mapping and exactly its
+current and direct-predecessor transcripts. Supported SDK GC then deleted ten
+retired transcripts, retained both pinned transcripts, and verified every
+history only through `getSessionMessages()`.
