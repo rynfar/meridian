@@ -6,19 +6,24 @@ Per-agent configuration for every tested client. All agents share the same basic
 
 ### OpenCode
 
+### OpenCode V1
+
 **Step 1: Run `meridian setup` (required, one time)**
 
 ```bash
 meridian setup
 ```
 
-This adds the Meridian plugin to your OpenCode global config (`~/.config/opencode/opencode.json`). The plugin enables:
+When V1 and V2 are both installed, the default command keeps V1 selected. You can
+also select it explicitly:
 
-- **Session tracking** — reliable conversation continuity across requests
-- **Safe model defaults** — Opus uses 1M context (included with Max subscription); Sonnet uses 200k to avoid Extra Usage charges ([details](configuration.md#configuration))
-- **Subagent model selection** — subagents automatically use `sonnet`/`opus` (200k), preserving rate-limit budget
+```bash
+meridian setup --v1
+```
 
-If the plugin is missing, Meridian warns at startup and reports `"plugin": "not-configured"` in the health endpoint.
+Setup adds the V1 Meridian plugin to the OpenCode global config
+(`~/.config/opencode/opencode.json`). It preserves unrelated plugin entries and
+all other settings.
 
 **Step 2: Start**
 
@@ -26,14 +31,82 @@ If the plugin is missing, Meridian warns at startup and reports `"plugin": "not-
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 opencode
 ```
 
-Or set these in your shell profile so they're always active:
+Or set these in your shell profile so they are always active:
 
 ```bash
 export ANTHROPIC_API_KEY=x
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 ```
 
+### OpenCode V2 beta
+
+Meridian currently supports the exact public beta used by its V2 plugin:
+`@opencode-ai/cli@0.0.0-beta-18314`. V2 plugin APIs are still changing, so setup
+fails closed for another V2 version instead of installing a plugin with an
+unknown contract.
+
+Install the pinned beta and select its executable:
+
+```bash
+npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-18314
+meridian setup --v2 --opencode-bin ~/.local/bin/opencode2
+```
+
+If your binary is elsewhere, pass that path to `--opencode-bin`. V2 can
+self-update to a newer beta, so keep it pinned and launch it with automatic
+updates disabled while this compatibility target is current:
+
+```bash
+export OPENCODE_DISABLE_AUTOUPDATE=1
+```
+
+Configure V2's Anthropic provider to use Meridian. Keep the existing settings in
+`~/.config/opencode/opencode.json`; the important provider fields are:
+
+```json
+{
+  "model": "anthropic/claude-opus-4-6",
+  "small_model": "anthropic/claude-haiku-4-5",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "x",
+        "baseURL": "http://127.0.0.1:3456"
+      },
+      "models": {
+        "claude-opus-4-6": { "name": "Claude Opus 4.6" },
+        "claude-haiku-4-5": { "name": "Claude Haiku 4.5" }
+      }
+    }
+  }
+}
+```
+
+Then start the pinned client:
+
+```bash
+OPENCODE_DISABLE_AUTOUPDATE=1 ~/.local/bin/opencode2
+```
+
+The V2 plugin uses the native `model.request` and `http.request` hooks. It keeps
+primary and compaction requests attached to the correct OpenCode session,
+detaches concurrent hidden title/summary requests, and gives each visible
+subagent its own trusted identity. Request bodies and model input are unchanged.
+
+For either generation, the plugin enables:
+
+- **Session tracking** — reliable conversation continuity across requests
+- **Safe hidden-agent concurrency** — title and summary work cannot advance the primary lineage
+- **Safe model defaults** — Opus uses 1M context; Sonnet uses 200k to avoid Extra Usage charges ([details](configuration.md#configuration))
+- **Subagent model selection** — subagents use the 200k tier, preserving rate-limit budget
+
+If the plugin is missing, Meridian warns at request time. Restart OpenCode after
+running setup so it loads the selected plugin.
+
 #### oh-my-opencagent (OMO)
+
+> **OpenCode V1:** The integration below is validated on V1. Do not assume that
+> its plugin schema is compatible with the pinned V2 beta.
 
 [oh-my-opencagent](https://github.com/nicobailey/oh-my-opencagent) adds multi-agent orchestration on top of OpenCode. It works transparently through Meridian with no extra configuration — OMO uses the same OpenCode headers and tool format, so Meridian detects it automatically.
 

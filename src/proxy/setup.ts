@@ -10,9 +10,10 @@
  *                          headers (see notePluginlessOpenCodeRequest)
  */
 
+import spawn from "cross-spawn"
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
 import { homedir, platform } from "os"
-import { dirname, join } from "path"
+import { basename, dirname, join } from "path"
 import { fileURLToPath } from "url"
 import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
 import { LRUMap } from "../utils/lruMap"
@@ -26,6 +27,23 @@ export class UnparseableConfigError extends Error {
   constructor(public readonly configPath: string) {
     super(`Could not parse ${configPath} — it may contain a syntax error.`)
     this.name = "UnparseableConfigError"
+  }
+}
+
+export class MissingV2PluginError extends Error {
+  constructor(public readonly expectedPath: string) {
+    super(`OpenCode V2 plugin bundle not found at ${expectedPath}`)
+    this.name = "MissingV2PluginError"
+  }
+}
+
+export class DuplicateMeridianConfigError extends Error {
+  constructor(
+    public readonly configPath: string,
+    public readonly siblingPath: string,
+  ) {
+    super(`A Meridian entry in ${siblingPath} conflicts with setup target ${configPath}`)
+    this.name = "DuplicateMeridianConfigError"
   }
 }
 
@@ -51,17 +69,25 @@ function parseOpencodeConfig(text: string): Record<string, unknown> | null {
  * Resolve the OpenCode global config file path.
  * Respects OPENCODE_CONFIG_DIR and XDG_CONFIG_HOME env vars.
  */
+function opencodeConfigDirectory(): string {
+  if (process.env.OPENCODE_CONFIG_DIR) return process.env.OPENCODE_CONFIG_DIR
+  if (process.env.XDG_CONFIG_HOME) return join(process.env.XDG_CONFIG_HOME, "opencode")
+  if (platform() === "win32" && process.env.APPDATA) return join(process.env.APPDATA, "opencode")
+  return join(homedir(), ".config", "opencode")
+}
+
 export function findOpencodeConfigPath(): string {
-  if (process.env.OPENCODE_CONFIG_DIR) {
-    return join(process.env.OPENCODE_CONFIG_DIR, "opencode.json")
-  }
-  if (process.env.XDG_CONFIG_HOME) {
-    return join(process.env.XDG_CONFIG_HOME, "opencode", "opencode.json")
-  }
-  if (platform() === "win32" && process.env.APPDATA) {
-    return join(process.env.APPDATA, "opencode", "opencode.json")
-  }
-  return join(homedir(), ".config", "opencode", "opencode.json")
+  const dir = opencodeConfigDirectory()
+  const jsonPath = join(dir, "opencode.json")
+  const jsoncPath = join(dir, "opencode.jsonc")
+  return !existsSync(jsonPath) && existsSync(jsoncPath) ? jsoncPath : jsonPath
+}
+
+function siblingOpencodeConfigPath(configPath: string): string | undefined {
+  const name = basename(configPath)
+  if (name === "opencode.json") return join(dirname(configPath), "opencode.jsonc")
+  if (name === "opencode.jsonc") return join(dirname(configPath), "opencode.json")
+  return undefined
 }
 
 /**
@@ -71,6 +97,85 @@ export function findOpencodeConfigPath(): string {
 export function findPluginPath(fromUrl: string): string {
   const dir = dirname(fileURLToPath(fromUrl))
   return join(dir, "..", "plugin", "meridian.ts")
+}
+
+export type OpenCodeGeneration = "v1" | "v2"
+
+export interface OpenCodeDetection {
+  generation: OpenCodeGeneration
+  version?: string
+  command?: string
+}
+
+export const SUPPORTED_OPENCODE_V2_VERSION = "0.0.0-beta-18314"
+
+/** Resolve the V2 plugin without selecting stale or incomplete artifacts. */
+export function findV2PluginPath(fromUrl: string): string {
+  const entryPath = fileURLToPath(fromUrl)
+  const dir = dirname(entryPath)
+
+  // A source CLI must use the source plugin even when an old dist/ exists.
+  if (entryPath.endsWith(".ts")) {
+    const sourcePlugin = join(dir, "..", "plugin", "meridian-v2.ts")
+    if (existsSync(sourcePlugin)) return sourcePlugin
+    throw new MissingV2PluginError(sourcePlugin)
+  }
+
+  // Published and Docker CLIs use the bundle beside dist/cli.js. Do not fall
+  // back to TypeScript: production installs omit the V2 SDK dev dependency.
+  const bundledPlugin = join(dir, "meridian-v2.js")
+  if (existsSync(bundledPlugin)) return bundledPlugin
+  throw new MissingV2PluginError(bundledPlugin)
+}
+
+/** Parse the public V1 and beta V2 version formats without guessing. */
+export function classifyOpenCodeVersion(output: string): OpenCodeDetection | undefined {
+  const match = output.trim().match(/^(?:opencode2?\s+)?v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/i)
+  const version = match?.[1]
+  if (!version) return undefined
+  const major = Number(version.split(".", 1)[0])
+  return {
+    // The supported V1 line is 1.x. Treat every other well-formed version as
+    // V2 so the CLI's exact-version gate rejects unknown beta/stable hosts
+    // instead of installing the incompatible V1 plugin.
+    generation: major === 1 ? "v1" : "v2",
+    version,
+  }
+}
+
+type VersionProbe = (command: string) => string | undefined
+
+/**
+ * Detect the installed OpenCode generation with bounded probes. `opencode`
+ * remains first so an existing V1 installation keeps its current behavior;
+ * side-by-side beta users can select `opencode2` explicitly.
+ */
+export function detectOpenCodeGeneration(
+  commands: readonly string[] = process.env.OPENCODE_BIN
+    ? [process.env.OPENCODE_BIN]
+    : ["opencode", "opencode2"],
+  probe: VersionProbe = (command) => {
+    // cross-spawn resolves and safely executes npm's .cmd shims on Windows.
+    const result = spawn.sync(command, ["--version"], {
+      encoding: "utf8",
+      timeout: 3_000,
+      windowsHide: true,
+    })
+    if (result.error || result.status !== 0) return undefined
+    return String(result.stdout ?? "")
+  },
+): OpenCodeDetection {
+  for (const command of commands) {
+    const output = probe(command)
+    if (!output) continue
+    const detected = classifyOpenCodeVersion(output)
+    if (detected) return { ...detected, command }
+  }
+  return { generation: "v1" }
+}
+
+export function pluginPathForGeneration(fromUrl: string, generation: OpenCodeGeneration): string {
+  return generation === "v2" ? findV2PluginPath(fromUrl) : findPluginPath(fromUrl)
 }
 
 // ---------------------------------------------------------------------------
@@ -83,10 +188,20 @@ const STALE_PATTERNS = [
   "meridian-agent-mode",
 ]
 
-function isMeridianEntry(entry: string): boolean {
-  return STALE_PATTERNS.some(p => entry.includes(p)) ||
-    entry.includes("meridian.ts") ||
-    entry.includes("@rynfar/meridian")
+function pluginEntryPackage(entry: unknown): string | undefined {
+  if (typeof entry === "string") return entry
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return undefined
+  const packageName = Reflect.get(entry, "package")
+  return typeof packageName === "string" ? packageName : undefined
+}
+
+function isMeridianEntry(entry: unknown): boolean {
+  const packageName = pluginEntryPackage(entry)
+  if (!packageName) return false
+  return STALE_PATTERNS.some(pattern => packageName.includes(pattern)) ||
+    packageName.includes("meridian.ts") ||
+    packageName.includes("meridian-v2.") ||
+    packageName.includes("@rynfar/meridian")
 }
 
 /**
@@ -94,13 +209,22 @@ function isMeridianEntry(entry: string): boolean {
  * OpenCode global config. Returns false if config doesn't exist or
  * plugin is missing.
  */
-export function checkPluginConfigured(configPath?: string): boolean {
-  const path = configPath ?? findOpencodeConfigPath()
-  if (!existsSync(path)) return false
-  const config = parseOpencodeConfig(readFileSync(path, "utf-8"))
-  if (config === null) return false
-  const plugins: unknown[] = Array.isArray(config.plugin) ? config.plugin : []
-  return plugins.some(p => typeof p === "string" && isMeridianEntry(p))
+export function checkPluginConfigured(configPath?: string, expectedPluginPath?: string): boolean {
+  const selectedPath = configPath ?? findOpencodeConfigPath()
+  const siblingPath = configPath ? undefined : siblingOpencodeConfigPath(selectedPath)
+  const paths = siblingPath ? [selectedPath, siblingPath] : [selectedPath]
+
+  return paths.some((path) => {
+    if (!existsSync(path)) return false
+    const config = parseOpencodeConfig(readFileSync(path, "utf-8"))
+    if (config === null) return false
+    const plugins: unknown[] = [
+      ...(Array.isArray(config.plugin) ? config.plugin : []),
+      ...(Array.isArray(config.plugins) ? config.plugins : []),
+    ]
+    if (expectedPluginPath) return plugins.some(entry => pluginEntryPackage(entry) === expectedPluginPath)
+    return plugins.some(isMeridianEntry)
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -190,21 +314,43 @@ export interface SetupResult {
 }
 
 /**
- * Configure the meridian plugin in ~/.config/opencode/opencode.json.
+ * Configure the Meridian plugin in ~/.config/opencode/opencode.json.
  *
- * - Creates the config file if it doesn't exist
- * - Removes stale meridian plugin entries from previous installs
+ * - Uses `plugin` for V1 and canonical `plugins` for V2
+ * - Removes Meridian entries from both fields to prevent duplicate plugin IDs
  * - Adds the current plugin path
- * - Leaves all other plugins untouched
+ * - Leaves all unrelated plugins and settings untouched
  */
-export function runSetup(pluginPath: string, configPath?: string): SetupResult {
+export function runSetup(
+  pluginPath: string,
+  configPath?: string,
+  generation: OpenCodeGeneration = "v1",
+): SetupResult {
   const path = configPath ?? findOpencodeConfigPath()
   const dir = dirname(path)
+  const targetField = generation === "v2" ? "plugins" : "plugin"
+  const otherField = generation === "v2" ? "plugin" : "plugins"
 
-  // New file — write a minimal config.
+  // Exact beta-18314 loads opencode.json and opencode.jsonc together. Refuse
+  // to create a second Meridian definition in the sibling document: updating
+  // two user-owned files cannot be made atomic, so ambiguity fails closed.
+  const siblingPath = siblingOpencodeConfigPath(path)
+  if (siblingPath && existsSync(siblingPath)) {
+    const siblingConfig = parseOpencodeConfig(readFileSync(siblingPath, "utf-8"))
+    if (siblingConfig === null) throw new UnparseableConfigError(siblingPath)
+    const siblingPlugins = [
+      ...(Array.isArray(siblingConfig.plugin) ? siblingConfig.plugin : []),
+      ...(Array.isArray(siblingConfig.plugins) ? siblingConfig.plugins : []),
+    ]
+    if (siblingPlugins.some(isMeridianEntry)) {
+      throw new DuplicateMeridianConfigError(path, siblingPath)
+    }
+  }
+
+  // New file — write a minimal config using the generation's canonical field.
   if (!existsSync(path)) {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(path, `${JSON.stringify({ plugin: [pluginPath] }, null, 2)}\n`, "utf-8")
+    writeFileSync(path, `${JSON.stringify({ [targetField]: [pluginPath] }, null, 2)}\n`, "utf-8")
     return { configPath: path, pluginPath, alreadyConfigured: false, removedStale: [], created: true }
   }
 
@@ -217,22 +363,41 @@ export function runSetup(pluginPath: string, configPath?: string): SetupResult {
     throw new UnparseableConfigError(path)
   }
 
-  const existing: string[] = Array.isArray(config.plugin)
-    ? (config.plugin as unknown[]).filter((p): p is string => typeof p === "string")
-    : []
+  const entries = (field: "plugin" | "plugins"): unknown[] =>
+    Array.isArray(config[field]) ? config[field] : []
+  const targetEntries = entries(targetField)
+  const otherEntries = entries(otherField)
+  const targetMeridian = targetEntries.filter(isMeridianEntry)
+  const otherMeridian = otherEntries.filter(isMeridianEntry)
+  const targetExact = targetMeridian.filter(entry => pluginEntryPackage(entry) === pluginPath)
+  const removedStale = [...targetMeridian, ...otherMeridian]
+    .flatMap(entry => {
+      const packageName = pluginEntryPackage(entry)
+      return packageName ? [packageName] : []
+    })
+  const alreadyConfigured = targetMeridian.length === 1 &&
+    targetExact.length === 1 &&
+    otherMeridian.length === 0
 
-  // Split into stale meridian entries and everything else
-  const removedStale = existing.filter(isMeridianEntry)
-  const others = existing.filter(p => !isMeridianEntry(p))
-  const alreadyConfigured = removedStale.some(p => p === pluginPath)
-  const newPlugins = [...others, pluginPath]
+  const targetPlugin = targetExact.length === 1 && targetMeridian.length === 1
+    ? targetExact[0]
+    : pluginPath
+  const targetPlugins = [
+    ...targetEntries.filter(entry => !isMeridianEntry(entry)),
+    targetPlugin,
+  ]
+  const otherPlugins = otherEntries.filter(entry => !isMeridianEntry(entry))
 
-  // Surgically rewrite ONLY the `plugin` key, preserving the rest of the file —
-  // comments, formatting, key order, and every other setting stay intact.
-  const edits = modify(text, ["plugin"], newPlugins, {
-    formattingOptions: { insertSpaces: true, tabSize: 2 },
-  })
-  writeFileSync(path, applyEdits(text, edits), "utf-8")
+  // V2 normalizes both `plugin` and canonical `plugins`. Remove Meridian from
+  // the non-target field as well so switching generations cannot load two
+  // definitions with the same plugin ID. Preserve unrelated entries in place.
+  let updated = text
+  const formattingOptions = { insertSpaces: true, tabSize: 2 }
+  updated = applyEdits(updated, modify(updated, [targetField], targetPlugins, { formattingOptions }))
+  if (Array.isArray(config[otherField]) && otherMeridian.length > 0) {
+    updated = applyEdits(updated, modify(updated, [otherField], otherPlugins, { formattingOptions }))
+  }
+  writeFileSync(path, updated, "utf-8")
 
   return { configPath: path, pluginPath, alreadyConfigured, removedStale, created: false }
 }

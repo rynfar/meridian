@@ -94,6 +94,7 @@ kill $(lsof -ti :3456)
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
+| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Manual**, pinned `@opencode-ai/cli@0.0.0-beta-18314`: hidden title/summary isolation, durable continuation and restart, passthrough tools, supported undo/fork/compaction, and concurrent general subagents. **Run after any V2 plugin/API change; another beta version is not a pass** | 2026-08-27 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3573,3 +3574,69 @@ fresh prepared transcript with 98% cache reuse. With
 current and direct-predecessor transcripts. Supported SDK GC then deleted ten
 retired transcripts, retained both pinned transcripts, and verified every
 history only through `getSessionMessages()`.
+
+## E42: OpenCode V2 beta compatibility
+
+**What it proves:** the V2-native plugin separates OpenCode's primary session,
+hidden title/summary work, attached compaction, and child sessions without
+changing request bodies. It also proves that durable primary lineage survives
+real V2 tools, a Meridian restart, undo, fork, and parallel subagents.
+
+Use only the pinned beta. The beta CLI can update itself, so verify the version
+before and after the run and disable automatic updates:
+
+```bash
+npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-18314
+export OPENCODE_DISABLE_AUTOUPDATE=1
+BIN=$HOME/.local/bin/opencode2
+$BIN --version                 # → opencode2 v0.0.0-beta-18314
+npm run build
+meridian setup --v2 --opencode-bin "$BIN"
+```
+
+Use an isolated `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`,
+`XDG_STATE_HOME`, project directory, and `MERIDIAN_SESSION_STORE_DIR`. The
+OpenCode config must load only `dist/meridian-v2.js` plus the Anthropic provider
+pointed at the test Meridian port. Do not use third-party plugins, MCP servers,
+custom agents, or unrelated credentials for this gate.
+
+Run this real-client sequence:
+
+1. Start a fresh primary session while the hidden title request runs. The
+   primary must answer and the proxy log must show `source=subagent-title`
+   separately from `agent=primary`.
+2. Continue the same OpenCode session, drive a write/read tool loop, restart
+   Meridian while preserving the isolated durable store, and continue again.
+3. Run `--agent summary` and require `source=subagent-summary` with no primary
+   mapping write.
+4. Use V2's supported `/api/session/:id/revert/stage` and `revert/commit`
+   endpoints, then continue. Meridian must log `lineage=undo` and the removed
+   tool turn must not be visible.
+5. Run with `--fork --session <id>`. The fork must get a different OpenCode
+   session id, and a later turn on the original must not contain the fork reply.
+6. Ask the primary to launch two `general` subagents in parallel. Both child
+   requests must show `agent=subagent`, overlap in the proxy, and return to the
+   primary without a session conflict.
+7. On a persistent V2 API server, call `/api/session/:id/compact`, wait with
+   `/api/session/:id/wait`, inspect the supported message API for the compaction
+   summary, and continue the primary successfully.
+
+**Pass criteria:**
+
+- The exact V2 version is unchanged at the end of the gate.
+- No `session_turn_conflict`, "session advanced while the request was waiting",
+  dangling tool envelope, or plugin schema error appears.
+- Title and summary are detached with their exact source names. Compaction stays
+  attached but is classified as a subagent. Primary and visible child requests
+  carry their trusted V2 session identities.
+- Ordinary continuation reads the cached prefix; restart continuation uses the
+  same durable mapping; undo logs `lineage=undo`; fork and original histories
+  remain isolated.
+- The packaged `dist/meridian-v2.js` is the plugin under test, not the TypeScript
+  source or a diagnostic plugin.
+
+**Verified:** 2026-08-27 on `0.0.0-beta-18314`. The exact pinned binary returned
+`EXACTFIRST`, `EXACTCONT`, `EXACTTOOL`, `EXACTRESTART`, `EXACTSUMMARY`,
+`EXACTUNDO`, `EXACTFORK`, `EXACTORIGINAL`,
+`EXACTPARALLEL[ALPHA,BRAVO]`, and `EXACTAFTERCOMPACT`. The binary SHA-256 stayed
+unchanged through the matrix.

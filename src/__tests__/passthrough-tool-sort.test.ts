@@ -5,17 +5,30 @@ import { describe, expect, it, mock, beforeEach, afterEach } from "bun:test"
 // been mocked differently by a sibling test file).
 let registeredTools: Array<{ name: string; config: any }> = []
 mock.module("@anthropic-ai/claude-agent-sdk", () => ({
-  createSdkMcpServer: () => ({
-    type: "sdk",
-    name: "test",
-    instance: {
-      tool: () => {},
-      registerTool: (name: string, config: any, _handler: any) => {
-        registeredTools.push({ name, config })
-        return {}
-      },
-    },
-  }),
+  createSdkMcpServer: (options: {
+    tools?: Array<{
+      name: string
+      description: string
+      inputSchema: unknown
+      _meta?: Record<string, unknown>
+    }>
+  }) => {
+    for (const definition of options.tools ?? []) {
+      registeredTools.push({
+        name: definition.name,
+        config: {
+          description: definition.description,
+          inputSchema: definition.inputSchema,
+          _meta: definition._meta,
+        },
+      })
+    }
+    return {
+      type: "sdk",
+      name: "test",
+      instance: { tool: () => {}, registerTool: () => ({}) },
+    }
+  },
 }))
 
 import { createPassthroughMcpServer, getAutoDeferThreshold } from "../proxy/passthroughTools"

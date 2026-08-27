@@ -10,7 +10,7 @@
  * We just need the definitions so Claude can call them.
  */
 
-import { createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk"
+import { createSdkMcpServer, type SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk"
 import { z } from "zod"
 
 export const PASSTHROUGH_MCP_NAME = "oc"
@@ -76,9 +76,6 @@ export function createPassthroughMcpServer(
   tools: Array<{ name: string; description?: string; input_schema?: any; defer_loading?: boolean }>,
   coreToolNames?: readonly string[]
 ) {
-  const server = createSdkMcpServer({ name: PASSTHROUGH_MCP_NAME })
-  const toolNames: string[] = []
-
   // Auto-defer: if tool count exceeds threshold and adapter provides core tools
   const threshold = getAutoDeferThreshold()
   const autoDefer = !!(threshold > 0 && coreToolNames && coreToolNames.length > 0 && tools.length > threshold)
@@ -91,49 +88,38 @@ export function createPassthroughMcpServer(
   // order. Non-deterministic ordering changes the SDK system prompt between
   // requests, invalidating prompt cache and causing full context re-reads.
   const sortedTools = [...tools].sort((a, b) => a.name.localeCompare(b.name))
-
-  for (const tool of sortedTools) {
+  const definitions = sortedTools.map((passthroughTool) => {
+    const alwaysLoad = hasDeferredTools && shouldAlwaysLoad(passthroughTool, coreSet)
+    const defineTool = (shape: Record<string, z.ZodType>): SdkMcpToolDefinition<Record<string, z.ZodType>> => ({
+      name: passthroughTool.name,
+      description: passthroughTool.description || passthroughTool.name,
+      inputSchema: shape,
+      handler: async () => ({ content: [{ type: "text" as const, text: "passthrough" }] }),
+      ...(alwaysLoad ? { _meta: { "anthropic/alwaysLoad": true } } : {}),
+    })
     try {
-      // Convert OpenCode's JSON Schema to Zod for MCP registration
-      const zodSchema = tool.input_schema?.properties
-        ? jsonSchemaToZod(tool.input_schema)
+      // Register through the Agent SDK helper so its Zod 4 peer owns the MCP
+      // compatibility boundary. Registering through the nested MCP instance
+      // instead couples this module to that package's separate Zod version.
+      const zodSchema = passthroughTool.input_schema?.properties
+        ? jsonSchemaToZod(passthroughTool.input_schema)
         : z.object({})
-
-      // The raw shape for the tool() call needs to be a record of Zod types
-      const shape: Record<string, z.ZodTypeAny> =
-        zodSchema instanceof z.ZodObject
-          ? (zodSchema as any).shape
-          : { input: z.any() }
-
-      server.instance.registerTool(
-        tool.name,
-        {
-          description: tool.description || tool.name,
-          inputSchema: shape,
-          // Mark tool as alwaysLoad when it should stay in the prompt:
-          // - Client explicitly did NOT set defer_loading on this tool, OR
-          // - Auto-defer is active and this tool is in the core set
-          ...(hasDeferredTools ? (shouldAlwaysLoad(tool, coreSet) ? { _meta: { "anthropic/alwaysLoad": true } } : {}) : {}),
-        },
-        async () => ({ content: [{ type: "text" as const, text: "passthrough" }] })
-      )
-      toolNames.push(`${PASSTHROUGH_MCP_PREFIX}${tool.name}`)
+      const shape: Record<string, z.ZodType> = zodSchema instanceof z.ZodObject
+        ? zodSchema.shape
+        : { input: z.any() }
+      return defineTool(shape)
     } catch {
-      // If schema conversion fails, register with permissive schema
-      server.instance.registerTool(
-        tool.name,
-        {
-          description: tool.description || tool.name,
-          inputSchema: { input: z.string().optional() },
-          ...(hasDeferredTools ? (shouldAlwaysLoad(tool, coreSet) ? { _meta: { "anthropic/alwaysLoad": true } } : {}) : {}),
-        },
-        async () => ({ content: [{ type: "text" as const, text: "passthrough" }] })
-      )
-      toolNames.push(`${PASSTHROUGH_MCP_PREFIX}${tool.name}`)
+      const fallbackShape: Record<string, z.ZodType> = { input: z.string().optional() }
+      return defineTool(fallbackShape)
     }
-  }
+  })
 
-  return { server, toolNames, hasDeferredTools }
+  const server = createSdkMcpServer({ name: PASSTHROUGH_MCP_NAME, tools: definitions })
+  return {
+    server,
+    toolNames: sortedTools.map(tool => `${PASSTHROUGH_MCP_PREFIX}${tool.name}`),
+    hasDeferredTools,
+  }
 }
 
 /**

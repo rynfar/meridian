@@ -29,6 +29,11 @@ Commands:
   profile          Manage Claude account profiles (add, list, switch, remove)
   refresh-token    Refresh the Claude Code OAuth token
 
+Setup options:
+  --v1                         Install the OpenCode V1 plugin
+  --v2                         Install the pinned OpenCode V2 beta plugin
+  --opencode-bin <executable>  Probe this OpenCode executable
+
 Options:
   -v, --version   Show version
   -h, --help      Show this help
@@ -69,11 +74,68 @@ if (args[0] === "profile") {
 }
 
 if (args[0] === "setup") {
-  const { findPluginPath, runSetup, UnparseableConfigError } = await import("../src/proxy/setup")
-  const pluginPath = findPluginPath(import.meta.url)
+  const {
+    detectOpenCodeGeneration,
+    DuplicateMeridianConfigError,
+    MissingV2PluginError,
+    pluginPathForGeneration,
+    runSetup,
+    SUPPORTED_OPENCODE_V2_VERSION,
+    UnparseableConfigError,
+  } = await import("../src/proxy/setup")
+
+  const forceV1 = args.includes("--v1")
+  const forceV2 = args.includes("--v2")
+  if (forceV1 && forceV2) {
+    console.error("Choose only one OpenCode generation: --v1 or --v2")
+    process.exit(1)
+  }
+
+  const binaryIndex = args.indexOf("--opencode-bin")
+  const binary = binaryIndex >= 0 ? args[binaryIndex + 1] : undefined
+  if (binaryIndex >= 0 && (!binary || binary.startsWith("--"))) {
+    console.error("--opencode-bin requires an executable path")
+    process.exit(1)
+  }
+
+  const environmentBinary = process.env.OPENCODE_BIN
+  const commands = binary
+    ? [binary]
+    : environmentBinary ? [environmentBinary]
+    : forceV2 ? ["opencode2", "opencode"] : undefined
+  const detected = forceV1
+    ? { generation: "v1" as const }
+    : detectOpenCodeGeneration(commands)
+
+  if (!forceV1 && (binary || environmentBinary) && !detected.version) {
+    console.error(`Could not read a supported OpenCode version from ${binary ?? environmentBinary}.`)
+    process.exit(1)
+  }
+  if (forceV2 && detected.generation !== "v2") {
+    console.error("Could not find an OpenCode V2 beta. Install the pinned beta or pass --opencode-bin <path>.")
+    process.exit(1)
+  }
+  if (detected.generation === "v2" && detected.version !== SUPPORTED_OPENCODE_V2_VERSION) {
+    console.error(`OpenCode V2 ${detected.version ?? "unknown"} is not supported by this Meridian build.`)
+    console.error(`Install @opencode-ai/cli@${SUPPORTED_OPENCODE_V2_VERSION}, then re-run meridian setup --v2.`)
+    process.exit(1)
+  }
+
+  let pluginPath: string
+  try {
+    pluginPath = pluginPathForGeneration(import.meta.url, detected.generation)
+  } catch (err) {
+    if (err instanceof MissingV2PluginError) {
+      console.error(`OpenCode V2 plugin bundle is missing: ${err.expectedPath}`)
+      console.error("Reinstall Meridian, then re-run meridian setup --v2.")
+      process.exit(1)
+    }
+    throw err
+  }
+
   let result
   try {
-    result = runSetup(pluginPath)
+    result = runSetup(pluginPath, undefined, detected.generation)
   } catch (err) {
     if (err instanceof UnparseableConfigError) {
       console.error(`\x1b[31m✗ Could not parse ${err.configPath}\x1b[0m`)
@@ -82,17 +144,25 @@ if (args[0] === "setup") {
       console.error(`    "plugin": ["${pluginPath}"]`)
       process.exit(1)
     }
+    if (err instanceof DuplicateMeridianConfigError) {
+      console.error("\x1b[31m✗ Meridian is already present in the other OpenCode config file\x1b[0m")
+      console.error(`  OpenCode loads both ${err.configPath} and ${err.siblingPath}.`)
+      console.error(`  Remove the Meridian entry from ${err.siblingPath}, then re-run 'meridian setup'.`)
+      console.error("  Both files were left untouched.")
+      process.exit(1)
+    }
     throw err
   }
 
+  const generationLabel = detected.generation === "v2" ? "OpenCode V2" : "OpenCode V1"
   if (result.alreadyConfigured) {
-    console.log(`\x1b[32m✓ Meridian plugin already configured\x1b[0m`)
+    console.log(`\x1b[32m✓ Meridian plugin already configured for ${generationLabel}\x1b[0m`)
     console.log(`  ${result.configPath}`)
   } else {
     if (result.removedStale.length > 0) {
       console.log(`  Removed ${result.removedStale.length} stale plugin entr${result.removedStale.length === 1 ? "y" : "ies"}`)
     }
-    console.log(`\x1b[32m✓ Meridian plugin configured\x1b[0m`)
+    console.log(`\x1b[32m✓ Meridian plugin configured for ${generationLabel}\x1b[0m`)
     console.log(`  Config: ${result.configPath}`)
     console.log(`  Plugin: ${result.pluginPath}`)
     if (!result.created) {

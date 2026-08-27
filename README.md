@@ -35,7 +35,8 @@ npm install -g @rynfar/meridian
 claude login
 
 # 3. Configure OpenCode plugin (one time — OpenCode users only)
-meridian setup
+meridian setup                # OpenCode V1
+# meridian setup --v2 --opencode-bin ~/.local/bin/opencode2  # pinned V2 beta
 
 # 4. Start
 meridian
@@ -96,7 +97,7 @@ The Claude Agent SDK provides programmatic access to Claude. But your favorite c
 
 | Agent | Status | Notes |
 |-------|--------|-------|
-| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | Requires `meridian setup` ([setup](docs/agents.md#opencode)) — full tool support, session resume, streaming, subagents |
+| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1 and pinned V2 beta support; requires the matching `meridian setup` mode ([setup](docs/agents.md#opencode)) — tools, durable resume, restart, undo, compaction, parallel subagents |
 | [ForgeCode](https://forgecode.dev) | ✅ Verified | Provider config (see [Agent Setup](docs/agents.md)) — passthrough tool execution, session resume, streaming |
 | [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see [Agent Setup](docs/agents.md)) — full tool support, session resume, streaming |
 | [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see [Agent Setup](docs/agents.md)) — full tool support, session resume, headless `crush run` |

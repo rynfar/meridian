@@ -1,117 +1,190 @@
 /**
- * Meridian OpenCode plugin — **v2 line** (`@opencode-ai/cli@beta`, `opencode2`).
+ * Meridian OpenCode plugin for the V2 beta line.
  *
- * The v1 plugin next to this file hooks `chat.headers`. That hook does not
- * exist in opencode v2 at all, so on a v2 client the v1 plugin is inert: no
- * agent tier, and — worse — no chance to fix what v2's core does on its own.
+ * OpenCode V2 runs hidden title and summary requests in the parent session,
+ * often in parallel with the visible first turn. V2's core gives all of those
+ * requests the same session-affinity headers. Meridian must detach the hidden
+ * one-shots before they reach the proxy or they can advance the visible
+ * conversation's durable lineage.
  *
- * What v2's core does: `SessionModelHeaders.make` stamps `x-opencode-session`
- * (plus `x-session-affinity` / `X-Session-Id`) on **every** model request,
- * including the `title` and `summary` one-shots that run inside the parent
- * session and fire in parallel with the user's real turn. Both requests then
- * carry the same session id, both contend for the proxy's per-session turn
- * lease, and the loser — in practice the user's first turn — dies with
- * `400 session_turn_conflict` ("This session advanced while the request was
- * waiting"). Same failure the v1 fix addressed; v2 needs its own hook.
+ * The model hook applies the identity as early as V2 permits. The HTTP hook
+ * enforces it again at the final request boundary. This removes stale or
+ * spoofed control headers regardless of header casing.
  *
- * This plugin uses v2's `session.model.request` hook, which fires for the
- * one-shots too and may rewrite headers before the request goes out:
- *   1. title/summary → session affinity stripped, `x-meridian-source:
- *      subagent-<name>` added, so the proxy sees an explicitly parallel
- *      stream instead of a contender for the session's turn (and its lineage
- *      fingerprint fallback cannot glue them back onto the session — the
- *      title prompt embeds the conversation's own first message).
- *   2. every request → `x-opencode-agent-name` / `x-opencode-agent-mode`, so
- *      the proxy picks the model tier per agent: primary gets the 1M
- *      variants, subagents the 200k ones.
- *
- * compaction deliberately keeps its session id: the proxy needs it to attach
- * the compaction to the lineage and already exempts it from the conflict
- * check.
- *
- * Install (opencode v2) — add to ~/.config/opencode/opencode.json:
- *   { "plugin": ["/absolute/path/to/plugin/meridian-v2.ts"] }
+ * NOTE: OpenCode-specific. Keep this separate from plugin/meridian.ts: V1
+ * expects a default plugin function and V2 expects a Plugin.define() object.
  */
 
-/** Providers that point at a Meridian endpoint in practice. */
+import * as Plugin from "@opencode-ai/plugin/promise/plugin"
+
+/** Exact V2 host used to compile and validate this beta-only integration. */
+export const SUPPORTED_OPENCODE_V2_VERSION = "0.0.0-beta-18314"
+
 const MERIDIAN_PROVIDERS = new Set(["anthropic", "meridian"])
-
-/**
- * Modes of v2's built-in agents. Used when the agent lookup can't answer — a
- * miss must not silently promote a subagent to the 1M tier.
- */
-const BUILTIN_AGENT_MODES: Record<string, string> = {
-  build: "primary",
-  plan: "primary",
-  general: "subagent",
-  explore: "subagent",
-  title: "subagent",
-  summary: "subagent",
-  compaction: "subagent",
-}
-
-/** Utilities v2 runs inside the PARENT session, concurrently with its turn. */
 const PARENT_SESSION_ONE_SHOTS = new Set(["title", "summary"])
+const ATTACHED_COMPACTION_AGENT = "compaction"
 
-/**
- * Header names that bind a request to a session. Spelled here exactly as
- * `SessionModelHeaders.make` writes them — the hook hands over a plain
- * record, so a case that does not match is a header left behind.
- */
 const SESSION_AFFINITY_HEADERS = [
   "x-opencode-session",
   "x-session-affinity",
-  "X-Session-Id",
+  "x-session-id",
   "x-parent-session-id",
-]
+] as const
 
-interface ModelRequest {
-  sessionID: string
-  agent: string
-  model: { providerID?: string }
-  headers: Record<string, string>
+const MERIDIAN_CONTROL_HEADERS = [
+  "x-meridian-source",
+  "x-opencode-agent-name",
+  "x-opencode-agent-mode",
+] as const
+
+export interface AgentTraits {
+  mode: "primary" | "subagent"
+  hidden: boolean
 }
 
-export default {
+const BUILTIN_AGENT_TRAITS: Record<string, AgentTraits> = {
+  build: { mode: "primary", hidden: false },
+  plan: { mode: "primary", hidden: false },
+  general: { mode: "subagent", hidden: false },
+  explore: { mode: "subagent", hidden: false },
+  // Exact beta-18314 defines all three hidden internal agents as primary.
+  title: { mode: "primary", hidden: true },
+  summary: { mode: "primary", hidden: true },
+  compaction: { mode: "primary", hidden: true },
+}
+
+export function fallbackAgentTraits(agent: string): AgentTraits {
+  return BUILTIN_AGENT_TRAITS[agent] ?? { mode: "primary", hidden: false }
+}
+
+type MutableHeaders = Record<string, string> | Headers
+
+function deleteHeader(headers: MutableHeaders, name: string): void {
+  if (headers instanceof Headers) {
+    headers.delete(name)
+    return
+  }
+  const lower = name.toLowerCase()
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lower) delete headers[key]
+  }
+}
+
+function setHeader(headers: MutableHeaders, name: string, value: string): void {
+  deleteHeader(headers, name)
+  if (headers instanceof Headers) headers.set(name, value)
+  else headers[name] = value
+}
+
+function safeAgentName(agent: string): string {
+  return agent.replace(/[^\x20-\x7E]/g, "").trim() || "unknown"
+}
+
+export function shouldDetachFromParentSession(agent: string, _traits: AgentTraits): boolean {
+  // The exact built-in ID is authoritative. `hidden` is presentation config:
+  // making the built-in visible does not stop V2 from running its parent-
+  // session title/summary job concurrently with the primary turn.
+  return PARENT_SESSION_ONE_SHOTS.has(agent)
+}
+
+/**
+ * Rewrite one V2 request's identity without changing its body or model input.
+ * This pure helper is shared by model.request and http.request.
+ */
+export function applyMeridianV2Headers(
+  headers: MutableHeaders,
+  input: { sessionID: string; agent: string; traits: AgentTraits },
+): void {
+  for (const name of SESSION_AFFINITY_HEADERS) deleteHeader(headers, name)
+  for (const name of MERIDIAN_CONTROL_HEADERS) deleteHeader(headers, name)
+
+  const name = safeAgentName(input.agent)
+  const detached = shouldDetachFromParentSession(input.agent, input.traits)
+
+  if (detached) {
+    setHeader(headers, "x-meridian-source", `subagent-${name}`)
+  } else {
+    // Set every V2 affinity spelling from the trusted hook input. Do not retain
+    // provider-config values that can bind this request to another session.
+    setHeader(headers, "x-opencode-session", input.sessionID)
+    setHeader(headers, "x-session-affinity", input.sessionID)
+    setHeader(headers, "x-session-id", input.sessionID)
+    if (input.agent === ATTACHED_COMPACTION_AGENT) {
+      // Source selects the base model tier without making the adapter append
+      // `#compaction` to the primary session key.
+      setHeader(headers, "x-meridian-source", "subagent-compaction")
+    }
+  }
+
+  const internalMode = PARENT_SESSION_ONE_SHOTS.has(input.agent)
+    ? "subagent"
+    : input.agent === ATTACHED_COMPACTION_AGENT ? "primary" : input.traits.mode
+  setHeader(headers, "x-opencode-agent-name", name)
+  setHeader(headers, "x-opencode-agent-mode", internalMode)
+}
+
+const MeridianV2Plugin = Plugin.define({
   id: "meridian",
-  setup(context: any) {
-    const resolveMode = async (agent: string): Promise<string> => {
-      try {
-        // v2 takes an object and answers { location, data: Agent.Info }.
-        const info = await context.agent?.get?.({ agentID: agent })
-        const mode = info?.data?.mode ?? info?.mode
-        if (typeof mode === "string") return mode
-      } catch {
-        // An agent the runtime cannot describe falls back to the table below.
-      }
-      return BUILTIN_AGENT_MODES[agent] ?? "primary"
+  setup: async (context) => {
+    const traitsByAgent = new Map<string, {
+      expiresAt: number
+      pending: Promise<AgentTraits>
+    }>()
+    const registered: Array<{ dispose: () => Promise<void> }> = []
+
+    const resolveAgentTraits = (agent: string): Promise<AgentTraits> => {
+      const cached = traitsByAgent.get(agent)
+      if (cached && cached.expiresAt > Date.now()) return cached.pending
+
+      const pending = Promise.resolve()
+        .then(() => context.agent.get({ agentID: agent }))
+        .then(({ data }) => ({
+          mode: data.mode === "subagent" ? "subagent" as const : "primary" as const,
+          hidden: data.hidden,
+        }))
+        .catch(() => {
+          // A transient lookup failure must not permanently promote a custom
+          // child to primary. Retry at the final HTTP boundary or next turn.
+          if (traitsByAgent.get(agent)?.pending === pending) traitsByAgent.delete(agent)
+          return fallbackAgentTraits(agent)
+        })
+      traitsByAgent.set(agent, { expiresAt: Date.now() + 5_000, pending })
+      return pending
     }
 
-    return context.session.hook("model.request", async (input: ModelRequest) => {
-      if (!MERIDIAN_PROVIDERS.has(String(input.model?.providerID ?? ""))) return
+    const apply = async (
+      input: { sessionID: string; agent: string; model: { providerID: string } },
+      headers: MutableHeaders,
+    ): Promise<void> => {
+      if (!MERIDIAN_PROVIDERS.has(String(input.model.providerID))) return
+      const agent = String(input.agent)
+      applyMeridianV2Headers(headers, {
+        sessionID: String(input.sessionID),
+        agent,
+        traits: await resolveAgentTraits(agent),
+      })
+    }
 
-      const raw = String(input.agent ?? "")
-      // The built-ins arrive under exactly these names. A user-defined agent
-      // that merely sanitizes to the same name is distinct and keeps affinity.
-      const isOneShot = PARENT_SESSION_ONE_SHOTS.has(raw)
-      const mode = (await resolveMode(raw)) === "subagent" ? "subagent" : "primary"
-
-      // Strip non-ASCII characters (zero-width spaces and the like) only at
-      // the header boundary, where undici otherwise rejects the request.
-      const name = raw.replace(/[^\x20-\x7E]/g, "").trim() || "unknown"
-
-      if (isOneShot) {
-        for (const header of SESSION_AFFINITY_HEADERS) delete input.headers[header]
-        input.headers["x-meridian-source"] = `subagent-${name}`
-      } else {
-        // Core already sets this; restated so the header is present even if a
-        // future core stops stamping it, and so the value is the one this
-        // hook was handed rather than whatever survived another plugin.
-        input.headers["x-opencode-session"] = String(input.sessionID)
+    try {
+      for (const providerID of MERIDIAN_PROVIDERS) {
+        registered.push(await context.session.hook("model.request", async (input) => {
+          await apply(input, input.headers)
+        }, { providerID }))
+        registered.push(await context.session.hook("http.request", async (input) => {
+          await apply(input, input.request.headers)
+        }, { providerID }))
       }
+    } catch (error) {
+      await Promise.allSettled(registered.map(({ dispose }) => dispose()))
+      throw error
+    }
 
-      input.headers["x-opencode-agent-name"] = name
-      input.headers["x-opencode-agent-mode"] = mode
-    })
+    return async () => {
+      const results = await Promise.allSettled(registered.map(({ dispose }) => dispose()))
+      const failures = results.flatMap(result => result.status === "rejected" ? [result.reason] : [])
+      if (failures.length > 0) throw new AggregateError(failures, "Failed to dispose Meridian V2 hooks")
+    }
   },
-}
+})
+
+export default MeridianV2Plugin
