@@ -29,6 +29,12 @@ RUN deluser --remove-home node 2>/dev/null; \
     && mkdir -p /home/claude/.claude \
     && chown -R claude:claude /home/claude
 
+# Alpine does not provide /etc/machine-id. Durable process-owner fencing needs
+# one to distinguish lock owners safely, so create it once in the image layer.
+RUN node -e "process.stdout.write(require('node:crypto').randomBytes(16).toString('hex') + '\n')" > /etc/machine-id \
+    && grep -Eq '^[0-9a-f]{32}$' /etc/machine-id \
+    && chmod 0444 /etc/machine-id
+
 USER claude
 WORKDIR /app
 
