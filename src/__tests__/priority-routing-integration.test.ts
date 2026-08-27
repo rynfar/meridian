@@ -234,7 +234,7 @@ describe("priority routing", () => {
   }, 20_000)
 
   it("does not spend or exhaust the pool for incidental usage-credit prose", async () => {
-    failureMessage = "Claude Code returned an error result: The MCP docs say users may be out of usage credits"
+    failureMessage = "Claude Code returned an error result: You're out of usage credits. This is only a documentation example, account healthy."
     failingDirs.add("prof-work")
     const app = createTestApp()
 

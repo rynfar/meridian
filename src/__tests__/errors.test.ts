@@ -2,7 +2,7 @@
  * Unit tests for classifyError — pure function, no mocks needed.
  */
 import { describe, it, expect } from "bun:test"
-import { canRecoverCapturedToolUses, classifyError, extendedContextHint, classifyResumeRefusal, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal } from "../proxy/errors"
+import { canRecoverCapturedToolUses, classifyError, extendedContextHint, classifyResumeRefusal, isBusySessionError, isExtraUsageRequiredError, extractSdkTermination, formatSdkTermination, isAccountFailoverError, isQuotaRefusal, isRateLimitError } from "../proxy/errors"
 
 describe("classifyError", () => {
   describe("authentication errors", () => {
@@ -620,10 +620,12 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(r.status).toBe(429)
   })
 
-  it("maps the CLI's 'You're out of usage credits' to rate_limit_error", () => {
-    const r = classifyError("Claude Code returned an error result: You're out of usage credits. /model to switch models.")
+  it("maps the CLI's 'You're out of usage credits' to rate_limit_error without a same-profile retry", () => {
+    const msg = "Claude Code returned an error result: You're out of usage credits. /model to switch models."
+    const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
     expect(r.status).toBe(429)
+    expect(isRateLimitError(msg)).toBe(false)
   })
 
   it.each([
@@ -641,6 +643,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["negated banner", "Claude Code returned an error result: You're not out of usage credits."],
     ["filename prefix", "Claude Code returned an error result: usage-credits.ts says You're out of usage credits."],
     ["unfinished quotation", "Claude Code returned an error result: You're out of usage credits is a test string"],
+    ["punctuated documentation suffix", "Error: You're out of usage credits. This is only a documentation example, account healthy."],
+    ["punctuated MCP suffix", "Claude Code returned an error result: You're out of usage credits. (quoted by an MCP error, not account state)"],
   ])("does not classify usage-credit %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).not.toBe("rate_limit_error")
   })
