@@ -464,6 +464,7 @@ describe("Fingerprint resume: OpenCode CWD-key transition", () => {
       const reader = Bun.spawn([process.execPath, "-e", durableReaderSource], {
         env: {
           ...process.env,
+          MERIDIAN_SESSION_DIR: getSessionStoreDir(),
           CLAUDE_PROXY_SESSION_DIR: getSessionStoreDir(),
           SESSION_STORE_MODULE: sessionStoreModule,
           SESSION_KEY: sessionKey,
