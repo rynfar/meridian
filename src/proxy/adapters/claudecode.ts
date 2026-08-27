@@ -78,7 +78,6 @@ export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
 
   /** NOTE: Claude Code-specific. Its environment belongs to the remote client. */
-
   clientEnvironmentMayDifferFromProxy: true,
 
   /**

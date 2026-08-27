@@ -1367,6 +1367,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // on another machine, the claimed cwd may not exist locally; the SDK
         // would otherwise fail with a misleading "binary not found" error.
         // resolveSdkWorkingDirectory falls back to process.cwd() in that case.
+        const extractedClientWorkingDirectory = adapter.extractClientWorkingDirectory?.(body)
         const cwdResolution = resolveSdkWorkingDirectory({
           envOverride: process.env.MERIDIAN_WORKDIR ?? process.env.CLAUDE_PROXY_WORKDIR,
           // Adapters that hand back an SDK-safe path win. Otherwise fall back to
@@ -1382,7 +1383,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // while reporting success (#744). Adopting the client's path when it
           // exists removes the contradiction at the source rather than relying
           // on the cwd note to argue the model out of it.
-          adapterCwd: adapter.extractWorkingDirectory(body) ?? adapter.extractClientWorkingDirectory?.(body),
+          adapterCwd: adapter.extractWorkingDirectory(body) ?? extractedClientWorkingDirectory,
           fallback: process.cwd(),
         })
         const workingDirectory = cwdResolution.workingDirectory
@@ -1392,8 +1393,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             usedInstead: workingDirectory,
           })
         }
-        const clientWorkingDirectory = adapter.extractClientWorkingDirectory?.(body) || cwdResolution.claimedWorkingDirectory
-        const clientEnvironmentMayDifferFromProxy = adapter.clientEnvironmentMayDifferFromProxy === true
+        const clientWorkingDirectory = extractedClientWorkingDirectory || cwdResolution.claimedWorkingDirectory
+        const clientEnvironmentMayDifferFromProxy = extractedClientWorkingDirectory !== undefined
+          && adapter.clientEnvironmentMayDifferFromProxy === true
 
         // Strip env vars that would cause the SDK subprocess to loop back through
         // the proxy instead of using its native Claude Max auth. Also strip vars
