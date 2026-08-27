@@ -52,6 +52,15 @@ export function loadProfilesFromDisk(): ProfileConfig[] {
   }
 }
 
+/**
+ * Drop the cached disk profiles so the next read hits the file. Called after
+ * a mutation this process performed (e.g. a rename via the UI), where waiting
+ * out the TTL would show the caller their own stale profile list.
+ */
+export function invalidateDiskProfileCache(): void {
+  diskProfilesCacheAt = 0
+}
+
 export type ProfileType = "claude-max" | "api" | "oauth-token"
 
 export interface ProfileConfig {
@@ -72,6 +81,13 @@ export interface ProfileConfig {
   baseUrl?: string
   /** Long-lived OAuth token from `claude setup-token` (oauth-token profiles) */
   oauthToken?: string
+  /**
+   * Former names left behind by `meridian profile rename`. Each is a redirect,
+   * not a second name: requests naming one are served by this profile until
+   * the name is claimed again. Chains are collapsed on write (see
+   * profileRename.ts), so every alias points straight at its current profile.
+   */
+  aliases?: string[]
 }
 
 export interface ResolvedProfile {
@@ -168,7 +184,11 @@ export interface ResolveProfileOptions {
  * Resolve a profile from the configuration.
  *
  * Priority: header > sticky assignment (routing="sticky" only) > active >
- * config default > first profile. The sticky step exists so multi-account
+ * config default > first profile. Whatever that yields is matched against
+ * profile ids first and rename aliases second, so a name a rename left behind
+ * keeps routing without ever shadowing a live profile.
+ *
+ * The sticky step exists so multi-account
  * setups can distribute sessions across profiles WITHOUT losing per-account
  * prompt caching — see routing.ts. With routingMode unset/"active" the
  * chain is exactly the pre-#383 behavior.
@@ -200,7 +220,7 @@ export function resolveProfile(
 
   // Priority: header > sticky > active > config default > first profile
   const resolvedId = requestedId || stickyId || activeProfileId || defaultProfile || effective[0]!.id
-  const profile = effective.find(p => p.id === resolvedId)
+  const profile = findProfileByIdOrAlias(effective, resolvedId)
 
   if (!profile) {
     console.warn(`[meridian] Unknown profile "${resolvedId}". Using first configured profile.`)
@@ -208,6 +228,18 @@ export function resolveProfile(
   }
 
   return buildResolvedProfile(profile)
+}
+
+/**
+ * Look a profile up by id, then by alias. Real profiles ALWAYS win: an alias
+ * is only a redirect left behind by a rename, and a stale one must never
+ * shadow a live account that has since taken the name.
+ */
+export function findProfileByIdOrAlias(
+  profiles: ProfileConfig[],
+  id: string
+): ProfileConfig | undefined {
+  return profiles.find(p => p.id === id) ?? profiles.find(p => p.aliases?.includes(id))
 }
 
 /**
@@ -248,7 +280,7 @@ function buildResolvedProfile(profile: ProfileConfig): ResolvedProfile {
 export function listProfiles(
   profiles: ProfileConfig[] | undefined,
   defaultProfile: string | undefined
-): Array<{ id: string; type: ProfileType; isActive: boolean }> {
+): Array<{ id: string; type: ProfileType; isActive: boolean; aliases?: string[] }> {
   const effective = getEffectiveProfiles(profiles)
   if (effective.length === 0) return []
 
@@ -257,5 +289,6 @@ export function listProfiles(
     id: p.id,
     type: p.type ?? "claude-max",
     isActive: p.id === currentActive,
+    ...(p.aliases && p.aliases.length > 0 ? { aliases: p.aliases } : {}),
   }))
 }

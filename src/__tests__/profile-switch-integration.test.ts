@@ -58,7 +58,7 @@ beforeEach(() => {
   clearSessionCache()
 })
 
-function createTestApp(profiles?: Array<{ id: string; claudeConfigDir?: string }>) {
+function createTestApp(profiles?: Array<{ id: string; claudeConfigDir?: string; aliases?: string[] }>) {
   const { app } = createProxyServer({
     port: 0,
     host: "127.0.0.1",
@@ -150,6 +150,67 @@ describe("Profile switch API", () => {
       body: JSON.stringify({ profile: "anything" }),
     }))
     expect(res.status).toBe(400)
+  })
+})
+
+describe("Profile rename API", () => {
+  const profiles = [
+    { id: "personal", claudeConfigDir: "/home/.claude" },
+    { id: "employer", claudeConfigDir: "/home/.claude-work", aliases: ["work"] },
+  ]
+
+  // Only the paths that refuse BEFORE touching disk are exercised here: the
+  // route writes to the real ~/.config/meridian/profiles.json, which no test
+  // may touch. Everything past the refusals is unit-tested against a temp dir
+  // in profile-rename.test.ts.
+  test("POST /profiles/rename requires both names", async () => {
+    const app = createTestApp(profiles)
+
+    const res = await app.fetch(req("/profiles/rename", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: "personal" }),
+    }))
+    expect(res.status).toBe(400)
+    const body = await res.json() as { error: string }
+    expect(body.error).toContain("'from' or 'to'")
+  })
+
+  test("POST /profiles/rename rejects a malformed body", async () => {
+    const app = createTestApp(profiles)
+
+    const res = await app.fetch(req("/profiles/rename", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{ not json",
+    }))
+    expect(res.status).toBe(400)
+  })
+
+  test("POST /profiles/rename refuses when credentials are read-only", async () => {
+    const app = createTestApp(profiles)
+    process.env.MERIDIAN_CREDENTIALS_READONLY = "1"
+    try {
+      const res = await app.fetch(req("/profiles/rename", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "personal", to: "renamed" }),
+      }))
+      expect(res.status).toBe(403)
+      const body = await res.json() as { error: string }
+      expect(body.error).toContain("MERIDIAN_CREDENTIALS_READONLY")
+    } finally {
+      delete process.env.MERIDIAN_CREDENTIALS_READONLY
+    }
+  })
+
+  test("GET /profiles/list surfaces the names a rename left behind", async () => {
+    const app = createTestApp(profiles)
+
+    const res = await app.fetch(req("/profiles/list"))
+    const body = await res.json() as { profiles: Array<{ id: string; aliases?: string[] }> }
+    expect(body.profiles.find(p => p.id === "employer")!.aliases).toEqual(["work"])
+    expect(body.profiles.find(p => p.id === "personal")!.aliases).toBeUndefined()
   })
 })
 
