@@ -116,6 +116,37 @@ describe("session transcript lifecycle", () => {
     expect(sidecar.resources[key]?.state).toBe("live")
   })
 
+  it("validates and upgrades a legacy v1 resource without unsafe shape coercion", async () => {
+    const legacy = locator("legacy-v1-sidecar")
+    const key = getTranscriptResourceKey(legacy)
+    writeFileSync(join(storeDir, "session-gc.json"), JSON.stringify({
+      version: 1,
+      resources: {
+        [key]: {
+          key,
+          locator: legacy,
+          state: "retired",
+          createdAt: now - 100,
+          updatedAt: now - 100,
+          attempts: 0,
+          nextAttemptAt: now,
+        },
+      },
+    }), { mode: 0o600 })
+
+    const deleted: TranscriptLocator[] = []
+    expect(await runGc([], {
+      ...options,
+      deleter: async (entry) => { deleted.push(entry) },
+    })).toEqual({ deleted: 1, notFound: 0, failed: 0, deferred: 0 })
+    expect(deleted).toHaveLength(1)
+    expect(deleted[0]).toMatchObject(legacy)
+    expect(readSidecar(storeDir).resources[key]).toMatchObject({
+      state: "deleted",
+      generation: expect.stringMatching(new RegExp(`^r:${key}:[1-9][0-9]*$`)),
+    })
+  })
+
   it("registers a legacy live transcript and safely revives only pre-delete states", async () => {
     const source = locator("legacy-source")
     const key = getTranscriptResourceKey(await registerLiveTranscript(source, options))

@@ -37,6 +37,7 @@ export function createRecoveryClaimOwner(generation: string): RecoveryClaimOwner
 export function parseRecoveryClaimOwner(value: unknown): RecoveryClaimOwner | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined
   const owner = value as Record<string, unknown>
+  const incarnation = parseProcessIncarnation(owner.incarnation)
   if (
     owner.version !== RECOVERY_CLAIM_VERSION
     || typeof owner.generation !== "string"
@@ -50,9 +51,17 @@ export function parseRecoveryClaimOwner(value: unknown): RecoveryClaimOwner | un
     || owner.hostname.length === 0
     || typeof owner.createdAt !== "number"
     || !Number.isFinite(owner.createdAt)
-    || !parseProcessIncarnation(owner.incarnation)
+    || !incarnation
   ) return undefined
-  return owner as unknown as RecoveryClaimOwner
+  return {
+    version: RECOVERY_CLAIM_VERSION,
+    generation: owner.generation,
+    token: owner.token,
+    pid: owner.pid,
+    hostname: owner.hostname,
+    createdAt: owner.createdAt,
+    incarnation,
+  }
 }
 
 export function parseRecoveryClaimOwnerJson(raw: string): RecoveryClaimOwner | undefined {

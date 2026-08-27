@@ -75,6 +75,11 @@ jobs:
       - run: bun test src/__tests__/sdk-process-gate.test.ts src/__tests__/process-incarnation.test.ts
         shell: bash
 
+      # Node cannot open directory handles for fsync on Windows. Exercise real
+      # sidecar publication and all three stale-lock recovery protocols there.
+      - run: bun test src/__tests__/durable-file-system.test.ts src/__tests__/windows-durable-storage.test.ts
+        shell: bash
+
       # Plugin loader exercises `await import(absolutePath)` which on Windows
       # rejects raw backslash paths with `Received protocol c:`. The test
       # writes a real plugin file to a tempdir and loads it, so it actually

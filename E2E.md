@@ -3559,7 +3559,6 @@ The gate resolves Meridian's published session from its own durable store and
 uses the supported Agent SDK `getSessionMessages()` API for the history check.
 It does not inspect Claude's private persistence format.
 
-**Verified:** 2026-08-26, sonnet, chain and parallel, stream and non-stream.
-The active fork held one real answer per delivered call and every continuation
-read the prior cached prefix in full.
-
+**Verified:** 2026-08-26 at implementation SHA `8f6a3585`, sonnet, chain and
+parallel, stream and non-stream. The active fork held one real answer per
+delivered call and every continuation read the prior cached prefix in full.

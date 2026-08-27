@@ -79,9 +79,17 @@ export function parseProcessIncarnation(value: unknown): ProcessIncarnation | un
     || !SHA256_PATTERN.test(identity.hostId)
     || typeof identity.bootId !== "string"
     || !UUID_PATTERN.test(identity.bootId)
+    || typeof identity.startId !== "string"
     || !validStartId(identity.startIdKind, identity.startId)
   ) return undefined
-  return identity as unknown as ProcessIncarnation
+  return {
+    version: PROCESS_INCARNATION_VERSION,
+    pid: identity.pid,
+    hostId: identity.hostId,
+    bootId: identity.bootId,
+    startId: identity.startId,
+    startIdKind: identity.startIdKind,
+  }
 }
 
 export function parseProcessIncarnationJson(raw: string): ProcessIncarnation | undefined {

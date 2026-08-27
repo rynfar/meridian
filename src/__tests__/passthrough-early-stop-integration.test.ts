@@ -1844,7 +1844,7 @@ describe("Integration: passthrough early stop", () => {
   // ADVERSARIAL: the cap makes max_turns the ordinary terminal state, so a turn
   // that trips it with NOTHING captured must still produce a usable envelope.
   // This is reachable: a thinking-only turn makes the CLI take another turn for
-  // its no-visible-output nudge (audit-token-spend.mjs counts these), and under
+  // its no-visible-output nudge, and under
   // the cap that turn is refused. Before the cap it could not happen, because
   // the SDK had budget to finish. A 500 here is a hard user-visible regression.
   it("stream: a capped turn that captured no tool call does not fail the request", async () => {

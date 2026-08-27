@@ -14,6 +14,7 @@ import {
   utimes,
   writeFile,
 } from "node:fs/promises"
+import { syncDirectoryDurably } from "./durableFileSystem"
 import {
   createRecoveryClaimOwner,
   getRecoveryClaimPath,
@@ -244,12 +245,7 @@ async function tryPublishRecoveryClaim(
     await handle.sync()
     await handle.close()
     handle = undefined
-    const candidateDirectoryHandle = await open(candidate, "r")
-    try {
-      await candidateDirectoryHandle.sync()
-    } finally {
-      await candidateDirectoryHandle.close()
-    }
+    await syncDirectoryDurably(candidate)
 
     // Every protocol-created destination is non-empty, which makes directory
     // rename an atomic no-replace publication. Malformed existing paths block.
@@ -262,12 +258,7 @@ async function tryPublishRecoveryClaim(
     try {
       await rename(candidate, claimPath)
       published = true
-      const parentDirectoryHandle = await open(dirname(claimPath), "r")
-      try {
-        await parentDirectoryHandle.sync()
-      } finally {
-        await parentDirectoryHandle.close()
-      }
+      await syncDirectoryDurably(dirname(claimPath))
       return owner
     } catch (error) {
       if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].some((code) => isErrno(error, code))) {

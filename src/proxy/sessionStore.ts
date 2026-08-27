@@ -31,6 +31,7 @@ import {
 import { createHash, randomUUID } from "node:crypto"
 import { homedir, hostname } from "node:os"
 import { basename, dirname, isAbsolute, join } from "node:path"
+import { syncDirectoryDurablySync } from "./session/durableFileSystem"
 import type { TokenUsage } from "./session/lineage"
 import {
   createRecoveryClaimOwner,
@@ -223,6 +224,7 @@ interface CanonicalStoreLockOwner {
 function parseCanonicalStoreLockOwner(contents: string): CanonicalStoreLockOwner | undefined {
   try {
     const owner = JSON.parse(contents) as Record<string, unknown>
+    const incarnation = parseProcessIncarnation(owner.incarnation)
     if (
       typeof owner.pid !== "number"
       || !Number.isInteger(owner.pid)
@@ -231,9 +233,14 @@ function parseCanonicalStoreLockOwner(contents: string): CanonicalStoreLockOwner
       || owner.hostname.length === 0
       || typeof owner.token !== "string"
       || owner.token.length === 0
-      || !parseProcessIncarnation(owner.incarnation)
+      || !incarnation
     ) return undefined
-    return owner as unknown as CanonicalStoreLockOwner
+    return {
+      pid: owner.pid,
+      hostname: owner.hostname,
+      token: owner.token,
+      incarnation,
+    }
   } catch {
     return undefined
   }
@@ -281,12 +288,7 @@ function publishStoreRecoveryClaim(claimPath: string, owner: RecoveryClaimOwner)
     fsyncSync(fd)
     closeSync(fd)
     fd = undefined
-    const candidateDirectoryFd = openSync(candidate, "r")
-    try {
-      fsyncSync(candidateDirectoryFd)
-    } finally {
-      closeSync(candidateDirectoryFd)
-    }
+    syncDirectoryDurablySync(candidate)
 
     // Protocol-created destinations are non-empty directories, so rename is
     // atomic and no-replace. Refuse malformed pre-existing paths as well.
@@ -299,12 +301,7 @@ function publishStoreRecoveryClaim(claimPath: string, owner: RecoveryClaimOwner)
     try {
       renameSync(candidate, claimPath)
       published = true
-      const parentDirectoryFd = openSync(dirname(claimPath), "r")
-      try {
-        fsyncSync(parentDirectoryFd)
-      } finally {
-        closeSync(parentDirectoryFd)
-      }
+      syncDirectoryDurablySync(dirname(claimPath))
       return true
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
@@ -734,21 +731,11 @@ function readStore(): Record<string, StoredSession> {
 }
 
 function fsyncParentDirectory(path: string): void {
-  let fd: number | undefined
   try {
-    fd = openSync(dirname(path), "r")
-    fsyncSync(fd)
+    syncDirectoryDurablySync(dirname(path))
   } catch (error) {
-    // Some platforms do not support opening or syncing directories.
+    // Preserve the store's legacy best-effort parent flush on supported filesystems.
     void error
-  } finally {
-    if (fd !== undefined) {
-      try {
-        closeSync(fd)
-      } catch (error) {
-        console.error("[sessionStore] parent directory close failed:", (error as Error).message)
-      }
-    }
   }
 }
 

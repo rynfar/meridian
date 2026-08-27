@@ -17,6 +17,7 @@ import {
 import { hostname } from "node:os"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 import { getMaxStoredSessionsLimit, getSessionStoreDir } from "./sessionStore"
+import { syncDirectoryDurably } from "./session/durableFileSystem"
 import {
   createRecoveryClaimOwner,
   getRecoveryClaimPath,
@@ -83,6 +84,8 @@ interface TranscriptResource {
   deletionProcessGroupId?: number
   activeLeases?: Record<string, ActiveTranscriptLeaseRecord>
 }
+
+type LegacyTranscriptResource = Omit<TranscriptResource, "generation">
 
 interface SessionGcSidecar {
   version: typeof SIDECAR_VERSION
@@ -1078,7 +1081,9 @@ interface CanonicalLifecycleLockOwner {
 function parseCanonicalLifecycleLockOwner(contents: string): CanonicalLifecycleLockOwner | undefined {
   const token = contents.split("\n", 1)[0] ?? ""
   try {
-    const owner = JSON.parse(token) as Record<string, unknown>
+    const owner = JSON.parse(token) as unknown
+    if (!isRecord(owner)) return undefined
+    const incarnation = parseProcessIncarnation(owner.incarnation)
     if (
       typeof owner.pid !== "number"
       || !Number.isInteger(owner.pid)
@@ -1087,9 +1092,14 @@ function parseCanonicalLifecycleLockOwner(contents: string): CanonicalLifecycleL
       || owner.hostname.length === 0
       || typeof owner.token !== "string"
       || owner.token.length === 0
-      || !parseProcessIncarnation(owner.incarnation)
+      || !incarnation
     ) return undefined
-    return owner as unknown as CanonicalLifecycleLockOwner
+    return {
+      pid: owner.pid,
+      hostname: owner.hostname,
+      token: owner.token,
+      incarnation,
+    }
   } catch {
     return undefined
   }
@@ -1142,12 +1152,7 @@ async function publishLifecycleRecoveryClaim(
     await handle.sync()
     await handle.close()
     handle = undefined
-    const candidateDirectoryHandle = await open(candidate, "r")
-    try {
-      await candidateDirectoryHandle.sync()
-    } finally {
-      await candidateDirectoryHandle.close()
-    }
+    await syncDirectoryDurably(candidate)
 
     try {
       await lstat(claimPath)
@@ -1158,12 +1163,7 @@ async function publishLifecycleRecoveryClaim(
     try {
       await rename(candidate, claimPath)
       published = true
-      const parentDirectoryHandle = await open(dirname(claimPath), "r")
-      try {
-        await parentDirectoryHandle.sync()
-      } finally {
-        await parentDirectoryHandle.close()
-      }
+      await syncDirectoryDurably(dirname(claimPath))
       return true
     } catch (error) {
       if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].some((code) => hasCode(error, code))) {
@@ -1369,12 +1369,7 @@ async function writeSidecar(path: string, sidecar: SessionGcSidecar): Promise<vo
     await chmod(path, 0o600)
     // Persist the rename itself, not only the temporary file contents. This is
     // the durability boundary before the SDK may create a managed fork.
-    const directoryHandle = await open(dirname(path), "r")
-    try {
-      await directoryHandle.sync()
-    } finally {
-      await directoryHandle.close()
-    }
+    await syncDirectoryDurably(dirname(path))
   } catch (error) {
     await handle?.close().catch(() => undefined)
     await unlink(temp).catch(() => undefined)
@@ -1419,6 +1414,39 @@ function lifecycleGenerationIsValid(value: unknown, key: string): value is strin
   return Number.isSafeInteger(counter) && counter > 0
 }
 
+function hasValidTranscriptResourceFields(
+  value: unknown,
+  key: string,
+): value is Record<string, unknown> & LegacyTranscriptResource {
+  if (!/^[a-f0-9]{64}$/.test(key) || !isRecord(value)) return false
+  if (value.key !== key || !isValidLocator(value.locator)) return false
+  if (getTranscriptResourceKey(value.locator) !== key || !isState(value.state)) return false
+  if (!isFiniteNumber(value.createdAt) || !isFiniteNumber(value.updatedAt)) return false
+  if (typeof value.attempts !== "number"
+    || !Number.isSafeInteger(value.attempts)
+    || value.attempts < 0) return false
+  if (value.nextAttemptAt !== undefined && !isFiniteNumber(value.nextAttemptAt)) return false
+  if (value.lastError !== undefined && typeof value.lastError !== "string") return false
+  if (value.deletionToken !== undefined && typeof value.deletionToken !== "string") return false
+  if (value.deletionOwner !== undefined && !parseProcessIncarnation(value.deletionOwner)) return false
+  if (value.deletionExecutor !== undefined && !parseProcessIncarnation(value.deletionExecutor)) return false
+  if (value.deletionProcessGroupId !== undefined && (
+    typeof value.deletionProcessGroupId !== "number"
+    || !Number.isSafeInteger(value.deletionProcessGroupId)
+    || value.deletionProcessGroupId <= 0
+  )) return false
+  // Legacy deleting entries without exact owners/group identity remain permanently fenced.
+  if (value.state !== "deleting" && (
+    value.deletionToken !== undefined
+    || value.deletionOwner !== undefined
+    || value.deletionExecutor !== undefined
+    || value.deletionProcessGroupId !== undefined
+  )) return false
+  if (value.deletionExecutor !== undefined && value.deletionOwner === undefined) return false
+  if (value.deletionProcessGroupId !== undefined && value.deletionExecutor === undefined) return false
+  return value.activeLeases === undefined || isValidActiveLeases(value.activeLeases)
+}
+
 function upgradeLegacySidecar(value: unknown): unknown {
   if (!isRecord(value) || value.version !== 1 || !isRecord(value.resources)) return value
   const upgraded: SessionGcSidecar = {
@@ -1427,10 +1455,10 @@ function upgradeLegacySidecar(value: unknown): unknown {
     resources: {},
   }
   for (const [key, raw] of Object.entries(value.resources)) {
-    if (!isRecord(raw)) return value
+    if (!hasValidTranscriptResourceFields(raw, key)) return value
     const generation = allocateLifecycleGeneration(upgraded, key)
     upgraded.resources[key] = {
-      ...(raw as unknown as TranscriptResource),
+      ...raw,
       key,
       generation,
     }
@@ -1449,38 +1477,10 @@ function isValidSidecar(value: unknown): value is SessionGcSidecar {
     && Number.isSafeInteger(counter)
     && counter > 0)) return false
   return Object.entries(value.resources).every(([key, resource]) => {
-    if (!/^[a-f0-9]{64}$/.test(key) || !isRecord(resource)) return false
-    if (resource.key !== key || !isValidLocator(resource.locator)) return false
+    if (!hasValidTranscriptResourceFields(resource, key)) return false
     if (!lifecycleGenerationIsValid(resource.generation, key)) return false
-    if (Number(meta.fenceSlots[fenceSlotForKey(key)] ?? 0)
-      < Number(resource.generation.slice(`r:${key}:`.length))) return false
-    if (getTranscriptResourceKey(resource.locator) !== key) return false
-    if (!isState(resource.state)) return false
-    if (!isFiniteNumber(resource.createdAt) || !isFiniteNumber(resource.updatedAt)) return false
-    if (typeof resource.attempts !== "number"
-      || !Number.isSafeInteger(resource.attempts)
-      || resource.attempts < 0) return false
-    if (resource.nextAttemptAt !== undefined && !isFiniteNumber(resource.nextAttemptAt)) return false
-    if (resource.lastError !== undefined && typeof resource.lastError !== "string") return false
-    if (resource.deletionToken !== undefined && typeof resource.deletionToken !== "string") return false
-    if (resource.deletionOwner !== undefined && !parseProcessIncarnation(resource.deletionOwner)) return false
-    if (resource.deletionExecutor !== undefined && !parseProcessIncarnation(resource.deletionExecutor)) return false
-    if (resource.deletionProcessGroupId !== undefined && (
-      typeof resource.deletionProcessGroupId !== "number"
-      || !Number.isSafeInteger(resource.deletionProcessGroupId)
-      || resource.deletionProcessGroupId <= 0
-    )) return false
-    // Legacy deleting entries without exact owners/group identity remain permanently fenced.
-    if (resource.state !== "deleting" && (
-      resource.deletionToken !== undefined
-      || resource.deletionOwner !== undefined
-      || resource.deletionExecutor !== undefined
-      || resource.deletionProcessGroupId !== undefined
-    )) return false
-    if (resource.deletionExecutor !== undefined && resource.deletionOwner === undefined) return false
-    if (resource.deletionProcessGroupId !== undefined && resource.deletionExecutor === undefined) return false
-    if (resource.activeLeases !== undefined && !isValidActiveLeases(resource.activeLeases)) return false
-    return true
+    return Number(meta.fenceSlots[fenceSlotForKey(key)] ?? 0)
+      >= Number(resource.generation.slice(`r:${key}:`.length))
   })
 }
 
@@ -1607,13 +1607,16 @@ function validateLocator(locator: TranscriptLocator): void {
 
 function isValidLocator(value: unknown): value is TranscriptLocator {
   if (!isRecord(value)) return false
-  try {
-    validateLocator(value as unknown as TranscriptLocator)
-    return Object.keys(value).every((key) =>
+  return typeof value.sessionId === "string"
+    && value.sessionId.length > 0
+    && typeof value.configDir === "string"
+    && isAbsolute(value.configDir)
+    && (value.projectDir === undefined
+      || (typeof value.projectDir === "string" && isAbsolute(value.projectDir)))
+    && (value.lifecycleGeneration === undefined
+      || (typeof value.lifecycleGeneration === "string" && value.lifecycleGeneration.length > 0))
+    && Object.keys(value).every((key) =>
       key === "sessionId" || key === "configDir" || key === "projectDir" || key === "lifecycleGeneration")
-  } catch {
-    return false
-  }
 }
 
 function assertSameLocator(left: TranscriptLocator, right: TranscriptLocator): void {
