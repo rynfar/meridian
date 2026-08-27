@@ -1,6 +1,7 @@
 name: Sync bun.nix
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - bun.lock
@@ -14,7 +15,7 @@ on:
 
 jobs:
   verify:
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

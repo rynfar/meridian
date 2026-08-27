@@ -1,6 +1,7 @@
 name: Check claude-code availability
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - package.json
