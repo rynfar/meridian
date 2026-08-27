@@ -69,6 +69,16 @@ export interface AgentIdentity {
   normalizeContent(content: any): string
 
   /**
+   * Remove request-scoped client metadata before lineage hashing while keeping
+   * the original request body untouched for model execution. Implementations
+   * must preserve message count and order because SDK UUIDs and resume indexes
+   * are aligned by message position.
+   */
+  canonicalizeMessagesForLineage?(
+    messages: Array<{ role: string; content: unknown }>,
+  ): Array<{ role: string; content: unknown }>
+
+  /**
    * The MCP server name used by this agent.
    * Tools are registered as `mcp__{name}__{tool}`.
    */

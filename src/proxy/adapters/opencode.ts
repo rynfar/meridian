@@ -15,6 +15,48 @@ import { buildAgentDefinitionsFromTool, mapModelTier } from "../agentDefs"
 import { fuzzyMatchAgentName } from "../agentMatch"
 import { resolvePassthrough } from "../../env"
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+/**
+ * NOTE: OpenCode-specific. OpenCode 1.18 emits UserPromptSubmit hook context as
+ * an extra text block on the active user turn, then removes that block when the
+ * same turn becomes history. It is request-scoped instruction metadata, not
+ * durable conversation content, so hashing it makes every following text turn
+ * look like modified history.
+ */
+function isTransientUserPromptHook(block: unknown): boolean {
+  if (!isRecord(block) || block.type !== "text" || typeof block.text !== "string") return false
+  const match = block.text.match(
+    /^\s*<user-prompt-submit-hook>\s*([\s\S]*?)\s*<\/user-prompt-submit-hook>\s*$/,
+  )
+  if (!match?.[1]) return false
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(match[1])
+  } catch {
+    return false
+  }
+  if (!isRecord(parsed) || !isRecord(parsed.hookSpecificOutput)) return false
+  return parsed.hookSpecificOutput.hookEventName === "UserPromptSubmit"
+    && typeof parsed.hookSpecificOutput.additionalContext === "string"
+}
+
+export function canonicalizeOpenCodeMessagesForLineage(
+  messages: Array<{ role: string; content: unknown }>,
+): Array<{ role: string; content: unknown }> {
+  // Preserve message positions exactly; only block content may be filtered.
+  return messages.map((message) => {
+    if (message.role !== "user" || !Array.isArray(message.content)) return message
+    const content = message.content.filter((block) => !isTransientUserPromptHook(block))
+    // A hook-only message has no durable identity. Retain it rather than
+    // collapsing distinct requests to the same empty hash.
+    if (content.length === 0 || content.length === message.content.length) return message
+    return { ...message, content }
+  })
+}
+
 export const openCodeAdapter: AgentAdapter = {
   name: "opencode",
 
@@ -70,6 +112,10 @@ export const openCodeAdapter: AgentAdapter = {
 
   normalizeContent(content: any): string {
     return normalizeContent(content)
+  },
+
+  canonicalizeMessagesForLineage(messages) {
+    return canonicalizeOpenCodeMessagesForLineage(messages)
   },
 
   getBlockedBuiltinTools(): readonly string[] {

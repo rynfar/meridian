@@ -1239,6 +1239,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             400
           )
         }
+        // Keep request-scoped client metadata available to the model, but do
+        // not persist it as durable conversation ancestry.
+        const lineageMessages = adapter.canonicalizeMessagesForLineage?.(body.messages)
+          ?? body.messages
 
         // Native Anthropic server tools (web_search_*, web_fetch_*) can't run
         // through the Max/SDK path — fail fast with an actionable message
@@ -1290,7 +1294,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               ?? adapter.extractWorkingDirectory(body)
             const sessionKey = getPriorityAssignmentKey(
               adapter.getSessionId(c, body),
-              body.messages,
+              lineageMessages,
               assignmentCwd,
             )
             const assigned = sessionKey ? priorityAssignments.get(sessionKey) : undefined
@@ -1682,7 +1686,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           (!agentSessionId && (requestSource?.startsWith("fork-") || isSubagentRequest)) ||
           isClientDrivenLoop || false
         const durableMappingKey = profileSessionId
-          || getConversationFingerprint(body.messages || [], profileScopedCwd)
+          || getConversationFingerprint(lineageMessages, profileScopedCwd)
         // Image-only and otherwise text-free headerless requests have no stable
         // cache identity. Run them fresh instead of manufacturing a generation
         // for an empty key or failing before the SDK is called.
@@ -1719,7 +1723,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           : durableMappingAtTurn.status === "found"
         let lineageResult: LineageResult = isIndependentSession
           ? { type: "diverged", reason: "independent-request" }
-          : lookupSession(profileSessionId, body.messages || [], profileScopedCwd)
+          : lookupSession(profileSessionId, lineageMessages, profileScopedCwd)
         // NOTE: agent-specific (opencode) — when OpenCode's chat.headers plugin
         // hook doesn't fire (category-dispatched or title-generation requests),
         // the request has no session header and falls through to fingerprint
@@ -2000,12 +2004,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             resumeContentFrom !== undefined &&
             resumeFrom < allMessages.length &&
             Array.isArray(allMessages[resumeFrom]?.content)
+            && Array.isArray(lineageMessages[resumeFrom]?.content)
           ) {
             const boundaryMessage = allMessages[resumeFrom]!
+            const canonicalBoundary = lineageMessages[resumeFrom]!
+            // resumeContentFrom is measured against canonical lineage blocks.
+            // Slice that same block list so request-scoped blocks filtered by
+            // the adapter cannot shift the append-only tool-result boundary.
             messagesToConvert = [
               {
                 ...boundaryMessage,
-                content: boundaryMessage.content.slice(resumeContentFrom),
+                content: canonicalBoundary.content.slice(resumeContentFrom),
               },
               ...allMessages.slice(resumeFrom + 1),
             ]
@@ -2637,7 +2646,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             const evicted = evictSession(
               profileSessionId,
               profileScopedCwd,
-              body.messages || [],
+              lineageMessages,
               mappingExpectedGeneration,
             )
             if (evicted) mappingInvalidated = true
@@ -2792,7 +2801,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     if (!evictSession(
                       profileSessionId,
                       profileScopedCwd,
-                      allMessages,
+                      lineageMessages,
                       mappingExpectedGeneration,
                     )) throw new Error("Session mapping changed before resume fallback eviction")
                     mappingExpectedGeneration = refreshGenerationAfterEviction()
@@ -2852,7 +2861,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     if (!evictSession(
                       profileSessionId,
                       profileScopedCwd,
-                      allMessages,
+                      lineageMessages,
                       mappingExpectedGeneration,
                     )) throw new Error("Session mapping changed before model fallback eviction")
                     mappingExpectedGeneration = refreshGenerationAfterEviction()
@@ -3458,7 +3467,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         assertDurableWritesAllowed()
                         const stored = storeSession(
                     profileSessionId,
-                    body.messages || [],
+                    lineageMessages,
                     currentSessionId!,
                     profileScopedCwd,
                     reconcileReturnedSessionUuids(
@@ -3811,7 +3820,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (!evictSession(
                         profileSessionId,
                         profileScopedCwd,
-                        allMessages,
+                        lineageMessages,
                         mappingExpectedGeneration,
                       )) throw new Error("Session mapping changed before resume fallback eviction")
                       mappingExpectedGeneration = refreshGenerationAfterEviction()
@@ -3867,7 +3876,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (!evictSession(
                         profileSessionId,
                         profileScopedCwd,
-                        allMessages,
+                        lineageMessages,
                         mappingExpectedGeneration,
                       )) throw new Error("Session mapping changed before model fallback eviction")
                       mappingExpectedGeneration = refreshGenerationAfterEviction()
@@ -4491,7 +4500,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   const evicted = evictSession(
                     profileSessionId,
                     profileScopedCwd,
-                    body.messages || [],
+                    lineageMessages,
                     mappingExpectedGeneration,
                   )
                   if (!evicted) {
@@ -4507,7 +4516,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       assertDurableWritesAllowed()
                       const stored = storeSession(
                     profileSessionId,
-                    body.messages || [],
+                    lineageMessages,
                     currentSessionId!,
                     profileScopedCwd,
                     reconcileReturnedSessionUuids(
@@ -4535,7 +4544,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
                     if (
                       mappingStored && !isIndependentSession &&
-                      !evictSession(profileSessionId, profileScopedCwd, body.messages || [], mappingExpectedGeneration)
+                      !evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
                     ) {
                       throw new Error("Shared session mapping changed after canceled stream publication")
                     }
@@ -4831,7 +4840,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       assertDurableWritesAllowed()
                       const stored = storeSession(
                     profileSessionId,
-                    body.messages || [],
+                    lineageMessages,
                     recoverySessionId!,
                     profileScopedCwd,
                     recoverySdkUuidMap,
@@ -4853,7 +4862,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
                     if (
                       recoveryMappingStored && !isIndependentSession &&
-                      !evictSession(profileSessionId, profileScopedCwd, body.messages || [], mappingExpectedGeneration)
+                      !evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
                     ) {
                       throw new Error("Shared session mapping changed after canceled silent-recovery publication")
                     }
@@ -5164,7 +5173,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 evictSession(
                   profileSessionId,
                   profileScopedCwd,
-                  body.messages || [],
+                  lineageMessages,
                   mappingExpectedGeneration,
                 )
                 claudeLog("session.interrupted_mapping_evicted", {
@@ -5200,7 +5209,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   evictSession(
                     profileSessionId,
                     profileScopedCwd,
-                    body.messages || [],
+                    lineageMessages,
                     mappingExpectedGeneration,
                   )
                 }
@@ -5312,7 +5321,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 const evicted = evictSession(
                   profileSessionId,
                   profileScopedCwd,
-                  body.messages || [],
+                  lineageMessages,
                   mappingExpectedGeneration,
                 )
                 if (mustEvictBeforeRecoveredTerminal && !evicted) {
@@ -5380,7 +5389,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       assertDurableWritesAllowed()
                       const stored = storeSession(
                     profileSessionId,
-                    body.messages || [],
+                    lineageMessages,
                     currentSessionId!,
                     profileScopedCwd,
                     reconcileReturnedSessionUuids(
@@ -5408,7 +5417,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
                     if (
                       mappingStored && !isIndependentSession &&
-                      !evictSession(profileSessionId, profileScopedCwd, body.messages || [], mappingExpectedGeneration)
+                      !evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
                     ) {
                       throw new Error("Shared session mapping changed after canceled recovery publication")
                     }
@@ -5644,7 +5653,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               evictSession(
                     profileSessionId,
                     profileScopedCwd,
-                    body.messages || [],
+                    lineageMessages,
                     mappingExpectedGeneration,
                   )
               claudeLog("passthrough.client_abort_settled", { action: "evict", source: "stream_cancel" })

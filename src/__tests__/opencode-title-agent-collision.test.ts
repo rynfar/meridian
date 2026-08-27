@@ -43,6 +43,9 @@ import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 let mockMessages: unknown[] = []
 let capturedOptions: any[] = []
+let capturePromptItems = false
+let capturedPromptValue: unknown
+let capturedPromptItems: unknown[] = []
 
 /** Set to hold the title request inside query() so it keeps the turn lease
  *  while the user's turn arrives — the live race, made deterministic. */
@@ -65,6 +68,15 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         onTitleEnteredQuery?.()
         if (holdTitleUntil) await holdTitleUntil
       }
+      if (capturePromptItems) capturedPromptValue = params.prompt
+      if (
+        capturePromptItems
+        && params.prompt
+        && typeof params.prompt !== "string"
+        && typeof params.prompt[Symbol.asyncIterator] === "function"
+      ) {
+        for await (const item of params.prompt) capturedPromptItems.push(item)
+      }
       for (const msg of mockMessages) yield { ...(msg as object), session_id: sessionId }
     })()
   },
@@ -82,6 +94,8 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { computeMessageBlockHashes, computeMessageHashes } = await import("../proxy/session/lineage")
+const { canonicalizeOpenCodeMessagesForLineage } = await import("../proxy/adapters/opencode")
 const { telemetryStore } = await import("../telemetry")
 
 function createTestApp() {
@@ -137,10 +151,71 @@ const USER_TURN_2 = {
   ],
 }
 
+const USER_PROMPT_HOOK = {
+  type: "text",
+  text: `<user-prompt-submit-hook>
+${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "UserPromptSubmit",
+      additionalContext: "Use a todo list for multi-step work.",
+    },
+  })}
+</user-prompt-submit-hook>`,
+}
+const HOOK_TURN_1 = {
+  ...USER_TURN_1,
+  messages: [{
+    role: "user",
+    content: [
+      USER_PROMPT_HOOK,
+      { type: "text", text: "first durable prompt", cache_control: { type: "ephemeral" } },
+    ],
+  }],
+}
+const HOOK_TURN_2 = {
+  ...USER_TURN_1,
+  messages: [
+    { role: "user", content: [{ type: "text", text: "first durable prompt" }] },
+    { role: "assistant", content: [{ type: "text", text: "ok" }] },
+    {
+      role: "user",
+      content: [
+        USER_PROMPT_HOOK,
+        { type: "text", text: "second durable prompt", cache_control: { type: "ephemeral" } },
+      ],
+    },
+  ],
+}
+
+describe("OpenCode request-scoped lineage metadata", () => {
+  it("hashes the active and historical forms of a UserPromptSubmit turn identically", () => {
+    const active = canonicalizeOpenCodeMessagesForLineage(HOOK_TURN_1.messages)
+    const historical = canonicalizeOpenCodeMessagesForLineage(HOOK_TURN_2.messages.slice(0, 1))
+
+    expect(computeMessageHashes(active)).toEqual(computeMessageHashes(historical))
+    expect(computeMessageBlockHashes(active)).toEqual(computeMessageBlockHashes(historical))
+    expect(HOOK_TURN_1.messages[0]?.content).toHaveLength(2)
+  })
+
+  it("retains malformed, hook-only, and assistant-authored lookalikes", () => {
+    const malformed = { type: "text", text: "<user-prompt-submit-hook>not json</user-prompt-submit-hook>" }
+    const messages = [
+      { role: "user", content: [malformed, { type: "text", text: "durable" }] },
+      { role: "user", content: [USER_PROMPT_HOOK] },
+      { role: "assistant", content: [USER_PROMPT_HOOK, { type: "text", text: "durable" }] },
+    ]
+
+    expect(canonicalizeOpenCodeMessagesForLineage(messages)).toEqual(messages)
+  })
+})
+
 describe("OpenCode title agent vs the user's conversation", () => {
   beforeEach(() => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedOptions = []
+    capturePromptItems = false
+    capturedPromptValue = undefined
+    capturedPromptItems = []
     holdTitleUntil = undefined
     onTitleEnteredQuery = undefined
     telemetryStore.clear()
@@ -172,6 +247,53 @@ describe("OpenCode title agent vs the user's conversation", () => {
     // The title turn must not have displaced the conversation's stored lineage:
     // turn 2 still resumes the exact session Meridian selected for turn 1.
     expect(capturedOptions.at(-1)?.resume).toBe(userSessionId)
+  })
+
+  it("resumes when OpenCode drops UserPromptSubmit context from a historical turn", async () => {
+    const app = createTestApp()
+    expect((await post(app, HOOK_TURN_1, USER_HEADERS)).status).toBe(200)
+    const firstSessionId = capturedOptions.at(-1)?.sessionId
+    expect(firstSessionId).toMatch(/^[0-9a-f-]{36}$/)
+
+    expect((await post(app, HOOK_TURN_2, USER_HEADERS)).status).toBe(200)
+    expect(capturedOptions.at(-1)?.resume).toBe(firstSessionId)
+    expect(capturedOptions.at(-1)?.forkSession).toBe(true)
+  })
+
+  it("keeps canonical block indexes aligned for append-only tool results", async () => {
+    const app = createTestApp()
+    const first = {
+      ...USER_TURN_1,
+      messages: [{
+        role: "user",
+        content: [
+          USER_PROMPT_HOOK,
+          { type: "tool_result", tool_use_id: "call-a", content: "alpha" },
+        ],
+      }],
+    }
+    const second = {
+      ...USER_TURN_1,
+      messages: [{
+        role: "user",
+        content: [
+          USER_PROMPT_HOOK,
+          { type: "tool_result", tool_use_id: "call-a", content: "alpha" },
+          { type: "tool_result", tool_use_id: "call-b", content: "bravo" },
+        ],
+      }],
+    }
+
+    expect((await post(app, first, USER_HEADERS)).status).toBe(200)
+    const firstSessionId = capturedOptions.at(-1)?.sessionId
+    capturePromptItems = true
+    expect((await post(app, second, USER_HEADERS)).status).toBe(200)
+
+    expect(capturedOptions.at(-1)?.resume).toBe(firstSessionId)
+    const resumedPrompt = JSON.stringify([capturedPromptValue, capturedPromptItems])
+    expect(resumedPrompt).toContain("bravo")
+    expect(resumedPrompt).not.toContain("alpha")
+    expect(resumedPrompt).not.toContain("user-prompt-submit-hook")
   })
 
   it("keeps the title turn itself working and independent", async () => {
