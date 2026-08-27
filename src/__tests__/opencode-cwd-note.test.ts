@@ -1,5 +1,6 @@
 /** Captured OpenCode V1/V2 request-shape coverage for client CWD extraction. */
 import { describe, expect, it } from "bun:test"
+import type { Context } from "hono"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { openCodeAdapter } from "../proxy/adapters/opencode"
@@ -23,8 +24,8 @@ function systemText(body: { system?: unknown }): string {
     .join("\n")
 }
 
-function contextWith(headers: Record<string, string>) {
-  return { req: { header: (name: string) => headers[name] } }
+function contextWith(headers: Record<string, string>): Context {
+  return { req: { header: (name: string) => headers[name] } } as unknown as Context
 }
 
 describe("OpenCode client CWD extraction", () => {
@@ -59,7 +60,7 @@ describe("OpenCode client CWD extraction", () => {
   it("keeps a keyed OpenCode identity stable across both request shapes", () => {
     const session = "ses_cwd_fixture"
     const context = contextWith({ "x-opencode-session": session })
-    expect(openCodeAdapter.getSessionId(context as never, v1Body)).toBe(session)
-    expect(openCodeAdapter.getSessionId(context as never, v2Body)).toBe(session)
+    expect(openCodeAdapter.getSessionId(context, v1Body)).toBe(session)
+    expect(openCodeAdapter.getSessionId(context, v2Body)).toBe(session)
   })
 })

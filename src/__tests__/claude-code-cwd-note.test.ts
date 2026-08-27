@@ -30,6 +30,12 @@ const CLIENT_CWD =
   "/private/tmp/claude-501/-Users-rynfar-repos-meridian/0703e774-0f5f-4f53-b443-465188953fa6/scratchpad/cc-bodytest"
 const PROXY_CWD = "/Users/rynfar/repos/meridian"
 
+function cwdNote(sdkCwd: string, clientCwd?: string): string {
+  return buildCwdNote(sdkCwd, clientCwd, {
+    clientEnvironmentMayDifferFromProxy: claudeCodeAdapter.clientEnvironmentMayDifferFromProxy,
+  })
+}
+
 describe("claude-code client CWD extraction (#744)", () => {
   it("the fixture is a real multi-block system prompt", () => {
     // Guards the instrument: a fixture reduced to a plain string would make the
@@ -43,7 +49,7 @@ describe("claude-code client CWD extraction (#744)", () => {
   })
 
   it("builds a note naming the client's directory, not the proxy's", () => {
-    const note = buildCwdNote(PROXY_CWD, claudeCodeAdapter.extractClientWorkingDirectory?.(body))
+    const note = cwdNote(PROXY_CWD, claudeCodeAdapter.extractClientWorkingDirectory?.(body))
     expect(note).toContain(CLIENT_CWD)
     expect(note).toContain("<meridian-note>")
     // The proxy path appears too — the note's job is to contrast them — but the
@@ -58,8 +64,8 @@ describe("claude-code client CWD extraction (#744)", () => {
     expect(claudeCodeAdapter.extractWorkingDirectory?.(body)).toBeUndefined()
   })
 
-  it("emits nothing when the client and proxy share a directory", () => {
-    expect(buildCwdNote(CLIENT_CWD, CLIENT_CWD)).toBe("")
+  it("keeps the client/proxy boundary when both report the same path text", () => {
+    expect(cwdNote(CLIENT_CWD, CLIENT_CWD)).toContain("may not describe the client environment")
   })
 
   it("returns undefined rather than guessing when the prompt lacks the marker", () => {
@@ -83,14 +89,13 @@ describe("SDK working directory for a claude-code client (#744)", () => {
       exists,
     })
 
-  it("chdirs into the client's directory when it exists on the proxy host", () => {
-    // The common case: client and proxy on the same machine. The SDK's own env
-    // block then advertises the right path, so there is no contradiction for
-    // the model to resolve — and buildCwdNote correctly emits nothing.
+  it("chdirs into the client directory when the proxy can access it", () => {
+    // Filesystem reachability does not prove that the request's client and the
+    // proxy subprocess share an execution environment.
     const r = resolve(() => true)
     expect(r.workingDirectory).toBe(CLIENT_CWD)
     expect(r.fellBack).toBe(false)
-    expect(buildCwdNote(r.workingDirectory, clientCwd())).toBe("")
+    expect(cwdNote(r.workingDirectory, clientCwd())).toContain("may not describe the client environment")
   })
 
   it("falls back to the proxy path when the client directory is absent (#381)", () => {
@@ -100,7 +105,7 @@ describe("SDK working directory for a claude-code client (#744)", () => {
     expect(r.workingDirectory).toBe(PROXY_CWD)
     expect(r.fellBack).toBe(true)
     // And the note is what carries the client's real path in that case.
-    expect(buildCwdNote(r.workingDirectory, clientCwd())).toContain(CLIENT_CWD)
+    expect(cwdNote(r.workingDirectory, clientCwd())).toContain(CLIENT_CWD)
   })
 
   it("still prefers an adapter-supplied SDK path over the client path", () => {

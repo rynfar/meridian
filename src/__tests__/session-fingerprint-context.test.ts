@@ -97,7 +97,8 @@ async function postNoSession(
   messages: Array<{ role: string; content: string }>,
   sessionLabel: string,
   system?: string,
-  stream = false
+  stream = false,
+  headers: Record<string, string> = {},
 ) {
   queuedSessionLabels.push(sessionLabel)
   const body: Record<string, unknown> = {
@@ -110,7 +111,7 @@ async function postNoSession(
 
   const response = await app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   }))
 
@@ -418,6 +419,7 @@ describe("Fingerprint resume: backward compat", () => {
 
 
 describe("Fingerprint resume: OpenCode CWD-key transition", () => {
+  const opencodeHeaders = { "user-agent": "opencode/1.18.22" }
   it("moves once from the override key to the client key and keeps the new key across restart", async () => {
     const originalProxy = process.env.CLAUDE_PROXY_WORKDIR
     const originalMeridian = process.env.MERIDIAN_WORKDIR
@@ -430,14 +432,14 @@ describe("Fingerprint resume: OpenCode CWD-key transition", () => {
       const firstApp = createTestApp()
       await postNoSession(firstApp, [
         { role: "user", content: "hello from the migration fixture" },
-      ], "override-key", "OpenCode prompt without an environment block")
+      ], "override-key", "OpenCode prompt without an environment block", false, opencodeHeaders)
       const oldSession = getCallerSelectedSessionId("override-key")
       expect(getCaptured()?.options?.resume).toBeUndefined()
 
       capturedQueryParams = null
       await postNoSession(firstApp, [
         { role: "user", content: "hello from the migration fixture" },
-      ], "client-key", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`)
+      ], "client-key", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`, false, opencodeHeaders)
       const newSession = getCallerSelectedSessionId("client-key")
       expect(newSession).not.toBe(oldSession)
       expect(getCaptured()?.options?.resume).toBeUndefined()
@@ -451,7 +453,7 @@ describe("Fingerprint resume: OpenCode CWD-key transition", () => {
         { role: "user", content: "hello from the migration fixture" },
         { role: "assistant", content: "ok" },
         { role: "user", content: "continue after restart" },
-      ], "restart", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`)
+      ], "restart", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`, false, opencodeHeaders)
 
       expect(getCaptured()?.options?.resume).toBeDefined()
     } finally {
