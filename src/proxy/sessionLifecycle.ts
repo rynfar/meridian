@@ -17,7 +17,10 @@ import {
 import { hostname } from "node:os"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
 import { getMaxStoredSessionsLimit, getSessionStoreDir } from "./sessionStore"
-import { syncDirectoryDurably } from "./session/durableFileSystem"
+import {
+  directoryRenameWasBlocked,
+  syncDirectoryDurably,
+} from "./session/durableFileSystem"
 import {
   createRecoveryClaimOwner,
   getRecoveryClaimPath,
@@ -1166,9 +1169,7 @@ async function publishLifecycleRecoveryClaim(
       await syncDirectoryDurably(dirname(claimPath))
       return true
     } catch (error) {
-      if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].some((code) => hasCode(error, code))) {
-        return false
-      }
+      if (await directoryRenameWasBlocked(error, claimPath)) return false
       throw error
     }
   } finally {
@@ -1214,9 +1215,7 @@ async function retireDeadLifecycleRecoveryClaim(
     await rename(claimPath, tombstone)
   } catch (error) {
     if (hasCode(error, "ENOENT")) return true
-    if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].some((code) => hasCode(error, code))) {
-      return false
-    }
+    if (await directoryRenameWasBlocked(error, tombstone)) return false
     throw error
   }
 

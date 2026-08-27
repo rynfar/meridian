@@ -14,7 +14,10 @@ import {
   utimes,
   writeFile,
 } from "node:fs/promises"
-import { syncDirectoryDurably } from "./durableFileSystem"
+import {
+  directoryRenameWasBlocked,
+  syncDirectoryDurably,
+} from "./durableFileSystem"
 import {
   createRecoveryClaimOwner,
   getRecoveryClaimPath,
@@ -261,9 +264,7 @@ async function tryPublishRecoveryClaim(
       await syncDirectoryDurably(dirname(claimPath))
       return owner
     } catch (error) {
-      if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].some((code) => isErrno(error, code))) {
-        return undefined
-      }
+      if (await directoryRenameWasBlocked(error, claimPath)) return undefined
       throw error
     }
   } finally {
@@ -306,9 +307,7 @@ async function retireDeadRecoveryClaim(claimPath: string, generation: string): P
     await rename(claimPath, tombstone)
   } catch (error) {
     if (isErrno(error, "ENOENT")) return true
-    if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].some((code) => isErrno(error, code))) {
-      return false
-    }
+    if (await directoryRenameWasBlocked(error, tombstone)) return false
     throw error
   }
 
@@ -470,7 +469,7 @@ export class CrossProcessTurnCoordinator {
         await rename(candidate, lockPath)
         published = true
       } catch (error) {
-        if (isErrno(error, "EEXIST") || isErrno(error, "ENOTEMPTY")) return undefined
+        if (await directoryRenameWasBlocked(error, lockPath)) return undefined
         throw error
       }
 

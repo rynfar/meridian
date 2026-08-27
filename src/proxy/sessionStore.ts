@@ -31,7 +31,10 @@ import {
 import { createHash, randomUUID } from "node:crypto"
 import { homedir, hostname } from "node:os"
 import { basename, dirname, isAbsolute, join } from "node:path"
-import { syncDirectoryDurablySync } from "./session/durableFileSystem"
+import {
+  directoryRenameWasBlockedSync,
+  syncDirectoryDurablySync,
+} from "./session/durableFileSystem"
 import type { TokenUsage } from "./session/lineage"
 import {
   createRecoveryClaimOwner,
@@ -304,8 +307,7 @@ function publishStoreRecoveryClaim(claimPath: string, owner: RecoveryClaimOwner)
       syncDirectoryDurablySync(dirname(claimPath))
       return true
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].includes(code ?? "")) return false
+      if (directoryRenameWasBlockedSync(error, claimPath)) return false
       throw error
     }
   } finally {
@@ -355,7 +357,7 @@ function retireDeadStoreRecoveryClaim(claimPath: string, generation: string): bo
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === "ENOENT") return true
-    if (["EEXIST", "ENOTEMPTY", "ENOTDIR", "EISDIR"].includes(code ?? "")) return false
+    if (directoryRenameWasBlockedSync(error, tombstone)) return false
     throw error
   }
 
