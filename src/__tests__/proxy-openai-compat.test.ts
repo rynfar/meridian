@@ -501,6 +501,50 @@ describe("POST /v1/chat/completions — streaming", () => {
     expect([...uniqueIds][0]).toMatch(/^chatcmpl-/)
   })
 
+  it("forwards internal SSE keepalive comments to the client", async () => {
+    const app = createTestApp()
+    const originalFetch = app.fetch.bind(app)
+    const internalFrames = [
+      `data: ${JSON.stringify({ type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", content: [], model: "claude-sonnet-5", stop_reason: null, usage: { input_tokens: 10, output_tokens: 0 } } })}`,
+      ": ping",
+      `data: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}`,
+      `data: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello" } })}`,
+      ": ping",
+      `data: ${JSON.stringify({ type: "content_block_stop", index: 0 })}`,
+      `data: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 5 } })}`,
+      `data: ${JSON.stringify({ type: "message_stop" })}`,
+    ]
+    app.fetch = (req, env, executionCtx) => {
+      if (req.url === "http://internal/v1/messages") {
+        return Promise.resolve(new Response(`${internalFrames.join("\n\n")}\n\n`, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }))
+      }
+      return originalFetch(req, env, executionCtx)
+    }
+
+    const res = await postChatCompletion(app, {
+      stream: true,
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    const text = await readStream(res)
+    const pingLines = text.split("\n").filter(l => l === ": ping")
+    expect(pingLines).toHaveLength(2)
+
+    const contentChunks = text.split("\n")
+      .filter(l => l.startsWith("data: ") && l !== "data: [DONE]")
+      .map(l => JSON.parse(l.slice(6)) as Record<string, unknown>)
+      .map(c => {
+        const choices = c.choices as Array<Record<string, unknown>>
+        return (choices[0]!.delta as Record<string, unknown>).content
+      })
+      .filter((content): content is string => typeof content === "string" && content.length > 0)
+    expect(contentChunks.join("")).toBe("Hello")
+    expect(text).toContain("data: [DONE]")
+  })
+
   // --- tool_call_counter increment behavior ---
 
   type DeltaToolCall = {

@@ -151,6 +151,40 @@ describe("/v1/responses (#475)", () => {
     expect(lastCompleted).toContain("Hello from Codex")
   })
 
+  it("stream: forwards internal SSE keepalive comments to the client", async () => {
+    const app = createTestApp()
+    const originalFetch = app.fetch.bind(app)
+    const internalFrames = [
+      `data: ${JSON.stringify({ type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", content: [], model: "claude-sonnet-5", stop_reason: null, usage: { input_tokens: 11, output_tokens: 0 } } })}`,
+      ": ping",
+      `data: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}`,
+      `data: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello from Codex" } })}`,
+      ": ping",
+      `data: ${JSON.stringify({ type: "content_block_stop", index: 0 })}`,
+      `data: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } })}`,
+      `data: ${JSON.stringify({ type: "message_stop" })}`,
+    ]
+    app.fetch = (req: Request, env?: any, executionCtx?: any) => {
+      if (req.url === "http://internal/v1/messages") {
+        return Promise.resolve(new Response(`${internalFrames.join("\n\n")}\n\n`, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }))
+      }
+      return originalFetch(req, env, executionCtx)
+    }
+
+    const res = await postResponses(app, { model: "claude-sonnet-5", input: "hi", stream: true })
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    const pingLines = text.split("\n").filter((l: string) => l === ": ping")
+    expect(pingLines).toHaveLength(2)
+    expect(text).toContain("event: response.output_text.delta")
+    expect(text).toContain("event: response.completed")
+    const lastCompleted = text.split("event: response.completed")[1] || ""
+    expect(lastCompleted).toContain("Hello from Codex")
+  })
+
   it("is advertised in the root endpoint list", async () => {
     const app = createTestApp()
     const res = await app.fetch(new Request("http://localhost/", { headers: { accept: "application/json" } }))
