@@ -1,13 +1,12 @@
 /**
  * SDK feature toggles — per-adapter configuration for Claude Code features.
  *
- * Persisted to ~/.config/meridian/sdk-features.json.
+ * Persisted to sdk-features.json in the config directory (see configDir.ts).
  * Read at request time (no restart needed to pick up changes).
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs"
-import { join } from "node:path"
-import { homedir } from "node:os"
+import { configDir, configPath } from "../configDir"
 
 export interface AdapterFeatures {
   /** Use the Claude Code system prompt preset (tool instructions, safety rules) */
@@ -134,20 +133,22 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
 }
 
 function getConfigPath(): string {
-  const dir = join(homedir(), ".config", "meridian")
+  const dir = configDir()
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  return join(dir, "sdk-features.json")
+  return configPath("sdk-features.json")
 }
 
 let cachedConfig: FeatureConfig | null = null
+let cachedConfigPath: string | null = null
 let lastReadTime = 0
 const CACHE_TTL_MS = 5000
 
 function readConfig(): FeatureConfig {
   const now = Date.now()
-  if (cachedConfig && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
-
   const path = getConfigPath()
+  if (cachedConfig && cachedConfigPath === path && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
+
+  cachedConfigPath = path
   try {
     if (existsSync(path)) {
       cachedConfig = JSON.parse(readFileSync(path, "utf-8")) as FeatureConfig
@@ -168,6 +169,7 @@ function writeConfig(config: FeatureConfig): void {
     writeFileSync(tmp, JSON.stringify(config, null, 2))
     renameSync(tmp, path)
     cachedConfig = config
+    cachedConfigPath = path
     lastReadTime = Date.now()
   } catch (e) {
     console.error("[sdk-features] write failed:", (e as Error).message)

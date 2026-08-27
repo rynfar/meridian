@@ -1,7 +1,8 @@
 /**
  * Persistent server settings.
  *
- * Stored in ~/.config/meridian/settings.json. Survives proxy restarts.
+ * Stored in ~/.config/meridian/settings.json (MERIDIAN_CONFIG_DIR moves the
+ * directory). Survives proxy restarts.
  * Shared between CLI, UI, and API — browser localStorage is only used
  * for client-only preferences (theme, collapsed sections, etc.).
  *
@@ -9,8 +10,8 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
-import { join, dirname } from "node:path"
-import { homedir } from "node:os"
+import { dirname } from "node:path"
+import { configPath } from "../configDir"
 
 /**
  * Resolve the settings file path.
@@ -18,17 +19,10 @@ import { homedir } from "node:os"
  * Resolved per call rather than frozen at import time so tests can redirect
  * it via MERIDIAN_CONFIG_DIR (see `src/__tests__/preload.ts`). Without the
  * override the path is exactly what it has always been, so existing installs
- * are unaffected.
- *
- * NOTE: deliberately does NOT honour XDG_CONFIG_HOME — anyone who has that
- * set would silently relocate to a different settings file and appear to
- * lose their configuration.
+ * are unaffected. See configDir.ts for the resolution rule itself.
  */
 function settingsFile(): string {
-  const override = process.env.MERIDIAN_CONFIG_DIR
-  return override
-    ? join(override, "settings.json")
-    : join(homedir(), ".config", "meridian", "settings.json")
+  return configPath("settings.json")
 }
 
 export interface MeridianSettings {

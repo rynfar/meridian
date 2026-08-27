@@ -1,12 +1,11 @@
-import { join } from "node:path"
-import { homedir } from "node:os"
+import { configPath } from "../configDir"
 import { envBool, env, envInt } from "../env"
 import { MemoryTelemetryStore } from "./store"
 import { MemoryDiagnosticLogStore } from "./logStore"
 import type { ITelemetryStore, IDiagnosticLogStore } from "./types"
 
 function getDefaultDbPath(): string {
-  return join(homedir(), ".config", "meridian", "telemetry.db")
+  return configPath("telemetry.db")
 }
 
 function createStores(): { telemetry: ITelemetryStore; diagnostics: IDiagnosticLogStore } {

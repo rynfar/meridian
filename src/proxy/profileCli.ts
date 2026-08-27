@@ -1,7 +1,7 @@
 /**
  * CLI commands for profile management.
  *
- * Browser-login profiles are stored under ~/.config/meridian/profiles/{id}/
+ * Browser-login profiles are stored under <config dir>/profiles/{id}/
  * — each directory is a standalone CLAUDE_CONFIG_DIR with its own OAuth
  * tokens. OAuth-token profiles (added via `--oauth-token`) live entirely in
  * profiles.json — no per-profile config dir.
@@ -14,13 +14,12 @@ import { createHash, randomBytes } from "node:crypto"
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { configPath } from "../configDir"
 import { resolveClaudeExecutableSync } from "./models"
 import type { ProfileConfig } from "./profiles"
 import { setSetting } from "./settings"
 import { createPlatformCredentialStore } from "./tokenRefresh"
 
-const PROFILES_DIR = join(homedir(), ".config", "meridian", "profiles")
-const CONFIG_FILE = join(homedir(), ".config", "meridian", "profiles.json")
 const OAUTH_AUTHORIZE_URL = "https://claude.com/cai/oauth/authorize"
 export const OAUTH_TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
 export const OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
@@ -34,12 +33,16 @@ const OAUTH_SCOPES = [
   "user:file_upload",
 ]
 
+function profilesConfigFile(): string {
+  return configPath("profiles.json")
+}
+
 function ensureProfilesDir(): void {
-  mkdirSync(PROFILES_DIR, { recursive: true })
+  mkdirSync(configPath("profiles"), { recursive: true })
 }
 
 function getProfileDir(id: string): string {
-  return join(PROFILES_DIR, id)
+  return configPath("profiles", id)
 }
 
 interface AuthLoginOptions {
@@ -116,18 +119,19 @@ export function parseAuthorizationCodeInput(input: string): ParsedAuthorizationC
 }
 
 function loadProfileConfig(): ProfileConfig[] {
-  if (!existsSync(CONFIG_FILE)) return []
+  const file = profilesConfigFile()
+  if (!existsSync(file)) return []
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, "utf-8"))
+    return JSON.parse(readFileSync(file, "utf-8"))
   } catch (err) {
-    console.warn(`[meridian] Failed to read ${CONFIG_FILE}: ${err instanceof Error ? err.message : err}`)
+    console.warn(`[meridian] Failed to read ${file}: ${err instanceof Error ? err.message : err}`)
     return []
   }
 }
 
 function saveProfileConfig(profiles: ProfileConfig[]): void {
   ensureProfilesDir()
-  writeFileSync(CONFIG_FILE, `${JSON.stringify(profiles, null, 2)}\n`, { mode: 0o600 })
+  writeFileSync(profilesConfigFile(), `${JSON.stringify(profiles, null, 2)}\n`, { mode: 0o600 })
 }
 
 function getAuthStatus(configDir: string): { loggedIn: boolean; email?: string; subscriptionType?: string } {
@@ -422,7 +426,7 @@ export function profileRemove(id: string): void {
     console.error(`\x1b[31m✗ Profile "${id}" not found.\x1b[0m`)
     process.exit(1)
   }
-  const dirsToRemove = dirsToRemoveOnProfileRemove(removed, PROFILES_DIR)
+  const dirsToRemove = dirsToRemoveOnProfileRemove(removed, configPath("profiles"))
   profiles.splice(idx, 1)
   saveProfileConfig(profiles)
 
@@ -576,7 +580,7 @@ function promptToken(question: string): string {
 }
 
 function printEnvHint(_profiles: ProfileConfig[]): void {
-  console.log(`\x1b[90mConfig: ${CONFIG_FILE}\x1b[0m`)
+  console.log(`\x1b[90mConfig: ${profilesConfigFile()}\x1b[0m`)
   console.log("\x1b[90mProfiles are picked up automatically — no restart needed.\x1b[0m")
 }
 

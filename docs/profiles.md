@@ -131,7 +131,7 @@ Profile shapes:
 - `apiKey` (with optional `baseUrl`) — direct Anthropic API access; sets `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`
 - `oauthToken` — long-lived token from `claude setup-token`; sets `CLAUDE_CODE_OAUTH_TOKEN`, no config dir needed
 
-When `MERIDIAN_PROFILES` is set, it takes precedence over disk-configured profiles. When unset, Meridian auto-discovers profiles from `~/.config/meridian/profiles.json` on each request.
+When `MERIDIAN_PROFILES` is set, it takes precedence over disk-configured profiles. When unset, Meridian auto-discovers profiles from `~/.config/meridian/profiles.json` on each request. `MERIDIAN_CONFIG_DIR` moves that file and the `profiles/` directory beside it, so a second instance can keep its own accounts — see [Relocating the config directory](configuration.md#relocating-the-config-directory).
 
 Related environment variables:
 
