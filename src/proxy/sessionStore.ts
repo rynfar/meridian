@@ -97,12 +97,35 @@ export type StoredSessionGeneration = string
 
 const STORE_META_KEY = "\u0000meridian-session-store"
 const STORE_META_VERSION = 1
+const PRIORITY_STORE_META_VERSION = 2
 
-interface SessionStoreMeta {
+export interface DurablePriorityAssignment {
+  profileId: string
+  lastHumanTurnDigest: string
+  mappingKey: string
+  /** Exact mapping generation published atomically with this route. */
+  mappingGeneration: StoredSessionGeneration
+  /** Unique route publication token. Replaced on every route mutation. */
+  generationId: string
+  updatedAt: number
+}
+
+export type PriorityAssignmentGeneration = string
+
+interface SessionStoreMetaV1 {
   version: 1
   /** Fixed hash slots fence absent-key create/delete ABA without unbounded tombstones. */
   slots: Record<string, number>
 }
+
+interface SessionStoreMetaV2 {
+  version: 2
+  /** Shared fixed slots fence both mapping and namespaced route ABA. */
+  slots: Record<string, number>
+  priorityAssignments: Record<string, DurablePriorityAssignment>
+}
+
+type SessionStoreMeta = SessionStoreMetaV1 | SessionStoreMetaV2
 
 interface SessionStoreDocument {
   sessions: Record<string, StoredSession>
@@ -141,6 +164,34 @@ function keyGeneration(
   return session ? getStoredSessionGeneration(session, key) : absenceGeneration(key, meta)
 }
 
+function priorityGenerationKey(routeKey: string): string {
+  return `priority:${routeKey}`
+}
+
+function priorityAbsenceGeneration(
+  routeKey: string,
+  meta: SessionStoreMeta,
+): PriorityAssignmentGeneration {
+  return absenceGeneration(priorityGenerationKey(routeKey), meta)
+}
+
+export function getPriorityAssignmentGeneration(
+  assignment: DurablePriorityAssignment,
+  routeKey: string,
+): PriorityAssignmentGeneration {
+  return `r:${keyDigest(priorityGenerationKey(routeKey))}:${assignment.generationId}`
+}
+
+function priorityAssignmentGeneration(
+  routeKey: string,
+  assignment: DurablePriorityAssignment | undefined,
+  meta: SessionStoreMeta,
+): PriorityAssignmentGeneration {
+  return assignment
+    ? getPriorityAssignmentGeneration(assignment, routeKey)
+    : priorityAbsenceGeneration(routeKey, meta)
+}
+
 function advanceKeySlot(key: string, meta: SessionStoreMeta): void {
   const slot = keySlot(key)
   const current = meta.slots[slot] ?? 0
@@ -154,6 +205,7 @@ function advanceKeySlot(key: string, meta: SessionStoreMeta): void {
 // for weeks — discarding our mapping just forces a destructive flat-text
 // replay on the next request. Storage is bounded by MAX_STORED_SESSIONS.
 const DEFAULT_MAX_STORED_SESSIONS = 10_000
+const DEFAULT_MAX_PRIORITY_ASSIGNMENTS = 5_000
 const STALE_LOCK_THRESHOLD_MS = 30_000
 const DEFAULT_LOCK_WAIT_MS = 10_000
 const LOCK_RETRY_MS = 10
@@ -164,6 +216,14 @@ export function getMaxStoredSessionsLimit(): number {
   if (!raw) return DEFAULT_MAX_STORED_SESSIONS
   const parsed = Number.parseInt(raw, 10)
   if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_STORED_SESSIONS
+  return parsed
+}
+
+export function getMaxPriorityAssignmentsLimit(): number {
+  const raw = process.env.MERIDIAN_MAX_PRIORITY_ASSIGNMENTS
+  if (!raw) return DEFAULT_MAX_PRIORITY_ASSIGNMENTS
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_PRIORITY_ASSIGNMENTS
   return parsed
 }
 
@@ -645,6 +705,39 @@ function validateStoredSession(key: string, value: unknown): asserts value is St
   }
 }
 
+function validatePriorityAssignment(routeKey: string, value: unknown): DurablePriorityAssignment {
+  if (!routeKey || routeKey.length > 512 || !value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`session store priority route ${JSON.stringify(routeKey)} is invalid`)
+  }
+  const assignment = value as Record<string, unknown>
+  if (typeof assignment.profileId !== "string" || !assignment.profileId || assignment.profileId.length > 128) {
+    throw new Error(`session store priority route ${JSON.stringify(routeKey)} has invalid profileId`)
+  }
+  if (typeof assignment.lastHumanTurnDigest !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(assignment.lastHumanTurnDigest)) {
+    throw new Error(`session store priority route ${JSON.stringify(routeKey)} has invalid human-turn digest`)
+  }
+  if (typeof assignment.mappingKey !== "string" || !assignment.mappingKey || assignment.mappingKey.length > 1_024) {
+    throw new Error(`session store priority route ${JSON.stringify(routeKey)} has invalid mappingKey`)
+  }
+  if (typeof assignment.mappingGeneration !== "string" || !assignment.mappingGeneration || assignment.mappingGeneration.length > 256) {
+    throw new Error(`session store priority route ${JSON.stringify(routeKey)} has invalid mapping generation`)
+  }
+  if (typeof assignment.generationId !== "string" || !assignment.generationId || assignment.generationId.length > 128) {
+    throw new Error(`session store priority route ${JSON.stringify(routeKey)} has invalid generationId`)
+  }
+  if (typeof assignment.updatedAt !== "number" || !Number.isFinite(assignment.updatedAt) || assignment.updatedAt < 0) {
+    throw new Error(`session store priority route ${JSON.stringify(routeKey)} has invalid updatedAt`)
+  }
+  return {
+    profileId: assignment.profileId,
+    lastHumanTurnDigest: assignment.lastHumanTurnDigest,
+    mappingKey: assignment.mappingKey,
+    mappingGeneration: assignment.mappingGeneration,
+    generationId: assignment.generationId,
+    updatedAt: assignment.updatedAt,
+  }
+}
+
 function emptyStoreDocument(): SessionStoreDocument {
   return { sessions: {}, meta: { version: STORE_META_VERSION, slots: {} } }
 }
@@ -653,8 +746,13 @@ function validateStoreMeta(value: unknown): SessionStoreMeta {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("session store metadata must be an object")
   }
-  const meta = value as { version?: unknown; slots?: unknown }
-  if (meta.version !== STORE_META_VERSION || typeof meta.slots !== "object" || meta.slots === null || Array.isArray(meta.slots)) {
+  const meta = value as { version?: unknown; slots?: unknown; priorityAssignments?: unknown }
+  if (
+    (meta.version !== STORE_META_VERSION && meta.version !== PRIORITY_STORE_META_VERSION)
+    || typeof meta.slots !== "object"
+    || meta.slots === null
+    || Array.isArray(meta.slots)
+  ) {
     throw new Error("session store metadata has an unsupported format")
   }
   for (const [slot, counter] of Object.entries(meta.slots)) {
@@ -662,7 +760,23 @@ function validateStoreMeta(value: unknown): SessionStoreMeta {
       throw new Error(`session store metadata has invalid generation slot ${JSON.stringify(slot)}`)
     }
   }
-  return { version: STORE_META_VERSION, slots: { ...(meta.slots as Record<string, number>) } }
+  const slots = { ...(meta.slots as Record<string, number>) }
+  if (meta.version === STORE_META_VERSION) {
+    if (meta.priorityAssignments !== undefined) {
+      throw new Error("session store v1 metadata cannot contain priority assignments")
+    }
+    return { version: STORE_META_VERSION, slots }
+  }
+  if (
+    typeof meta.priorityAssignments !== "object"
+    || meta.priorityAssignments === null
+    || Array.isArray(meta.priorityAssignments)
+  ) throw new Error("session store v2 metadata has invalid priority assignments")
+  const priorityAssignments: Record<string, DurablePriorityAssignment> = {}
+  for (const [routeKey, assignment] of Object.entries(meta.priorityAssignments)) {
+    priorityAssignments[routeKey] = validatePriorityAssignment(routeKey, assignment)
+  }
+  return { version: PRIORITY_STORE_META_VERSION, slots, priorityAssignments }
 }
 
 function readStoreDocumentStrict(path: string): SessionStoreDocument {
@@ -818,6 +932,29 @@ export function lookupSharedSession(key: string): StoredSession | undefined {
   return result.status === "found" ? result.session : undefined
 }
 
+export type PriorityAssignmentLookupResult =
+  | { status: "found"; assignment: DurablePriorityAssignment; generation: PriorityAssignmentGeneration }
+  | { status: "missing"; generation: PriorityAssignmentGeneration }
+  | { status: "error"; error: Error }
+
+/** Read one exact durable route. V1 documents authoritatively contain none. */
+export function lookupPriorityAssignmentResult(routeKey: string): PriorityAssignmentLookupResult {
+  try {
+    const document = readStoreDocumentStrict(getStorePath())
+    const assignment = document.meta.version === PRIORITY_STORE_META_VERSION
+      ? document.meta.priorityAssignments[routeKey]
+      : undefined
+    const generation = priorityAssignmentGeneration(routeKey, assignment, document.meta)
+    return assignment
+      ? { status: "found", assignment, generation }
+      : { status: "missing", generation }
+  } catch (error) {
+    const normalized = error instanceof Error ? error : new Error(String(error))
+    console.error("[sessionStore] priority route read failed:", normalized.message)
+    return { status: "error", error: normalized }
+  }
+}
+
 export function lookupSharedSessionByClaudeIdResult(claudeSessionId: string): SharedSessionLookupResult {
   try {
     const document = readStoreDocumentStrict(getStorePath())
@@ -958,6 +1095,255 @@ export function storeSharedSession(
   return storedGeneration
 }
 
+export interface SharedSessionPriorityPublication {
+  routeKey: string
+  profileId: string
+  lastHumanTurnDigest: string
+  expectedAssignmentGeneration: PriorityAssignmentGeneration
+}
+
+export interface SharedSessionAndPriorityAssignmentOptions {
+  key: string
+  claudeSessionId: string
+  messageCount: number
+  lineageHash: string
+  messageHashes: string[]
+  sdkMessageUuids?: Array<string | null>
+  contextUsage?: TokenUsage
+  messageBlockHashes: string[][]
+  passthroughToolCallAssistantUuid?: string | null
+  passthroughToolCallIds?: string[] | null
+  currentTranscript?: TranscriptLocator
+  sourceTranscript?: TranscriptLocator
+  expectedMappingGeneration: StoredSessionGeneration
+  priority: SharedSessionPriorityPublication
+}
+
+export interface SharedSessionAndPriorityAssignmentResult {
+  mappingGeneration: StoredSessionGeneration
+  assignmentGeneration: PriorityAssignmentGeneration
+  previousMapping: StoredSession | null
+  previousAssignment: DurablePriorityAssignment | null
+}
+
+function validatePriorityPublicationInput(options: SharedSessionAndPriorityAssignmentOptions): void {
+  if (!options.key || options.key.length > 1_024) throw new Error("priority publication requires a bounded mapping key")
+  if (!options.priority.routeKey || options.priority.routeKey.length > 512) {
+    throw new Error("priority publication requires a bounded route key")
+  }
+  if (!options.priority.profileId || options.priority.profileId.length > 128) {
+    throw new Error("priority publication requires a bounded profile ID")
+  }
+  if (!/^[A-Za-z0-9_-]{43}$/.test(options.priority.lastHumanTurnDigest)) {
+    throw new Error("priority publication requires a valid human-turn digest")
+  }
+  if (options.currentTranscript !== undefined) validateTranscriptLocator(options.currentTranscript, options.claudeSessionId)
+  if (options.sourceTranscript !== undefined) {
+    if (!isAbsolute(options.sourceTranscript.configDir)) {
+      throw new Error("sourceTranscript.configDir must be an absolute path")
+    }
+    if (options.sourceTranscript.projectDir !== undefined && !isAbsolute(options.sourceTranscript.projectDir)) {
+      throw new Error("sourceTranscript.projectDir must be an absolute path")
+    }
+  }
+}
+
+/**
+ * Publish one session mapping and its selected priority route as one locked,
+ * durable compare-and-swap. A v1 document upgrades only when this transaction
+ * wins; all ordinary mapping writes preserve either input version.
+ */
+export function storeSharedSessionAndPriorityAssignment(
+  options: SharedSessionAndPriorityAssignmentOptions,
+): SharedSessionAndPriorityAssignmentResult | false {
+  validatePriorityPublicationInput(options)
+  let result: SharedSessionAndPriorityAssignmentResult | false = false
+  mutateStore((document) => {
+    const existing = document.sessions[options.key]
+    const actualMappingGeneration = keyGeneration(options.key, existing, document.meta)
+    if (actualMappingGeneration !== options.expectedMappingGeneration) return false
+
+    const existingAssignments = document.meta.version === PRIORITY_STORE_META_VERSION
+      ? document.meta.priorityAssignments
+      : {}
+    const existingAssignment = existingAssignments[options.priority.routeKey]
+    const actualAssignmentGeneration = priorityAssignmentGeneration(
+      options.priority.routeKey,
+      existingAssignment,
+      document.meta,
+    )
+    if (actualAssignmentGeneration !== options.priority.expectedAssignmentGeneration) return false
+
+    const sessionIdChanged = existing !== undefined && existing.claudeSessionId !== options.claudeSessionId
+    if (options.sourceTranscript !== undefined) {
+      if (!sessionIdChanged || options.sourceTranscript.sessionId !== existing?.claudeSessionId) {
+        throw new Error("sourceTranscript.sessionId must match the replaced claudeSessionId")
+      }
+    }
+    const previousClaudeSessionId = sessionIdChanged
+      ? existing.claudeSessionId
+      : existing?.previousClaudeSessionId
+    const resolvedCurrentTranscript = sessionIdChanged
+      ? options.currentTranscript
+      : existing?.currentTranscript ?? options.currentTranscript
+    const previousTranscript = sessionIdChanged
+      ? existing?.currentTranscript ?? options.sourceTranscript
+      : existing?.previousTranscript
+    const stored: StoredSession = {
+      claudeSessionId: options.claudeSessionId,
+      revision: (existing?.revision ?? 0) + 1,
+      generationId: randomUUID(),
+      createdAt: existing?.createdAt || Date.now(),
+      lastUsedAt: Date.now(),
+      messageCount: options.messageCount,
+      lineageHash: options.lineageHash,
+      messageHashes: options.messageHashes,
+      messageBlockHashes: options.messageBlockHashes,
+      sdkMessageUuids: options.sdkMessageUuids,
+      passthroughToolCallAssistantUuid: options.passthroughToolCallAssistantUuid ?? undefined,
+      passthroughToolCallIds: options.passthroughToolCallIds ?? undefined,
+      contextUsage: options.contextUsage,
+      ...(resolvedCurrentTranscript ? { currentTranscript: resolvedCurrentTranscript } : {}),
+      ...(previousTranscript ? { previousTranscript } : {}),
+      ...(previousClaudeSessionId ? { previousClaudeSessionId } : {}),
+    }
+    document.sessions[options.key] = stored
+    advanceKeySlot(options.key, document.meta)
+    const mappingGeneration = getStoredSessionGeneration(stored, options.key)
+
+    if (document.meta.version === STORE_META_VERSION) {
+      document.meta = {
+        version: PRIORITY_STORE_META_VERSION,
+        slots: document.meta.slots,
+        priorityAssignments: {},
+      }
+    }
+    const assignment: DurablePriorityAssignment = {
+      profileId: options.priority.profileId,
+      lastHumanTurnDigest: options.priority.lastHumanTurnDigest,
+      mappingKey: options.key,
+      mappingGeneration,
+      generationId: randomUUID(),
+      updatedAt: Date.now(),
+    }
+    document.meta.priorityAssignments[options.priority.routeKey] = assignment
+    advanceKeySlot(priorityGenerationKey(options.priority.routeKey), document.meta)
+
+    const maxSessions = getMaxStoredSessionsLimit()
+    const sessionKeys = Object.keys(document.sessions)
+    if (sessionKeys.length > maxSessions) {
+      const sorted = sessionKeys
+        .filter((candidate) => candidate !== options.key)
+        .sort((left, right) => document.sessions[left]!.lastUsedAt - document.sessions[right]!.lastUsedAt)
+      for (const candidate of sorted.slice(0, sessionKeys.length - maxSessions)) {
+        delete document.sessions[candidate]
+        advanceKeySlot(candidate, document.meta)
+      }
+    }
+
+    const maxAssignments = getMaxPriorityAssignmentsLimit()
+    const routeKeys = Object.keys(document.meta.priorityAssignments)
+    if (routeKeys.length > maxAssignments) {
+      const sorted = routeKeys
+        .filter((candidate) => candidate !== options.priority.routeKey)
+        .sort((left, right) => (
+          document.meta.version === PRIORITY_STORE_META_VERSION
+            ? document.meta.priorityAssignments[left]!.updatedAt - document.meta.priorityAssignments[right]!.updatedAt
+            : 0
+        ))
+      for (const candidate of sorted.slice(0, routeKeys.length - maxAssignments)) {
+        delete document.meta.priorityAssignments[candidate]
+        advanceKeySlot(priorityGenerationKey(candidate), document.meta)
+      }
+    }
+
+    result = {
+      mappingGeneration,
+      assignmentGeneration: getPriorityAssignmentGeneration(assignment, options.priority.routeKey),
+      previousMapping: existing ? structuredClone(existing) : null,
+      previousAssignment: existingAssignment ? structuredClone(existingAssignment) : null,
+    }
+    return true
+  })
+  return result
+}
+
+export interface RollbackSharedSessionAndPriorityAssignmentOptions {
+  key: string
+  routeKey: string
+  expectedMappingGeneration: StoredSessionGeneration
+  expectedAssignmentGeneration: PriorityAssignmentGeneration
+  previousMapping: StoredSession | null
+  previousAssignment: DurablePriorityAssignment | null
+}
+
+export interface RollbackSharedSessionAndPriorityAssignmentResult {
+  mappingGeneration: StoredSessionGeneration
+  assignmentGeneration: PriorityAssignmentGeneration
+  restoredMapping: StoredSession | null
+  restoredAssignment: DurablePriorityAssignment | null
+}
+
+/** Restore the exact pre-request authorities after a canceled late publication. */
+export function rollbackSharedSessionAndPriorityAssignment(
+  options: RollbackSharedSessionAndPriorityAssignmentOptions,
+): RollbackSharedSessionAndPriorityAssignmentResult | false {
+  let result: RollbackSharedSessionAndPriorityAssignmentResult | false = false
+  mutateStore((document) => {
+    if (document.meta.version !== PRIORITY_STORE_META_VERSION) return false
+    const currentMapping = document.sessions[options.key]
+    if (keyGeneration(options.key, currentMapping, document.meta) !== options.expectedMappingGeneration) return false
+    const currentAssignment = document.meta.priorityAssignments[options.routeKey]
+    if (
+      priorityAssignmentGeneration(options.routeKey, currentAssignment, document.meta)
+      !== options.expectedAssignmentGeneration
+    ) return false
+
+    let restoredMapping: StoredSession | null = null
+    if (options.previousMapping) {
+      restoredMapping = {
+        ...structuredClone(options.previousMapping),
+        revision: (options.previousMapping.revision ?? 0) + 1,
+        generationId: randomUUID(),
+      }
+      document.sessions[options.key] = restoredMapping
+    } else {
+      delete document.sessions[options.key]
+    }
+    advanceKeySlot(options.key, document.meta)
+    const mappingGeneration = keyGeneration(options.key, restoredMapping ?? undefined, document.meta)
+
+    let restoredAssignment: DurablePriorityAssignment | null = null
+    if (options.previousAssignment) {
+      restoredAssignment = {
+        ...structuredClone(options.previousAssignment),
+        mappingGeneration: options.previousAssignment.mappingKey === options.key
+          ? mappingGeneration
+          : options.previousAssignment.mappingGeneration,
+        generationId: randomUUID(),
+        updatedAt: Date.now(),
+      }
+      document.meta.priorityAssignments[options.routeKey] = restoredAssignment
+    } else {
+      delete document.meta.priorityAssignments[options.routeKey]
+    }
+    advanceKeySlot(priorityGenerationKey(options.routeKey), document.meta)
+    const assignmentGeneration = priorityAssignmentGeneration(
+      options.routeKey,
+      restoredAssignment ?? undefined,
+      document.meta,
+    )
+    result = {
+      mappingGeneration,
+      assignmentGeneration,
+      restoredMapping,
+      restoredAssignment,
+    }
+    return true
+  })
+  return result
+}
+
 function sameTranscriptLocator(left: TranscriptLocator | undefined, right: TranscriptLocator): boolean {
   return left?.sessionId === right.sessionId
     && left.configDir === right.configDir
@@ -1063,6 +1449,12 @@ export function clearSharedSessions(): void {
     for (const key of Object.keys(store)) {
       delete store[key]
       advanceKeySlot(key, meta)
+    }
+    if (meta.version === PRIORITY_STORE_META_VERSION) {
+      for (const routeKey of Object.keys(meta.priorityAssignments)) {
+        delete meta.priorityAssignments[routeKey]
+        advanceKeySlot(priorityGenerationKey(routeKey), meta)
+      }
     }
     return true
   })

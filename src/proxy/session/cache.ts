@@ -12,8 +12,13 @@ import {
   lookupSharedSessionResult,
   lookupSharedSessionByClaudeIdResult,
   storeSharedSession,
+  storeSharedSessionAndPriorityAssignment,
+  rollbackSharedSessionAndPriorityAssignment,
   clearSharedSessions,
   evictSharedSession,
+  type DurablePriorityAssignment,
+  type PriorityAssignmentGeneration,
+  type StoredSession,
   type StoredSessionGeneration,
 } from "../sessionStore"
 import { getConversationFingerprint } from "./fingerprint"
@@ -27,6 +32,20 @@ import {
   type TokenUsage,
   type LineageResult,
 } from "./lineage"
+
+export interface PrioritySessionPublication {
+  readonly routeKey: string
+  readonly profileId: string
+  readonly lastHumanTurnDigest: string
+  expectedAssignmentGeneration: PriorityAssignmentGeneration
+  rollback?: {
+    readonly key: string
+    readonly previousMapping: StoredSession | null
+    readonly previousAssignment: DurablePriorityAssignment | null
+    publishedMappingGeneration: StoredSessionGeneration
+    publishedAssignmentGeneration: PriorityAssignmentGeneration
+  }
+}
 
 // --- Cache setup ---
 
@@ -158,6 +177,40 @@ function stateFromSharedSession(
   }
 }
 
+/** Revoke a late atomic route+mapping publication and restore pre-request authority. */
+export function rollbackPrioritySessionPublication(
+  sessionId: string | undefined,
+  messages: Array<{ role: string; content: unknown }>,
+  workingDirectory: string | undefined,
+  publication: PrioritySessionPublication,
+): StoredSessionGeneration | false {
+  const rollback = publication.rollback
+  if (!rollback) return false
+  const restored = rollbackSharedSessionAndPriorityAssignment({
+    key: rollback.key,
+    routeKey: publication.routeKey,
+    expectedMappingGeneration: rollback.publishedMappingGeneration,
+    expectedAssignmentGeneration: rollback.publishedAssignmentGeneration,
+    previousMapping: rollback.previousMapping,
+    previousAssignment: rollback.previousAssignment,
+  })
+  if (!restored) return false
+
+  publication.expectedAssignmentGeneration = restored.assignmentGeneration
+  publication.rollback = undefined
+  if (sessionId) {
+    if (restored.restoredMapping) sessionCache.set(sessionId, stateFromSharedSession(restored.restoredMapping))
+    else sessionCache.delete(sessionId)
+  } else {
+    const fingerprint = getConversationFingerprint(messages, workingDirectory)
+    if (fingerprint) {
+      if (restored.restoredMapping) fingerprintCache.set(fingerprint, stateFromSharedSession(restored.restoredMapping))
+      else fingerprintCache.delete(fingerprint)
+    }
+  }
+  return restored.mappingGeneration
+}
+
 function classifyLineage(
   state: SessionState,
   messages: Array<{ role: string; content: any }>,
@@ -278,6 +331,7 @@ export function storeSession(
   currentTranscript?: { sessionId: string; configDir: string; projectDir?: string },
   sourceTranscript?: { sessionId: string; configDir: string; projectDir?: string },
   expectedGeneration?: StoredSessionGeneration | null,
+  priorityPublication?: PrioritySessionPublication,
 ): StoredSessionGeneration | false {
   if (!claudeSessionId) return false
   const lineageHash = computeLineageHash(messages)
@@ -300,22 +354,64 @@ export function storeSession(
   const fp = getConversationFingerprint(messages, workingDirectory)
   const key = sessionId || fp
   if (!key) return false
-  const storedGeneration = storeSharedSession(
-    key,
-    claudeSessionId,
-    state.messageCount,
-    lineageHash,
-    messageHashes,
-    sdkMessageUuids,
-    contextUsage,
-    messageBlockHashes,
-    // undefined would preserve the stored checkpoint; a full store must rewrite it.
-    passthroughToolCallAssistantUuid ?? null,
-    passthroughToolCallIds ?? null,
-    currentTranscript,
-    sourceTranscript,
-    expectedGeneration,
-  )
+  let storedGeneration: StoredSessionGeneration | false
+  if (priorityPublication) {
+    if (expectedGeneration === undefined || expectedGeneration === null) {
+      throw new Error("priority publication requires an exact mapping generation")
+    }
+    const published = storeSharedSessionAndPriorityAssignment({
+      key,
+      claudeSessionId,
+      messageCount: state.messageCount,
+      lineageHash,
+      messageHashes,
+      sdkMessageUuids,
+      contextUsage,
+      messageBlockHashes,
+      passthroughToolCallAssistantUuid: passthroughToolCallAssistantUuid ?? null,
+      passthroughToolCallIds: passthroughToolCallIds ?? null,
+      currentTranscript,
+      sourceTranscript,
+      expectedMappingGeneration: expectedGeneration,
+      priority: {
+        routeKey: priorityPublication.routeKey,
+        profileId: priorityPublication.profileId,
+        lastHumanTurnDigest: priorityPublication.lastHumanTurnDigest,
+        expectedAssignmentGeneration: priorityPublication.expectedAssignmentGeneration,
+      },
+    })
+    if (!published) return false
+    const rollback = priorityPublication.rollback
+    if (rollback && rollback.key !== key) {
+      throw new Error("priority publication changed mapping keys within one request")
+    }
+    priorityPublication.rollback = {
+      key,
+      previousMapping: rollback?.previousMapping ?? published.previousMapping,
+      previousAssignment: rollback?.previousAssignment ?? published.previousAssignment,
+      publishedMappingGeneration: published.mappingGeneration,
+      publishedAssignmentGeneration: published.assignmentGeneration,
+    }
+    priorityPublication.expectedAssignmentGeneration = published.assignmentGeneration
+    storedGeneration = published.mappingGeneration
+  } else {
+    storedGeneration = storeSharedSession(
+      key,
+      claudeSessionId,
+      state.messageCount,
+      lineageHash,
+      messageHashes,
+      sdkMessageUuids,
+      contextUsage,
+      messageBlockHashes,
+      // undefined would preserve the stored checkpoint; a full store must rewrite it.
+      passthroughToolCallAssistantUuid ?? null,
+      passthroughToolCallIds ?? null,
+      currentTranscript,
+      sourceTranscript,
+      expectedGeneration,
+    )
+  }
   if (!storedGeneration) return false
 
   // Publish to memory only after the durable CAS succeeds.
