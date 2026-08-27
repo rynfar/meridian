@@ -109,6 +109,10 @@ describe("/v1/models profile auth context", () => {
     const body = await response.json() as { data: Array<{ id: string; context_window: number }> }
 
     expect(response.status).toBe(200)
+    expect(authCalls).toEqual([{
+      profileId: "pro",
+      envOverrides: { CLAUDE_CONFIG_DIR: "/profiles/pro" },
+    }])
     expect(body.data.every((model) => model.context_window === 200_000)).toBe(true)
   })
 })
