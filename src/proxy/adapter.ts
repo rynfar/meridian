@@ -109,6 +109,14 @@ export interface AgentIdentity {
   extractClientWorkingDirectory?(body: any): string | undefined
 
   /**
+   * Whether the client's environment may be independent of the proxy-side SDK
+   * subprocess even when both report the same path text. When true, query
+   * construction keeps the client/proxy environment distinction explicit
+   * instead of treating lexical path equality as proof of one execution locus.
+   */
+  readonly clientEnvironmentMayDifferFromProxy?: boolean
+
+  /**
    * Content normalization — convert message content to a stable string
    * for hashing. Agents may send content in different formats.
    */
