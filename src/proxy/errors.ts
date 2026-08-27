@@ -62,6 +62,11 @@ const BILLING_SIGNALS: readonly RegExp[] = [
  *  can't drift into unrelated text that happens to contain "limit". */
 const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
 
+/** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
+ * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
+ * cannot exhaust every profile in a priority pool. */
+const OUT_OF_USAGE_CREDITS = /^(?:(?:error|api error|claude code returned an error result):\s*)*you(?:'|’)re out of usage credits(?:[.!](?:\s|$)|\s*$)/
+
 /** Bare HTTP codes are useful SDK signals only when they are not embedded in
  * an opaque hexadecimal identity. Managed transcript errors include random
  * UUIDs, so substring matching (for example `includes("503")`) made their HTTP
@@ -115,7 +120,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // otherwise be the next report.
   if (HTTP_429.test(lower) || lower.includes("rate limit") || lower.includes("too many requests")
     || HIT_YOUR_LIMIT.test(lower) || lower.includes("usage limit reached")
-    || lower.includes("out of usage credits")) {
+    || OUT_OF_USAGE_CREDITS.test(lower)) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? extendedContextHint(model)
       : ""

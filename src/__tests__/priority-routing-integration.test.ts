@@ -233,6 +233,23 @@ describe("priority routing", () => {
     expect(body.content[0]?.text).toContain("prof-personal")
   }, 20_000)
 
+  it("does not spend or exhaust the pool for incidental usage-credit prose", async () => {
+    failureMessage = "Claude Code returned an error result: The MCP docs say users may be out of usage credits"
+    failingDirs.add("prof-work")
+    const app = createTestApp()
+
+    const refused = await post(app, { "x-opencode-session": "incidental-usage-credit" })
+    expect(refused.status).toBe(500)
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    expect(capturedEnvs.every(env => env.includes("prof-work"))).toBe(true)
+
+    failingDirs.clear()
+    capturedEnvs = []
+    const recovered = await post(app, { "x-opencode-session": "incidental-usage-credit" }, "try again")
+    expect(recovered.status).toBe(200)
+    expect(capturedEnvs[0]).toContain("prof-work")
+  })
+
   it("surfaces the LAST tried profile's error when every profile is exhausted", async () => {
     failingDirs.add("prof-work")
     failingDirs.add("prof-personal")

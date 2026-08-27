@@ -626,6 +626,25 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(r.status).toBe(429)
   })
 
+  it.each([
+    ["bare banner", "You're out of usage credits"],
+    ["nested SDK wrappers", "Error: API Error: You’re out of usage credits! /model to switch models."],
+  ])("maps the canonical usage-credit %s to rate_limit_error", (_label, msg) => {
+    const r = classifyError(msg)
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
+  it.each([
+    ["incidental prose", "The MCP docs say users may be out of usage credits"],
+    ["quoted banner", "Claude Code returned an error result: The docs say ‘You're out of usage credits.’"],
+    ["negated banner", "Claude Code returned an error result: You're not out of usage credits."],
+    ["filename prefix", "Claude Code returned an error result: usage-credits.ts says You're out of usage credits."],
+    ["unfinished quotation", "Claude Code returned an error result: You're out of usage credits is a test string"],
+  ])("does not classify usage-credit %s as a rate limit", (_label, msg) => {
+    expect(classifyError(msg).type).not.toBe("rate_limit_error")
+  })
+
   // #764 and #787 were the same bug twice: a new qualifier, a 500 instead of
   // failover, a PR. These pin the shape so the next variant is already covered.
   it.each([
