@@ -47,9 +47,9 @@ function presetAppend(overrides: Partial<QueryContext> = {}): string {
 
 describe("GIT_STATUS_PROVENANCE_NOTE", () => {
   it("contradicts the preset's 'start of the conversation' claim", () => {
-    // The note is useless unless it names the specific false claim it corrects;
-    // a vague "git status may be stale" would not tell the model which of two
-    // contradictory sources to believe.
+    // The note is useful only if it names the preset's false temporal claim;
+    // a vague "git status may be stale" would not explain that the snapshot is
+    // current for this request rather than fixed at conversation start.
     expect(GIT_STATUS_PROVENANCE_NOTE).toContain("start of the conversation")
     expect(GIT_STATUS_PROVENANCE_NOTE).toContain("recomputed at the start of every turn")
   })

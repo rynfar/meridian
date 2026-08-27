@@ -412,3 +412,50 @@ describe("Fingerprint resume: backward compat", () => {
     expect(getCaptured()?.options?.resume).toBeDefined()
   })
 })
+
+
+describe("Fingerprint resume: OpenCode CWD-key transition", () => {
+  it("moves once from the override key to the client key and keeps the new key across restart", async () => {
+    const originalProxy = process.env.CLAUDE_PROXY_WORKDIR
+    const originalMeridian = process.env.MERIDIAN_WORKDIR
+    const proxyCwd = tmpdir()
+    const clientCwd = "C:\\projects\\remote-app"
+    process.env.CLAUDE_PROXY_WORKDIR = proxyCwd
+    delete process.env.MERIDIAN_WORKDIR
+
+    try {
+      const firstApp = createTestApp()
+      await postNoSession(firstApp, [
+        { role: "user", content: "hello from the migration fixture" },
+      ], "override-key", "OpenCode prompt without an environment block")
+      const oldSession = getCallerSelectedSessionId("override-key")
+      expect(getCaptured()?.options?.resume).toBeUndefined()
+
+      capturedQueryParams = null
+      await postNoSession(firstApp, [
+        { role: "user", content: "hello from the migration fixture" },
+      ], "client-key", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`)
+      const newSession = getCallerSelectedSessionId("client-key")
+      expect(newSession).not.toBe(oldSession)
+      expect(getCaptured()?.options?.resume).toBeUndefined()
+
+      // Simulate a proxy restart: discard process-local cache but retain the
+      // durable shared store written under the new client-path fingerprint.
+      clearSessionCache()
+      capturedQueryParams = null
+      const restartedApp = createTestApp()
+      await postNoSession(restartedApp, [
+        { role: "user", content: "hello from the migration fixture" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "continue after restart" },
+      ], "restart", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`)
+
+      expect(getCaptured()?.options?.resume).toBeDefined()
+    } finally {
+      if (originalProxy === undefined) delete process.env.CLAUDE_PROXY_WORKDIR
+      else process.env.CLAUDE_PROXY_WORKDIR = originalProxy
+      if (originalMeridian === undefined) delete process.env.MERIDIAN_WORKDIR
+      else process.env.MERIDIAN_WORKDIR = originalMeridian
+    }
+  })
+})
