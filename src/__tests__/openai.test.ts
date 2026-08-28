@@ -758,6 +758,30 @@ describe("translateAnthropicToOpenAi", () => {
     expect(result.usage.prompt_tokens).toBe(10)
     expect(result.usage.completion_tokens).toBe(5)
     expect(result.usage.total_tokens).toBe(15)
+    expect(result.usage.prompt_tokens_details).toEqual({ cached_tokens: 0, cache_write_tokens: 0 })
+  })
+
+  it("includes cache reads and writes in prompt usage", () => {
+    const result = translateAnthropicToOpenAi(
+      {
+        content: [{ type: "text", text: "Cached answer" }],
+        stop_reason: "end_turn",
+        usage: {
+          input_tokens: 23,
+          output_tokens: 41,
+          cache_read_input_tokens: 900,
+          cache_creation_input_tokens: 77,
+        },
+      },
+      ID, MODEL, CREATED,
+    )
+
+    expect(result.usage).toEqual({
+      prompt_tokens: 1000,
+      completion_tokens: 41,
+      total_tokens: 1041,
+      prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
   })
 
   it("maps max_tokens stop_reason to length finish_reason", () => {
@@ -1224,14 +1248,70 @@ describe("createSseTranslator", () => {
     const chunk = translate.buildUsageChunk()
     expect(chunk).not.toBeNull()
     expect(chunk!.choices).toEqual([])
-    expect(chunk!.usage).toEqual({ prompt_tokens: 132, completion_tokens: 37, total_tokens: 169 })
+    expect(chunk!.usage).toEqual({
+      prompt_tokens: 132,
+      completion_tokens: 37,
+      total_tokens: 169,
+      prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+    })
   })
 
-  it("buildUsageChunk uses the latest message_delta.usage if multiple arrive", () => {
+  it("buildUsageChunk uses message_start usage when message_delta omits usage", () => {
     const translate = createSseTranslator({ ...CTX, includeUsage: true })
-    translate({ type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { input_tokens: 100, output_tokens: 10 } })
-    translate({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { input_tokens: 100, output_tokens: 42 } })
-    expect(translate.buildUsageChunk()!.usage).toEqual({ prompt_tokens: 100, completion_tokens: 42, total_tokens: 142 })
+    translate({
+      type: "message_start",
+      message: {
+        id: "msg_1",
+        usage: {
+          input_tokens: 23,
+          output_tokens: 3,
+          cache_read_input_tokens: 900,
+          cache_creation_input_tokens: 77,
+        },
+      },
+    })
+    translate({ type: "message_delta", delta: { stop_reason: "end_turn" } })
+
+    expect(translate.buildUsageChunk()!.usage).toEqual({
+      prompt_tokens: 1000,
+      completion_tokens: 3,
+      total_tokens: 1003,
+      prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
+  })
+
+  it("buildUsageChunk preserves start fields and applies cumulative delta overrides", () => {
+    const translate = createSseTranslator({ ...CTX, includeUsage: true })
+    translate({
+      type: "message_start",
+      message: {
+        id: "msg_1",
+        usage: {
+          input_tokens: 23,
+          output_tokens: 0,
+          cache_read_input_tokens: 900,
+          cache_creation_input_tokens: 77,
+        },
+      },
+    })
+    translate({ type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 17 } })
+    expect(translate.buildUsageChunk()!.usage).toEqual({
+      prompt_tokens: 1000,
+      completion_tokens: 17,
+      total_tokens: 1017,
+      prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
+    translate({
+      type: "message_delta",
+      delta: { stop_reason: "end_turn" },
+      usage: { input_tokens: 25, output_tokens: 41, cache_read_input_tokens: 910 },
+    })
+    expect(translate.buildUsageChunk()!.usage).toEqual({
+      prompt_tokens: 1012,
+      completion_tokens: 41,
+      total_tokens: 1053,
+      prompt_tokens_details: { cached_tokens: 910, cache_write_tokens: 77 },
+    })
   })
 })
 

@@ -284,7 +284,32 @@ describe("translateAnthropicToResponses (non-stream)", () => {
     const msg = out.output.find((o: any) => o.type === "message")
     expect(msg.role).toBe("assistant")
     expect(msg.content).toEqual([{ type: "output_text", text: "Hello!", annotations: [] }])
-    expect(out.usage).toEqual({ input_tokens: 10, output_tokens: 5, total_tokens: 15 })
+    expect(out.usage).toEqual({
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+    })
+  })
+
+  it("includes cache reads and writes in input usage", () => {
+    const out = translateAnthropicToResponses({
+      content: [{ type: "text", text: "Cached answer" }],
+      stop_reason: "end_turn",
+      usage: {
+        input_tokens: 23,
+        output_tokens: 41,
+        cache_read_input_tokens: 900,
+        cache_creation_input_tokens: 77,
+      },
+    }, ctx)
+
+    expect(out.usage).toEqual({
+      input_tokens: 1000,
+      output_tokens: 41,
+      total_tokens: 1041,
+      input_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
   })
 
   it("maps tool_use blocks to function_call items", () => {
@@ -368,9 +393,48 @@ describe("createResponsesSseTranslator (stream)", () => {
     const completed = out.find((e) => e.event === "response.completed")!
     const resp = (completed.data as any).response
     expect(resp.status).toBe("completed")
-    expect(resp.usage).toEqual({ input_tokens: 12, output_tokens: 7, total_tokens: 19 })
+    expect(resp.usage).toEqual({
+      input_tokens: 12,
+      output_tokens: 7,
+      total_tokens: 19,
+      input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+    })
     const msg = resp.output.find((o: any) => o.type === "message")
     expect(msg.content[0].text).toBe("Hello")
+  })
+
+  it("preserves start usage and applies only cumulative delta fields", () => {
+    const out = run([
+      {
+        type: "message_start",
+        message: {
+          id: "m1",
+          usage: {
+            input_tokens: 23,
+            output_tokens: 0,
+            cache_read_input_tokens: 900,
+            cache_creation_input_tokens: 77,
+          },
+        },
+      },
+      { type: "message_delta", usage: { output_tokens: 17 } },
+      {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn" },
+        usage: { input_tokens: 25, output_tokens: 41, cache_read_input_tokens: 910 },
+      },
+      { type: "message_stop" },
+    ])
+    const completed = out.find((event) => event.event === "response.completed")!
+
+    expect(completed.data.response).toEqual(expect.objectContaining({
+      usage: {
+        input_tokens: 1012,
+        output_tokens: 41,
+        total_tokens: 1053,
+        input_tokens_details: { cached_tokens: 910, cache_write_tokens: 77 },
+      },
+    }))
   })
 
   it("emits function_call items with argument deltas for tool_use blocks", () => {

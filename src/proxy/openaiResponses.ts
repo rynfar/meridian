@@ -23,8 +23,9 @@ import type {
   AnthropicMessage,
   AnthropicContentBlock,
   AnthropicTool,
+  AnthropicUsage,
 } from "./openai"
-import { parseDataUrlImage } from "./openai"
+import { mergeAnthropicUsage, parseDataUrlImage, totalAnthropicInputTokens } from "./openai"
 
 // ---------------------------------------------------------------------------
 // Responses request types (subset Codex actually sends)
@@ -288,13 +289,21 @@ export function reasoningRequested(body: ResponsesRequest): boolean {
 interface AnthropicResponseLike {
   content?: Array<Record<string, unknown>>
   stop_reason?: string
-  usage?: { input_tokens?: number; output_tokens?: number }
+  usage?: AnthropicUsage
 }
 
-function mapUsage(usage: { input_tokens?: number; output_tokens?: number } | undefined) {
-  const input = usage?.input_tokens ?? 0
+function mapUsage(usage: AnthropicUsage | undefined) {
+  const input = totalAnthropicInputTokens(usage)
   const output = usage?.output_tokens ?? 0
-  return { input_tokens: input, output_tokens: output, total_tokens: input + output }
+  return {
+    input_tokens: input,
+    output_tokens: output,
+    total_tokens: input + output,
+    input_tokens_details: {
+      cached_tokens: usage?.cache_read_input_tokens ?? 0,
+      cache_write_tokens: usage?.cache_creation_input_tokens ?? 0,
+    },
+  }
 }
 
 /**
@@ -377,10 +386,10 @@ export function translateAnthropicToResponses(res: AnthropicResponseLike, ctx: R
 export interface AnthropicSseEvent {
   type: string
   index?: number
-  message?: { id?: string; usage?: { input_tokens?: number } }
+  message?: { id?: string; usage?: AnthropicUsage }
   content_block?: { type?: string; id?: string; name?: string; input?: unknown }
   delta?: { type?: string; text?: string; partial_json?: string; thinking?: string; stop_reason?: string }
-  usage?: { output_tokens?: number }
+  usage?: AnthropicUsage
 }
 
 export interface ResponsesSseEmission {
@@ -395,8 +404,7 @@ export interface ResponsesSseEmission {
 export function createResponsesSseTranslator(ctx: ResponsesCtx) {
   let seq = 0
   let outputIndex = 0
-  let inputTokens = 0
-  let outputTokens = 0
+  let usage: AnthropicUsage | undefined
   let createdEmitted = false
   let stopReason: string | undefined
 
@@ -439,7 +447,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
 
     switch (event.type) {
       case "message_start": {
-        inputTokens = event.message?.usage?.input_tokens ?? 0
+        if (event.message?.usage) usage = mergeAnthropicUsage(usage, event.message.usage)
         if (!createdEmitted) {
           createdEmitted = true
           out.push(emit("response.created", { response: responseEnvelope("in_progress", { output: [] }) }))
@@ -542,7 +550,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
       }
 
       case "message_delta": {
-        if (typeof event.usage?.output_tokens === "number") outputTokens = event.usage.output_tokens
+        if (event.usage) usage = mergeAnthropicUsage(usage, event.usage)
         if (typeof event.delta?.stop_reason === "string") stopReason = event.delta.stop_reason
         break
       }
@@ -552,7 +560,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
         out.push(emit(status === "incomplete" ? "response.incomplete" : "response.completed", {
           response: responseEnvelope(status, {
             output: finalOutput,
-            usage: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
+            usage: mapUsage(usage),
             parallel_tool_calls: true,
             tool_choice: "auto",
             tools: [],

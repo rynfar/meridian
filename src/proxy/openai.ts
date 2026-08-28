@@ -134,6 +134,34 @@ export interface AnthropicRequestBody {
 export interface AnthropicUsage {
   input_tokens?: number
   output_tokens?: number
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
+}
+
+const ANTHROPIC_USAGE_FIELDS = [
+  "input_tokens",
+  "output_tokens",
+  "cache_read_input_tokens",
+  "cache_creation_input_tokens",
+] as const
+
+/** Merge cumulative usage snapshots without erasing fields omitted by a delta. */
+export function mergeAnthropicUsage(
+  current: AnthropicUsage | undefined,
+  update: AnthropicUsage,
+): AnthropicUsage {
+  const merged = { ...current }
+  for (const field of ANTHROPIC_USAGE_FIELDS) {
+    if (typeof update[field] === "number") merged[field] = update[field]
+  }
+  return merged
+}
+
+/** Anthropic reports fresh, cache-read, and cache-written input separately. */
+export function totalAnthropicInputTokens(usage: AnthropicUsage | undefined): number {
+  return (usage?.input_tokens ?? 0)
+    + (usage?.cache_read_input_tokens ?? 0)
+    + (usage?.cache_creation_input_tokens ?? 0)
 }
 
 export interface AnthropicContentBlockText {
@@ -207,7 +235,15 @@ export interface OpenAiStreamChunk {
     }
     finish_reason: "stop" | "length" | "tool_calls" | null
   }>
-  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number }
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+    prompt_tokens_details: {
+      cached_tokens: number
+      cache_write_tokens: number
+    }
+  }
 }
 
 export interface OpenAiCompletionFunctionToolCall {
@@ -247,6 +283,10 @@ export interface OpenAiCompletion {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    prompt_tokens_details: {
+      cached_tokens: number
+      cache_write_tokens: number
+    }
   }
 }
 
@@ -630,7 +670,7 @@ export function translateAnthropicToOpenAi(
         .join("")
     : ""
 
-  const promptTokens = response.usage?.input_tokens ?? 0
+  const promptTokens = totalAnthropicInputTokens(response.usage)
   const completionTokens = response.usage?.output_tokens ?? 0
 
   return {
@@ -652,6 +692,10 @@ export function translateAnthropicToOpenAi(
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
       total_tokens: promptTokens + completionTokens,
+      prompt_tokens_details: {
+        cached_tokens: response.usage?.cache_read_input_tokens ?? 0,
+        cache_write_tokens: response.usage?.cache_creation_input_tokens ?? 0,
+      },
     },
   }
 }
@@ -680,7 +724,7 @@ export interface AnthropicSseEvent {
     | { type: "text"; text?: string }
     | { type: "thinking"; thinking?: string }
     | AnthropicToolUseBlock
-  message?: { id?: string }
+  message?: { id?: string; usage?: AnthropicUsage }
   usage?: AnthropicUsage
 }
 
@@ -726,8 +770,12 @@ export function createSseTranslator(ctx: SseTranslatorContext): SseTranslator {
       toolCallIndex++
     }
 
+    if (event.type === "message_start" && event.message?.usage) {
+      lastUsage = mergeAnthropicUsage(lastUsage, event.message.usage)
+    }
+
     if (event.type === "message_delta" && event.usage) {
-      lastUsage = event.usage
+      lastUsage = mergeAnthropicUsage(lastUsage, event.usage)
     }
 
     return translateAnthropicSseEvent(
@@ -742,7 +790,7 @@ export function createSseTranslator(ctx: SseTranslatorContext): SseTranslator {
 
   translate.buildUsageChunk = () => {
     if (!ctx.includeUsage || !lastUsage) return null
-    const promptTokens = lastUsage.input_tokens ?? 0
+    const promptTokens = totalAnthropicInputTokens(lastUsage)
     const completionTokens = lastUsage.output_tokens ?? 0
     return {
       id: ctx.completionId,
@@ -754,6 +802,10 @@ export function createSseTranslator(ctx: SseTranslatorContext): SseTranslator {
         prompt_tokens: promptTokens,
         completion_tokens: completionTokens,
         total_tokens: promptTokens + completionTokens,
+        prompt_tokens_details: {
+          cached_tokens: lastUsage.cache_read_input_tokens ?? 0,
+          cache_write_tokens: lastUsage.cache_creation_input_tokens ?? 0,
+        },
       },
     }
   }

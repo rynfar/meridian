@@ -24,6 +24,7 @@ import {
   toolUseBlockStart,
   inputJsonDelta,
   resolveMockSdkSessionId,
+  streamEvent,
 } from "./helpers"
 
 let mockMessages: unknown[] = []
@@ -476,6 +477,55 @@ describe("POST /v1/chat/completions — streaming", () => {
 
     const text = await readStream(res)
     expect(text).toContain("data: [DONE]")
+  })
+
+  it("emits complete cached usage immediately before [DONE] when requested", async () => {
+    mockMessages = [
+      streamEvent({
+        type: "message_start",
+        message: {
+          id: "msg_usage",
+          type: "message",
+          role: "assistant",
+          content: [],
+          model: "claude-sonnet-4-5-20250929",
+          stop_reason: null,
+          usage: {
+            input_tokens: 23,
+            output_tokens: 0,
+            cache_read_input_tokens: 900,
+            cache_creation_input_tokens: 77,
+          },
+        },
+      }),
+      textBlockStart(0),
+      textDelta(0, "cached"),
+      blockStop(0),
+      streamEvent({
+        type: "message_delta",
+        delta: { stop_reason: "end_turn" },
+        usage: { output_tokens: 41 },
+      }),
+      messageStop(),
+    ]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: true,
+      stream_options: { include_usage: true },
+      messages: [{ role: "user", content: "Use the cached prompt" }],
+    })
+
+    const frames = (await readStream(res)).split("\n").filter(line => line.startsWith("data: "))
+    expect(frames.at(-1)).toBe("data: [DONE]")
+    const usageChunk = JSON.parse(frames.at(-2)!.slice(6)) as Record<string, unknown>
+    expect(usageChunk.choices).toEqual([])
+    expect(usageChunk.usage).toEqual({
+      prompt_tokens: 1000,
+      completion_tokens: 41,
+      total_tokens: 1041,
+      prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
   })
 
   it("all chunks share the same completion id", async () => {
