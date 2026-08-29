@@ -198,6 +198,62 @@ describe("POST /v1/chat/completions — non-streaming", () => {
     expect(capturedOptions?.effort).toBe("high")
   })
 
+  it("carries response_format json_schema through to the SDK outputFormat", async () => {
+    // Structured output is enforced by the SDK on the internal /v1/messages
+    // hop. Without this the field is dropped at the endpoint boundary and the
+    // client silently gets prose back instead of schema-valid JSON.
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    }
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    await postChatCompletion(app, {
+      stream: false,
+      response_format: { type: "json_schema", json_schema: { name: "answer", schema } },
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(capturedOptions?.outputFormat).toEqual({ type: "json_schema", schema })
+  })
+
+  it("rejects response_format json_object instead of silently ignoring it", async () => {
+    // Anthropic has no schema-less JSON mode, so the request cannot be honored.
+    // Failing loudly beats returning prose to a client expecting JSON.
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: false,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  it("rejects response_format combined with tools", async () => {
+    // Structured-output mode replaces the response content, which would swallow
+    // a tool_use turn and strand the client's tool loop.
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: false,
+      response_format: {
+        type: "json_schema",
+        json_schema: { schema: { type: "object", properties: {} } },
+      },
+      tools: [{ type: "function", function: { name: "fn", parameters: {} } }],
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(res.status).toBe(400)
+  })
+
   it("sends the client system prompt verbatim, without the claude_code preset", async () => {
     // The OpenAI endpoint serves generic chat clients (Open WebUI, curl).
     // Their system prompt must reach the SDK as a plain string — NOT wrapped

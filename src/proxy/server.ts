@@ -7014,6 +7014,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       )
     }
 
+    // Validate structured output here, while the client's own spelling is still
+    // known. The inner hop only sees the translated `output_config`, so letting
+    // it reject would name a field the OpenAI caller never sent.
+    if (rawBody.response_format !== undefined) {
+      const parsed = parseOutputFormat(anthropicBody.output_config, anthropicBody.tools, "openai")
+      if (!parsed.ok) {
+        return c.json(
+          { type: "error", error: { type: "invalid_request_error", message: parsed.message } },
+          400
+        )
+      }
+    }
+
     // Route internally via app.fetch() — no network roundtrip.
     // Hono resolves the path in-process; the URL scheme/host are ignored.
     // Forward the caller's auth headers so requireAuth on /v1/messages accepts
