@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { realpathSync } from "node:fs"
 import {
   chmod,
@@ -123,6 +123,9 @@ export interface SessionLifecycleOptions {
   pinProvider?: () => readonly TranscriptLocator[]
   /** Bound one complete sweep, including all child deletions. */
   runTimeoutMs?: number
+  /** Test seam. Overrides the resolved @anthropic-ai/claude-agent-sdk module the
+   * deletion child imports, so the fenced-delete path can run against a stub. */
+  sdkModuleUrl?: string
 }
 
 export interface ActiveTranscriptLease {
@@ -634,14 +637,6 @@ export async function runGc(
 ): Promise<GcResult> {
   await reconcile(pins, options)
   let currentPins = pins.map(canonicalizeTranscriptLocator)
-  if (!options.deleter && process.platform === "win32") {
-    return {
-      deleted: 0,
-      notFound: 0,
-      failed: 0,
-      deferred: await countDeferred(currentPins, options),
-    }
-  }
   const limit = option(options.maxDeletesPerRun, DEFAULT_MAX_DELETES, "maxDeletesPerRun")
   const result: GcResult = { deleted: 0, notFound: 0, failed: 0, deferred: 0 }
   const runTimeoutMs = option(options.runTimeoutMs, DEFAULT_DELETE_TIMEOUT_MS, "runTimeoutMs")
@@ -830,9 +825,12 @@ async function awaitCustomDeleter(deletion: Promise<void>, timeoutMs: number): P
 }
 
 function processGroupIsEmpty(processGroupId: number): boolean {
-  if (process.platform === "win32") return false
   try {
-    process.kill(-processGroupId, 0)
+    // Windows has no process groups. The deletion child is spawned un-detached
+    // (see deleteWithSdkChild), so its leader pid stands in for the "group": a
+    // reaped child no longer exists, and process.kill(pid, 0) then throws ESRCH.
+    // On POSIX a negative pid probes the whole group instead.
+    process.kill(process.platform === "win32" ? processGroupId : -processGroupId, 0)
     return false
   } catch (error) {
     return hasCode(error, "ESRCH")
@@ -840,7 +838,17 @@ function processGroupIsEmpty(processGroupId: number): boolean {
 }
 
 function signalProcessGroup(processGroupId: number, signal: NodeJS.Signals): void {
-  if (process.platform === "win32") return
+  if (process.platform === "win32") {
+    // No POSIX process groups on Windows. taskkill /T force-terminates the
+    // deletion child together with any descendants it may have spawned; the
+    // requested POSIX signal collapses to a forced kill (both call sites pass
+    // SIGKILL). Best effort: losing a race to an already-exited child is fine.
+    spawnSync("taskkill", ["/PID", String(processGroupId), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+    })
+    return
+  }
   try {
     process.kill(-processGroupId, signal)
   } catch (error) {
@@ -886,7 +894,7 @@ async function deleteWithSdkChild(
   attachExecutor: (executor: ProcessIncarnation, processGroupId: number) => Promise<void>,
   options: SessionLifecycleOptions,
 ): Promise<void> {
-  const sdkUrl = import.meta.resolve("@anthropic-ai/claude-agent-sdk")
+  const sdkUrl = options.sdkModuleUrl ?? import.meta.resolve("@anthropic-ai/claude-agent-sdk")
   const gateDirectory = join(getStoreDir(options), "deletion-gates")
   await mkdir(gateDirectory, { recursive: true, mode: 0o700 })
   const gatePath = join(gateDirectory, `${deletionToken}.go`)
@@ -946,9 +954,6 @@ try {
     if (!processGroupId) throw new Error("session deletion child has no PID")
     const executor = captureProcessIncarnation(processGroupId)
     if (!executor) throw new Error("cannot capture session deletion executor incarnation")
-    if (process.platform === "win32") {
-      throw new SessionLifecycleError("fenced session deletion is unavailable on win32")
-    }
     await attachExecutor(executor, processGroupId)
     const gateHandle = await open(gatePath, "wx", 0o600)
     try {
