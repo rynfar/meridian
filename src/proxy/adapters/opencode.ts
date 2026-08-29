@@ -6,8 +6,9 @@
  */
 
 import type { Context } from "hono"
-import type { AgentAdapter } from "../adapter"
+import type { AgentAdapter, RoutingTurnIdentity } from "../adapter"
 import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
+import { PRIORITY_ATTESTATION_HEADER, verifyPriorityAttestation } from "../priorityAttestation"
 import { normalizeContent } from "../messages"
 import { extractClientCwd } from "../session/fingerprint"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../tools"
@@ -104,6 +105,35 @@ export const openCodeAdapter: AgentAdapter = {
   /** NOTE: OpenCode-specific. The plugin marks client-managed subagent turns. */
   getAgentMode(c: Context): string | undefined {
     return c.req.header("x-opencode-agent-mode")
+  },
+
+  /**
+   * NOTE: OpenCode-specific. Only a final-hook HMAC assertion can authorize a
+   * user-turn routing change. Raw request-kind/request-ID headers are not a
+   * trust boundary: OpenCode is the default adapter and any HTTP client can
+   * copy them.
+   */
+  getRoutingTurnIdentity(c: Context): RoutingTurnIdentity | undefined {
+    // Explicit pins never participate in priority failback. Check presence,
+    // not truthiness, so an empty malformed pin also fails closed.
+    if (c.req.header("x-meridian-profile") !== undefined) return undefined
+    const sessionId = c.req.header("x-opencode-session")
+    const agentId = c.req.header("x-opencode-agent-name")
+    if (!sessionId || !agentId || c.req.header("x-opencode-agent-mode") !== "primary") {
+      return undefined
+    }
+    const attestation = verifyPriorityAttestation(c.req.header(PRIORITY_ATTESTATION_HEADER))
+    if (!attestation || attestation.sessionId !== sessionId || attestation.agentId !== agentId) {
+      return undefined
+    }
+    return {
+      kind: "human",
+      turnId: attestation.turnId,
+      issuedAt: attestation.issuedAt,
+      generation: attestation.generation === "oc1"
+        ? "opencode-v1"
+        : "opencode-v2-beta-18314",
+    }
   },
 
   extractWorkingDirectory(body: any): string | undefined {

@@ -16,6 +16,14 @@
  */
 
 import * as Plugin from "@opencode-ai/plugin/promise/plugin"
+import {
+  PRIORITY_ATTESTATION_HEADER,
+  createPriorityAttestation,
+  deleteHeader,
+  getHeader,
+  setHeader,
+  type MutableHeaders,
+} from "./priority-attestation"
 
 /** Exact V2 host used to compile and validate this beta-only integration. */
 export const SUPPORTED_OPENCODE_V2_VERSION = "0.0.0-beta-18314"
@@ -35,6 +43,7 @@ const MERIDIAN_CONTROL_HEADERS = [
   "x-meridian-source",
   "x-opencode-agent-name",
   "x-opencode-agent-mode",
+  PRIORITY_ATTESTATION_HEADER,
 ] as const
 
 export interface AgentTraits {
@@ -55,25 +64,6 @@ const BUILTIN_AGENT_TRAITS: Record<string, AgentTraits> = {
 
 export function fallbackAgentTraits(agent: string): AgentTraits {
   return BUILTIN_AGENT_TRAITS[agent] ?? { mode: "primary", hidden: false }
-}
-
-type MutableHeaders = Record<string, string> | Headers
-
-function deleteHeader(headers: MutableHeaders, name: string): void {
-  if (headers instanceof Headers) {
-    headers.delete(name)
-    return
-  }
-  const lower = name.toLowerCase()
-  for (const key of Object.keys(headers)) {
-    if (key.toLowerCase() === lower) delete headers[key]
-  }
-}
-
-function setHeader(headers: MutableHeaders, name: string, value: string): void {
-  deleteHeader(headers, name)
-  if (headers instanceof Headers) headers.set(name, value)
-  else headers[name] = value
 }
 
 function safeAgentName(agent: string): string {
@@ -123,55 +113,210 @@ export function applyMeridianV2Headers(
   setHeader(headers, "x-opencode-agent-mode", internalMode)
 }
 
+const INTERNAL_ROUTING_AGENT_IDS = new Set(["title", "summary", "compaction"])
+const AGENT_CACHE_MAX = 256
+const AGENT_CACHE_TTL_MS = 5_000
+const LOOKUP_TIMEOUT_MS = 250
+const MAX_CONTEXT_ENTRIES = 2_048
+const SAFE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
+
+type ExactAgentMode = "primary" | "subagent" | "all"
+type ResolvedAgentMetadata = {
+  readonly traits: AgentTraits
+  readonly exactMode: ExactAgentMode | undefined
+  readonly authoritative: boolean
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+async function withTimeout<T>(pending: Promise<T>, timeoutMs: number): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timedOut = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), timeoutMs)
+    timer.unref?.()
+  })
+  try {
+    return await Promise.race([pending, timedOut])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+export function isRootV2Session(value: unknown, sessionID: string): boolean {
+  return isRecord(value)
+    && value.id === sessionID
+    && value.parentID === undefined
+    && value.fork === undefined
+}
+
+/**
+ * Find the exact host message ID that initiated the active model loop.
+ * Assistant/tool steps and selection records belong to the current loop and
+ * are skipped. A synthetic/compaction/shell/skill/system or unknown initiator
+ * fails closed instead of reusing an older human ID.
+ */
+type V2HumanTurn = { readonly id: string; readonly issuedAt: number }
+
+export function findLatestV2HumanTurn(value: unknown): V2HumanTurn | undefined {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_CONTEXT_ENTRIES) return undefined
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    const message = value[index]
+    if (!isRecord(message) || typeof message.type !== "string") return undefined
+    if (
+      message.type === "assistant"
+      || message.type === "agent-switched"
+      || message.type === "model-switched"
+      || message.type === "location-switched"
+    ) {
+      continue
+    }
+    if (message.type !== "user" || typeof message.id !== "string" || !SAFE_ID_PATTERN.test(message.id)) {
+      return undefined
+    }
+    const time = isRecord(message.time) ? message.time : undefined
+    const createdAt = time?.created
+    if (typeof createdAt !== "number" || !Number.isSafeInteger(createdAt) || createdAt < 0) return undefined
+    return { id: message.id, issuedAt: Math.floor(createdAt / 1000) }
+  }
+  return undefined
+}
+
+export function findLatestV2HumanMessageId(value: unknown): string | undefined {
+  return findLatestV2HumanTurn(value)?.id
+}
+
 const MeridianV2Plugin = Plugin.define({
   id: "meridian",
   setup: async (context) => {
     const traitsByAgent = new Map<string, {
       expiresAt: number
-      pending: Promise<AgentTraits>
+      request: symbol
+      pending: Promise<ResolvedAgentMetadata>
     }>()
     const registered: Array<{ dispose: () => Promise<void> }> = []
 
-    const resolveAgentTraits = (agent: string): Promise<AgentTraits> => {
+    const resolveAgentTraits = (agent: string, refresh = false): Promise<ResolvedAgentMetadata> => {
       const cached = traitsByAgent.get(agent)
-      if (cached && cached.expiresAt > Date.now()) return cached.pending
+      if (!refresh && cached && cached.expiresAt > Date.now()) return cached.pending
+      if (refresh) traitsByAgent.delete(agent)
 
-      const pending = Promise.resolve()
-        .then(() => context.agent.get({ agentID: agent }))
-        .then(({ data }) => ({
-          mode: data.mode === "subagent" ? "subagent" as const : "primary" as const,
-          hidden: data.hidden,
-        }))
-        .catch(() => {
-          // A transient lookup failure must not permanently promote a custom
-          // child to primary. Retry at the final HTTP boundary or next turn.
-          if (traitsByAgent.get(agent)?.pending === pending) traitsByAgent.delete(agent)
-          return fallbackAgentTraits(agent)
-        })
-      traitsByAgent.set(agent, { expiresAt: Date.now() + 5_000, pending })
+      const request = Symbol(agent)
+      const pending = (async (): Promise<ResolvedAgentMetadata> => {
+        const controller = new AbortController()
+        try {
+          const result = await withTimeout(
+            context.agent.get({ agentID: agent }, { signal: controller.signal }),
+            LOOKUP_TIMEOUT_MS,
+          )
+          const data = result?.data
+          if (
+            !data
+            || (data.mode !== "primary" && data.mode !== "subagent" && data.mode !== "all")
+            || typeof data.hidden !== "boolean"
+          ) {
+            if (traitsByAgent.get(agent)?.request === request) traitsByAgent.delete(agent)
+            return { traits: fallbackAgentTraits(agent), exactMode: undefined, authoritative: false }
+          }
+          return {
+            traits: {
+              mode: data.mode === "subagent" ? "subagent" : "primary",
+              hidden: data.hidden,
+            },
+            exactMode: data.mode,
+            authoritative: true,
+          }
+        } catch {
+          // Retry a transient failure at the final HTTP boundary or next turn.
+          if (traitsByAgent.get(agent)?.request === request) traitsByAgent.delete(agent)
+          return { traits: fallbackAgentTraits(agent), exactMode: undefined, authoritative: false }
+        } finally {
+          controller.abort()
+        }
+      })()
+      traitsByAgent.delete(agent)
+      traitsByAgent.set(agent, { request, expiresAt: Date.now() + AGENT_CACHE_TTL_MS, pending })
+      while (traitsByAgent.size > AGENT_CACHE_MAX) {
+        const oldest = traitsByAgent.keys().next().value
+        if (oldest === undefined) break
+        traitsByAgent.delete(oldest)
+      }
       return pending
     }
 
     const apply = async (
       input: { sessionID: string; agent: string; model: { providerID: string } },
       headers: MutableHeaders,
-    ): Promise<void> => {
-      if (!MERIDIAN_PROVIDERS.has(String(input.model.providerID))) return
+      refreshTraits = false,
+    ): Promise<ResolvedAgentMetadata | undefined> => {
+      if (!MERIDIAN_PROVIDERS.has(String(input.model.providerID))) return undefined
       const agent = String(input.agent)
+      const metadata = await resolveAgentTraits(agent, refreshTraits)
       applyMeridianV2Headers(headers, {
         sessionID: String(input.sessionID),
         agent,
-        traits: await resolveAgentTraits(agent),
+        traits: metadata.traits,
       })
+      return metadata
+    }
+
+    const resolveHumanTurn = async (
+      input: { sessionID: string; agent: string },
+      headers: MutableHeaders,
+      metadata: ResolvedAgentMetadata,
+    ): Promise<V2HumanTurn | undefined> => {
+      const sessionID = String(input.sessionID)
+      const agent = String(input.agent)
+      if (
+        !metadata.authoritative
+        || metadata.exactMode !== "primary"
+        || metadata.traits.hidden
+        || INTERNAL_ROUTING_AGENT_IDS.has(agent)
+        || safeAgentName(agent) !== agent
+        || getHeader(headers, "x-meridian-profile") !== undefined
+      ) {
+        return undefined
+      }
+
+      const controller = new AbortController()
+      try {
+        const result = await withTimeout(Promise.all([
+          context.session.get({ sessionID }, { signal: controller.signal }),
+          context.session.context({ sessionID }, { signal: controller.signal }),
+        ]), LOOKUP_TIMEOUT_MS)
+        if (!result || !isRootV2Session(result[0], sessionID)) return undefined
+        return findLatestV2HumanTurn(result[1])
+      } catch {
+        return undefined
+      } finally {
+        controller.abort()
+      }
     }
 
     try {
       for (const providerID of MERIDIAN_PROVIDERS) {
         registered.push(await context.session.hook("model.request", async (input) => {
+          // Apply lineage/tier identity early, but never emit the routing
+          // attestation before the final HTTP boundary.
           await apply(input, input.headers)
         }, { providerID }))
         registered.push(await context.session.hook("http.request", async (input) => {
-          await apply(input, input.request.headers)
+          // Re-read exact visibility/mode at the final boundary. The model-hook
+          // cache is capability-only and must never authorize a stale visible
+          // primary after a config reload.
+          const metadata = await apply(input, input.request.headers, true)
+          if (!metadata) return
+          const humanTurn = await resolveHumanTurn(input, input.request.headers, metadata)
+          if (!humanTurn) return
+          const token = createPriorityAttestation({
+            generation: "oc2b18314",
+            sessionId: String(input.sessionID),
+            agentId: String(input.agent),
+            humanMessageId: humanTurn.id,
+            issuedAt: humanTurn.issuedAt,
+          })
+          if (token) setHeader(input.request.headers, PRIORITY_ATTESTATION_HEADER, token)
         }, { providerID }))
       }
     } catch (error) {

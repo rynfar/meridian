@@ -8,6 +8,15 @@
 import type { Context } from "hono"
 import type { SettingSource } from "@anthropic-ai/claude-agent-sdk"
 
+export type RoutingTurnIdentity = Readonly<{
+  readonly kind: "human"
+  /** Fixed-width, session-bound digest of the host's genuine human message ID. */
+  readonly turnId: string
+  /** Signed wall-clock issue time used as a durable anti-replay high-water mark. */
+  readonly issuedAt: number
+  readonly generation: "opencode-v1" | "opencode-v2-beta-18314"
+}>
+
 /**
  * Core identity of an agent — detection, session tracking, CWD extraction.
  * This is the minimal interface for agent recognition. Behavioral customization
@@ -28,6 +37,15 @@ export interface AgentIdentity {
    * details; the proxy uses the normalized value for model-tier selection.
    */
   getAgentMode?(c: Context, body?: unknown): string | undefined
+
+  /**
+   * Optional trusted identity for a visible human turn.
+   *
+   * This is deliberately a positive, normalized assertion. Callers must treat
+   * undefined as ineligible for user-turn routing changes. An adapter must not
+   * return raw client-declared kind/ID headers without authenticating them.
+   */
+  getRoutingTurnIdentity?(c: Context, body?: unknown): RoutingTurnIdentity | undefined
 
   /**
    * Extract the SDK subprocess working directory from the request body.

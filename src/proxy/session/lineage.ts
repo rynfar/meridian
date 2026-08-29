@@ -128,6 +128,7 @@ export type LineageDivergenceReason =
   | "unrelated-history"
   | "not-found"
   | "independent-request"
+  | "priority-failback"
   | "missing-session-header"
 
 // --- Hashing ---

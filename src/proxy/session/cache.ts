@@ -14,6 +14,7 @@ import {
   storeSharedSession,
   storeSharedSessionAndPriorityAssignment,
   rollbackSharedSessionAndPriorityAssignment,
+  finalizeSharedSessionAndPriorityAssignment,
   clearSharedSessions,
   evictSharedSession,
   type DurablePriorityAssignment,
@@ -37,6 +38,9 @@ export interface PrioritySessionPublication {
   readonly routeKey: string
   readonly profileId: string
   readonly lastHumanTurnDigest: string
+  readonly lastHumanTurnIssuedAt: number
+  /** Exact durable pre-SDK attempt claim. */
+  readonly attemptOwnerToken: string
   expectedAssignmentGeneration: PriorityAssignmentGeneration
   rollback?: {
     readonly key: string
@@ -177,6 +181,27 @@ function stateFromSharedSession(
   }
 }
 
+/** Drop rollback authority only after the response terminal is irrevocable. */
+export function finalizePrioritySessionPublication(
+  publication: PrioritySessionPublication,
+): boolean {
+  const rollback = publication.rollback
+  if (!rollback) return true
+  const finalized = finalizeSharedSessionAndPriorityAssignment({
+    key: rollback.key,
+    routeKey: publication.routeKey,
+    expectedMappingGeneration: rollback.publishedMappingGeneration,
+    expectedAssignmentGeneration: rollback.publishedAssignmentGeneration,
+    rollbackMappingKey: rollback.previousAssignment?.mappingKey === rollback.key
+      ? undefined
+      : rollback.previousAssignment?.mappingKey,
+    attemptOwnerToken: publication.attemptOwnerToken,
+  })
+  if (!finalized) return false
+  publication.rollback = undefined
+  return true
+}
+
 /** Revoke a late atomic route+mapping publication and restore pre-request authority. */
 export function rollbackPrioritySessionPublication(
   sessionId: string | undefined,
@@ -193,6 +218,7 @@ export function rollbackPrioritySessionPublication(
     expectedAssignmentGeneration: rollback.publishedAssignmentGeneration,
     previousMapping: rollback.previousMapping,
     previousAssignment: rollback.previousAssignment,
+    attemptOwnerToken: publication.attemptOwnerToken,
   })
   if (!restored) return false
 
@@ -359,6 +385,10 @@ export function storeSession(
     if (expectedGeneration === undefined || expectedGeneration === null) {
       throw new Error("priority publication requires an exact mapping generation")
     }
+    const rollback = priorityPublication.rollback
+    if (rollback && rollback.key !== key) {
+      throw new Error("priority publication changed mapping keys within one request")
+    }
     const published = storeSharedSessionAndPriorityAssignment({
       key,
       claudeSessionId,
@@ -373,18 +403,17 @@ export function storeSession(
       currentTranscript,
       sourceTranscript,
       expectedMappingGeneration: expectedGeneration,
+      rollbackMappingKey: rollback?.previousAssignment?.mappingKey,
+      attemptOwnerToken: priorityPublication.attemptOwnerToken,
       priority: {
         routeKey: priorityPublication.routeKey,
         profileId: priorityPublication.profileId,
         lastHumanTurnDigest: priorityPublication.lastHumanTurnDigest,
+        lastHumanTurnIssuedAt: priorityPublication.lastHumanTurnIssuedAt,
         expectedAssignmentGeneration: priorityPublication.expectedAssignmentGeneration,
       },
     })
     if (!published) return false
-    const rollback = priorityPublication.rollback
-    if (rollback && rollback.key !== key) {
-      throw new Error("priority publication changed mapping keys within one request")
-    }
     priorityPublication.rollback = {
       key,
       previousMapping: rollback?.previousMapping ?? published.previousMapping,

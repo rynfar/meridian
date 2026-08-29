@@ -37,6 +37,21 @@ describe("session turn coordinator", () => {
     afterFailure.release()
   })
 
+  test("does not report advancement after the holder exactly rolls its commit back", async () => {
+    const coordinator = new SessionTurnCoordinator()
+    const first = await coordinator.acquire("id:a")
+    const secondP = coordinator.acquire("id:a")
+    first.markCommitted("work:a")
+    first.markRolledBack("work:a")
+    // Repeated rollback is a no-op and cannot decrement another turn.
+    first.markRolledBack("work:a")
+    first.release()
+
+    const second = await secondP
+    expect(second.advancedWhileWaiting("work:a")).toBe(false)
+    second.release()
+  })
+
   test("reports advancement per scope, not across scopes", async () => {
     // One client session id backing two profiles is two independent
     // conversations: a commit under one must not invalidate the other.

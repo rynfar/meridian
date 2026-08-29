@@ -17,6 +17,7 @@ import { basename, dirname, join } from "path"
 import { fileURLToPath } from "url"
 import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
 import { LRUMap } from "../utils/lruMap"
+import { ensurePriorityAttestationKey } from "./priorityAttestation"
 
 /**
  * Thrown when an existing OpenCode config can't be parsed (even tolerantly).
@@ -349,6 +350,9 @@ export function runSetup(
 
   // New file — write a minimal config using the generation's canonical field.
   if (!existsSync(path)) {
+    // Provision before touching the OpenCode config. A malformed existing key
+    // fails closed and leaves the user's config untouched.
+    ensurePriorityAttestationKey()
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     writeFileSync(path, `${JSON.stringify({ [targetField]: [pluginPath] }, null, 2)}\n`, "utf-8")
     return { configPath: path, pluginPath, alreadyConfigured: false, removedStale: [], created: true }
@@ -397,6 +401,9 @@ export function runSetup(
   if (Array.isArray(config[otherField]) && otherMeridian.length > 0) {
     updated = applyEdits(updated, modify(updated, [otherField], otherPlugins, { formattingOptions }))
   }
+  // Keep one durable key across idempotent setup and V1/V2 switches. Validate
+  // it before changing the OpenCode config; never rotate a malformed key.
+  ensurePriorityAttestationKey()
   writeFileSync(path, updated, "utf-8")
 
   return { configPath: path, pluginPath, alreadyConfigured, removedStale, created: false }

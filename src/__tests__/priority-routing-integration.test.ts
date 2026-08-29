@@ -10,12 +10,15 @@
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId } from "./helpers"
+import { createPriorityAttestation } from "../../plugin/priority-attestation"
 import type { PriorityFailbackPolicy } from "../proxy/routing"
+import type { DurablePriorityAssignment } from "../proxy/sessionStore"
 
 type CapturedSdkCall = {
   readonly dir: string
   readonly phase: number
   readonly resume: unknown
+  readonly sessionId: unknown
 }
 
 type PromotionConcurrencyGate = {
@@ -61,8 +64,13 @@ let failingDirs = new Set<string>()
 // Accounts that fail only AFTER streaming some content — the error frame then
 // lands behind message_start, where the sniffer must not touch it.
 let failAfterContentDirs = new Set<string>()
+type ExposureBeforeFailureKind = "tool" | "structured"
+let exposureBeforeFailureDirs = new Map<string, ExposureBeforeFailureKind>()
+let noncanonicalToolFailureDirs = new Set<string>()
 let promotionConcurrencyGate: PromotionConcurrencyGate | null = null
 let streamCompletionGate: StreamCompletionGate | null = null
+let latePublicationRecoveryGate: StreamCompletionGate | null = null
+let latePublicationRecoveryCalls = 0
 const DEFAULT_FAILURE = "429 rate limit reached for this account"
 // Classifies as billing_error (402): an account whose subscription lapsed or
 // whose card was declined. Per-account like a quota refusal, but with no reset
@@ -83,7 +91,12 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     const dir = params.options?.env?.CLAUDE_CONFIG_DIR ?? "default"
     capturedEnvs.push(dir)
     const phase = capturePhase
-    capturedSdkCalls.push({ dir, phase, resume: params.options?.resume })
+    capturedSdkCalls.push({
+      dir,
+      phase,
+      resume: params.options?.resume,
+      sessionId: params.options?.sessionId,
+    })
     const streaming = params.options?.includePartialMessages === true
     const returnedSessionId = resolveMockSdkSessionId(params.options)
     const withReturnedSessionId = (message: any) => returnedSessionId
@@ -103,14 +116,60 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
         }
       }
       try {
+        const lateGate = latePublicationRecoveryGate
+        if (lateGate !== null && lateGate.phase === phase && streaming) {
+          latePublicationRecoveryCalls += 1
+          if (latePublicationRecoveryCalls === 1) {
+            // Produce a complete but silent first turn. Meridian publishes its
+            // durable target, then starts silent-turn recovery. The second call
+            // below is therefore an exact post-publication cancellation gate.
+            yield withReturnedSessionId(messageStart("msg-silent"))
+            yield withReturnedSessionId(textBlockStart(0))
+            yield withReturnedSessionId(blockStop(0))
+            yield withReturnedSessionId(messageDelta("end_turn"))
+            yield withReturnedSessionId(messageStop())
+            yield withReturnedSessionId(assistantMessage([]))
+            return
+          }
+          lateGate.signalEntered()
+          await lateGate.release
+          yield withReturnedSessionId(assistantMessage([{ type: "text", text: "late recovery" }]))
+          return
+        }
+        if ([...noncanonicalToolFailureDirs].some((fragment) => dir.includes(fragment))) {
+          const hook = params.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
+          if (typeof hook !== "function") throw new Error("test expected a PreToolUse hook")
+          void hook({
+            tool_name: "read",
+            tool_use_id: "noncanonical-tool",
+            tool_input: {},
+          })
+          throw new Error("Reached maximum number of turns (3)")
+        }
+        const exposureFailure = [...exposureBeforeFailureDirs.entries()]
+          .find(([fragment]) => dir.includes(fragment))?.[1]
+        if (exposureFailure) {
+          const hook = params.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
+          if (typeof hook !== "function") throw new Error("test expected a PreToolUse exposure hook")
+          const hookPromise = hook({
+            tool_name: exposureFailure === "structured" ? "StructuredOutput" : "read",
+            tool_use_id: `exposed-${exposureFailure}`,
+            tool_input: {},
+          })
+          if (exposureFailure === "structured") await hookPromise
+          else void hookPromise
+          // No stream frame preceded this account error. The priority sniffer
+          // must return a replayable error body without trying another profile.
+          throw new Error(failureMessage)
+        }
         if ([...failingDirs].some((f) => dir.includes(f))) {
           throw new Error(failureMessage)
         }
         if ([...failAfterContentDirs].some((f) => dir.includes(f))) {
           if (streaming) {
-            yield messageStart("msg-1")
-            yield textBlockStart(0)
-            yield textDelta(0, "partial from " + dir)
+            yield withReturnedSessionId(messageStart("msg-1"))
+            yield withReturnedSessionId(textBlockStart(0))
+            yield withReturnedSessionId(textDelta(0, "partial from " + dir))
           }
           throw new Error(failureMessage)
         }
@@ -153,11 +212,70 @@ const { resetActiveProfile } = await import("../proxy/profiles")
 const { __setFetchOAuthUsageOverride } = await import("../proxy/oauthUsage")
 const { rateLimitStore } = await import("../proxy/rateLimitStore")
 const { loadSettings, saveSettings } = await import("../proxy/settings")
+const {
+  evictSharedSession,
+  lookupPriorityAssignmentResult,
+  lookupSharedSessionResult,
+} = await import("../proxy/sessionStore")
 
 const PROFILES = [
   { id: "work", claudeConfigDir: "/tmp/meridian-test-prof-work" },
   { id: "personal", claudeConfigDir: "/tmp/meridian-test-prof-personal" },
 ]
+
+const PRIORITY_ATTESTATION_TEST_KEY = Buffer.alloc(32, 0x71)
+const testTurnClock = new Map<string, { humanMessageId: string; issuedAt: number }>()
+
+function trustedOpenCodeTurnHeaders(
+  sessionId: string,
+  humanMessageId: string,
+  issuedAt?: number,
+): Record<string, string> {
+  const previous = testTurnClock.get(sessionId)
+  const resolvedIssuedAt = issuedAt ?? (
+    previous?.humanMessageId === humanMessageId
+      ? previous.issuedAt
+      : Math.max(Math.floor(Date.now() / 1000), (previous?.issuedAt ?? 0) + 1)
+  )
+  if (issuedAt === undefined) testTurnClock.set(sessionId, { humanMessageId, issuedAt: resolvedIssuedAt })
+  const token = createPriorityAttestation({
+    generation: "oc1",
+    sessionId,
+    agentId: "build",
+    humanMessageId,
+    issuedAt: resolvedIssuedAt,
+  }, PRIORITY_ATTESTATION_TEST_KEY)
+  if (!token) throw new Error("failed to create test priority attestation")
+  return {
+    "x-opencode-session": sessionId,
+    "x-opencode-request": humanMessageId,
+    "x-opencode-agent-name": "build",
+    "x-opencode-agent-mode": "primary",
+    "x-meridian-opencode-turn": token,
+  }
+}
+
+function durableRoute(sessionId: string): DurablePriorityAssignment {
+  const route = lookupPriorityAssignmentResult(`opencode:${sessionId}`)
+  if (route.status !== "found") throw new Error(`durable route is ${route.status}`)
+  return route.assignment
+}
+
+function unauthenticatedOpenCodeHeaders(
+  sessionId: string,
+  invalidAttestation = false,
+): Record<string, string> {
+  const headers = trustedOpenCodeTurnHeaders(sessionId, "untrusted-placeholder")
+  if (invalidAttestation) {
+    const token = headers["x-meridian-opencode-turn"]!
+    const [prefix, payload, signature] = token.split(".")
+    if (!prefix || !payload || !signature) throw new Error("test attestation has an invalid shape")
+    headers["x-meridian-opencode-turn"] = `${prefix}.${payload}.${signature.startsWith("A") ? "B" : "A"}${signature.slice(1)}`
+  } else {
+    delete headers["x-meridian-opencode-turn"]
+  }
+  return headers
+}
 
 type TestApp = {
   readonly fetch: (request: Request) => Response | Promise<Response>
@@ -178,6 +296,7 @@ type PostMessagesOptions = {
   readonly content?: string | readonly TestMessage[]
   readonly stream: boolean
   readonly signal?: AbortSignal
+  readonly tools?: readonly Record<string, unknown>[]
 }
 
 async function postMessages(app: TestApp, options: PostMessagesOptions): Promise<Response> {
@@ -191,6 +310,7 @@ async function postMessages(app: TestApp, options: PostMessagesOptions): Promise
       max_tokens: 128,
       stream: options.stream,
       messages,
+      ...(options.tools ? { tools: options.tools } : {}),
     }),
     ...(options.signal ? { signal: options.signal } : {}),
   }))
@@ -216,20 +336,19 @@ const TOOL_CONTINUATION: readonly TestMessage[] = [
   { role: "user", content: [{ type: "tool_result", tool_use_id: "tool-1", content: "done" }] },
 ]
 
-async function assignToFallback(app: TestApp, sessionId: string, requestId = "request-1"): Promise<void> {
+async function assignToFallback(app: TestApp, sessionId: string, requestId = "request-1"): Promise<string> {
   process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
-  const response = await post(app, {
-    "x-opencode-session": sessionId,
-    "x-opencode-request": requestId,
-    "x-opencode-request-kind": "human",
-  }, OPENING_MESSAGE)
+  const response = await post(app, trustedOpenCodeTurnHeaders(sessionId, requestId), OPENING_MESSAGE)
   await response.json()
+  const assigned = [...capturedSdkCalls].reverse().find(call => call.dir.includes("prof-personal"))?.sessionId
+  if (typeof assigned !== "string") throw new Error("fallback assignment did not create a managed session")
   process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
   capturedEnvs = []
   capturedSdkCalls = []
+  return assigned
 }
 
-async function seedPreferredAndFallbackSessions(app: TestApp, sessionId: string): Promise<void> {
+async function seedPreferredAndFallbackSessions(app: TestApp, sessionId: string): Promise<string> {
   const preferred = await post(app, {
     "x-meridian-profile": "work",
     "x-opencode-session": sessionId,
@@ -237,7 +356,7 @@ async function seedPreferredAndFallbackSessions(app: TestApp, sessionId: string)
     "x-opencode-request-kind": "human",
   }, OPENING_MESSAGE)
   await preferred.json()
-  await assignToFallback(app, sessionId)
+  return assignToFallback(app, sessionId)
 }
 
 async function exhaustedMarks(app: { fetch: (r: Request) => Response | Promise<Response> }) {
@@ -264,10 +383,15 @@ let savedPriorityFailbackSetting: PriorityFailbackPolicy | undefined
 beforeEach(() => {
   failureMessage = DEFAULT_FAILURE
   failAfterContentDirs = new Set()
+  exposureBeforeFailureDirs = new Map()
+  noncanonicalToolFailureDirs = new Set()
   promotionConcurrencyGate = null
   streamCompletionGate = null
+  latePublicationRecoveryGate = null
+  latePublicationRecoveryCalls = 0
   capturedSdkCalls = []
   capturePhase = 0
+  testTurnClock.clear()
   savedPriorityFailbackSetting = loadSettings().priorityFailback
   saveSettings({ priorityFailback: undefined })
   __setFetchOAuthUsageOverride(async () => null)
@@ -294,6 +418,8 @@ describe("priority routing", () => {
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
     savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
+    savedEnv.MERIDIAN_OPENCODE_ATTESTATION_KEY = process.env.MERIDIAN_OPENCODE_ATTESTATION_KEY
+    process.env.MERIDIAN_OPENCODE_ATTESTATION_KEY = PRIORITY_ATTESTATION_TEST_KEY.toString("base64url")
     // A profile with no claudeConfigDir of its own inherits the ambient
     // CLAUDE_CONFIG_DIR, so the SDK mock sees the developer's real config
     // directory instead of falling back to its "default" sentinel. A test that
@@ -303,6 +429,8 @@ describe("priority routing", () => {
     savedEnv.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR
     delete process.env.CLAUDE_CONFIG_DIR
     savedEnv.MERIDIAN_MAX_CONCURRENT = process.env.MERIDIAN_MAX_CONCURRENT
+    savedEnv.PASSTHROUGH = process.env.PASSTHROUGH
+    savedEnv.MERIDIAN_SILENT_TURN_RECOVERY = process.env.MERIDIAN_SILENT_TURN_RECOVERY
     process.env.MERIDIAN_ROUTING = "priority"
     process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
     delete process.env.MERIDIAN_PRIORITY_FAILBACK
@@ -437,11 +565,7 @@ describe("priority routing", () => {
     await assignToFallback(app, "unset-policy-session")
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "unset-policy-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const response = await post(app, trustedOpenCodeTurnHeaders("unset-policy-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     const body = await response.text()
 
     // Then
@@ -456,11 +580,7 @@ describe("priority routing", () => {
     await assignToFallback(app, "invalid-policy-session")
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "invalid-policy-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const response = await post(app, trustedOpenCodeTurnHeaders("invalid-policy-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     const body = await response.text()
 
     // Then
@@ -475,11 +595,7 @@ describe("priority routing", () => {
     await assignToFallback(app, "human-promotion-session")
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "human-promotion-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const response = await post(app, trustedOpenCodeTurnHeaders("human-promotion-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     const body = await response.text()
 
     // Then
@@ -494,11 +610,7 @@ describe("priority routing", () => {
     await assignToFallback(app, "persisted-policy-session")
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "persisted-policy-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const response = await post(app, trustedOpenCodeTurnHeaders("persisted-policy-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     const body = await response.text()
 
     // Then
@@ -513,11 +625,7 @@ describe("priority routing", () => {
     await assignToFallback(app, "env-policy-session")
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "env-policy-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const response = await post(app, trustedOpenCodeTurnHeaders("env-policy-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     const body = await response.text()
 
     // Then
@@ -532,11 +640,7 @@ describe("priority routing", () => {
     await assignToFallback(app, "tool-continuation-session")
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "tool-continuation-session",
-      "x-opencode-request": "request-1",
-      "x-opencode-request-kind": "human",
-    }, TOOL_CONTINUATION)
+    const response = await post(app, trustedOpenCodeTurnHeaders("tool-continuation-session", "request-1"), TOOL_CONTINUATION)
     const body = await response.text()
 
     // Then
@@ -614,11 +718,7 @@ describe("priority routing", () => {
     const promotionPhase = ++capturePhase
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "fresh-promotion-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const response = await post(app, trustedOpenCodeTurnHeaders("fresh-promotion-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     const body = await response.text()
 
     // Then
@@ -630,16 +730,12 @@ describe("priority routing", () => {
     // Given
     process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
     const app = createTestApp()
-    await seedPreferredAndFallbackSessions(app, "failed-promotion-session")
+    const fallbackSessionId = await seedPreferredAndFallbackSessions(app, "failed-promotion-session")
     failingDirs.add("prof-work")
     const promotionPhase = ++capturePhase
 
     // When
-    const response = await post(app, {
-      "x-opencode-session": "failed-promotion-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const response = await post(app, trustedOpenCodeTurnHeaders("failed-promotion-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     const body = await response.text()
 
     // Then
@@ -647,7 +743,7 @@ describe("priority routing", () => {
     const preferredCalls = promotionCalls.filter(call => call.dir.includes("prof-work"))
     expect(preferredCalls.length).toBeGreaterThan(0)
     expect(preferredCalls.every(call => call.resume === undefined)).toBe(true)
-    expect(promotionCalls.filter(call => call.dir.includes("prof-personal")).map(call => call.resume)).toEqual(["sdk-session-personal"])
+    expect(promotionCalls.filter(call => call.dir.includes("prof-personal")).map(call => call.resume)).toEqual([fallbackSessionId])
     expect(body).toContain("prof-personal")
   }, 20_000)
 
@@ -659,19 +755,11 @@ describe("priority routing", () => {
     const promotionPhase = ++capturePhase
     const gate = createPromotionConcurrencyGate(promotionPhase)
     promotionConcurrencyGate = gate
-    const first = post(app, {
-      "x-opencode-session": "concurrent-promotion-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const first = post(app, trustedOpenCodeTurnHeaders("concurrent-promotion-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     await gate.entered
 
     // When
-    const second = post(app, {
-      "x-opencode-session": "concurrent-promotion-session",
-      "x-opencode-request": "request-3",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const second = post(app, trustedOpenCodeTurnHeaders("concurrent-promotion-session", "request-3"), CONTINUED_AFTER_PERSONAL)
     await new Promise<void>(resolve => setImmediate(resolve))
     gate.open()
     const responses = await Promise.all([first, second])
@@ -690,19 +778,11 @@ describe("priority routing", () => {
     const gate = createPromotionConcurrencyGate(promotionPhase)
     promotionConcurrencyGate = gate
     const first = postStream(app, {
-      headers: {
-        "x-opencode-session": "completed-promotion-session",
-        "x-opencode-request": "request-2",
-        "x-opencode-request-kind": "human",
-      },
+      headers: trustedOpenCodeTurnHeaders("completed-promotion-session", "request-2"),
       content: CONTINUED_AFTER_PERSONAL,
     })
     await gate.entered
-    const queued = post(app, {
-      "x-opencode-session": "completed-promotion-session",
-      "x-opencode-request": "request-3",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const queued = post(app, trustedOpenCodeTurnHeaders("completed-promotion-session", "request-3"), CONTINUED_AFTER_PERSONAL)
     await new Promise<void>(resolve => setImmediate(resolve))
     gate.open()
 
@@ -734,19 +814,11 @@ describe("priority routing", () => {
     const gate = createPromotionConcurrencyGate(promotionPhase)
     promotionConcurrencyGate = gate
     const first = postStream(app, {
-      headers: {
-        "x-opencode-session": "cancelled-promotion-session",
-        "x-opencode-request": "request-2",
-        "x-opencode-request-kind": "human",
-      },
+      headers: trustedOpenCodeTurnHeaders("cancelled-promotion-session", "request-2"),
       content: CONTINUED_AFTER_PERSONAL,
     })
     await gate.entered
-    const second = post(app, {
-      "x-opencode-session": "cancelled-promotion-session",
-      "x-opencode-request": "request-3",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const second = post(app, trustedOpenCodeTurnHeaders("cancelled-promotion-session", "request-3"), CONTINUED_AFTER_PERSONAL)
     await new Promise<void>(resolve => setImmediate(resolve))
     gate.open()
     const firstResponse = await first
@@ -775,21 +847,13 @@ describe("priority routing", () => {
     streamCompletionGate = completionGate
     const requestController = new AbortController()
     const first = postStream(app, {
-      headers: {
-        "x-opencode-session": "signal-cancelled-promotion-session",
-        "x-opencode-request": "request-2",
-        "x-opencode-request-kind": "human",
-      },
+      headers: trustedOpenCodeTurnHeaders("signal-cancelled-promotion-session", "request-2"),
       content: CONTINUED_AFTER_PERSONAL,
       signal: requestController.signal,
     })
     await gate.entered
     let queuedPromotionResolved = false
-    const second = post(app, {
-      "x-opencode-session": "signal-cancelled-promotion-session",
-      "x-opencode-request": "request-3",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL).then(response => {
+    const second = post(app, trustedOpenCodeTurnHeaders("signal-cancelled-promotion-session", "request-3"), CONTINUED_AFTER_PERSONAL).then(response => {
       queuedPromotionResolved = true
       return response
     })
@@ -821,28 +885,16 @@ describe("priority routing", () => {
     const promotionPhase = ++capturePhase
     const gate = createPromotionConcurrencyGate(promotionPhase)
     promotionConcurrencyGate = gate
-    const first = post(app, {
-      "x-opencode-session": "aborted-waiter-session",
-      "x-opencode-request": "request-2",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const first = post(app, trustedOpenCodeTurnHeaders("aborted-waiter-session", "request-2"), CONTINUED_AFTER_PERSONAL)
     await gate.entered
     const requestController = new AbortController()
     const cancelled = postMessages(app, {
-      headers: {
-        "x-opencode-session": "aborted-waiter-session",
-        "x-opencode-request": "request-3",
-        "x-opencode-request-kind": "human",
-      },
+      headers: trustedOpenCodeTurnHeaders("aborted-waiter-session", "request-3"),
       content: CONTINUED_AFTER_PERSONAL,
       stream: false,
       signal: requestController.signal,
     })
-    const third = post(app, {
-      "x-opencode-session": "aborted-waiter-session",
-      "x-opencode-request": "request-4",
-      "x-opencode-request-kind": "human",
-    }, CONTINUED_AFTER_PERSONAL)
+    const third = post(app, trustedOpenCodeTurnHeaders("aborted-waiter-session", "request-4"), CONTINUED_AFTER_PERSONAL)
     await new Promise<void>(resolve => setImmediate(resolve))
 
     // When
@@ -879,11 +931,7 @@ describe("priority routing", () => {
 
     // When
     const response = await postStream(app, {
-      headers: {
-        "x-opencode-session": "contentful-promotion-session",
-        "x-opencode-request": "request-2",
-        "x-opencode-request-kind": "human",
-      },
+      headers: trustedOpenCodeTurnHeaders("contentful-promotion-session", "request-2"),
       content: CONTINUED_AFTER_PERSONAL,
     })
     const body = await response.text()
@@ -892,6 +940,602 @@ describe("priority routing", () => {
     expect(body).toContain("partial from /tmp/meridian-test-prof-work")
     expect(body).toContain("rate_limit_error")
     expect(capturedEnvs.every(dir => dir.includes("prof-work"))).toBe(true)
+  }, 20_000)
+
+  it("withholds replayed older or equal changed attestations and retains the current route", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+
+    for (const [label, issuedAtOffset] of [["equal", 0], ["older", -1]] as const) {
+      const sessionId = `replayed-${label}-attestation-session`
+      const app = createTestApp()
+      await assignToFallback(app, sessionId, "human-1")
+      const before = durableRoute(sessionId)
+      capturedEnvs = []
+      capturedSdkCalls = []
+
+      const response = await post(
+        app,
+        trustedOpenCodeTurnHeaders(
+          sessionId,
+          `changed-${label}-human`,
+          before.lastHumanTurnIssuedAt + issuedAtOffset,
+        ),
+        CONTINUED_AFTER_PERSONAL,
+      )
+      const body = await response.text()
+      const after = durableRoute(sessionId)
+
+      expect(response.status).toBe(200)
+      expect(body).toContain("prof-personal")
+      expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+      expect(after.profileId).toBe("personal")
+      expect(after.lastHumanTurnDigest).toBe(before.lastHumanTurnDigest)
+      expect(after.lastHumanTurnIssuedAt).toBe(before.lastHumanTurnIssuedAt)
+    }
+  })
+
+  it("retains a durable fallback route without a valid attestation, including after app restart", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+
+    for (const invalidAttestation of [false, true]) {
+      const sessionId = invalidAttestation
+        ? "invalid-attestation-restart-session"
+        : "missing-attestation-restart-session"
+      const firstApp = createTestApp()
+      await assignToFallback(firstApp, sessionId, "human-1")
+      const before = durableRoute(sessionId)
+      capturedEnvs = []
+      capturedSdkCalls = []
+
+      // A new server instance has an empty process-local assignment LRU. Only
+      // the durable route can retain the fallback profile here.
+      const restartedApp = createTestApp()
+      const response = await post(
+        restartedApp,
+        unauthenticatedOpenCodeHeaders(sessionId, invalidAttestation),
+        CONTINUED_AFTER_PERSONAL,
+      )
+      const body = await response.text()
+      const after = durableRoute(sessionId)
+
+      expect(response.status).toBe(200)
+      expect(body).toContain("prof-personal")
+      expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+      expect(after.profileId).toBe("personal")
+      expect(after.lastHumanTurnDigest).toBe(before.lastHumanTurnDigest)
+      const afterMapping = lookupSharedSessionResult(after.mappingKey)
+      expect(afterMapping.status).toBe("found")
+      if (afterMapping.status !== "found" || !afterMapping.generation) {
+        throw new Error("unsigned retained mapping is missing")
+      }
+      expect(after.mappingGeneration).toBe(afterMapping.generation)
+
+      capturedEnvs = []
+      capturedSdkCalls = []
+      const secondMessages: readonly TestMessage[] = [
+        ...CONTINUED_AFTER_PERSONAL,
+        { role: "assistant", content: [{ type: "text", text: "ok from /tmp/meridian-test-prof-personal" }] },
+        { role: "user", content: "second unsigned continuation" },
+      ]
+      const secondResponse = await post(
+        createTestApp(),
+        unauthenticatedOpenCodeHeaders(sessionId, invalidAttestation),
+        secondMessages,
+      )
+      expect(secondResponse.status).toBe(200)
+      expect(await secondResponse.text()).toContain("prof-personal")
+      expect(capturedEnvs.every(dir => dir.includes("prof-personal"))).toBe(true)
+      const twiceRetained = durableRoute(sessionId)
+      const twiceMapping = lookupSharedSessionResult(twiceRetained.mappingKey)
+      expect(twiceMapping.status).toBe("found")
+      if (twiceMapping.status !== "found" || !twiceMapping.generation) {
+        throw new Error("second unsigned retained mapping is missing")
+      }
+      expect(twiceRetained.mappingGeneration).toBe(twiceMapping.generation)
+      expect(twiceRetained.lastHumanTurnDigest).toBe(before.lastHumanTurnDigest)
+    }
+  })
+
+  it("never creates an unauthenticated cross-profile transcript when the retained account refuses", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.PASSTHROUGH = "1"
+    const sessionId = "unsigned-retained-account-refusal"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    const fallback = durableRoute(sessionId)
+    failureMessage = SUBSCRIPTION_REFUSAL
+    exposureBeforeFailureDirs = new Map([["prof-personal", "tool"]])
+    capturedEnvs = []
+    capturedSdkCalls = []
+
+    const response = await postStream(createTestApp(), {
+      headers: unauthenticatedOpenCodeHeaders(sessionId),
+      content: TOOL_CONTINUATION,
+      tools: [{
+        name: "read",
+        description: "read a file",
+        input_schema: { type: "object", properties: {} },
+      }],
+    })
+    const body = await response.text()
+    expect(body).toContain("billing_error")
+    expect(capturedSdkCalls).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+    expect(capturedEnvs.some(dir => dir.includes("prof-work"))).toBe(false)
+
+    const retained = durableRoute(sessionId)
+    const mapping = lookupSharedSessionResult(retained.mappingKey)
+    expect(retained.profileId).toBe("personal")
+    expect(retained.lastHumanTurnDigest).toBe(fallback.lastHumanTurnDigest)
+    expect(mapping.status).toBe("found")
+    if (mapping.status !== "found" || !mapping.generation) throw new Error("retained mapping is missing")
+    expect(retained.mappingGeneration).toBe(mapping.generation)
+  }, 20_000)
+
+  it("atomically refreshes a same-human tool continuation before the next human promotes", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const sessionId = "same-human-atomic-refresh-session"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    const before = durableRoute(sessionId)
+    capturedEnvs = []
+    capturedSdkCalls = []
+
+    const continuation = await post(
+      app,
+      trustedOpenCodeTurnHeaders(sessionId, "human-1", before.lastHumanTurnIssuedAt + 1),
+      TOOL_CONTINUATION,
+    )
+    expect(continuation.status).toBe(200)
+    expect(await continuation.text()).toContain("prof-personal")
+    const refreshed = durableRoute(sessionId)
+    const refreshedMapping = lookupSharedSessionResult(refreshed.mappingKey)
+    expect(refreshed.profileId).toBe("personal")
+    expect(refreshed.lastHumanTurnDigest).toBe(before.lastHumanTurnDigest)
+    expect(refreshedMapping.status).toBe("found")
+    if (refreshedMapping.status !== "found" || !refreshedMapping.generation) {
+      throw new Error("refreshed route mapping is missing")
+    }
+    expect(refreshed.mappingGeneration).toBe(refreshedMapping.generation)
+    expect(refreshed.mappingGeneration).not.toBe(before.mappingGeneration)
+
+    capturedEnvs = []
+    capturedSdkCalls = []
+    const afterToolContinuation: readonly TestMessage[] = [
+      ...TOOL_CONTINUATION,
+      { role: "assistant", content: [{ type: "text", text: "ok from /tmp/meridian-test-prof-personal" }] },
+      { role: "user", content: "genuine next human" },
+    ]
+    const promoted = await post(
+      app,
+      trustedOpenCodeTurnHeaders(sessionId, "human-2", refreshed.lastHumanTurnIssuedAt + 1),
+      afterToolContinuation,
+    )
+    expect(promoted.status).toBe(200)
+    expect(await promoted.text()).toContain("prof-work")
+    expect(capturedSdkCalls.some(call => call.dir.includes("prof-work") && call.resume === undefined)).toBe(true)
+    expect(durableRoute(sessionId).profileId).toBe("work")
+  })
+
+  it("fresh-replays instead of resuming when the durable route mapping is stale", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const sessionId = "stale-durable-route-session"
+    const firstApp = createTestApp()
+    await assignToFallback(firstApp, sessionId, "human-1")
+    const staleRoute = durableRoute(sessionId)
+    expect(evictSharedSession(staleRoute.mappingKey, staleRoute.mappingGeneration)).toBe(true)
+    expect(lookupSharedSessionResult(staleRoute.mappingKey).status).toBe("missing")
+    capturedEnvs = []
+    capturedSdkCalls = []
+
+    const unauthenticatedCases = [
+      unauthenticatedOpenCodeHeaders(sessionId),
+      unauthenticatedOpenCodeHeaders(sessionId, true),
+      trustedOpenCodeTurnHeaders(sessionId, "changed-equal", staleRoute.lastHumanTurnIssuedAt),
+      trustedOpenCodeTurnHeaders(sessionId, "changed-older", staleRoute.lastHumanTurnIssuedAt - 1),
+    ]
+    for (const headers of unauthenticatedCases) {
+      const withheld = await post(createTestApp(), headers, CONTINUED_AFTER_PERSONAL)
+      expect(withheld.status).toBe(503)
+      expect(await withheld.text()).toContain("Durable priority session state is unavailable")
+    }
+    expect(capturedSdkCalls).toHaveLength(0)
+    expect(durableRoute(sessionId)).toEqual(staleRoute)
+
+    const restartedApp = createTestApp()
+    const replayed = await post(
+      restartedApp,
+      trustedOpenCodeTurnHeaders(sessionId, "human-1", staleRoute.lastHumanTurnIssuedAt + 1),
+      CONTINUED_AFTER_PERSONAL,
+    )
+    expect(replayed.status).toBe(200)
+    expect(await replayed.text()).toContain("prof-personal")
+    const attempt = capturedSdkCalls.find(call => call.dir.includes("prof-personal"))
+    expect(attempt?.resume).toBeUndefined()
+    expect(typeof attempt?.sessionId).toBe("string")
+
+    const repaired = durableRoute(sessionId)
+    const repairedMapping = lookupSharedSessionResult(repaired.mappingKey)
+    expect(repaired.profileId).toBe("personal")
+    expect(repairedMapping.status).toBe("found")
+    if (repairedMapping.status !== "found" || !repairedMapping.generation) {
+      throw new Error("repaired route mapping is missing")
+    }
+    expect(repaired.mappingGeneration).toBe(repairedMapping.generation)
+  })
+
+  it("returns a usable first-frame account error after tool or structured exposure without failover", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.PASSTHROUGH = "1"
+    failureMessage = SUBSCRIPTION_REFUSAL
+
+    for (const kind of ["tool", "structured"] as const) {
+      for (const stream of [false, true]) {
+        exposureBeforeFailureDirs = new Map([["prof-work", kind]])
+        capturedEnvs = []
+        capturedSdkCalls = []
+        const sessionId = `${kind}-${stream ? "stream" : "nonstream"}-exposure-account-error-session`
+        const issuedAt = Math.floor(Date.now() / 1000)
+        const originalHeaders = trustedOpenCodeTurnHeaders(sessionId, "human-1", issuedAt)
+        const app = createTestApp()
+        const response = await postMessages(app, {
+          stream,
+          headers: originalHeaders,
+          content: "exposure must fence every retry",
+          tools: [{
+            name: "read",
+            description: "read a file",
+            input_schema: { type: "object", properties: {} },
+          }],
+        })
+        const body = await response.text()
+
+        expect(response.status).toBe(stream ? 200 : 402)
+        expect(body).toContain("billing_error")
+        expect(body).toContain("subscription")
+        expect(capturedEnvs).toHaveLength(1)
+        expect(capturedSdkCalls).toHaveLength(1)
+        expect(capturedEnvs[0]).toContain("prof-work")
+
+        const replay = await postMessages(createTestApp(), {
+          stream,
+          headers: originalHeaders,
+          content: "exposure must fence every retry",
+          tools: [{
+            name: "read",
+            description: "read a file",
+            input_schema: { type: "object", properties: {} },
+          }],
+        })
+        expect(replay.status).toBe(503)
+        expect(await replay.text()).toContain("Durable priority attempt state is unavailable")
+        expect(capturedSdkCalls).toHaveLength(1)
+
+        const unsignedReplay = await postMessages(createTestApp(), {
+          stream,
+          headers: unauthenticatedOpenCodeHeaders(sessionId),
+          content: "exposure must fence every retry",
+        })
+        expect(unsignedReplay.status).toBe(503)
+        expect(capturedSdkCalls).toHaveLength(1)
+
+        const invalidReplay = await postMessages(createTestApp(), {
+          stream,
+          headers: unauthenticatedOpenCodeHeaders(sessionId, true),
+          content: "exposure must fence every retry",
+        })
+        expect(invalidReplay.status).toBe(503)
+        expect(capturedSdkCalls).toHaveLength(1)
+
+        exposureBeforeFailureDirs = new Map()
+        const newer = await postMessages(createTestApp(), {
+          stream,
+          headers: trustedOpenCodeTurnHeaders(sessionId, "human-2", issuedAt + 1),
+          content: "a newer human turn may recover",
+        })
+        expect(newer.status).toBe(200)
+        expect(await newer.text()).not.toContain("Durable priority attempt state is unavailable")
+        expect(capturedSdkCalls).toHaveLength(2)
+      }
+    }
+  })
+
+  it("durably blocks retry after an internal server-side tool is exposed", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.PASSTHROUGH = "0"
+    failureMessage = SUBSCRIPTION_REFUSAL
+    exposureBeforeFailureDirs = new Map([["prof-work", "tool"]])
+    const sessionId = "internal-tool-exposure-account-error-session"
+    const issuedAt = Math.floor(Date.now() / 1000)
+    const headers = trustedOpenCodeTurnHeaders(sessionId, "human-1", issuedAt)
+    const first = await postMessages(createTestApp(), {
+      stream: false,
+      headers,
+      content: "internal tool exposure must be single-attempt",
+      tools: [{
+        name: "read",
+        description: "read a file",
+        input_schema: { type: "object", properties: {} },
+      }],
+    })
+    expect(first.status).toBe(402)
+    expect(await first.text()).toContain("billing_error")
+    expect(capturedSdkCalls).toHaveLength(1)
+
+    const replay = await postMessages(createTestApp(), {
+      stream: false,
+      headers,
+      content: "internal tool exposure must be single-attempt",
+    })
+    expect(replay.status).toBe(503)
+    expect(await replay.text()).toContain("Durable priority attempt state is unavailable")
+    expect(capturedSdkCalls).toHaveLength(1)
+  })
+
+  it("withholds promoted tool terminals until atomic route and mapping publication", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.PASSTHROUGH = "1"
+
+    for (const stream of [false, true]) {
+      const sessionId = `noncanonical-promoted-tool-${stream ? "stream" : "nonstream"}`
+      const app = createTestApp()
+      await assignToFallback(app, sessionId, "human-1")
+      const fallback = durableRoute(sessionId)
+      noncanonicalToolFailureDirs = new Set(["prof-work"])
+      capturedEnvs = []
+      capturedSdkCalls = []
+
+      const response = await postMessages(app, {
+        stream,
+        headers: trustedOpenCodeTurnHeaders(sessionId, "human-2", fallback.lastHumanTurnIssuedAt + 1),
+        content: CONTINUED_AFTER_PERSONAL,
+        tools: [{
+          name: "read",
+          description: "read a file",
+          input_schema: { type: "object", properties: {} },
+        }],
+      })
+      const body = await response.text()
+      const retained = durableRoute(sessionId)
+      const retainedMapping = lookupSharedSessionResult(retained.mappingKey)
+
+      expect(body).toContain("error")
+      expect(body).not.toContain('"stop_reason":"tool_use"')
+      expect(capturedSdkCalls).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-work")
+      expect(retained.profileId).toBe("personal")
+      expect(retained.mappingGeneration).toBe(fallback.mappingGeneration)
+      expect(retainedMapping.status).toBe("found")
+      if (retainedMapping.status !== "found" || !retainedMapping.generation) {
+        throw new Error("fallback mapping was lost after withheld tool terminal")
+      }
+      expect(retained.mappingGeneration).toBe(retainedMapping.generation)
+      noncanonicalToolFailureDirs = new Set()
+    }
+  }, 20_000)
+
+  it("withholds same-profile durable tool terminals without atomic publication", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.PASSTHROUGH = "1"
+
+    for (const stream of [false, true]) {
+      const sessionId = `noncanonical-same-profile-tool-${stream ? "stream" : "nonstream"}`
+      const app = createTestApp()
+      await assignToFallback(app, sessionId, "human-1")
+      const fallback = durableRoute(sessionId)
+      noncanonicalToolFailureDirs = new Set(["prof-personal"])
+      capturedEnvs = []
+      capturedSdkCalls = []
+
+      const response = await postMessages(app, {
+        stream,
+        headers: trustedOpenCodeTurnHeaders(sessionId, "human-1", fallback.lastHumanTurnIssuedAt),
+        content: TOOL_CONTINUATION,
+        tools: [{
+          name: "read",
+          description: "read a file",
+          input_schema: { type: "object", properties: {} },
+        }],
+      })
+      const body = await response.text()
+      expect(body).toContain("error")
+      expect(body).not.toContain('"stop_reason":"tool_use"')
+      expect(capturedSdkCalls).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-personal")
+      expect(capturedEnvs.some(dir => dir.includes("prof-work"))).toBe(false)
+      expect(durableRoute(sessionId).profileId).toBe("personal")
+      noncanonicalToolFailureDirs = new Set()
+    }
+  }, 20_000)
+
+  it("withholds unsigned retain-only tool terminals and preserves exact fallback authority", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.PASSTHROUGH = "1"
+
+    for (const stream of [false, true]) {
+      const sessionId = `noncanonical-unsigned-tool-${stream ? "stream" : "nonstream"}`
+      const app = createTestApp()
+      await assignToFallback(app, sessionId, "human-1")
+      const fallback = durableRoute(sessionId)
+      noncanonicalToolFailureDirs = new Set(["prof-personal"])
+      capturedEnvs = []
+      capturedSdkCalls = []
+
+      const response = await postMessages(createTestApp(), {
+        stream,
+        headers: unauthenticatedOpenCodeHeaders(sessionId),
+        content: TOOL_CONTINUATION,
+        tools: [{
+          name: "read",
+          description: "read a file",
+          input_schema: { type: "object", properties: {} },
+        }],
+      })
+      const body = await response.text()
+      expect(body).toContain("error")
+      expect(body).not.toContain('"stop_reason":"tool_use"')
+      expect(capturedSdkCalls).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-personal")
+      const retained = durableRoute(sessionId)
+      const mapping = lookupSharedSessionResult(retained.mappingKey)
+      expect(retained.mappingGeneration).toBe(fallback.mappingGeneration)
+      expect(mapping.status).toBe("found")
+      if (mapping.status !== "found" || !mapping.generation) throw new Error("retained mapping is missing")
+      expect(retained.mappingGeneration).toBe(mapping.generation)
+      noncanonicalToolFailureDirs = new Set()
+    }
+  }, 20_000)
+
+  it("rolls a late published promotion back to fallback when the client cancels", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.MERIDIAN_SILENT_TURN_RECOVERY = "1"
+    const sessionId = "late-publication-cancel-session"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    const fallback = durableRoute(sessionId)
+    const phase = ++capturePhase
+    const recoveryGate = createStreamCompletionGate(phase)
+    latePublicationRecoveryGate = recoveryGate
+
+    const response = await postStream(app, {
+      headers: trustedOpenCodeTurnHeaders(sessionId, "human-2", fallback.lastHumanTurnIssuedAt + 1),
+      content: CONTINUED_AFTER_PERSONAL,
+    })
+    await recoveryGate.entered
+    expect(durableRoute(sessionId).profileId).toBe("work")
+    const body = response.body
+    expect(body).not.toBeNull()
+    if (!body) {
+      recoveryGate.open()
+      return
+    }
+
+    await body.cancel("cancel after atomic publication")
+    recoveryGate.open()
+    for (let attempt = 0; attempt < 50 && durableRoute(sessionId).profileId !== "personal"; attempt++) {
+      await new Promise<void>(resolve => setImmediate(resolve))
+    }
+
+    const restored = durableRoute(sessionId)
+    const restoredMapping = lookupSharedSessionResult(restored.mappingKey)
+    expect(restored.profileId).toBe("personal")
+    expect(restored.lastHumanTurnDigest).toBe(fallback.lastHumanTurnDigest)
+    expect(restoredMapping.status).toBe("found")
+    if (restoredMapping.status !== "found" || !restoredMapping.generation) {
+      throw new Error("restored fallback mapping is missing")
+    }
+    expect(restored.mappingGeneration).toBe(restoredMapping.generation)
+    expect(capturedEnvs.every(dir => dir.includes("prof-work"))).toBe(true)
+  }, 20_000)
+
+  it("rolls an unsigned retain-only publication back on pre-terminal cancellation", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    process.env.MERIDIAN_SILENT_TURN_RECOVERY = "1"
+    const sessionId = "unsigned-preterminal-cancel-session"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    const fallback = durableRoute(sessionId)
+    const fallbackMapping = lookupSharedSessionResult(fallback.mappingKey)
+    if (fallbackMapping.status !== "found") throw new Error("fallback mapping is missing")
+    const phase = ++capturePhase
+    const recoveryGate = createStreamCompletionGate(phase)
+    latePublicationRecoveryGate = recoveryGate
+
+    const response = await postStream(createTestApp(), {
+      headers: unauthenticatedOpenCodeHeaders(sessionId),
+      content: TOOL_CONTINUATION,
+    })
+    await recoveryGate.entered
+    const provisional = durableRoute(sessionId)
+    expect(provisional.mappingGeneration).not.toBe(fallback.mappingGeneration)
+    const body = response.body
+    if (!body) {
+      recoveryGate.open()
+      throw new Error("stream body is missing")
+    }
+    await body.cancel("cancel unsigned publication before terminal")
+    latePublicationRecoveryGate = null
+    recoveryGate.open()
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const current = durableRoute(sessionId)
+      const mapping = lookupSharedSessionResult(current.mappingKey)
+      if (
+        mapping.status === "found"
+        && mapping.session.claudeSessionId === fallbackMapping.session.claudeSessionId
+        && current.mappingGeneration === mapping.generation
+      ) break
+      await new Promise<void>(resolve => setImmediate(resolve))
+    }
+    const restored = durableRoute(sessionId)
+    const restoredMapping = lookupSharedSessionResult(restored.mappingKey)
+    expect(restored.profileId).toBe("personal")
+    expect(restored.lastHumanTurnDigest).toBe(fallback.lastHumanTurnDigest)
+    expect(restoredMapping.status).toBe("found")
+    if (restoredMapping.status !== "found" || !restoredMapping.generation) {
+      throw new Error("unsigned rollback mapping is missing")
+    }
+    expect(restoredMapping.session.claudeSessionId).toBe(fallbackMapping.session.claudeSessionId)
+    expect(restored.mappingGeneration).toBe(restoredMapping.generation)
+  }, 20_000)
+
+  it("keeps unsigned retain-only authority after queued terminal cancellation", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const sessionId = "unsigned-postterminal-cancel-session"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    const before = durableRoute(sessionId)
+
+    const response = await postStream(createTestApp(), {
+      headers: unauthenticatedOpenCodeHeaders(sessionId),
+      content: TOOL_CONTINUATION,
+    })
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (durableRoute(sessionId).mappingGeneration !== before.mappingGeneration) break
+      await new Promise<void>(resolve => setImmediate(resolve))
+    }
+    await new Promise<void>(resolve => setImmediate(resolve))
+    await response.body?.cancel("discard unsigned queued terminal")
+
+    const retained = durableRoute(sessionId)
+    const mapping = lookupSharedSessionResult(retained.mappingKey)
+    expect(retained.profileId).toBe("personal")
+    expect(retained.lastHumanTurnDigest).toBe(before.lastHumanTurnDigest)
+    expect(mapping.status).toBe("found")
+    if (mapping.status !== "found" || !mapping.generation) throw new Error("unsigned terminal mapping is missing")
+    expect(retained.mappingGeneration).toBe(mapping.generation)
+  }, 20_000)
+
+  it("keeps finalized same-profile authority when a queued terminal body is cancelled", async () => {
+    process.env.MERIDIAN_PRIORITY_FAILBACK = "next-user-turn"
+    const sessionId = "post-terminal-cancel-session"
+    const app = createTestApp()
+    await assignToFallback(app, sessionId, "human-1")
+    const fallback = durableRoute(sessionId)
+    const beforeRoute = lookupPriorityAssignmentResult(`opencode:${sessionId}`)
+    if (beforeRoute.status !== "found") throw new Error("fallback route is missing")
+
+    const response = await postStream(app, {
+      headers: trustedOpenCodeTurnHeaders(sessionId, "human-1", fallback.lastHumanTurnIssuedAt),
+      content: TOOL_CONTINUATION,
+    })
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const current = lookupPriorityAssignmentResult(`opencode:${sessionId}`)
+      if (current.status === "found" && current.generation !== beforeRoute.generation) break
+      await new Promise<void>(resolve => setImmediate(resolve))
+    }
+    // Publication and terminal finalization run synchronously once the mapping
+    // changes. Leave the terminal bytes queued, then cancel the unread body.
+    await new Promise<void>(resolve => setImmediate(resolve))
+    await response.body?.cancel("discard queued finalized terminal")
+
+    const retained = durableRoute(sessionId)
+    const retainedMapping = lookupSharedSessionResult(retained.mappingKey)
+    expect(retained.profileId).toBe("personal")
+    expect(retainedMapping.status).toBe("found")
+    if (retainedMapping.status !== "found" || !retainedMapping.generation) {
+      throw new Error("finalized mapping was deleted by body cancellation")
+    }
+    expect(retained.mappingGeneration).toBe(retainedMapping.generation)
   }, 20_000)
 
   it("skips a profile marked exhausted without re-attempting it", async () => {
