@@ -67,6 +67,15 @@ export interface OpenAiChatToolCustom {
 
 export type OpenAiChatTool = OpenAiChatToolFunction | OpenAiChatToolCustom
 
+export interface OpenAiResponseFormat {
+  type: "text" | "json_object" | "json_schema"
+  json_schema?: {
+    name?: string
+    schema?: unknown
+    strict?: boolean
+  }
+}
+
 export interface OpenAiChatRequest {
   model?: string
   messages?: OpenAiMessage[]
@@ -79,7 +88,9 @@ export interface OpenAiChatRequest {
   /** Standard OpenAI reasoning level (low/medium/high/…). */
   reasoning_effort?: string
   /** Anthropic-style nesting some clients use. */
-  output_config?: { effort?: string }
+  output_config?: { effort?: string; format?: unknown }
+  /** Standard OpenAI structured output (json_schema / json_object / text). */
+  response_format?: OpenAiResponseFormat
   stream_options?: { include_usage?: boolean }
 }
 
@@ -128,7 +139,7 @@ export interface AnthropicRequestBody {
   /** Reasoning effort carried from the OpenAI request so the internal
    *  /v1/messages hop forwards it to the SDK (value gated by normalizeEffort). */
   reasoning_effort?: string
-  output_config?: { effort?: string }
+  output_config?: { effort?: string; format?: unknown }
 }
 
 export interface AnthropicUsage {
@@ -423,6 +434,24 @@ function summarizeAnthropicContent(content: string | AnthropicContentBlock[]): s
  *
  * Returns null if the request has no messages (caller should return 400).
  */
+/**
+ * Map OpenAI's `response_format` onto Anthropic's `output_config.format`.
+ *
+ * `json_object` is forwarded intact rather than widened into a permissive
+ * `{"type":"object"}` schema: Anthropic has no schema-less JSON mode, and
+ * accepting it silently would promise an enforcement the request never gets.
+ * parseOutputFormat rejects it with an actionable message.
+ */
+function translateResponseFormat(format: OpenAiResponseFormat | undefined): unknown {
+  if (format === undefined || format.type === "text") return undefined
+  // `name` is a client-side label; `strict` has no equivalent - the SDK always
+  // validates, which is never weaker than strict asked for.
+  if (format.type === "json_schema") {
+    return { type: "json_schema", schema: format.json_schema?.schema }
+  }
+  return { type: format.type }
+}
+
 export function translateOpenAiToAnthropic(
   body: OpenAiChatRequest,
   options: OpenAiTranslationOptions = {},
@@ -572,7 +601,19 @@ export function translateOpenAiToAnthropic(
   // and OpenAI clients always run at the model default. Validation happens
   // downstream via normalizeEffort.
   if (body.reasoning_effort !== undefined) result.reasoning_effort = body.reasoning_effort
-  if (body.output_config?.effort !== undefined) result.output_config = { effort: body.output_config.effort }
+
+  // Structured output. `response_format` is the standard OpenAI spelling;
+  // `output_config.format` is accepted too because some clients send the
+  // Anthropic shape at this endpoint. Both are forwarded unvalidated so the
+  // single check in parseOutputFormat rejects them at the HTTP boundary.
+  const outputFormat = translateResponseFormat(body.response_format) ?? body.output_config?.format
+  const effort = body.output_config?.effort
+  if (effort !== undefined || outputFormat !== undefined) {
+    const outputConfig: NonNullable<AnthropicRequestBody["output_config"]> = {}
+    if (effort !== undefined) outputConfig.effort = effort
+    if (outputFormat !== undefined) outputConfig.format = outputFormat
+    result.output_config = outputConfig
+  }
 
   return result
 }
