@@ -29,6 +29,13 @@ RUN deluser --remove-home node 2>/dev/null; \
     && mkdir -p /home/claude/.claude \
     && chown -R claude:claude /home/claude
 
+# alpine ships no /etc/machine-id. Without it linuxLocalBootIdentity() returns
+# undefined, captureProcessIncarnation() throws, and EVERY request fails with
+# 500 "cannot capture lock owner process incarnation". Generate a stable id at
+# build time so each image has its own.
+RUN head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' > /etc/machine-id \
+    && chmod 444 /etc/machine-id
+
 USER claude
 WORKDIR /app
 
