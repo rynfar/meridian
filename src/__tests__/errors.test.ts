@@ -620,6 +620,18 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(r.status).toBe(429)
   })
 
+  it("maps the CLI's 'You've hit your org's monthly spend limit' to rate_limit_error", () => {
+    const r = classifyError("Claude Code returned an error result: You've hit your org's monthly spend limit · ask your admin to raise it at claude.ai/settings/usage")
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
+  it("maps the CLI's 'You've hit your monthly spend limit' to rate_limit_error", () => {
+    const r = classifyError("You've hit your monthly spend limit · raise it at claude.ai/settings/usage · your session limit resets 5pm (Europe/Warsaw)")
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
   it("maps the CLI's 'You're out of usage credits' to rate_limit_error without a same-profile retry", () => {
     const msg = "Claude Code returned an error result: You're out of usage credits. /model to switch models."
     const r = classifyError(msg)
