@@ -62,6 +62,19 @@ const BILLING_SIGNALS: readonly RegExp[] = [
  *  can't drift into unrelated text that happens to contain "limit". */
 const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
 
+/** The multi-word spend/usage variants: "You've hit your org's monthly spend
+ *  limit · ask your admin to raise it at claude.ai/settings/usage" was observed
+ *  live and matched none of the single-word shapes above, so the profile was
+ *  never marked exhausted and priority routing never failed over — the pool
+ *  sat on a dead account while a healthy one waited behind it.
+ *
+ *  Widening HIT_YOUR_LIMIT to a multi-word wildcard is not safe: it would also
+ *  swallow "you have hit your configured tool call depth limit", which is not a
+ *  quota refusal. Anchor on the limit's *kind* instead — "spend" or "usage" —
+ *  so any number of qualifier words is allowed without matching unrelated
+ *  limits. Apostrophes are included for the possessive ("org's"). */
+const HIT_YOUR_SPEND_LIMIT = /hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/
+
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
  * cannot exhaust every profile in a priority pool. */
@@ -119,7 +132,8 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // variants seen so far and the daily/monthly/5-hour ones that would
   // otherwise be the next report.
   if (HTTP_429.test(lower) || lower.includes("rate limit") || lower.includes("too many requests")
-    || HIT_YOUR_LIMIT.test(lower) || lower.includes("usage limit reached")
+    || HIT_YOUR_LIMIT.test(lower) || HIT_YOUR_SPEND_LIMIT.test(lower)
+    || lower.includes("usage limit reached")
     || OUT_OF_USAGE_CREDITS.test(lower)) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? extendedContextHint(model)
