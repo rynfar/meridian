@@ -55,3 +55,56 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # The build-push job proves the image builds, which is exactly the gap that
+  # let #884 ship: a runtime image with no /etc/machine-id builds perfectly and
+  # then fails EVERY /v1/messages request with a 500. /health still reports
+  # healthy, so nothing downstream notices. Actually serve a request.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: meridian:smoke
+          cache-from: type=gha
+
+      - name: Serve a request
+        run: |
+          set -euo pipefail
+          docker run -d --name smoke \
+            -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-smoke-not-a-real-token \
+            -p 3456:3456 meridian:smoke
+
+          for _ in $(seq 1 60); do
+            curl -sf localhost:3456/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sf localhost:3456/health >/dev/null
+
+          # A dummy token cannot authenticate, so 401 is the pass condition: it
+          # proves the request reached the auth layer. Any 5xx means the proxy
+          # broke before it got there — which is the failure being guarded.
+          status=$(curl -s -o /tmp/body.json -w '%{http_code}' -X POST localhost:3456/v1/messages \
+            -H 'content-type: application/json' \
+            -d '{"model":"claude-sonnet-4-6","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}')
+
+          echo "status=$status"
+          cat /tmp/body.json
+
+          if [ "$status" -ge 500 ]; then
+            echo "::error::/v1/messages returned $status — the runtime image cannot serve requests"
+            docker logs smoke
+            exit 1
+          fi
+
+      - name: Container logs
+        if: failure()
+        run: docker logs smoke || true
