@@ -72,8 +72,23 @@ const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
  *  swallow "you have hit your configured tool call depth limit", which is not a
  *  quota refusal. Anchor on the limit's *kind* instead — "spend" or "usage" —
  *  so any number of qualifier words is allowed without matching unrelated
- *  limits. Apostrophes are included for the possessive ("org's"). */
-const HIT_YOUR_SPEND_LIMIT = /hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/
+ *  limits. Apostrophes are included for the possessive ("org's").
+ *
+ *  Anchored to the start of the message, like OUT_OF_USAGE_CREDITS below and
+ *  for the same reason. Allowing four qualifier words is a much wider net than
+ *  HIT_YOUR_LIMIT's single word, and unanchored it matched negated and quoted
+ *  prose — "you have not hit your monthly spend limit yet", or the phrase
+ *  merely quoted inside MCP stderr. Each of those would mark a healthy profile
+ *  exhausted and pull it out of a priority pool: the exact failure this fix
+ *  exists to prevent, in the opposite direction. Requiring the possessive
+ *  "you've hit your" at the start of the message (after the known SDK error
+ *  wrappers) keeps every live wording while rejecting all of them.
+ *
+ *  Known boundary: a message that genuinely *begins* "you've hit your <...>
+ *  spend limit" from some unrelated billing tool would still match. Tightening
+ *  further means enumerating qualifiers, which is what missed the org wording
+ *  in the first place. */
+const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result):\s*)*you(?:'|’)ve hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/
 
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose

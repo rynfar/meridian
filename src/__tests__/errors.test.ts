@@ -632,6 +632,32 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(r.status).toBe(429)
   })
 
+  // The spend-limit pattern allows four qualifier words, which is a much wider
+  // net than the single-word HIT_YOUR_LIMIT. Unanchored it matched all three of
+  // these. Each would mark a healthy account exhausted and drop it out of a
+  // priority pool — the same outage this fix prevents, from the other side.
+  it("does not treat a negated spend-limit sentence as a rate limit", () => {
+    const r = classifyError("You have not hit your monthly spend limit yet, so this is unrelated.")
+    expect(r.type).not.toBe("rate_limit_error")
+  })
+
+  it("does not treat a quoted spend-limit phrase as a rate limit", () => {
+    const r = classifyError("The docs say: when you've hit your monthly spend limit, ask your admin to raise it.")
+    expect(r.type).not.toBe("rate_limit_error")
+  })
+
+  it("does not treat a spend-limit phrase quoted inside tool stderr as a rate limit", () => {
+    const r = classifyError("Subprocess stderr: helper printed \"You've hit your org's monthly spend limit\" and exited")
+    expect(r.type).not.toBe("rate_limit_error")
+  })
+
+  // Typographic apostrophes: the CLI renders these in some terminals.
+  it("maps the curly-apostrophe spend-limit wording to rate_limit_error", () => {
+    const r = classifyError("You\u2019ve hit your org\u2019s monthly spend limit \u00b7 ask your admin to raise it")
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
   it("maps the CLI's 'You're out of usage credits' to rate_limit_error without a same-profile retry", () => {
     const msg = "Claude Code returned an error result: You're out of usage credits. /model to switch models."
     const r = classifyError(msg)
