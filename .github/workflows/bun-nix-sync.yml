@@ -54,7 +54,16 @@ jobs:
   # does not build — which is exactly how #913 shipped: `nix build` broke in
   # 1.62.7 and nothing noticed until a user bisected it.
   build:
-    runs-on: ubuntu-latest
+    # Both platforms on purpose. #913 reproduces ONLY on Darwin: bun2nix's
+    # default install flags differ by platform (it adds --backend=symlink on
+    # Darwin), and this repo overrides the linker for both. A Linux-only gate
+    # builds green while macOS users cannot install at all — verified here, the
+    # ubuntu leg passed while the bug was live.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
