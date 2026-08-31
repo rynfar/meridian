@@ -7,6 +7,10 @@ on:
       - bun.lock
       - package.json
       - bun.nix
+      - flake.nix
+      - flake.lock
+      - nix/**
+      - .github/workflows/bun-nix-sync.yml
   push:
     branches: [main]
     paths:
@@ -42,3 +46,21 @@ jobs:
         with:
           commit_message: "chore: sync bun.nix"
           file_pattern: bun.nix
+
+  # Actually build the derivation.
+  #
+  # `verify` above only proves bun.nix is in sync with bun.lock. It never builds,
+  # so a lockfile that regenerates cleanly can still produce a derivation that
+  # does not build — which is exactly how #913 shipped: `nix build` broke in
+  # 1.62.7 and nothing noticed until a user bisected it.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: nix build
+        run: nix build --print-build-logs --no-update-lock-file .#meridian
+      - name: Built binary runs
+        run: |
+          ./result/bin/meridian --version
