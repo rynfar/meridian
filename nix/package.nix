@@ -34,6 +34,24 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     linker = "hoisted";
   };
 
+  # bun materialises node_modules from the cache we copied out of the read-only
+  # Nix store, and on Darwin its default backend is clonefile, which carries the
+  # source's permissions across. The hoisted linker then has to create a nested
+  # node_modules/ inside a package directory whenever a transitive dependency
+  # needs its own copy — and that mkdir hits AccessDenied on a mode-444 parent.
+  #
+  # It stayed invisible until #880: before @opencode-ai/plugin the tree needed
+  # ZERO nested node_modules, so the hoisted linker never had to write inside a
+  # package directory. It now needs 8, and the build fails with "Failed to
+  # install 19 packages" (#913). Linux is unaffected — its default backend is
+  # hardlink, which creates fresh directories.
+  #
+  # bun2nix already does exactly this chmod, but only in bunLifecycleScriptsPhase,
+  # which runs AFTER the install that fails.
+  preBunNodeModulesInstallPhase = ''
+    chmod -R u+w "$BUN_INSTALL_CACHE_DIR"
+  '';
+
   buildPhase = ''
     runHook preBuild
     bun run build
