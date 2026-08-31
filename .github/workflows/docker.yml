@@ -16,7 +16,84 @@ permissions:
   packages: write
 
 jobs:
+  # Runs BEFORE build-push, which gates on it. The gap that let #884 ship was
+  # not just "CI never started the container" — it was that publication did not
+  # depend on the container working. A runtime image with no /etc/machine-id
+  # builds perfectly, fails EVERY /v1/messages with a 500, and still reports
+  # /health healthy, so nothing downstream notices.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: meridian:smoke
+          cache-from: type=gha
+          # Publishes the amd64 layers that build-push then reuses, so gating on
+          # this job costs far less than a second full build.
+          cache-to: type=gha,mode=max
+
+      - name: Machine identity is well formed
+        run: |
+          set -euo pipefail
+          # Assert what the runtime actually asserts. linuxLocalBootIdentity()
+          # reads the WHOLE file, trim()s it, and tests /^[0-9a-fA-F]{32}$/ — so
+          # a stray banner line would pass a line-scoped `grep -q` in the build
+          # and still 500 at runtime.
+          docker run --rm meridian:smoke sh -c '
+            id=$(cat /etc/machine-id)
+            case "$id" in
+              *[!0-9a-f]* | "") echo "machine-id is not 32 lowercase hex: [$id]" >&2; exit 1 ;;
+            esac
+            [ "${#id}" -eq 32 ] || { echo "machine-id length ${#id} != 32: [$id]" >&2; exit 1; }
+          '
+
+      - name: Serve a request
+        run: |
+          set -euo pipefail
+          docker run -d --name smoke \
+            -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-smoke-not-a-real-token \
+            -p 3456:3456 meridian:smoke
+
+          for _ in $(seq 1 60); do
+            curl -sf localhost:3456/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -sf localhost:3456/health >/dev/null
+
+          status=$(curl -s -o /tmp/body.json -w '%{http_code}' -X POST localhost:3456/v1/messages \
+            -H 'content-type: application/json' \
+            -d '{"model":"claude-sonnet-4-6","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}')
+
+          echo "status=$status"
+          cat /tmp/body.json
+
+          # Pin to exactly 401. The dummy token cannot authenticate, so 401 is
+          # proof the request reached the auth layer with the image intact.
+          # Asserting merely "< 500" would let a 404 from a renamed route pass,
+          # and would also turn an upstream Anthropic incident (which
+          # classifyError maps to 502/503/504) into a red build on every PR.
+          if [ "$status" != "401" ]; then
+            echo "::error::/v1/messages returned $status, expected 401 — the runtime image cannot serve requests"
+            exit 1
+          fi
+
+      - name: Container logs
+        if: failure()
+        run: docker logs smoke || true
+
   build-push:
+    needs: smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,55 +133,3 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # The build-push job proves the image builds, which is exactly the gap that
-  # let #884 ship: a runtime image with no /etc/machine-id builds perfectly and
-  # then fails EVERY /v1/messages request with a 500. /health still reports
-  # healthy, so nothing downstream notices. Actually serve a request.
-  smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build runtime image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          load: true
-          tags: meridian:smoke
-          cache-from: type=gha
-
-      - name: Serve a request
-        run: |
-          set -euo pipefail
-          docker run -d --name smoke \
-            -e CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-smoke-not-a-real-token \
-            -p 3456:3456 meridian:smoke
-
-          for _ in $(seq 1 60); do
-            curl -sf localhost:3456/health >/dev/null 2>&1 && break
-            sleep 1
-          done
-          curl -sf localhost:3456/health >/dev/null
-
-          # A dummy token cannot authenticate, so 401 is the pass condition: it
-          # proves the request reached the auth layer. Any 5xx means the proxy
-          # broke before it got there — which is the failure being guarded.
-          status=$(curl -s -o /tmp/body.json -w '%{http_code}' -X POST localhost:3456/v1/messages \
-            -H 'content-type: application/json' \
-            -d '{"model":"claude-sonnet-4-6","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}')
-
-          echo "status=$status"
-          cat /tmp/body.json
-
-          if [ "$status" -ge 500 ]; then
-            echo "::error::/v1/messages returned $status — the runtime image cannot serve requests"
-            docker logs smoke
-            exit 1
-          fi
-
-      - name: Container logs
-        if: failure()
-        run: docker logs smoke || true
