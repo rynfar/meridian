@@ -164,7 +164,7 @@ describe("/v1/responses (#475)", () => {
       `data: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } })}`,
       `data: ${JSON.stringify({ type: "message_stop" })}`,
     ]
-    app.fetch = (req: Request, env?: any, executionCtx?: any) => {
+    app.fetch = (req, env, executionCtx) => {
       if (req.url === "http://internal/v1/messages") {
         return Promise.resolve(new Response(`${internalFrames.join("\n\n")}\n\n`, {
           status: 200,

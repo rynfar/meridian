@@ -299,6 +299,8 @@ function mapUsage(usage: AnthropicUsage | undefined) {
     input_tokens: input,
     output_tokens: output,
     total_tokens: input + output,
+    // `cached_tokens` is OpenAI's field; `cache_write_tokens` is a Meridian
+    // extension — see the note on OpenAiCompletion in ./openai.
     input_tokens_details: {
       cached_tokens: usage?.cache_read_input_tokens ?? 0,
       cache_write_tokens: usage?.cache_creation_input_tokens ?? 0,

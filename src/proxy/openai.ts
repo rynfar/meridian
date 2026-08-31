@@ -239,6 +239,11 @@ export interface OpenAiStreamChunk {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    // `cached_tokens` is OpenAI's field. `cache_write_tokens` is NOT — it is a
+    // Meridian extension carrying Anthropic's cache_creation_input_tokens, which
+    // OpenAI has no equivalent for and which bills at a premium. Kept because a
+    // cost-tracking client cannot reconstruct it, deliberately named so it is
+    // obviously not spec. Clients that ignore unknown keys are unaffected.
     prompt_tokens_details: {
       cached_tokens: number
       cache_write_tokens: number
@@ -283,6 +288,11 @@ export interface OpenAiCompletion {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    // `cached_tokens` is OpenAI's field. `cache_write_tokens` is NOT — it is a
+    // Meridian extension carrying Anthropic's cache_creation_input_tokens, which
+    // OpenAI has no equivalent for and which bills at a premium. Kept because a
+    // cost-tracking client cannot reconstruct it, deliberately named so it is
+    // obviously not spec. Clients that ignore unknown keys are unaffected.
     prompt_tokens_details: {
       cached_tokens: number
       cache_write_tokens: number
