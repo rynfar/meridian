@@ -8,7 +8,7 @@
  * 4. No retry happens after partial output has been sent
  */
 
-import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import {
   messageStart,
   textBlockStart,
@@ -118,6 +118,17 @@ describe("Rate-limit retry with backoff", () => {
     queryCalls = []
     queryCallCount = 0
     mockBehavior = "succeed"
+    // The backoff sleeps for real. At the production default (1s + 2s) these
+    // seven tests spend ~18s asleep, and the exhaust-all-retries cases land at
+    // ~3.1s against bun's 5s per-test timeout — ~1.5s of headroom, which a
+    // loaded CI runner eats. That is what made this file the single largest
+    // source of intermittent CI failures. The delay is behaviour under test
+    // only in its *ordering*, not its duration, so collapse it here.
+    process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = "1"
+  })
+
+  afterEach(() => {
+    delete process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
   })
 
   describe("Non-streaming", () => {

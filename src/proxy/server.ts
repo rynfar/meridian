@@ -3177,7 +3177,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             //   1. Strip [1m] context (immediate, different model tier)
             //   2. Backoff retries on base model (1s, 2s — exponential)
             const MAX_RATE_LIMIT_RETRIES = 2
-            const RATE_LIMIT_BASE_DELAY_MS = 1000
+            const RATE_LIMIT_BASE_DELAY_MS = envInt("RATE_LIMIT_BASE_DELAY_MS", 1000)
 
             const response = (async function* () {
               let rateLimitRetries = 0
@@ -4233,7 +4233,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               //   1. Strip [1m] context (immediate, different model tier)
               //   2. Backoff retries on base model (1s, 2s — exponential)
               const MAX_RATE_LIMIT_RETRIES = 2
-              const RATE_LIMIT_BASE_DELAY_MS = 1000
+              const RATE_LIMIT_BASE_DELAY_MS = envInt("RATE_LIMIT_BASE_DELAY_MS", 1000)
 
               const response = (async function* () {
                 let rateLimitRetries = 0
