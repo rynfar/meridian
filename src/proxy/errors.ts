@@ -84,11 +84,20 @@ const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
  *  "you've hit your" at the start of the message (after the known SDK error
  *  wrappers) keeps every live wording while rejecting all of them.
  *
+ *  `subprocess stderr` is in the wrapper list and the anchor is per-line (`m`)
+ *  because the CLI often surfaces a limit banner by exiting and appending it to
+ *  stderr. Anchoring to the start of the whole message missed that shape, and
+ *  the fall-through was not merely a missed failover: a bare code-1 exit reads
+ *  as an auth failure, so the operator was told to run `claude login` for a
+ *  quota refusal. The unanchored HIT_YOUR_LIMIT still matched there, so the
+ *  session-limit banner classified correctly while the spend-limit banner in
+ *  the identical shape returned 401.
+ *
  *  Known boundary: a message that genuinely *begins* "you've hit your <...>
  *  spend limit" from some unrelated billing tool would still match. Tightening
  *  further means enumerating qualifiers, which is what missed the org wording
  *  in the first place. */
-const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result):\s*)*you(?:'|’)ve hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/
+const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/m
 
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose

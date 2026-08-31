@@ -639,16 +639,37 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
   it("does not treat a negated spend-limit sentence as a rate limit", () => {
     const r = classifyError("You have not hit your monthly spend limit yet, so this is unrelated.")
     expect(r.type).not.toBe("rate_limit_error")
+    expect(isAccountFailoverError(r.type)).toBe(false)
   })
 
   it("does not treat a quoted spend-limit phrase as a rate limit", () => {
     const r = classifyError("The docs say: when you've hit your monthly spend limit, ask your admin to raise it.")
     expect(r.type).not.toBe("rate_limit_error")
+    expect(isAccountFailoverError(r.type)).toBe(false)
   })
 
   it("does not treat a spend-limit phrase quoted inside tool stderr as a rate limit", () => {
     const r = classifyError("Subprocess stderr: helper printed \"You've hit your org's monthly spend limit\" and exited")
     expect(r.type).not.toBe("rate_limit_error")
+    expect(isAccountFailoverError(r.type)).toBe(false)
+  })
+
+  // The CLI surfaces a limit banner by exiting and appending it to stderr. A
+  // whole-message anchor missed that shape, and the fall-through was a 401
+  // telling the operator to run `claude login` for a quota refusal — while the
+  // session-limit banner in the identical shape classified correctly.
+  it("maps a spend-limit banner appended to subprocess stderr to rate_limit_error", () => {
+    const r = classifyError("Claude Code process exited with code 1\nSubprocess stderr: You've hit your org's monthly spend limit \u00b7 ask your admin to raise it")
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+    expect(r.message).not.toContain("claude login")
+  })
+
+  it("classifies the stderr-appended spend and session banners the same way", () => {
+    const spend = classifyError("Claude Code process exited with code 1\nSubprocess stderr: You've hit your monthly spend limit")
+    const session = classifyError("Claude Code process exited with code 1\nSubprocess stderr: You've hit your session limit")
+    expect(spend.type).toBe(session.type)
+    expect(spend.status).toBe(session.status)
   })
 
   // Typographic apostrophes: the CLI renders these in some terminals.
