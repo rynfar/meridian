@@ -43,6 +43,12 @@ afterEach(async () => {
     for (let i = 0; i < 100 && proxyServer.getInFlightCount!() !== 0; i++) {
       await Bun.sleep(1)
     }
+    if (proxyServer.getInFlightCount!() !== 0) {
+      proxyServer.forceAbortInFlight!()
+      for (let i = 0; i < 1000 && proxyServer.getInFlightCount!() !== 0; i++) {
+        await Bun.sleep(1)
+      }
+    }
   }
   const drained = !proxyServer || proxyServer.getInFlightCount!() === 0
   if (drained) {

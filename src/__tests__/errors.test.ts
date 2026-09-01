@@ -835,6 +835,13 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(isAccountFailoverError(r.type)).toBe(true)
   })
 
+  it("maps the live per-tier refusal with appended beta-warning stderr to rate_limit_error", () => {
+    const msg = "Claude Code returned an error result: You've reached your Fable 5 limit. Run /usage-credits to continue or switch models with /model.\nSubprocess stderr: Warning: Custom betas are only available for API key users. Ignoring provided betas."
+    const r = classifyError(msg)
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
   it.each([
     ["bare banner", "You've reached your Fable 5 limit."],
     ["nested SDK wrappers", "Error: API Error: You’ve reached your Fable 5 limit! /model to switch models."],
@@ -860,6 +867,9 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["documentation sentence suffix", "Error: You've reached your Fable 5 limit. This is only a documentation example"],
     ["false assertion suffix", "You've reached your Fable 5 limit is false"],
     ["possessive threshold suffix", "You've reached your Fable 5 limit's configured warning threshold"],
+    ["generic error newline", "Error:\nYou've reached your Fable 5 limit."],
+    ["SDK wrapper newline", "Claude Code returned an error result:\nYou've reached your Fable 5 limit."],
+    ["unrelated appended stderr", "You've reached your Fable 5 limit.\nSubprocess stderr: unrelated tool output"],
   ])("does not classify credits-era per-tier %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).toBe("api_error")
   })
