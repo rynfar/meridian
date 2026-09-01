@@ -124,12 +124,41 @@ const HTTP_503 = /(?:^|[^0-9a-f])503(?![0-9a-f]|:\d)/
  *  Wordings: the CLI's bare "Prompt is too long", the API's fuller
  *  "prompt is too long: N tokens > M maximum" (same prefix), its max_tokens
  *  phrasing (backtick-quoted upstream, matched loosely here), and the
- *  OpenAI-compatible code the openai adapter can surface. */
-const CONTEXT_OVERFLOW_SIGNALS: readonly RegExp[] = [
-  /prompt is too long/,
-  /input length and .?max_tokens.? exceed context limit/,
-  /context[_ ]length[_ ]exceeded/,
+ *  OpenAI-compatible code the openai adapter can surface.
+ *
+ *  Anchored per-line, tolerating the wrapper prefixes the CLI and SDK prepend —
+ *  the same shape as HIT_YOUR_SPEND_LIMIT above, for the same reason. Unanchored
+ *  these matched their own strings quoted inside arbitrary text: an assistant
+ *  turn discussing the error, a tool_result echoing a grep hit, and a plainly
+ *  negated sentence all classified as 400 before the anchor was added.
+ *
+ *  The asymmetry matters here more than it does for a quota refusal. A false 400
+ *  tells the client the request itself is unfixable, so the retry is abandoned
+ *  and legitimate work is silently dropped; a false 5xx only costs a retry.
+ *
+ *  `subprocess stderr` is in the wrapper list because the CLI surfaces an
+ *  oversized prompt by exiting and appending it to stderr — and without this
+ *  branch that shape reads as a bare code-1 exit, which the process-crash branch
+ *  below reports as an auth failure telling the operator to run `claude login`. */
+const OVERFLOW_PHRASES = [
+  String.raw`prompt is too long`,
+  String.raw`input length and .?max_tokens.? exceed context limit`,
+  String.raw`context[_ ]length[_ ]exceeded`,
 ]
+
+/** Either the phrase opens a line (after the known SDK/CLI wrappers), or it
+ *  opens the `message` value of an API error envelope — `API Error: 400
+ *  {"type":"invalid_request_error","message":"prompt is too long: ..."}`, which
+ *  is a real upstream shape and not line-anchored. Requiring the phrase to start
+ *  the message value is what separates it from the same words merely quoted
+ *  somewhere inside arbitrary prose. */
+const CONTEXT_OVERFLOW_SIGNALS: readonly RegExp[] = OVERFLOW_PHRASES.map(
+  phrase => new RegExp(
+    String.raw`(?:^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*|"message"\s*:\s*")`
+    + phrase,
+    "m",
+  ),
+)
 
 /**
  * Detect specific SDK errors and return helpful messages to the client.

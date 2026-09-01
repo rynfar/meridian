@@ -301,6 +301,49 @@ describe("classifyError", () => {
       const r = classifyError("Error: ENOENT: no such file or directory, open '/repo/src/prompt-is-too-long.ts'")
       expect(r.status).not.toBe(400)
     })
+
+    // A false 400 is the expensive direction: it tells the client the request is
+    // unfixable, so the retry is abandoned and legitimate work is silently
+    // dropped. Every case below classified as 400 before the pattern was
+    // anchored. Asserting the concrete status, not `not.toBe(400)` — the weaker
+    // form is what let an equivalent regression hide in #908.
+    it.each([
+      ["a negated sentence", "The prompt is too long check did not trigger; this is a network failure"],
+      ["the phrase quoted in prose", 'The assistant replied: "prompt is too long" is a common error message users see'],
+      ["the phrase quoted inside stderr", 'Subprocess stderr: user asked "why does it say prompt is too long?"'],
+      ["a tool_result echoing a grep hit", "tool_result: grep found 'context_length_exceeded' in errors.ts:114"],
+    ])("does not classify %s as an overflow", (_label, msg) => {
+      const r = classifyError(msg)
+      expect(r.status).toBe(500)
+      expect(r.type).toBe("api_error")
+    })
+
+    // The API envelope is the one non-line-anchored shape that must still match,
+    // so the phrase is accepted when it opens a `message` value. That is narrow
+    // on purpose: the same words inside any other field, or partway through the
+    // message, are prose rather than the error itself.
+    //
+    // Known boundary: a tool_result echoing a genuine overflow envelope verbatim
+    // still classifies as 400. Distinguishing it would mean parsing the message
+    // to see whose error it is, and an echoed envelope is a real overflow report
+    // either way — so it is left as the accepted edge rather than widened around.
+    it.each([
+      ["opens the message value", '{"message":"prompt is too long: 215843 tokens > 200000 maximum"}', 400],
+      ["sits in another field", '{"note":"prompt is too long is a common error users hit"}', 500],
+      ["sits partway through the message", '{"message":"the user asked why prompt is too long appears"}', 500],
+    ])("%s", (_label, msg, status) => {
+      expect(classifyError(msg).status).toBe(status)
+    })
+
+    // The overflow branch runs before the process-crash branch but after the
+    // HTTP-status branches, so a real refusal that merely mentions the phrase
+    // keeps its own classification rather than being downgraded to a 400.
+    it.each([
+      ["a rate limit", "429 rate limit exceeded — note: context length exceeded is a different error", 429],
+      ["an auth failure", "401 unauthorized. Docs mention context_length_exceeded elsewhere.", 401],
+    ])("lets %s keep its status", (_label, msg, status) => {
+      expect(classifyError(msg).status).toBe(status)
+    })
   })
 
   describe("process crashes", () => {
