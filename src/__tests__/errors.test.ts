@@ -826,6 +826,35 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(classifyError(msg).type).not.toBe("rate_limit_error")
   })
 
+  it("maps the CLI's per-tier limit refusal to rate_limit_error without a same-profile retry", () => {
+    const msg = "Claude Code returned an error result: You've reached your Fable 5 limit. Run /usage-credits to continue or switch models with /model."
+    const r = classifyError(msg)
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+    expect(isRateLimitError(msg)).toBe(false)
+    expect(isAccountFailoverError(r.type)).toBe(true)
+  })
+
+  it.each([
+    ["bare banner", "You've reached your Fable 5 limit."],
+    ["nested SDK wrappers", "Error: API Error: You’ve reached your Fable 5 limit! /model to switch models."],
+    ["Opus tier", "You've reached your Opus limit"],
+    ["versioned Sonnet tier", "You've reached your Sonnet 4.6 limit"],
+  ])("maps the credits-era per-tier %s to rate_limit_error", (_label, msg) => {
+    const r = classifyError(msg)
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+  })
+
+  it.each([
+    ["specified limit", "You've reached your specified limit"],
+    ["quoted banner", "The docs say ‘You've reached your Fable 5 limit.’"],
+    ["negated banner", "You've not reached your Fable 5 limit"],
+    ["filename prefix", "Claude Code returned an error result: usage-credits.ts says You've reached your Fable 5 limit."],
+  ])("does not classify credits-era per-tier %s as a rate limit", (_label, msg) => {
+    expect(classifyError(msg).type).toBe("api_error")
+  })
+
   // #764 and #787 were the same bug twice: a new qualifier, a 500 instead of
   // failover, a PR. These pin the shape so the next variant is already covered.
   it.each([

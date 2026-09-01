@@ -99,6 +99,14 @@ const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
  *  in the first place. */
 const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/m
 
+/** Credits-era per-tier banner uses "reached", not the "hit" wording from
+ * #764 and #787. Enumerate tiers rather than wildcarding the qualifier: the
+ * CLI also emits "reached your specified ...", which is not account quota
+ * exhaustion (#909). The two-word tail covers "Fable 5" and similar versions;
+ * anchoring after known SDK wrappers, like HIT_YOUR_SPEND_LIMIT, prevents
+ * quoted banner prose from exhausting a healthy profile. */
+const REACHED_YOUR_TIER_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve reached your (?:fable|mythos|opus|sonnet|haiku)(?: [\w'’.\d-]+){0,2} limit/m
+
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
  * cannot exhaust every profile in a priority pool. */
@@ -201,7 +209,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // variants seen so far and the daily/monthly/5-hour ones that would
   // otherwise be the next report.
   if (HTTP_429.test(lower) || lower.includes("rate limit") || lower.includes("too many requests")
-    || HIT_YOUR_LIMIT.test(lower) || HIT_YOUR_SPEND_LIMIT.test(lower)
+    || HIT_YOUR_LIMIT.test(lower) || HIT_YOUR_SPEND_LIMIT.test(lower) || REACHED_YOUR_TIER_LIMIT.test(lower)
     || lower.includes("usage limit reached")
     || OUT_OF_USAGE_CREDITS.test(lower)) {
     const hint = lower.includes("1m") || lower.includes("context")
