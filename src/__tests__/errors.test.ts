@@ -848,6 +848,7 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["Opus tier", "You've reached your Opus limit"],
     ["versioned Sonnet tier", "You've reached your Sonnet 4.6 limit"],
     ["Claude-prefixed tier", "You've reached your Claude Opus 4.6 limit"],
+    ["space-separated model command", "You've reached your Fable 5 limit /model to switch models."],
     ["multiline subprocess stderr", "Claude Code process exited with code 1\nSubprocess stderr: You've reached your Fable 5 limit. Run /usage-credits to continue or switch models with /model."],
   ])("maps the credits-era per-tier %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
@@ -867,6 +868,9 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["documentation sentence suffix", "Error: You've reached your Fable 5 limit. This is only a documentation example"],
     ["false assertion suffix", "You've reached your Fable 5 limit is false"],
     ["possessive threshold suffix", "You've reached your Fable 5 limit's configured warning threshold"],
+    ["joined run command", "You've reached your Fable 5 limitRun /usage-credits"],
+    ["joined usage command", "You've reached your Fable 5 limit/usage-credits"],
+    ["unspaced punctuated command", "You've reached your Fable 5 limit.Run /usage-credits"],
     ["generic error newline", "Error:\nYou've reached your Fable 5 limit."],
     ["SDK wrapper newline", "Claude Code returned an error result:\nYou've reached your Fable 5 limit."],
     ["unrelated appended stderr", "You've reached your Fable 5 limit.\nSubprocess stderr: unrelated tool output"],

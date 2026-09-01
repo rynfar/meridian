@@ -110,7 +110,7 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * Accept only known CLI command suffixes and anchor the whole banner: a false
  * positive exhausts a healthy profile pool-wide. New tier names must be added
  * to the known-tier enumeration. */
-const REACHED_YOUR_TIER_LIMIT = /(?:^|\n[ \t]*subprocess stderr:[ \t]*)[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:[.!][ \t]*)?(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models)?\.?(?:\n[ \t]*subprocess stderr:[ \t]*warning:[ \t]*custom betas are only available for api key users\.[ \t]*ignoring provided betas\.)?[ \t]*$/
+const REACHED_YOUR_TIER_LIMIT = /(?:^|\n[ \t]*subprocess stderr:[ \t]*)[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models)\.?|[.!]?)(?:\n[ \t]*subprocess stderr:[ \t]*warning:[ \t]*custom betas are only available for api key users\.[ \t]*ignoring provided betas\.)?[ \t]*$/
 
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
