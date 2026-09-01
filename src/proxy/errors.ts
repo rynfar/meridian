@@ -101,11 +101,12 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
 
 /** Credits-era per-tier banner uses "reached", not the "hit" wording from
  * #764 and #787. Enumerate tiers rather than wildcarding the qualifier: the
- * CLI also emits "reached your specified ...", which is not account quota
- * exhaustion (#909). The two-word tail covers "Fable 5" and similar versions;
- * anchoring after known SDK wrappers, like HIT_YOUR_SPEND_LIMIT, prevents
- * quoted banner prose from exhausting a healthy profile. */
-const REACHED_YOUR_TIER_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve reached your (?:fable|mythos|opus|sonnet|haiku)(?: [\w'’.\d-]+){0,2} limit/m
+ * CLI also emits "reached your specified/configured ..." prose that is not
+ * account quota exhaustion (#909). A numeric version suffix accepts real tier
+ * versions without arbitrary words, while an explicit subprocess label admits
+ * the observed multiline exit shape without treating any quoted line as
+ * account state. New tier names must be added to the known-tier enumeration. */
+const REACHED_YOUR_TIER_LIMIT = /(?:^|\n\s*subprocess stderr:\s*)\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit\b/
 
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose

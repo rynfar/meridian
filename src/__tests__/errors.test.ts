@@ -840,6 +840,8 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["nested SDK wrappers", "Error: API Error: You’ve reached your Fable 5 limit! /model to switch models."],
     ["Opus tier", "You've reached your Opus limit"],
     ["versioned Sonnet tier", "You've reached your Sonnet 4.6 limit"],
+    ["Claude-prefixed tier", "You've reached your Claude Opus 4.6 limit"],
+    ["multiline subprocess stderr", "Claude Code process exited with code 1\nSubprocess stderr: You've reached your Fable 5 limit. Run /usage-credits to continue or switch models with /model."],
   ])("maps the credits-era per-tier %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
@@ -851,6 +853,9 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["quoted banner", "The docs say ‘You've reached your Fable 5 limit.’"],
     ["negated banner", "You've not reached your Fable 5 limit"],
     ["filename prefix", "Claude Code returned an error result: usage-credits.ts says You've reached your Fable 5 limit."],
+    ["configured tool qualifier", "You've reached your Fable configured tool limit"],
+    ["limitations suffix", "You've reached your Fable 5 limitations"],
+    ["unlabelled multiline quote", "MCP server failed:\nYou've reached your Fable 5 limit (quoted from docs)"],
   ])("does not classify credits-era per-tier %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).toBe("api_error")
   })
