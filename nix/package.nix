@@ -35,11 +35,21 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   # where the bundled CLI cannot find them — the build still succeeds and the
   # installed binary dies on first import, which is worse than failing loudly.
   #
-  # Pin the backend to hardlink. That is what broke #913: on Darwin bun defaults
-  # to clonefile, which carries the source's mode across, so package directories
-  # materialised out of the read-only Nix store land mode 444. The hoisted linker
-  # then has to create a nested node_modules/ inside one of them whenever a
-  # transitive dep needs its own copy, and that mkdir hits AccessDenied.
+  # Pin the backend to copyfile. Each of the alternatives fails somewhere in the
+  # Nix sandbox, because everything is materialised out of the read-only store:
+  #
+  #   clonefile  Darwin's default. Carries the source's mode across, so package
+  #              directories land mode 444 and the hoisted linker's nested mkdir
+  #              hits AccessDenied — this is #913 itself.
+  #   hardlink   Linux's default. Directories are created fresh so the install
+  #              succeeds, but the files share an inode with the store, and
+  #              bun2nix's own `chmod -R u+rwx ./node_modules` in
+  #              bunLifecycleScriptsPhase then fails "Operation not permitted".
+  #   symlink    Only usable with the isolated linker, whose layout hides
+  #              libsql's optional platform package from the bundled CLI.
+  #
+  # copyfile creates directories fresh AND gives every file its own inode, so
+  # both the nested mkdir and the later chmod succeed.
   #
   # Invisible until #880: the tree previously needed ZERO nested node_modules,
   # and now needs 8 ("Failed to install 19 packages"). Linux was never affected
@@ -49,7 +59,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   bunInstallFlags = toCommandLineGNU { } {
     ignore-scripts = true;
     linker = "hoisted";
-    backend = "hardlink";
+    backend = "copyfile";
   };
 
   buildPhase = ''
