@@ -94,6 +94,7 @@ describe("/v1/models profile auth context", () => {
       envOverrides: { CLAUDE_CONFIG_DIR: "/profiles/work" },
     }])
     expect(models.get("claude-opus-4-6")?.context_window).toBe(1_000_000)
+    expect(models.get("claude-fable-5-1")?.context_window).toBe(1_000_000)
     expect(models.get("claude-fable-5")?.context_window).toBe(1_000_000)
   })
 

@@ -220,7 +220,7 @@ describe("SDK model pin injection (fixes #419)", () => {
     const app = createTestApp()
     // Bare alias: no envOverride kicks in, so the canonical pin is exercised.
     await post(app, { ...BASIC_REQUEST, model: "sonnet" })
-    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5")
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5-1")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-5")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("claude-sonnet-5")
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe("claude-haiku-4-5")
@@ -238,9 +238,15 @@ describe("SDK model pin injection (fixes #419)", () => {
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5")
   })
 
+  it("explicit claude-fable-5-1 requests pin the SDK env to Fable 5.1", async () => {
+    const app = createTestApp()
+    await post(app, { ...BASIC_REQUEST, model: "claude-fable-5-1" })
+    expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("claude-fable-5-1")
+  })
+
   // Mythos has no SDK alias of its own — it resolves through the fable alias,
   // so an explicit claude-mythos-* request must pin ANTHROPIC_DEFAULT_FABLE_MODEL
-  // to the requested id (not Meridian's canonical claude-fable-5 pin).
+  // to the requested id (not Meridian's canonical claude-fable-5-1 pin).
   it("explicit claude-mythos-5 requests pin the SDK env to mythos via the fable alias", async () => {
     const app = createTestApp()
     await post(app, { ...BASIC_REQUEST, model: "claude-mythos-5" })
