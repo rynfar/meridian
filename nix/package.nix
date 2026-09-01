@@ -8,7 +8,6 @@
   stdenvNoCC,
 }:
 let
-  inherit (lib.cli) toCommandLineGNU;
   inherit (lib.meta) getExe;
   inherit (lib.sources) cleanSource;
   inherit (lib.strings) removePrefix versionOlder;
@@ -29,28 +28,25 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   ];
 
   bunDeps = bun2nix.fetchBunDeps { bunNix = ../bun.nix; };
-  bunInstallFlags = toCommandLineGNU { } {
-    ignore-scripts = true;
-    linker = "hoisted";
-  };
-
-  # bun materialises node_modules from the cache we copied out of the read-only
-  # Nix store, and on Darwin its default backend is clonefile, which carries the
-  # source's permissions across. The hoisted linker then has to create a nested
-  # node_modules/ inside a package directory whenever a transitive dependency
-  # needs its own copy — and that mkdir hits AccessDenied on a mode-444 parent.
+  # Deliberately NOT overriding bunInstallFlags.
   #
-  # It stayed invisible until #880: before @opencode-ai/plugin the tree needed
-  # ZERO nested node_modules, so the hoisted linker never had to write inside a
-  # package directory. It now needs 8, and the build fails with "Failed to
-  # install 19 packages" (#913). Linux is unaffected — its default backend is
-  # hardlink, which creates fresh directories.
+  # This used to force `--linker=hoisted` on every platform. That broke
+  # `nix build` on Darwin from 1.62.7 onward (#913): bun materialises
+  # node_modules from a cache backed by the read-only Nix store, and on Darwin
+  # its default backend is clonefile, which carries the source's mode across.
+  # The hoisted linker then has to create a nested node_modules/ inside a
+  # package directory whenever a transitive dependency needs its own copy, and
+  # that mkdir hits AccessDenied on a mode-444 parent.
   #
-  # bun2nix already does exactly this chmod, but only in bunLifecycleScriptsPhase,
-  # which runs AFTER the install that fails.
-  preBunNodeModulesInstallPhase = ''
-    chmod -R u+w "$BUN_INSTALL_CACHE_DIR"
-  '';
+  # It stayed invisible until #880 because the tree previously needed ZERO
+  # nested node_modules. @opencode-ai/plugin brought 8, and the build began
+  # failing with "Failed to install 19 packages". Linux was unaffected: its
+  # default backend is hardlink, which creates fresh directories — which is why
+  # a Linux-only CI gate built green while macOS users could not install at all.
+  #
+  # bun2nix's own defaults are platform-aware (`--linker=isolated`, plus
+  # `--backend=symlink` on Darwin) and never perform that nested write. Letting
+  # them apply is the fix; the hook adds --ignore-scripts itself.
 
   buildPhase = ''
     runHook preBuild
