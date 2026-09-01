@@ -8,7 +8,11 @@
  * 4. Multiple tool calls in a single response
  */
 
-import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { setSessionStoreDir } from "../proxy/sessionStore"
 import {
   messageStart,
   textBlockStart,
@@ -24,6 +28,16 @@ import {
   parseSSE,
   withMockSdkSessionId,
 } from "./helpers"
+
+let isolatedSessionDir = ""
+beforeEach(() => {
+  isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-subagent-support-"))
+  setSessionStoreDir(isolatedSessionDir)
+})
+afterEach(async () => {
+  await Bun.sleep(25)
+  rmSync(isolatedSessionDir, { recursive: true, force: true })
+})
 
 // --- Capture SDK calls ---
 let mockMessages: any[] = []
@@ -140,6 +154,9 @@ describe("Phase 3: Concurrent request support", () => {
       postMessages(app, makeRequest({ stream: false })),
       postMessages(app, makeRequest({ stream: false })),
     ])
+
+    expect(r1.status).toBe(200)
+    expect(r2.status).toBe(200)
 
     const [b1, b2] = await Promise.all([
       r1.json() as Promise<any>,
