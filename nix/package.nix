@@ -8,6 +8,7 @@
   stdenvNoCC,
 }:
 let
+  inherit (lib.cli) toCommandLineGNU;
   inherit (lib.meta) getExe;
   inherit (lib.sources) cleanSource;
   inherit (lib.strings) removePrefix versionOlder;
@@ -28,25 +29,28 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   ];
 
   bunDeps = bun2nix.fetchBunDeps { bunNix = ../bun.nix; };
-  # Deliberately NOT overriding bunInstallFlags.
+  # Keep the hoisted linker: its flat layout is what makes libsql's optional
+  # platform package (@libsql/darwin-arm64, @libsql/linux-x64-gnu) resolvable at
+  # runtime. bun2nix's isolated default scopes those under node_modules/.bun,
+  # where the bundled CLI cannot find them — the build still succeeds and the
+  # installed binary dies on first import, which is worse than failing loudly.
   #
-  # This used to force `--linker=hoisted` on every platform. That broke
-  # `nix build` on Darwin from 1.62.7 onward (#913): bun materialises
-  # node_modules from a cache backed by the read-only Nix store, and on Darwin
-  # its default backend is clonefile, which carries the source's mode across.
-  # The hoisted linker then has to create a nested node_modules/ inside a
-  # package directory whenever a transitive dependency needs its own copy, and
-  # that mkdir hits AccessDenied on a mode-444 parent.
+  # Pin the backend to hardlink. That is what broke #913: on Darwin bun defaults
+  # to clonefile, which carries the source's mode across, so package directories
+  # materialised out of the read-only Nix store land mode 444. The hoisted linker
+  # then has to create a nested node_modules/ inside one of them whenever a
+  # transitive dep needs its own copy, and that mkdir hits AccessDenied.
   #
-  # It stayed invisible until #880 because the tree previously needed ZERO
-  # nested node_modules. @opencode-ai/plugin brought 8, and the build began
-  # failing with "Failed to install 19 packages". Linux was unaffected: its
-  # default backend is hardlink, which creates fresh directories — which is why
-  # a Linux-only CI gate built green while macOS users could not install at all.
-  #
-  # bun2nix's own defaults are platform-aware (`--linker=isolated`, plus
-  # `--backend=symlink` on Darwin) and never perform that nested write. Letting
-  # them apply is the fix; the hook adds --ignore-scripts itself.
+  # Invisible until #880: the tree previously needed ZERO nested node_modules,
+  # and now needs 8 ("Failed to install 19 packages"). Linux was never affected
+  # because its default backend is already hardlink, which creates fresh
+  # directories — which is exactly why a Linux-only CI gate built green while
+  # macOS users could not install at all.
+  bunInstallFlags = toCommandLineGNU { } {
+    ignore-scripts = true;
+    linker = "hoisted";
+    backend = "hardlink";
+  };
 
   buildPhase = ''
     runHook preBuild
@@ -58,13 +62,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook preInstall
 
     mkdir -p $out/lib/meridian
-    # -L dereferences: bun2nix's default isolated linker builds node_modules out
-    # of symlinks into node_modules/.bun, and a plain -r copies those links
-    # rather than what they point at. The tree then resolves for hoisted-layout
-    # packages but not for platform-specific optional deps, so the binary dies
-    # at runtime with "Cannot find module '@libsql/<platform>'" while the build
-    # itself reports success.
-    cp -rL dist node_modules plugin package.json $out/lib/meridian/
+    cp -r dist node_modules plugin package.json $out/lib/meridian/
 
     rm -rf $out/lib/meridian/node_modules/@anthropic-ai/{claude-code,claude-code-*,claude-agent-sdk-*} \
       $out/lib/meridian/node_modules/.bin/claude
