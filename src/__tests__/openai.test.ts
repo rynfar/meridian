@@ -1320,14 +1320,15 @@ describe("createSseTranslator", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildModelList", () => {
-  it("returns 8 models", () => {
-    expect(buildModelList(true).length).toBe(8)
-    expect(buildModelList(false).length).toBe(8)
+  it("returns 9 models", () => {
+    expect(buildModelList(true).length).toBe(9)
+    expect(buildModelList(false).length).toBe(9)
   })
 
-  it("includes sonnet-5, fable-5, opus-5, opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
+  it("includes current and legacy Fable plus the supported Sonnet and Opus models for UI pickers", () => {
     const ids = buildModelList(true).map(m => m.id)
     expect(ids).toContain("claude-sonnet-5")
+    expect(ids).toContain("claude-fable-5-1")
     expect(ids).toContain("claude-fable-5")
     expect(ids).toContain("claude-opus-5")
     expect(ids).toContain("claude-opus-4-6")
@@ -1335,11 +1336,13 @@ describe("buildModelList", () => {
     expect(ids).toContain("claude-opus-4-8")
   })
 
-  it("Max subscription gets 1M context for fable, 200k otherwise", () => {
-    const fableMax = buildModelList(true).find(m => m.id === "claude-fable-5")!
-    const fableFree = buildModelList(false).find(m => m.id === "claude-fable-5")!
-    expect(fableMax.context_window).toBe(1_000_000)
-    expect(fableFree.context_window).toBe(200_000)
+  it("Max subscription gets 1M context for every Fable version, 200k otherwise", () => {
+    for (const id of ["claude-fable-5-1", "claude-fable-5"]) {
+      const fableMax = buildModelList(true).find(m => m.id === id)!
+      const fableFree = buildModelList(false).find(m => m.id === id)!
+      expect(fableMax.context_window).toBe(1_000_000)
+      expect(fableFree.context_window).toBe(200_000)
+    }
   })
 
   it("Max subscription gets 1M context for all opus variants, 200k for sonnet", () => {

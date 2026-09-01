@@ -13,7 +13,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test"
 
 // ---------- unit: explicitModelPin + canonical bump ----------
 
-const { explicitModelPin, CANONICAL_SONNET_MODEL, CANONICAL_OPUS_MODEL } = await import("../proxy/models")
+const { explicitModelPin, CANONICAL_FABLE_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_OPUS_MODEL } = await import("../proxy/models")
 
 describe("explicitModelPin (#631)", () => {
   it("pins fully-versioned sonnet ids", () => {
@@ -29,6 +29,7 @@ describe("explicitModelPin (#631)", () => {
 
   it("routes mythos ids through the fable tier pin", () => {
     expect(explicitModelPin("claude-mythos-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-mythos-5" })
+    expect(explicitModelPin("claude-fable-5-1")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5-1" })
     expect(explicitModelPin("claude-fable-5")).toEqual({ ANTHROPIC_DEFAULT_FABLE_MODEL: "claude-fable-5" })
   })
 
@@ -55,6 +56,12 @@ describe("canonical sonnet pin (#631)", () => {
 describe("canonical opus pin", () => {
   it("bare opus means the current Opus", () => {
     expect(CANONICAL_OPUS_MODEL).toBe("claude-opus-5")
+  })
+})
+
+describe("canonical fable pin", () => {
+  it("bare fable means the current Fable", () => {
+    expect(CANONICAL_FABLE_MODEL).toBe("claude-fable-5-1")
   })
 })
 
