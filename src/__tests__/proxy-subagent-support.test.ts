@@ -31,11 +31,19 @@ import {
 
 let isolatedSessionDir = ""
 beforeEach(() => {
+  proxyServer = undefined
   isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-subagent-support-"))
   setSessionStoreDir(isolatedSessionDir)
 })
 afterEach(async () => {
-  await Bun.sleep(25)
+  if (proxyServer) {
+    for (let i = 0; i < 100 && proxyServer.getInFlightCount!() !== 0; i++) {
+      await Bun.sleep(1)
+    }
+    expect(proxyServer.getInFlightCount!()).toBe(0)
+    await proxyServer.sweepSessionGc!()
+  }
+  setSessionStoreDir(null)
   rmSync(isolatedSessionDir, { recursive: true, force: true })
 })
 
@@ -72,10 +80,11 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer } = await import("../proxy/server")
+let proxyServer: ReturnType<typeof createProxyServer> | undefined
 
 function createTestApp() {
-  const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
-  return app
+  proxyServer = createProxyServer({ port: 0, host: "127.0.0.1" })
+  return proxyServer.app
 }
 
 async function postMessages(app: any, body: Record<string, unknown>) {
