@@ -58,7 +58,13 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook preInstall
 
     mkdir -p $out/lib/meridian
-    cp -r dist node_modules plugin package.json $out/lib/meridian/
+    # -L dereferences: bun2nix's default isolated linker builds node_modules out
+    # of symlinks into node_modules/.bun, and a plain -r copies those links
+    # rather than what they point at. The tree then resolves for hoisted-layout
+    # packages but not for platform-specific optional deps, so the binary dies
+    # at runtime with "Cannot find module '@libsql/<platform>'" while the build
+    # itself reports success.
+    cp -rL dist node_modules plugin package.json $out/lib/meridian/
 
     rm -rf $out/lib/meridian/node_modules/@anthropic-ai/{claude-code,claude-code-*,claude-agent-sdk-*} \
       $out/lib/meridian/node_modules/.bin/claude
