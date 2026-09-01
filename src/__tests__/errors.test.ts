@@ -856,6 +856,10 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["configured tool qualifier", "You've reached your Fable configured tool limit"],
     ["limitations suffix", "You've reached your Fable 5 limitations"],
     ["unlabelled multiline quote", "MCP server failed:\nYou've reached your Fable 5 limit (quoted from docs)"],
+    ["parenthetical documentation suffix", "You've reached your Fable 5 limit (quoted from docs, account healthy)"],
+    ["documentation sentence suffix", "Error: You've reached your Fable 5 limit. This is only a documentation example"],
+    ["false assertion suffix", "You've reached your Fable 5 limit is false"],
+    ["possessive threshold suffix", "You've reached your Fable 5 limit's configured warning threshold"],
   ])("does not classify credits-era per-tier %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).toBe("api_error")
   })

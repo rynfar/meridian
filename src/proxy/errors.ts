@@ -104,9 +104,10 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * CLI also emits "reached your specified/configured ..." prose that is not
  * account quota exhaustion (#909). A numeric version suffix accepts real tier
  * versions without arbitrary words, while an explicit subprocess label admits
- * the observed multiline exit shape without treating any quoted line as
- * account state. New tier names must be added to the known-tier enumeration. */
-const REACHED_YOUR_TIER_LIMIT = /(?:^|\n\s*subprocess stderr:\s*)\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit\b/
+ * the observed multiline exit shape. Accept only known CLI command suffixes
+ * and anchor the whole banner: a false positive exhausts a healthy profile
+ * pool-wide. New tier names must be added to the known-tier enumeration. */
+const REACHED_YOUR_TIER_LIMIT = /(?:^|\n\s*subprocess stderr:\s*)\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:[.!]\s*)?(?:(?:run\s+)?\/usage-credits(?:\s+to\s+continue)?(?:\s+or\s+switch\s+models\s+with\s+\/model)?|\/model\s+to\s+switch\s+models)?\.?\s*$/
 
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose

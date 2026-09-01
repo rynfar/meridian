@@ -31,6 +31,9 @@ import {
 
 let isolatedSessionDir = ""
 beforeEach(() => {
+  if (proxyServer && proxyServer.getInFlightCount!() !== 0) {
+    throw new Error("Previous proxy did not drain; refusing to switch the process-global session store")
+  }
   proxyServer = undefined
   isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-subagent-support-"))
   setSessionStoreDir(isolatedSessionDir)
@@ -40,11 +43,14 @@ afterEach(async () => {
     for (let i = 0; i < 100 && proxyServer.getInFlightCount!() !== 0; i++) {
       await Bun.sleep(1)
     }
-    expect(proxyServer.getInFlightCount!()).toBe(0)
-    await proxyServer.sweepSessionGc!()
   }
-  setSessionStoreDir(null)
-  rmSync(isolatedSessionDir, { recursive: true, force: true })
+  const drained = !proxyServer || proxyServer.getInFlightCount!() === 0
+  if (drained) {
+    if (proxyServer) await proxyServer.sweepSessionGc!()
+    setSessionStoreDir(null)
+    rmSync(isolatedSessionDir, { recursive: true, force: true })
+  }
+  expect(drained).toBe(true)
 })
 
 // --- Capture SDK calls ---
