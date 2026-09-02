@@ -71,6 +71,17 @@ export const piAdapter: AgentAdapter = {
   name: "pi",
 
   /**
+   * Oh My Pi drives one conversation from several callers at once, the main
+   * turn, title generation, and side questions asked mid-turn, and they all
+   * carry the same `metadata.user_id.session_id`. Whichever one commits first
+   * advances the mapping, so the other arrives holding a branch that no longer
+   * matches and used to be refused with a 400 (#870). Its own history is
+   * complete, so it is answered by fresh replay: one prompt-cache miss instead
+   * of a failed turn that pushes the client onto a fallback model.
+   */
+  runsConcurrentTurnsPerSessionKey: true,
+
+  /**
    * Pi itself sends no session header — continuity normally comes from the
    * fingerprint cache. Orchestrators driving the pi runtime (pylon) can opt
    * into explicit, collision-proof session keys via x-session-affinity;

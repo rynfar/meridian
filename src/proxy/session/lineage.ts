@@ -130,6 +130,7 @@ export type LineageDivergenceReason =
   | "independent-request"
   | "priority-failback"
   | "missing-session-header"
+  | "concurrent-race"
 
 // --- Hashing ---
 

@@ -22,7 +22,7 @@ let activeQueries = 0
 let maxActiveQueries = 0
 let queryCalls = 0
 let controls: AttemptControl[] = []
-let capturedParams: Array<{ options?: { resume?: string; sessionId?: string; env?: Record<string, string> } }> = []
+let capturedParams: Array<{ options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; env?: Record<string, string> } }> = []
 let rateLimitWorkQueries = false
 
 function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted: () => void } {
@@ -78,8 +78,9 @@ mock.module("../mcpTools", () => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
 const { telemetryStore } = await import("../telemetry")
-const { setSessionStoreDir, storeSharedSession } = await import("../proxy/sessionStore")
+const { setSessionStoreDir, storeSharedSession, readSessionStoreSnapshot } = await import("../proxy/sessionStore")
 const { processSessionTurns } = await import("../proxy/session/turnCoordinator")
+const { computeLineageHash, computeMessageHashes } = await import("../proxy/session/lineage")
 
 function request(
   messages: Array<{ role: string; content: unknown }>,
@@ -97,6 +98,30 @@ function request(
     },
     body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages }),
     signal,
+  })
+}
+
+/**
+ * Oh My Pi has no per-flow header: every caller in one conversation, main turn
+ * and side calls alike, stamps the same id in `metadata.user_id`.
+ */
+function piRequest(
+  messages: Array<{ role: string; content: unknown }>,
+  sessionId: string,
+): Request {
+  return new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-meridian-agent": "pi",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 128,
+      stream: false,
+      messages,
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    }),
   })
 }
 
@@ -236,6 +261,84 @@ describe("SDK and Session concurrency coordination", () => {
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0]!.status).toBe(400)
     expect(conflicts[0]!.upstreamDurationMs).toBe(0)
+  })
+
+  it("answers, instead of refusing, the loser of a race an adapter declares (#870)", async () => {
+    // Reproduces the omp report: a side question asked mid-turn and the main
+    // tool loop reach the proxy under one session id, holding branches that
+    // share a prefix and differ at the last message. Serializing them is
+    // right; refusing the loser is not, because the 400 is a hard error that
+    // pushes the client onto a fallback model for a turn it could have run.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const shared = [
+      { role: "user", content: "start the task" },
+      { role: "assistant", content: "ok" },
+    ]
+    const sideQuestion = [...shared, { role: "user", content: "by the way, which branch is this?" }]
+    const mainLoop = [...shared, { role: "user", content: "tool result for step 12" }]
+
+    const sideP = app.fetch(piRequest(sideQuestion, "omp-session"))
+    const sideControl = await waitForControl(0)
+    const mainP = app.fetch(piRequest(mainLoop, "omp-session"))
+
+    sideControl.release()
+    expect((await sideP).status).toBe(200)
+    const mainControl = await waitForControl(1)
+    mainControl.release()
+    expect((await mainP).status).toBe(200)
+    // One session id still means one turn at a time: the second SDK query only
+    // started once the first had finished.
+    expect(maxActiveQueries).toBe(1)
+    expect(queryCalls).toBe(2)
+
+    // The loser carries a branch the winner never had, so it runs fresh rather
+    // than resuming the winner's session and merging two histories.
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+
+    // The mapping follows the turn that ran last, so the next main-loop request
+    // resumes instead of paying a second fresh replay.
+    const loserSessionId = capturedParams[1]?.options?.sessionId
+    expect(loserSessionId).toMatch(/^[0-9a-f-]{36}$/)
+    const stored = Object.values(readSessionStoreSnapshot()).map(s => s.claudeSessionId)
+    expect(stored).toContain(loserSessionId!)
+  })
+
+  it("replays a declared-flow loser instead of rewinding the turn it lost to (#870)", async () => {
+    // A side call carries a prefix of the main history, so once the main turn
+    // commits the loser reads as an undo against it. Honouring that would roll
+    // the winner's SDK session back to serve a turn that merely arrived late,
+    // so a declared flow is admitted on its own body, never on that lineage.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `omp-undo-${crypto.randomUUID()}`
+    const committed = [
+      { role: "user", content: "start the task" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "tool result for step 12" },
+    ]
+    const lease = await processSessionTurns.acquire(`session:${sessionId}`)
+    const sideP = app.fetch(piRequest(committed.slice(0, 2), sessionId))
+
+    // Let handleWithQueue take its coherent arrival snapshot, then commit the
+    // winning turn, UUIDs and all, before the queued side call is granted.
+    await Bun.sleep(20)
+    storeSharedSession(
+      sessionId,
+      "winner-sdk",
+      committed.length,
+      computeLineageHash(committed),
+      computeMessageHashes(committed),
+      ["winner-uuid-1", "winner-uuid-2", "winner-uuid-3"],
+    )
+    lease.markCommitted(sessionId)
+    lease.release()
+
+    const sideControl = await waitForControl(0)
+    sideControl.release()
+    expect((await sideP).status).toBe(200)
+    // Neither resumed nor rolled back: the committed session is left alone.
+    expect(capturedParams[0]?.options?.resume).toBeUndefined()
+    expect(capturedParams[0]?.options?.resumeSessionAt).toBeUndefined()
   })
 
   it("does not refuse a turn because a DIFFERENT profile advanced the same session id", async () => {

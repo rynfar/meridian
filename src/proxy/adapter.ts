@@ -54,6 +54,19 @@ export interface AgentIdentity {
   getAgentMode?(c: Context, body?: unknown): string | undefined
 
   /**
+   * True when the client is known to run several turns concurrently under one
+   * session key. Turn coordination still serializes them; what changes is the
+   * loser of a commit race. It is reclassified (`diverged`) and answered from
+   * its own body instead of refused with a 400 (#870). The pattern predates
+   * turn coordination and the upstream API answers both turns.
+   *
+   * Set this only for clients whose protocol makes the sharing unavoidable.
+   * For everyone else, a key that advanced under a waiting request carries a
+   * stale branch, and refusing it is what stops two histories from merging.
+   */
+  readonly runsConcurrentTurnsPerSessionKey?: boolean
+
+  /**
    * Optional trusted identity for a visible human turn.
    *
    * This is deliberately a positive, normalized assertion. Callers must treat
