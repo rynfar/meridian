@@ -108,23 +108,26 @@ export interface OpenCodeDetection {
   command?: string
 }
 
-export const SUPPORTED_OPENCODE_V2_VERSION = "0.0.0-beta-18314"
+export const SUPPORTED_OPENCODE_V2_VERSIONS = new Set([
+  "0.0.0-beta-18314",
+  "0.0.0-beta-18866",
+])
 
-/** Resolve the V2 plugin without selecting stale or incomplete artifacts. */
+/** Resolve the V2 plugin package without selecting stale or incomplete artifacts. */
 export function findV2PluginPath(fromUrl: string): string {
   const entryPath = fileURLToPath(fromUrl)
   const dir = dirname(entryPath)
 
   // A source CLI must use the source plugin even when an old dist/ exists.
   if (entryPath.endsWith(".ts")) {
-    const sourcePlugin = join(dir, "..", "plugin", "meridian-v2.ts")
+    const sourcePlugin = join(dir, "..", "plugin", "meridian-v2")
     if (existsSync(sourcePlugin)) return sourcePlugin
     throw new MissingV2PluginError(sourcePlugin)
   }
 
-  // Published and Docker CLIs use the bundle beside dist/cli.js. Do not fall
+  // Published and Docker CLIs use the package beside dist/cli.js. Do not fall
   // back to TypeScript: production installs omit the V2 SDK dev dependency.
-  const bundledPlugin = join(dir, "meridian-v2.js")
+  const bundledPlugin = join(dir, "meridian-v2")
   if (existsSync(bundledPlugin)) return bundledPlugin
   throw new MissingV2PluginError(bundledPlugin)
 }
@@ -202,6 +205,7 @@ function isMeridianEntry(entry: unknown): boolean {
   return STALE_PATTERNS.some(pattern => packageName.includes(pattern)) ||
     packageName.includes("meridian.ts") ||
     packageName.includes("meridian-v2.") ||
+    packageName.endsWith("/meridian-v2") ||
     packageName.includes("@rynfar/meridian")
 }
 

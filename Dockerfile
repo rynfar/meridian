@@ -19,7 +19,10 @@ COPY plugin/ ./plugin/
 COPY src/ ./src/
 # Run bun build directly (not "bun run build") to skip postbuild hook,
 # which calls "node --check" — unavailable in oven/bun image
-RUN rm -rf dist && bun build bin/cli.ts src/proxy/server.ts plugin/meridian-v2.ts --outdir dist --target node --splitting --external @anthropic-ai/claude-agent-sdk --external libsql --external jsonc-parser --entry-naming '[name].js'
+RUN rm -rf dist \
+    && bun build bin/cli.ts src/proxy/server.ts plugin/meridian-v2.ts --outdir dist --target node --splitting --external @anthropic-ai/claude-agent-sdk --external libsql --external jsonc-parser --entry-naming '[name].js' \
+    && bun build plugin/meridian-v2/index.js --outdir dist/meridian-v2 --target node --splitting --external @anthropic-ai/claude-agent-sdk --external libsql --external jsonc-parser --entry-naming '[name].js' \
+    && cp plugin/meridian-v2/package.json dist/meridian-v2/package.json
 
 # ---- Runtime stage ----
 FROM node:22-alpine

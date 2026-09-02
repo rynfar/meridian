@@ -19,13 +19,12 @@ import {
   findV2PluginPath,
   MissingV2PluginError,
   runSetup,
-  SUPPORTED_OPENCODE_V2_VERSION,
+  SUPPORTED_OPENCODE_V2_VERSIONS,
   UnparseableConfigError,
 } from "../proxy/setup"
-import { SUPPORTED_OPENCODE_V2_VERSION as PLUGIN_V2_VERSION } from "../../plugin/meridian-v2"
 
 const PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/plugin/meridian.ts"
-const V2_PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/dist/meridian-v2.js"
+const V2_PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/dist/meridian-v2"
 
 function makeTmpDir() {
   return mkdtempSync(join(tmpdir(), "meridian-setup-test-"))
@@ -73,8 +72,11 @@ describe("findOpencodeConfigPath", () => {
 })
 
 describe("OpenCode generation detection", () => {
-  it("keeps setup and the bundled plugin pinned to the same V2 host", () => {
-    expect(SUPPORTED_OPENCODE_V2_VERSION).toBe(PLUGIN_V2_VERSION)
+  it("allows only V2 hosts validated by the bundled plugin", () => {
+    expect(SUPPORTED_OPENCODE_V2_VERSIONS).toEqual(new Set([
+      "0.0.0-beta-18314",
+      "0.0.0-beta-18866",
+    ]))
   })
 
   it("classifies the stable V1 version format", () => {
@@ -120,29 +122,29 @@ describe("findV2PluginPath", () => {
   beforeEach(() => { tmp = makeTmpDir() })
   afterEach(() => rmSync(tmp, { recursive: true }))
 
-  it("selects the bundle beside an installed CLI", () => {
+  it("selects the plugin package beside an installed CLI", () => {
     const dist = join(tmp, "dist")
     mkdirSync(dist)
     const cli = join(dist, "cli.js")
-    const plugin = join(dist, "meridian-v2.js")
+    const plugin = join(dist, "meridian-v2")
     writeFileSync(cli, "")
-    writeFileSync(plugin, "")
+    mkdirSync(plugin)
 
     expect(findV2PluginPath(pathToFileURL(cli).href)).toBe(plugin)
   })
 
-  it("selects TypeScript source in a development tree even when dist is stale", () => {
+  it("selects the source plugin package even when dist is stale", () => {
     const bin = join(tmp, "bin")
-    const pluginDir = join(tmp, "plugin")
+    const pluginDir = join(tmp, "plugin", "meridian-v2")
     const dist = join(tmp, "dist")
     mkdirSync(bin)
-    mkdirSync(pluginDir)
+    mkdirSync(pluginDir, { recursive: true })
     mkdirSync(dist)
     const cli = join(bin, "cli.ts")
-    const sourcePlugin = join(pluginDir, "meridian-v2.ts")
+    const sourcePlugin = pluginDir
     writeFileSync(cli, "")
-    writeFileSync(sourcePlugin, "current source")
-    writeFileSync(join(dist, "meridian-v2.js"), "stale build")
+    writeFileSync(join(sourcePlugin, "index.js"), "current source")
+    mkdirSync(join(dist, "meridian-v2"))
 
     expect(findV2PluginPath(pathToFileURL(cli).href)).toBe(sourcePlugin)
   })
@@ -198,6 +200,12 @@ describe("checkPluginConfigured", () => {
     writeFileSync(path, JSON.stringify({ plugins: [V2_PLUGIN_PATH] }))
     expect(checkPluginConfigured(path)).toBe(true)
     expect(checkPluginConfigured(path, V2_PLUGIN_PATH)).toBe(true)
+  })
+
+  it("recognizes the source V2 plugin package", () => {
+    const path = join(tmp, "opencode.json")
+    writeFileSync(path, JSON.stringify({ plugins: ["/workspace/plugin/meridian-v2"] }))
+    expect(checkPluginConfigured(path)).toBe(true)
   })
 
   it("recognizes object-form V2 plugin entries", () => {
