@@ -1,0 +1,6 @@
+{
+  "name": "@rynfar/meridian-opencode-v2-plugin",
+  "private": true,
+  "type": "module",
+  "main": "./index.js"
+}

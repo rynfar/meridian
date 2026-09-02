@@ -122,9 +122,10 @@ export function findV2PluginPath(fromUrl: string): string {
     throw new MissingV2PluginError(sourcePlugin)
   }
 
-  // Published and Docker CLIs use the bundle beside dist/cli.js. Do not fall
-  // back to TypeScript: production installs omit the V2 SDK dev dependency.
-  const bundledPlugin = join(dir, "meridian-v2.js")
+  // Published and Docker CLIs use the directory package beside dist/cli.js.
+  // Do not fall back to TypeScript: production installs omit the V2 SDK dev
+  // dependency.
+  const bundledPlugin = join(dir, "meridian-v2")
   if (existsSync(bundledPlugin)) return bundledPlugin
   throw new MissingV2PluginError(bundledPlugin)
 }

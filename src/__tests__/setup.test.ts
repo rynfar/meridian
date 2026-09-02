@@ -25,7 +25,7 @@ import {
 import { SUPPORTED_OPENCODE_V2_VERSION as PLUGIN_V2_VERSION } from "../../plugin/meridian-v2"
 
 const PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/plugin/meridian.ts"
-const V2_PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/dist/meridian-v2.js"
+const V2_PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/dist/meridian-v2"
 
 function makeTmpDir() {
   return mkdtempSync(join(tmpdir(), "meridian-setup-test-"))
@@ -124,9 +124,9 @@ describe("findV2PluginPath", () => {
     const dist = join(tmp, "dist")
     mkdirSync(dist)
     const cli = join(dist, "cli.js")
-    const plugin = join(dist, "meridian-v2.js")
+    const plugin = join(dist, "meridian-v2")
     writeFileSync(cli, "")
-    writeFileSync(plugin, "")
+    mkdirSync(plugin)
 
     expect(findV2PluginPath(pathToFileURL(cli).href)).toBe(plugin)
   })
@@ -142,7 +142,7 @@ describe("findV2PluginPath", () => {
     const sourcePlugin = join(pluginDir, "meridian-v2.ts")
     writeFileSync(cli, "")
     writeFileSync(sourcePlugin, "current source")
-    writeFileSync(join(dist, "meridian-v2.js"), "stale build")
+    mkdirSync(join(dist, "meridian-v2"))
 
     expect(findV2PluginPath(pathToFileURL(cli).href)).toBe(sourcePlugin)
   })
