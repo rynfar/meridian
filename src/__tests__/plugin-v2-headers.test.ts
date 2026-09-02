@@ -244,6 +244,16 @@ async function installHooks(options: {
   const registrations: Array<{ name: string; providerID: string | undefined }> = []
 
   const context = {
+    catalog: {
+      transform: async () => ({ dispose: async () => { disposed.push("catalog:transform") } }),
+      provider: {
+        get: async () => ({ settings: {} }),
+      },
+      reload: async () => {},
+    },
+    event: {
+      subscribe: async function* () {},
+    },
     agent: {
       get: async ({ agentID }: { agentID: string }) => {
         lookups.push(agentID)
@@ -334,6 +344,7 @@ describe("plugin/meridian-v2.ts V2 hook registration", () => {
     expect(hooks.disposed.sort()).toEqual([
       "anthropic:http.request",
       "anthropic:model.request",
+      "catalog:transform",
       "meridian:http.request",
       "meridian:model.request",
     ])
@@ -400,7 +411,7 @@ describe("plugin/meridian-v2.ts V2 hook registration", () => {
     const disposed: string[] = []
     const installed = installHooks({ failHttpRegistration: true, disposed })
     await expect(installed).rejects.toThrow("http hook unavailable")
-    expect(disposed).toEqual(["anthropic:model.request"])
+    expect(disposed).toEqual(["catalog:transform", "anthropic:model.request"])
   })
 })
 
