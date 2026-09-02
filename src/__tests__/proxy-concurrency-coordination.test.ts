@@ -108,12 +108,14 @@ function request(
 function piRequest(
   messages: Array<{ role: string; content: unknown }>,
   sessionId: string,
+  extraHeaders: Record<string, string> = {},
 ): Request {
   return new Request("http://localhost/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-meridian-agent": "pi",
+      ...extraHeaders,
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
@@ -339,6 +341,44 @@ describe("SDK and Session concurrency coordination", () => {
     // Neither resumed nor rolled back: the committed session is left alone.
     expect(capturedParams[0]?.options?.resume).toBeUndefined()
     expect(capturedParams[0]?.options?.resumeSessionAt).toBeUndefined()
+  })
+
+  it("keeps a per-request fork signal's undo when it loses the same race (#870)", async () => {
+    // The protocol-level declaration exists because pi cannot mark its own side
+    // calls, so an undo shape there is an accident of arrival order. A fork
+    // source is the opposite: that caller named the boundary itself, so its
+    // rollback is deliberate and must still be honoured after losing a race.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `omp-fork-${crypto.randomUUID()}`
+    const committed = [
+      { role: "user", content: "start the task" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "tool result for step 12" },
+    ]
+    const lease = await processSessionTurns.acquire(`session:${sessionId}`)
+    const forkP = app.fetch(piRequest(committed.slice(0, 2), sessionId, {
+      "x-meridian-source": "fork-memory-extract",
+    }))
+
+    // Same shape as the test above: nothing observable fires between the
+    // arrival snapshot and the queue grant, so the window has to be timed.
+    await Bun.sleep(20)
+    storeSharedSession(
+      sessionId,
+      "winner-sdk",
+      committed.length,
+      computeLineageHash(committed),
+      computeMessageHashes(committed),
+      ["winner-uuid-1", "winner-uuid-2", "winner-uuid-3"],
+    )
+    lease.markCommitted(sessionId)
+    lease.release()
+
+    const forkControl = await waitForControl(0)
+    forkControl.release()
+    expect((await forkP).status).toBe(200)
+    expect(capturedParams[0]?.options?.resume).toBe("winner-sdk")
+    expect(capturedParams[0]?.options?.resumeSessionAt).toBe("winner-uuid-2")
   })
 
   it("does not refuse a turn because a DIFFERENT profile advanced the same session id", async () => {
