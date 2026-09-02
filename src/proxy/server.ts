@@ -2155,9 +2155,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // client has no per-flow signal to send: pi carries one session id for
         // the main turn and its side calls alike, so the loser of that race is
         // reclassified rather than refused. See runsConcurrentTurnsPerSessionKey.
-        const declaresConcurrentFlow =
+        const declaresPerRequestConcurrentFlow =
           requestSource?.startsWith("fork-") === true
           || isSubagentRequest
+        const declaresConcurrentFlow =
+          declaresPerRequestConcurrentFlow
           || adapter.runsConcurrentTurnsPerSessionKey === true
         // NOTE: agent-specific (opencode) — OpenCode begins the tool-result
         // request as soon as the visible checkpoint closes, while Meridian is
@@ -2258,12 +2260,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Admitting a protocol-declared flow is not the same as trusting its
         // lineage. A loser holding a prefix of the committed history reads as an
         // undo, and honouring that would rewind the session that just committed
-        // to serve a turn which merely arrived late — pi's title generation is
-        // exactly that shape. Replay its own body instead. Per-request fork and
-        // subagent signals keep their lineage: those callers name their own
+        // to serve a turn which merely arrived late. Pi's title generation is
+        // exactly that shape. Replay its own body instead. A per-request fork
+        // or subagent signal keeps its lineage: those callers name their own
         // session boundary, so an undo from them is deliberate.
         if (
           lostRaceWhileWaiting &&
+          !declaresPerRequestConcurrentFlow &&
           adapter.runsConcurrentTurnsPerSessionKey === true &&
           lineageResult.type === "undo"
         ) {

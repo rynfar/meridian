@@ -340,8 +340,8 @@ providers:
 
 omp runs its main turn, title generation and mid-turn side questions
 concurrently under one session id. Meridian serializes them, and the turn that
-loses the commit race replays from its own history instead of resuming, which
-costs a prompt-cache hit but never fails the turn.
+loses the commit race replays from its own history instead of resuming, so it
+misses the prompt cache for that one turn but never fails.
 
 ### Prime Agent
 
