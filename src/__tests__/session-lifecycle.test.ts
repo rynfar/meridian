@@ -259,6 +259,23 @@ describe("session transcript lifecycle", () => {
     expect(readSidecar(bounded.storeDir).resources[getTranscriptResourceKey(stillLive)]?.state).toBe("live")
   })
 
+  it("leaves admission capacity while retiring live resources after a profile switch", async () => {
+    const bounded = { ...options, storeDir: join(storeDir, "retirement-headroom"), maxPending: 2 }
+    const firstStale = locator("first-stale-after-profile-switch")
+    const secondStale = locator("second-stale-after-profile-switch")
+    const fresh = locator("fresh-after-profile-switch")
+    await registerLiveTranscript(firstStale, bounded)
+    await registerLiveTranscript(secondStale, bounded)
+
+    expect((await reconcile([], bounded)).liveRetired).toBe(1)
+    await prepareFork(fresh, bounded)
+
+    const resources = readSidecar(bounded.storeDir).resources
+    expect(resources[getTranscriptResourceKey(fresh)]?.state).toBe("prepared")
+    expect(Object.values(resources).filter((resource) => resource.state === "retired")).toHaveLength(1)
+    expect(Object.values(resources).filter((resource) => resource.state === "live")).toHaveLength(1)
+  })
+
   it("never lets a delayed publisher recreate a deleted locator after tombstone pruning", async () => {
     const bounded = { ...options, maxTombstones: 1, deleter: async () => undefined }
     const stale = locator("stale-publisher")

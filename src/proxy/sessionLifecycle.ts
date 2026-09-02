@@ -595,6 +595,12 @@ export async function reconcile(
     }
     let pending = pendingResourceCount(sidecar)
     const maxPending = option(options.maxPending, DEFAULT_MAX_PENDING, "maxPending")
+    // Passive retirement must leave room for one active preallocation. Without
+    // that headroom, a profile switch can unpin enough live transcripts to fill
+    // the backlog and block every fresh request until the quarantine expires.
+    // A one-slot configuration cannot reserve capacity without disabling
+    // passive cleanup entirely, so preserve its existing behavior.
+    const passiveRetirementLimit = maxPending > 1 ? maxPending - 1 : maxPending
 
     // A deletion claim is recoverable only after the exact persisted executor
     // is provably dead. Before the executor handshake, authoritative death of
@@ -650,7 +656,7 @@ export async function reconcile(
         resource.nextAttemptAt = now + retiredGraceMs(options)
         result.preparedRetired++
         changed = true
-      } else if (resource.state === "live" && pending < maxPending) {
+      } else if (resource.state === "live" && pending < passiveRetirementLimit) {
         resource.state = "retired"
         resource.updatedAt = now
         resource.nextAttemptAt = now + retiredGraceMs(options)
