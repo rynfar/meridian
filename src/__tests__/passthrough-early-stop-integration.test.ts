@@ -1544,7 +1544,13 @@ describe("Integration: passthrough early stop", () => {
       messageDelta("tool_use"),
       toolTurn,
       userDenyMessage("capped-stream-tool"),
-      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+      {
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        session_id: "test-session",
+        usage: { output_tokens: 42 },
+      },
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
 
@@ -1556,7 +1562,10 @@ describe("Integration: passthrough early stop", () => {
       messages: [{ role: "user", content: "read x capped" }],
     }, "es-capped-stream")
     expect(first.status).toBe(200)
-    expect(await first.text()).toContain('"type":"tool_use"')
+    const firstBody = await first.text()
+    expect(firstBody).toContain('"type":"tool_use"')
+    expect(firstBody).toContain('"stop_reason":"tool_use"')
+    expect(firstBody).toContain('"output_tokens":42')
     expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
 
     mockTerminalError = undefined
