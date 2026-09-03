@@ -17,39 +17,129 @@ export const PASSTHROUGH_MCP_NAME = "oc"
 export const PASSTHROUGH_MCP_PREFIX = `mcp__${PASSTHROUGH_MCP_NAME}__`
 
 /**
- * Convert a JSON Schema object to a Zod schema (simplified).
+ * The JSON Schema subset a client's tool definitions actually use. Anything
+ * richer (`anyOf`, `$ref`, tuple `items`, …) falls through to `z.any()` below,
+ * exactly as before.
+ */
+interface JsonSchemaNode {
+  type?: string
+  description?: string
+  enum?: string[]
+  items?: JsonSchemaNode
+  properties?: Record<string, JsonSchemaNode>
+  required?: string[]
+}
+
+/**
+ * Repair the one tool-input slip the model makes often enough to matter: it
+ * emits every argument as a string, so a declared `number` arrives as `"60"`
+ * and a declared object as `'{"cdp_url":"..."}'`.
+ *
+ * That has to be repaired HERE, before validation, because a rejected call
+ * never reaches the PreToolUse hook — so the proxy captures nothing, has
+ * nothing to forward to the client, and the passthrough turn cap (maxTurns=1,
+ * see query.ts) leaves the model no turn to correct itself. The SDK then ends
+ * the query with `error_max_turns`, which server.ts can only report as a 500:
+ * a hard, user-visible stream error for a call the client would have executed
+ * fine. Measured live: every failing call carried `timeout: "60"` where the
+ * client's schema says `number`.
+ *
+ * Only slips whose declared type makes the intent unambiguous are repaired,
+ * and only from a string. A declared `string` is never JSON-parsed: that would
+ * corrupt legitimate input which merely looks like JSON.
+ */
+function repairTypeSlip(schema: JsonSchemaNode, value: unknown): unknown {
+  if (typeof value !== "string") return value
+
+  if (schema.type === "number" || schema.type === "integer") {
+    if (value.trim() === "") return value
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : value
+  }
+
+  if (schema.type === "boolean") {
+    if (value === "true") return true
+    if (value === "false") return false
+    return value
+  }
+
+  if (schema.type === "object" || schema.type === "array") {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return value
+    }
+    if (schema.type === "array") return Array.isArray(parsed) ? parsed : value
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : value
+  }
+
+  return value
+}
+
+/**
+ * The MCP schema converter reads `description` from the OUTERMOST node only —
+ * an inner `.describe()` under `.optional()` or a `preprocess` pipe is dropped
+ * from the advertised schema. Apply it last so the model keeps seeing what the
+ * client wrote, optional parameters included.
+ */
+function withDescription(node: z.ZodTypeAny, schema: JsonSchemaNode): z.ZodTypeAny {
+  return typeof schema.description === "string" && schema.description
+    ? node.describe(schema.description)
+    : node
+}
+
+/** Wrap a validating node so a repairable slip is fixed instead of rejected. */
+function repairing(schema: JsonSchemaNode, node: z.ZodTypeAny): z.ZodTypeAny {
+  return z.preprocess(value => repairTypeSlip(schema, value), node)
+}
+
+/**
+ * Convert a JSON Schema node to a Zod schema (simplified).
  * Handles the common types OpenCode sends. Falls back to z.any() for complex types.
  */
-function jsonSchemaToZod(schema: any): z.ZodTypeAny {
+function jsonSchemaToZod(schema: unknown): z.ZodTypeAny {
   if (!schema || typeof schema !== "object") return z.any()
+  const node = schema as JsonSchemaNode
+  return withDescription(buildZodNode(node), node)
+}
+
+function buildZodNode(schema: JsonSchemaNode): z.ZodTypeAny {
 
   if (schema.type === "string") {
-    let s = z.string()
-    if (schema.description) s = s.describe(schema.description)
     if (schema.enum) return z.enum(schema.enum as [string, ...string[]])
-    return s
+    return z.string()
   }
   if (schema.type === "number" || schema.type === "integer") {
-    let n = z.number()
-    if (schema.description) n = n.describe(schema.description)
-    return n
+    return repairing(schema, z.number())
   }
-  if (schema.type === "boolean") return z.boolean()
+  if (schema.type === "boolean") return repairing(schema, z.boolean())
   if (schema.type === "array") {
     const items = schema.items ? jsonSchemaToZod(schema.items) : z.any()
-    return z.array(items)
+    return repairing(schema, z.array(items))
   }
   if (schema.type === "object" && schema.properties) {
-    const shape: Record<string, z.ZodTypeAny> = {}
-    const required = new Set(schema.required || [])
-    for (const [key, propSchema] of Object.entries(schema.properties)) {
-      const zodProp = jsonSchemaToZod(propSchema as any)
-      shape[key] = required.has(key) ? zodProp : zodProp.optional()
-    }
-    return z.object(shape)
+    return repairing(schema, z.object(objectShapeFromJsonSchema(schema)))
   }
 
   return z.any()
+}
+
+/**
+ * The property shape of a JSON Schema object, with optionality applied.
+ *
+ * Kept separate from `jsonSchemaToZod` because the MCP registration needs the
+ * root as a raw shape, and the root arguments object is never a slip candidate
+ * — the protocol always delivers it as an object.
+ */
+function objectShapeFromJsonSchema(schema: JsonSchemaNode): Record<string, z.ZodType> {
+  const shape: Record<string, z.ZodType> = {}
+  const required = new Set<string>(schema.required ?? [])
+  for (const [key, propSchema] of Object.entries(schema.properties ?? {})) {
+    const prop = jsonSchemaToZod(propSchema)
+    shape[key] = required.has(key) ? prop : withDescription(prop.optional(), propSchema)
+  }
+  return shape
 }
 
 /** Default threshold: auto-defer when tool count exceeds this.
@@ -73,7 +163,7 @@ export function getAutoDeferThreshold(): number {
  * Client-provided defer_loading: true also triggers deferral for specific tools.
  */
 export function createPassthroughMcpServer(
-  tools: Array<{ name: string; description?: string; input_schema?: any; defer_loading?: boolean }>,
+  tools: Array<{ name: string; description?: string; input_schema?: JsonSchemaNode; defer_loading?: boolean }>,
   coreToolNames?: readonly string[]
 ) {
   // Auto-defer: if tool count exceeds threshold and adapter provides core tools
@@ -101,12 +191,13 @@ export function createPassthroughMcpServer(
       // Register through the Agent SDK helper so its Zod 4 peer owns the MCP
       // compatibility boundary. Registering through the nested MCP instance
       // instead couples this module to that package's separate Zod version.
-      const zodSchema = passthroughTool.input_schema?.properties
-        ? jsonSchemaToZod(passthroughTool.input_schema)
-        : z.object({})
-      const shape: Record<string, z.ZodType> = zodSchema instanceof z.ZodObject
-        ? zodSchema.shape
-        : { input: z.any() }
+      //
+      // The root is built as a raw shape rather than a converted object: the
+      // arguments object always arrives as an object over the protocol, so it
+      // is never a repair candidate, and the SDK wants the shape anyway.
+      const shape = passthroughTool.input_schema?.properties
+        ? objectShapeFromJsonSchema(passthroughTool.input_schema)
+        : {}
       return defineTool(shape)
     } catch {
       const fallbackShape: Record<string, z.ZodType> = { input: z.string().optional() }
