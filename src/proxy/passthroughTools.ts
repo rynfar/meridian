@@ -54,7 +54,7 @@ function repairTypeSlip(schema: JsonSchemaNode, value: unknown): unknown {
   if (schema.type === "integer") {
     if (value.trim() === "") return value
     const parsed = Number(value)
-    return Number.isInteger(parsed) ? parsed : value
+    return Number.isSafeInteger(parsed) ? parsed : value
   }
 
   if (schema.type === "number") {

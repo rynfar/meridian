@@ -80,6 +80,7 @@ describe("passthrough tool input coercion", () => {
     if (accepted.success) expect(accepted.data.retryCount).toBe(2)
 
     expect(schema.safeParse({ action: "open", retryCount: "1.5" }).success).toBe(false)
+    expect(schema.safeParse({ action: "open", retryCount: "9007199254740993" }).success).toBe(false)
   })
   it("still advertises the client's declared types and descriptions", () => {
     const schema = registerBrowser()
