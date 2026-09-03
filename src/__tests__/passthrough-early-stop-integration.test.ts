@@ -25,6 +25,13 @@ let yieldedCount = 0
 let capturedQueryParams: any = null
 let capturedQueryParamsAll: any[] = []
 let mockTerminalError: Error | undefined
+/**
+ * Per-attempt SDK scripts, consumed one per `query()` call. Retry paths need
+ * the second attempt to behave differently from the first; without this every
+ * attempt replays the same fixture and a retry is invisible. Empty (the
+ * default) leaves `mockMessages` / `mockTerminalError` in charge.
+ */
+let mockAttemptScripts: Array<{ messages: any[]; terminalError?: Error }> = []
 let forkSessionSequence = 0
 let mockBaseSessionId = "test-session"
 let mockReturnedSessionIdOverride: string | undefined
@@ -35,14 +42,15 @@ installSdkMock(() => ({
   query: (params: any) => {
     capturedQueryParams = params
     capturedQueryParamsAll.push(params)
-    const terminalError = mockTerminalError
+    const script = mockAttemptScripts.length > 0 ? mockAttemptScripts.shift() : undefined
+    const terminalError = script ? script.terminalError : mockTerminalError
     const preHook = params?.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
     const returnedSessionId = mockReturnedSessionIdOverride
       ?? resolveMockSdkSessionId(params?.options, mockBaseSessionId)
     return (async function* () {
       let sawSyntheticDeny = false
       let sawResult = false
-      for (const msg of mockMessages) {
+      for (const msg of script ? script.messages : mockMessages) {
         yieldedCount++
         if (msg?.type === "test_pre_tool_hook") {
           if (preHook) {
@@ -191,6 +199,7 @@ describe("Integration: passthrough early stop", () => {
     capturedQueryParams = null
     capturedQueryParamsAll = []
     mockTerminalError = undefined
+    mockAttemptScripts = []
     forkSessionSequence = 0
     mockBaseSessionId = `test-session-${crypto.randomUUID()}`
     mockReturnedSessionIdOverride = undefined
@@ -2045,6 +2054,173 @@ describe("Integration: passthrough early stop", () => {
     expect(res.status).toBe(200)
     const body = await res.text()
     expect(body).toContain("event: error")
+  })
+
+  // The production failure this branch missed: a resumed passthrough turn that
+  // ran for two minutes, yielded no wire event at all, and terminated
+  // `max_turns turns=1` — telemetry recorded 0 content blocks, 0 text events
+  // and a null TTFB, so nothing had reached the client. The cap is the
+  // proxy's own and that turn never reached the tool boundary the cap exists
+  // to stop at, so the single turn bought nothing and cost the whole request
+  // (the user's own identical retry then answered normally). With nothing
+  // yielded there is no envelope to corrupt: reissue the turn with the cap
+  // lifted instead of dressing an empty turn as truncation.
+  const CAPPED_TURN_ERROR = "Claude Code returned an error result: Reached maximum number of turns (1)"
+  const cappedEmptyAttempt = () => ({
+    messages: [{ type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" }],
+    terminalError: new Error(CAPPED_TURN_ERROR),
+  })
+
+  it("stream: reissues a capped turn that produced nothing, with the turn cap lifted", async () => {
+    mockAttemptScripts = [
+      cappedEmptyAttempt(),
+      {
+        messages: [
+          messageStart("msg_cap_lifted"),
+          textBlockStart(0),
+          textDelta(0, "answered after the lift"),
+          blockStop(0),
+          messageDelta("end_turn"),
+          { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+        ],
+      },
+    ]
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "answer me" }],
+    }, "es-capped-lift")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("answered after the lift")
+    expect(body).not.toContain("event: error")
+    expect(capturedQueryParamsAll.length).toBe(2)
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
+    expect(capturedQueryParamsAll[1].options.maxTurns).toBe(3)
+  })
+
+  // Once. A turn that comes back empty with the budget already lifted is not a
+  // cap artifact, and reissuing it again would spend turns on a shape that has
+  // already refused to answer twice.
+  it("stream: lifts the turn cap once, then reports the failure", async () => {
+    mockAttemptScripts = [cappedEmptyAttempt(), cappedEmptyAttempt()]
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "answer me" }],
+    }, "es-capped-lift-once")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("event: error")
+    expect(capturedQueryParamsAll.length).toBe(2)
+    expect(capturedQueryParamsAll[1].options.maxTurns).toBe(3)
+  })
+
+  it("non-stream: reissues a capped turn that produced nothing, with the turn cap lifted", async () => {
+    mockAttemptScripts = [
+      cappedEmptyAttempt(),
+      {
+        messages: [
+          assistantMessage([{ type: "text", text: "answered after the lift" }]),
+          { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+        ],
+      },
+    ]
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "answer me" }],
+    }, "es-capped-lift-ns")
+    expect(res.status).toBe(200)
+    const json = await res.json() as any
+    expect(json.stop_reason).toBe("end_turn")
+    expect(json.content[0].text).toBe("answered after the lift")
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
+    expect(capturedQueryParamsAll[1].options.maxTurns).toBe(3)
+  })
+
+  // The production shape was `resume=true`. The reissue has to keep resuming
+  // the same SDK session — a lift that fell back to a cold fresh session would
+  // answer from an empty transcript — while still taking a fork target of its
+  // own, so it cannot publish into the transcript the refused attempt claimed.
+  it("stream: keeps the resume target when it lifts the cap on a resumed turn", async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "first answer" }])]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "just talk" }],
+    }, "es-capped-lift-resume")
+    expect(first.status).toBe(200)
+
+    mockAttemptScripts = [
+      cappedEmptyAttempt(),
+      {
+        messages: [
+          messageStart("msg_cap_lifted_resume"),
+          textBlockStart(0),
+          textDelta(0, "answered after the lift"),
+          blockStop(0),
+          messageDelta("end_turn"),
+          { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+        ],
+      },
+    ]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "just talk" },
+        { role: "assistant", content: [{ type: "text", text: "first answer" }] },
+        { role: "user", content: "and again" },
+      ],
+    }, "es-capped-lift-resume")
+    expect(second.status).toBe(200)
+    expect(await second.text()).toContain("answered after the lift")
+
+    expect(capturedQueryParamsAll.length).toBe(3)
+    const capped = capturedQueryParamsAll[1]
+    const lifted = capturedQueryParamsAll[2]
+    expect(capped.options.resume).toBe(initialManagedSessionId())
+    expect(capped.options.maxTurns).toBe(1)
+    expect(lifted.options.resume).toBe(initialManagedSessionId())
+    expect(lifted.options.maxTurns).toBe(3)
+    expect(lifted.options.sessionId).not.toBe(capped.options.sessionId)
+  })
+
+  // The gate is the budget the attempt asked for, not the number the SDK
+  // happens to print. With a pinned budget there is no proxy cap to lift, so
+  // the failure is reported as-is instead of buying a second identical turn.
+  it("stream: does not reissue when the turn budget was not the proxy's own cap", async () => {
+    process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = "3"
+    try {
+      mockAttemptScripts = [cappedEmptyAttempt()]
+      const res = await post(app, {
+        model: "claude-sonnet-4-5",
+        max_tokens: 400,
+        stream: true,
+        tools: [READ_TOOL],
+        messages: [{ role: "user", content: "answer me" }],
+      }, "es-capped-lift-pinned")
+      expect(res.status).toBe(200)
+      expect(await res.text()).toContain("event: error")
+      expect(capturedQueryParamsAll.length).toBe(1)
+      expect(capturedQueryParamsAll[0].options.maxTurns).toBe(3)
+    } finally {
+      delete process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
+    }
   })
 
   it("non-stream: a capped turn that captured no tool call does not fail the request", async () => {

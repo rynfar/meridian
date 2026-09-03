@@ -116,6 +116,14 @@ export interface QueryContext {
    * digest turn.
    */
   earlyStop?: boolean
+  /**
+   * Reissue escape hatch for the single-turn cap. A capped turn that produced
+   * nothing at all — no wire event, no captured tool call — spent the budget
+   * without ever reaching the tool boundary the cap exists to stop at, so the
+   * caller reissues it once with the cap off. Never set on a first attempt;
+   * see the retry site in server.ts.
+   */
+  liftSingleTurnCap?: boolean
   /** SDK session ID for resume (if continuing a session) */
   resumeSessionId?: string
   /** Whether this is an undo operation */
@@ -240,6 +248,7 @@ function computePassthroughMaxTurns(
   hasDeferredTools: boolean,
   advisorModel: string | undefined,
   singleTurnHandoff: boolean,
+  liftSingleTurnCap: boolean,
 ): number {
   const deferredBump = hasDeferredTools ? 1 : 0
   const defaultBase = 3 + deferredBump
@@ -256,9 +265,31 @@ function computePassthroughMaxTurns(
   // silently override a value someone set to work around a client quirk.
   const operatorPinned = env("PASSTHROUGH_MAX_TURNS") !== undefined && configured > 0
   const advisorBump = advisorModel ? 3 : 0
-  if (singleTurnHandoff && !operatorPinned) return 1
+  if (singleTurnHandoff && !liftSingleTurnCap && !operatorPinned) return 1
   const base = configured > 0 ? configured : defaultBase
   return base + advisorBump
+}
+
+/**
+ * Whether reissuing a capped passthrough turn with `liftSingleTurnCap` would
+ * actually raise the budget.
+ *
+ * Asked only about an attempt whose requested `maxTurns` was 1 — the caller
+ * reads that off the options it built — so `singleTurnHandoff` is a settled
+ * fact here, not an assumption: no other combination produces a budget of 1
+ * except an operator pin. Which is the one case this answers false for: the
+ * cap is then theirs, not the proxy's, and the reissue would spend a second
+ * turn on an identical attempt. Answered by comparing the real computation
+ * against itself rather than by a copy of its conditions, so the two cannot
+ * drift.
+ */
+export function singleTurnCapLiftRaisesBudget(
+  hasDeferredTools: boolean,
+  advisorModel?: string,
+): boolean {
+  const capped = computePassthroughMaxTurns(hasDeferredTools, advisorModel, true, false)
+  const lifted = computePassthroughMaxTurns(hasDeferredTools, advisorModel, true, true)
+  return lifted > capped
 }
 
 /**
@@ -385,6 +416,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
             // Every condition here is one that needs the SDK to keep going
             // past the tool boundary; see computePassthroughMaxTurns.
             ctx.earlyStop !== false && !hasDeferredTools && !ctx.advisorModel && !outputFormat,
+            ctx.liftSingleTurnCap === true,
           )
         : 200,
       cwd: workingDirectory,
