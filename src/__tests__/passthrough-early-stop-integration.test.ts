@@ -114,7 +114,7 @@ installMcpToolsMock(() => ({
 const { createProxyServer } = await import("../proxy/server")
 const { clearSessionCache } = await import("../proxy/session/cache")
 const { evictSharedSession, lookupSharedSession, setSessionStoreDir } = await import("../proxy/sessionStore")
-const { telemetryStore } = await import("../telemetry")
+const { diagnosticLog, telemetryStore } = await import("../telemetry")
 
 function userDenyMessage(toolUseId: string) {
   return {
@@ -660,6 +660,34 @@ describe("Integration: passthrough early stop", () => {
     const resources = Object.values(sidecar.resources as Record<string, LifecycleResourceSnapshot>)
     expect(resources.find((resource) => resource.locator.sessionId === targetId)?.state).toBe("retired")
     expect(resources.find((resource) => resource.locator.sessionId === wrongSessionId)?.state).toBe("retired")
+  })
+
+  it("stream: correlates a generic error with the fresh upstream session ID", async () => {
+    const requestId = `fresh-stream-error-request-${TEST_RUN_ID}`
+    telemetryStore.clear()
+    diagnosticLog.clear()
+    mockMessages = [messageStart("msg_fresh_stream_error")]
+    mockTerminalError = new Error("Claude Code process exited with code 1")
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      messages: [{ role: "user", content: "fresh stream error correlation" }],
+    }, "es-fresh-stream-error", { "x-request-id": requestId })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain("event: error")
+    const freshSessionId = capturedQueryParamsAll[0]?.options?.sessionId ?? mockBaseSessionId
+
+    const log = diagnosticLog.getRecent({ limit: 200 })
+      .find((entry) => entry.requestId === requestId && entry.level === "error")
+    expect(log).toBeDefined()
+    expect(log!.message).toContain(`session=${freshSessionId.slice(0, 8)}`)
+
+    const row = telemetryStore.getRecent({ limit: 200 })
+      .find((entry) => entry.requestId === requestId)
+    expect(row).toBeDefined()
+    expect(row!.sdkSessionId).toBe(freshSessionId)
   })
 
   it("non-stream: rejects an SDK fork ID mismatch without advancing the shared mapping", async () => {
