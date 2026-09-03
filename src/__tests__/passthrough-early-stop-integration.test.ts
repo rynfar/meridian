@@ -2149,6 +2149,88 @@ describe("Integration: passthrough early stop", () => {
     expect(body).not.toContain('"stop_reason":"end_turn"')
   })
 
+  // The failure the streaming capped-turn branch exists for: the turn streamed
+  // real content blocks before the cap refused it a next turn. 200 alone does
+  // not make that turn usable — a streaming response's status left with
+  // `message_start`, so an `event: error` in the body is what the client
+  // renders, and that is how "Reached maximum number of turns (1)" surfaced
+  // over text already on screen. Report truncation instead: no error frame,
+  // and the client can continue from what it has.
+  it("stream: a capped turn that streamed content reports truncation without an error frame", async () => {
+    mockMessages = [
+      messageStart("msg_capped_text"),
+      textBlockStart(0),
+      textDelta(0, "half an answer"),
+      blockStop(0),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "answer then stop" }],
+    }, "es-capped-text")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("half an answer")
+    expect(body).toContain('"stop_reason":"max_tokens"')
+    expect(body).not.toContain("event: error")
+    expect(body).toContain("event: message_stop")
+  })
+
+  // The lower boundary: honest degradation needs content to degrade. A capped
+  // turn that forwarded only the message envelope delivered nothing, so
+  // closing it cleanly would be the silent turn wearing `max_tokens` instead
+  // of `end_turn`. It keeps the error frame.
+  it("stream: a capped turn that forwarded no content still reports the failure", async () => {
+    mockMessages = [
+      messageStart("msg_capped_empty"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "nothing at all" }],
+    }, "es-capped-empty")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("event: error")
+  })
+
+  // The other boundary: a tool_use block reached the client while the hook
+  // captured nothing, which means those calls were refused rather than
+  // forwarded (forced-single overflow, duplicate abort, early-stop reversion).
+  // Ending that with `max_tokens` would leave a call the client is told
+  // neither to run nor to drop, so it stays on the error path.
+  it("stream: a capped turn with an uncaptured streamed tool call still reports the failure", async () => {
+    mockMessages = [
+      messageStart("msg_capped_dangling"),
+      toolUseBlockStart(0, "read", "toolu_dangling"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "call read" }],
+    }, "es-capped-dangling")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("event: error")
+  })
+
   it("non-stream: a capped turn that captured no tool call does not fail the request", async () => {
     mockMessages = [
       assistantMessage([{ type: "thinking", thinking: "pondering", signature: "sig" }]),
