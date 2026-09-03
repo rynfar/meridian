@@ -6089,15 +6089,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               //
               // Two shapes are deliberately left on the error path.
               //
-              // A turn that forwarded only `message_start` delivered nothing,
-              // so "did content reach the client" cannot be `eventsForwarded`:
-              // that counter is incremented where every forwarded event is,
-              // `message_start` included, so it is already 1 the moment
-              // `messageStartEmitted` is true and would add no condition at
-              // all. A truncation frame over an empty message is the silent
-              // turn wearing a different stop_reason. `nextClientBlockIndex`
-              // counts only content blocks the client actually received, which
-              // is what the non-streaming branch means by `contentBlocks`.
+              // A turn that forwarded only `message_start`, or an empty text
+              // block, delivered no actionable content. `eventsForwarded`
+              // includes envelope events and `nextClientBlockIndex` includes
+              // non-text blocks, so neither is a content oracle. Use the same
+              // text-delta count as classifyTurnOutcome instead.
               //
               // A tool_use block already on the wire with nothing captured
               // means the hook never let those calls stand (forced-single
@@ -6110,7 +6106,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 capturedToolUses.length === 0 &&
                 streamedToolUseIds.size === 0 &&
                 messageStartEmitted &&
-                nextClientBlockIndex > 0
+                textEventsForwarded > 0
               ) {
                 flushOpenClientBlocks("capped_turn")
                 diagnosticLog.session(

@@ -1929,6 +1929,31 @@ describe("Integration: passthrough early stop", () => {
     expect(body).toContain("event: error")
   })
 
+  // An empty text block is still an empty turn: content_block_start advances
+  // the client block index, but without a text delta the client received no
+  // actionable content. Keep the capped turn on the error path.
+  it("stream: a capped turn with an empty text block still reports the failure", async () => {
+    mockMessages = [
+      messageStart("msg_capped_empty_block"),
+      textBlockStart(0),
+      blockStop(0),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "empty text block" }],
+    }, "es-capped-empty-block")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("event: error")
+  })
+
+
   // The other boundary: a tool_use block reached the client while the hook
   // captured nothing, which means those calls were refused rather than
   // forwarded (forced-single overflow, duplicate abort, early-stop reversion).
