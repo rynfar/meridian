@@ -72,7 +72,9 @@ const HAIKU_3 = rates(0.25, 1.25)
  */
 export const BUILTIN_MODEL_PRICING: Record<string, ModelPricing> = {
   fable: FABLE,
+  "claude-fable-5-1": FABLE,
   "claude-fable-5": FABLE,
+  "claude-mythos-5-1": FABLE,
   "claude-mythos-5": FABLE,
   opus: OPUS,
   "claude-opus-5": OPUS,

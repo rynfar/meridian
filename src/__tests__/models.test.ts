@@ -126,6 +126,14 @@ describe("mapModelToClaudeModel", () => {
       expect(mapModelToClaudeModel("fable", "max", "subagent")).toBe("fable")
     })
 
+    // Every fable generation rides the one SDK alias, so a newer id must route
+    // identically — the version only reaches the SDK via the explicit pin.
+    it("routes claude-fable-5-1 through the same tier as claude-fable-5", () => {
+      expect(mapModelToClaudeModel("claude-fable-5-1")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-1", "max", "primary")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-1", "max", "subagent")).toBe("fable")
+    })
+
     it("downgrades fable[1m] to fable during the Extra Usage cooldown", () => {
       recordExtendedContextUnavailable()
       expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable")
@@ -167,6 +175,11 @@ describe("mapModelToClaudeModel", () => {
     it("downgrades to base fable when MERIDIAN_1M_CONTEXT_SUPPORT=0", () => {
       process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "0"
       expect(mapModelToClaudeModel("claude-mythos-5", "max")).toBe("fable")
+    })
+
+    it("routes claude-mythos-5-1 through the fable tier too", () => {
+      expect(mapModelToClaudeModel("claude-mythos-5-1")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-mythos-5-1", "max", "subagent")).toBe("fable")
     })
   })
 

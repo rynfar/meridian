@@ -76,8 +76,8 @@ export function resolveSdkModelDefaults(
  *
  * Bare aliases ("sonnet", "opus[1m]") and unversioned family names return
  * undefined and keep the canonical pins. Mythos rides the fable tier
- * (claude-mythos-5 shares it — see mapModelToClaudeModel). A trailing [1m]
- * suffix is stripped; extended context stays alias-level.
+ * (claude-mythos-5/-5-1 share it — see mapModelToClaudeModel). A trailing
+ * [1m] suffix is stripped; extended context stays alias-level.
  */
 export function explicitModelPin(requestedModel: string): Record<string, string> | undefined {
   const base = requestedModel.trim().toLowerCase().replace(/\[1m\]$/, "")
@@ -165,18 +165,21 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // Using the base model preserves rate limit budget for the primary agent.
   const isSubagent = agentMode === "subagent"
 
-  // Fable [1m]: Fable 5 supports the 1M extended context window and, like Opus,
-  // is included on Max with no Extra Usage charge (verified on Max — a
-  // fable[1m] request returns normally, no Extra Usage error). Mirrors the opus
-  // handling: [1m] for primary agents, base model for subagents, honoring the
-  // shared Extra Usage cooldown so a future billing change auto-downgrades.
+  // Fable [1m]: the fable tier supports the 1M extended context window and,
+  // like Opus, is included on Max with no Extra Usage charge (verified on Max —
+  // a fable[1m] request returns normally, no Extra Usage error). Mirrors the
+  // opus handling: [1m] for primary agents, base model for subagents, honoring
+  // the shared Extra Usage cooldown so a future billing change auto-downgrades.
+  // Every fable generation rides the one alias, so this covers Fable 5.1
+  // (the canonical pin) and Fable 5 alike.
   //
-  // Mythos rides the fable tier: Claude Mythos 5 (claude-mythos-5, Project
-  // Glasswing) shares Fable 5's underlying model, context window, and API
-  // surface, and the Claude Agent SDK has no separate "mythos" alias. Routing
-  // it here (instead of the sonnet fallthrough) keeps explicit mythos requests
-  // on the right tier; server.ts pins ANTHROPIC_DEFAULT_FABLE_MODEL to the
-  // requested claude-mythos-* id so the concrete model passes through verbatim.
+  // Mythos rides the fable tier: Claude Mythos 5 / 5.1 (claude-mythos-5,
+  // claude-mythos-5-1, Project Glasswing) share the matching Fable model's
+  // context window and API surface, and the Claude Agent SDK has no separate
+  // "mythos" alias. Routing it here (instead of the sonnet fallthrough) keeps
+  // explicit mythos requests on the right tier; server.ts pins
+  // ANTHROPIC_DEFAULT_FABLE_MODEL to the requested claude-mythos-* id so the
+  // concrete model passes through verbatim.
   //
   // Per-tier opt-out (#702). Fable 1M is included at no Extra Usage cost on
   // Max and Team (verified live), so [1m] stays the default — but on plans
