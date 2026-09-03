@@ -2,7 +2,7 @@
  * Tests for the SDK query options builder.
  */
 import { describe, it, expect } from "bun:test"
-import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, resolveQueryConfigDir, type QueryContext } from "../proxy/query"
+import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 import { CHERRY_BLOCKED_BUILTIN_TOOLS, CHERRY_INCOMPATIBLE_TOOLS, CHERRY_WEB_TOOLS } from "../proxy/adapters/cherry"
 
@@ -157,6 +157,28 @@ describe("buildQueryOptions", () => {
     try {
       const result = buildQueryOptions(makeContext({ passthrough: true }))
       expect(result.options.maxTurns).toBe(5)
+    } finally {
+      if (prev === undefined) delete process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
+      else process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = prev
+    }
+  })
+
+  it("lifts the single-turn cap when a reissue asks for it — the capped turn produced nothing to stop at", () => {
+    const result = buildQueryOptions(makeContext({ passthrough: true, liftSingleTurnCap: true }))
+    expect(result.options.maxTurns).toBe(3)
+  })
+
+  it("reports the lift as raising the budget only when the cap is the proxy's own", () => {
+    const prev = process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
+    delete process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
+    try {
+      expect(singleTurnCapLiftRaisesBudget(false)).toBe(true)
+      // An operator who pinned the budget owns it: the reissue would spend a
+      // second turn on an identical attempt, so the caller must not fire.
+      process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = "1"
+      expect(singleTurnCapLiftRaisesBudget(false)).toBe(false)
+      process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = "5"
+      expect(singleTurnCapLiftRaisesBudget(false)).toBe(false)
     } finally {
       if (prev === undefined) delete process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
       else process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = prev

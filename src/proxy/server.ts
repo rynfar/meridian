@@ -78,7 +78,7 @@ import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResu
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
-import { buildQueryOptions, resolveQueryConfigDir, type QueryContext } from "./query"
+import { buildQueryOptions, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "./query"
 import { normalizeEffort } from "./effort"
 import { parseOutputFormat, structuredOutputText } from "./structuredOutput"
 import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
@@ -3205,6 +3205,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               let busySessionFork = false
               let sawUnresumableRefusal = false
               let managedCreationAttemptStarted = false
+              let singleTurnCapLifted = false
               while (true) {
                 if (managedForkTarget) {
                   if (managedCreationAttemptStarted) {
@@ -3225,11 +3226,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // message arrives (release sites: assistant arrival in the
                 // consumer loop, attempt error, loop exit).
                 turnGenerating = true
+                // The turn budget THIS attempt asked for. The cap-lift branch
+                // below reissues only a turn the proxy itself capped at 1,
+                // read from the options it built rather than inferred from the
+                // SDK's "Reached maximum number of turns (N)" wording — which
+                // is an optional parse, and would make an uncapped budget that
+                // happens to report 1 look like the proxy's own cap.
+                let attemptMaxTurns: number | undefined
                 try {
                   if (resumeSessionId) resumedMappingMayBeAdvanced = true
-                  for await (const event of runSdkQueryAttempt(buildQueryOptions({
+                  const attemptQuery = buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
+                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, liftSingleTurnCap: singleTurnCapLifted,
                     resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, outputFormat, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -3242,7 +3250,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
                     advisorModel,
-                  }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream", managedSdkAttemptLocators())) {
+                  }, requestAbort.controller)
+                  attemptMaxTurns = attemptQuery.options.maxTurns
+                  for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "non_stream", managedSdkAttemptLocators())) {
                     // Capture Claude Max subscription quota updates emitted by
                     // the SDK as rate_limit_event. We snapshot them in this
                     // profile's slot of the (per-profile-scoped) rate limit
@@ -3462,6 +3472,34 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       await new Promise(r => setTimeout(r, delay))
                       continue
                     }
+                  }
+
+                  // Same lower boundary as the streaming path: a capped turn
+                  // that produced nothing spent the single-turn budget without
+                  // reaching the tool boundary the cap exists to stop at.
+                  // Nothing was yielded (guarded above), so reissue it once
+                  // with the cap lifted rather than answering an empty turn.
+                  //
+                  // Only for a turn this proxy capped at 1 (`attemptMaxTurns`):
+                  // a turn that burned a real multi-turn budget would be
+                  // reissued into an identical attempt.
+                  if (
+                    passthrough &&
+                    !singleTurnCapLifted &&
+                    attemptMaxTurns === 1 &&
+                    capturedToolUses.length === 0 &&
+                    extractSdkTermination(errMsg).reason === "max_turns" &&
+                    singleTurnCapLiftRaisesBudget(hasDeferredTools, advisorModel)
+                  ) {
+                    singleTurnCapLifted = true
+                    claudeLog("passthrough.single_turn_cap_lifted", { mode: "non_stream", model })
+                    diagnosticLog.session(
+                      `${requestMeta.requestId} single_turn_cap_lifted mode=non_stream model=${model} ` +
+                      `resume=${Boolean(resumeSessionId)}`,
+                      requestMeta.requestId,
+                    )
+                    plog(`[PROXY] ${requestMeta.requestId} capped turn produced nothing — retrying with the turn cap lifted`)
+                    continue
                   }
 
                   throw error
@@ -4289,6 +4327,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 let busySessionFork = false
                 let sawUnresumableRefusal = false
                 let managedCreationAttemptStarted = false
+                let singleTurnCapLifted = false
 
                 while (true) {
                   if (managedForkTarget) {
@@ -4306,11 +4345,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // stderr emitted by THIS attempt's subprocess only — retries
                   // must not re-match a previous attempt's refusal text.
                   const attemptStderrStart = stderrLines.length
+                  // The turn budget THIS attempt asked for — see the non-stream
+                  // twin above for why the cap-lift branch reads it here rather
+                  // than from the SDK's termination wording.
+                  let attemptMaxTurns: number | undefined
                   try {
                     if (resumeSessionId) resumedMappingMayBeAdvanced = true
-                    for await (const event of runSdkQueryAttempt(buildQueryOptions({
+                    const attemptQuery = buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
+                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, liftSingleTurnCap: singleTurnCapLifted,
                       resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -4323,7 +4366,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
-                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators())) {
+                    }, requestAbort.controller)
+                    attemptMaxTurns = attemptQuery.options.maxTurns
+                    for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators())) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
                         rateLimitStore.record(profile.id, (event as any).rate_limit_info)
@@ -4518,6 +4563,45 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         await new Promise(r => setTimeout(r, delay))
                         continue
                       }
+                    }
+
+                    // A capped turn that produced NOTHING never reached the
+                    // tool boundary the cap exists to stop at, so the single
+                    // turn bought nothing and cost the whole turn. Observed in
+                    // production as a resumed opus[1m] passthrough turn that
+                    // ran 108s, yielded no wire event at all, and terminated
+                    // `max_turns turns=1`; the client's own identical retry
+                    // then answered normally. Reissue it once with the cap
+                    // lifted — the refused turn is the one that would have
+                    // answered.
+                    //
+                    // Safe by the guard at the top of this catch: nothing was
+                    // yielded downstream, so no SSE frame, no message_start
+                    // and no committed priority exposure can be duplicated by
+                    // a second attempt. `capturedToolUses` is checked too
+                    // because a capped turn WITH captured calls is already
+                    // recoverable as a tool_use envelope downstream, and that
+                    // is the cheaper answer. `attemptMaxTurns === 1` keeps it
+                    // to turns this proxy capped itself: an uncapped budget
+                    // that ran out is a different failure, and reissuing it
+                    // would spend a turn on an identical attempt.
+                    if (
+                      passthrough &&
+                      !singleTurnCapLifted &&
+                      attemptMaxTurns === 1 &&
+                      capturedToolUses.length === 0 &&
+                      extractSdkTermination(errMsg).reason === "max_turns" &&
+                      singleTurnCapLiftRaisesBudget(hasDeferredTools, advisorModel)
+                    ) {
+                      singleTurnCapLifted = true
+                      claudeLog("passthrough.single_turn_cap_lifted", { mode: "stream", model })
+                      diagnosticLog.session(
+                        `${requestMeta.requestId} single_turn_cap_lifted mode=stream model=${model} ` +
+                        `resume=${Boolean(resumeSessionId)}`,
+                        requestMeta.requestId,
+                      )
+                      plog(`[PROXY] ${requestMeta.requestId} capped turn produced nothing — retrying with the turn cap lifted`)
+                      continue
                     }
 
                     throw error
@@ -6215,6 +6299,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 return
               }
 
+              // What the client actually got is part of the failure, not a
+              // detail: the recovery and truncation branches above key off it,
+              // so a bare termination line leaves the operator unable to tell
+              // an error over rendered text from one that delivered nothing.
+              // Reconstructing it from telemetry's null TTFB is archaeology.
               diagnosticLog.error(
                 `${requestMeta.requestId} ${formatSdkTermination(sdkTerm, {
                   model,
@@ -6222,7 +6311,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   isResume,
                   hasDeferredTools,
                   sdkSessionId: currentSessionId || resumeSessionId,
-                })}`,
+                })} envelope=${messageStartEmitted ? "open" : "unopened"} blocks=${contentBlocksForwarded} ` +
+                `text=${textEventsForwarded} tools=${capturedToolUses.length}/${streamedToolUseIds.size}`,
                 requestMeta.requestId,
               )
 
