@@ -3741,7 +3741,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             if (canRecoverAsToolUse) {
               diagnosticLog.session(
                 `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
-                  model, requestSource, isResume, hasDeferredTools, sdkSessionId: resumeSessionId,
+                  model, requestSource, isResume, hasDeferredTools, sdkSessionId: currentSessionId || resumeSessionId,
                 })} captured=${capturedToolUses.length}`,
                 requestMeta.requestId,
               )
@@ -5896,7 +5896,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     requestSource,
                     isResume,
                     hasDeferredTools,
-                    sdkSessionId: resumeSessionId,
+                    sdkSessionId: currentSessionId || resumeSessionId,
                   })} captured=${capturedToolUses.length}`,
                   requestMeta.requestId,
                 )

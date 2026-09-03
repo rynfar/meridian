@@ -658,7 +658,8 @@ describe("Integration: passthrough early stop", () => {
     }, "es-fresh-stream-error", { "x-request-id": requestId })
     expect(response.status).toBe(200)
     expect(await response.text()).toContain("event: error")
-    const freshSessionId = capturedQueryParamsAll[0]?.options?.sessionId ?? mockBaseSessionId
+    const freshSessionId = capturedQueryParamsAll[0]?.options?.sessionId
+    expect(freshSessionId).toBeDefined()
 
     const log = diagnosticLog.getRecent({ limit: 200 })
       .find((entry) => entry.requestId === requestId && entry.level === "error")
@@ -1582,19 +1583,32 @@ describe("Integration: passthrough early stop", () => {
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
 
+    const requestId = `capped-stream-recovery-${TEST_RUN_ID}`
     const first = await post(app, {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
       stream: true,
       tools: [READ_TOOL],
       messages: [{ role: "user", content: "read x capped" }],
-    }, "es-capped-stream")
+    }, "es-capped-stream", { "x-request-id": requestId })
     expect(first.status).toBe(200)
     const firstBody = await first.text()
     expect(firstBody).toContain('"type":"tool_use"')
     expect(firstBody).toContain('"stop_reason":"tool_use"')
     expect(firstBody).toContain('"output_tokens":42')
     expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
+    const freshSessionId = capturedQueryParamsAll[0]?.options?.sessionId
+    expect(freshSessionId).toBeDefined()
+    // The hidden drain publishes this diagnostic after the client stream closes;
+    // wait for that real completion signal rather than sampling the log early.
+    let recoveryLog: any
+    for (let i = 0; i < 500 && !recoveryLog; i++) {
+      recoveryLog = diagnosticLog.getRecent({ limit: 200 })
+        .find((entry) => entry.requestId === requestId && entry.message.includes("sdk_termination_recovered"))
+      if (!recoveryLog) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(recoveryLog).toBeDefined()
+    expect(recoveryLog!.message).toContain(`session=${freshSessionId.slice(0, 8)}`)
 
     mockTerminalError = undefined
     mockMessages = [assistantMessage([{ type: "text", text: "the file says X" }])]
@@ -1696,17 +1710,25 @@ describe("Integration: passthrough early stop", () => {
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
 
+    const requestId = `capped-ns-recovery-${TEST_RUN_ID}`
     const first = await post(app, {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
       stream: false,
       tools: [READ_TOOL],
       messages: [{ role: "user", content: "read y capped" }],
-    }, "es-capped-nonstream")
+    }, "es-capped-nonstream", { "x-request-id": requestId })
     expect(first.status).toBe(200)
     const firstJson = await first.json() as any
     expect(firstJson.stop_reason).toBe("tool_use")
     expect(firstJson.content.some((b: any) => b.type === "tool_use")).toBe(true)
+
+    const freshSessionId = capturedQueryParamsAll[0]?.options?.sessionId
+    expect(freshSessionId).toBeDefined()
+    const recoveryLog = diagnosticLog.getRecent({ limit: 200 })
+      .find((entry) => entry.requestId === requestId && entry.message.includes("sdk_termination_recovered"))
+    expect(recoveryLog).toBeDefined()
+    expect(recoveryLog!.message).toContain(`session=${freshSessionId.slice(0, 8)}`)
 
     mockTerminalError = undefined
     mockMessages = [assistantMessage([{ type: "text", text: "the file says Y" }])]
