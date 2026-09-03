@@ -51,7 +51,13 @@ interface JsonSchemaNode {
 function repairTypeSlip(schema: JsonSchemaNode, value: unknown): unknown {
   if (typeof value !== "string") return value
 
-  if (schema.type === "number" || schema.type === "integer") {
+  if (schema.type === "integer") {
+    if (value.trim() === "") return value
+    const parsed = Number(value)
+    return Number.isInteger(parsed) ? parsed : value
+  }
+
+  if (schema.type === "number") {
     if (value.trim() === "") return value
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : value
@@ -110,7 +116,10 @@ function buildZodNode(schema: JsonSchemaNode): z.ZodTypeAny {
     if (schema.enum) return z.enum(schema.enum as [string, ...string[]])
     return z.string()
   }
-  if (schema.type === "number" || schema.type === "integer") {
+  if (schema.type === "integer") {
+    return repairing(schema, z.number().int())
+  }
+  if (schema.type === "number") {
     return repairing(schema, z.number())
   }
   if (schema.type === "boolean") return repairing(schema, z.boolean())

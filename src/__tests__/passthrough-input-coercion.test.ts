@@ -24,6 +24,7 @@ const BROWSER_SCHEMA = {
     action: { type: "string", enum: ["open", "close", "run"], description: "operation" },
     name: { type: "string", description: "tab id" },
     timeout: { type: "number", description: "timeout in seconds" },
+    retryCount: { type: "integer", description: "number of retries" },
     all: { type: "boolean", description: "release every managed tab" },
     app: {
       type: "object",
@@ -71,6 +72,15 @@ describe("passthrough tool input coercion", () => {
     })
   })
 
+  it("repairs integer strings only when they are integral", () => {
+    const schema = registerBrowser()
+
+    const accepted = schema.safeParse({ action: "open", retryCount: "2" })
+    expect(accepted.success).toBe(true)
+    if (accepted.success) expect(accepted.data.retryCount).toBe(2)
+
+    expect(schema.safeParse({ action: "open", retryCount: "1.5" }).success).toBe(false)
+  })
   it("still advertises the client's declared types and descriptions", () => {
     const schema = registerBrowser()
 
@@ -84,6 +94,10 @@ describe("passthrough tool input coercion", () => {
     expect(advertised.properties.timeout).toMatchObject({
       type: "number",
       description: "timeout in seconds",
+    })
+    expect(advertised.properties.retryCount).toMatchObject({
+      type: "integer",
+      description: "number of retries",
     })
     expect(advertised.properties.all).toMatchObject({ type: "boolean" })
     expect(advertised.properties.app).toMatchObject({
