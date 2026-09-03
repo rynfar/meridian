@@ -794,6 +794,37 @@ describe("translateOpenAiToAnthropic", () => {
     })
     expect(result!.output_config).toBeUndefined()
   })
+
+  // Clients that serialize an unset optional as JSON null rather than omitting
+  // the key must behave as if it were absent. This threw a TypeError out of the
+  // /v1/chat/completions handler, which has no try/catch — a 500 on a request
+  // that worked fine before structured output landed.
+  it("treats an explicit null response_format as omission", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: null,
+    } as unknown as Parameters<typeof translateOpenAiToAnthropic>[0])
+    expect(result!.output_config).toBeUndefined()
+  })
+
+  it("keeps output_config.effort when response_format is null", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: null,
+      output_config: { effort: "high" },
+    } as unknown as Parameters<typeof translateOpenAiToAnthropic>[0])
+    expect(result!.output_config).toEqual({ effort: "high" })
+  })
+
+  // Forwarded rather than dropped, so the boundary check rejects it with a 400
+  // naming the client's own field instead of silently ignoring the request.
+  it("forwards a non-object response_format for rejection downstream", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: "json_schema",
+    } as unknown as Parameters<typeof translateOpenAiToAnthropic>[0])
+    expect(result!.output_config?.format).toBe("json_schema")
+  })
 })
 
 // ---------------------------------------------------------------------------

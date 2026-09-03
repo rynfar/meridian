@@ -220,6 +220,24 @@ describe("POST /v1/chat/completions — non-streaming", () => {
     expect(capturedOptions?.outputFormat).toEqual({ type: "json_schema", schema })
   })
 
+  it("serves a request whose response_format is an explicit null", async () => {
+    // Many OpenAI-compatible clients emit `"response_format": null` for an
+    // unset optional instead of omitting the key. Reading `.type` off it threw
+    // out of this handler, which has no try/catch — so a plain chat request
+    // that worked before structured output existed came back 500.
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: false,
+      response_format: null,
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(res.status).toBe(200)
+    expect(capturedOptions?.outputFormat).toBeUndefined()
+  })
+
   it("rejects response_format json_object instead of silently ignoring it", async () => {
     // Anthropic has no schema-less JSON mode, so the request cannot be honored.
     // Failing loudly beats returning prose to a client expecting JSON.

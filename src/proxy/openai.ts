@@ -492,14 +492,25 @@ function summarizeAnthropicContent(content: string | AnthropicContentBlock[]): s
  * accepting it silently would promise an enforcement the request never gets.
  * parseOutputFormat rejects it with an actionable message.
  */
-function translateResponseFormat(format: OpenAiResponseFormat | undefined): unknown {
-  if (format === undefined || format.type === "text") return undefined
+function translateResponseFormat(format: unknown): unknown {
+  // An explicit JSON `null` must behave exactly like omission. Plenty of
+  // OpenAI-compatible clients serialize an unset optional as `null` rather than
+  // dropping the key, and this runs before any validation: reading `.type` off
+  // it threw a TypeError out of a handler with no try/catch, turning a request
+  // that worked before structured output existed into a 500.
+  if (format === undefined || format === null) return undefined
+  // Anything that is not an object is forwarded untouched so parseOutputFormat
+  // rejects it with a 400 naming the client's own field, rather than being
+  // silently ignored here.
+  if (typeof format !== "object") return format
+  const shape = format as OpenAiResponseFormat
+  if (shape.type === "text") return undefined
   // `name` is a client-side label; `strict` has no equivalent - the SDK always
   // validates, which is never weaker than strict asked for.
-  if (format.type === "json_schema") {
-    return { type: "json_schema", schema: format.json_schema?.schema }
+  if (shape.type === "json_schema") {
+    return { type: "json_schema", schema: shape.json_schema?.schema }
   }
-  return { type: format.type }
+  return { type: shape.type }
 }
 
 export function translateOpenAiToAnthropic(

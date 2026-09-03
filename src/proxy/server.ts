@@ -7017,7 +7017,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // Validate structured output here, while the client's own spelling is still
     // known. The inner hop only sees the translated `output_config`, so letting
     // it reject would name a field the OpenAI caller never sent.
-    if (rawBody.response_format !== undefined) {
+    // `null` is omission, not a request for structured output — see
+    // translateResponseFormat. Skipping it also keeps the error dialect honest:
+    // a null alongside an Anthropic-style `output_config.format` would
+    // otherwise report failures against `response_format.*`, a field the client
+    // did not meaningfully send.
+    if (rawBody.response_format !== undefined && rawBody.response_format !== null) {
       const parsed = parseOutputFormat(anthropicBody.output_config, anthropicBody.tools, "openai")
       if (!parsed.ok) {
         return c.json(
