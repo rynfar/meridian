@@ -4097,6 +4097,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let heartbeatCount = 0
             let streamEventsSeen = 0
             let eventsForwarded = 0
+            // Unlike eventsForwarded, this counts only content_block_start
+            // events that reached the client.
+            let contentBlocksForwarded = 0
             let textEventsForwarded = 0
             // Characters of forwarded text — the announce classification is a
             // length test (see turnOutcome.ts).
@@ -4883,6 +4886,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         break
                       }
                       eventsForwarded += 1
+                      if (eventType === "content_block_start") contentBlocksForwarded += 1
                     }
 
                     // Track envelope integrity: which forwarded blocks are open.
@@ -5125,10 +5129,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // In particular, message_delta is client permission to finalize.
               if (pendingStructuredFrames.length > 0) {
                 clientAssistantContentExposed = true
+                let structuredFramesForwarded = 0
                 for (const frame of pendingStructuredFrames) {
-                  safeEnqueue(frame.payload, frame.source)
+                  if (safeEnqueue(frame.payload, frame.source)) {
+                    structuredFramesForwarded += 1
+                    if (frame.source === "structured_block_start") contentBlocksForwarded += 1
+                  }
                 }
-                eventsForwarded += pendingStructuredFrames.length
+                eventsForwarded += structuredFramesForwarded
                 pendingStructuredFrames = []
                 messageStartEmitted = true
                 textEventsForwarded += 1
@@ -5152,7 +5160,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               const classifyNow = () => classifyTurnOutcome({
                 textEvents: textEventsForwarded,
                 toolUses: streamedToolUseIds.size,
-                blocksForwarded: eventsForwarded,
+                blocksForwarded: contentBlocksForwarded,
               })
               const preRecoveryOutcome = classifyNow()
               //
@@ -5452,9 +5460,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   capturedToolUses.splice(capturedBeforeRecovery)
                 } else if (silentTurnRecovered) {
                   for (const lifted of recoveryLiftedFrames) {
-                    safeEnqueue(encoder.encode(
+                    const delivered = safeEnqueue(encoder.encode(
                       `event: ${lifted.frame.type}\ndata: ${JSON.stringify(lifted.frame)}\n\n`,
                     ), `silent_recovery_${lifted.kind}`)
+                    if (delivered && lifted.kind === "block_start") contentBlocksForwarded += 1
                     if (lifted.kind === "block_start") {
                       eventsForwarded += 1
                     } else if (lifted.kind === "text_delta") {
@@ -5477,7 +5486,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (silentTurnRecovered && preRecoveryOutcome.kind === "silent") {
                   diagnosticLog.session(
                     `${requestMeta.requestId} silent_turn reason=${preRecoveryOutcome.reason} ` +
-                    `blocks=${eventsForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
+                    `blocks=${contentBlocksForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
                     `recovery=succeeded`,
                     requestMeta.requestId,
                   )
@@ -5531,14 +5540,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     streamedToolUseIds.add(tu.id)
 
                     // content_block_start
-                    safeEnqueue(encoder.encode(
+                    if (safeEnqueue(encoder.encode(
                       `event: content_block_start\ndata: ${JSON.stringify({
                         type: "content_block_start",
                         index: blockIndex,
                         content_block: { type: "tool_use", id: tu.id, name: tu.name, input: {} }
                       })}\n\n`
-                    ), "passthrough_tool_block_start")
-
+                    ), "passthrough_tool_block_start")) {
+                      contentBlocksForwarded += 1
+                    }
                     // input_json_delta with the full input
                     safeEnqueue(encoder.encode(
                       `event: content_block_delta\ndata: ${JSON.stringify({
@@ -5576,13 +5586,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   const streamFileChangeSummary = formatFileChangeSummary(fileChanges)
                   if (streamFileChangeSummary && messageStartEmitted) {
                     const fcBlockIndex = nextClientBlockIndex++
-                    safeEnqueue(encoder.encode(
+                    if (safeEnqueue(encoder.encode(
                       `event: content_block_start\ndata: ${JSON.stringify({
                         type: "content_block_start",
                         index: fcBlockIndex,
                         content_block: { type: "text", text: "" },
                       })}\n\n`
-                    ), "file_changes_block_start")
+                    ), "file_changes_block_start")) {
+                      contentBlocksForwarded += 1
+                    }
                     safeEnqueue(encoder.encode(
                       `event: content_block_delta\ndata: ${JSON.stringify({
                         type: "content_block_delta",
@@ -5674,7 +5686,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   ttfbMs: requestMeta.ttfbMs ?? null,
                   upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                   totalDurationMs: streamTotalDurationMs,
-                  contentBlocks: eventsForwarded,
+                  contentBlocks: contentBlocksForwarded,
                   textEvents: textEventsForwarded,
                   error: null,
                   inputTokens: lastUsage?.input_tokens,
@@ -5707,7 +5719,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // means "the loop just lost a turn".
                   diagnosticLog.session(
                     `${requestMeta.requestId} silent_turn reason=${turnOutcome.reason} ` +
-                    `blocks=${eventsForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
+                    `blocks=${contentBlocksForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
                     `recovery=${silentTurnRecoveryAttempted ? (silentTurnRecovered ? "succeeded" : "failed") : "off"}`,
                     requestMeta.requestId,
                   )
@@ -5924,13 +5936,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   const tu = unseenToolUses[i]!
                   const blockIndex = nextClientBlockIndex++
                   streamedToolUseIds.add(tu.id)
-                  safeEnqueue(encoder.encode(
+                  if (safeEnqueue(encoder.encode(
                     `event: content_block_start\ndata: ${JSON.stringify({
                       type: "content_block_start",
                       index: blockIndex,
                       content_block: { type: "tool_use", id: tu.id, name: tu.name, input: {} }
                     })}\n\n`
-                  ), "recover_tool_block_start")
+                  ), "recover_tool_block_start")) {
+                    contentBlocksForwarded += 1
+                  }
                   safeEnqueue(encoder.encode(
                     `event: content_block_delta\ndata: ${JSON.stringify({
                       type: "content_block_delta",
@@ -6021,7 +6035,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   `event: message_delta\ndata: ${JSON.stringify({
                     type: "message_delta",
                     delta: { stop_reason: "tool_use", stop_sequence: null },
-                    usage: { output_tokens: 0 }
+                    usage: { output_tokens: lastUsage?.output_tokens ?? 0 }
                   })}\n\n`
                 ), "recover_message_delta")
                 safeEnqueue(encoder.encode(
@@ -6058,7 +6072,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   ttfbMs: requestMeta.ttfbMs ?? null,
                   upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                   totalDurationMs: recoverTotalMs,
-                  contentBlocks: eventsForwarded + unseenToolUses.length,
+                  contentBlocks: contentBlocksForwarded,
                   textEvents: textEventsForwarded,
                   error: null,
                   // The capped tool handoff makes this the ordinary path for a
@@ -6183,7 +6197,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   ttfbMs: requestMeta.ttfbMs ?? null,
                   upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                   totalDurationMs: cappedTotalMs,
-                  contentBlocks: eventsForwarded,
+                  contentBlocks: contentBlocksForwarded,
                   textEvents: textEventsForwarded,
                   error: null,
                   inputTokens: lastUsage?.input_tokens,
@@ -6242,7 +6256,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 ttfbMs: requestMeta.ttfbMs ?? null,
                 upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                 totalDurationMs: streamErrTotalMs,
-                contentBlocks: eventsForwarded,
+                contentBlocks: contentBlocksForwarded,
                 textEvents: textEventsForwarded,
                 error: streamErr.type,
               })
