@@ -56,12 +56,20 @@ const BILLING_SIGNALS: readonly RegExp[] = [
   /(?:out of|draw from|draws from) extra usage/,
   /insufficient (?:credit|funds|balance)/,
   // The credits-era entitlement cap: "Your group's usage limit is set to $0 ·
-  // run /usage-credits to request more" (#909). Deliberately billing_error and
-  // not rate_limit_error — it is a provisioned cap, not a spent window, so
-  // isQuotaRefusal must not send the cooldown looking up a five-hour reset that
-  // will never arrive. Line-anchored for the reason given at BILLING_SIGNALS:
-  // this branch can mark every profile in a pool exhausted (#796), so an MCP
-  // server echoing the sentence must not trigger it.
+  // run /usage-credits to ask your admin for a higher limit" (#909, verbatim in
+  // the CLI). billing_error rather than rate_limit_error: a provisioned cap is
+  // not a spent window, so isQuotaRefusal must not send the cooldown looking up
+  // a five-hour reset that will never arrive.
+  //
+  // This only disambiguates the wordings that name the cap. The CLI's refusal
+  // builder returns the identical "You've reached your <tier> limit." text for
+  // group/member/seat_tier zero-credit caps as for a genuinely spent window, so
+  // those still classify 429 and still take the five-hour cooldown. Telling
+  // them apart needs a signal the message does not carry.
+  //
+  // Line-anchored for the reason given above: this branch can mark every
+  // profile in a pool exhausted (#796), so an MCP server or an assistant turn
+  // echoing the sentence mid-line must not trigger it.
   /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*your (?:group|organization|org)(?:'|’)s usage limit is set to \$\d/m,
 ]
 

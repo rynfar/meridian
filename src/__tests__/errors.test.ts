@@ -915,6 +915,28 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(classifyError(msg).type).not.toBe("billing_error")
   })
 
+  // Verbatim from the refusal builder in the shipped CLI
+  // (@anthropic-ai/claude-code 2.1.198). It emits exactly these two suffixes —
+  // one per interactive/non-interactive copy branch — so these two strings are
+  // what actually reaches classifyError. Pinned so a copy change in a future
+  // CLI shows up here rather than as another silent 500 in a priority pool.
+  it.each([
+    ["interactive copy", "You've reached your Fable 5 limit. Run /usage-credits to continue or switch models with /model."],
+    ["non-interactive copy", "You've reached your Fable 5 limit. /model to switch models."],
+  ])("maps the shipped CLI's %s to rate_limit_error", (_label, msg) => {
+    const r = classifyError(msg)
+    expect(r.type).toBe("rate_limit_error")
+    expect(r.status).toBe(429)
+    expect(isAccountFailoverError(r.type)).toBe(true)
+  })
+
+  it("classifies the verbatim group entitlement cap as a failover-eligible billing_error", () => {
+    const r = classifyError("Your group's usage limit is set to $0 \u00b7 run /usage-credits to ask your admin for a higher limit")
+    expect(r.type).toBe("billing_error")
+    expect(isAccountFailoverError(r.type)).toBe(true)
+    expect(isQuotaRefusal(r.type)).toBe(false)
+  })
+
   // #764 and #787 were the same bug twice: a new qualifier, a 500 instead of
   // failover, a PR. These pin the shape so the next variant is already covered.
   it.each([
