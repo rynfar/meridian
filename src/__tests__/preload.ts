@@ -7,8 +7,25 @@ import { mkdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-// Auth middleware reads this at request time; clear it so tests don't need API keys
-delete process.env.MERIDIAN_API_KEY
+// Take the operator's whole configuration namespace away from the suite.
+//
+// Every runtime knob is read through `env()`, i.e. `MERIDIAN_<X>` with a
+// `CLAUDE_PROXY_<X>` fallback, so anything a developer exports to run their own
+// proxy silently reconfigures the code under test. Two real examples from this
+// machine: `MERIDIAN_NO_FILE_CHANGES=1` turns off the PostToolUse hook and
+// fails the three "other adapters still track" cases in
+// proxy-file-changes.test.ts, and `MERIDIAN_TELEMETRY_PERSIST=1` makes the
+// global telemetry store the real ~/.config/meridian/telemetry.db — which the
+// suite then DELETEs, because tests call `telemetryStore.clear()` and
+// `diagnosticLog.clear()`. (Redirecting the config dir does not save it:
+// telemetry resolves its path from `env("TELEMETRY_DB")` alone.)
+//
+// CI runs with none of these set, so stripping the namespace is what makes a
+// local run mean the same thing as a CI run. Tests that need a knob set it
+// themselves, in-process, after this point.
+for (const key of Object.keys(process.env)) {
+  if (key.startsWith("MERIDIAN_") || key.startsWith("CLAUDE_PROXY_")) delete process.env[key]
+}
 
 // Point settings.ts at a throwaway directory so the suite never reads the
 // developer's real ~/.config/meridian/settings.json. A live
