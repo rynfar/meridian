@@ -1887,7 +1887,13 @@ describe("Integration: passthrough early stop", () => {
       textBlockStart(0),
       textDelta(0, "half an answer"),
       blockStop(0),
-      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+      {
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        session_id: "test-session",
+        usage: { output_tokens: 42 },
+      },
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
 
@@ -1903,6 +1909,7 @@ describe("Integration: passthrough early stop", () => {
     expect(body).toContain("half an answer")
     expect(body).toContain('"stop_reason":"max_tokens"')
     expect(body).not.toContain("event: error")
+    expect(body).toContain('"output_tokens":42')
     expect(body).toContain("event: message_stop")
   })
 

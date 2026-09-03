@@ -6115,7 +6115,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     requestSource,
                     isResume,
                     hasDeferredTools,
-                    sdkSessionId: resumeSessionId,
+                    sdkSessionId: currentSessionId || resumeSessionId,
                   })} blocks=${nextClientBlockIndex}`,
                   requestMeta.requestId,
                 )
@@ -6128,7 +6128,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   `event: message_delta\ndata: ${JSON.stringify({
                     type: "message_delta",
                     delta: { stop_reason: "max_tokens", stop_sequence: null },
-                    usage: { output_tokens: 0 }
+                    usage: { output_tokens: lastUsage?.output_tokens ?? 0 }
                   })}\n\n`
                 ), "capped_turn_message_delta")
                 safeEnqueue(encoder.encode(
@@ -6154,7 +6154,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   toolCount,
                   lineageType,
                   messageCount: allMessages.length,
-                  sdkSessionId: resumeSessionId,
+                  sdkSessionId: currentSessionId || resumeSessionId,
                   status: 200,
                   queueWaitMs: cappedQueueWaitMs,
                   sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
