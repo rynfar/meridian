@@ -7,7 +7,9 @@ const image = { type: "image", source: { type: "base64", media_type: "image/png"
 describe("faithful tool history rendering", () => {
   it("delivers a complete resume delta atomically without changing native results, media or input", () => {
     const result = { type: "tool_result", tool_use_id: "a", is_error: true, content: "actual failure" }
-    const source = [{ message: { content: [result, image] } }, { message: { content: "final question" } }]
+    const source: Array<{ message: { content: unknown } }> = [
+      { message: { content: [result, image] } }, { message: { content: "final question" } },
+    ]
     const before = structuredClone(source)
     expect(coalesceStructuredUserMessages(source)).toEqual([
       { message: { content: [result, image, { type: "text", text: "final question" }] } },
