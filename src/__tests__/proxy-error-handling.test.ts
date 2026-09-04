@@ -168,6 +168,10 @@ describe("Error classification", () => {
       const app = createTestApp()
       const res = await post(app, BASIC_REQUEST)
 
+      if (res.status !== 429) {
+        // TEMPORARY #917 DIAGNOSTIC — throwaway branch, never merged.
+        console.error("[917] status=", res.status, "body=", await res.clone().text())
+      }
       expect(res.status).toBe(429)
       expect(res.headers.get("Retry-After")).toBe("60")
       const body = await res.json()

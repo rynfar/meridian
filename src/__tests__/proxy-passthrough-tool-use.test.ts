@@ -306,6 +306,10 @@ describe("Passthrough non-streaming: tool_use returned without HTTP 500", () => 
 
     const app = createTestApp()
     const response = await postNonStream(app)
+    if (response.status !== 200) {
+      // TEMPORARY #917 DIAGNOSTIC — throwaway branch, never merged.
+      console.error("[917] status=", response.status, "body=", await response.clone().text())
+    }
     expect(response.status).toBe(200)
 
     const body = await response.json() as any
