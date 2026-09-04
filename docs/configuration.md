@@ -334,7 +334,8 @@ ANTHROPIC_API_KEY=your-secret-key ANTHROPIC_BASE_URL=http://meridian-host:3456 o
 
 | Command | Description |
 |---------|-------------|
-| `meridian` | Start the proxy server |
+| `meridian` | Start the proxy server. When the port is already serving Meridian, prints `meridian status` and exits 0 instead of failing |
+| `meridian status` | Print what the running instance is doing — the `/` page rendered for a terminal. Reads `MERIDIAN_HOST`/`MERIDIAN_PORT`; exits 1 when nothing of ours is there |
 | `meridian setup` | Configure the OpenCode plugin in `~/.config/opencode/opencode.json` |
 | `meridian profile add <name> [--headless]` | Add a profile and authenticate via Claude OAuth; `--headless` prints a URL, prompts for the returned code, and stores the exchanged credentials |
 | `meridian profile add <name> --oauth-token [TOKEN]` | Add a headless profile from a `claude setup-token` value (prompts when `TOKEN` is omitted) |
