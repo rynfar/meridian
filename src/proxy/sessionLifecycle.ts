@@ -38,17 +38,7 @@ import {
 
 const SIDECAR_VERSION = 2
 const SIDECAR_NAME = "session-gc.json"
-/** Pending-transcript ceiling per session root.
- *
- *  Overridable only so the test suite can raise it (#917). A test process
- *  creates thousands of short-lived sessions with GC postponed, against one
- *  shared root, so it exhausts a production-sized budget partway through the
- *  run -- after which every request in the process returns 500 `session
- *  transcript ownership backlog is full`, whichever file issued it. That is a
- *  property of the harness, not a real capacity signal.
- *
- *  Unset in production, where the default applies unchanged. */
-const DEFAULT_MAX_PENDING = Number(process.env.MERIDIAN_MAX_PENDING_TRANSCRIPTS) || 256
+const DEFAULT_MAX_PENDING = 256
 const DEFAULT_MAX_TOMBSTONES = 256
 const DEFAULT_MAX_DELETES = 16
 const DEFAULT_LOCK_WAIT_MS = 2_000
