@@ -39,9 +39,26 @@ function isTransientUserPromptHook(block: unknown): boolean {
   } catch {
     return false
   }
-  if (!isRecord(parsed) || !isRecord(parsed.hookSpecificOutput)) return false
-  return parsed.hookSpecificOutput.hookEventName === "UserPromptSubmit"
-    && typeof parsed.hookSpecificOutput.additionalContext === "string"
+  if (!isRecord(parsed)) return false
+  if (isRecord(parsed.hookSpecificOutput)) {
+    return parsed.hookSpecificOutput.hookEventName === "UserPromptSubmit"
+      && typeof parsed.hookSpecificOutput.additionalContext === "string"
+  }
+  // NOTE: OpenCode's hook bridge also wraps common SyncHookJSONOutput fields,
+  // e.g. {"continue":true}, without hookSpecificOutput (#872). Recognize the
+  // documented control envelope, not arbitrary JSON or arbitrary removed text.
+  const fields = Object.entries(parsed)
+  return fields.length > 0 && fields.every(([key, value]) => {
+    switch (key) {
+      case "continue":
+      case "suppressOutput": return typeof value === "boolean"
+      case "stopReason":
+      case "systemMessage":
+      case "reason": return typeof value === "string"
+      case "decision": return value === "approve" || value === "block"
+      default: return false
+    }
+  })
 }
 
 export function canonicalizeOpenCodeMessagesForLineage(

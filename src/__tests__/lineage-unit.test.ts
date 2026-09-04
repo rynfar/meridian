@@ -874,20 +874,17 @@ describe("verifyLineage append-only tool-result extension", () => {
   })
 })
 
-describe("verifyLineage dropped ephemeral blocks", () => {
+describe("verifyLineage rejects raw dropped blocks without adapter canonicalization", () => {
   const hookBlock = {
     type: "text",
     text: "<user-prompt-submit-hook>\n{\"continue\":true}\n</user-prompt-submit-hook>",
   }
   const userText = { type: "text", text: "Read data.txt and tell me the third line." }
 
-  // The live shape: a Claude Code UserPromptSubmit hook's stdout, bridged into
-  // OpenCode by oh-my-openagent, rides along on the submitting turn only. The
-  // next turn re-sends message[0] without it, so prefix overlap is 0 and the
-  // whole conversation reads as unrelated-history — every turn replaying
-  // against a cold cache, and a turn that also waited behind the session lease
-  // refused outright with session_turn_conflict.
-  it("continues when an injected block is dropped from the first user message", () => {
+  // The core cannot infer that a removed block was transient. Recognized
+  // OpenCode hook envelopes are normalized in the adapter before hashing;
+  // adapter tests cover that positive behavior separately.
+  it("replays when a raw hook block is dropped from the first user message", () => {
     const stored = [{ role: "user", content: [hookBlock, userText] }]
     const incoming = [
       { role: "user", content: [userText] },
@@ -895,15 +892,10 @@ describe("verifyLineage dropped ephemeral blocks", () => {
       { role: "user", content: [toolResult("call-a", "alpha\nbravo\ncharlie")] },
     ]
 
-    const result = verifyLineage(sessionWithBlockHashes(stored), incoming)
-    expect(result.type).toBe("continuation")
-    if (result.type === "continuation") {
-      // The SDK session already holds message[0]; only the new turns are sent.
-      expect(result.resumeFrom).toBe(1)
-    }
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).toBe("diverged")
   })
 
-  it("continues when the dropped block sat between two surviving blocks", () => {
+  it("replays when a raw dropped block sat between two surviving blocks", () => {
     const before = { type: "text", text: "before" }
     const after = { type: "text", text: "after" }
     const stored = [{ role: "user", content: [before, hookBlock, after] }]
@@ -912,11 +904,10 @@ describe("verifyLineage dropped ephemeral blocks", () => {
       { role: "assistant", content: "ok" },
     ]
 
-    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).toBe("continuation")
+    expect(verifyLineage(sessionWithBlockHashes(stored), incoming).type).toBe("diverged")
   })
 
-  // Subtractive only. Everything below is the dangerous direction — the client
-  // claiming history the SDK session cannot prove it holds (#689, #692, #712).
+  // Edits, removals, and reordering all invalidate the stored history proof.
   it("does not resume when a surviving block was edited rather than dropped", () => {
     const stored = [{ role: "user", content: [hookBlock, userText] }]
     const incoming = [

@@ -3691,3 +3691,9 @@ Require four successful competing sweeps with no deletions, correct fixture iden
 Run `bun scripts/e2e-lineage-hash-migration.mjs` and again with `--stream`; repeat with `E2E_MODEL=sonnet`. The gate establishes a real client tool loop whose result comes from a disposable fixture file, then changes only `is_error` in its supplied history. Require fresh replay with the revised metadata, a FAILED answer instead of the original SUCCEEDED answer, and unchanged source history.
 
 A second case installs a persisted mapping containing the legacy digest format for that real source. Require one complete replay with call identity/arguments and result data, then an ordinary continuation with the correct answer. All inspection uses supported SDK `getSessionMessages`. Run the E41 sequential/parallel and undo-gap controls too when changing the encoding.
+
+## Block appends and OpenCode hook removal
+
+Run `bun scripts/e2e-block-continuations.mjs` and again with `--stream`. Run both modes with `E2E_MODEL=sonnet` and `--image` to exercise appended media. The real SDK/HTTP gate executes a fixture-read tool, appends text (and optionally an image) to its completed result slot, and requires continuation with only the new content delivered, no repeated tool call, and the correct answer.
+
+It also removes a recognized OpenCode `{"continue":true}` hook envelope and requires continuation, then removes a meaningful fixture field and requires complete replay without that field in the SDK input or answer. Supported `getSessionMessages` inspection verifies input and source immutability. `--case=append`, `--case=hook` and `--case=drop` select individual cases for before/after comparisons. Run the existing E41, undo-gap and hash-migration controls alongside this gate when changing the classifier.

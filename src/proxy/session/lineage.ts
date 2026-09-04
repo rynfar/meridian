@@ -415,82 +415,6 @@ function findSuffixAnchorStart(
   return anchor - suffixOverlap + 1
 }
 
-/** Is `incoming` an ordered subsequence of `stored`? */
-function isOrderedSubsequence(stored: readonly string[], incoming: readonly string[]): boolean {
-  let cursor = 0
-  for (const hash of incoming) {
-    while (cursor < stored.length && stored[cursor] !== hash) cursor++
-    if (cursor === stored.length) return false
-    cursor++
-  }
-  return true
-}
-
-/**
- * Did the client only *drop* blocks it had previously sent, changing nothing
- * else in the stored region?
- *
- * Harnesses inject per-turn context into a user message and then drop it: a
- * Claude Code `UserPromptSubmit` hook's stdout, bridged into OpenCode by
- * oh-my-openagent, arrives as a `<user-prompt-submit-hook>` text block on the
- * turn that submitted the prompt and is gone on the next one. The first user
- * message therefore goes `[text, text]` -> `[text]` mid-conversation, message
- * hashes stop matching at index 0, and the whole conversation reads as
- * `unrelated-history`. Every turn then replays from scratch against a cold
- * cache, and a turn that also waited behind the session lease is refused
- * outright with `session_turn_conflict`.
- *
- * Resuming is sound here precisely because the difference is subtractive: the
- * SDK session holds a superset of what the client now claims, so nothing the
- * client believes it sent is missing upstream. That is the opposite of the
- * dangerous direction guarded in #689/#692 and #712, where the client's history
- * contains turns the SDK session never saw and a resume would silently skip
- * them.
- */
-function droppedEphemeralBlocksOnly(
-  cached: SessionState,
-  messages: Array<{ role: string; content: any }>,
-  incomingHashes: string[]
-): boolean {
-  const blockHashes = cached.messageBlockHashes
-  if (!blockHashes || blockHashes.length !== cached.messageCount) return false
-  // Both hash arrays must cover the whole stored region: a short one would make
-  // an out-of-range `undefined` read as "changed" and send a slot into the
-  // block comparison on no evidence.
-  const messageHashes = cached.messageHashes
-  if (!messageHashes || messageHashes.length !== cached.messageCount) return false
-  // Only for a conversation that moved forward. Equal or shorter is an undo or
-  // a replay and keeps the classification it has today.
-  if (messages.length <= cached.messageCount) return false
-
-  let sawDrop = false
-  for (let index = 0; index < cached.messageCount; index++) {
-    if (messageHashes[index] === incomingHashes[index]) continue
-
-    const incoming = messages[index]
-    // Only user turns carry injected context. A changed assistant slot is a
-    // rewritten model turn and must still diverge.
-    if (incoming?.role !== "user" || !Array.isArray(incoming.content)) return false
-
-    const stored = blockHashes[index]
-    if (!stored || stored.length === 0) return false
-
-    const blocks = hashableContentBlocks(incoming.content)
-    // A block the hasher ignores would make the comparison meaningless.
-    if (blocks.length !== incoming.content.length) return false
-
-    const hashes = blocks.map((block) => hashNormalizedContent([block]))
-    // Strictly fewer blocks, every survivor byte-identical and still in order.
-    // Equal or more is growth, which the append-only path in verifyLineage
-    // handles.
-    if (hashes.length === 0 || hashes.length >= stored.length) return false
-    if (!isOrderedSubsequence(stored, hashes)) return false
-
-    sawDrop = true
-  }
-  return sawDrop
-}
-
 // --- Lineage verification ---
 
 /**
@@ -504,16 +428,14 @@ function droppedEphemeralBlocksOnly(
  *   Full prefix match (fast-path)          → continuation (resume from stored count)
  *   Suffix overlap >= MIN_SUFFIX           → compaction   (resume after matched suffix)
  *   Trailing user slot gained blocks       → continuation (resume mid-message)
- *   Stored user slots only lost blocks     → continuation (resume from stored count)
  *   Prefix overlap > 0, no suffix, shrank  → undo         (fork at rollback point)
  *   Cached prefix changed while growing    → diverged     (fresh full-history replay)
  *   No overlap                             → diverged     (fresh full-history replay)
  *
- * The two block-level continuations sit either side of one line: the SDK
- * session must already hold everything the client still claims. Growth is
- * admissible because the appended blocks are sent on; loss is admissible
- * because the session is a superset. A block that *changed* satisfies neither
- * and diverges.
+ * Appended content is admissible only when the complete stored prefix is
+ * unchanged and the new content is delivered. Removed content is a history
+ * rewrite: retaining a superset can preserve instructions the client revoked.
+ * Known transient metadata is canonicalized by the owning agent adapter.
  */
 export function verifyLineage(
   cached: SessionState,
@@ -624,6 +546,7 @@ export function verifyLineage(
           .filter((block) => block?.type === "tool_result" && typeof block.tool_use_id === "string")
           .map((block) => block.tool_use_id as string),
       )
+      // NOTE: OpenCode appends reminder text to completed tool-result slots.
       // Non-tool_result blocks may only be appended to a slot that is already a
       // tool-result turn. That is the OpenCode shape — reminder text trailing
       // the results of a turn the client is still completing. Appending text to
@@ -633,9 +556,9 @@ export function verifyLineage(
         .slice(0, storedBlocks.length)
         .some((block) => block?.type === "tool_result")
       // A tool_result must be genuinely new — repeating a tool_use_id the stored
-      // prefix already carries would replay a result the session has seen. Other
-      // block types carry no such identity and cannot collide with the stored
-      // prefix, since they sit strictly beyond it.
+      // prefix already carries would replay a result the session has seen.
+      // Other appended content must sit strictly beyond the intact stored
+      // prefix; it never substitutes for an existing block.
       const appendedBlocksAreNew = appendedBlocks.every((block) => {
         if (block?.type !== "tool_result") return storedPrefixHasToolResult
         if (typeof block.tool_use_id !== "string") return false
@@ -652,12 +575,6 @@ export function verifyLineage(
         }
       }
     }
-  }
-
-  // Ephemeral injected blocks the client dropped — droppedEphemeralBlocksOnly
-  // carries the shape and why resuming on it is sound.
-  if (droppedEphemeralBlocksOnly(cached, messages, incomingHashes)) {
-    return { type: "continuation", session: cached, resumeFrom: cached.messageCount }
   }
 
   // Undo: prefix preserved (beginning intact) but suffix changed,
