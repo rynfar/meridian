@@ -51,7 +51,7 @@ export function configDirToCredentialsFile(claudeConfigDir: string): string {
   return join(resolve(claudeConfigDir), ".credentials.json")
 }
 
-interface OAuthCredentials {
+export interface OAuthCredentials {
   accessToken: string
   refreshToken: string
   expiresAt: number
@@ -68,9 +68,17 @@ interface OAuthCredentials {
   scopes?: string[]
   subscriptionType?: string
   rateLimitTier?: string
+  /**
+   * Which seat a Team member holds. The only field that separates a Premium
+   * seat from a Standard one: measured across twelve live accounts, every
+   * Premium seat reports `rate_limit_tier: "default_claude_max_5x"` — what a
+   * personal Max 5x reports — and a Standard seat reports `default_raven`,
+   * which names no published allotment at all.
+   */
+  seatTier?: string
 }
 
-interface CredentialsFile {
+export interface CredentialsFile {
   claudeAiOauth: OAuthCredentials
   [key: string]: unknown
 }
@@ -436,28 +444,42 @@ export interface AuthRenewalStatus {
  * on every deployment that predates the CLI writing it.
  */
 /**
- * How long a read of the refresh-token expiry stays fresh.
+ * How long a read of the stored credential facts stays fresh.
  *
  * `/health` is hot: the dashboard polls it every 10s per open page, plugin
  * health checks hit it, and external monitors poll it too. On macOS a
  * credential-store read spawns `/usr/bin/security find-generic-password`, so
- * reading per request means a subprocess per poll — for a value that moves on
- * a ~30-day cadence. Five minutes is far shorter than any meaningful change to
- * the login window and still collapses ~97% of the reads.
+ * reading per request means a subprocess per poll — for values that move on a
+ * ~30-day cadence at best, and only at login for the plan. Five minutes is far
+ * shorter than any meaningful change to either and still collapses ~97% of the
+ * reads.
  */
-const RENEWAL_EXPIRY_TTL_MS = 5 * 60_000
+const CREDENTIAL_FACTS_TTL_MS = 5 * 60_000
 
-const renewalExpiryCache = new Map<string, { value: number | undefined; at: number }>()
-const renewalExpiryInflight = new Map<string, Promise<number | undefined>>()
+/**
+ * The fields read off a credential file that describe the *account* rather
+ * than the current access token. One read serves all of them because they
+ * arrive in one file and are wanted by the same request: `/health` reports the
+ * login window and the plan together.
+ */
+interface StoredCredentialFacts {
+  refreshTokenExpiresAt?: number
+  subscriptionType?: string
+  rateLimitTier?: string
+  seatTier?: string
+}
 
-/** Drop cached refresh-token expiries — for tests, and after a re-login. */
+const credentialFactsCache = new Map<string, { value: StoredCredentialFacts; at: number }>()
+const credentialFactsInflight = new Map<string, Promise<StoredCredentialFacts>>()
+
+/** Drop cached credential facts — for tests, and after a re-login. */
 export function resetAuthRenewalCache(): void {
-  renewalExpiryCache.clear()
-  renewalExpiryInflight.clear()
+  credentialFactsCache.clear()
+  credentialFactsInflight.clear()
 }
 
 /**
- * Read the refresh-token expiry, cached per credential store.
+ * Read the account-describing credential fields, cached per credential store.
  *
  * Keyed on `refreshKey`, which both real stores set (`keychain:` / `file:`).
  * A store WITHOUT one is not cached at all: its identity is unknown, so
@@ -467,33 +489,66 @@ export function resetAuthRenewalCache(): void {
  * A failed read is never cached. A keychain blip should retry on the next
  * poll, not suppress the renewal warning for the whole TTL.
  */
-async function readRefreshTokenExpiry(s: CredentialStore): Promise<number | undefined> {
+async function readCredentialFacts(s: CredentialStore): Promise<StoredCredentialFacts> {
   const key = s.refreshKey
   if (key) {
-    const cached = renewalExpiryCache.get(key)
-    if (cached && Date.now() - cached.at < RENEWAL_EXPIRY_TTL_MS) return cached.value
-    const inflight = renewalExpiryInflight.get(key)
+    const cached = credentialFactsCache.get(key)
+    if (cached && Date.now() - cached.at < CREDENTIAL_FACTS_TTL_MS) return cached.value
+    const inflight = credentialFactsInflight.get(key)
     if (inflight) return inflight
   }
 
-  const read = (async (): Promise<number | undefined> => {
+  const read = (async (): Promise<StoredCredentialFacts> => {
     let credentials: CredentialsFile | null = null
     try {
       credentials = await s.read()
     } catch {
-      return undefined
+      return {}
     }
-    const value = credentials?.claudeAiOauth?.refreshTokenExpiresAt
-    if (key) renewalExpiryCache.set(key, { value, at: Date.now() })
+    const oauth = credentials?.claudeAiOauth
+    const value: StoredCredentialFacts = {
+      refreshTokenExpiresAt: oauth?.refreshTokenExpiresAt,
+      subscriptionType: oauth?.subscriptionType,
+      rateLimitTier: oauth?.rateLimitTier,
+      seatTier: oauth?.seatTier,
+    }
+    if (key) credentialFactsCache.set(key, { value, at: Date.now() })
     return value
   })()
 
   if (!key) return read
-  renewalExpiryInflight.set(key, read)
+  credentialFactsInflight.set(key, read)
   try {
     return await read
   } finally {
-    renewalExpiryInflight.delete(key)
+    credentialFactsInflight.delete(key)
+  }
+}
+
+/**
+ * The plan fields a login persisted, as stored.
+ *
+ * `claude auth status` reports `subscriptionType` and nothing else, so the
+ * tier that separates Max 5x from Max 20x is only ever available here. Both
+ * fields are optional on disk — a credential file written before Meridian
+ * persisted them has neither — and absent keys are omitted rather than nulled
+ * so a caller can spread the result over a live status without erasing it.
+ */
+export interface StoredPlanFields {
+  subscriptionType?: string
+  rateLimitTier?: string
+  seatTier?: string
+}
+
+export async function getStoredPlanFields(
+  store?: CredentialStore,
+): Promise<StoredPlanFields> {
+  const s = store ?? createPlatformCredentialStore()
+  const { subscriptionType, rateLimitTier, seatTier } = await readCredentialFacts(s)
+  return {
+    ...(subscriptionType ? { subscriptionType } : {}),
+    ...(rateLimitTier ? { rateLimitTier } : {}),
+    ...(seatTier ? { seatTier } : {}),
   }
 }
 
@@ -504,7 +559,7 @@ export async function getAuthRenewalStatus(
   const s = store ?? createPlatformCredentialStore()
   // Only the READ is cached. The day count and the flag are recomputed every
   // call so elapsed time and a changed warnDays are always reflected.
-  const refreshTokenExpiresAt = await readRefreshTokenExpiry(s)
+  const { refreshTokenExpiresAt } = await readCredentialFacts(s)
   if (!refreshTokenExpiresAt) return { renewalRequiredSoon: false }
 
   const msRemaining = refreshTokenExpiresAt - Date.now()
