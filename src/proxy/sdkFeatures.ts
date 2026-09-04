@@ -1,12 +1,12 @@
 /**
  * SDK feature toggles — per-adapter configuration for Claude Code features.
  *
- * Persisted to ~/.config/meridian/sdk-features.json.
+ * Persisted under MERIDIAN_CONFIG_DIR, defaulting to ~/.config/meridian.
  * Read at request time (no restart needed to pick up changes).
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { homedir } from "node:os"
 
 export interface AdapterFeatures {
@@ -134,20 +134,19 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
 }
 
 function getConfigPath(): string {
-  const dir = join(homedir(), ".config", "meridian")
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  const dir = process.env.MERIDIAN_CONFIG_DIR || join(homedir(), ".config", "meridian")
   return join(dir, "sdk-features.json")
 }
 
 let cachedConfig: FeatureConfig | null = null
 let lastReadTime = 0
+let lastReadPath: string | undefined
 const CACHE_TTL_MS = 5000
 
 function readConfig(): FeatureConfig {
   const now = Date.now()
-  if (cachedConfig && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
-
   const path = getConfigPath()
+  if (cachedConfig && lastReadPath === path && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
   try {
     if (existsSync(path)) {
       cachedConfig = JSON.parse(readFileSync(path, "utf-8")) as FeatureConfig
@@ -158,6 +157,7 @@ function readConfig(): FeatureConfig {
     cachedConfig = {}
   }
   lastReadTime = now
+  lastReadPath = path
   return cachedConfig
 }
 
@@ -165,10 +165,12 @@ function writeConfig(config: FeatureConfig): void {
   const path = getConfigPath()
   const tmp = `${path}.tmp`
   try {
+    mkdirSync(dirname(path), { recursive: true })
     writeFileSync(tmp, JSON.stringify(config, null, 2))
     renameSync(tmp, path)
     cachedConfig = config
     lastReadTime = Date.now()
+    lastReadPath = path
   } catch (e) {
     console.error("[sdk-features] write failed:", (e as Error).message)
   }
