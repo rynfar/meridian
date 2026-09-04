@@ -55,8 +55,75 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_SILENT` | `CLAUDE_PROXY_SILENT` | unset | Set to `1` to suppress startup output (used by embedding plugins) |
 | `MERIDIAN_PLUGIN_DIR` | — | `~/.config/meridian/plugins` | Plugin auto-discovery directory |
 | `MERIDIAN_PLUGIN_CONFIG` | — | `~/.config/meridian/plugins.json` | Plugin manifest path |
+| `MERIDIAN_CREDENTIALS_READONLY` | `CLAUDE_PROXY_CREDENTIALS_READONLY` | unset | Set to `1` to forbid this instance from refreshing or writing OAuth credentials. For a second instance sharing another's credential files — see [Read-only credentials](#read-only-credentials). |
 
 †Sonnet 1M requires Extra Usage on all plans including Max ([docs](https://code.claude.com/docs/en/model-config#extended-context)). Opus 1M is included with Max/Team/Enterprise at no extra cost. Fable 1M is also included at no Extra Usage cost, verified live on both Max and Team.
+
+### Read-only credentials
+
+`MERIDIAN_CREDENTIALS_READONLY=1` makes an instance incapable of modifying
+credentials. It exists so a second instance — a development build, a staging
+copy — can run beside a production one **against the same credential files**
+without being able to corrupt them.
+
+The hazard is two instances holding the same OAuth refresh token. Meridian
+refreshes proactively on boot and every 45s. If Anthropic rotates a refresh
+token on use, whichever instance refreshes first can invalidate the other's
+copy, and the only recovery is an interactive `claude login` per account.
+
+Sharing the files is usually not a choice. `profiles.json` is read from
+`~/.config/meridian/` unconditionally — `MERIDIAN_CONFIG_DIR` relocates
+`settings.json` only — so any second instance sees the same profile list
+pointing at the same credential directories. This flag is what makes that
+safe.
+
+With it set:
+
+| Behaviour | Effect |
+|---|---|
+| Proactive refresh on boot and every 45s | Not scheduled |
+| Auth keepalive every 45s | Not scheduled |
+| Auth-status cache (60s TTL) | Also invalidated when the credential file's mtime changes, so a rotation by the other instance is picked up on the next tick |
+| Any credential write | Refused at the credential store, and logged to stderr |
+| Any OAuth refresh request | Not sent — the grant would rotate the token server-side even if the result were never written |
+
+The instance announces the mode once at startup. Reads are untouched: it
+re-reads credentials from disk, which is how a refresh performed by the other
+instance is picked up.
+
+The refusal sits at the credential store rather than only on the two timers,
+so a write path nobody anticipated fails loudly instead of silently corrupting
+a token file the other instance depends on. If you see
+`REFUSED credential write` in the log, a call path is missing a guard — the
+message names the operation and the store, never a credential value.
+
+**Limit — the SDK subprocess is outside this guarantee.** Meridian shells out
+to the Claude Agent SDK with `CLAUDE_CONFIG_DIR` pointing at the profile's
+directory. Anything that subprocess writes happens outside this process and
+cannot be intercepted by a flag in it.
+
+Measured on 2026-08-07 against a live proxy (Linux, Claude Code 2.1.198,
+`claude-haiku-4-5`), hashing one profile's `.credentials.json` before and after
+a single request routed to it:
+
+- A control window spanning two 45s refresh ticks left the file unchanged,
+  establishing a quiescent baseline.
+- After the request (HTTP 200, a genuine SDK round trip), the file was
+  **byte-identical** — same SHA-256, same mtime, same size.
+- The subprocess is demonstrably willing to write to that directory: the same
+  request updated `.claude.json`, `policy-limits.json`, `remote-settings.json`,
+  `backups/`, `jobs/` and `sessions/`. It simply did not touch
+  `.credentials.json`.
+
+So on the path that matters in practice — the access token still valid, the
+proxy having refreshed it earlier — the SDK does not write credentials back.
+
+**Not measured:** whether the SDK writes the file when it has to refresh an
+*expired* access token itself. Reproducing that requires either waiting out an
+~8h token lifetime or editing a live credential file, and in this deployment
+the proxy's own refresh (5-minute buffer) reaches it first. If the SDK does
+write on that path, this flag cannot prevent it. Treat the guarantee as
+covering everything Meridian does, not everything the subprocess might do.
 
 ### Subprocess traffic
 

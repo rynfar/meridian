@@ -19,7 +19,10 @@
  *     gives isolation without any shared-singleton race — which is what drove
  *     the reimplementation in the first place.
  */
-import { describe, it, expect, beforeEach, afterAll, mock } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, afterAll, mock } from "bun:test"
+import { mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 /** Controls what the mocked `claude auth status` does on the next call. */
 let authBehavior: "success" | "fail" = "success"
@@ -181,5 +184,84 @@ describe("getClaudeAuthStatusAsync — real implementation", () => {
       lastSuccessAt: 0,
       isFailure: false,
     })
+  })
+})
+
+/**
+ * Credential-file mtime invalidation under MERIDIAN_CREDENTIALS_READONLY.
+ *
+ * A read-only instance never refreshes its own tokens, so the only thing that
+ * ever changes its auth status is a rotation performed by the instance that
+ * owns them. Time-based expiry alone would keep serving the pre-rotation
+ * answer for up to a full TTL after one lands.
+ *
+ * Lives here rather than in credentials-readonly.test.ts because it asserts on
+ * the real auth-status cache: four files in the main `bun test` run call
+ * `mock.module("../proxy/models", …)`, which is global, so those assertions
+ * only hold in this file's own isolated invocation.
+ */
+describe("auth-status cache — credential mtime invalidation", () => {
+  let dir: string
+  let credFile: string
+
+  beforeEach(() => {
+    authBehavior = "success"
+    execFileCalls = 0
+    resetCachedClaudeAuthStatus()
+    dir = mkdtempSync(join(tmpdir(), "meridian-readonly-mtime-"))
+    credFile = join(dir, ".credentials.json")
+    // Fabricated placeholder — only the file's mtime matters here.
+    writeFileSync(credFile, JSON.stringify({ claudeAiOauth: { accessToken: "placeholder" } }))
+  })
+
+  afterEach(() => {
+    delete process.env.MERIDIAN_CREDENTIALS_READONLY
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  /** Push mtime forward a whole second so the change is unambiguous. */
+  function ageCredentialFile(): void {
+    const next = new Date(statSync(credFile).mtimeMs + 1000)
+    utimesSync(credFile, next, next)
+  }
+
+  it("re-reads when the other instance rotates the credential file", async () => {
+    process.env.MERIDIAN_CREDENTIALS_READONLY = "1"
+    const p = nextProfile()
+    const overrides = { CLAUDE_CONFIG_DIR: dir }
+
+    await getClaudeAuthStatusAsync(p, overrides)
+    expect(execFileCalls).toBe(1)
+
+    await getClaudeAuthStatusAsync(p, overrides)
+    expect(execFileCalls).toBe(1)
+
+    ageCredentialFile()
+    await getClaudeAuthStatusAsync(p, overrides)
+    expect(execFileCalls).toBe(2)
+  })
+
+  it("picks up the rotated payload rather than the cached one", async () => {
+    process.env.MERIDIAN_CREDENTIALS_READONLY = "1"
+    const p = nextProfile()
+    const overrides = { CLAUDE_CONFIG_DIR: dir }
+
+    await getClaudeAuthStatusAsync(p, overrides)
+    currentPayload = { loggedIn: true, email: "rotated@test.com", subscriptionType: "max" }
+
+    ageCredentialFile()
+    expect(await getClaudeAuthStatusAsync(p, overrides)).toEqual(currentPayload)
+  })
+
+  it("leaves the time-based cache untouched when the flag is absent", async () => {
+    const p = nextProfile()
+    const overrides = { CLAUDE_CONFIG_DIR: dir }
+
+    await getClaudeAuthStatusAsync(p, overrides)
+    expect(execFileCalls).toBe(1)
+
+    ageCredentialFile()
+    await getClaudeAuthStatusAsync(p, overrides)
+    expect(execFileCalls).toBe(1)
   })
 })

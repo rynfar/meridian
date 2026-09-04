@@ -21,6 +21,7 @@ import { homedir, platform, userInfo } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
 import { claudeLog } from "../logger"
+import { isCredentialsReadOnly, refuseCredentialWrite } from "./credentialsMode"
 
 const execFile = promisify(execFileCb)
 
@@ -87,6 +88,35 @@ export interface CredentialStore {
 }
 
 /**
+ * Wrap a store so that, under MERIDIAN_CREDENTIALS_READONLY, `write()` refuses
+ * and logs instead of touching the backend. Reads are untouched — re-reading
+ * is how this instance picks up a rotation performed by the other one.
+ *
+ * Applied inside the two builders rather than at `createPlatformCredentialStore`
+ * so that EVERY store this module can hand out is guarded, including the
+ * module-level singletons and any backend added later. That is the point of
+ * putting the refusal at the store seam: a caller nobody anticipated (a new
+ * route, a CLI command, a plugin reaching through an exported store) fails
+ * loudly here rather than silently corrupting a token file that a production
+ * instance depends on.
+ *
+ * Returning false rather than throwing keeps every existing caller on the
+ * write-failed path it already handles (`doRefresh` returns false, the CLI
+ * prints its failure, callers fall back to the token on disk).
+ */
+function guardCredentialWrites(store: CredentialStore): CredentialStore {
+  return {
+    ...store,
+    async write(credentials) {
+      if (isCredentialsReadOnly()) {
+        return refuseCredentialWrite("credential-store", store.refreshKey ?? "unknown-store")
+      }
+      return store.write(credentials)
+    },
+  }
+}
+
+/**
  * Serialize a credentials object to the on-disk / Keychain format Claude Code
  * expects.
  *
@@ -128,7 +158,7 @@ function parseKeychainValue(raw: string): { credentials: CredentialsFile; wasHex
 const keychainWasHexByService = new Map<string, boolean>()
 
 function buildMacosStore(serviceName: string): CredentialStore {
-  return {
+  return guardCredentialWrites({
     refreshKey: `keychain:${serviceName}`,
 
     async read() {
@@ -165,7 +195,7 @@ function buildMacosStore(serviceName: string): CredentialStore {
         return false
       }
     },
-  }
+  })
 }
 
 const macosStore: CredentialStore = buildMacosStore(KEYCHAIN_SERVICE)
@@ -176,7 +206,7 @@ const macosStore: CredentialStore = buildMacosStore(KEYCHAIN_SERVICE)
 
 function buildFileStore(filePath: string): CredentialStore {
   const absPath = resolve(filePath)
-  return {
+  return guardCredentialWrites({
     refreshKey: `file:${absPath}`,
 
     async read() {
@@ -200,7 +230,7 @@ function buildFileStore(filePath: string): CredentialStore {
         return false
       }
     },
-  }
+  })
 }
 
 
@@ -250,6 +280,19 @@ const inflightRefreshByStore = new WeakMap<CredentialStore, Promise<boolean>>()
  */
 export async function refreshOAuthToken(store?: CredentialStore): Promise<boolean> {
   const s = store ?? createPlatformCredentialStore()
+
+  // Refusing the WRITE is not sufficient, and stopping here is not merely an
+  // optimisation. A refresh_token grant rotates the token server-side: the
+  // moment this instance calls the endpoint, the refresh token on disk can
+  // stop working — and having refused to persist the replacement, we would
+  // have invalidated the other instance's credentials AND thrown away the
+  // only thing that could have repaired them. Not making the call is the
+  // only safe behaviour, so the refusal has to sit above the network round
+  // trip rather than at the store.
+  if (isCredentialsReadOnly()) {
+    return refuseCredentialWrite("oauth-refresh", s.refreshKey ?? "unknown-store")
+  }
+
   const refreshKey = s.refreshKey
   if (refreshKey) {
     const inflight = inflightRefreshByKey.get(refreshKey)
@@ -386,6 +429,13 @@ export async function ensureFreshToken(
   const expiresAt = credentials?.claudeAiOauth?.expiresAt
   if (!expiresAt) return false
   if (expiresAt - Date.now() > bufferMs) return true
+  // Read-only instances report the token as they found it instead of routing
+  // into a refusal. This runs before every SDK request, so the refusal log
+  // would repeat per request for the whole buffer window; the refusal belongs
+  // on deliberate refresh attempts. False is already the documented non-fatal
+  // result — the caller proceeds with the on-disk token, which the instance
+  // that OWNS the refresh keeps current.
+  if (isCredentialsReadOnly()) return false
   return refreshOAuthToken(s)
 }
 
@@ -561,6 +611,11 @@ export function startBackgroundRefresh(
   bufferMs = 5 * 60 * 1000,
   failureRetryMs = 5 * 60 * 1000,
 ): void {
+  // Refreshing on a timer regardless of traffic is precisely what a read-only
+  // instance must never do. Never arming the scheduler — rather than arming it
+  // and refusing on each tick — keeps isBackgroundRefreshActive() an honest
+  // answer to "is this process refreshing tokens?".
+  if (isCredentialsReadOnly()) return
   if (scheduledRefreshActive) return
   scheduledRefreshActive = true
   const gen = ++scheduledRefreshGeneration

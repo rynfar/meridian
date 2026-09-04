@@ -8,6 +8,8 @@ import { fileURLToPath } from "url"
 import { join, dirname } from "path"
 import { promisify } from "util"
 import { env } from "../env"
+import { isCredentialsReadOnly } from "./credentialsMode"
+import { credentialsFilePathForProfile } from "./tokenRefresh"
 
 const exec = promisify(execCallback)
 const execFile = promisify(execFileCallback)
@@ -104,6 +106,36 @@ let lastKnownGoodAuthStatus: ClaudeAuthStatus | null = null
 let cachedAuthStatusAt = 0
 let cachedAuthStatusIsFailure = false
 let cachedAuthStatusPromise: Promise<ClaudeAuthStatus | null> | null = null
+let cachedAuthStatusCredMtimeMs = 0
+
+/**
+ * Credential-file mtime used to invalidate the auth-status cache, or 0 when
+ * that invalidation does not apply.
+ *
+ * Only consulted under MERIDIAN_CREDENTIALS_READONLY. A read-only instance
+ * never refreshes its own tokens, so a rotation performed by the instance that
+ * DOES own them is the only thing that ever changes this answer — and with
+ * time-based expiry alone the cache would keep serving the pre-rotation status
+ * for up to a full TTL after one lands. Comparing mtime picks it up on the
+ * next tick instead.
+ *
+ * With the flag unset this returns 0 unconditionally, so every comparison is
+ * equal and production keeps exactly the time-based path it has today — no
+ * behaviour change and no extra stat() per call.
+ *
+ * 0 doubles as "unknown": no credential file, or macOS, where credentials live
+ * in the Keychain and have no mtime. Unknown compares equal to unknown, so
+ * those setups degrade to the time-based TTL rather than invalidating on every
+ * call.
+ */
+function credentialFileMtimeMs(envOverrides?: Record<string, string>): number {
+  if (!isCredentialsReadOnly()) return 0
+  try {
+    return statSync(credentialsFilePathForProfile(envOverrides?.CLAUDE_CONFIG_DIR)).mtimeMs
+  } catch {
+    return 0
+  }
+}
 
 /** Env var names already warned about for an unrecognized per-tier 1M
  *  opt-out value (#702) — ensures the warning fires at most once per
@@ -457,6 +489,7 @@ interface AuthCache {
   isFailure: boolean
   promise: Promise<ClaudeAuthStatus | null> | null
   lastSuccessAt: number
+  credMtimeMs: number
 }
 const profileAuthCaches = new Map<string, AuthCache>()
 
@@ -474,7 +507,7 @@ export function getAuthCacheInfo(profileId?: string): { lastCheckedAt: number; l
 function getAuthCache(key: string): AuthCache {
   let cache = profileAuthCaches.get(key)
   if (!cache) {
-    cache = { status: null, lastKnownGood: null, at: 0, isFailure: false, promise: null, lastSuccessAt: 0 }
+    cache = { status: null, lastKnownGood: null, at: 0, isFailure: false, promise: null, lastSuccessAt: 0, credMtimeMs: 0 }
     profileAuthCaches.set(key, cache)
   }
   return cache
@@ -498,8 +531,14 @@ export async function getClaudeAuthStatusAsync(profileId?: string, envOverrides?
   const c_isFailure = cache ? cache.isFailure : cachedAuthStatusIsFailure
   let c_promise = cache ? cache.promise : cachedAuthStatusPromise
 
+  const c_credMtime = cache ? cache.credMtimeMs : cachedAuthStatusCredMtimeMs
+
   const ttl = c_isFailure ? AUTH_STATUS_FAILURE_TTL_MS : AUTH_STATUS_CACHE_TTL_MS
-  if (c_at > 0 && Date.now() - c_at < ttl) {
+  // A changed credential file means the other instance rotated the token, so
+  // the cached answer predates it regardless of how recently it was taken.
+  // Always 0 === 0 unless MERIDIAN_CREDENTIALS_READONLY is set.
+  const credMtime = credentialFileMtimeMs(envOverrides)
+  if (c_at > 0 && Date.now() - c_at < ttl && credMtime === c_credMtime) {
     return c_status ?? c_lastKnownGood
   }
   if (c_promise) return c_promise
@@ -524,18 +563,22 @@ export async function getClaudeAuthStatusAsync(profileId?: string, envOverrides?
       if (cache) {
         cache.status = parsed; cache.lastKnownGood = parsed
         cache.at = Date.now(); cache.isFailure = false; cache.lastSuccessAt = Date.now()
+        cache.credMtimeMs = credMtime
       } else {
         cachedAuthStatus = parsed; lastKnownGoodAuthStatus = parsed
         cachedAuthStatusAt = Date.now(); cachedAuthStatusIsFailure = false
+        cachedAuthStatusCredMtimeMs = credMtime
       }
       return parsed
     } catch {
       if (cache) {
         cache.isFailure = true; cache.at = Date.now(); cache.status = null
+        cache.credMtimeMs = credMtime
         return cache.lastKnownGood
       } else {
         cachedAuthStatusIsFailure = true; cachedAuthStatusAt = Date.now()
         cachedAuthStatus = null
+        cachedAuthStatusCredMtimeMs = credMtime
         return lastKnownGoodAuthStatus
       }
     }
@@ -837,6 +880,7 @@ export function resetCachedClaudeAuthStatus(): void {
   cachedAuthStatusAt = 0
   cachedAuthStatusIsFailure = false
   cachedAuthStatusPromise = null
+  cachedAuthStatusCredMtimeMs = 0
   profileAuthCaches.clear()
 }
 
