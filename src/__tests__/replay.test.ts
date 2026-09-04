@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader } from "../proxy/replay"
+import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay } from "../proxy/replay"
 
 const call = { type: "tool_use", id: "call-one", name: "write", input: { path: "a.txt", content: "complete\ncontents" } }
 const image = { type: "image", source: { type: "base64", media_type: "image/png", data: "pixels" } }
@@ -51,5 +51,17 @@ describe("faithful tool history rendering", () => {
     expect(normalizeStructuredUserContent("hello")).toBe("hello")
     const content = [{ type: "text", text: "hello" }, image]
     expect(normalizeStructuredUserContent(content)).toEqual(content)
+  })
+
+  it("frames multimodal history before the live turn without changing images or the source", () => {
+    const source = [{ message: { content: "earlier question" } }, { message: { content: [image, { type: "text", text: "live question" }] } }]
+    const before = structuredClone(source)
+    const framed = frameStructuredReplay(source)
+    expect(framed[0]!.message.content).toContain("<conversation_history>")
+    expect(JSON.stringify(framed[1]!.message.content)).toContain("</conversation_history>")
+    expect(framed[1]!.message.content).toContainEqual(image)
+    expect(source).toEqual(before)
+    expect(frameStructuredReplay(source, false)).toBe(source)
+    expect(frameStructuredReplay(source.slice(0, 1))).toEqual(source.slice(0, 1))
   })
 })

@@ -39,7 +39,9 @@ unpaired native `tool_result` blocks enter a fresh SDK session. Fresh SDK querie
 accept user input only, so completed assistant calls are explicit replay context;
 native result wrappers remain reserved for real SDK tool checkpoints.
 
-The script defaults to Haiku; set `E2E_MODEL` to exercise another model. Meridian
+Run these four modes with both the default Haiku and `E2E_MODEL=sonnet`.
+Also run `E2E_MODEL=sonnet bun scripts/e2e-replay-tool-history.mjs --image --no-preset`
+to verify the Claude Code preset remains optional. Meridian
 state is isolated in a temporary directory while the existing SDK auth is kept.
 Also run all four E41 modes to validate normal checkpoint resumes after changes.
 

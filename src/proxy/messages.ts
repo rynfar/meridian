@@ -162,6 +162,13 @@ export function getLastUserMessage(messages: Array<{ role: string; content: any 
  * and histories that don't end with a user turn are returned as a plain
  * join (nothing to separate).
  */
+export const REPLAY_CONTEXT_OPEN = `<conversation_history>\n`
+export const REPLAY_CONTEXT_CLOSE = `\n</conversation_history>\n\n` +
+  `The above is a replay of your prior conversation with this user — the original session could not be resumed. ` +
+  `It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, ` +
+  `and never invent tool output — use your actual tools when action is needed. ` +
+  `Respond only as the assistant to the user's message below.\n\n`
+
 export function frameReplayTurns(turns: Array<{ role: string; text: string }>): string {
   const nonEmpty = turns.filter((t) => t.text)
   const joined = nonEmpty.map((t) => t.text).join("\n\n")
@@ -169,14 +176,7 @@ export function frameReplayTurns(turns: Array<{ role: string; text: string }>): 
   const last = nonEmpty[nonEmpty.length - 1]!
   if (last.role !== "user") return joined
   const history = nonEmpty.slice(0, -1).map((t) => t.text).join("\n\n")
-  return (
-    `<conversation_history>\n${history}\n</conversation_history>\n\n` +
-    `The above is a replay of your prior conversation with this user — the original session could not be resumed. ` +
-    `It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, ` +
-    `and never invent tool output — use your actual tools when action is needed. ` +
-    `Respond only as the assistant to the user's message below.\n\n` +
-    last.text
-  )
+  return REPLAY_CONTEXT_OPEN + history + REPLAY_CONTEXT_CLOSE + last.text
 }
 
 /**

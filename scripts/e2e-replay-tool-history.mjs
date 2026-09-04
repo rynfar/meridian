@@ -10,6 +10,7 @@ import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk"
 
 const stream = process.argv.includes("--stream")
 const withImage = process.argv.includes("--image")
+const noPreset = process.argv.includes("--no-preset")
 const model = process.env.E2E_MODEL ?? "claude-haiku-4-5-20251001"
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-replay-tools-")))
 for (const key of Object.keys(process.env)) {
@@ -20,6 +21,10 @@ Object.assign(process.env, { MERIDIAN_CONFIG_DIR: join(root, "config"), MERIDIAN
 const { startProxyServer } = await import("../src/proxy/server.ts")
 const { readSessionStoreSnapshot } = await import("../src/proxy/sessionStore.ts")
 const { telemetryStore } = await import("../src/telemetry/index.ts")
+if (noPreset) {
+  const { updateAdapterFeatures } = await import("../src/proxy/sdkFeatures.ts")
+  updateAdapterFeatures("opencode", { codeSystemPrompt: false })
+}
 
 function blueImage() {
   function chunk(type, data) {
@@ -94,7 +99,7 @@ try {
     if (round > 0 && !serialized.includes(marker)) problems.push(`round ${round + 1}: result payload disappeared`)
     const calls = blocks.filter(block => block.type === "tool_use")
     finalText = blocks.filter(block => block.type === "text").map(block => block.text).join("")
-    console.log(JSON.stringify({ round: round + 1, stream, withImage, calls: calls.length,
+    console.log(JSON.stringify({ round: round + 1, model, stream, withImage, noPreset, calls: calls.length,
       lineage: telemetryStore.getRecent({ limit: 1 })[0]?.lineageType, missingCalls: missingCalls.length,
       orphanResults, answer: finalText }))
     if (calls.length === 0) break

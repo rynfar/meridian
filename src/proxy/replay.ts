@@ -1,9 +1,23 @@
 /** Pure rendering of client tool history for SDK replay. */
 import { sanitizeAssistantText } from "./sanitize"
-import { describeToolCall, type ToolCallInfo } from "./messages"
+import { describeToolCall, REPLAY_CONTEXT_OPEN, REPLAY_CONTEXT_CLOSE, type ToolCallInfo } from "./messages"
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+/** Frame multimodal history just like text history; the SDK may coalesce the
+ * user input messages, but their historical/context boundary must survive. */
+export function frameStructuredReplay<T extends { message: { content: unknown } }>(messages: T[], endsWithUser = true): T[] {
+  if (messages.length < 2 || !endsWithUser) return messages
+  return messages.map((entry, index) => {
+    const prefix = index === 0 ? REPLAY_CONTEXT_OPEN : index === messages.length - 1 ? REPLAY_CONTEXT_CLOSE : ""
+    if (!prefix) return entry
+    const content = entry.message.content
+    return { ...entry, message: { ...entry.message, content: Array.isArray(content)
+      ? [{ type: "text", text: prefix }, ...content]
+      : prefix + String(content ?? "") } }
+  })
 }
 
 /** Keep completed calls as context, including their exact identity and input.
