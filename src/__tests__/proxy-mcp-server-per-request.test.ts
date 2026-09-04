@@ -167,7 +167,8 @@ describe("MCP server per-request lifecycle", () => {
 
     // All should succeed
     for (const res of results) {
-      expect(res.status).toBe(200)
+      expect({ status: res.status, body: res.status === 200 ? undefined : await res.clone().text() })
+        .toEqual({ status: 200, body: undefined })
     }
 
     // Each should have its own MCP server
