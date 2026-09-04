@@ -479,12 +479,6 @@ function summarizeAnthropicContent(content: string | AnthropicContentBlock[]): s
 // ---------------------------------------------------------------------------
 
 /**
- * Translate an OpenAI /v1/chat/completions request body into an Anthropic
- * /v1/messages request body.
- *
- * Returns null if the request has no messages (caller should return 400).
- */
-/**
  * Map OpenAI's `response_format` onto Anthropic's `output_config.format`.
  *
  * `json_object` is forwarded intact rather than widened into a permissive
@@ -513,6 +507,12 @@ function translateResponseFormat(format: unknown): unknown {
   return { type: shape.type }
 }
 
+/**
+ * Translate an OpenAI /v1/chat/completions request body into an Anthropic
+ * /v1/messages request body.
+ *
+ * Returns null if the request has no messages (caller should return 400).
+ */
 export function translateOpenAiToAnthropic(
   body: OpenAiChatRequest,
   options: OpenAiTranslationOptions = {},

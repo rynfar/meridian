@@ -220,6 +220,35 @@ describe("POST /v1/chat/completions — non-streaming", () => {
     expect(capturedOptions?.outputFormat).toEqual({ type: "json_schema", schema })
   })
 
+  // The test above pins what reaches the SDK, but its request actually ends in
+  // a 500: the mock yields no `result` carrying structured_output, so nothing
+  // downstream of the SDK boundary is exercised. These two supply that result
+  // and assert the bytes the client receives — otherwise the whole point of the
+  // feature (schema-valid JSON in the response) has no coverage.
+  it("returns the validated JSON as the message content", async () => {
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    }
+    mockMessages = [
+      assistantMessage([{ type: "text", text: "ignored prose" }]),
+      { type: "result", subtype: "success", is_error: false, structured_output: { answer: "42" } },
+    ]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: false,
+      response_format: { type: "json_schema", json_schema: { name: "answer", schema } },
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { choices: Array<{ message: { content: string } }> }
+    expect(JSON.parse(body.choices[0]!.message.content)).toEqual({ answer: "42" })
+  })
+
   it("serves a request whose response_format is an explicit null", async () => {
     // Many OpenAI-compatible clients emit `"response_format": null` for an
     // unset optional instead of omitting the key. Reading `.type` off it threw
@@ -793,6 +822,36 @@ describe("POST /v1/chat/completions — streaming", () => {
       .find((tc): tc is DeltaToolCall => !!tc && tc.type === "function" && typeof tc.id === "string")
       ?.index
     expect(startIndex).toBe(0)
+  })
+
+  it("streams the validated JSON as a single content delta", async () => {
+    const schema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    }
+    mockMessages = [
+      messageStart("msg_1"), textBlockStart(0), textDelta(0, "ignored prose"),
+      blockStop(0), messageDelta("end_turn"), messageStop(),
+      { type: "result", subtype: "success", is_error: false, structured_output: { answer: "42" } },
+    ]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: true,
+      response_format: { type: "json_schema", json_schema: { name: "answer", schema } },
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(res.status).toBe(200)
+    const text = await readStream(res)
+    const content = text.split("\n")
+      .filter(l => l.startsWith("data: ") && l !== "data: [DONE]")
+      .map(l => JSON.parse(l.slice(6)) as { choices?: Array<{ delta?: { content?: string } }> })
+      .map(c => c.choices?.[0]?.delta?.content ?? "")
+      .join("")
+    expect(JSON.parse(content)).toEqual({ answer: "42" })
   })
 })
 
