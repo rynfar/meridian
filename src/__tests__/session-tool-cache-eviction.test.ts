@@ -72,7 +72,11 @@ async function post(app: any, session: string, tools: any[]) {
     body: JSON.stringify(makeRequest({
       stream: false,
       tools,
-      messages: [{ role: "user", content: "hi" }],
+      messages: tools.length > 0 ? [{ role: "user", content: "hi" }] : [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "continue" },
+      ],
     })),
   }))
 }

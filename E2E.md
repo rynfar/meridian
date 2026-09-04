@@ -47,6 +47,29 @@ to verify the Claude Code preset remains optional. Meridian
 state is isolated in a temporary directory while the existing SDK auth is kept.
 Also run all four E41 modes to validate normal checkpoint resumes after changes.
 
+### Pi concurrent callers (#870 / #922)
+
+```bash
+bun scripts/e2e-pi-concurrent-replay.mjs
+bun scripts/e2e-pi-concurrent-replay.mjs --stream
+# Install Oh My Pi in a disposable directory; point at the package directory.
+E2E_OMP_PACKAGE=/path/to/node_modules/@oh-my-pi/pi-coding-agent bun scripts/e2e-omp-concurrent-client.mjs
+E2E_OMP_PACKAGE=/path/to/node_modules/@oh-my-pi/pi-coding-agent bun scripts/e2e-omp-concurrent-client.mjs --main-first
+```
+
+The first fixture controls queue admission while using real SDK responses. Both
+main-first and side-first orders must answer from their own request bodies,
+preserve source histories through the supported SDK API, and keep the next main
+turn correct. The last completed branch owns the mapping; following a side call
+can require another fresh replay.
+
+The second fixture uses Oh My Pi's actual session and title-generation APIs
+(validated with 18.0.3), provider serialization and read/write tools. It forces
+the main/title overlap using their real shared session metadata, then verifies
+that the title parses and the client copies a random fixture value through its
+tool loop. It does not mock client or model responses or exercise the terminal
+UI. Both fixtures isolate Meridian state and work only in temporary directories.
+
 ## Test Index
 
 | ID | Section | What It Proves | Verified |

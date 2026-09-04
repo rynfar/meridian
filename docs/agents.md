@@ -339,9 +339,16 @@ providers:
 ```
 
 omp runs its main turn, title generation and mid-turn side questions
-concurrently under one session id. Meridian serializes them, and the turn that
-loses the commit race replays from its own history instead of resuming, so it
-misses the prompt cache for that one turn but never fails.
+concurrently under one session id. Meridian serializes them and answers a
+conflicting late request by replaying its own history. It does not reject that
+request merely because another caller committed while it waited. Normal
+upstream errors and cancellation still apply. The mapping follows the last
+completed caller: if that is a side call, the next main turn may also need a
+fresh replay. Separate session identities avoid this extra replay cost.
+
+Fresh side requests use their own tool declarations. Tool definitions omitted
+on a continuation can be inherited only from that same published SDK branch;
+a failed side request does not replace its tool cache.
 
 ### Prime Agent
 

@@ -71,7 +71,7 @@ export const piAdapter: AgentAdapter = {
   name: "pi",
 
   /**
-   * Oh My Pi drives one conversation from several callers at once, the main
+   * NOTE: agent-specific (pi) — Oh My Pi drives one conversation from several callers at once, the main
    * turn, title generation, and side questions asked mid-turn, and they all
    * carry the same `metadata.user_id.session_id`. Whichever one commits first
    * advances the mapping, so the other arrives holding a branch that no longer

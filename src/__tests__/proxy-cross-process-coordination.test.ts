@@ -144,7 +144,7 @@ const request = new Request("http://localhost/v1/messages", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "x-opencode-session": process.env.CLIENT_SESSION_ID,
+    ...JSON.parse(process.env.REQUEST_HEADERS),
   },
   body: process.env.REQUEST_BODY,
 })
@@ -217,13 +217,15 @@ function spawnProxyWorker(
   id: string,
   clientSessionId: string,
   messages: Array<{ role: string, content: unknown }>,
+  options: { adapter?: "pi"; stream?: boolean } = {},
 ): WorkerHandle {
   const releaseFile = join(paths.base, `release-${id}`)
   const requestBody = JSON.stringify({
     model: "claude-sonnet-4-6",
     max_tokens: 128,
-    stream: false,
+    stream: options.stream ?? false,
     messages,
+    ...(options.adapter === "pi" ? { metadata: { user_id: JSON.stringify({ session_id: clientSessionId }) } } : {}),
   })
   const child = Bun.spawn([process.execPath, "-e", workerSource], {
     env: {
@@ -241,6 +243,8 @@ function spawnProxyWorker(
       RELEASE_FILE: releaseFile,
       WORKER_ID: id,
       CLIENT_SESSION_ID: clientSessionId,
+      REQUEST_HEADERS: JSON.stringify(options.adapter === "pi"
+        ? { "x-meridian-agent": "pi" } : { "x-opencode-session": clientSessionId }),
       REQUEST_BODY: requestBody,
     },
     stdout: "ignore",
@@ -312,6 +316,39 @@ function conflictBody(event: WorkerEvent): unknown {
 }
 
 describe("proxy coordination across OS processes", () => {
+  for (const stream of [false, true]) {
+    for (const firstName of ["main", "side"] as const) {
+      test(`Pi keeps both branches valid across processes: ${firstName} first, stream=${stream}`, async () => {
+        const paths = await makePaths()
+        const key = `pi-race-${firstName}-${stream}`
+        const prefix = [{ role: "user", content: "shared fixture" }, { role: "assistant", content: "ok" }]
+        const main = [...prefix, { role: "user", content: "main-only fixture field" }]
+        const side = [...prefix, { role: "user", content: "side-only fixture field" }]
+        const owner = spawnProxyWorker(paths, "pi-owner", key, firstName === "main" ? main : side, { adapter: "pi", stream })
+        const ownerSdk = await waitForEvent(paths.events, owner.id, "sdk-start")
+        const waiter = spawnProxyWorker(paths, "pi-waiter", key, firstName === "main" ? side : main, { adapter: "pi", stream })
+        await waitForEvent(paths.events, waiter.id, "arrival-snapshot")
+        expect((await readEvents(paths.events)).some(row => row.workerId === waiter.id && row.name === "sdk-start")).toBe(false)
+        await release(owner)
+        expect((await result(paths, owner)).status).toBe(200)
+        const waiterSdk = await waitForEvent(paths.events, waiter.id, "sdk-start")
+        expect(waiterSdk.resume).toBeNull()
+        expect(waiterSdk.sdkSessionId).not.toBe(ownerSdk.sdkSessionId)
+        await release(waiter)
+        expect((await result(paths, waiter)).status).toBe(200)
+
+        const followup = spawnProxyWorker(paths, "pi-followup", key, [...main,
+          { role: "assistant", content: "ok" }, { role: "user", content: "continue the main fixture" }], { adapter: "pi", stream })
+        const followupSdk = await waitForEvent(paths.events, followup.id, "sdk-start")
+        // A single key stores the most recent branch. A later main turn either
+        // resumes that main branch or safely replays after a side branch.
+        expect(followupSdk.resume).toBe(firstName === "side" ? waiterSdk.sdkSessionId! : null)
+        await release(followup)
+        expect((await result(paths, followup)).status).toBe(200)
+      }, 20_000)
+    }
+  }
+
   test("serializes one session and rejects a stale arrival after durable advancement", async () => {
     const paths = await makePaths()
     const opening = [{ role: "user", content: "hello" }]
