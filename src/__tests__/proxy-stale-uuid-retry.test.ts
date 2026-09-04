@@ -42,6 +42,7 @@ let queryParams: any[] = []
 let queryCallCount = 0
 let queryMutation: ((options: Record<string, any>) => void) | undefined
 let forcedQueryError: Error | undefined
+let forcedQueryDelayMs = 0
 
 installSdkMock(() => ({
   query: (opts: any) => {
@@ -53,7 +54,10 @@ installSdkMock(() => ({
 
     return (async function* () {
       queryMutation?.(opts.options || {})
-      if (forcedQueryError) throw forcedQueryError
+      if (forcedQueryError) {
+        if (forcedQueryDelayMs > 0) await Bun.sleep(forcedQueryDelayMs)
+        throw forcedQueryError
+      }
       // First call with resumeSessionAt: simulate stale UUID error
       if (callIndex === 1 && opts.options?.resumeSessionAt) {
         throw new Error(
@@ -124,6 +128,7 @@ describe("Stale UUID retry", () => {
     queryCallCount = 0
     queryMutation = undefined
     forcedQueryError = undefined
+    forcedQueryDelayMs = 0
   })
 
   it("retries as fresh session when undo hits stale UUID (non-streaming)", async () => {
@@ -344,17 +349,26 @@ describe("Stale UUID retry", () => {
     expect(failed.status).toBe(500)
     expect(queryCallCount).toBe(1)
 
+    // Processing may legitimately take longer than 50ms on a busy runner.
+    // Keep a slow SDK response in the test so a short client-abort timer can
+    // never masquerade as the expected upstream error (#917/#933).
+    forcedQueryDelayMs = 75
     const abort = new AbortController()
-    const timer = setTimeout(() => abort.abort(), 50)
-    const blocked = await app.fetch(new Request("http://localhost/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-opencode-session": sessionId },
-      body: JSON.stringify({ model: "sonnet", stream: false, messages: continuation }),
-      signal: abort.signal,
-    }))
-    clearTimeout(timer)
-    expect(blocked.status).toBe(500)
-    expect(queryCallCount).toBe(2)
+    // This is a hang guard, not a latency requirement. A quarantined source
+    // still fails the assertions below (499 or no second SDK call).
+    const timer = setTimeout(() => abort.abort(), 2_000)
+    try {
+      const blocked = await app.fetch(new Request("http://localhost/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-opencode-session": sessionId },
+        body: JSON.stringify({ model: "sonnet", stream: false, messages: continuation }),
+        signal: abort.signal,
+      }))
+      expect(blocked.status).toBe(500)
+      expect(queryCallCount).toBe(2)
+    } finally {
+      clearTimeout(timer)
+    }
   })
 
   it("propagates non-stale errors normally", async () => {
