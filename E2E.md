@@ -21,6 +21,28 @@ curl -s http://127.0.0.1:3456/health | jq .status   # → "healthy"
 kill $(lsof -ti :3456)
 ```
 
+### Fresh replay with completed tool calls (#888 / #858)
+
+```bash
+bun scripts/e2e-replay-tool-history.mjs
+bun scripts/e2e-replay-tool-history.mjs --stream
+bun scripts/e2e-replay-tool-history.mjs --image
+bun scripts/e2e-replay-tool-history.mjs --image --stream
+```
+
+This isolated real-SDK gate forces each round through a fresh replay. It expects
+exactly one price lookup, an answer containing the exact returned price and
+unique confirmation code, and (with `--image`) correct identification of the
+image color. Supported `getSessionMessages` inspection verifies that completed
+call identities and arguments, result payloads, and images survive, and no
+unpaired native `tool_result` blocks enter a fresh SDK session. Fresh SDK queries
+accept user input only, so completed assistant calls are explicit replay context;
+native result wrappers remain reserved for real SDK tool checkpoints.
+
+The script defaults to Haiku; set `E2E_MODEL` to exercise another model. Meridian
+state is isolated in a temporary directory while the existing SDK auth is kept.
+Also run all four E41 modes to validate normal checkpoint resumes after changes.
+
 ## Test Index
 
 | ID | Section | What It Proves | Verified |
