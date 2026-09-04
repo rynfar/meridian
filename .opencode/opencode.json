@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "external_directory": {
+      "~/.config/meridian/**": "allow",
+      "~/.cache/meridian/**": "allow",
+      "~/.cache/opencode-claude-max-proxy/**": "allow"
+    },
+    "read": {
+      "~/.config/meridian/profiles.json": "deny",
+      "~/.config/meridian/profiles/**": "deny",
+      "~/.config/meridian/design-token.json": "deny",
+      "~/.claude/.credentials.json": "deny"
+    }
+  }
+}
