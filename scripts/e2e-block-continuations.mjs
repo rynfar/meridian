@@ -7,11 +7,32 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { deflateSync } from "node:zlib"
 import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk"
+import * as sdk from "@anthropic-ai/claude-agent-sdk"
+import { spyOn } from "bun:test"
 
 const stream = process.argv.includes("--stream")
 const withImage = process.argv.includes("--image")
+const extended = process.argv.includes("--extended")
 const selected = process.argv.find(arg => arg.startsWith("--case="))?.slice(7)
 const model = process.env.E2E_MODEL ?? "claude-haiku-4-5-20251001"
+const delayInputMs = Number(process.argv.find(arg => arg.startsWith("--delay-input-ms="))?.split("=")[1] ?? 0)
+let delayedInputs = 0
+const originalQuery = sdk.query
+const querySpy = delayInputMs > 0 ? spyOn(sdk, "query").mockImplementation(input => {
+  if (typeof input.prompt === "string") return originalQuery(input)
+  const prompt = input.prompt
+  return originalQuery({ ...input, prompt: (async function* () {
+    let index = 0
+    for await (const row of prompt) {
+      if (index++ > 0) {
+        delayedInputs++
+        console.log(JSON.stringify({ delayedInput: index, delayInputMs }))
+        await new Promise(resolve => setTimeout(resolve, delayInputMs))
+      }
+      yield row
+    }
+  })() })
+}) : undefined
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-block-continuations-")))
 for (const key of Object.keys(process.env)) {
   if (key.startsWith("MERIDIAN_") || key.startsWith("CLAUDE_PROXY_")) delete process.env[key]
@@ -102,15 +123,24 @@ try {
     const source = await snapshot(key)
     const appended = text(`Additional requirement: answer with the same record identifier followed by ${suffix}. Use the supplied result; do not call any tool.` +
       (withImage ? " Also name the dominant color of the attached image." : ""))
-    const response = await request(key, [history[0], history[1], { role: "user", content: [result, hook, appended, ...(withImage ? [blueImage()] : [])] }], tools)
+    const nextHistory = [history[0], history[1], { role: "user", content: [result, hook, appended, ...(withImage ? [blueImage()] : [])] }]
+    if (extended) nextHistory.push({ role: "assistant", content: initial }, { role: "user", content:
+      "Final output requirement: reply with ONLY one JSON object with keys record and suffix" + (withImage ? " and color" : "") + ". Use the suffix from the preceding user content. Do not call a tool." })
+    const response = await request(key, nextHistory, tools)
     const lineage = telemetryStore.getRecent({ limit: 1 })[0]?.lineageType
     const current = await snapshot(key)
     const lastInput = JSON.stringify(current.rows.filter(row => row.type === "user").at(-1)?.message)
     const answer = answerText(response)
-    const valid = lineage === "continuation" && lastInput.includes(suffix) && !lastInput.includes(marker)
+    let finalObject
+    if (extended) {
+      try { finalObject = JSON.parse(answer.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "")) }
+      catch { finalObject = undefined }
+    }
+    const valid = (!extended || (finalObject?.record === marker && finalObject?.suffix === suffix))
+      && lineage === "continuation" && lastInput.includes(suffix) && !lastInput.includes(marker)
       && !lastInput.includes("user-prompt-submit-hook") && answer.includes(marker) && answer.includes(suffix)
       && (!withImage || /blue/i.test(answer)) && !response.some(block => block.type === "tool_use")
-    record("append", valid, { lineage, answer, deltaOnly: !lastInput.includes(marker) })
+    record("append", valid, { lineage, extended, answer, deltaOnly: !lastInput.includes(marker) })
     await unchanged(source)
   }
 
@@ -149,4 +179,8 @@ try {
   }
   assert.deepEqual(failures, [], "block continuation validation failed")
   console.log(`PASS: block continuations (${selected ?? "all"}, stream=${stream}, image=${withImage})`)
-} finally { await instance.close() }
+} finally {
+  querySpy?.mockRestore()
+  console.log(JSON.stringify({ delayedInputs }))
+  await instance.close()
+}

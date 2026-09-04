@@ -6,13 +6,14 @@ import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, m
 
 type Message = { role: string; content: unknown }
 type Input = { prompt: string | AsyncIterable<{ message: { content: unknown } }>; options?: { sessionId?: string; resume?: string } }
-let captured: { prompt: string; options: Input["options"] }[] = []
+let captured: { prompt: string; inputCount: number; options: Input["options"] }[] = []
 installSdkMock(() => ({
   query: (input: Input) => (async function* () {
     let prompt = ""
+    let inputCount = typeof input.prompt === "string" ? 1 : 0
     if (typeof input.prompt === "string") prompt = input.prompt
-    else for await (const row of input.prompt) prompt += JSON.stringify(row.message.content)
-    captured.push({ prompt, options: input.options })
+    else for await (const row of input.prompt) { prompt += JSON.stringify(row.message.content); inputCount++ }
+    captured.push({ prompt, inputCount, options: input.options })
     for (const event of [messageStart(), textBlockStart(0), textDelta(0, "ok"), blockStop(0), messageDelta(), messageStop(), assistantMessage([{ type: "text", text: "ok" }])]) {
       yield withMockSdkSessionId(event, input.options)
     }
@@ -55,6 +56,21 @@ describe("block continuations through HTTP", () => {
         if (image) expect(captured[0]!.prompt).toContain("NEW_IMAGE")
       })
     }
+
+    it(`delivers appended media and a later user question in one SDK input (stream=${stream})`, async () => {
+      const key = crypto.randomUUID()
+      storeSession(key, [{ role: "user", content: [result] }], "source")
+      const { app } = createProxyServer({ silent: true })
+      await post(app, key, [{ role: "user", content: [result, text("APPENDED_TEXT"),
+        { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }] },
+        { role: "assistant", content: "prior reply" }, { role: "user", content: "LATEST_QUESTION" }])
+      expect(captured[0]!.options?.resume).toBe("source")
+      expect(captured[0]!.inputCount).toBe(1)
+      expect(captured[0]!.prompt).toContain("APPENDED_TEXT")
+      expect(captured[0]!.prompt).toContain("NEW_IMAGE")
+      expect(captured[0]!.prompt).toContain("LATEST_QUESTION")
+      expect(captured[0]!.prompt).not.toContain("ALREADY_DELIVERED")
+    })
 
     it(`replays a repeated result even after appended text (stream=${stream})`, async () => {
       const key = crypto.randomUUID()

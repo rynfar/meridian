@@ -1,10 +1,23 @@
 import { describe, expect, it } from "bun:test"
-import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay } from "../proxy/replay"
+import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages } from "../proxy/replay"
 
 const call = { type: "tool_use", id: "call-one", name: "write", input: { path: "a.txt", content: "complete\ncontents" } }
 const image = { type: "image", source: { type: "base64", media_type: "image/png", data: "pixels" } }
 
 describe("faithful tool history rendering", () => {
+  it("delivers a complete resume delta atomically without changing native results, media or input", () => {
+    const result = { type: "tool_result", tool_use_id: "a", is_error: true, content: "actual failure" }
+    const source = [{ message: { content: [result, image] } }, { message: { content: "final question" } }]
+    const before = structuredClone(source)
+    expect(coalesceStructuredUserMessages(source)).toEqual([
+      { message: { content: [result, image, { type: "text", text: "final question" }] } },
+    ])
+    expect(source).toEqual(before)
+    expect(coalesceStructuredUserMessages([])).toEqual([])
+    const single = source.slice(0, 1)
+    expect(coalesceStructuredUserMessages(single)).toBe(single)
+  })
+
   it("retains every call, argument and identity when an assistant turn has no text", () => {
     const second = { ...call, id: "call-two", input: { path: "b.txt", content: "x".repeat(1000) } }
     const rendered = flattenAssistantContent([{ type: "thinking", thinking: "private", signature: "opaque" }, call, second])

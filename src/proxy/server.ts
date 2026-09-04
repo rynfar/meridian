@@ -74,8 +74,8 @@ import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
-import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay } from "./replay"
-import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, consolidateMultimodalOntoLastUser, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
+import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages } from "./replay"
+import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, resolveQueryConfigDir, type QueryContext } from "./query"
@@ -2628,13 +2628,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           }
         }
 
-        // The SDK only surfaces multimodal blocks from the LAST user turn of a
-        // streamed prompt; images sitting in earlier turns (e.g. a read-tool
-        // result mid-conversation) are otherwise dropped and the model replies
-        // "I cannot see the image" (#553). Move them onto the final user turn.
+        // SDK stream inputs are independently answered live turns. Deliver the
+        // complete delta before generation so appended context cannot produce
+        // an answer before the final user question arrives. With one input,
+        // media also stays visible in its original relative position (#553).
         if (structuredMessages.length > 1) {
           structuredMessages = isResume
-            ? consolidateMultimodalOntoLastUser(structuredMessages)
+            ? coalesceStructuredUserMessages(structuredMessages)
             : frameStructuredReplay(structuredMessages, messagesToConvert.at(-1)?.role === "user")
         }
 

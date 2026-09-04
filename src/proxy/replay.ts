@@ -6,6 +6,15 @@ function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
+/** One HTTP request must not become several independently answered SDK turns. */
+export function coalesceStructuredUserMessages<T extends { message: { content: unknown } }>(messages: T[]): T[] {
+  if (messages.length < 2) return messages
+  const first = messages[0]!
+  return [{ ...first, message: { ...first.message, content: messages.flatMap(entry =>
+    Array.isArray(entry.message.content) ? entry.message.content
+      : [{ type: "text", text: String(entry.message.content ?? "") }]) } }]
+}
+
 /** Frame multimodal history just like text history; the SDK may coalesce the
  * user input messages, but their historical/context boundary must survive. */
 export function frameStructuredReplay<T extends { message: { content: unknown } }>(messages: T[], endsWithUser = true): T[] {
@@ -21,10 +30,7 @@ export function frameStructuredReplay<T extends { message: { content: unknown } 
   // SDK stream inputs are live turns, not a history-import interface. Send
   // the complete replay atomically so the model cannot answer an earlier
   // fragment before the final client tool result has arrived.
-  const first = framed[0]!
-  return [{ ...first, message: { ...first.message, content: framed.flatMap(entry =>
-    Array.isArray(entry.message.content) ? entry.message.content
-      : [{ type: "text", text: String(entry.message.content ?? "") }]) } }]
+  return coalesceStructuredUserMessages(framed)
 }
 
 /** Keep completed calls as context, including their exact identity and input.
