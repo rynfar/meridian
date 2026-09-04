@@ -80,6 +80,13 @@ jobs:
       - run: bun test src/__tests__/durable-file-system.test.ts src/__tests__/windows-durable-storage.test.ts
         shell: bash
 
+      # Session GC's fenced deletion path was a silent no-op on win32 until it
+      # was ported. The ubuntu job runs this file too, but the win32-only
+      # branches (handle-based join, taskkill tree kill, pid-reuse-proof
+      # deleting-claim recovery) only execute on a real Windows runtime.
+      - run: bun test src/__tests__/session-lifecycle-windows-gc.test.ts
+        shell: bash
+
       # Plugin loader exercises `await import(absolutePath)` which on Windows
       # rejects raw backslash paths with `Received protocol c:`. The test
       # writes a real plugin file to a tempdir and loads it, so it actually

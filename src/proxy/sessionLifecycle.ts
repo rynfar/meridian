@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto"
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { realpathSync } from "node:fs"
 import {
   chmod,
@@ -123,6 +123,9 @@ export interface SessionLifecycleOptions {
   pinProvider?: () => readonly TranscriptLocator[]
   /** Bound one complete sweep, including all child deletions. */
   runTimeoutMs?: number
+  /** Test seam. Overrides the resolved @anthropic-ai/claude-agent-sdk module the
+   * deletion child imports, so the fenced-delete path can run against a stub. */
+  sdkModuleUrl?: string
 }
 
 export interface ActiveTranscriptLease {
@@ -564,10 +567,19 @@ export async function reconcile(
     // physical SDK deletion without that handshake.
     for (const resource of Object.values(sidecar.resources)) {
       if (resource.state !== "deleting") continue
+      // The incarnation probe (pid + OS start id) is immune to pid reuse. On
+      // POSIX the group probe additionally waits out surviving descendants.
+      // win32 has no process groups and recycles pids aggressively: probing
+      // the stored pid there could misread an unrelated process as a live
+      // deleter forever, permanently blocking recovery of this claim, and a
+      // single-pid probe observes no descendants anyway — executor death is
+      // the entire win32 signal (the un-detached deletion child spawns none;
+      // see deleteWithSdkChild).
       const executorDead = resource.deletionExecutor
         && resource.deletionProcessGroupId !== undefined
         ? processIncarnationIsDead(resource.deletionExecutor)
-          && processGroupIsEmpty(resource.deletionProcessGroupId)
+          && (process.platform === "win32"
+            || processGroupIsEmpty(resource.deletionProcessGroupId))
         : false
       const ownerDiedBeforeHandshake = !resource.deletionExecutor
         && resource.deletionOwner !== undefined
@@ -634,14 +646,6 @@ export async function runGc(
 ): Promise<GcResult> {
   await reconcile(pins, options)
   let currentPins = pins.map(canonicalizeTranscriptLocator)
-  if (!options.deleter && process.platform === "win32") {
-    return {
-      deleted: 0,
-      notFound: 0,
-      failed: 0,
-      deferred: await countDeferred(currentPins, options),
-    }
-  }
   const limit = option(options.maxDeletesPerRun, DEFAULT_MAX_DELETES, "maxDeletesPerRun")
   const result: GcResult = { deleted: 0, notFound: 0, failed: 0, deferred: 0 }
   const runTimeoutMs = option(options.runTimeoutMs, DEFAULT_DELETE_TIMEOUT_MS, "runTimeoutMs")
@@ -830,7 +834,15 @@ async function awaitCustomDeleter(deletion: Promise<void>, timeoutMs: number): P
 }
 
 function processGroupIsEmpty(processGroupId: number): boolean {
-  if (process.platform === "win32") return false
+  // POSIX only: a negative pid probes the whole process group, and a stale
+  // pgid cannot be recycled until the pid space wraps. On win32 a pid is
+  // reusable the moment its last handle closes, so a pid probe can pin
+  // "still running" on an unrelated process indefinitely while observing no
+  // descendants; win32 callers must join the leader through its ChildProcess
+  // handle or the persisted executor incarnation instead.
+  if (process.platform === "win32") {
+    throw new SessionLifecycleError("process-group probes are POSIX-only")
+  }
   try {
     process.kill(-processGroupId, 0)
     return false
@@ -840,7 +852,20 @@ function processGroupIsEmpty(processGroupId: number): boolean {
 }
 
 function signalProcessGroup(processGroupId: number, signal: NodeJS.Signals): void {
-  if (process.platform === "win32") return
+  if (process.platform === "win32") {
+    // No POSIX process groups on Windows. taskkill /T force-terminates the
+    // deletion child together with any descendants it may have spawned; the
+    // requested POSIX signal collapses to a forced kill (both call sites pass
+    // SIGKILL). Call sites only reach this while the un-reaped ChildProcess
+    // handle still pins the pid, so the kill cannot land on a reused pid.
+    // Best effort beyond that: losing a race to an already-exiting tree is
+    // fine.
+    spawnSync("taskkill", ["/PID", String(processGroupId), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+    })
+    return
+  }
   try {
     process.kill(-processGroupId, signal)
   } catch (error) {
@@ -886,7 +911,7 @@ async function deleteWithSdkChild(
   attachExecutor: (executor: ProcessIncarnation, processGroupId: number) => Promise<void>,
   options: SessionLifecycleOptions,
 ): Promise<void> {
-  const sdkUrl = import.meta.resolve("@anthropic-ai/claude-agent-sdk")
+  const sdkUrl = options.sdkModuleUrl ?? import.meta.resolve("@anthropic-ai/claude-agent-sdk")
   const gateDirectory = join(getStoreDir(options), "deletion-gates")
   await mkdir(gateDirectory, { recursive: true, mode: 0o700 })
   const gatePath = join(gateDirectory, `${deletionToken}.go`)
@@ -942,13 +967,18 @@ try {
   let timer: ReturnType<typeof setTimeout> | undefined
   const joinTimeoutMs = Math.max(100, Math.min(2_000, timeoutMs))
   const processGroupId = child.pid
+  // win32 recycles a pid the instant the child is reaped, so pid-level kills
+  // are only safe while our un-reaped handle still pins it. If the leader is
+  // already gone there, so is its taskkill-visible tree.
+  const killDeletionTree = (): void => {
+    if (!processGroupId) return
+    if (process.platform === "win32" && (child.exitCode !== null || child.signalCode !== null)) return
+    signalProcessGroup(processGroupId, "SIGKILL")
+  }
   try {
     if (!processGroupId) throw new Error("session deletion child has no PID")
     const executor = captureProcessIncarnation(processGroupId)
     if (!executor) throw new Error("cannot capture session deletion executor incarnation")
-    if (process.platform === "win32") {
-      throw new SessionLifecycleError("fenced session deletion is unavailable on win32")
-    }
     await attachExecutor(executor, processGroupId)
     const gateHandle = await open(gatePath, "wx", 0o600)
     try {
@@ -960,13 +990,22 @@ try {
 
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
-        signalProcessGroup(processGroupId, "SIGKILL")
+        killDeletionTree()
         reject(new Error("session deletion process group timed out and was killed"))
       }, timeoutMs)
       timer.unref?.()
     })
     const status = await Promise.race([exited, timeout])
-    joined = await waitForProcessGroupEmpty(processGroupId, joinTimeoutMs)
+    // The leader was just joined through its own ChildProcess handle, which
+    // is immune to pid reuse. On win32 the un-detached leader is the entire
+    // observable "group" (the SDK's deleteSession spawns no descendants) and
+    // its pid is already reusable, so probing it could only misread a reused
+    // pid as a still-running deleter and wedge this resource in permanent
+    // deferral; the handle join is the fence. POSIX still waits out group
+    // survivors.
+    joined = process.platform === "win32"
+      ? true
+      : await waitForProcessGroupEmpty(processGroupId, joinTimeoutMs)
     if (!joined) {
       throw new DeletionStillRunningError("session deletion process group remains active")
     }
@@ -976,10 +1015,14 @@ try {
   } finally {
     if (timer) clearTimeout(timer)
     if (!joined && processGroupId) {
-      signalProcessGroup(processGroupId, "SIGKILL")
+      killDeletionTree()
       const [leaderExited, groupEmpty] = await Promise.all([
         waitForDeletionExit(exited, joinTimeoutMs),
-        waitForProcessGroupEmpty(processGroupId, joinTimeoutMs),
+        // win32: the leader's ChildProcess handle is the only reuse-proof
+        // join signal; see the comment on the un-timed-out path above.
+        process.platform === "win32"
+          ? Promise.resolve(true)
+          : waitForProcessGroupEmpty(processGroupId, joinTimeoutMs),
       ])
       joined = leaderExited && groupEmpty
       unjoined = !joined
