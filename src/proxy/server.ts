@@ -2301,17 +2301,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // until the atomic route+mapping CAS wins at the terminal barrier.
           lineageResult = { type: "diverged", reason: "priority-failback" }
         }
-        // A modified-history request (superseding, revised in place) under a
-        // concurrent turn lease falls through to fresh-replay instead of 409.
-        // Safe: it is only produced when the history strictly grows
-        // (messages.length > cached.messageCount), so undo / replayed-request /
-        // unrelated-history still 409. Only applies to passthrough sessions —
-        // non-passthrough (internal) sessions must surface a loud 409 so the
-        // concurrent-request race is visible to operators.
+        // A growing passthrough request with revised history can replay its
+        // complete body after losing a commit race. Keep stale undo, replayed
+        // and unrelated requests subject to the ordinary conflict guard.
         if (
+          lostRaceWhileWaiting &&
           passthrough &&
-          profileSessionId &&
-          requestMeta.sessionTurnLease?.advancedWhileWaiting(profileSessionId) &&
           lineageResult.type === "diverged" &&
           lineageResult.reason === "modified-history"
         ) {
