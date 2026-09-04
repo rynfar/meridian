@@ -229,6 +229,32 @@ export function credentialsFilePathForProfile(claudeConfigDir?: string): string 
   return claudeConfigDir ? configDirToCredentialsFile(claudeConfigDir) : CREDENTIALS_FILE
 }
 
+/**
+ * What the stored credential says about this account's ability to authenticate.
+ *
+ * `unknown` is deliberately NOT a soft `absent`. `read()` answers `null` both
+ * for a credential that is not there and for one it could not parse, so from
+ * here the two are indistinguishable - and a Keychain that momentarily refuses,
+ * or a file caught mid-write, must never be allowed to report a working account
+ * as logged out. Only a credential that was read successfully and carries no
+ * access token is `absent`.
+ */
+export type StoredCredentialPresence = "present" | "absent" | "unknown"
+
+export async function readStoredCredentialPresence(
+  store: CredentialStore,
+): Promise<StoredCredentialPresence> {
+  let credentials: CredentialsFile | null
+  try {
+    credentials = await store.read()
+  } catch {
+    return "unknown"
+  }
+  if (!credentials) return "unknown"
+  const accessToken = credentials.claudeAiOauth?.accessToken
+  return typeof accessToken === "string" && accessToken.length > 0 ? "present" : "absent"
+}
+
 // ---------------------------------------------------------------------------
 // OAuth refresh
 // ---------------------------------------------------------------------------

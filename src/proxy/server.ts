@@ -55,7 +55,7 @@ import { LRUMap } from "../utils/lruMap"
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
 import { canRecoverCapturedToolUses, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal } from "./errors"
-import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, getAuthRenewalStatus, resolveRenewalWarnDays, type CredentialStore } from "./tokenRefresh"
+import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, readStoredCredentialPresence, getAuthRenewalStatus, resolveRenewalWarnDays, type CredentialStore } from "./tokenRefresh"
 import {
   createFileDesignTokenStore,
   createDesignLogin,
@@ -6852,11 +6852,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         envOverrides
       )
       const cacheInfo = getAuthCacheInfo(p.id !== "default" ? p.id : undefined)
+      // `claude auth status` answers from its own view of the account and was
+      // measured saying `loggedIn: true` for a credential whose accessToken is
+      // the empty string - three accounts on one fleet read as fine here while
+      // every request they served came back 401, so the page offered no way to
+      // tell them from an account that was merely idle. The credential is what
+      // a request actually presents, so an access token that is not there
+      // outranks a cheerful probe. Only `absent` demotes: see
+      // `readStoredCredentialPresence` for why `unknown` must not.
+      const presence = await readStoredCredentialPresence(
+        createPlatformCredentialStore(
+          envOverrides?.CLAUDE_CONFIG_DIR
+            ? { claudeConfigDir: envOverrides.CLAUDE_CONFIG_DIR }
+            : undefined,
+        ),
+      )
       return {
         ...p,
         email: auth?.email || null,
         subscriptionType: auth?.subscriptionType || null,
-        loggedIn: auth?.loggedIn ?? false,
+        loggedIn: presence === "absent" ? false : (auth?.loggedIn ?? false),
         lastCheckedAt: cacheInfo.lastCheckedAt || null,
         lastSuccessAt: cacheInfo.lastSuccessAt || null,
       }
