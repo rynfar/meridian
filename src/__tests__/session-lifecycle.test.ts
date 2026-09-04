@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
+import * as durableFileSystem from "../proxy/session/durableFileSystem"
 import {
   chmodSync,
   mkdirSync,
@@ -75,7 +76,9 @@ describe("session transcript lifecycle", () => {
       now: () => now,
       preparedGraceMs: 0,
       retiredGraceMs: 0,
-      lockWaitMs: 20,
+      // Positive recovery cases perform real fsyncs. Use the production wait
+      // budget; tests of contention and fail-closed deadlines override it.
+      lockWaitMs: 2_000,
       lockRetryMs: 1,
       lockStaleMs: 60_000,
     }
@@ -84,6 +87,26 @@ describe("session transcript lifecycle", () => {
   afterEach(() => {
     rmSync(storeDir, { recursive: true, force: true })
   })
+
+  async function withSlowRecoverySync(operation: () => Promise<void>): Promise<void> {
+    const sync = durableFileSystem.syncDirectoryDurably
+    let delayed = 0
+    const syncSpy = spyOn(durableFileSystem, "syncDirectoryDurably").mockImplementation(async path => {
+      if (path.startsWith(storeDir) && path.includes(".recover-")) {
+        // Successful recovery must tolerate storage latency greater than the
+        // former 20 ms test deadline, while still performing real fsyncs.
+        await new Promise(resolve => setTimeout(resolve, 30))
+        delayed++
+      }
+      await sync(path)
+    })
+    try {
+      await operation()
+      expect(delayed).toBeGreaterThan(0)
+    } finally {
+      syncSpy.mockRestore()
+    }
+  }
 
   it("keys ownership by config directory and session id", () => {
     const first = locator("same-id", "profile-a")
@@ -530,10 +553,10 @@ describe("session transcript lifecycle", () => {
     const stale = (Date.now() - 1_000) / 1_000
     utimesSync(lock, stale, stale)
 
-    await prepareFork(locator("after-crash"), {
+    await withSlowRecoverySync(() => prepareFork(locator("after-crash"), {
       ...options,
       lockStaleMs: 10,
-    })
+    }).then(() => undefined))
 
     expect(readdirSync(storeDir)).toEqual(["session-gc.json"])
   })
@@ -556,10 +579,10 @@ describe("session transcript lifecycle", () => {
     )
     writeLifecycleRecoveryClaim(claim, contents, "second-dead-lifecycle-recoverer", 999_999_999)
 
-    await prepareFork(locator("after-orphaned-lifecycle-recovery"), {
+    await withSlowRecoverySync(() => prepareFork(locator("after-orphaned-lifecycle-recovery"), {
       ...options,
       lockStaleMs: 10,
-    })
+    }).then(() => undefined))
 
     expect(readSidecar(storeDir).resources).toBeDefined()
     expect(readdirSync(storeDir).some((name) => name.includes(".recover-"))).toBe(false)
