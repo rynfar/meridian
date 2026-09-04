@@ -446,7 +446,7 @@ function buildFreshPrompt(
       }
     }
     // See #553 — consolidate earlier-turn multimodal onto the final user turn.
-    const prompt = frameStructuredReplay(structured.length > 1 ? consolidateMultimodalOntoLastUser(structured) : structured, messages.at(-1)?.role === "user")
+    const prompt = frameStructuredReplay(structured, messages.at(-1)?.role === "user")
     return (async function* () { for (const msg of prompt) yield msg })()
   }
 
@@ -2633,8 +2633,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // result mid-conversation) are otherwise dropped and the model replies
         // "I cannot see the image" (#553). Move them onto the final user turn.
         if (structuredMessages.length > 1) {
-          structuredMessages = consolidateMultimodalOntoLastUser(structuredMessages)
-          if (!isResume) structuredMessages = frameStructuredReplay(structuredMessages, messagesToConvert.at(-1)?.role === "user")
+          structuredMessages = isResume
+            ? consolidateMultimodalOntoLastUser(structuredMessages)
+            : frameStructuredReplay(structuredMessages, messagesToConvert.at(-1)?.role === "user")
         }
 
       } else {

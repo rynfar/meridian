@@ -37,7 +37,9 @@ image color. Supported `getSessionMessages` inspection verifies that completed
 call identities and arguments, result payloads, and images survive, and no
 unpaired native `tool_result` blocks enter a fresh SDK session. Fresh SDK queries
 accept user input only, so completed assistant calls are explicit replay context;
-native result wrappers remain reserved for real SDK tool checkpoints.
+native result wrappers remain reserved for real SDK tool checkpoints. A fresh
+multimodal replay is delivered in one SDK input so generation cannot begin
+before the final result arrives.
 
 Run these four modes with both the default Haiku and `E2E_MODEL=sonnet`.
 Also run `E2E_MODEL=sonnet bun scripts/e2e-replay-tool-history.mjs --image --no-preset`

@@ -9,7 +9,7 @@
  * reports having destroyed the user's uncommitted changes (#694).
  */
 import { describe, it, expect } from "bun:test"
-import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, type QueryContext } from "../proxy/query"
+import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 
 /** Mirrors the shared context helper in query.test.ts. */
@@ -110,14 +110,14 @@ describe("buildQueryOptions — gitStatus note placement", () => {
       codeSystemPrompt: false,
       systemContext: "You are helpful.",
     }))
-    expect(options.systemPrompt).toBe("You are helpful.")
+    expect(options.systemPrompt).toBe("You are helpful." + REPLAY_PROVENANCE_NOTE)
   })
 
-  it("still forces an empty system prompt when the preset is off with nothing to append", () => {
+  it("keeps the preset off while retaining transport provenance", () => {
     // Regression guard for the #489 follow-up: `{}` would let the SDK
     // reintroduce the preset.
     const { options } = buildQueryOptions(ctx({ codeSystemPrompt: false }))
-    expect(options.systemPrompt).toBe("")
+    expect(options.systemPrompt).toBe(REPLAY_PROVENANCE_NOTE)
   })
 
   it("applies to passthrough requests, where the bug was reported", () => {

@@ -9,15 +9,22 @@ function record(value: unknown): value is Record<string, unknown> {
 /** Frame multimodal history just like text history; the SDK may coalesce the
  * user input messages, but their historical/context boundary must survive. */
 export function frameStructuredReplay<T extends { message: { content: unknown } }>(messages: T[], endsWithUser = true): T[] {
-  if (messages.length < 2 || !endsWithUser) return messages
-  return messages.map((entry, index) => {
-    const prefix = index === 0 ? REPLAY_CONTEXT_OPEN : index === messages.length - 1 ? REPLAY_CONTEXT_CLOSE : ""
+  if (messages.length < 2) return messages
+  const framed = messages.map((entry, index) => {
+    const prefix = !endsWithUser ? "" : index === 0 ? REPLAY_CONTEXT_OPEN : index === messages.length - 1 ? REPLAY_CONTEXT_CLOSE : ""
     if (!prefix) return entry
     const content = entry.message.content
     return { ...entry, message: { ...entry.message, content: Array.isArray(content)
       ? [{ type: "text", text: prefix }, ...content]
       : prefix + String(content ?? "") } }
   })
+  // SDK stream inputs are live turns, not a history-import interface. Send
+  // the complete replay atomically so the model cannot answer an earlier
+  // fragment before the final client tool result has arrived.
+  const first = framed[0]!
+  return [{ ...first, message: { ...first.message, content: framed.flatMap(entry =>
+    Array.isArray(entry.message.content) ? entry.message.content
+      : [{ type: "text", text: String(entry.message.content ?? "") }]) } }]
 }
 
 /** Keep completed calls as context, including their exact identity and input.

@@ -72,6 +72,7 @@ installMcpToolsMock(() => ({
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
+const { REPLAY_PROVENANCE_NOTE } = await import("../proxy/query")
 
 function createTestApp() {
   const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
@@ -325,7 +326,7 @@ describe("POST /v1/chat/completions — non-streaming", () => {
     expect(capturedOptions?.outputFormat).toBeUndefined()
   })
 
-  it("sends the client system prompt verbatim, without the claude_code preset", async () => {
+  it("keeps client instructions intact with transport provenance and no claude_code preset", async () => {
     // The OpenAI endpoint serves generic chat clients (Open WebUI, curl).
     // Their system prompt must reach the SDK as a plain string — NOT wrapped
     // under the 28KB claude_code preset, which would hijack their intent with
@@ -341,7 +342,7 @@ describe("POST /v1/chat/completions — non-streaming", () => {
       ],
     })
 
-    expect(capturedOptions?.systemPrompt).toBe("You are TestBot. Reply with exactly: ZEBRA-7")
+    expect(capturedOptions?.systemPrompt).toBe("You are TestBot. Reply with exactly: ZEBRA-7" + REPLAY_PROVENANCE_NOTE)
   })
 
   it("response has Content-Type application/json", async () => {
@@ -426,7 +427,7 @@ describe("POST /v1/chat/completions — Jcode session continuity", () => {
     expect(capturedOptionHistory[0]?.resume).toBeUndefined()
     expect(capturedOptionHistory[0]?.sessionId).toMatch(/^[0-9a-f-]{36}$/)
     expect(capturedOptionHistory[1]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
-    expect(capturedOptionHistory[1]?.systemPrompt).toBe("stable system")
+    expect(capturedOptionHistory[1]?.systemPrompt).toBe("stable system" + REPLAY_PROVENANCE_NOTE)
   })
 
   it("keeps distinct Jcode session keys isolated", async () => {

@@ -48,7 +48,10 @@ describe("fresh tool history through HTTP", () => {
       expect(text).toContain("EXACT_FAILURE_OUTPUT")
       expect(text).not.toContain("hidden")
       expect(JSON.stringify(inputs)).not.toContain('"type":"tool_result"')
-      if (image) expect(inputs.flat()).toContainEqual(media)
+      if (image) {
+        expect(inputs).toHaveLength(1)
+        expect(inputs.flat()).toContainEqual(media)
+      }
     })
   }
 })
