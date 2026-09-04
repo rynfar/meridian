@@ -282,9 +282,12 @@ describe("POST /v1/chat/completions — non-streaming", () => {
     expect(res.status).toBe(400)
   })
 
-  it("rejects response_format combined with tools", async () => {
-    // Structured-output mode replaces the response content, which would swallow
-    // a tool_use turn and strand the client's tool loop.
+  it("keeps tool calling and drops the schema when both are sent", async () => {
+    // OpenAI permits tools + response_format; structured-output mode cannot
+    // honour both, because it replaces the content and swallows the tool_use
+    // turn. This endpoint dropped response_format entirely before structured
+    // output existed, so tool calling worked and clients depend on it — a 400
+    // delivers neither capability, dropping the schema delivers the larger one.
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     const app = createTestApp()
 
@@ -298,7 +301,28 @@ describe("POST /v1/chat/completions — non-streaming", () => {
       messages: [{ role: "user", content: "Hi" }],
     })
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(200)
+    // The tools still reach the SDK; only the unsatisfiable schema is dropped.
+    expect(capturedOptions?.outputFormat).toBeUndefined()
+  })
+
+  // Same rule applied to json_object: on its own it is a 400, because nothing
+  // can be honoured (see "rejects response_format json_object" above, and note
+  // Anthropic has no schema-less JSON mode). Sent alongside tools there IS
+  // something to honour, so it degrades rather than failing the whole request.
+  it("keeps tool calling when json_object is sent alongside tools", async () => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    const app = createTestApp()
+
+    const res = await postChatCompletion(app, {
+      stream: false,
+      response_format: { type: "json_object" },
+      tools: [{ type: "function", function: { name: "fn", parameters: {} } }],
+      messages: [{ role: "user", content: "Hi" }],
+    })
+
+    expect(res.status).toBe(200)
+    expect(capturedOptions?.outputFormat).toBeUndefined()
   })
 
   it("sends the client system prompt verbatim, without the claude_code preset", async () => {
