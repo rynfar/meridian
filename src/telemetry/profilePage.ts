@@ -4,6 +4,7 @@
  */
 
 import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
+import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrder"
 import { WINDOW_LABELS } from "./profileUsage"
 
 export const profilePageHtml = `<!DOCTYPE html>
@@ -30,6 +31,7 @@ export const profilePageHtml = `<!DOCTYPE html>
   }
   .profile-card.active { border-color: var(--accent); }
   .profile-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  ${reorderCss}
   .profile-name { font-size: 16px; font-weight: 600; }
   .profile-badge {
     font-size: 10px; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
@@ -141,6 +143,7 @@ export const profilePageHtml = `<!DOCTYPE html>
 <div class="subtitle">Manage Claude account profiles</div>
 
 <div id="content"><div style="color:var(--muted);padding:40px;text-align:center">Loading\u2026</div></div>
+${reorderLiveRegionHtml}
 
 <div class="section" style="margin-top:32px">
   <div class="section-title">Setup Guide</div>
@@ -234,15 +237,18 @@ function formatExtraUsage(eu) {
   };
 }
 
+${reorderClientJs}
+
 // Cache the last seen quota response so the /profiles/list refresh can
 // keep showing usage even if a single /v1/usage/quota/all call fails.
 var lastQuota = null;
 
 async function refresh() {
   try {
-    var [profilesRes, quotaRes] = await Promise.all([
+    var [profilesRes, quotaRes, routingRes] = await Promise.all([
       fetch('/profiles/list'),
       fetch('/v1/usage/quota/all').catch(function () { return null; }),
+      fetch('/settings/api/routing').catch(function () { return null; }),
     ]);
     var profiles = await profilesRes.json();
     var quota = null;
@@ -250,6 +256,9 @@ async function refresh() {
       try { quota = await quotaRes.json(); } catch (_) { quota = null; }
     }
     if (quota) lastQuota = quota;
+    if (routingRes && routingRes.ok) {
+      try { meridianReorder.adopt(await routingRes.json()); } catch (_) { /* keep the last good order */ }
+    }
     render(profiles, lastQuota);
   } catch {
     document.getElementById('content').innerHTML = '<div class="empty-state"><h2>Could not load profiles</h2><p>Is Meridian running?</p></div>';
@@ -332,8 +341,9 @@ function renderUsageSection(profileQuota) {
 }
 
 function render(data, quotaData) {
-  const profiles = data.profiles || [];
+  const profiles = meridianReorder.sortProfiles(data.profiles || []);
   const active = data.activeProfile;
+  const refocusId = meridianReorder.focusAnchor();
   // Build quick lookup: profileId -> per-profile quota entry from
   // /v1/usage/quota/all. Endpoint may be unavailable (older Meridian)
   // or have errored — in that case quotaById is empty and the per-card
@@ -353,12 +363,17 @@ function render(data, quotaData) {
     return;
   }
 
-  let html = '<div class="section"><div class="section-title">Configured Profiles</div>';
+  const reorderable = profiles.length > 1 && !meridianReorder.envPinned();
 
-  for (const p of profiles) {
+  let html = '<div class="section"><div class="section-title">Configured Profiles</div>';
+  if (profiles.length > 1) html += meridianReorder.noteHtml(reorderable);
+
+  for (let idx = 0; idx < profiles.length; idx++) {
+    const p = profiles[idx];
     const isActive = p.id === active;
-    html += '<div class="profile-card' + (isActive ? ' active' : '') + '">';
+    html += '<div class="profile-card' + (isActive ? ' active' : '') + '" data-id="' + esc(p.id) + '" data-index="' + idx + '">';
     html += '<div class="profile-card-header">';
+    if (reorderable) html += meridianReorder.handleHtml(p.id, idx, profiles.length);
     html += '<span class="profile-name">' + esc(p.id) + '</span>';
     if (isActive) html += '<span class="profile-badge badge-active">active</span>';
     html += '<span class="profile-badge badge-type">' + esc(p.type || 'claude-max') + '</span>';
@@ -414,6 +429,7 @@ function render(data, quotaData) {
 
   html += '</div>';
   document.getElementById('content').innerHTML = html;
+  meridianReorder.restoreFocus(refocusId);
 }
 
 function timeAgo(ts) {
@@ -447,8 +463,9 @@ async function switchProfile(id) {
   if (data.success) refresh();
 }
 
+meridianReorder.init({ onSaved: refresh });
 refresh();
-setInterval(refresh, 10000);
+setInterval(function () { if (!meridianReorder.dragging()) refresh(); }, 10000);
 ` + profileBarJs + `
 </script>
 </body>
