@@ -15,9 +15,10 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { resolveClaudeExecutableSync } from "./models"
+import { fetchOAuthPlanFields, type OAuthPlanFields } from "./oauthPlan"
 import type { ProfileConfig } from "./profiles"
 import { setSetting } from "./settings"
-import { createPlatformCredentialStore } from "./tokenRefresh"
+import { createPlatformCredentialStore, type CredentialsFile } from "./tokenRefresh"
 
 const PROFILES_DIR = join(homedir(), ".config", "meridian", "profiles")
 const CONFIG_FILE = join(homedir(), ".config", "meridian", "profiles.json")
@@ -156,6 +157,37 @@ function getAuthStatus(configDir: string): { loggedIn: boolean; email?: string; 
   }
 }
 
+type CompleteOAuthTokenResponse = OAuthTokenResponse & { refresh_token: string }
+
+function hasRequiredTokens(tokenData: OAuthTokenResponse): tokenData is CompleteOAuthTokenResponse {
+  return Boolean(tokenData.access_token && tokenData.refresh_token)
+}
+
+/**
+ * Build the record a login writes to disk.
+ *
+ * Split out so the on-disk shape is directly assertable: the defect this closes
+ * was a field missing from this object literal, which no test of the
+ * surrounding prompt/fetch I/O would have caught. Plan fields spread in only
+ * when known — `subscriptionType: undefined` would write a null-ish key into a
+ * file the real CLI also parses.
+ */
+export function buildLoginCredentials(
+  tokenData: CompleteOAuthTokenResponse,
+  plan: OAuthPlanFields,
+  now: number = Date.now(),
+): CredentialsFile {
+  return {
+    claudeAiOauth: {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: tokenData.expires_at ?? now + (tokenData.expires_in ?? 8 * 60 * 60) * 1000,
+      scopes: tokenData.scope?.split(" ").filter(Boolean) ?? OAUTH_SCOPES,
+      ...plan,
+    },
+  }
+}
+
 async function completeManualOAuthLogin(configDir: string): Promise<boolean> {
   const session = createManualOAuthSession()
   console.log("\x1b[33m⚠ Headless OAuth login: open this URL in a browser:\x1b[0m")
@@ -209,21 +241,14 @@ async function completeManualOAuthLogin(configDir: string): Promise<boolean> {
     return false
   }
 
-  if (!tokenData.access_token || !tokenData.refresh_token) {
+  if (!hasRequiredTokens(tokenData)) {
     console.error("\x1b[31m✗ OAuth token response did not include the required tokens.\x1b[0m")
     return false
   }
 
-  const expiresAt = tokenData.expires_at ?? Date.now() + (tokenData.expires_in ?? 8 * 60 * 60) * 1000
+  const plan = await fetchOAuthPlanFields(tokenData.access_token)
   const store = createPlatformCredentialStore({ claudeConfigDir: configDir })
-  return store.write({
-    claudeAiOauth: {
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token,
-      expiresAt,
-      scopes: tokenData.scope?.split(" ").filter(Boolean) ?? OAUTH_SCOPES,
-    },
-  })
+  return store.write(buildLoginCredentials(tokenData, plan))
 }
 
 export async function profileAdd(id: string, options: AuthLoginOptions = {}): Promise<void> {

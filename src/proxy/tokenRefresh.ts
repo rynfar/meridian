@@ -21,6 +21,7 @@ import { homedir, platform, userInfo } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
 import { claudeLog } from "../logger"
+import { fetchOAuthPlanFields, planFieldsMissing } from "./oauthPlan"
 
 const execFile = promisify(execFileCb)
 
@@ -51,7 +52,7 @@ export function configDirToCredentialsFile(claudeConfigDir: string): string {
   return join(resolve(claudeConfigDir), ".credentials.json")
 }
 
-interface OAuthCredentials {
+export interface OAuthCredentials {
   accessToken: string
   refreshToken: string
   expiresAt: number
@@ -70,7 +71,7 @@ interface OAuthCredentials {
   rateLimitTier?: string
 }
 
-interface CredentialsFile {
+export interface CredentialsFile {
   claudeAiOauth: OAuthCredentials
   [key: string]: unknown
 }
@@ -353,13 +354,35 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
     ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : {}),
   }
 
+  // The plan is only ever written at login, so a credential file created before
+  // Meridian persisted it stays plan-blind forever — nothing else in the
+  // lifecycle ever asks. A refresh is the one other moment that holds a valid
+  // access token, which is what the profile endpoint requires, so it is the
+  // only place a backfill can happen without forcing an interactive re-login.
+  //
+  // Gated on the fields being absent, so this costs one extra GET once per
+  // profile rather than on every ~8h refresh: the next refresh reads the value
+  // this one wrote and skips. Merged before the write so the whole thing is
+  // still a single store write, and spread UNDER the existing fields so a
+  // value already on disk always wins over a freshly fetched one.
+  const backfilled = planFieldsMissing(credentials.claudeAiOauth)
+    ? await fetchOAuthPlanFields(tokenData.access_token)
+    : {}
+  if (backfilled.subscriptionType || backfilled.rateLimitTier) {
+    credentials.claudeAiOauth = { ...backfilled, ...credentials.claudeAiOauth }
+  }
+
   const written = await store.write(credentials)
   if (!written) return false
 
   // Logged so it is observable whether Anthropic ever rolls the refresh-token
   // window — undefined here means the renewal countdown stays anchored to the
   // last interactive login.
-  claudeLog("token_refresh.success", { expiresAt, refreshTokenExpiresAt })
+  claudeLog("token_refresh.success", {
+    expiresAt,
+    refreshTokenExpiresAt,
+    backfilledPlan: Object.keys(backfilled),
+  })
   return true
 }
 
