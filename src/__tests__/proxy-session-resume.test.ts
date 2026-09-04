@@ -11,6 +11,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import {
   assistantMessage,
   messageStart,
@@ -28,7 +31,7 @@ let capturedQueryParams: any = null
 let queryCallCount = 0
 let firstCallerSelectedSessionId: string | undefined
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     capturedQueryParams = params
     queryCallCount++
@@ -48,14 +51,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     instance: {},
   }),
   tool: () => ({}),
-}))
+}), "proxy-session-resume.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

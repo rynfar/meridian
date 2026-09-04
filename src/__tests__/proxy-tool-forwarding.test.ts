@@ -12,6 +12,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import {
   messageStart,
   textBlockStart,
@@ -32,7 +35,7 @@ import {
 // --- Mock the Claude SDK ---
 let mockMessages: any[] = []
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     return (async function* () {
       for (const msg of mockMessages) {
@@ -46,16 +49,16 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     instance: {},
   }),
   tool: () => ({}),
-}))
+}), "proxy-tool-forwarding.test.ts")
 
 // Mock the logger to avoid noise
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
 // Mock mcpTools
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

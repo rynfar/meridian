@@ -15,6 +15,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import {
   messageStart,
   textBlockStart,
@@ -34,7 +37,7 @@ import {
 // --- Mock the Claude SDK ---
 let mockMessages: any[] = []
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) =>
     (async function* () {
       for (const msg of mockMessages) {
@@ -47,14 +50,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     // Provide a minimal instance that supports tool() registration
     instance: { tool: () => {}, registerTool: () => ({}) },
   }),
-}))
+}), "proxy-passthrough-tool-use.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

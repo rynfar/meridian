@@ -15,6 +15,9 @@
  * subprocesses run at once.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 let sdkActive = 0
@@ -27,7 +30,7 @@ function gateClosed() {
   sdkGate = new Promise<void>((resolve) => { openGate = resolve })
 }
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => (async function* () {
     sdkActive++
     sdkPeak = Math.max(sdkPeak, sdkActive)
@@ -41,14 +44,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   })(),
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "proxy-concurrency-limiter.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

@@ -11,6 +11,9 @@
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
 
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 // ---------- unit: explicitModelPin + canonical bump ----------
 
 const { explicitModelPin, CANONICAL_SONNET_MODEL, CANONICAL_OPUS_MODEL } = await import("../proxy/models")
@@ -64,7 +67,7 @@ let queryEnvs: Array<Record<string, string | undefined>> = []
 
 import { resolveMockSdkSessionId } from "./helpers"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (opts: any) => {
     queryEnvs.push(opts.options?.env || {})
     return (async function* () {
@@ -86,14 +89,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "explicit-model-pins.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

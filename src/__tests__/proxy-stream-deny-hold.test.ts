@@ -24,6 +24,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -92,7 +95,7 @@ const denyMsg = (ids: string[], sessionId: string) => {
 
 // CLI-faithful mock: per-block assistant messages, mid-stream hook dispatch,
 // CANCEL-ON-DENY when a deny resolves while generation is in flight.
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (opts: any) => {
     capturedController = opts?.options?.abortController
     capturedSessionId = opts?.options?.sessionId
@@ -163,13 +166,13 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
   tool: () => ({}),
-}))
+}), "proxy-stream-deny-hold.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: (event: string) => { timeline.push(`log:${event}`) },
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

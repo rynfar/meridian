@@ -26,6 +26,9 @@
  * exposed case.
  */
 import { describe, it, expect, beforeEach } from "bun:test"
+import { installSdkMock, setSdkMock } from "./sdkMock"
+import { installLoggerMock, setLoggerMock } from "./loggerMock"
+import { installMcpToolsMock, setMcpToolsMock } from "./mcpToolsMock"
 import { resolveMockSdkSessionId } from "./helpers"
 import { notePluginlessOpenCodeRequest, clearPluginlessWarnings } from "../proxy/setup"
 
@@ -140,7 +143,7 @@ describe("notePluginlessOpenCodeRequest", () => {
 describe("plugin-less warning through the HTTP path", () => {
   it("records a diagnostic for a plugin-less OpenCode request, and not for a plugin-ful one", async () => {
     const { mock } = await import("bun:test")
-    mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+    setSdkMock(() => ({
       query: (params: any) => (async function* () {
         yield {
           type: "assistant",
@@ -153,9 +156,9 @@ describe("plugin-less warning through the HTTP path", () => {
       })(),
       createSdkMcpServer: () => ({ type: "sdk", name: "t", instance: { tool: () => {}, registerTool: () => ({}) } }),
       tool: () => ({}),
-    }))
-    mock.module("../logger", () => ({ claudeLog: () => {}, withClaudeLogContext: (_c: unknown, f: () => unknown) => f() }))
-    mock.module("../mcpTools", () => ({
+    }), "pluginless-opencode-warning.test.ts")
+    setLoggerMock(() => ({ claudeLog: () => {}, withClaudeLogContext: (_c: unknown, f: () => unknown) => f() }))
+    setMcpToolsMock(() => ({
       createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: { tool: () => {}, registerTool: () => ({}) } }),
     }))
 

@@ -12,13 +12,16 @@
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 // Track how many times createOpencodeMcpServer is called and what's passed to query
 let mcpServerCreateCount = 0
 let capturedMcpServers: any[] = []
 
 import { resolveMockSdkSessionId } from "./helpers"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     if (params.options?.mcpServers) {
       capturedMcpServers.push(params.options.mcpServers)
@@ -41,15 +44,15 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "proxy-mcp-server-per-request.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
 // Each call returns a unique object so we can verify they're different instances
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => {
     mcpServerCreateCount++
     return { type: "sdk", name: "opencode", instance: {}, _id: mcpServerCreateCount }
