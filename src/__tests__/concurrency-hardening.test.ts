@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
@@ -69,7 +69,7 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer } = await import("../proxy/server")
 const { telemetryStore } = await import("../telemetry")
-const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
+const { AbortableSemaphore, resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
 
 // The SDK semaphore is a process-wide singleton cached on first use, so a file
 // that leaves one behind silently overrides the next file's maxConcurrent.
@@ -234,6 +234,26 @@ describe("queue telemetry under cancellation", () => {
 
     const queuedId = `cancelled-permit-${Date.now()}`
     const abort = new AbortController()
+    let queuedSemaphore: InstanceType<typeof AbortableSemaphore> | undefined
+    const acquire = AbortableSemaphore.prototype.acquire
+    const acquireSpy = spyOn(AbortableSemaphore.prototype, "acquire").mockImplementation(function (this: InstanceType<typeof AbortableSemaphore>, signal) {
+      const pending = acquire.call(this, signal)
+      if (this.snapshot.queued > 0) queuedSemaphore = this
+      return pending
+    })
+    // Exercise setup taking longer than the former 40 ms cancellation timer.
+    // A slow request body must not be mistaken for time spent in the SDK queue.
+    const delayedBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        setTimeout(() => {
+          controller.enqueue(new TextEncoder().encode(JSON.stringify({
+            model: "claude-sonnet-4-6", max_tokens: 64,
+            messages: [{ role: "user", content: "queued" }],
+          })))
+          controller.close()
+        }, 75)
+      },
+    })
     const queued = proxy.app.fetch(new Request("http://localhost/v1/messages", {
       method: "POST",
       headers: {
@@ -241,26 +261,37 @@ describe("queue telemetry under cancellation", () => {
         "x-opencode-session": `queued-${Date.now()}`,
         "x-request-id": queuedId,
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6", max_tokens: 64,
-        messages: [{ role: "user", content: "queued" }],
-      }),
+      body: delayedBody,
       signal: abort.signal,
     }))
 
-    await new Promise(resolve => setTimeout(resolve, 40))
-    abort.abort()
-    await Promise.resolve(queued).catch(() => undefined)
+    try {
+      // Synchronize on the real queue, not a guessed request-setup duration.
+      const deadline = Date.now() + 3000
+      while (!queuedSemaphore && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+      }
+      expect(queuedSemaphore?.snapshot).toEqual({ active: 1, queued: 1, limit: 1 })
+      // Ensure this wait spans the millisecond clock used by the metric.
+      await new Promise(resolve => setTimeout(resolve, 10))
+      abort.abort()
+      const response = await queued
+      expect(response.status).toBe(499)
 
-    const metric = metricFor(queuedId)
-    expect(metric).toBeDefined()
-    // The bug: wait time was credited only from a lease that an aborted
-    // acquire never produces, so the entire wait landed in proxyOverheadMs —
-    // the one number that is supposed to mean "the proxy is the bottleneck".
-    expect(metric!.sdkQueueWaitMs ?? 0).toBeGreaterThan(0)
-
-    control.release()
-    const holderRes = await holder
-    await holderRes.text()
+      const metric = metricFor(queuedId)
+      expect(metric).toBeDefined()
+      // An aborted acquire never produces a lease, but its queue time must
+      // still be measured separately from request setup / proxy overhead.
+      expect(metric!.sdkQueueWaitMs ?? 0).toBeGreaterThan(0)
+      expect(queuedSemaphore?.snapshot.queued).toBe(0)
+      expect(controls).toHaveLength(1)
+    } finally {
+      abort.abort()
+      acquireSpy.mockRestore()
+      control.release()
+      await queued
+      const holderRes = await holder
+      await holderRes.text()
+    }
   })
 })
