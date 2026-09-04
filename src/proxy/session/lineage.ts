@@ -117,14 +117,15 @@ export type LineageResult =
   | { type: "compaction";   session: SessionState; resumeFrom: number; suffixOverlap: number }
   | { type: "undo";         session: SessionState; prefixOverlap: number; rollbackUuid: string | undefined }
   | { type: "diverged";     reason: LineageDivergenceReason; prefixOverlap?: number;
-      /** Which message stopped matching. Present for modified-history, the
-       *  only divergence where the answer is both knowable and useful. */
+      /** Which message stopped matching, when available for a history rewrite
+       *  or an unsafe undo boundary. */
       mismatch?: LineageMismatch }
 
 export type LineageDivergenceReason =
   | "unverifiable"
   | "replayed-request"
   | "modified-history"
+  | "undo-gap"
   | "unrelated-history"
   | "not-found"
   | "independent-request"
@@ -531,16 +532,19 @@ export function verifyLineage(
   // after a cached message changed, the old SDK session cannot prove it has
   // the intervening history; that case is handled as divergence below.
   if (prefixOverlap > 0 && suffixOverlap === 0 && messages.length <= cached.messageCount) {
-    // Find the SDK UUID at the last matching position.
-    let rollbackUuid: string | undefined
-    if (cached.sdkMessageUuids) {
-      for (let i = prefixOverlap - 1; i >= 0; i--) {
-        if (cached.sdkMessageUuids[i]) {
-          rollbackUuid = cached.sdkMessageUuids[i]!
-          break
-        }
+    // Undo delivery sends only the final user message. Everything preceding
+    // it must therefore be covered by the preserved prefix; edited intermediate
+    // turns would otherwise be absent from both the fork and its input (#817).
+    if (prefixOverlap !== messages.length - 1 || messages.at(-1)?.role !== "user") {
+      return {
+        type: "diverged", reason: "undo-gap", prefixOverlap,
+        mismatch: describeLineageMismatch(cached, messages, incomingHashes),
       }
     }
+    // The UUID must cover that entire prefix too. An older checkpoint would
+    // silently omit the matching turns after it. With no adjacent UUID the
+    // existing undo-without-rollback path safely replays the full history.
+    const rollbackUuid = cached.sdkMessageUuids?.[prefixOverlap - 1] || undefined
     return { type: "undo", session: cached, prefixOverlap, rollbackUuid }
   }
 

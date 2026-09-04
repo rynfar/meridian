@@ -264,6 +264,19 @@ curl -s http://127.0.0.1:3456/v1/messages \
 
 **Verifies:** When the message suffix changes (user edited/undid), proxy detects undo and emits rollback UUID.
 
+**Automated history-integrity gate (#817):** Run `bun scripts/e2e-undo-gap.mjs`
+and `bun scripts/e2e-undo-gap.mjs --stream`. The fixture creates a real SDK
+conversation with valid historical assistant UUIDs and publishes its matching
+Meridian mapping, representing a persisted session with available rollback
+points. Recent proxy forks invalidate older UUIDs, so simply growing a proxy
+conversation can mask this bug through the missing-UUID fresh-replay fallback.
+The gate proves ordinary undo uses a real fork, shortened history with edited
+intermediate turns reaches the SDK and the answer in full, and the source stays
+unchanged. A third case removes the adjacent UUID from the stored mapping and
+checks that fresh replay preserves facts after an older known checkpoint.
+It inspects history only through `getSessionMessages()` and isolates
+Meridian configuration/session storage in a temporary directory.
+
 **Prerequisite:** Run E4 first (builds a 3+ message session with `e2e-cont-001`).
 
 ```bash

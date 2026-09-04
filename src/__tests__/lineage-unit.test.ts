@@ -309,8 +309,8 @@ describe("verifyLineage", () => {
     expect(result.type).toBe("continuation")
   })
 
-  it("returns undo when same count but last message replaced", () => {
-    // Same message count with last message changed = user replaced last message (undo + retype)
+  it("replays a replacement assistant tail instead of dropping it", () => {
+    // An assistant-tail rewrite is not a new user turn to send after rollback.
     const msgs = [
       msg("user", "a"), msg("assistant", "b"),
       msg("user", "c"), msg("assistant", "d"),
@@ -322,13 +322,13 @@ describe("verifyLineage", () => {
       messageHashes: hashes,
       sdkMessageUuids: [null, "uuid-1", null, "uuid-2"],
     })
-    // Same count, but last message changed — this is undo + new message
+    // The replacement assistant content must survive the replay.
     const modified = [
       msg("user", "a"), msg("assistant", "b"),
       msg("user", "c"), msg("assistant", "d-modified"),
     ]
     const result = verifyLineage(session, modified)
-    expect(result.type).toBe("undo")
+    expect(result).toMatchObject({ type: "diverged", reason: "undo-gap" })
   })
 
   it("returns undo when fewer messages", () => {

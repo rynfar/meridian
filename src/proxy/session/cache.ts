@@ -256,11 +256,12 @@ function classifyLineage(
     const msg = `Undo detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap}/${state.messageCount}, rollback UUID: ${result.rollbackUuid || "none (legacy session)"}.`
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
-  } else if (result.type === "diverged" && result.reason === "modified-history") {
+  } else if (result.type === "diverged" && (result.reason === "modified-history" || result.reason === "undo-gap")) {
     // The overlap count alone is not actionable — name the message that broke,
     // which verifyLineage already worked out to reach this branch.
     const detail = result.mismatch ? formatLineageMismatch(result.mismatch) : undefined
     const msg = `Stale session detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. Starting fresh replay.`
+      + (result.reason === "undo-gap" ? " reason=undo-gap (rollback would omit supplied history)." : "")
       + (detail ? `\n  ${detail}` : "")
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)

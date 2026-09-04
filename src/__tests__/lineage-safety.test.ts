@@ -213,9 +213,12 @@ describe("lineage safety: golden verdict matrix", () => {
       .join("\n")
 
     // R=continuation (resume)  C=compaction (resume)  U=undo (fork)  D=diverged (replay)
+    // These former undo cases either end with an edited assistant message or
+    // truncate to an unchanged prefix with no replacement user turn. Neither
+    // permits the last-user-only rollback delivery (#817).
     const expected = `stored=2 churn=none gap=0 => D
 stored=2 churn=@0 gap=0 => D
-stored=2 churn=@1 gap=0 => U
+stored=2 churn=@1 gap=0 => D
 stored=2 churn=none gap=1 => R
 stored=2 churn=@0 gap=1 => D
 stored=2 churn=@1 gap=1 => D
@@ -228,13 +231,13 @@ stored=2 churn=@1 gap=3 => D
 stored=2 churn=none gap=5 => R
 stored=2 churn=@0 gap=5 => D
 stored=2 churn=@1 gap=5 => D
-stored=2 shrink-to=1 => U
-stored=2 shrink-to=1 => U
+stored=2 shrink-to=1 => D
+stored=2 shrink-to=1 => D
 stored=4 churn=none gap=0 => D
 stored=4 churn=@0 gap=0 => D
 stored=4 churn=@1 gap=0 => D
 stored=4 churn=@2 gap=0 => D
-stored=4 churn=@3 gap=0 => U
+stored=4 churn=@3 gap=0 => D
 stored=4 churn=none gap=1 => R
 stored=4 churn=@0 gap=1 => D
 stored=4 churn=@1 gap=1 => D
@@ -255,15 +258,15 @@ stored=4 churn=@0 gap=5 => D
 stored=4 churn=@1 gap=5 => D
 stored=4 churn=@2 gap=5 => D
 stored=4 churn=@3 gap=5 => D
-stored=4 shrink-to=1 => U
-stored=4 shrink-to=2 => U
+stored=4 shrink-to=1 => D
+stored=4 shrink-to=2 => D
 stored=6 churn=none gap=0 => D
 stored=6 churn=@0 gap=0 => D
 stored=6 churn=@1 gap=0 => D
 stored=6 churn=@2 gap=0 => D
 stored=6 churn=@3 gap=0 => D
 stored=6 churn=@4 gap=0 => D
-stored=6 churn=@5 gap=0 => U
+stored=6 churn=@5 gap=0 => D
 stored=6 churn=none gap=1 => R
 stored=6 churn=@0 gap=1 => C
 stored=6 churn=@1 gap=1 => C
@@ -292,8 +295,8 @@ stored=6 churn=@2 gap=5 => C
 stored=6 churn=@3 gap=5 => C
 stored=6 churn=@4 gap=5 => D
 stored=6 churn=@5 gap=5 => D
-stored=6 shrink-to=1 => U
-stored=6 shrink-to=3 => U
+stored=6 shrink-to=1 => D
+stored=6 shrink-to=3 => D
 stored=6 compaction => D
 stored=8 churn=none gap=0 => D
 stored=8 churn=@0 gap=0 => D
@@ -303,7 +306,7 @@ stored=8 churn=@3 gap=0 => D
 stored=8 churn=@4 gap=0 => D
 stored=8 churn=@5 gap=0 => D
 stored=8 churn=@6 gap=0 => D
-stored=8 churn=@7 gap=0 => U
+stored=8 churn=@7 gap=0 => D
 stored=8 churn=none gap=1 => R
 stored=8 churn=@0 gap=1 => C
 stored=8 churn=@1 gap=1 => C
@@ -340,8 +343,8 @@ stored=8 churn=@4 gap=5 => C
 stored=8 churn=@5 gap=5 => C
 stored=8 churn=@6 gap=5 => D
 stored=8 churn=@7 gap=5 => D
-stored=8 shrink-to=1 => U
-stored=8 shrink-to=4 => U
+stored=8 shrink-to=1 => D
+stored=8 shrink-to=4 => D
 stored=8 compaction => D
 unrelated history => D`
 
