@@ -26,6 +26,17 @@ export const settingsPageHtml = `<!DOCTYPE html>
   .nav a:hover { color: var(--accent); }
   .nav a.active { color: var(--accent); }
 
+  /* Harness tabs — dashboard.ts's tab rules, kept identical on purpose; wraps
+     because there are more harnesses than the dashboard's three panels. */
+  .tabs { display: flex; flex-wrap: wrap; gap: 0; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer;
+         border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s;
+         user-select: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; margin-left: 7px;
+             vertical-align: middle; background: var(--green); }
+
   .adapter-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 20px; margin-bottom: 16px;
@@ -127,6 +138,7 @@ ${profileBarHtml}
     followed by your agent's specific instructions.
   </p>
 
+  <div class="tabs" id="adapterTabs"></div>
   <div id="adapters"></div>
 
   <h1 style="margin-top:40px">Routing</h1>
@@ -207,6 +219,7 @@ const ADAPTER_LABELS = {
 };
 
 let currentConfig = {};
+let selectedAdapter = null;
 
 async function loadConfig() {
   const res = await fetch('/settings/api/features');
@@ -247,69 +260,103 @@ function hasAnyEnabled(features) {
          features.additionalDirectories;
 }
 
-function render() {
-  const container = document.getElementById('adapters');
-  container.innerHTML = '';
+function selectAdapter(adapter) {
+  selectedAdapter = adapter;
+  render();
+}
+
+function renderTabs() {
+  const tabs = document.getElementById('adapterTabs');
+  tabs.innerHTML = '';
 
   for (const adapter of Object.keys(currentConfig)) {
-    const label = ADAPTER_LABELS[adapter] || adapter;
-    const features = currentConfig[adapter] || {};
-    const active = hasAnyEnabled(features);
+    const tabLabel = ADAPTER_LABELS[adapter] || adapter;
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (adapter === selectedAdapter ? ' active' : '');
+    tab.dataset.adapter = adapter;
+    tab.textContent = tabLabel;
+    // Stacked cards showed every harness's state at once and one body at a
+    // time cannot, so a harness that is off its defaults says so on its tab.
+    if (hasAnyEnabled(currentConfig[adapter] || {})) {
+      const dot = document.createElement('span');
+      dot.className = 'tab-dot';
+      dot.title = 'Customized — not on defaults';
+      tab.appendChild(dot);
+    }
+    tab.addEventListener('click', function () { selectAdapter(adapter); });
+    tabs.appendChild(tab);
+  }
+}
 
-    const card = document.createElement('div');
-    card.className = 'adapter-card';
-    card.innerHTML = '<div class="adapter-header">' +
-      '<span class="adapter-name">' + label + '</span>' +
-      '<div style="display:flex;gap:8px;align-items:center">' +
-        '<span class="adapter-badge ' + (active ? 'badge-active' : 'badge-inactive') + '">' +
-          (active ? 'Active' : 'Default') +
-        '</span>' +
-        '<button class="reset-btn" onclick="resetAdapter(\\''+adapter+'\\')">Reset</button>' +
-      '</div>' +
-    '</div>';
+function adapterCard(adapter) {
+  const label = ADAPTER_LABELS[adapter] || adapter;
+  const features = currentConfig[adapter] || {};
+  const active = hasAnyEnabled(features);
 
-    const grid = document.createElement('div');
-    grid.className = 'feature-grid';
+  const card = document.createElement('div');
+  card.className = 'adapter-card';
+  card.innerHTML = '<div class="adapter-header">' +
+    '<span class="adapter-name">' + label + '</span>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+      '<span class="adapter-badge ' + (active ? 'badge-active' : 'badge-inactive') + '">' +
+        (active ? 'Active' : 'Default') +
+      '</span>' +
+      '<button class="reset-btn" onclick="resetAdapter(\\''+adapter+'\\')">Reset</button>' +
+    '</div>' +
+  '</div>';
 
-    for (const feat of FEATURES) {
-      const row = document.createElement('div');
-      row.className = 'feature-row';
+  const grid = document.createElement('div');
+  grid.className = 'feature-grid';
 
-      const info = '<div class="feature-info"><span class="feature-label">' +
-        feat.label + '</span><span class="feature-desc">' + feat.desc + '</span></div>';
+  for (const feat of FEATURES) {
+    const row = document.createElement('div');
+    row.className = 'feature-row';
 
-      if (feat.type === 'toggle') {
-        const checked = features[feat.key] ? 'checked' : '';
-        row.innerHTML = info +
-          '<label class="toggle"><input type="checkbox" ' + checked +
-          ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.checked)">' +
-          '<span class="toggle-track"></span></label>';
-      } else if (feat.type === 'select') {
-        const options = feat.options.map(o => {
-          const label = o === '' ? '(None)' : o.charAt(0).toUpperCase()+o.slice(1);
-          return '<option value="'+o+'"'+(features[feat.key]===o?' selected':'')+'>'+label+'</option>';
-        }).join('');
-        row.innerHTML = info +
-          '<select class="feature-select" onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.value)">' +
-          options + '</select>';
-      } else if (feat.type === 'number') {
-        const value = features[feat.key] ?? 0;
-        row.innerHTML = info +
-          '<input type="number" class="feature-select" style="width:80px;text-align:right" min="0" step="0.01" value="'+value+'"' +
-          ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', parseFloat(this.value)||0)">';
-      } else if (feat.type === 'text') {
-        const value = (features[feat.key] ?? '').toString().replace(/"/g, '&quot;');
-        row.innerHTML = info +
-          '<input type="text" class="feature-select" style="width:180px" value="'+value+'"' +
-          ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.value)">';
-      }
+    const info = '<div class="feature-info"><span class="feature-label">' +
+      feat.label + '</span><span class="feature-desc">' + feat.desc + '</span></div>';
 
-      grid.appendChild(row);
+    if (feat.type === 'toggle') {
+      const checked = features[feat.key] ? 'checked' : '';
+      row.innerHTML = info +
+        '<label class="toggle"><input type="checkbox" ' + checked +
+        ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.checked)">' +
+        '<span class="toggle-track"></span></label>';
+    } else if (feat.type === 'select') {
+      const options = feat.options.map(o => {
+        const label = o === '' ? '(None)' : o.charAt(0).toUpperCase()+o.slice(1);
+        return '<option value="'+o+'"'+(features[feat.key]===o?' selected':'')+'>'+label+'</option>';
+      }).join('');
+      row.innerHTML = info +
+        '<select class="feature-select" onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.value)">' +
+        options + '</select>';
+    } else if (feat.type === 'number') {
+      const value = features[feat.key] ?? 0;
+      row.innerHTML = info +
+        '<input type="number" class="feature-select" style="width:80px;text-align:right" min="0" step="0.01" value="'+value+'"' +
+        ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', parseFloat(this.value)||0)">';
+    } else if (feat.type === 'text') {
+      const value = (features[feat.key] ?? '').toString().replace(/"/g, '&quot;');
+      row.innerHTML = info +
+        '<input type="text" class="feature-select" style="width:180px" value="'+value+'"' +
+        ' onchange="saveFeature(\\''+adapter+'\\', \\''+feat.key+'\\', this.value)">';
     }
 
-    card.appendChild(grid);
-    container.appendChild(card);
+    grid.appendChild(row);
   }
+
+  card.appendChild(grid);
+  return card;
+}
+
+function render() {
+  const names = Object.keys(currentConfig);
+  if (names.indexOf(selectedAdapter) === -1) selectedAdapter = names[0] || null;
+
+  renderTabs();
+
+  const container = document.getElementById('adapters');
+  container.innerHTML = '';
+  if (selectedAdapter) container.appendChild(adapterCard(selectedAdapter));
 }
 
 // ---- Model pricing (telemetry cost estimate) ----
