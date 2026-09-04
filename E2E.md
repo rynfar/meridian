@@ -3685,3 +3685,9 @@ unchanged through the matrix.
 Run `bun scripts/e2e-publication-lifetime.mjs` and again with `--stream` after lifecycle or publication changes. This gate uses real Claude Max queries and two concurrent HTTP conversations, each with a fresh and resumed turn. A timing hook pauses each request after its real SDK writer lease is released, promotes its request pin as the owning proxy would, and runs a separate collector process before publication. The collector uses zero grace periods and the supported SDK deleter, exercising the destructive race in an isolated session store and disposable project.
 
 Require four successful competing sweeps with no deletions, correct fixture identifiers in both answers, valid response envelopes, durable mappings, and unchanged source transcripts inspected through `getSessionMessages`. To verify rolling upgrades, set `E2E_COLLECTOR_MODULE` to the absolute `src/proxy/sessionLifecycle.ts` path in the previous checkout and repeat. The SDK itself is not mocked.
+
+## Lineage hash integrity and upgrade
+
+Run `bun scripts/e2e-lineage-hash-migration.mjs` and again with `--stream`; repeat with `E2E_MODEL=sonnet`. The gate establishes a real client tool loop whose result comes from a disposable fixture file, then changes only `is_error` in its supplied history. Require fresh replay with the revised metadata, a FAILED answer instead of the original SUCCEEDED answer, and unchanged source history.
+
+A second case installs a persisted mapping containing the legacy digest format for that real source. Require one complete replay with call identity/arguments and result data, then an ordinary continuation with the correct answer. All inspection uses supported SDK `getSessionMessages`. Run the E41 sequential/parallel and undo-gap controls too when changing the encoding.

@@ -134,6 +134,46 @@ export type LineageDivergenceReason =
 
 // --- Hashing ---
 
+/** Preserve JSON structure without letting object key order affect identity. */
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson)
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>
+    return Object.fromEntries(Object.keys(object).sort()
+      .map(key => [key, canonicalJson(object[key])]))
+  }
+  return value
+}
+
+function semanticBlock(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return ["value", typeof value, value]
+  const block = value as Record<string, unknown>
+  switch (block.type) {
+    case "text": return ["text", block.text]
+    case "tool_use": return ["tool_use", block.id, block.name, canonicalJson(block.input)]
+    case "tool_result": return ["tool_result", block.tool_use_id, block.is_error ?? false, semanticContent(block.content)]
+    default: {
+      const { cache_control, ...content } = block
+      return ["block", canonicalJson(content)]
+    }
+  }
+}
+
+function semanticContent(content: unknown): unknown[] {
+  // NOTE: OpenCode changes plain strings to text blocks between requests.
+  if (typeof content === "string") return [["text", content]]
+  if (!Array.isArray(content)) return [["value", typeof content, content]]
+  return hashableContentBlocks(content).map(semanticBlock)
+}
+
+function lineageDigest(domain: string, value: unknown): string {
+  // Domain-separated structured encoding prevents text, delimiters, roles,
+  // and content blocks from impersonating one another (#887). Old digests
+  // cannot prove this representation and safely fall back to a full replay.
+  return createHash("sha256").update(JSON.stringify(["meridian-lineage-v2", domain, value]))
+    .digest("hex").slice(0, 32)
+}
+
 /**
  * Compute a lineage hash of an ordered message array.
  * Used as a fast-path check: if the aggregate hash matches, the messages
@@ -141,8 +181,7 @@ export type LineageDivergenceReason =
  */
 export function computeLineageHash(messages: Array<{ role: string; content: any }>): string {
   if (!messages || messages.length === 0) return ""
-  const parts = messages.map(m => `${m.role}:${normalizeContent(m.content)}`)
-  return createHash("sha256").update(parts.join("\n")).digest("hex").slice(0, 32)
+  return lineageDigest("history", messages.map(m => [m.role, semanticContent(m.content)]))
 }
 
 /**
@@ -150,10 +189,7 @@ export function computeLineageHash(messages: Array<{ role: string; content: any 
  * Used to build per-message hash arrays for precise diff-based verification.
  */
 export function hashMessage(message: { role: string; content: any }): string {
-  return createHash("sha256")
-    .update(`${message.role}:${normalizeContent(message.content)}`)
-    .digest("hex")
-    .slice(0, 32)
+  return lineageDigest("message", [message.role, semanticContent(message.content)])
 }
 
 /** A message's shape, for diagnostics that must never carry its content. */
@@ -272,13 +308,6 @@ export function computeMessageHashes(messages: Array<{ role: string; content: an
   return messages.map(hashMessage)
 }
 
-function hashNormalizedContent(content: any): string {
-  return createHash("sha256")
-    .update(normalizeContent(content))
-    .digest("hex")
-    .slice(0, 32)
-}
-
 function hashableContentBlocks(content: any): any[] {
   if (!Array.isArray(content)) return [content]
   return content.filter((block: any) => !HASH_IGNORED_BLOCK_TYPES.has(block?.type))
@@ -287,9 +316,8 @@ function hashableContentBlocks(content: any): any[] {
 /** Compute semantic hashes for each content block in every message. */
 export function computeMessageBlockHashes(messages: Array<{ role: string; content: any }>): string[][] {
   if (!messages || messages.length === 0) return []
-  return messages.map((message) =>
-    hashableContentBlocks(message.content).map((block) =>
-      hashNormalizedContent(Array.isArray(message.content) ? [block] : block)))
+  return messages.map((message) => semanticContent(message.content)
+    .map(block => lineageDigest("block", [message.role, block])))
 }
 
 // --- Overlap measurement ---
@@ -499,7 +527,7 @@ export function verifyLineage(
     const storedBlocks = cached.messageBlockHashes[boundary]
     if (incomingBoundary?.role === "user" && storedBlocks && Array.isArray(incomingBoundary.content)) {
       const incomingBlocks = hashableContentBlocks(incomingBoundary.content)
-      const incomingBlockHashes = incomingBlocks.map((block) => hashNormalizedContent([block]))
+      const incomingBlockHashes = computeMessageBlockHashes([incomingBoundary])[0]!
       const preservesStoredBlocks =
         incomingBlocks.length === incomingBoundary.content.length &&
         incomingBlockHashes.length > storedBlocks.length &&

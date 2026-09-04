@@ -75,12 +75,13 @@ export const HASH_SERIALIZED_BLOCK_TYPES = new Set([
 ])
 
 /**
- * Normalize message content to a string for hashing and comparison.
+ * Legacy content rendering used for adapter compatibility and diagnostics.
  * Handles both string content and array content (Anthropic content blocks).
- * Strips cache_control metadata to ensure hash stability across requests.
+ * Omits cache_control metadata and opaque thinking blocks.
  *
- * Used only for lineage hashing — see {@link HASH_IGNORED_BLOCK_TYPES}, which
- * drops content a display-oriented normalizer would need to keep.
+ * This representation is ambiguous across block types and boundaries. Never
+ * use it to prove lineage: session/lineage.ts uses structured domain-separated
+ * hashes instead.
  *
  * NOTE: OpenCode sends content as a string on the first request but as
  * an array on subsequent ones. This normalizer handles both formats.

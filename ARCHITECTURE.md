@@ -313,3 +313,9 @@ E2E tests (`E2E.md`) should be run before releases or after major refactors.
 `sessionLifecycle.ts` persists a publication lease atomically with each new request target before SDK launch. The lease survives physical SDK writer shutdown and commit until the synchronous durable mapping CAS succeeds, or the request abandons its target. Failed publication restores the lease. Collectors in other processes cannot depend on a proxy instance's private request pins, so they consult these durable leases as well as durable mappings.
 
 Publication leases use the existing unarmed active-lease representation with `purpose: "publication"`. Older collectors also retain them while the owner process is alive; exact process-incarnation death permits recovery. They do not count as exclusive SDK writers, and abandoning publication never removes an actual writer lease. Published transcripts are retained by their durable mappings and become collectible after eviction.
+
+## Lineage hash encoding
+
+`session/lineage.ts` hashes structured v2 records with separate history, message and block domains. Records preserve roles, block and message boundaries, tool call identity/arguments, and result identity/error status. JSON object keys are canonicalized; plain text and a single text block remain equivalent, and opaque thinking/cache hints remain excluded. Display-oriented `normalizeContent` is not a lineage proof.
+
+Existing v1 digests cannot establish a v2 prefix. Their next request on an upgraded proxy safely replays the full supplied history and publishes v2 hashes; subsequent requests on upgraded proxies resume normally. Alternating between old and new proxy versions can repeat this replay cost until all participating proxies are upgraded. This migration relies on complete fresh replay, including completed tool calls/results and media. Stored transcript files are never rewritten to migrate hashes.
