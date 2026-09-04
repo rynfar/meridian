@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
@@ -83,7 +83,7 @@ const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency"
 const { telemetryStore } = await import("../telemetry")
 const { setSessionStoreDir, storeSharedSession, readSessionStoreSnapshot } = await import("../proxy/sessionStore")
 const { processSessionTurns } = await import("../proxy/session/turnCoordinator")
-const { computeLineageHash, computeMessageHashes } = await import("../proxy/session/lineage")
+const { computeLineageHash, computeMessageHashes, verifyLineage } = await import("../proxy/session/lineage")
 
 function request(
   messages: Array<{ role: string; content: unknown }>,
@@ -128,6 +128,18 @@ function piRequest(
       metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
     }),
   })
+}
+
+function observeTurnArrival(sessionId: string) {
+  let markArrived = () => {}
+  const arrived = new Promise<void>(resolve => { markArrived = resolve })
+  const acquire = processSessionTurns.acquire.bind(processSessionTurns)
+  const observer = spyOn(processSessionTurns, "acquire").mockImplementation((key, signal) => {
+    const pending = acquire(key, signal)
+    if (key === `session:${sessionId}`) markArrived()
+    return pending
+  })
+  return { arrived, restore: () => observer.mockRestore() }
 }
 
 async function waitForControl(index: number, timeoutMs = 3000): Promise<AttemptControl> {
@@ -322,11 +334,12 @@ describe("SDK and Session concurrency coordination", () => {
       { role: "user", content: "tool result for step 12" },
     ]
     const lease = await processSessionTurns.acquire(`session:${sessionId}`)
-    const sideP = app.fetch(piRequest(committed.slice(0, 2), sessionId))
+    const incoming = [...committed.slice(0, 2), { role: "user", content: "side question from the earlier turn" }]
+    const arrival = observeTurnArrival(sessionId)
+    const sideP = app.fetch(piRequest(incoming, sessionId))
+    try { await arrival.arrived } finally { arrival.restore() }
 
-    // Let handleWithQueue take its coherent arrival snapshot, then commit the
-    // winning turn, UUIDs and all, before the queued side call is granted.
-    await Bun.sleep(20)
+    // The request has taken its coherent snapshot and joined the real queue.
     storeSharedSession(
       sessionId,
       "winner-sdk",
@@ -335,6 +348,10 @@ describe("SDK and Session concurrency coordination", () => {
       computeMessageHashes(committed),
       ["winner-uuid-1", "winner-uuid-2", "winner-uuid-3"],
     )
+    // Ensure this fixture actually reaches the undo path under current proofs.
+    const winner = readSessionStoreSnapshot()[sessionId]
+    if (!winner?.lineageHash) throw new Error("Expected a verifiable winner mapping")
+    expect(verifyLineage({ ...winner, lineageHash: winner.lineageHash, lastAccess: 0 }, incoming).type).toBe("undo")
     lease.markCommitted(sessionId)
     lease.release()
 
@@ -359,13 +376,14 @@ describe("SDK and Session concurrency coordination", () => {
       { role: "user", content: "tool result for step 12" },
     ]
     const lease = await processSessionTurns.acquire(`session:${sessionId}`)
-    const forkP = app.fetch(piRequest(committed.slice(0, 2), sessionId, {
+    const incoming = [...committed.slice(0, 2), { role: "user", content: "extract memory at this fork boundary" }]
+    const arrival = observeTurnArrival(sessionId)
+    const forkP = app.fetch(piRequest(incoming, sessionId, {
       "x-meridian-source": "fork-memory-extract",
     }))
+    try { await arrival.arrived } finally { arrival.restore() }
 
-    // Same shape as the test above: nothing observable fires between the
-    // arrival snapshot and the queue grant, so the window has to be timed.
-    await Bun.sleep(20)
+    // Same admission boundary as the unmarked side call; no timing sleep.
     storeSharedSession(
       sessionId,
       "winner-sdk",
@@ -374,6 +392,10 @@ describe("SDK and Session concurrency coordination", () => {
       computeMessageHashes(committed),
       ["winner-uuid-1", "winner-uuid-2", "winner-uuid-3"],
     )
+    // Ensure this fixture actually reaches the undo path under current proofs.
+    const winner = readSessionStoreSnapshot()[sessionId]
+    if (!winner?.lineageHash) throw new Error("Expected a verifiable winner mapping")
+    expect(verifyLineage({ ...winner, lineageHash: winner.lineageHash, lastAccess: 0 }, incoming).type).toBe("undo")
     lease.markCommitted(sessionId)
     lease.release()
 
