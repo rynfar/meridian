@@ -165,7 +165,7 @@ import {
   commitFork,
   canonicalizeTranscriptLocator,
   ensureTranscriptJournaled,
-  prepareFork,
+  prepareForkForPublication,
   publishPinnedTranscript,
   registerLiveTranscript,
   releaseActiveTranscriptLease,
@@ -2522,7 +2522,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // a fork file. This closes the crash window where the SDK file exists
         // but no emitted event or shared mapping names it yet.
         managedForkSource = await registerLiveTranscript(managedForkSource, sessionGcOptions)
-        managedForkTarget = await prepareFork(managedForkTarget, sessionGcOptions)
+        managedForkTarget = await prepareForkForPublication(managedForkTarget, sessionGcOptions)
         claudeLog("session.fork_prepared", {
           sourceSessionId: managedForkSource.sessionId,
           targetSessionId: managedForkTarget.sessionId,
@@ -2550,7 +2550,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         managedForkTarget = transcriptLocator(randomUUID())
         managedFreshTarget = true
         releaseManagedForkPins = pinActiveSessionGcLocators(managedForkTarget)
-        managedForkTarget = await prepareFork(managedForkTarget, sessionGcOptions)
+        managedForkTarget = await prepareForkForPublication(managedForkTarget, sessionGcOptions)
         claudeLog("session.fresh_prepared", { targetSessionId: managedForkTarget.sessionId })
       }
 
@@ -5163,7 +5163,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   recoveryForkTarget = transcriptLocator(randomUUID())
                   releaseRecoveryForkPins = pinActiveSessionGcLocators(recoveryForkSource, recoveryForkTarget)
                   recoveryForkSource = await registerLiveTranscript(recoveryForkSource, sessionGcOptions)
-                  recoveryForkTarget = await prepareFork(recoveryForkTarget, sessionGcOptions)
+                  recoveryForkTarget = await prepareForkForPublication(recoveryForkTarget, sessionGcOptions)
                   try {
                   // Protect recovery parallel calls with the same deny hold as
                   // the main stream. Producer hooks can run before the first

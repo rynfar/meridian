@@ -66,6 +66,8 @@ export type TranscriptResourceState = "prepared" | "live" | "retired" | "deletin
 interface ActiveTranscriptLeaseRecord {
   token: string
   owner: ProcessIncarnation
+  /** Absent on SDK writer leases, including all legacy records. */
+  purpose?: "publication"
   executor?: ProcessIncarnation
   executorRecoverable?: boolean
   createdAt: number
@@ -194,7 +196,7 @@ export async function acquireActiveTranscriptLease(
       assertSameLocator(resource.locator, locator)
       assertExactLifecycleGeneration(resource, locator)
       pruneDeadActiveLeases(resource)
-      if (hasActiveTranscriptLease(resource)) {
+      if (Object.values(resource.activeLeases ?? {}).some(lease => lease.purpose !== "publication")) {
         throw new SessionLifecycleError(`transcript ${key} already has an active SDK writer`)
       }
       if (resource.state === "deleting" || resource.state === "deleted") {
@@ -222,6 +224,7 @@ export async function attachActiveTranscriptExecutor(
     for (const key of lease.resourceKeys) {
       const record = sidecar.resources[key]?.activeLeases?.[lease.token]
       if (!record) throw new SessionLifecycleError(`active transcript lease ${lease.token} was lost`)
+      if (record.purpose === "publication") throw new SessionLifecycleError("cannot arm a publication lease")
       record.executor = parsedExecutor
       record.executorRecoverable = executorRecoverable
     }
@@ -253,12 +256,35 @@ export async function prepareFork(
   locator: TranscriptLocator,
   options: SessionLifecycleOptions = {},
 ): Promise<TranscriptLocator> {
+  return prepareForkIntent(locator, options)
+}
+
+/**
+ * Keep a new request's target alive through SDK shutdown and mapping publication.
+ * This is separate from the exclusive physical-writer lease. Storing it as an
+ * unarmed active lease also makes older collectors retain it until owner death.
+ */
+export async function prepareForkForPublication(
+  locator: TranscriptLocator,
+  options: SessionLifecycleOptions = {},
+): Promise<TranscriptLocator> {
+  const owner = captureProcessIncarnation()
+  if (!owner) throw new SessionLifecycleError("cannot capture publication owner incarnation")
+  return prepareForkIntent(locator, options, owner)
+}
+
+async function prepareForkIntent(
+  locator: TranscriptLocator,
+  options: SessionLifecycleOptions,
+  publicationOwner?: ProcessIncarnation,
+): Promise<TranscriptLocator> {
   const normalized = canonicalizeTranscriptLocator(locator)
   const key = getTranscriptResourceKey(normalized)
   return withSidecarLock(options, async (paths) => {
     const sidecar = await readSidecar(paths.sidecar)
     const existing = sidecar.resources[key]
     if (existing) {
+      if (publicationOwner) throw new SessionLifecycleError(`publication target ${key} already exists`)
       assertSameLocator(existing.locator, normalized)
       assertExactLifecycleGeneration(existing, normalized)
       if (existing.state === "deleted") {
@@ -277,6 +303,12 @@ export async function prepareFork(
       createdAt: now,
       updatedAt: now,
       attempts: 0,
+    }
+    if (publicationOwner) {
+      const token = randomUUID()
+      resource.activeLeases = {
+        [token]: { token, owner: publicationOwner, purpose: "publication", createdAt: now },
+      }
     }
     sidecar.resources[key] = resource
     pruneTombstones(sidecar, options)
@@ -478,6 +510,9 @@ async function updatePinnedTranscript<T extends boolean | string>(
         changed = true
       }
     }
+    // Release publication ownership in the same locked transaction as the
+    // synchronous mapping CAS. A failed CAS restores the complete lease record.
+    if (releasePublicationLease(resource)) changed = true
     if (changed) {
       pruneTombstones(sidecar, options)
       await writeSidecar(paths.sidecar, sidecar)
@@ -516,11 +551,14 @@ export async function abandonFork(
     }
     assertSameLocator(resource.locator, normalized)
     assertExactLifecycleGeneration(resource, normalized)
+    const releasedPublication = releasePublicationLease(resource)
     if (resource.state === "prepared" || resource.state === "live") {
       if (resource.state === "live") assertPendingCapacity(sidecar, options)
       resource.state = "retired"
       resource.updatedAt = nowMs(options)
       resource.nextAttemptAt = resource.updatedAt + retiredGraceMs(options)
+      await writeSidecar(paths.sidecar, sidecar)
+    } else if (releasedPublication) {
       await writeSidecar(paths.sidecar, sidecar)
     }
   })
@@ -1383,6 +1421,8 @@ function isValidActiveLeases(value: unknown): value is Record<string, ActiveTran
     && isRecord(lease)
     && lease.token === token
     && parseProcessIncarnation(lease.owner) !== undefined
+    && (lease.purpose === undefined || lease.purpose === "publication")
+    && (lease.purpose !== "publication" || (lease.executor === undefined && lease.executorRecoverable === undefined))
     && (lease.executor === undefined || parseProcessIncarnation(lease.executor) !== undefined)
     && (lease.executorRecoverable === undefined || typeof lease.executorRecoverable === "boolean")
     && (lease.executorRecoverable === undefined || lease.executor !== undefined)
@@ -1521,6 +1561,18 @@ function resourceIsPinned(
 
 function hasActiveTranscriptLease(resource: TranscriptResource): boolean {
   return resource.activeLeases !== undefined && Object.keys(resource.activeLeases).length > 0
+}
+
+function releasePublicationLease(resource: TranscriptResource): boolean {
+  if (!resource.activeLeases) return false
+  let changed = false
+  for (const [token, lease] of Object.entries(resource.activeLeases)) {
+    if (lease.purpose !== "publication") continue
+    delete resource.activeLeases[token]
+    changed = true
+  }
+  if (Object.keys(resource.activeLeases).length === 0) delete resource.activeLeases
+  return changed
 }
 
 function pruneDeadActiveLeases(resource: TranscriptResource): boolean {
