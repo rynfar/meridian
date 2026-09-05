@@ -3618,6 +3618,8 @@ PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs --stream
 - Every continuation, including the follow-up, reads at least 95% of the prior
   turn's `cache_read_input_tokens + cache_creation_input_tokens`.
 
+The fixture uses a disposable SDK working directory: edits to the checkout must not change the SDK's per-query git-status context during this cache benchmark. A git-status change can invalidate the prompt cache even when the session resumes correctly.
+
 The gate resolves Meridian's published session from its own durable store and
 uses the supported Agent SDK `getSessionMessages()` API for the history check.
 It does not inspect Claude's private persistence format.
