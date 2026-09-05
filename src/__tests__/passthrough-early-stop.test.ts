@@ -407,8 +407,7 @@ describe("claude-code trailing system delta", () => {
 
   it("accepts the captured delta: complete expected-ID echo, results, trailing reminder", () => {
     const results = [result("t1"), result("t2")]
-    // String and text-block-with-cache_control reminder forms pass through
-    // as-is; cache_control is stripped by the caller's existing strip path.
+    // cache_control is kept here; the caller strips it before the SDK.
     const cases: Array<[{ role: string; content: unknown }, unknown]> = [
       [{ role: "system", content: "<total_tokens> 4151" }, { type: "text", text: "<total_tokens> 4151" }],
       [reminder("<total_tokens> 4151", true), { type: "text", text: "<total_tokens> 4151", cache_control: { type: "ephemeral" } }],
@@ -460,8 +459,7 @@ describe("claude-code trailing system delta", () => {
     const cases: Array<[Array<{ role?: unknown; content?: unknown }>, string[]]> = [
       [[{ role: "user", content: [result("t1")], }, reminder("r")], ["t1"]], // missing echo
       [[echo(["t1", "t2"]), { role: "user", content: [result("t1")] }, reminder("r")], ["t1", "t2"]], // partial results
-      // Split echo across assistant messages: find never binds it, and the
-      // reminder-gated coalesce must reject it too.
+      // split echo: coalesce must reject it even though find never binds it
       [[echo(["t1"]), echo(["t2"]), { role: "user", content: [result("t1"), result("t2")] }, reminder("r")], ["t1", "t2"]],
     ]
     for (const [messages, ids] of cases) {
@@ -478,8 +476,91 @@ describe("claude-code trailing system delta", () => {
     ]
     expect(findCompleteToolResultCheckpoint(body, ["a"], opts))
       .toEqual([{ role: "user", content: [result("a"), { type: "text", text: "reminder", cache_control: { type: "ephemeral" } }] }])
-    // Without the opt-in the trailing reminder is a generic rejection — the
-    // observed staging transition to a full fresh replay.
     expect(findCompleteToolResultCheckpoint(body, ["a"])).toBeUndefined()
+  })
+
+  it("rejects a system message between two result turns", () => {
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        echo(["t1", "t2"]),
+        { role: "user", content: [result("t1")] },
+        reminder("mid-conversation"),
+        { role: "user", content: [result("t2")] },
+      ],
+      ["t1", "t2"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("rejects whitespace-only reminders in string and text-block form", () => {
+    const delta = [echo(["t1"]), { role: "user", content: [result("t1")] }]
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: "   " }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: [{ type: "text", text: "   " }] }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("accepts one reminder carrying two text blocks, both delivered in order", () => {
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        echo(["t1"]),
+        { role: "user", content: [result("t1")] },
+        { role: "system", content: [{ type: "text", text: "first" }, { type: "text", text: "second" }] },
+      ],
+      ["t1"],
+      opts,
+    )).toEqual([{ role: "user", content: [result("t1"), { type: "text", text: "first" }, { type: "text", text: "second" }] }])
+  })
+
+  it("rejects object and number reminder content", () => {
+    const delta = [echo(["t1"]), { role: "user", content: [result("t1")] }]
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: { text: "shaped" } }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: 42 }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("rejects an echo carrying an extra unknown tool_use id alongside a valid reminder", () => {
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        { role: "assistant", content: [
+          { type: "tool_use", id: "t1", name: "read", input: {} },
+          { type: "tool_use", id: "unknown-x", name: "read", input: {} },
+        ] },
+        { role: "user", content: [result("t1")] },
+        reminder("valid reminder"),
+      ],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("tolerates adjacent thinking/text blocks in the echoing assistant message", () => {
+    // only tool_use blocks bind the echo; thinking/text neither reject nor reach the output
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        { role: "assistant", content: [
+          { type: "thinking", thinking: "hmm", signature: "sig" },
+          { type: "tool_use", id: "t1", name: "read", input: {} },
+          { type: "text", text: "Reading the file." },
+        ] },
+        { role: "user", content: [result("t1")] },
+        reminder("r"),
+      ],
+      ["t1"],
+      opts,
+    )).toEqual([{ role: "user", content: [result("t1"), { type: "text", text: "r" }] }])
   })
 })

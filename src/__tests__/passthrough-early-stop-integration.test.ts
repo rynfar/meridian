@@ -1286,6 +1286,92 @@ describe("Integration: passthrough early stop", () => {
     })
   }
 
+  // Fail-closed twin: a second trailing system breaks the one-reminder
+  // contract, so the continuation must fall back to a fresh replay.
+  it("stream: two trailing system reminders fail closed to a fresh replay", async () => {
+    const sessionId = `cc-delta-fc-${TEST_RUN_ID}`
+    const headers = { "x-meridian-agent": "claude-code", "x-opencode-session": sessionId }
+    const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."
+    const firstReminder = "<system-reminder>Total tokens: 4151</system-reminder>"
+    const secondReminder = "<system-reminder>Context low</system-reminder>"
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "cc-delta-fc-tu1", name: "read", input: { file_path: "x" } },
+    ])
+
+    // Turn 1 mirrors the parametrized accepted case: arm the checkpoint.
+    mockMessages = [
+      messageStart("msg_cc_delta_fc_1"),
+      toolUseBlockStart(0, "read", "cc-delta-fc-tu1"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("cc-delta-fc-tu1"),
+      assistantMessage([{ type: "text", text: "CC_DELTA_FC_GARBAGE_DIGEST" }]),
+    ]
+    const first = await postClaudeCode(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "system", content: [{ type: "text", text: initialSystemText, cache_control: { type: "ephemeral" } }] },
+      ],
+    }, sessionId, headers)
+    expect(first.status).toBe(200)
+    await first.text()
+    let stored: any
+    for (let i = 0; i < 500 && !stored?.passthroughToolCallAssistantUuid; i++) {
+      stored = lookupSharedSession(sessionId)
+      if (!stored?.passthroughToolCallAssistantUuid) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(stored?.passthroughToolCallIds).toEqual(["cc-delta-fc-tu1"])
+
+    // Turn 2: the accepted delta, but with TWO trailing system messages.
+    mockMessages = [
+      messageStart("msg_cc_delta_fc_2"),
+      textBlockStart(0),
+      textDelta(0, "fresh replay answer"),
+      blockStop(0),
+      messageDelta("end_turn"),
+      messageStop(),
+      assistantMessage([{ type: "text", text: "fresh replay answer" }]),
+    ]
+    const requestId = `cc-delta-fc-turn2-${TEST_RUN_ID}`
+    const second = await postClaudeCode(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "system", content: initialSystemText },
+        { role: "assistant", content: [{ type: "tool_use", id: "cc-delta-fc-tu1", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "cc-delta-fc-tu1", content: "hi" }] },
+        { role: "system", content: [{ type: "text", text: firstReminder }] },
+        { role: "system", content: [{ type: "text", text: secondReminder }] },
+      ],
+    }, sessionId, { ...headers, "x-request-id": requestId })
+    expect(second.status).toBe(200)
+    expect(await second.text()).toContain("message_stop")
+
+    // Rejected checkpoint: fresh replay, no resume options, reminders kept out of the system prompt.
+    const replayed = capturedQueryParamsAll[1]
+    expect(replayed.options.resume).toBeUndefined()
+    expect(replayed.options.resumeSessionAt).toBeUndefined()
+    expect(JSON.stringify(replayed.options.systemPrompt ?? "")).not.toContain(firstReminder)
+    expect(JSON.stringify(replayed.options.systemPrompt ?? "")).not.toContain(secondReminder)
+
+    let row: any
+    for (let i = 0; i < 500 && !row; i++) {
+      row = telemetryStore.getRecent({ limit: 200 }).find((m: any) => m.requestId === requestId)
+      if (!row) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(row).toBeDefined()
+    expect(row!.isResume).toBe(false)
+  })
+
   it("stream: waits for late parallel assistant metadata before freezing the checkpoint", async () => {
     const firstFragment = assistantMessage([
       { type: "tool_use", id: "late-tu-1", name: "read", input: { file_path: "a" } },
