@@ -57,7 +57,8 @@ const url = `http://127.0.0.1:${address.port}/v1/messages`
 async function request(key, messages) {
   const response = await fetch(url, {
     method: "POST", headers: { "content-type": "application/json", "x-meridian-agent": "opencode", "x-opencode-session": key },
-    body: JSON.stringify({ model, stream, max_tokens: 160, tools: [], messages,
+    body: JSON.stringify({ model, stream, max_tokens: 400, tools: [], messages,
+      ...(messages.length >= 5 ? { output_config: { format: { type: "json_schema", schema: { type: "object", properties: { value: { type: "string" }, decision: { type: "string" } }, required: ["value", "decision"], additionalProperties: false } } } } : {}),
       metadata: { user_id: JSON.stringify({ session_id: key }) } }), signal: AbortSignal.timeout(90_000),
   })
   const raw = await response.text()
@@ -104,7 +105,7 @@ try {
   const revised = [...firstHistory.slice(0, 2),
     { role: "user", content: [{ type: "tool_result", tool_use_id: "fixture_call", content: revisedValue }] },
     { role: "assistant", content: `The decision identifier is ${decision}.` },
-    { role: "user", content: "Return only one JSON array with the latest fixture result value and decision identifier. Use raw JSON only, with no markdown fences, preamble or commentary. No tools." },
+    { role: "user", content: "Return only one JSON object with keys value (the latest fixture result value) and decision (the decision identifier). Use raw JSON only, with no markdown fences, preamble or commentary. No tools." },
   ]
   gates = Array.from({ length: 2 }, () => ({ started: deferred(), release: deferred() }))
   nextGate = 0
@@ -129,17 +130,19 @@ try {
   console.log(JSON.stringify({ root, stream, model, status: second.status, error: second.raw, resume: gates[1].options?.resume ?? null }))
   const answer = checkAnswer(second, [revisedValue, decision], old)
   console.log(JSON.stringify({ answer }))
-  assert.deepEqual(JSON.parse(answer), [revisedValue, decision])
+  assert.deepEqual(JSON.parse(answer), { value: revisedValue, decision })
   assert.equal(gates[1].options?.resume, undefined, "Revised history must replay fresh")
   await unchanged(source)
   const current = await snapshot(key)
   const supplied = JSON.stringify(current.rows.filter(row => row.type === "user"))
   assert(supplied.includes(revisedValue) && supplied.includes(decision))
   assert(!supplied.includes(old), "Old branch value leaked into fresh target")
+  console.log(JSON.stringify({ beforeFollowup: lookupSharedSession(key) }))
   gates = undefined
   const followup = await request(key, [...revised, { role: "assistant", content: second.content },
-    { role: "user", content: "Repeat that exact JSON array only. Use raw JSON without markdown fences or commentary. No tools." }])
-  assert.deepEqual(JSON.parse(checkAnswer(followup, [revisedValue, decision], old)), [revisedValue, decision])
+    { role: "user", content: "Repeat that exact JSON object only. Use raw JSON without markdown fences or commentary. No tools." }])
+  assert.deepEqual(JSON.parse(checkAnswer(followup, [revisedValue, decision], old)), { value: revisedValue, decision })
+  console.log(JSON.stringify({ followupMetrics: telemetryStore.getRecent({ limit: 3 }) }))
   assert.equal(telemetryStore.getRecent({ limit: 1 })[0]?.isResume, true)
   await unchanged(source)
   console.log(JSON.stringify({ result: "PASS", stream, answer, followupResume: true, sourceUnchanged: true }))

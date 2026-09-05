@@ -737,10 +737,14 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
     else process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
   })
 
+  function streamEvent(event: Record<string, unknown>) {
+    return { type: "stream_event", event, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session" }
+  }
+
   function duplicateTurn() {
     // Two tool_use blocks: same name + same input → second is an exact duplicate
     const turn = toolTurn("toolu_d1", "read", { filePath: "a.txt" })
-    ;(turn as any).message.content = [
+    turn.message.content = [
       { type: "tool_use", id: "toolu_d1", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
       { type: "tool_use", id: "toolu_d2", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
     ]
@@ -767,11 +771,17 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
     }
   }
 
-  it("checkpoint excludes the dropped duplicate id — follow-up resumes instead of fresh-replaying", async () => {
+  for (const stream of [false, true]) {
+  it(`checkpoint matches the visible calls and resumes (stream=${stream})`, async () => {
     // First turn: model emits two reads, second is an exact duplicate.
     // The hook drops toolu_d2 (isExactDuplicate) → added to droppedToolUseIds.
-    // The checkpoint must contain only toolu_d1.
+    // Non-stream hides d2; streaming already delivered both. Match that set.
     mockTurns = [
+      ...(stream ? [streamMessageStart(), ...["toolu_d1", "toolu_d2"].flatMap((id, index) => [
+        streamEvent({ type: "content_block_start", index, content_block: { type: "tool_use", id, name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+        streamEvent({ type: "content_block_delta", index, delta: { type: "input_json_delta", partial_json: '{"filePath":"a.txt"}' } }),
+        streamEvent({ type: "content_block_stop", index }),
+      ]), streamEvent({ type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 30 } })] : []),
       duplicateTurn(),
       denyUser(["toolu_d1", "toolu_d2"]),
       { type: "assistant", message: {
@@ -783,8 +793,19 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
       { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
     ]
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
-    const first = await post(app, false)
+    const first = await post(app, stream)
     expect(first.status).toBe(200)
+
+    const firstRaw = await first.text()
+    const visibleIds = stream
+      ? firstRaw.split("\n").filter(line => line.startsWith("data:")).map(line => JSON.parse(line.slice(5)))
+        .filter(event => event.type === "content_block_start" && event.content_block?.type === "tool_use")
+        .map(event => event.content_block.id)
+      : JSON.parse(firstRaw).content.filter((block: { type: string }) => block.type === "tool_use").map((block: { id: string }) => block.id)
+    expect(visibleIds).toEqual(stream ? ["toolu_d1", "toolu_d2"] : ["toolu_d1"])
+    const { lookupSharedSession } = await import("../proxy/sessionStore")
+    const stored = lookupSharedSession("deny-abort-session")
+    expect(stored?.passthroughToolCallIds).toEqual(visibleIds)
 
     // Follow-up: client sends back the real result for toolu_d1 only.
     // If the checkpoint incorrectly included toolu_d2, isCompleteToolResultContinuation
@@ -798,17 +819,16 @@ describe("dropped duplicate tool_use is excluded from persisted checkpoint", () 
       }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session" },
     ]
     capturedResume = undefined
-    const second = await post(app, false, [
+    const second = await post(app, stream, [
       { role: "user", content: "Do the thing." },
-      { role: "assistant", content: [
-        { type: "tool_use", id: "toolu_d1", name: "read", input: { filePath: "a.txt" } },
-      ]},
-      { role: "user", content: [
-        { type: "tool_result", tool_use_id: "toolu_d1", content: "contents of a.txt" },
-      ]},
+      { role: "assistant", content: visibleIds.map((id: string) => ({ type: "tool_use", id, name: "read", input: { filePath: "a.txt" } })) },
+      { role: "user", content: visibleIds.map((id: string) => ({ type: "tool_result", tool_use_id: id, content: "contents of a.txt" })) },
     ])
     expect(second.status).toBe(200)
+    await second.text()
     // Must resume — if the checkpoint included toolu_d2, this would fresh-replay
-    expect(capturedResume ?? "(not resumed)").toBe("test-session")
+    expect(stored?.claudeSessionId).toBeDefined()
+    expect(capturedResume ?? "(not resumed)").toBe(stored?.claudeSessionId ?? "(missing mapping)")
   })
+  }
 })

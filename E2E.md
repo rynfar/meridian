@@ -3722,3 +3722,12 @@ Run `bun scripts/e2e-block-continuations.mjs` and again with `--stream`. Run bot
 It also removes a recognized OpenCode `{"continue":true}` hook envelope and requires continuation, then removes a meaningful fixture field and requires complete replay without that field in the SDK input or answer. Supported `getSessionMessages` inspection verifies input and source immutability. `--case=append`, `--case=hook` and `--case=drop` select individual cases for before/after comparisons. Run the existing E41, undo-gap and hash-migration controls alongside this gate when changing the classifier.
 
 For growing histories, add `--extended --delay-input-ms=4000`. This supplies appended context followed by the prior assistant reply and a new user question requesting one JSON object. A timing wrapper delays the second SDK input if one is emitted; it still calls the real SDK. The unsafe multi-input path can concatenate two model answers. Require one complete JSON answer with the original record, new suffix and image color, and zero delayed secondary inputs after coalescing.
+
+
+## Revised-history conflicts and checkpoint fidelity
+
+Run `bun scripts/e2e-modified-history-conflict.mjs` and again with `--stream`. Scheduling gates hold one real SDK turn while a revised, growing request queues under the same OpenCode session. Require complete fresh replay, the new result and supplied assistant decision in schema-validated JSON, an ordinary resumed follow-up, and unchanged source history through supported `getSessionMessages`. SDK/model responses are real.
+
+Run `bun scripts/e2e-duplicate-checkpoint.mjs` in both modes. The real model must emit two identical tool calls; otherwise the fixture precondition fails. Non-streaming currently delivers one call; streaming delivers both before hooks recognize duplication. The stored checkpoint must match the delivered IDs, all returned results must resume, and the source must remain unchanged. This gate does not claim streaming deduplication.
+
+Run `bun scripts/e2e-settlement-proof.mjs` in both modes to verify revised history following a completed real tool checkpoint. Require the supplied decision in the SDK input and answer, unchanged source history, and a resumed ordinary follow-up. Keeping old completed checkpoints must not force future turns to replay.

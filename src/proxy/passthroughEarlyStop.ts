@@ -45,9 +45,9 @@
  *  Duplicated here (with a cross-check test) to keep this module leaf-pure. */
 const CLIENT_TOOL_PREFIX = "mcp__oc__"
 
-/** Internal SDK tool that executes for real (deferred tool discovery) — its
- *  calls are never forwarded to the client and must not arm the tracker. */
-const INTERNAL_TOOLS = new Set(["ToolSearch"])
+/** Internal SDK tools execute inside the SDK. Their results never require
+ *  a client tool_result and must not arm a passthrough checkpoint. */
+const INTERNAL_TOOLS = new Set(["ToolSearch", "StructuredOutput"])
 
 export interface EarlyStopTracker {
   /** tool_use ids of client-forwarded calls awaiting an iterator-observed deny */

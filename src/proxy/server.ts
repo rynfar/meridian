@@ -4566,7 +4566,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       shouldEarlyStop(earlyStop)
                     ) {
                       nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
-                      nextPassthroughToolCallIds = [...earlyStop.expected].filter(id => !droppedToolUseIds.has(id))
+                      // Streamed calls are already visible, even if a later hook
+                      // recognizes a duplicate. The client will return each ID.
+                      nextPassthroughToolCallIds = [...earlyStop.expected].filter(id =>
+                        !droppedToolUseIds.has(id) || streamedToolUseIds.has(id))
                       earlyStopFired = true
                       for (let i = capturedToolUses.length - 1; i >= 0; i--) {
                         if (!earlyStop.expected.has(capturedToolUses[i]!.id)) capturedToolUses.splice(i, 1)

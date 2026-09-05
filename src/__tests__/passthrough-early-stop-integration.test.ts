@@ -42,9 +42,11 @@ installSdkMock(() => ({
     return (async function* () {
       let sawSyntheticDeny = false
       let sawResult = false
+      const explicitlyHookedIds = new Set<string>()
       for (const msg of mockMessages) {
         yieldedCount++
         if (msg?.type === "test_pre_tool_hook") {
+          explicitlyHookedIds.add(msg.tool_use_id)
           if (preHook) {
             await preHook({
               tool_name: msg.tool_name,
@@ -66,7 +68,8 @@ installSdkMock(() => ({
         yield delivered
         if (preHook && delivered?.type === "assistant" && Array.isArray(delivered?.message?.content)) {
           for (const block of delivered.message.content) {
-            if (block?.type !== "tool_use") continue
+            // Explicit timing fixtures already invoked this hook before metadata.
+            if (block?.type !== "tool_use" || explicitlyHookedIds.has(block.id)) continue
             void Promise.resolve(preHook({
               tool_name: block.name,
               tool_use_id: block.id,
