@@ -21,6 +21,31 @@ curl -s http://127.0.0.1:3456/health | jq .status   # → "healthy"
 kill $(lsof -ti :3456)
 ```
 
+### Capped passthrough turns (#926)
+
+```bash
+for cap_case in partial empty thinking unhandled retry retry-resume pinned; do
+  bun scripts/e2e-capped-turns.mjs "--case=$cap_case" || exit 1
+  bun scripts/e2e-capped-turns.mjs "--case=$cap_case" --stream || exit 1
+done
+```
+
+These controls use the real SDK and CLI against a local Anthropic API fixture.
+An unknown synthetic tool makes the CLI return an actual `error_max_turns`
+without executing a tool. Explicit withholding of SDK events reproduces partial
+or silent delivery; this is fault injection, not a naturally reproduced live-model
+incident. Partial prose must truncate; empty output, thinking alone and unhandled
+calls must fail. A silent turn may retry once, except with an operator-pinned cap.
+
+Fresh and resumed retries must use distinct targets, retire the failed target,
+publish the successful target, and deliver exactly one tool call. Its real client
+result must reach a checkpoint follow-up. Supported SDK `getSessionMessages`
+inspection verifies source immutability and absence of the refused attempt in the
+successful history. The fixture identifies each CLI query separately because a
+hidden drain can overlap a follow-up; auxiliary CLI requests are excluded.
+Run all four live Claude Max E41 modes alongside these controls, plus the #925
+`--fixture --stream --drop-stop` control when changing stream recovery.
+
 ### Passthrough argument repair (#925)
 
 ```bash

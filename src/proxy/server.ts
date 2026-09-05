@@ -48,7 +48,7 @@ import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, hasRepa
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
-import { classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
+import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -3807,9 +3807,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // Do not rethrow — execution continues into the merge block, which
               // backfills contentBlocks from capturedToolUses and builds a clean
               // stop_reason:"tool_use" response.
-            } else if (passthrough && sdkTerm.reason === "max_turns" && contentBlocks.length > 0) {
+            } else if (passthrough && sdkTerm.reason === "max_turns" && hasTruncatableText(contentBlocks)) {
               // The turn hit its budget without producing a forwardable tool
-              // call, but it did produce content. Throwing here would answer a
+              // call, but it did produce visible text. Throwing here would answer a
               // 200-able turn with a 500 — and the streaming path already does
               // the honest thing instead, reporting the turn as truncated. Match
               // it: `max_tokens` is the signal a client can act on (retry or
@@ -6210,8 +6210,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // A turn that forwarded only `message_start`, or an empty text
               // block, delivered no actionable content. `eventsForwarded`
               // includes envelope events and `nextClientBlockIndex` includes
-              // non-text blocks, so neither is a content oracle. Use the same
-              // text-delta count as classifyTurnOutcome instead.
+              // non-text blocks, so neither is a content oracle. Count actual
+              // text characters: an empty text delta carries no answer either.
               //
               // A tool_use block already on the wire with nothing captured
               // means the hook never let those calls stand (forced-single
@@ -6224,7 +6224,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 capturedToolUses.length === 0 &&
                 streamedToolUseIds.size === 0 &&
                 messageStartEmitted &&
-                textEventsForwarded > 0
+                textCharsForwarded > 0
               ) {
                 flushOpenClientBlocks("capped_turn")
                 diagnosticLog.session(
@@ -6293,7 +6293,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 })
 
                 if (!streamClosed) {
-                  try { controller.close() } catch {}
+                  try {
+                    controller.close()
+                  } catch (error) {
+                    claudeLog("stream.close_failed", { source: "capped_turn", error: String(error) })
+                  }
                   streamClosed = true
                 }
                 return

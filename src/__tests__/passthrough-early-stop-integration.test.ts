@@ -2282,10 +2282,11 @@ describe("Integration: passthrough early stop", () => {
   // An empty text block is still an empty turn: content_block_start advances
   // the client block index, but without a text delta the client received no
   // actionable content. Keep the capped turn on the error path.
-  it("stream: a capped turn with an empty text block still reports the failure", async () => {
+  it.each([false, true])("stream: a capped turn with an empty text block still reports the failure (empty delta=%s)", async (emptyDelta) => {
     mockMessages = [
       messageStart("msg_capped_empty_block"),
       textBlockStart(0),
+      ...(emptyDelta ? [textDelta(0, "")] : []),
       blockStop(0),
       { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
     ]
@@ -2416,7 +2417,7 @@ describe("Integration: passthrough early stop", () => {
       messages: [{ role: "user", content: "answer me" }],
     }, "es-capped-lift-ns")
     expect(res.status).toBe(200)
-    const json = await res.json() as any
+    const json = await res.json() as { stop_reason: string; content: Array<{ text?: string }> }
     expect(json.stop_reason).toBe("end_turn")
     expect(json.content[0].text).toBe("answered after the lift")
     expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
@@ -2498,9 +2499,9 @@ describe("Integration: passthrough early stop", () => {
     }
   })
 
-  it("non-stream: a capped turn that captured no tool call does not fail the request", async () => {
+  it("non-stream: a capped turn with prose and no tool call reports truncation", async () => {
     mockMessages = [
-      assistantMessage([{ type: "thinking", thinking: "pondering", signature: "sig" }]),
+      assistantMessage([{ type: "thinking", thinking: "pondering", signature: "sig" }, { type: "text", text: "A partial answer" }]),
       { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
@@ -2510,7 +2511,7 @@ describe("Integration: passthrough early stop", () => {
       max_tokens: 400,
       stream: false,
       tools: [READ_TOOL],
-      messages: [{ role: "user", content: "think only" }],
+      messages: [{ role: "user", content: "answer" }],
     }, "es-capped-nothing-ns")
     // Was a 500 before: a turn with content but no forwardable tool call is
     // answerable, so it must report truncation rather than dead-ending.
@@ -2518,6 +2519,27 @@ describe("Integration: passthrough early stop", () => {
     const json = await res.json() as any
     expect(json.stop_reason).toBe("max_tokens")
     expect(json.stop_reason).not.toBe("end_turn")
+    expect(json.content).toContainEqual({ type: "text", text: "A partial answer" })
+  })
+
+  it.each([
+    ["empty text", [{ type: "text", text: "" }]],
+    ["thinking only", [{ type: "thinking", thinking: "internal reasoning", signature: "sig" }]],
+  ])("non-stream: a capped turn with %s still reports failure", async (_label, content) => {
+    mockMessages = [
+      assistantMessage(content),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "produce an answer" }],
+    }, "es-capped-no-text-ns")
+    expect(res.status).toBe(500)
+    expect(capturedQueryParamsAll).toHaveLength(1)
   })
 
   // A turn that ends on its own never asks the SDK for a second turn, so the
