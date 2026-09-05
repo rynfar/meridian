@@ -79,6 +79,36 @@ describe("Error classification", () => {
     clearSessionCache()
   })
 
+  for (const stream of [false, true]) {
+    for (const quoted of [false, true]) {
+      it(`keeps model rejection distinct from quoted overload text (stream=${stream}, quoted=${quoted})`, async () => {
+        const rejection = "Claude Code 2.1.177 does not support this model; version 2.1.251 or newer is required."
+        mockError = new Error(quoted
+          ? `API Error: 503 Upstream overloaded; documentation mentions ${rejection}`
+          : `Claude Code returned an error result: API Error: 400 ${rejection}`)
+        const response: Response = await post(createTestApp(), { ...BASIC_REQUEST, stream })
+        const raw = await response.text()
+        const expectedType = quoted ? "overloaded_error" : "invalid_request_error"
+        if (stream) {
+          expect(response.status).toBe(200)
+          const events = raw.split("\n").filter(line => line.startsWith("data:"))
+            .map(line => JSON.parse(line.slice(5)))
+          expect(events.find(event => event.type === "error")?.error.type).toBe(expectedType)
+          expect(events.some(event => event.type === "message_stop")).toBe(false)
+        } else {
+          expect(response.status).toBe(quoted ? 503 : 400)
+          expect(JSON.parse(raw).error.type).toBe(expectedType)
+          expect(response.headers.get("Retry-After")).toBe(quoted ? "5" : null)
+        }
+        if (!quoted) {
+          expect(raw).toContain("2.1.177")
+          expect(raw).toContain("2.1.251")
+          expect(raw).toContain("MERIDIAN_CLAUDE_PATH")
+        }
+      }, 15000)
+    }
+  }
+
   it("should return 401 for authentication errors", async () => {
     mockError = new Error("API Error: 401 authentication_error - Invalid authentication credentials")
     const app = createTestApp()

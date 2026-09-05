@@ -182,6 +182,28 @@ const OVERFLOW_PHRASES = [
   String.raw`context[_ ]length[_ ]exceeded`,
 ]
 
+/** The resolved CLI is older than the model that was asked for. Observed
+ *  verbatim from claude-code 2.1.198 asked for `claude-fable-5-1`:
+ *  `API Error: 400 Claude Code 2.1.198 does not support this model; version
+ *  2.1.251 or newer is required. Run 'claude update', ...`
+ *
+ *  Version-agnostic by design — pinning the observed pair would stop matching
+ *  at the next floor bump, which is the same trap #764/#787 sprang on the
+ *  rate-limit literals. `Claude Code` must sit adjacent to the phrase so that
+ *  an unsupported *tool* or *flag* ("this tool does not support streaming
+ *  input") cannot take the branch: that is a different failure with a
+ *  different remedy. */
+// Require an error-message opening, after only known SDK/CLI wrappers. A
+// quoted phrase in a tool error or overload diagnostic is not this rejection:
+// falsely returning 400 would prevent a legitimate retry. Only the observed
+// 400 wrapper is admitted. A bare phrase on a later diagnostic line is not
+// an error opening; only the server's explicit stderr marker reopens one.
+const CLI_MODEL_UNSUPPORTED = new RegExp(
+  String.raw`(?:^\s*|\r?\n[ \t]*subprocess stderr:\s*)`
+  + String.raw`(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*(?:400\s+)?)*`
+  + String.raw`claude code(?: \d[\w.+-]*)? does not support this model\b`,
+)
+
 /** Either the phrase opens a line (after the known SDK/CLI wrappers), or it
  *  opens the `message` value of an API error envelope — `API Error: 400
  *  {"type":"invalid_request_error","message":"prompt is too long: ..."}`, which
@@ -280,6 +302,28 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
       status: 400,
       type: "invalid_request_error",
       message: "Prompt exceeds the model's context window. Compact or trim the conversation before retrying — an identical retry fails the same way."
+    }
+  }
+
+  // The resolved CLI predates the requested model. A correct package.json floor
+  // does not prevent this: MERIDIAN_CLAUDE_PATH is step 0 of
+  // resolveClaudeExecutableWithSource, so an env-pointed CLI outranks the
+  // bundled binary the floor governs (#932).
+  //
+  // 400 for the same reason as context overflow above — upgrading the CLI is
+  // the only fix, so every retry fails identically, and the default 500 reads
+  // as "transient" to every client retry policy. Placed before the crash
+  // branch so the same error arriving as a code-1 exit with stderr attached
+  // does not get answered with `claude login`, which cannot help here.
+  //
+  // The CLI names both the installed and the required version; that is the
+  // only actionable part of the message, so it is carried through rather than
+  // replaced with generic prose.
+  if (CLI_MODEL_UNSUPPORTED.test(lower)) {
+    return {
+      status: 400,
+      type: "invalid_request_error",
+      message: `${errMsg.trim()} (Meridian: the Claude Code CLI it resolved is older than the requested model. If MERIDIAN_CLAUDE_PATH is set it overrides the bundled CLI, so update that binary or unset the variable.)`
     }
   }
 

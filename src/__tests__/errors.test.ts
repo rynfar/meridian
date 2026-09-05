@@ -346,6 +346,51 @@ describe("classifyError", () => {
     })
   })
 
+  // The CLI rejects a model it is too old to know about. Captured verbatim from
+  // claude-code 2.1.198 asked for claude-fable-5-1 (#932). This is reachable via
+  // MERIDIAN_CLAUDE_PATH, which outranks the bundled binary the package.json
+  // floor governs, so the floor alone does not prevent it.
+  describe("CLI too old for the requested model (#932)", () => {
+    const REAL = "API Error: 400 Claude Code 2.1.198 does not support this model; version 2.1.251 or newer is required. Run 'claude update', or update the Claude desktop app, then try again."
+
+    it("classifies the CLI's verbatim wording as a client error", () => {
+      const r = classifyError(REAL)
+      expect(r.status).toBe(400)
+      expect(r.type).toBe("invalid_request_error")
+    })
+
+    // The whole point: a 500 reads as "transient" to every client retry policy,
+    // so an upgrade-or-nothing failure gets replayed forever at upstream cost.
+    it("is never retryable", () => {
+      expect(classifyError(REAL).status).toBeLessThan(500)
+    })
+
+    // The CLI names both the installed and required versions. Dropping them for
+    // generic prose would discard the only actionable part of the message.
+    it("preserves the version detail the CLI reported", () => {
+      const r = classifyError(REAL)
+      expect(r.message).toContain("2.1.198")
+      expect(r.message).toContain("2.1.251")
+    })
+
+    it("matches the shape, not one hardcoded version pair", () => {
+      const r = classifyError("API Error: 400 Claude Code 2.0.5 does not support this model; version 3.0.0 or newer is required.")
+      expect(r.status).toBe(400)
+    })
+
+    // Must not steal a genuine quota failure that happens to mention a model.
+    it("leaves a rate limit alone", () => {
+      expect(classifyError("You've hit your usage limit for claude-fable-5-1").status).toBe(429)
+    })
+
+    // "does not support" alone is too broad — an unsupported tool or flag is a
+    // different failure with a different remedy.
+    it("does not fire on an unrelated unsupported-feature error", () => {
+      const r = classifyError("Error: this tool does not support streaming input")
+      expect(r.status).not.toBe(400)
+    })
+  })
+
   describe("process crashes", () => {
     it("detects exit code with specific number", () => {
       const result = classifyError("exited with code 137")
