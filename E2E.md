@@ -3762,8 +3762,9 @@ Run this real-client sequence:
    separately from `agent=primary`.
 2. Continue the same OpenCode session, drive a write/read tool loop, restart
    Meridian while preserving the isolated durable store, and continue again.
-3. Run `--agent summary` and require `source=subagent-summary` with no primary
-   mapping write.
+3. Run `--fork --agent summary` in a disposable client fork and require
+   `source=subagent-summary` with no affinity headers or primary mapping write.
+   Its probe message must not enter primary client history.
 4. Use V2's supported `/api/session/:id/revert/stage` and `revert/commit`
    endpoints, then continue. Meridian must log `lineage=undo` and the removed
    tool turn must not be visible.
