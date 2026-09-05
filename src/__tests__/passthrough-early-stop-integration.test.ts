@@ -2419,7 +2419,7 @@ describe("Integration: passthrough early stop", () => {
     expect(res.status).toBe(200)
     const json = await res.json() as { stop_reason: string; content: Array<{ text?: string }> }
     expect(json.stop_reason).toBe("end_turn")
-    expect(json.content[0].text).toBe("answered after the lift")
+    expect(json.content[0]?.text).toBe("answered after the lift")
     expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
     expect(capturedQueryParamsAll[1].options.maxTurns).toBe(3)
   })
