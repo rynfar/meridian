@@ -14,6 +14,8 @@ const v1 = process.argv.includes('--v1')
 const extended = process.argv.includes('--extended')
 assert(!extended || (live && !v1), '--extended requires --live and a V2 host')
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'meridian-v2-package-')))
+const proxyWorkdir = process.argv.includes('--separate-proxy-cwd') ? join(root, 'proxy-workdir') : root
+mkdirSync(proxyWorkdir, { recursive: true })
 const config = join(root, 'config', 'opencode')
 mkdirSync(config, { recursive: true })
 const env = { ...process.env }
@@ -53,7 +55,7 @@ async function startMeridian() {
 if (live) {
   for (const key of Object.keys(process.env)) if (key.startsWith('MERIDIAN_') || key.startsWith('CLAUDE_PROXY_')) delete process.env[key]
   Object.assign(process.env, { MERIDIAN_CONFIG_DIR: env.MERIDIAN_CONFIG_DIR, MERIDIAN_SESSION_DIR: join(root, 'sessions'),
-    MERIDIAN_WORKDIR: root, MERIDIAN_PASSTHROUGH: '1', MERIDIAN_TELEMETRY_PERSIST: '0' })
+    MERIDIAN_WORKDIR: proxyWorkdir, MERIDIAN_PASSTHROUGH: '1', MERIDIAN_TELEMETRY_PERSIST: '0' })
   await startMeridian()
 }
 const requests = []

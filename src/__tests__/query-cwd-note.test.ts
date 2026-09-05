@@ -5,6 +5,14 @@ import { buildCwdNote } from "../proxy/query"
 const REMOTE = { clientEnvironmentMayDifferFromProxy: true }
 
 describe("buildCwdNote", () => {
+  it("does not discard a literal trailing backslash in a POSIX directory name", () => {
+    expect(buildCwdNote("/tmp/project", "/tmp/project\\")).not.toBe("")
+  })
+  it("does not collapse a parent component that may traverse a symlink", () => {
+    expect(buildCwdNote("/work/project", "/work/project/link/..")).not.toBe("")
+    expect(buildCwdNote("C:\\work\\project", "C:\\work\\project\\link\\..")).not.toBe("")
+  })
+
   it("returns an empty string when the client path is absent", () => {
     expect(buildCwdNote("/srv/proxy")).toBe("")
     expect(buildCwdNote("/srv/proxy", "")).toBe("")

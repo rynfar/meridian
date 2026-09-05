@@ -219,6 +219,31 @@ describe("Working directory", () => {
     }
   })
 
+  it.skipIf(process.platform === "win32")("keeps a distinct Pi POSIX directory ending in a literal backslash", async () => {
+    const originalProxy = process.env.CLAUDE_PROXY_WORKDIR
+    const originalMeridian = process.env.MERIDIAN_WORKDIR
+    const proxyPath = tmpdir().replace(/\/$/, "")
+    const clientPath = `${proxyPath}\\`
+    process.env.MERIDIAN_WORKDIR = proxyPath
+    try {
+      const app = createTestApp()
+      const response = await post(app, {
+        model: "claude-haiku-4-5", max_tokens: 64, stream: false,
+        system: `Current working directory: ${clientPath}`,
+        messages: [{ role: "user", content: "hello" }],
+      }, { "x-meridian-agent": "pi", "x-session-affinity": "ses_pi_backslash" })
+      await response.json()
+      expect(response.status).toBe(200)
+      expect(capturedQueryParams.options.cwd).toBe(proxyPath)
+      expect(clientCwdFromAppend(capturedQueryParams)).toBe(clientPath)
+    } finally {
+      if (originalProxy === undefined) delete process.env.CLAUDE_PROXY_WORKDIR
+      else process.env.CLAUDE_PROXY_WORKDIR = originalProxy
+      if (originalMeridian === undefined) delete process.env.MERIDIAN_WORKDIR
+      else process.env.MERIDIAN_WORKDIR = originalMeridian
+    }
+  })
+
   it("routes a captured V1 non-stream request through HTTP without losing the remote CWD", async () => {
     const originalProxy = process.env.CLAUDE_PROXY_WORKDIR
     const originalMeridian = process.env.MERIDIAN_WORKDIR

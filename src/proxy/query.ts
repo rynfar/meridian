@@ -288,13 +288,17 @@ function comparablePath(value: string): { flavor: "posix" | "windows"; value: st
   const api = windows ? win32 : posix
   let normalized = api.normalize(value)
   const root = api.parse(normalized).root
-  while (normalized.length > root.length && /[\\/]$/.test(normalized)) {
+  while (normalized.length > root.length && normalized.endsWith(api.sep)) {
     normalized = normalized.slice(0, -1)
   }
   return { flavor: windows ? "windows" : "posix", value: windows ? normalized.toLowerCase() : normalized }
 }
 
 function pathsEquivalent(left: string, right: string): boolean {
+  // A parent component can traverse a symlink/junction. Lexical normalization
+  // cannot establish filesystem identity, so retain the note for distinct paths.
+  const hasParent = (value: string) => value.split(isWindowsPath(value) ? /[\\/]/ : /\//).includes("..")
+  if (hasParent(left) || hasParent(right)) return left === right
   const a = comparablePath(left)
   const b = comparablePath(right)
   return a.flavor === b.flavor && a.value === b.value
