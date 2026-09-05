@@ -31,7 +31,8 @@ const stream = process.argv.includes("--stream")
 const image = process.argv.includes("--image")
 const reviseHistory = process.argv.includes("--revise-history")
 const insertHistory = process.argv.includes("--insert-history")
-const expectResume = !reviseHistory && !insertHistory
+const blankReminder = process.argv.includes("--blank-reminder")
+const expectResume = !reviseHistory && !insertHistory && !blankReminder
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-cc-system-delta-")))
 for (const key of Object.keys(process.env)) {
   if (key.startsWith("MERIDIAN_") || key.startsWith("CLAUDE_PROXY_")) delete process.env[key]
@@ -100,19 +101,19 @@ try {
   assert(sourceRows.length)
   const value = `value_${randomUUID()}`
   const marker = `reminder_${randomUUID()}`
-  const reminder = `<system-reminder>The reminder identifier is ${marker}. Include it with the fixture value and the fixture context identifier from the opening user message in your response. If the tool result includes an image, also name its predominant color. Include any extra identifier supplied in a user message before the call. No more tools.</system-reminder>`
+  const reminder = blankReminder ? " \n\t " : `<system-reminder>The reminder identifier is ${marker}. Include it with the fixture value and the fixture context identifier from the opening user message in your response. If the tool result includes an image, also name its predominant color. Include any extra identifier supplied in a user message before the call. No more tools.</system-reminder>`
   const history = [{ ...opening, content: opening.content.replace(originalContext, revisedContext) },
     ...(insertHistory ? [{ role: "user", content: `The extra identifier is ${insertedIdentifier}. Include it in the final answer.` }] : []), { role: "assistant", content: first },
     { role: "user", content: [{ type: "tool_result", tool_use_id: calls[0].id, content: image ? [{ type: "text", text: value }, blueImage()] : value },
-      { type: "text", text: "The requested tool has completed. Report its supplied value, the fixture context identifier from the opening message, and the accompanying reminder identifier. Use the recorded result; no further tool calls are needed." }] },
+      { type: "text", text: blankReminder ? "Report the completed tool value and opening context identifier. If there is an image, name its predominant color. No further calls are needed." : "The requested tool has completed. Report its supplied value, the fixture context identifier from the opening message, and the accompanying reminder identifier. Use the recorded result; no further tool calls are needed." }] },
     { role: "system", content: [{ type: "text", text: reminder, cache_control: { type: "ephemeral" } }] }]
   const second = await request(history)
   const answer = second.filter(block => block.type === "text").map(block => block.text).join("")
   const metric = telemetryStore.getRecent({ limit: 1 })[0]
-  console.log(JSON.stringify({ root, stream, image, reviseHistory, insertHistory, answer, expected: [value, marker], isResume: metric?.isResume,
+  console.log(JSON.stringify({ root, stream, image, reviseHistory, insertHistory, blankReminder, answer, expected: [value, marker], isResume: metric?.isResume,
     blocks: second.map(block => ({ type: block.type, name: block.name, text: block.text })), sdkResults, freshPrompt: textPrompts[1], resumeAt: queryOptions[1]?.resumeSessionAt ?? null, expectedCheckpoint: source.passthroughToolCallAssistantUuid }))
   assert.equal(second.filter(block => block.type === "tool_use").length, 0, "A completed result must not cause another tool request")
-  assert(answer.includes(value) && answer.includes(marker), "Both real result and system-reminder text must reach the answer")
+  assert(answer.includes(value) && (blankReminder || answer.includes(marker)), "Both real result and system-reminder text must reach the answer")
   if (image) assert(answer.toLowerCase().includes("blue"), "Tool-result image must reach the model")
   assert(answer.includes(revisedContext), "Revised opening context must reach the answer")
   if (reviseHistory) assert(!answer.includes(originalContext), "Removed opening context leaked into the answer")
@@ -124,7 +125,7 @@ try {
   assert(current?.claudeSessionId)
   const rows = await getSessionMessages(current.claudeSessionId, { dir: root })
   const users = JSON.stringify(rows.filter(row => row.type === "user"))
-  assert(users.includes(value) && users.includes(marker))
+  assert(users.includes(value) && (blankReminder || users.includes(marker)))
   assert(!users.includes("[Assistant: <system-reminder>"), "Reminder was attributed to the assistant during replay")
   if (insertHistory) assert(users.includes(insertedIdentifier))
   if (reviseHistory) {
@@ -132,7 +133,7 @@ try {
     assert(users.includes("</conversation_history>"), "Fresh history must retain its context boundary")
   }
   assert.deepEqual(await getSessionMessages(source.claudeSessionId, { dir: root }), sourceRows)
-  console.log(JSON.stringify({ result: "PASS", stream, reminderDelivered: true, sourceUnchanged: true }))
+  console.log(JSON.stringify({ result: "PASS", stream, reminderDelivered: !blankReminder, sourceUnchanged: true }))
 } finally {
   querySpy.mockRestore()
   await instance.close()
