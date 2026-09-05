@@ -160,6 +160,25 @@ export function allForwardedCallsResolved(tracker: EarlyStopTracker): boolean {
 }
 
 /**
+ * Opt-in flags for the checkpoint continuation validators.
+ */
+export interface CompleteToolResultContinuationOptions {
+  /**
+   * NOTE: agent-specific (claude-code) — live claude-cli closes its
+   * tool-result delta with a trailing `system` reminder turn
+   * (`assistant[tool_use] -> user[tool_result] -> system[text]`, a
+   * `<total_tokens>`-style mid-conversation-system message). The generic
+   * Anthropic contract has no system role in `messages`, so that shape is
+   * admitted only under this explicit opt-in, only as the final message of
+   * the delta, and only with a single assistant echo carrying the complete
+   * exact expected ID set. The reminder is delivered as unprivileged user
+   * text after the results and any queued user content — never dropped,
+   * never escalated to an SDK system prompt.
+   */
+  allowClaudeCodeSystemDelta?: boolean
+}
+
+/**
  * Verify that a resumed tool-result delta settles exactly the tool calls at the
  * stored assistant checkpoint, then coalesce queued user turns into one SDK
  * input. Tool results must precede any ordinary user content, matching the
@@ -167,7 +186,8 @@ export function allForwardedCallsResolved(tracker: EarlyStopTracker): boolean {
  */
 export function coalesceCompleteToolResultContinuation(
   messages: Array<{ role?: unknown; content?: unknown }>,
-  expectedIds: readonly string[]
+  expectedIds: readonly string[],
+  options?: CompleteToolResultContinuationOptions,
 ): Array<{ role: "user"; content: unknown[] }> | undefined {
   if (expectedIds.length === 0 || messages.length === 0) return undefined
   const expected = new Set(expectedIds)
@@ -176,8 +196,39 @@ export function coalesceCompleteToolResultContinuation(
   const content: unknown[] = []
   let sawUser = false
   let sawNonToolResult = false
+  let sawTrailingSystem = false
+  let systemTextBlocks: unknown[] = []
+  let echoMessages = 0
 
   for (const message of messages) {
+    // NOTE: agent-specific (claude-code) — the captured live shape carries
+    // exactly one trailing system reminder AFTER the result batch; nothing
+    // may follow it, and leading/late/repeated reminders fail closed.
+    // Without the opt-in this branch is dead and the generic rejection
+    // below applies.
+    if (message.role === "system") {
+      if (!options?.allowClaudeCodeSystemDelta) return undefined
+      if (!sawUser || sawTrailingSystem) return undefined
+      sawTrailingSystem = true
+      if (typeof message.content === "string") {
+        if (message.content.length === 0) return undefined
+        systemTextBlocks.push({ type: "text", text: message.content })
+        continue
+      }
+      if (Array.isArray(message.content)) {
+        for (const rawBlock of message.content) {
+          const block = rawBlock as { type?: unknown; text?: unknown } | null | undefined
+          if (block?.type !== "text" || typeof block.text !== "string" || block.text.length === 0) return undefined
+          // Pass blocks through untouched; cache_control is stripped by the
+          // caller's existing strip path before the SDK sees the prompt.
+          systemTextBlocks.push(block)
+        }
+        if (systemTextBlocks.length === 0) return undefined
+        continue
+      }
+      return undefined
+    }
+    if (sawTrailingSystem) return undefined
     // The client echoes the just-produced assistant tool_use before its user
     // result. That assistant turn already exists at resumeSessionAt, so the
     // structured SDK delta below intentionally filters it out.
@@ -193,6 +244,7 @@ export function coalesceCompleteToolResultContinuation(
         }
       }
       if (!sawToolUse) return undefined
+      echoMessages++
       continue
     }
     if (message.role !== "user") return undefined
@@ -223,6 +275,14 @@ export function coalesceCompleteToolResultContinuation(
     actual.size !== expected.size ||
     (echoedCalls.size !== 0 && echoedCalls.size !== expected.size)
   ) return undefined
+  // A system reminder is a live Claude Code delta only with a single
+  // assistant echo carrying the complete expected ID set; a split, partial,
+  // or absent echo proves nothing causal and the replay must stay fresh.
+  // (Adjacent thinking/text blocks stay tolerated, as without the reminder.)
+  if (sawTrailingSystem && (echoMessages !== 1 || echoedCalls.size !== expected.size)) return undefined
+  // Delivered after the results and any queued user content, matching the
+  // wire order; nothing ever follows the reminder on the wire.
+  if (systemTextBlocks.length > 0) content.push(...systemTextBlocks)
   return [{ role: "user", content }]
 }
 
@@ -230,6 +290,7 @@ export function coalesceCompleteToolResultContinuation(
 export function findCompleteToolResultCheckpoint(
   messages: Array<{ role?: unknown; content?: unknown }>,
   expectedIds: readonly string[],
+  options?: CompleteToolResultContinuationOptions,
 ): Array<{ role: "user"; content: unknown[] }> | undefined {
   if (expectedIds.length === 0) return undefined
   const expected = new Set(expectedIds)
@@ -247,7 +308,7 @@ export function findCompleteToolResultCheckpoint(
     }
     if (malformed || ids.length !== expected.size || new Set(ids).size !== ids.length) continue
     if (!ids.every((id) => expected.has(id))) continue
-    return coalesceCompleteToolResultContinuation(messages.slice(index), expectedIds)
+    return coalesceCompleteToolResultContinuation(messages.slice(index), expectedIds, options)
   }
   return undefined
 }

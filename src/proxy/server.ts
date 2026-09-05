@@ -2178,8 +2178,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const durableCheckpointIds = durableMappingAtTurn.status === "found"
           ? durableMappingAtTurn.session.passthroughToolCallIds
           : undefined
+        // NOTE: agent-specific (claude-code) — live claude-cli closes its
+        // tool-result delta with a trailing system-role reminder turn
+        // (`assistant[tool_use] -> user[tool_result] -> system[text]`). The
+        // generic checkpoint helpers reject every role=system message, which
+        // turned each such continuation into a full fresh replay. The opt-in
+        // admits that exact shape for this adapter only, gated on the single
+        // complete expected-ID echo.
+        const claudeCodeSystemDeltaOptions = adapterBase === "claude-code"
+          ? { allowClaudeCodeSystemDelta: true }
+          : undefined
         const durableCheckpointContinuation = durableCheckpointIds?.length
-          ? findCompleteToolResultCheckpoint(body.messages || [], durableCheckpointIds)
+          ? findCompleteToolResultCheckpoint(body.messages || [], durableCheckpointIds, claudeCodeSystemDeltaOptions)
           : undefined
         const advancesDurableCheckpoint = Boolean(durableCheckpointContinuation)
         if (
@@ -2493,7 +2503,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // turns so multimodal tool results remain on the final SDK input.
         const checkpointContinuation = coalesceCompleteToolResultContinuation(
           messagesToConvert,
-          passthroughToolCallIds ?? []
+          passthroughToolCallIds ?? [],
+          claudeCodeSystemDeltaOptions,
         )
         if (checkpointContinuation) {
           messagesToConvert = checkpointContinuation

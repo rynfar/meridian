@@ -165,6 +165,25 @@ async function post(app: any, body: any, sessionHeader = "es-session", extraHead
   }))
 }
 
+/** Live Claude Code request: session identity in metadata.user_id, claude-cli
+ * UA, and no x-opencode-session header. */
+async function postClaudeCode(app: any, body: any, sessionId: string, extraHeaders: Record<string, string> = {}) {
+  usedSessionKeys.add(sessionId)
+  return app.fetch(new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": "dummy",
+      "user-agent": "claude-cli/2.1.259",
+      ...extraHeaders,
+    },
+    body: JSON.stringify({
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+      ...body,
+    }),
+  }))
+}
+
 describe("Integration: passthrough early stop", () => {
   let app: any
   let savedPassthrough: string | undefined
@@ -1130,6 +1149,112 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.options.resumeSessionAt).toBe(visibleToolTurn.uuid)
     expect(capturedQueryParams.options.resumeSessionAt).not.toBe(hiddenDigestTurn.uuid)
     expect(capturedQueryParams.options.forkSession).toBe(true)
+  })
+
+  // Live claude-cli 2.1.259 closes its tool-result delta with a trailing
+  // system-role reminder turn (assistant[tool_use] -> user[tool_result] ->
+  // system[text], a <total_tokens>-style message). The generic helpers
+  // reject role=system, which forced a full fresh replay; the claude-code
+  // opt-in must resume the checkpoint and deliver the reminder as
+  // unprivileged user text.
+  it("stream: resumes the checkpoint through the claude-code trailing system reminder", async () => {
+    const sessionId = `cc-delta-${TEST_RUN_ID}`
+    const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."
+    const trailingSystemText = "<system-reminder>Total tokens: 4151</system-reminder>"
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "cc-delta-tu1", name: "read", input: { file_path: "x" } },
+    ])
+
+    // Turn 1: initial user turn plus the system prompt as a text block with
+    // cache_control — the captured request1 shape.
+    mockMessages = [
+      messageStart("msg_cc_delta_1"),
+      toolUseBlockStart(0, "read", "cc-delta-tu1"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("cc-delta-tu1"),
+      assistantMessage([{ type: "text", text: "CC_DELTA_GARBAGE_DIGEST" }]),
+    ]
+    const first = await postClaudeCode(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "system", content: [{ type: "text", text: initialSystemText, cache_control: { type: "ephemeral" } }] },
+      ],
+    }, sessionId)
+    expect(first.status).toBe(200)
+    expect(await first.text()).not.toContain("CC_DELTA_GARBAGE_DIGEST")
+    let stored: any
+    for (let i = 0; i < 500 && !stored?.passthroughToolCallAssistantUuid; i++) {
+      stored = lookupSharedSession(sessionId)
+      if (!stored?.passthroughToolCallAssistantUuid) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(stored?.passthroughToolCallIds).toEqual(["cc-delta-tu1"])
+    expect(stored?.passthroughToolCallAssistantUuid).toBe(toolTurn.uuid)
+
+    // Turn 2: same prefix with the SAME system as an equivalent plain string
+    // (the representation flip lineage canonicalizes), then the exact live
+    // delta: echoed tool_use, real tool_result, trailing system reminder.
+    mockMessages = [
+      messageStart("msg_cc_delta_2"),
+      textBlockStart(0),
+      textDelta(0, "the file says hi"),
+      blockStop(0),
+      messageDelta("end_turn"),
+      messageStop(),
+      assistantMessage([{ type: "text", text: "the file says hi" }]),
+    ]
+    const requestId = `cc-delta-turn2-${TEST_RUN_ID}`
+    const second = await postClaudeCode(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "system", content: initialSystemText },
+        { role: "assistant", content: [{ type: "tool_use", id: "cc-delta-tu1", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "cc-delta-tu1", content: "hi" }] },
+        { role: "system", content: [{ type: "text", text: trailingSystemText, cache_control: { type: "ephemeral" } }] },
+      ],
+    }, sessionId, { "x-request-id": requestId })
+    expect(second.status).toBe(200)
+    const secondBody = await second.text()
+    expect(secondBody).toContain("message_stop")
+    expect(secondBody).toContain("the file says hi")
+    expect(secondBody).not.toContain("CC_DELTA_GARBAGE_DIGEST")
+
+    // Resumed at the exact assistant checkpoint — not a fresh replay.
+    const resumed = capturedQueryParamsAll[1]
+    expect(resumed.options.resume).toBe(initialManagedSessionId())
+    expect(resumed.options.resumeSessionAt).toBe(toolTurn.uuid)
+    expect(resumed.options.forkSession).toBe(true)
+    // No fresh-replay framing; the reminder never reaches the SDK system prompt.
+    expect(secondBody).not.toContain("conversation_history")
+    expect(JSON.stringify(resumed.options.systemPrompt ?? "")).not.toContain(trailingSystemText)
+    // SDK prompt is exactly the native tool_result then the reminder as
+    // ordinary user text, with cache_control stripped.
+    expect(typeof resumed.prompt).not.toBe("string")
+    const promptMessages: any[] = []
+    for await (const message of resumed.prompt) promptMessages.push(message)
+    expect(promptMessages).toHaveLength(1)
+    expect(promptMessages[0].message.content).toEqual([
+      { type: "tool_result", tool_use_id: "cc-delta-tu1", content: "hi" },
+      { type: "text", text: trailingSystemText },
+    ])
+
+    let row: any
+    for (let i = 0; i < 500 && !row; i++) {
+      row = telemetryStore.getRecent({ limit: 200 }).find((m: any) => m.requestId === requestId)
+      if (!row) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(row).toBeDefined()
+    expect(row!.isResume).toBe(true)
   })
 
   it("stream: waits for late parallel assistant metadata before freezing the checkpoint", async () => {
