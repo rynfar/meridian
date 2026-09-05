@@ -3618,6 +3618,8 @@ PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs --stream
 - Every continuation, including the follow-up, reads at least 95% of the prior
   turn's `cache_read_input_tokens + cache_creation_input_tokens`.
 
+The fixture uses a disposable SDK working directory: edits to the checkout must not change the SDK's per-query git-status context during this cache benchmark. A git-status change can invalidate the prompt cache even when the session resumes correctly.
+
 The gate resolves Meridian's published session from its own durable store and
 uses the supported Agent SDK `getSessionMessages()` API for the history check.
 It does not inspect Claude's private persistence format.
@@ -3738,6 +3740,8 @@ Run `bun scripts/e2e-settlement-proof.mjs` in both modes to verify revised histo
 Run `bun scripts/e2e-claude-code-system-delta.mjs` in both modes (`--stream`); repeat with `E2E_MODEL=claude-sonnet-4-6` and the `--image` flag to validate a native image tool result followed by a reminder. Require the actual tool result, reminder identifier and optional image color in the answer, checkpoint resume, no reminder promoted into the SDK system prompt, and unchanged source history through supported `getSessionMessages`.
 
 Repeat the direct gate with `--revise-history` and separately with `--insert-history` in text/image and streaming/non-streaming modes. Edited or inserted user history must replay fresh and deliver its revised or inserted identifier, with no removed identifier, no assistant attribution on the reminder, and the replay history boundary preserved. Matching pending tool IDs alone must never discard earlier edits.
+
+Run the direct gate with `--blank-reminder` in both response modes, with and without `--image`. Whitespace-only text does not qualify for the narrow reminder exception: require fresh replay, the correct tool value/context and optional image color, and unchanged source history.
 
 Run `bun scripts/e2e-claude-code-client.mjs` for the full installed Claude Code 2.1.259 → Meridian → real SDK loop. `E2E_CLAUDE_CLIENT` can name that exact client binary. The fixture isolates the outer client's settings and enables its `CLAUDE_CODE_FORCE_MID_CONVERSATION_SYSTEM` flag; `--bare` suppresses the shape and is unsuitable. The real CLI reads a disposable fixture, sends its native `<total_tokens>` system reminder, then resumes for an ordinary follow-up. Require both proxy continuations to resume, delivery of both reminders to SDK user history, correct answers, and unchanged source history.
 
