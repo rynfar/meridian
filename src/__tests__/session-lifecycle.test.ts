@@ -25,6 +25,7 @@ import {
   getSessionGcNodeExecutable,
   getTranscriptResourceKey,
   prepareFork,
+  prepareForkForPublication,
   publishPinnedTranscript,
   reconcile,
   registerLiveTranscript,
@@ -257,6 +258,76 @@ describe("session transcript lifecycle", () => {
       SessionLifecycleBacklogError,
     )
     expect(readSidecar(bounded.storeDir).resources[getTranscriptResourceKey(stillLive)]?.state).toBe("live")
+  })
+
+  it("leaves admission capacity while retiring live resources after a profile switch", async () => {
+    const bounded = { ...options, storeDir: join(storeDir, "retirement-headroom"), maxPending: 2 }
+    const firstStale = locator("first-stale-after-profile-switch")
+    const secondStale = locator("second-stale-after-profile-switch")
+    const fresh = locator("fresh-after-profile-switch")
+    await registerLiveTranscript(firstStale, bounded)
+    await registerLiveTranscript(secondStale, bounded)
+
+    expect((await reconcile([], bounded)).liveRetired).toBe(1)
+    await prepareFork(fresh, bounded)
+
+    const resources = readSidecar(bounded.storeDir).resources
+    expect(resources[getTranscriptResourceKey(fresh)]?.state).toBe("prepared")
+    expect(Object.values(resources).filter((resource) => resource.state === "retired")).toHaveLength(1)
+    expect(Object.values(resources).filter((resource) => resource.state === "live")).toHaveLength(1)
+  })
+
+  it.each([2, 4])("continues bounded passive cleanup with a reserved admission slot (limit=%s)", async maxPending => {
+    const deleted: string[] = []
+    const bounded = { ...options, maxPending, maxDeletesPerRun: 1,
+      deleter: async (resource: TranscriptLocator) => { deleted.push(resource.sessionId) } }
+    const stale = Array.from({ length: 5 }, (_, index) => locator(`passive-${index}`))
+    for (const resource of stale) await registerLiveTranscript(resource, bounded)
+    const active = await prepareForkForPublication(locator("active-publication"), bounded)
+    await reconcile([], bounded)
+    // At limit two an in-flight publication occupies the passive budget.
+    // Cleanup must resume after it publishes, while keeping its mapping pinned.
+    expect(readSidecar(storeDir).resources[getTranscriptResourceKey(active)]?.state).toBe("prepared")
+    await commitFork(active, bounded)
+    for (let iteration = 0; iteration < stale.length; iteration++) {
+      const result = await runGc([active], bounded)
+      expect(result.deleted).toBe(1)
+      const resources = Object.values(readSidecar(storeDir).resources)
+      expect(resources.filter(resource => ["prepared", "retired", "deleting"].includes(resource.state)).length)
+        .toBeLessThanOrEqual(maxPending)
+      expect(readSidecar(storeDir).resources[getTranscriptResourceKey(active)]?.state).toBe("live")
+    }
+    expect(new Set(deleted)).toEqual(new Set(stale.map(resource => resource.sessionId)))
+    expect(deleted).not.toContain(active.sessionId)
+  })
+
+  it("does not overbook reserved capacity when two publication requests race", async () => {
+    const bounded = { ...options, maxPending: 2 }
+    for (const id of ["stale-a", "stale-b"]) await registerLiveTranscript(locator(id), bounded)
+    await reconcile([], bounded)
+    const attempts = await Promise.allSettled([
+      prepareForkForPublication(locator("racing-a"), bounded),
+      prepareForkForPublication(locator("racing-b"), bounded),
+    ])
+    expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(1)
+    const failures = attempts.filter(result => result.status === "rejected")
+    expect(failures).toHaveLength(1)
+    expect(failures[0]?.reason).toBeInstanceOf(SessionLifecycleBacklogError)
+    const resources = Object.values(readSidecar(storeDir).resources)
+    expect(resources.filter(resource => ["prepared", "retired", "deleting"].includes(resource.state))).toHaveLength(2)
+  })
+
+  it("still enforces total ownership when passive retirement leaves pending capacity", async () => {
+    const bounded = { ...options, maxPending: 2, maxOwned: 3 }
+    for (const id of ["owned-a", "owned-b"]) await registerLiveTranscript(locator(id), bounded)
+    await reconcile([], bounded)
+    const active = await prepareForkForPublication(locator("owned-new"), bounded)
+    await commitFork(active, bounded)
+    await expect(prepareForkForPublication(locator("owned-overflow"), bounded))
+      .rejects.toBeInstanceOf(SessionLifecycleBacklogError)
+    const resources = Object.values(readSidecar(storeDir).resources)
+    expect(resources).toHaveLength(3)
+    expect(resources.filter(resource => resource.state === "retired")).toHaveLength(1)
   })
 
   it("never lets a delayed publisher recreate a deleted locator after tombstone pruning", async () => {

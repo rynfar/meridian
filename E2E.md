@@ -21,6 +21,24 @@ curl -s http://127.0.0.1:3456/health | jq .status   # → "healthy"
 kill $(lsof -ti :3456)
 ```
 
+### Profile-switch retirement admission (#923)
+
+```bash
+bun scripts/e2e-retirement-admission.mjs
+bun scripts/e2e-retirement-admission.mjs --stream
+```
+
+With a two-slot pending budget and a long retirement quarantine, seed two real
+sessions, switch profiles through HTTP, sweep GC and require a fresh request and
+its follow-up to answer correctly. Supported SDK history inspection verifies both
+old histories remain unchanged and the new mapping contains the expected token.
+Both profile aliases use the existing authentication; this does not validate two
+distinct billing accounts. Meridian state and SDK working directory are isolated.
+The one-slot configuration retains its existing behavior; reserving its only slot
+would disable passive cleanup. At limit two, passive retirement can pause while a
+publication is in flight, then resume after it completes. Capacity and cleanup
+progress are covered by the lifecycle tests.
+
 ### Fresh replay with completed tool calls (#888 / #858)
 
 ```bash
