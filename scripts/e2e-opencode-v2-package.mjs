@@ -21,7 +21,7 @@ mkdirSync(config, { recursive: true })
 const env = { ...process.env }
 for (const key of Object.keys(env)) if (key.startsWith('OPENCODE_') || key.startsWith('MERIDIAN_') || key.startsWith('CLAUDE_PROXY_')) delete env[key]
 for (const kind of ['CONFIG', 'DATA', 'CACHE', 'STATE']) env[`XDG_${kind}_HOME`] = join(root, kind.toLowerCase())
-Object.assign(env, { OPENCODE_CONFIG_DIR: config, OPENCODE_DISABLE_AUTOUPDATE: '1', MERIDIAN_CONFIG_DIR: join(root, 'meridian') })
+Object.assign(env, { PWD: root, INIT_CWD: root, OPENCODE_CONFIG_DIR: config, OPENCODE_DISABLE_AUTOUPDATE: '1', MERIDIAN_CONFIG_DIR: join(root, 'meridian') })
 const serverPassword = 'local-e2e-fixture-password'
 env.OPENCODE_SERVER_PASSWORD = serverPassword
 env.OPENCODE_PASSWORD = serverPassword
@@ -64,7 +64,9 @@ let deliveredResultSeen = false
 const endpoint = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
   const body = await request.json()
   const headers = Object.fromEntries([...request.headers].filter(([key]) => (key.startsWith('x-') && key !== 'x-api-key') || key === 'user-agent'))
-  const row = { requestId: crypto.randomUUID(), path: new URL(request.url).pathname, model: body.model, headers, hasForkMarker: JSON.stringify(body.messages).includes(forkMarker),
+  const systemText = typeof body.system === 'string' ? body.system : (body.system ?? []).map(block => block.text ?? '').join('\n')
+  const clientCwd = systemText.match(/Working directory:\s*([^\n]+)/i)?.[1]?.trim()
+  const row = { clientCwd, requestId: crypto.randomUUID(), path: new URL(request.url).pathname, model: body.model, headers, hasForkMarker: JSON.stringify(body.messages).includes(forkMarker),
     hasUndoMarker: JSON.stringify(body.messages).includes(undoMarker), startedAt: Date.now() }
   requests.push(row)
   if (live) {
@@ -244,6 +246,10 @@ try {
   }
   if (!live) assert(deliveredResultSeen, 'Actual file result did not return to the API')
   assert.equal((await run([client, '--version'])).trim(), version)
+  const primaryRows = requests.filter(row => row.headers['x-opencode-agent-name'] === 'build')
+  assert(primaryRows.length > 0)
+  assert(primaryRows.every(row => row.clientCwd === root), JSON.stringify(primaryRows.map(row => row.clientCwd)))
+  if (process.argv.includes('--separate-proxy-cwd')) assert.notEqual(proxyWorkdir, root)
   console.log(JSON.stringify({ result: 'PASS', version, source, live, extended, root, session, requests, resumeEvidence }))
 } finally {
   console.log(JSON.stringify({ requestTrace: requests }))
