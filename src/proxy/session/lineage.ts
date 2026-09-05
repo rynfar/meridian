@@ -185,6 +185,17 @@ export function computeLineageHash(messages: Array<{ role: string; content: any 
   return lineageDigest("history", messages.map(m => [m.role, semanticContent(m.content)]))
 }
 
+/** Matching tool IDs do not prove that the history before them is unchanged. */
+export function matchesStoredLineagePrefix(
+  stored: { messageCount?: number; lineageHash?: string },
+  messages: Array<{ role: string; content: unknown }>,
+): boolean {
+  const count = stored.messageCount
+  return typeof count === "number" && Number.isInteger(count) && count > 0
+    && messages.length >= count && typeof stored.lineageHash === "string"
+    && computeLineageHash(messages.slice(0, count)) === stored.lineageHash
+}
+
 /**
  * Compute a content hash for a single message (role + normalised content).
  * Used to build per-message hash arrays for precise diff-based verification.
