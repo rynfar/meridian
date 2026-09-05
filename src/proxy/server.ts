@@ -46,7 +46,7 @@ import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, findCompleteToolResultCheckpoint, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -113,6 +113,7 @@ import { computeCacheHitRate, formatUsageSummary } from "./tokenUsage"
 import { sanitizeTextContent } from "./sanitize"
 import {
   computeLineageHash,
+  matchesStoredLineagePrefix,
   hashMessage,
   computeMessageHashes,
   normalizeContextUsage,
@@ -427,7 +428,9 @@ function buildFreshPrompt(
   if (hasMultimodal) {
     const structured: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null }> = []
     for (const m of messages) {
-      if (m.role === "user") {
+      // Match text replay: only assistant turns carry assistant attribution.
+      // In-message reminders remain ordinary input, never SDK system prompts.
+      if (m.role !== "assistant") {
         structured.push({
           type: "user" as const,
           message: { role: "user" as const, content: normalizeStructuredUserContent(stripCacheControlDeep(m.content)) },
@@ -446,7 +449,7 @@ function buildFreshPrompt(
       }
     }
     // See #553 — consolidate earlier-turn multimodal onto the final user turn.
-    const prompt = frameStructuredReplay(structured, messages.at(-1)?.role === "user")
+    const prompt = frameStructuredReplay(structured, messages.at(-1)?.role !== "assistant")
     return (async function* () { for (const msg of prompt) yield msg })()
   }
 
@@ -2169,12 +2172,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const declaresConcurrentFlow =
           declaresPerRequestConcurrentFlow
           || adapter.runsConcurrentTurnsPerSessionKey === true
-        // NOTE: agent-specific (opencode) — OpenCode begins the tool-result
-        // request as soon as the visible checkpoint closes, while Meridian is
-        // still draining and committing that checkpoint. Its prompt envelope
-        // may change enough that hash lineage is "unrelated-history". Echoing
-        // every exact pending tool ID is nevertheless a causal continuation,
-        // not a stale competing branch.
+        // Exact pending tool IDs identify the batch, not the earlier history.
+        // Rebinding a checkpoint must also preserve its complete stored prefix;
+        // otherwise a revised user instruction would be silently discarded.
         const durableCheckpointIds = durableMappingAtTurn.status === "found"
           ? durableMappingAtTurn.session.passthroughToolCallIds
           : undefined
@@ -2190,7 +2190,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           ? { allowClaudeCodeSystemDelta: true }
           : undefined
         const durableCheckpointContinuation = durableCheckpointIds?.length
-          ? findCompleteToolResultCheckpoint(body.messages || [], durableCheckpointIds, claudeCodeSystemDeltaOptions)
+          && durableMappingAtTurn.status === "found"
+          && matchesStoredLineagePrefix(durableMappingAtTurn.session, lineageMessages)
+          ? coalesceCompleteToolResultContinuation(
+            (body.messages || []).slice(durableMappingAtTurn.session.messageCount),
+            durableCheckpointIds,
+            claudeCodeSystemDeltaOptions,
+          )
           : undefined
         const advancesDurableCheckpoint = Boolean(durableCheckpointContinuation)
         // Passthrough mode — resolved early so the concurrent-conflict guards
@@ -2472,9 +2478,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       let messagesToConvert: typeof allMessages
 
       if (passthroughToolCallAssistantUuid && durableCheckpointContinuation) {
-        // Envelope drift can move the exact echoed checkpoint relative to the
-        // stored message count. Use the validated tail itself, never re-slice
-        // it through a stale lineage index.
+        // Use the complete delta following the verified stored prefix. Never
+        // search past intervening user turns to find a matching tool echo.
         messagesToConvert = durableCheckpointContinuation
       } else if ((isResume || isUndo) && cachedSession) {
         if (isUndo && undoRollbackUuid) {
@@ -2665,9 +2670,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             }
           }
         } else {
-          // First request: all messages (system context now passed via appendSystemPrompt)
+          // Fresh replay preserves the text path's role attribution. In-message
+          // reminders are ordinary input; only assistant turns get its marker.
           for (const m of messagesToConvert) {
-            if (m.role === "user") {
+            if (m.role !== "assistant") {
               structuredMessages.push({
                 type: "user" as const,
                 message: { role: "user" as const, content: normalizeStructuredUserContent(
@@ -2697,7 +2703,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (structuredMessages.length > 1) {
           structuredMessages = isResume
             ? coalesceStructuredUserMessages(structuredMessages)
-            : frameStructuredReplay(structuredMessages, messagesToConvert.at(-1)?.role === "user")
+            : frameStructuredReplay(structuredMessages, messagesToConvert.at(-1)?.role !== "assistant")
         }
 
       } else {

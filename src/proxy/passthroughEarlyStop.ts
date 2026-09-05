@@ -200,7 +200,7 @@ export function coalesceCompleteToolResultContinuation(
   let sawUser = false
   let sawNonToolResult = false
   let sawTrailingSystem = false
-  let systemTextBlocks: unknown[] = []
+  const systemTextBlocks: unknown[] = []
   let echoMessages = 0
 
   for (const message of messages) {
