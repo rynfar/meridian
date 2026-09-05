@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
-import { IdleStallCeilingError, IdleStallTracker } from "./idleStallCeiling"
+import { IdleStallCeilingError, IdleStallTracker, idleStallRequestKey } from "./idleStallCeiling"
 import { linkRequestAbort } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
@@ -230,7 +230,7 @@ const UPSTREAM_IDLE_MS = envInt("UPSTREAM_IDLE_MS", 90_000)
 // An override BELOW UPSTREAM_IDLE_MS deliberately re-enables that race for
 // regression tests; production defaults must remain above the upstream guard.
 const DENY_HOLD_TIMEOUT_MS = envInt("DENY_HOLD_TIMEOUT_MS", UPSTREAM_IDLE_MS + 30_000)
-// Consecutive stalls tolerated on ONE session before its 504 becomes terminal.
+// Consecutive stalls for the same request/session before its 504 becomes terminal.
 // A 5xx tells every client retry policy "transient, try again", so a session
 // that stalls deterministically is replayed forever at full upstream cost. 3
 // absorbs a genuine one-off stall (and the odd second one) while capping the
@@ -332,6 +332,7 @@ function forkAttemptMeta(meta: RequestMeta, attempt: number): RequestMeta {
     ttfbMs: undefined,
   }
 }
+
 function credentialStoreForProfile(profile: ResolvedProfile): CredentialStore | undefined {
   if (profile.type !== "claude-max") return undefined
   return createPlatformCredentialStore(
@@ -602,14 +603,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Consecutive upstream-idle stalls per session, for the retry ceiling.
   const idleStalls = new IdleStallTracker(UPSTREAM_IDLE_MAX_CONSECUTIVE, getMaxSessionsLimit())
 
-  // In-flight session stores. The streaming drain design ends the client's
-  // response at the turn boundary (fast), while deny persistence + the early
-  // stop + storeSession continue in the background for ~a second. A client
-  // that executes its tools quickly (small file reads) can send the follow-up
-  // BEFORE the store lands — its lookup misses and the conversation falls to
-  // a fresh replay. Follow-ups briefly await their session's pending store.
-  const PENDING_STORE_WAIT_MS = 3000
-  const PENDING_STORE_AUTO_RESOLVE_MS = 10000
   // A --resume spawned while the session's previous subprocess is still
   // exiting is refused, in two wordings: "currently running as a background
   // agent" (#630, a consequence of #628's CLAUDE_CODE_SESSION_KIND=bg) and
@@ -1502,6 +1495,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
       try {
         const body = options.body
+        const idleRequestKey = idleStallRequestKey(body)
         const markPriorityAttemptExposure = (reason: string): void => {
           const exposure = options.priorityAttemptExposure
           if (!exposure || exposure.committed) return
@@ -2381,6 +2375,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         let isUndo = lineageResult.type === "undo"
         const cachedSession = lineageResult.type !== "diverged" ? lineageResult.session : undefined
         let resumeSessionId = cachedSession?.claudeSessionId
+        // Stable client/checkpoint identity survives a failed managed fork.
+        const idleStallSessionKey = profileSessionId || resumeSessionId || ""
+        const idlePreflight = idleStalls.preflight(idleStallSessionKey, idleRequestKey, UPSTREAM_IDLE_MS, performance.now())
+        if (idlePreflight) throw new IdleStallCeilingError(idlePreflight)
         const resumeFrom = lineageResult.type === "continuation" || lineageResult.type === "compaction"
           ? lineageResult.resumeFrom
           : undefined
@@ -3750,7 +3748,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             const sessId = currentSessionId || resumeSessionId
             // A turn that completed is proof the session can still make
             // progress, so its stall streak starts over.
-            idleStalls.clear(profileSessionId || sessId || "")
+            idleStalls.clear(idleStallSessionKey)
             if (sessId && discoveredTools.size > 0) {
               if (!sessionDiscoveredTools.has(sessId)) sessionDiscoveredTools.set(sessId, new Set())
               for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
@@ -3803,9 +3801,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             const sdkTerm = extractSdkTermination(error instanceof Error ? error.message : String(error))
             const idleVerdict = error instanceof UpstreamIdleError
               ? idleStalls.record(
-                  profileSessionId || currentSessionId || resumeSessionId || "",
+                  idleStallSessionKey,
                   UPSTREAM_IDLE_MS,
                   error.sinceLastMs,
+                  { key: idleRequestKey, now: performance.now() },
                 )
               : undefined
             const canRecoverAsToolUse = canRecoverCapturedToolUses({
@@ -3817,7 +3816,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             })
             if (canRecoverAsToolUse) {
               if (idleVerdict) {
-                idleStalls.clear(profileSessionId || currentSessionId || resumeSessionId || "")
+                idleStalls.clear(idleStallSessionKey)
               }
               diagnosticLog.session(
                 `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
@@ -5145,7 +5144,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               const sessId = currentSessionId || resumeSessionId
               // A turn that completed is proof the session can still make
               // progress, so its stall streak starts over.
-              idleStalls.clear(profileSessionId || sessId || "")
+              idleStalls.clear(idleStallSessionKey)
               if (sessId && discoveredTools.size > 0) {
                 if (!sessionDiscoveredTools.has(sessId)) sessionDiscoveredTools.set(sessId, new Set())
                 for (const t of discoveredTools) sessionDiscoveredTools.get(sessId)!.add(t)
@@ -5924,13 +5923,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               })
               let streamErr: { status: number; type: string; message: string }
               if (error instanceof UpstreamIdleError) {
-                // A stalled stream is retryable once; the same session stalling
-                // the same way over and over is not, and only the status code
-                // can say so — the proxy does not retry, the client does.
+                // Stop advertising retries when this request reaches the ceiling.
+                // Subsequent identical requests also fail before opening SSE.
                 const verdict = idleStalls.record(
-                  profileSessionId || currentSessionId || resumeSessionId || "",
+                  idleStallSessionKey,
                   UPSTREAM_IDLE_MS,
                   error.sinceLastMs,
+                  { key: idleRequestKey, now: performance.now() },
                 )
                 claudeLog("upstream.idle_streak", {
                   model,
@@ -6046,8 +6045,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // session is making progress and its streak starts over. Without
                 // this the counter climbs through stalls that were absorbed, and
                 // the first genuinely unrecoverable one reads as terminal.
-                const recoveredSessId = profileSessionId || currentSessionId || resumeSessionId
-                if (recoveredSessId) idleStalls.clear(recoveredSessId)
+                idleStalls.clear(idleStallSessionKey)
 
                 // Log the recovery at session level (not error) — it's a
                 // notable flow control event but not a failure for the client.

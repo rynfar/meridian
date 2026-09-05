@@ -2,7 +2,7 @@
  * Unit tests for IdleStallTracker — pure, no server or clock needed.
  */
 import { describe, it, expect } from "bun:test"
-import { IdleStallCeilingError, IdleStallTracker } from "../proxy/idleStallCeiling"
+import { IdleStallCeilingError, IdleStallTracker, idleStallRequestKey, idleStallPauseMs } from "../proxy/idleStallCeiling"
 
 const IDLE = 150_000
 const SINCE = 150_012
@@ -121,5 +121,70 @@ describe("IdleStallTracker", () => {
     let v = t.record("s", IDLE, SINCE)
     for (let i = 1; i < n; i++) v = t.record("s", IDLE, SINCE)
     expect(v.message).toContain(`the ${expected} consecutive stall`)
+  })
+})
+
+
+describe("idle retry preflight", () => {
+  it("stops identical terminal retries before another query and does not extend the pause", () => {
+    const tracker = new IdleStallTracker(2, 10)
+    const key = idleStallRequestKey({ messages: [{ role: "user", content: "hello" }] })
+    tracker.record("client", 90_000, 90_001, { key, now: 100 })
+    expect(tracker.preflight("client", key, 90_000, 200)).toBeUndefined()
+    tracker.record("client", 90_000, 90_001, { key, now: 300 })
+    expect(tracker.preflight("client", key, 90_000, 400)?.status).toBe(400)
+    expect(tracker.preflight("client", key, 90_000, 90_299)?.terminal).toBe(true)
+    expect(tracker.preflight("client", key, 90_000, 90_300)).toBeUndefined()
+    expect(tracker.streak("client")).toBe(0)
+  })
+
+  it("allows a changed turn immediately and starts its own streak", () => {
+    const tracker = new IdleStallTracker(1, 10)
+    tracker.record("client", IDLE, SINCE, { key: "old", now: 0 })
+    expect(tracker.preflight("client", "new", IDLE, 1)).toBeUndefined()
+    expect(tracker.streak("client")).toBe(0)
+    expect(tracker.record("client", IDLE, SINCE, { key: "new", now: 2 }).consecutive).toBe(1)
+  })
+
+  it("does not accumulate changed request records when preflight is bypassed", () => {
+    const tracker = new IdleStallTracker(2, 10)
+    tracker.record("client", IDLE, SINCE, { key: "old", now: 0 })
+    expect(tracker.record("client", IDLE, SINCE, { key: "new", now: 1 }).terminal).toBe(false)
+  })
+
+  it("allows recovery after a completed turn", () => {
+    const tracker = new IdleStallTracker(1, 10)
+    tracker.record("client", IDLE, SINCE, { key: "same", now: 0 })
+    tracker.clear("client")
+    expect(tracker.preflight("client", "same", IDLE, 1)).toBeUndefined()
+  })
+
+  it("never blocks another profile/session or an unidentified request", () => {
+    const tracker = new IdleStallTracker(1, 10)
+    tracker.record("profile-a:client", IDLE, SINCE, { key: "same", now: 0 })
+    expect(tracker.preflight("profile-b:client", "same", IDLE, 1)).toBeUndefined()
+    tracker.record("", IDLE, SINCE, { key: "same", now: 0 })
+    expect(tracker.preflight("", "same", IDLE, 1)).toBeUndefined()
+  })
+
+  it("keeps disabled ceilings retryable", () => {
+    const tracker = new IdleStallTracker(0, 10)
+    tracker.record("client", IDLE, SINCE, { key: "same", now: 0 })
+    expect(tracker.preflight("client", "same", IDLE, 1)).toBeUndefined()
+  })
+
+  it("leaves a backoff interval even with a short idle guard", () => {
+    expect(idleStallPauseMs(50)).toBe(60_000)
+    expect(idleStallPauseMs(IDLE)).toBe(IDLE)
+  })
+
+  it("includes model, tools, prompt and message changes in request identity", () => {
+    const body = { model: "haiku", system: "context", tools: [], messages: [{ role: "user", content: "hello" }] }
+    const key = idleStallRequestKey(body)
+    expect(idleStallRequestKey(structuredClone(body))).toBe(key)
+    expect(idleStallRequestKey({ ...body, model: "sonnet" })).not.toBe(key)
+    expect(idleStallRequestKey({ ...body, system: "changed" })).not.toBe(key)
+    expect(idleStallRequestKey({ ...body, tools: [{ name: "read" }] })).not.toBe(key)
+    expect(idleStallRequestKey({ ...body, messages: [{ role: "user", content: "revised" }] })).not.toBe(key)
   })
 })

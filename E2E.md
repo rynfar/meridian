@@ -21,6 +21,36 @@ curl -s http://127.0.0.1:3456/health | jq .status   # → "healthy"
 kill $(lsof -ti :3456)
 ```
 
+### Consecutive idle stalls (#868)
+
+```bash
+npm run build
+E2E_OPENCODE_BIN=/absolute/path/to/opencode bun scripts/e2e-idle-stall-clients.mjs --v1
+E2E_OPENCODE_BIN=/absolute/path/to/opencode2 bun scripts/e2e-idle-stall-clients.mjs
+```
+
+Use V1 1.18.11 or V2 beta18314/beta18866. The gate isolates client HOME,
+configuration and working directory while retaining the proxy's Claude Max
+authentication. It starts actual SDK queries, waits for their startup events,
+then withholds iterator output to exercise the real eight-second idle guard.
+This is explicit output-stall fault injection, not a naturally reproduced
+provider outage. Each timed-out query must close.
+
+Require three identical stalled SDK attempts. V2 beta18866 must stop on the third terminal
+SSE error; V1 must receive HTTP400 on its fourth request without another SDK
+query. V2 beta18314 already stops at the first upstream timeout; its separate
+compatibility control asserts that behavior, not the three-attempt ceiling.
+Remove the fault and send a changed prompt in the same client session:
+the real model must return the recovery receipt. An optional E2E_MERIDIAN_ROOT
+selects a separately built checkout for before/after comparisons.
+
+The terminal pause is one configured idle window, with a 60-second minimum.
+Rejected requests do not extend it; changed requests and completed turns reset
+the streak. Pure tests cover expiry without waiting, and HTTP integration tests
+cover both response modes, changed models, recovery and unrelated sessions.
+Run all four live E41 modes alongside this gate to check ordinary tool-result
+continuation and cache reuse.
+
 ### Capped passthrough turns (#926)
 
 ```bash
