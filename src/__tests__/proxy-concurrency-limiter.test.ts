@@ -72,8 +72,8 @@ function createTestApp(maxConcurrent: string) {
   return app
 }
 
-async function post(app: any, content: string) {
-  return app.fetch(new Request("http://localhost/v1/messages", {
+async function post(app: ReturnType<typeof createTestApp>, content: string): Promise<Response> {
+  const response = await app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -83,6 +83,12 @@ async function post(app: any, content: string) {
       messages: [{ role: "user", content }],
     }),
   }))
+  if (response.status !== 200) {
+    console.error("[concurrency failure]", JSON.stringify({
+      content, status: response.status, body: await response.clone().text(),
+    }))
+  }
+  return response
 }
 
 /**
