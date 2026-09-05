@@ -38,7 +38,7 @@ afterEach(async () => {
   await Bun.sleep(25)
   rmSync(isolatedSessionDir, { recursive: true, force: true })
 })
-import { makeRequest, parseSSE, resolveMockSdkSessionId } from "./helpers"
+import { makeRequest, parseSSE, resolveMockSdkSessionId, streamEvent } from "./helpers"
 
 const PASSTHROUGH_PREFIX = "mcp__oc__"
 
@@ -273,6 +273,30 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
       .filter((e: any) => e.event === "content_block_start" && e.data?.content_block?.type === "tool_use")
       .map((e: any) => e.data.content_block.id)
     expect(toolStartIds).toEqual(["toolu_s1"])
+  })
+
+  it("retains buffered numeric arguments when recovery closes a dangling tool block", async () => {
+    mockTurns = [
+      streamMessageStart(),
+      streamEvent({ type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "toolu_buffered", name: `${PASSTHROUGH_PREFIX}measure`, input: {} } }),
+      streamEvent({ type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"timeout":60}' } }),
+      toolTurn("toolu_buffered", "measure", { timeout: 60 }),
+      toolTurn("toolu_repeat", "measure", { timeout: 30 }),
+    ]
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const response = await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(makeRequest({ stream: true, tools: [{ name: "measure", input_schema: {
+        type: "object", properties: { timeout: { type: "number" } }, required: ["timeout"],
+      } }] })),
+    }))
+    const events = await readSSE(response)
+    expect(events.some(event => event.event === "error")).toBe(false)
+    const args = events.filter(event => event.event === "content_block_delta")
+      .map(event => (event.data.delta as { partial_json: string }).partial_json).join("")
+    expect(JSON.parse(args || "{}")).toEqual({ timeout: 60 })
+    expect(events.filter(event => event.event === "content_block_stop")).toHaveLength(1)
+    expect(events.filter(event => event.event === "message_stop")).toHaveLength(1)
   })
 
   it("closes a dangling tool_use content block before the recovery message_stop (#552 red reads)", async () => {

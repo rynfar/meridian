@@ -26,6 +26,7 @@ kill $(lsof -ti :3456)
 ```bash
 bun scripts/e2e-tool-input-repair.mjs --fixture
 bun scripts/e2e-tool-input-repair.mjs --fixture --stream
+bun scripts/e2e-tool-input-repair.mjs --fixture --stream --drop-stop
 bun scripts/e2e-tool-input-repair.mjs
 bun scripts/e2e-tool-input-repair.mjs --stream
 ```
@@ -38,6 +39,9 @@ through supported SDK inspection. It uses a dummy local API key and does not
 contact a model service. The two runs without `--fixture` use Claude Max and
 validate compatibility with real model output. Their `repairExercised` flag
 distinguishes actual string repair from already-typed model calls.
+The `--drop-stop` fault injection withholds one SDK tool-block stop while the
+real CLI and hook continue, proving recovery flushes buffered arguments before
+closing the block and preserves the subsequent checkpoint continuation.
 
 Required/optional advertised MCP schemas and malformed numeric inputs have
 automated protocol/unit coverage. Streamed arguments with repairable declared

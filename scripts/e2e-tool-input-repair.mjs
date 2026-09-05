@@ -11,6 +11,9 @@ import * as sdk from "@anthropic-ai/claude-agent-sdk"
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-input-repair-")))
 const stream = process.argv.includes("--stream")
 const fixture = process.argv.includes("--fixture")
+const dropStop = process.argv.includes("--drop-stop")
+assert(!dropStop || (fixture && stream), "--drop-stop requires --fixture --stream")
+let droppedStops = 0
 for (const key of Object.keys(process.env)) {
   if (key.startsWith("MERIDIAN_") || key.startsWith("CLAUDE_PROXY_")) delete process.env[key]
 }
@@ -50,12 +53,31 @@ const realQuery = sdk.query
 const observer = spyOn(sdk, "query").mockImplementation(input => {
   queries.push({ resume: input.options?.resume, forkSession: input.options?.forkSession, resumeSessionAt: input.options?.resumeSessionAt })
   const hooks = input.options?.hooks
-  return realQuery({ ...input, options: { ...input.options, hooks: { ...hooks,
+  const actual = realQuery({ ...input, options: { ...input.options, hooks: { ...hooks,
     PreToolUse: hooks?.PreToolUse?.map(matcher => ({ ...matcher, hooks: matcher.hooks.map(hook => async (...args) => {
       seen.push(structuredClone(args[0]))
       return await hook(...args)
     }) })),
   } } })
+  if (!dropStop || queries.length !== 1) return actual
+  // Fault injection at SDK event delivery: keep the real CLI and hook running
+  // while withholding one tool block's stop, as in interrupted drain recovery.
+  return new Proxy(actual, { get(target, property) {
+    if (property === Symbol.asyncIterator) return async function* () {
+      const toolIndices = new Set()
+      for await (const message of actual) {
+        const event = message.type === "stream_event" ? message.event : undefined
+        if (event?.type === "content_block_start" && event.content_block.type === "tool_use") toolIndices.add(event.index)
+        if (event?.type === "content_block_stop" && toolIndices.has(event.index) && droppedStops === 0) {
+          droppedStops++
+          continue
+        }
+        yield message
+      }
+    }
+    const value = Reflect.get(target, property, target)
+    return typeof value === "function" ? value.bind(target) : value
+  } })
 })
 const { startProxyServer } = await import("../src/proxy/server.ts")
 const proxy = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true,
@@ -98,6 +120,7 @@ try {
   const calls = content.filter(block => block.type === "tool_use")
   assert.equal(calls.length, 1)
   assert.equal(calls[0].name, tool.name)
+  if (dropStop) assert.equal(droppedStops, 1)
   assert.deepEqual(calls[0].input, { timeout: 60, app: { relay: true } })
   const session = seen.find(event => event.tool_name.endsWith("record_measurement"))?.session_id
   assert(session, "No actual CLI hook observation")
