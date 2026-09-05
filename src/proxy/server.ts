@@ -48,7 +48,7 @@ import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, hasRepa
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
-import { classifyTurnOutcome, createRecoveryLifter, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
+import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
 import { LRUMap } from "../utils/lruMap"
 
@@ -78,7 +78,7 @@ import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResu
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
-import { buildQueryOptions, resolveQueryConfigDir, type QueryContext } from "./query"
+import { buildQueryOptions, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "./query"
 import { normalizeEffort } from "./effort"
 import { parseOutputFormat, structuredOutputText } from "./structuredOutput"
 import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
@@ -3205,6 +3205,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               let busySessionFork = false
               let sawUnresumableRefusal = false
               let managedCreationAttemptStarted = false
+              let singleTurnCapLifted = false
               while (true) {
                 if (managedForkTarget) {
                   if (managedCreationAttemptStarted) {
@@ -3225,11 +3226,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // message arrives (release sites: assistant arrival in the
                 // consumer loop, attempt error, loop exit).
                 turnGenerating = true
+                // The turn budget THIS attempt asked for. The cap-lift branch
+                // below reissues only a turn the proxy itself capped at 1,
+                // read from the options it built rather than inferred from the
+                // SDK's "Reached maximum number of turns (N)" wording — which
+                // is an optional parse, and would make an uncapped budget that
+                // happens to report 1 look like the proxy's own cap.
+                let attemptMaxTurns: number | undefined
                 try {
                   if (resumeSessionId) resumedMappingMayBeAdvanced = true
-                  for await (const event of runSdkQueryAttempt(buildQueryOptions({
+                  const attemptQuery = buildQueryOptions({
                     prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
+                    passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, liftSingleTurnCap: singleTurnCapLifted,
                     resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                     effort, thinking, taskBudget, outputFormat, betas, settingSources,
                     codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -3242,7 +3250,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                       : undefined,
                     advisorModel,
-                  }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream", managedSdkAttemptLocators())) {
+                  }, requestAbort.controller)
+                  attemptMaxTurns = attemptQuery.options.maxTurns
+                  for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "non_stream", managedSdkAttemptLocators())) {
                     // Capture Claude Max subscription quota updates emitted by
                     // the SDK as rate_limit_event. We snapshot them in this
                     // profile's slot of the (per-profile-scoped) rate limit
@@ -3462,6 +3472,34 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       await new Promise(r => setTimeout(r, delay))
                       continue
                     }
+                  }
+
+                  // Same lower boundary as the streaming path: a capped turn
+                  // that produced nothing spent the single-turn budget without
+                  // reaching the tool boundary the cap exists to stop at.
+                  // Nothing was yielded (guarded above), so reissue it once
+                  // with the cap lifted rather than answering an empty turn.
+                  //
+                  // Only for a turn this proxy capped at 1 (`attemptMaxTurns`):
+                  // a turn that burned a real multi-turn budget would be
+                  // reissued into an identical attempt.
+                  if (
+                    passthrough &&
+                    !singleTurnCapLifted &&
+                    attemptMaxTurns === 1 &&
+                    capturedToolUses.length === 0 &&
+                    extractSdkTermination(errMsg).reason === "max_turns" &&
+                    singleTurnCapLiftRaisesBudget(hasDeferredTools, advisorModel)
+                  ) {
+                    singleTurnCapLifted = true
+                    claudeLog("passthrough.single_turn_cap_lifted", { mode: "non_stream", model })
+                    diagnosticLog.session(
+                      `${requestMeta.requestId} single_turn_cap_lifted mode=non_stream model=${model} ` +
+                      `resume=${Boolean(resumeSessionId)}`,
+                      requestMeta.requestId,
+                    )
+                    plog(`[PROXY] ${requestMeta.requestId} capped turn produced nothing — retrying with the turn cap lifted`)
+                    continue
                   }
 
                   throw error
@@ -3750,7 +3788,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             if (canRecoverAsToolUse) {
               diagnosticLog.session(
                 `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
-                  model, requestSource, isResume, hasDeferredTools, sdkSessionId: resumeSessionId,
+                  model, requestSource, isResume, hasDeferredTools, sdkSessionId: currentSessionId || resumeSessionId,
                 })} captured=${capturedToolUses.length}`,
                 requestMeta.requestId,
               )
@@ -3769,9 +3807,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // Do not rethrow — execution continues into the merge block, which
               // backfills contentBlocks from capturedToolUses and builds a clean
               // stop_reason:"tool_use" response.
-            } else if (passthrough && sdkTerm.reason === "max_turns" && contentBlocks.length > 0) {
+            } else if (passthrough && sdkTerm.reason === "max_turns" && hasTruncatableText(contentBlocks)) {
               // The turn hit its budget without producing a forwardable tool
-              // call, but it did produce content. Throwing here would answer a
+              // call, but it did produce visible text. Throwing here would answer a
               // 200-able turn with a 500 — and the streaming path already does
               // the honest thing instead, reporting the turn as truncated. Match
               // it: `max_tokens` is the signal a client can act on (retry or
@@ -4097,6 +4135,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let heartbeatCount = 0
             let streamEventsSeen = 0
             let eventsForwarded = 0
+            // Unlike eventsForwarded, this counts only content_block_start
+            // events that reached the client.
+            let contentBlocksForwarded = 0
             let textEventsForwarded = 0
             // Characters of forwarded text — the announce classification is a
             // length test (see turnOutcome.ts).
@@ -4286,6 +4327,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 let busySessionFork = false
                 let sawUnresumableRefusal = false
                 let managedCreationAttemptStarted = false
+                let singleTurnCapLifted = false
 
                 while (true) {
                   if (managedForkTarget) {
@@ -4303,11 +4345,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // stderr emitted by THIS attempt's subprocess only — retries
                   // must not re-match a previous attempt's refusal text.
                   const attemptStderrStart = stderrLines.length
+                  // The turn budget THIS attempt asked for — see the non-stream
+                  // twin above for why the cap-lift branch reads it here rather
+                  // than from the SDK's termination wording.
+                  let attemptMaxTurns: number | undefined
                   try {
                     if (resumeSessionId) resumedMappingMayBeAdvanced = true
-                    for await (const event of runSdkQueryAttempt(buildQueryOptions({
+                    const attemptQuery = buildQueryOptions({
                       prompt: makePrompt(), model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
-                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
+                      passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled, liftSingleTurnCap: singleTurnCapLifted,
                       resumeSessionId, isUndo: sdkUndo, resumeSessionAtUuid: undoRollbackUuid ?? passthroughToolCallAssistantUuid, forkSession: busySessionFork || undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
                       effort, thinking, taskBudget, outputFormat, betas, settingSources,
                       codeSystemPrompt: sdkFeatures.codeSystemPrompt, clientSystemPrompt: sdkFeatures.clientSystemPrompt === false ? false : undefined,
@@ -4320,7 +4366,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
-                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators())) {
+                    }, requestAbort.controller)
+                    attemptMaxTurns = attemptQuery.options.maxTurns
+                    for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators())) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
                         rateLimitStore.record(profile.id, (event as any).rate_limit_info)
@@ -4515,6 +4563,45 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         await new Promise(r => setTimeout(r, delay))
                         continue
                       }
+                    }
+
+                    // A capped turn that produced NOTHING never reached the
+                    // tool boundary the cap exists to stop at, so the single
+                    // turn bought nothing and cost the whole turn. Observed in
+                    // production as a resumed opus[1m] passthrough turn that
+                    // ran 108s, yielded no wire event at all, and terminated
+                    // `max_turns turns=1`; the client's own identical retry
+                    // then answered normally. Reissue it once with the cap
+                    // lifted — the refused turn is the one that would have
+                    // answered.
+                    //
+                    // Safe by the guard at the top of this catch: nothing was
+                    // yielded downstream, so no SSE frame, no message_start
+                    // and no committed priority exposure can be duplicated by
+                    // a second attempt. `capturedToolUses` is checked too
+                    // because a capped turn WITH captured calls is already
+                    // recoverable as a tool_use envelope downstream, and that
+                    // is the cheaper answer. `attemptMaxTurns === 1` keeps it
+                    // to turns this proxy capped itself: an uncapped budget
+                    // that ran out is a different failure, and reissuing it
+                    // would spend a turn on an identical attempt.
+                    if (
+                      passthrough &&
+                      !singleTurnCapLifted &&
+                      attemptMaxTurns === 1 &&
+                      capturedToolUses.length === 0 &&
+                      extractSdkTermination(errMsg).reason === "max_turns" &&
+                      singleTurnCapLiftRaisesBudget(hasDeferredTools, advisorModel)
+                    ) {
+                      singleTurnCapLifted = true
+                      claudeLog("passthrough.single_turn_cap_lifted", { mode: "stream", model })
+                      diagnosticLog.session(
+                        `${requestMeta.requestId} single_turn_cap_lifted mode=stream model=${model} ` +
+                        `resume=${Boolean(resumeSessionId)}`,
+                        requestMeta.requestId,
+                      )
+                      plog(`[PROXY] ${requestMeta.requestId} capped turn produced nothing — retrying with the turn cap lifted`)
+                      continue
                     }
 
                     throw error
@@ -4883,6 +4970,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         break
                       }
                       eventsForwarded += 1
+                      if (eventType === "content_block_start") contentBlocksForwarded += 1
                     }
 
                     // Track envelope integrity: which forwarded blocks are open.
@@ -5125,10 +5213,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // In particular, message_delta is client permission to finalize.
               if (pendingStructuredFrames.length > 0) {
                 clientAssistantContentExposed = true
+                let structuredFramesForwarded = 0
                 for (const frame of pendingStructuredFrames) {
-                  safeEnqueue(frame.payload, frame.source)
+                  if (safeEnqueue(frame.payload, frame.source)) {
+                    structuredFramesForwarded += 1
+                    if (frame.source === "structured_block_start") contentBlocksForwarded += 1
+                  }
                 }
-                eventsForwarded += pendingStructuredFrames.length
+                eventsForwarded += structuredFramesForwarded
                 pendingStructuredFrames = []
                 messageStartEmitted = true
                 textEventsForwarded += 1
@@ -5152,7 +5244,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               const classifyNow = () => classifyTurnOutcome({
                 textEvents: textEventsForwarded,
                 toolUses: streamedToolUseIds.size,
-                blocksForwarded: eventsForwarded,
+                blocksForwarded: contentBlocksForwarded,
               })
               const preRecoveryOutcome = classifyNow()
               //
@@ -5452,9 +5544,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   capturedToolUses.splice(capturedBeforeRecovery)
                 } else if (silentTurnRecovered) {
                   for (const lifted of recoveryLiftedFrames) {
-                    safeEnqueue(encoder.encode(
+                    const delivered = safeEnqueue(encoder.encode(
                       `event: ${lifted.frame.type}\ndata: ${JSON.stringify(lifted.frame)}\n\n`,
                     ), `silent_recovery_${lifted.kind}`)
+                    if (delivered && lifted.kind === "block_start") contentBlocksForwarded += 1
                     if (lifted.kind === "block_start") {
                       eventsForwarded += 1
                     } else if (lifted.kind === "text_delta") {
@@ -5477,7 +5570,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 if (silentTurnRecovered && preRecoveryOutcome.kind === "silent") {
                   diagnosticLog.session(
                     `${requestMeta.requestId} silent_turn reason=${preRecoveryOutcome.reason} ` +
-                    `blocks=${eventsForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
+                    `blocks=${contentBlocksForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
                     `recovery=succeeded`,
                     requestMeta.requestId,
                   )
@@ -5531,14 +5624,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     streamedToolUseIds.add(tu.id)
 
                     // content_block_start
-                    safeEnqueue(encoder.encode(
+                    if (safeEnqueue(encoder.encode(
                       `event: content_block_start\ndata: ${JSON.stringify({
                         type: "content_block_start",
                         index: blockIndex,
                         content_block: { type: "tool_use", id: tu.id, name: tu.name, input: {} }
                       })}\n\n`
-                    ), "passthrough_tool_block_start")
-
+                    ), "passthrough_tool_block_start")) {
+                      contentBlocksForwarded += 1
+                    }
                     // input_json_delta with the full input
                     safeEnqueue(encoder.encode(
                       `event: content_block_delta\ndata: ${JSON.stringify({
@@ -5576,13 +5670,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   const streamFileChangeSummary = formatFileChangeSummary(fileChanges)
                   if (streamFileChangeSummary && messageStartEmitted) {
                     const fcBlockIndex = nextClientBlockIndex++
-                    safeEnqueue(encoder.encode(
+                    if (safeEnqueue(encoder.encode(
                       `event: content_block_start\ndata: ${JSON.stringify({
                         type: "content_block_start",
                         index: fcBlockIndex,
                         content_block: { type: "text", text: "" },
                       })}\n\n`
-                    ), "file_changes_block_start")
+                    ), "file_changes_block_start")) {
+                      contentBlocksForwarded += 1
+                    }
                     safeEnqueue(encoder.encode(
                       `event: content_block_delta\ndata: ${JSON.stringify({
                         type: "content_block_delta",
@@ -5674,7 +5770,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   ttfbMs: requestMeta.ttfbMs ?? null,
                   upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                   totalDurationMs: streamTotalDurationMs,
-                  contentBlocks: eventsForwarded,
+                  contentBlocks: contentBlocksForwarded,
                   textEvents: textEventsForwarded,
                   error: null,
                   inputTokens: lastUsage?.input_tokens,
@@ -5707,7 +5803,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // means "the loop just lost a turn".
                   diagnosticLog.session(
                     `${requestMeta.requestId} silent_turn reason=${turnOutcome.reason} ` +
-                    `blocks=${eventsForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
+                    `blocks=${contentBlocksForwarded} out=${lastUsage?.output_tokens ?? 0} ` +
                     `recovery=${silentTurnRecoveryAttempted ? (silentTurnRecovered ? "succeeded" : "failed") : "off"}`,
                     requestMeta.requestId,
                   )
@@ -5904,7 +6000,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     requestSource,
                     isResume,
                     hasDeferredTools,
-                    sdkSessionId: resumeSessionId,
+                    sdkSessionId: currentSessionId || resumeSessionId,
                   })} captured=${capturedToolUses.length}`,
                   requestMeta.requestId,
                 )
@@ -5924,13 +6020,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   const tu = unseenToolUses[i]!
                   const blockIndex = nextClientBlockIndex++
                   streamedToolUseIds.add(tu.id)
-                  safeEnqueue(encoder.encode(
+                  if (safeEnqueue(encoder.encode(
                     `event: content_block_start\ndata: ${JSON.stringify({
                       type: "content_block_start",
                       index: blockIndex,
                       content_block: { type: "tool_use", id: tu.id, name: tu.name, input: {} }
                     })}\n\n`
-                  ), "recover_tool_block_start")
+                  ), "recover_tool_block_start")) {
+                    contentBlocksForwarded += 1
+                  }
                   safeEnqueue(encoder.encode(
                     `event: content_block_delta\ndata: ${JSON.stringify({
                       type: "content_block_delta",
@@ -6021,7 +6119,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   `event: message_delta\ndata: ${JSON.stringify({
                     type: "message_delta",
                     delta: { stop_reason: "tool_use", stop_sequence: null },
-                    usage: { output_tokens: 0 }
+                    usage: { output_tokens: lastUsage?.output_tokens ?? 0 }
                   })}\n\n`
                 ), "recover_message_delta")
                 safeEnqueue(encoder.encode(
@@ -6049,7 +6147,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   toolCount,
                   lineageType,
                   messageCount: allMessages.length,
-                  sdkSessionId: resumeSessionId,
+                  sdkSessionId: currentSessionId || resumeSessionId,
                   status: 200,
                   queueWaitMs: recoverQueueWaitMs,
                   sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
@@ -6058,7 +6156,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   ttfbMs: requestMeta.ttfbMs ?? null,
                   upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                   totalDurationMs: recoverTotalMs,
-                  contentBlocks: eventsForwarded + unseenToolUses.length,
+                  contentBlocks: contentBlocksForwarded,
                   textEvents: textEventsForwarded,
                   error: null,
                   // The capped tool handoff makes this the ordinary path for a
@@ -6085,14 +6183,140 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 return
               }
 
+              // The streaming counterpart of the non-streaming capped-turn
+              // branch above. The turn spent its single-turn budget without
+              // producing a forwardable tool call, but content already reached
+              // the client. Falling through would answer a half-delivered turn
+              // with an error frame, which a client can only surface as a hard
+              // failure over an answer that is already on screen — the
+              // "Reached maximum number of turns (1)" stream error reported
+              // against a turn whose text had rendered.
+              //
+              // Close it the way every other cut-off turn is closed instead:
+              // `max_tokens`, the wire's word for truncation, and no error
+              // event. `end_turn` would be the silent-turn lie #768 exists to
+              // prevent, and the error frame is a dead end where the client
+              // could otherwise continue. The non-streaming path has answered
+              // this shape honestly since the turn budget dropped to one; its
+              // comment already claims streaming does the same, and this is
+              // what makes that true.
+              //
+              // Nothing durable changes on this path: with no captured tool
+              // calls there is no checkpoint to publish and no mapping to
+              // advance, exactly as on the throwing path it replaces.
+              //
+              // Two shapes are deliberately left on the error path.
+              //
+              // A turn that forwarded only `message_start`, or an empty text
+              // block, delivered no actionable content. `eventsForwarded`
+              // includes envelope events and `nextClientBlockIndex` includes
+              // non-text blocks, so neither is a content oracle. Count actual
+              // text characters: an empty text delta carries no answer either.
+              //
+              // A tool_use block already on the wire with nothing captured
+              // means the hook never let those calls stand (forced-single
+              // overflow, duplicate abort, early-stop reversion). Ending that
+              // with `max_tokens` leaves a call the client is told neither to
+              // run nor to discard, so it keeps the error it gets today.
+              if (
+                passthrough &&
+                sdkTerm.reason === "max_turns" &&
+                capturedToolUses.length === 0 &&
+                streamedToolUseIds.size === 0 &&
+                messageStartEmitted &&
+                textCharsForwarded > 0
+              ) {
+                flushOpenClientBlocks("capped_turn")
+                diagnosticLog.session(
+                  `${requestMeta.requestId} sdk_termination_truncated ${formatSdkTermination(sdkTerm, {
+                    model,
+                    requestSource,
+                    isResume,
+                    hasDeferredTools,
+                    sdkSessionId: currentSessionId || resumeSessionId,
+                  })} blocks=${nextClientBlockIndex}`,
+                  requestMeta.requestId,
+                )
+                claudeLog("passthrough.capped_turn_truncated", {
+                  mode: "stream",
+                  blocks: nextClientBlockIndex,
+                })
+                plog(`[PROXY] ${requestMeta.requestId} capped turn produced no forwardable tool call — reporting as truncated`)
+                safeEnqueue(encoder.encode(
+                  `event: message_delta\ndata: ${JSON.stringify({
+                    type: "message_delta",
+                    delta: { stop_reason: "max_tokens", stop_sequence: null },
+                    usage: { output_tokens: lastUsage?.output_tokens ?? 0 }
+                  })}\n\n`
+                ), "capped_turn_message_delta")
+                safeEnqueue(encoder.encode(
+                  `event: message_stop\ndata: {"type":"message_stop"}\n\n`
+                ), "capped_turn_message_stop")
+
+                if (lastUsage) logUsage(requestMeta.requestId, lastUsage)
+                const cappedTotalMs = Date.now() - requestStartAt
+                const cappedQueueWaitMs = totalQueueWaitMs(requestMeta)
+                telemetryStore.record({
+                  requestId: requestMeta.requestId,
+                  timestamp: Date.now(),
+                  adapter: adapter.name,
+                  profileId: profile.id,
+                  requestSource,
+                  model,
+                  requestModel: body.model || undefined,
+                  mode: "stream",
+                  isResume,
+                  isPassthrough: passthrough,
+                  hasDeferredTools,
+                  deferredToolCount: hasDeferredTools ? deferredToolCount : undefined,
+                  toolCount,
+                  lineageType,
+                  messageCount: allMessages.length,
+                  sdkSessionId: currentSessionId || resumeSessionId,
+                  status: 200,
+                  queueWaitMs: cappedQueueWaitMs,
+                  sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
+                  sdkQueueWaitMs: requestMeta.sdkQueueWaitMs,
+                  proxyOverheadMs: Math.max(0, cappedTotalMs - cappedQueueWaitMs - requestMeta.sdkActiveDurationMs),
+                  ttfbMs: requestMeta.ttfbMs ?? null,
+                  upstreamDurationMs: requestMeta.sdkActiveDurationMs,
+                  totalDurationMs: cappedTotalMs,
+                  contentBlocks: contentBlocksForwarded,
+                  textEvents: textEventsForwarded,
+                  error: null,
+                  inputTokens: lastUsage?.input_tokens,
+                  outputTokens: lastUsage?.output_tokens,
+                  cacheReadInputTokens: lastUsage?.cache_read_input_tokens,
+                  cacheCreationInputTokens: lastUsage?.cache_creation_input_tokens,
+                  cacheHitRate: computeCacheHitRate(lastUsage),
+                  ...(envelopeViolations.length > 0 ? { envelopeViolations: [...envelopeViolations] } : {}),
+                })
+
+                if (!streamClosed) {
+                  try {
+                    controller.close()
+                  } catch (error) {
+                    claudeLog("stream.close_failed", { source: "capped_turn", error: String(error) })
+                  }
+                  streamClosed = true
+                }
+                return
+              }
+
+              // What the client actually got is part of the failure, not a
+              // detail: the recovery and truncation branches above key off it,
+              // so a bare termination line leaves the operator unable to tell
+              // an error over rendered text from one that delivered nothing.
+              // Reconstructing it from telemetry's null TTFB is archaeology.
               diagnosticLog.error(
                 `${requestMeta.requestId} ${formatSdkTermination(sdkTerm, {
                   model,
                   requestSource,
                   isResume,
                   hasDeferredTools,
-                  sdkSessionId: resumeSessionId,
-                })}`,
+                  sdkSessionId: currentSessionId || resumeSessionId,
+                })} envelope=${messageStartEmitted ? "open" : "unopened"} blocks=${contentBlocksForwarded} ` +
+                `text=${textEventsForwarded} tools=${capturedToolUses.length}/${streamedToolUseIds.size}`,
                 requestMeta.requestId,
               )
 
@@ -6117,7 +6341,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 toolCount,
                 lineageType,
                 messageCount: allMessages.length,
-                sdkSessionId: resumeSessionId,
+                sdkSessionId: currentSessionId || resumeSessionId,
                 status: streamErr.status,
                 queueWaitMs: streamErrQueueWaitMs,
                 sessionQueueWaitMs: requestMeta.sessionQueueWaitMs,
@@ -6126,7 +6350,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 ttfbMs: requestMeta.ttfbMs ?? null,
                 upstreamDurationMs: requestMeta.sdkActiveDurationMs,
                 totalDurationMs: streamErrTotalMs,
-                contentBlocks: eventsForwarded,
+                contentBlocks: contentBlocksForwarded,
                 textEvents: textEventsForwarded,
                 error: streamErr.type,
               })

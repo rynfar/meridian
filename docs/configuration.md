@@ -479,8 +479,17 @@ The cap is lifted for the cases that genuinely need the SDK to keep going — de
 > turn now ends on the SDK's `max_turns` result rather than a clean `success` —
 > that is the normal, expected shape, and `passthrough.checkpoint_persisted` in
 > `/telemetry/logs` is what confirms the session was preserved. And a turn that
-> hits the cap having produced content but no forwardable tool call is reported
+> hits the cap having produced visible text but no forwardable tool call is reported
 > as `stop_reason: "max_tokens"` (truncated) instead of failing the request.
+> Empty text, thinking alone, or an uncaptured tool call do not qualify.
+>
+> A capped turn that produced *nothing* — no wire event, no captured tool call —
+> never reached the tool boundary the cap exists to stop at, so the single turn
+> bought nothing and cost the whole request. Meridian reissues that turn once
+> with the cap lifted (`single_turn_cap_lifted` in `/telemetry/logs`), which is
+> safe precisely because nothing had reached the client yet. An explicit
+> `MERIDIAN_PASSTHROUGH_MAX_TURNS` suppresses the reissue too: the budget is
+> then the operator's, and a second identical attempt would only spend a turn.
 
 ### Silent turns
 
