@@ -55,6 +55,9 @@ const BILLING_SIGNALS: readonly RegExp[] = [
   /update your payment/,
   /(?:out of|draw from|draws from) extra usage/,
   /insufficient (?:credit|funds|balance)/,
+  // The real CLI shortens an API billing refusal to this exact sentence.
+  // Anchor the whole line so incidental tool output does not exhaust a profile.
+  /^\s*(?:(?:error|api error|claude code returned an error result):\s*)*credit balance is too low[.!]?\s*$/m,
   // The credits-era entitlement cap: "Your group's usage limit is set to $0 ·
   // run /usage-credits to ask your admin for a higher limit" (#909, verbatim in
   // the CLI). billing_error rather than rate_limit_error: a provisioned cap is
