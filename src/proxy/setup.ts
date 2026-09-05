@@ -11,7 +11,7 @@
  */
 
 import spawn from "cross-spawn"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs"
 import { homedir, platform } from "os"
 import { basename, dirname, join } from "path"
 import { fileURLToPath } from "url"
@@ -113,7 +113,20 @@ export const SUPPORTED_OPENCODE_V2_VERSIONS = new Set([
   "0.0.0-beta-18866",
 ])
 
-/** Resolve the V2 plugin package without selecting stale or incomplete artifacts. */
+/** Check our package manifest and entry without executing plugin code during setup. */
+function hasV2PluginEntry(path: string): boolean {
+  try {
+    if (!statSync(join(path, "index.js"), { throwIfNoEntry: false })?.isFile()) return false
+    const manifest: unknown = JSON.parse(readFileSync(join(path, "package.json"), "utf8"))
+    if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return false
+    const fields = manifest as Record<string, unknown>
+    return fields.type === "module" && fields.main === "./index.js"
+  } catch {
+    return false
+  }
+}
+
+/** Resolve the V2 plugin package without selecting stale or missing entries. */
 export function findV2PluginPath(fromUrl: string): string {
   const entryPath = fileURLToPath(fromUrl)
   const dir = dirname(entryPath)
@@ -121,14 +134,14 @@ export function findV2PluginPath(fromUrl: string): string {
   // A source CLI must use the source plugin even when an old dist/ exists.
   if (entryPath.endsWith(".ts")) {
     const sourcePlugin = join(dir, "..", "plugin", "meridian-v2")
-    if (existsSync(sourcePlugin)) return sourcePlugin
+    if (hasV2PluginEntry(sourcePlugin)) return sourcePlugin
     throw new MissingV2PluginError(sourcePlugin)
   }
 
   // Published and Docker CLIs use the package beside dist/cli.js. Do not fall
   // back to TypeScript: production installs omit the V2 SDK dev dependency.
   const bundledPlugin = join(dir, "meridian-v2")
-  if (existsSync(bundledPlugin)) return bundledPlugin
+  if (hasV2PluginEntry(bundledPlugin)) return bundledPlugin
   throw new MissingV2PluginError(bundledPlugin)
 }
 

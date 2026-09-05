@@ -129,6 +129,8 @@ describe("findV2PluginPath", () => {
     const plugin = join(dist, "meridian-v2")
     writeFileSync(cli, "")
     mkdirSync(plugin)
+    writeFileSync(join(plugin, "package.json"), JSON.stringify({ type: "module", main: "./index.js" }))
+    writeFileSync(join(plugin, "index.js"), "export default {}")
 
     expect(findV2PluginPath(pathToFileURL(cli).href)).toBe(plugin)
   })
@@ -144,6 +146,7 @@ describe("findV2PluginPath", () => {
     const sourcePlugin = pluginDir
     writeFileSync(cli, "")
     writeFileSync(join(sourcePlugin, "index.js"), "current source")
+    writeFileSync(join(sourcePlugin, "package.json"), JSON.stringify({ type: "module", main: "./index.js" }))
     mkdirSync(join(dist, "meridian-v2"))
 
     expect(findV2PluginPath(pathToFileURL(cli).href)).toBe(sourcePlugin)
@@ -156,6 +159,34 @@ describe("findV2PluginPath", () => {
     writeFileSync(cli, "")
 
     expect(() => findV2PluginPath(pathToFileURL(cli).href)).toThrow(MissingV2PluginError)
+  })
+
+  it.each(["package.json", "index.js"])("rejects an installed V2 package missing %s", (missing) => {
+    const dist = join(tmp, "dist")
+    const plugin = join(dist, "meridian-v2")
+    mkdirSync(plugin, { recursive: true })
+    const cli = join(dist, "cli.js")
+    writeFileSync(cli, "")
+    if (missing !== "package.json") writeFileSync(join(plugin, "package.json"), JSON.stringify({ type: "module", main: "./index.js" }))
+    if (missing !== "index.js") writeFileSync(join(plugin, "index.js"), "export default {}")
+    expect(() => findV2PluginPath(pathToFileURL(cli).href)).toThrow(MissingV2PluginError)
+  })
+
+  it.each(["{", "null", "[]", '{"type":"commonjs","main":"./index.js"}', '{"type":"module","main":"./missing.js"}'])("rejects an unusable V2 manifest: %s", (manifest) => {
+    const dist = join(tmp, "dist")
+    const plugin = join(dist, "meridian-v2")
+    mkdirSync(plugin, { recursive: true })
+    writeFileSync(join(plugin, "package.json"), manifest)
+    writeFileSync(join(plugin, "index.js"), "export default {}")
+    expect(() => findV2PluginPath(pathToFileURL(join(dist, "cli.js")).href)).toThrow(MissingV2PluginError)
+  })
+
+  it("does not configure a directory named index.js", () => {
+    const dist = join(tmp, "dist")
+    const plugin = join(dist, "meridian-v2")
+    mkdirSync(join(plugin, "index.js"), { recursive: true })
+    writeFileSync(join(plugin, "package.json"), JSON.stringify({ type: "module", main: "./index.js" }))
+    expect(() => findV2PluginPath(pathToFileURL(join(dist, "cli.js")).href)).toThrow(MissingV2PluginError)
   })
 })
 
