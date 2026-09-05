@@ -79,6 +79,12 @@ export const openCodeAdapter: AgentAdapter = {
   name: "opencode",
 
   /**
+   * NOTE: OpenCode-specific. OpenCode can call a network-hosted Meridian while
+   * its tools and environment block remain local to the OpenCode process.
+   */
+  clientEnvironmentMayDifferFromProxy: true,
+
+  /**
    * NOTE: OpenCode-specific. OpenCode runs its internal one-shot agents —
    * `title`, `summary`, `compaction` — under the USER'S session id, so the
    * raw header is not a conversation identity on its own. Verified live
@@ -154,6 +160,16 @@ export const openCodeAdapter: AgentAdapter = {
   },
 
   extractWorkingDirectory(body: any): string | undefined {
+    return extractClientCwd(body)
+  },
+
+  /**
+   * NOTE: OpenCode-specific. Expose the same request parse independently from
+   * `extractWorkingDirectory`: operator overrides may replace the SDK cwd, but
+   * must not replace the path used for project fingerprinting or the client
+   * environment note.
+   */
+  extractClientWorkingDirectory(body: any): string | undefined {
     return extractClientCwd(body)
   },
 

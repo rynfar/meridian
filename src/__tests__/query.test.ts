@@ -754,6 +754,27 @@ describe("buildQueryOptions", () => {
     expect(sp.append).toBe(GIT_STATUS_PROVENANCE_NOTE + REPLAY_PROVENANCE_NOTE)
   })
 
+  it("keeps the proxy/client CWD boundary when clientSystemPrompt is false", () => {
+    const result = buildQueryOptions(makeContext({
+      workingDirectory: "/app",
+      clientWorkingDirectory: "C:\\projects\\example-app",
+      clientEnvironmentMayDifferFromProxy: true,
+      passthrough: true,
+      systemContext: "Agent instructions",
+      codeSystemPrompt: true,
+      clientSystemPrompt: false,
+    }))
+    const prompt = result.options.systemPrompt
+    expect(typeof prompt).toBe("object")
+    if (typeof prompt !== "object" || prompt === null || !("append" in prompt)) {
+      throw new Error("Expected a Claude Code preset with an append")
+    }
+    const append = String(prompt.append)
+    expect(append).not.toContain("Agent instructions")
+    expect(append).toContain("Working directory: C:\\projects\\example-app")
+    expect(append).toContain("Client-managed tools run in the client environment")
+  })
+
   it("strips client prompt when clientSystemPrompt is false in passthrough", () => {
     const result = buildQueryOptions(makeContext({
       passthrough: true,

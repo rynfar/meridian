@@ -3762,8 +3762,9 @@ Run this real-client sequence:
    separately from `agent=primary`.
 2. Continue the same OpenCode session, drive a write/read tool loop, restart
    Meridian while preserving the isolated durable store, and continue again.
-3. Run `--agent summary` and require `source=subagent-summary` with no primary
-   mapping write.
+3. Run `--fork --agent summary` in a disposable client fork and require
+   `source=subagent-summary` with no affinity headers or primary mapping write.
+   Its probe message must not enter primary client history.
 4. Use V2's supported `/api/session/:id/revert/stage` and `revert/commit`
    endpoints, then continue. Meridian must log `lineage=undo` and the removed
    tool turn must not be visible.
@@ -3843,3 +3844,12 @@ Run `bun scripts/e2e-claude-code-client.mjs` for the full installed Claude Code 
 Run `E2E_CLAUDE_PATH=/path/to/old/claude bun scripts/e2e-cli-model-version.mjs --expect-rejection` and again with `--stream`. Use an old CLI that actually rejects the default `fable` model (2.1.177 was validated). Require HTTP 400/invalid_request_error or a single actionable SSE invalid_request_error without message_stop, the installed/required versions and override remedy, and exactly one proxy SDK query.
 
 Run the same old binary with `E2E_MODEL=claude-haiku-4-5-20251001`, omitting `--expect-rejection`, in both modes. Then omit both overrides to validate the bundled CLI with `fable` in both modes. Supported requests must return exactly READY. Each run isolates Meridian config, sessions and working directory; it does not change the installed CLI or subscription credentials.
+
+
+## Client and proxy working-directory boundaries
+
+Build first, then run `bun scripts/e2e-client-cwd.mjs` on macOS or Linux with Claude Max authentication. This uses real HTTP and SDK/model queries, isolated Meridian config, and a query observer that delegates every SDK call. Client instructions are disabled; a marker assertion proves they are absent while the independent CWD note remains.
+
+Both response modes must preserve OpenCode-shaped Windows client paths, execute client read/result loops, and execute proxy-managed reads in the proxy directory. Pi cases use actual POSIX directories with a literal trailing backslash and a symlink followed by `..`; the latter must have a different inode from the proxy directory. Client receipts differ from the proxy decoy. The fixture explicitly specifies literal path joining: this validates context delivery and tool execution under that instruction, not arbitrary model interpretation of unusual filenames. `--pi-only` and `--parent-only` isolate the two path regressions; `E2E_MERIDIAN_ROOT` selects a separately built before/after checkout.
+
+Also run the E42 actual OpenCode gate with `--live --extended --separate-proxy-cwd` and the pinned `E2E_OPENCODE_BIN`. The harness isolates the client HOME/PWD as well as XDG state, while the proxy retains its normal Claude authentication. It asserts the client directory from actual request bodies and stable client system prompts before comparing cache reuse. The manually invoked hidden-summary probe runs in a disposable client fork: this checks stripped headers without switching the primary client agent or injecting its tool-catalog update into primary history. A marker assertion rejects any leak into primary requests. This keeps the client project and configured SDK workdir distinct through tool use, restart, undo, fork, compaction and concurrent children. Run all four E41 modes after CWD/session-identity changes.

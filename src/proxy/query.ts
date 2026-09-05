@@ -6,7 +6,7 @@
  */
 
 import { homedir } from "node:os"
-import { isAbsolute, join, resolve } from "node:path"
+import { isAbsolute, join, posix, resolve, win32 } from "node:path"
 import type { Options, OutputFormat, SdkBeta, SettingSource } from "@anthropic-ai/claude-agent-sdk"
 import { createOpencodeMcpServer } from "../mcpTools"
 import { createPassthroughMcpServer, PASSTHROUGH_MCP_NAME } from "./passthroughTools"
@@ -85,11 +85,12 @@ export interface QueryContext {
   workingDirectory: string
   /**
    * Client-local working directory (as reported in the request). May not
-   * exist on the proxy host. When this differs from workingDirectory the
-   * system prompt is augmented with a note directing the model to refer
-   * to file paths using the client's path rather than the proxy's.
+   * exist on the proxy host. Query construction can add a note that separates
+   * this client path from the SDK subprocess execution environment.
    */
   clientWorkingDirectory?: string
+  /** The client and proxy may be independent even when their path text matches. */
+  clientEnvironmentMayDifferFromProxy?: boolean
   /** System context text (may be empty) */
   systemContext: string
   /** Path to Claude executable */
@@ -270,6 +271,48 @@ function computePassthroughMaxTurns(
   return base + advisorBump
 }
 
+/** Controls how the CWD note distinguishes client and proxy execution. */
+export interface CwdNoteOptions {
+  /** Lexical path equality is not evidence that client and proxy share a host. */
+  clientEnvironmentMayDifferFromProxy?: boolean
+  /** Client-managed tools execute outside the SDK subprocess in passthrough mode. */
+  passthrough?: boolean
+}
+
+function isWindowsPath(value: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value)
+}
+
+function comparablePath(value: string): { flavor: "posix" | "windows"; value: string } {
+  const windows = isWindowsPath(value)
+  const api = windows ? win32 : posix
+  let normalized = api.normalize(value)
+  const root = api.parse(normalized).root
+  while (normalized.length > root.length && normalized.endsWith(api.sep)) {
+    normalized = normalized.slice(0, -1)
+  }
+  return { flavor: windows ? "windows" : "posix", value: windows ? normalized.toLowerCase() : normalized }
+}
+
+function pathsEquivalent(left: string, right: string): boolean {
+  // A parent component can traverse a symlink/junction. Lexical normalization
+  // cannot establish filesystem identity, so retain the note for distinct paths.
+  const hasParent = (value: string) => value.split(isWindowsPath(value) ? /[\\/]/ : /\//).includes("..")
+  if (hasParent(left) || hasParent(right)) return left === right
+  const a = comparablePath(left)
+  const b = comparablePath(right)
+  return a.flavor === b.flavor && a.value === b.value
+}
+
+function escapePromptPath(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/[\u0000-\u001F\u007F]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`)
+}
+
 /**
  * Whether reissuing a capped passthrough turn with `liftSingleTurnCap` would
  * actually raise the budget.
@@ -293,29 +336,36 @@ export function singleTurnCapLiftRaisesBudget(
 }
 
 /**
- * Build an addendum that tells the model which path belongs to the real user.
- * Applied when the SDK subprocess runs in one directory on the proxy host but
- * the client is working in a different directory on their own machine
- * (typical of a remote Claude Code → network-proxy setup). Without this note
- * the SDK's env block leaks `sdkCwd` into the model's context and Claude
- * reports that as its working directory.
+ * Build an agent-neutral addendum that separates the client environment from
+ * the proxy-side SDK subprocess. The CLI always emits its own working-directory
+ * and repository facts; appended prompt text cannot suppress those lines.
  */
-export function buildCwdNote(sdkCwd: string, clientCwd?: string): string {
-  if (!clientCwd || clientCwd === sdkCwd) return ""
-  // Emit in the `<env>Working directory: …</env>` shape the Claude Code
-  // subprocess uses itself, so it doesn't auto-inject a second env block
-  // pointing at its own process.cwd() (which would be the proxy host path).
-  // Placed at the top of the append so it's the first env block the model
-  // sees. The subsequent notice tells the model to prefer this over any
-  // contradictory path that might slip through later in the context.
+export function buildCwdNote(
+  sdkCwd: string,
+  clientCwd?: string,
+  options: CwdNoteOptions = {},
+): string {
+  if (!clientCwd) return ""
+  if (!options.clientEnvironmentMayDifferFromProxy && pathsEquivalent(clientCwd, sdkCwd)) return ""
+
+  const safeSdkCwd = escapePromptPath(sdkCwd)
+  const safeClientCwd = escapePromptPath(clientCwd)
+  const toolLocus = options.passthrough
+    ? `Client-managed tools run in the client environment; use "${safeClientCwd}" for their file and path references. `
+    : `SDK tools run in the proxy execution environment. Do not treat "${safeClientCwd}" as locally accessible there; use it only when referring to client-side paths. `
+
   return (
     `\n\n<env>\n` +
-    `Working directory: ${clientCwd}\n` +
+    `Working directory: ${safeClientCwd}\n` +
     `</env>\n` +
     `<meridian-note>\n` +
-    `You are reached through a proxy. The subprocess running you resides at ` +
-    `"${sdkCwd}" on the proxy host, but that is not the user's working directory. ` +
-    `Always treat "${clientCwd}" as the working directory when referring to files or paths.\n` +
+    `This request passes through a proxy. The SDK subprocess executes in "${safeSdkCwd}". ` +
+    `Its built-in environment lines ("Primary working directory: ${safeSdkCwd}" and ` +
+    `"Is a git repository: ...") describe the proxy execution environment and may not ` +
+    `describe the client environment. The client reports its working directory as "${safeClientCwd}". ` +
+    toolLocus +
+    `Do not infer the client's repository state from the subprocess environment lines; ` +
+    `treat it as unknown unless the request or a client-side tool result states it.\n` +
     `</meridian-note>`
   )
 }
@@ -401,14 +451,17 @@ function resolveSystemPrompt(
 
 export function buildQueryOptions(ctx: QueryContext, abortController?: AbortController): BuildQueryResult {
   const {
-    prompt, model, workingDirectory, clientWorkingDirectory, systemContext, claudeExecutable,
+    prompt, model, workingDirectory, clientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
     passthrough, stream, sdkAgents, passthroughMcp, cleanEnv, hasDeferredTools,
     resumeSessionId, isUndo, resumeSessionAtUuid, forkSession, forkSessionId, sdkHooks, blockedTools, incompatibleTools,
     mcpServerName, allowedMcpTools, onStderr,
     effort, thinking, taskBudget, outputFormat, betas, settingSources, codeSystemPrompt, clientSystemPrompt,
     memory, dreaming, sharedMemory, maxBudgetUsd, fallbackModel, sdkDebug, additionalDirectories,
   } = ctx
-  const cwdNote = buildCwdNote(workingDirectory, clientWorkingDirectory)
+  const cwdNote = buildCwdNote(workingDirectory, clientWorkingDirectory, {
+    clientEnvironmentMayDifferFromProxy,
+    passthrough,
+  })
 
   const allBlockedTools = [...blockedTools, ...incompatibleTools]
 

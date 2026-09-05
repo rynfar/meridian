@@ -25,6 +25,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
+import { getConversationFingerprint } from "../proxy/session/fingerprint"
 
 type MockSdkMessage = Record<string, unknown>
 type TestApp = { fetch: (req: Request) => Promise<Response> }
@@ -76,9 +77,19 @@ installMcpToolsMock(() => ({
 
 const fpTmpDir = mkdtempSync(join(tmpdir(), "session-fp-context-test-"))
 process.env.CLAUDE_PROXY_SESSION_DIR = fpTmpDir
+const sessionStoreModule = new URL("../proxy/sessionStore.ts", import.meta.url).href
+const durableReaderSource = String.raw`
+const { lookupSharedSessionResult } = await import(process.env.SESSION_STORE_MODULE)
+const result = lookupSharedSessionResult(process.env.SESSION_KEY)
+if (result.status === "found" && result.session.claudeSessionId === process.env.EXPECTED_SESSION) {
+  process.exit(0)
+}
+console.error(JSON.stringify(result))
+process.exit(1)
+`
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
-const { clearSharedSessions } = await import("../proxy/sessionStore")
+const { clearSharedSessions, getSessionStoreDir } = await import("../proxy/sessionStore")
 
 afterAll(() => {
   rmSync(fpTmpDir, { recursive: true, force: true })
@@ -97,7 +108,8 @@ async function postNoSession(
   messages: Array<{ role: string; content: string }>,
   sessionLabel: string,
   system?: string,
-  stream = false
+  stream = false,
+  headers: Record<string, string> = {},
 ) {
   queuedSessionLabels.push(sessionLabel)
   const body: Record<string, unknown> = {
@@ -110,7 +122,7 @@ async function postNoSession(
 
   const response = await app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   }))
 
@@ -413,5 +425,74 @@ describe("Fingerprint resume: backward compat", () => {
     ], "sdk-no-ctx")
 
     expect(getCaptured()?.options?.resume).toBeDefined()
+  })
+})
+
+
+describe("Fingerprint resume: OpenCode CWD-key transition", () => {
+  const opencodeHeaders = { "user-agent": "opencode/1.18.22" }
+  it("moves once from the override key to the client key and keeps the new key across restart", async () => {
+    const originalProxy = process.env.CLAUDE_PROXY_WORKDIR
+    const originalMeridian = process.env.MERIDIAN_WORKDIR
+    const proxyCwd = tmpdir()
+    const clientCwd = "C:\\projects\\remote-app"
+    process.env.CLAUDE_PROXY_WORKDIR = proxyCwd
+    delete process.env.MERIDIAN_WORKDIR
+
+    try {
+      const firstApp = createTestApp()
+      await postNoSession(firstApp, [
+        { role: "user", content: "hello from the migration fixture" },
+      ], "override-key", "OpenCode prompt without an environment block", false, opencodeHeaders)
+      const oldSession = getCallerSelectedSessionId("override-key")
+      expect(getCaptured()?.options?.resume).toBeUndefined()
+
+      capturedQueryParams = null
+      await postNoSession(firstApp, [
+        { role: "user", content: "hello from the migration fixture" },
+      ], "client-key", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`, false, opencodeHeaders)
+      const newSession = getCallerSelectedSessionId("client-key")
+      expect(newSession).not.toBe(oldSession)
+      expect(getCaptured()?.options?.resume).toBeUndefined()
+
+      // A new process reads the durable file directly. This is the persistence
+      // boundary used after a proxy restart; unlike clearSessionCache(), it
+      // does not evict the mapping as part of test cleanup.
+      const sessionKey = getConversationFingerprint([
+        { role: "user", content: "hello from the migration fixture" },
+      ], clientCwd)
+      const reader = Bun.spawn([process.execPath, "-e", durableReaderSource], {
+        env: {
+          ...process.env,
+          MERIDIAN_SESSION_DIR: getSessionStoreDir(),
+          CLAUDE_PROXY_SESSION_DIR: getSessionStoreDir(),
+          SESSION_STORE_MODULE: sessionStoreModule,
+          SESSION_KEY: sessionKey,
+          EXPECTED_SESSION: newSession,
+        },
+        stdout: "ignore",
+        stderr: "pipe",
+      })
+      const exitCode = await reader.exited
+      if (exitCode !== 0) {
+        const stderr = reader.stderr instanceof ReadableStream
+          ? await new Response(reader.stderr).text()
+          : String(reader.stderr ?? "")
+        throw new Error(`Fresh process could not read the client-key mapping: ${stderr}`)
+      }
+
+      capturedQueryParams = null
+      await postNoSession(firstApp, [
+        { role: "user", content: "hello from the migration fixture" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "continue on the new key" },
+      ], "continuation", `<env>\nWorking directory: ${clientCwd}\nIs directory a git repo: yes\n</env>`, false, opencodeHeaders)
+      expect(getCaptured()?.options?.resume).toBeDefined()
+    } finally {
+      if (originalProxy === undefined) delete process.env.CLAUDE_PROXY_WORKDIR
+      else process.env.CLAUDE_PROXY_WORKDIR = originalProxy
+      if (originalMeridian === undefined) delete process.env.MERIDIAN_WORKDIR
+      else process.env.MERIDIAN_WORKDIR = originalMeridian
+    }
   })
 })

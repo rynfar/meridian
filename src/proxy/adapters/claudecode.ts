@@ -124,6 +124,9 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
 
+  /** NOTE: Claude Code-specific. Its environment belongs to the remote client. */
+  clientEnvironmentMayDifferFromProxy: true,
+
   /**
    * Claude Code embeds its conversation ID in metadata.user_id rather than a
    * session-affinity header. Fall back to fingerprint resume when absent.

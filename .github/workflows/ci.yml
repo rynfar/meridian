@@ -80,6 +80,12 @@ jobs:
       - run: bun test src/__tests__/durable-file-system.test.ts src/__tests__/windows-durable-storage.test.ts
         shell: bash
 
+      # Exercise Windows client paths through extraction, query construction,
+      # and the HTTP adapter boundary. These assertions intentionally avoid
+      # resolving the client path on the runner.
+      - run: bun test src/__tests__/opencode-cwd-note.test.ts src/__tests__/query-cwd-note.test.ts src/__tests__/proxy-working-directory.test.ts
+        shell: bash
+
       # Plugin loader exercises `await import(absolutePath)` which on Windows
       # rejects raw backslash paths with `Received protocol c:`. The test
       # writes a real plugin file to a tempdir and loads it, so it actually

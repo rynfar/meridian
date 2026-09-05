@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // Actual pinned OpenCode host against a local API, with isolated client state.
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -14,18 +15,24 @@ const v1 = process.argv.includes('--v1')
 const extended = process.argv.includes('--extended')
 assert(!extended || (live && !v1), '--extended requires --live and a V2 host')
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'meridian-v2-package-')))
+const proxyWorkdir = process.argv.includes('--separate-proxy-cwd') ? join(root, 'proxy-workdir') : root
+mkdirSync(proxyWorkdir, { recursive: true })
 const config = join(root, 'config', 'opencode')
 mkdirSync(config, { recursive: true })
 const env = { ...process.env }
 for (const key of Object.keys(env)) if (key.startsWith('OPENCODE_') || key.startsWith('MERIDIAN_') || key.startsWith('CLAUDE_PROXY_')) delete env[key]
 for (const kind of ['CONFIG', 'DATA', 'CACHE', 'STATE']) env[`XDG_${kind}_HOME`] = join(root, kind.toLowerCase())
-Object.assign(env, { OPENCODE_CONFIG_DIR: config, OPENCODE_DISABLE_AUTOUPDATE: '1', MERIDIAN_CONFIG_DIR: join(root, 'meridian') })
+// Only the client uses this home; the proxy retains the real Claude credentials.
+const clientHome = join(root, 'client-home')
+mkdirSync(clientHome, { recursive: true })
+Object.assign(env, { HOME: clientHome, PWD: root, INIT_CWD: root, OPENCODE_CONFIG_DIR: config, OPENCODE_DISABLE_AUTOUPDATE: '1', MERIDIAN_CONFIG_DIR: join(root, 'meridian') })
 const serverPassword = 'local-e2e-fixture-password'
 env.OPENCODE_SERVER_PASSWORD = serverPassword
 env.OPENCODE_PASSWORD = serverPassword
 const serverAuthorization = `Basic ${Buffer.from(`opencode:${serverPassword}`).toString('base64')}`
 const receipt = `BETA_RECEIPT_${crypto.randomUUID()}`
 const forkMarker = `FORK_ONLY_${crypto.randomUUID()}`
+const summaryMarker = `SUMMARY_PROBE_${crypto.randomUUID()}`
 const undoMarker = `UNDO_ONLY_${crypto.randomUUID()}`
 const fixturePath = join(root, 'fixture.txt')
 writeFileSync(fixturePath, receipt)
@@ -53,7 +60,7 @@ async function startMeridian() {
 if (live) {
   for (const key of Object.keys(process.env)) if (key.startsWith('MERIDIAN_') || key.startsWith('CLAUDE_PROXY_')) delete process.env[key]
   Object.assign(process.env, { MERIDIAN_CONFIG_DIR: env.MERIDIAN_CONFIG_DIR, MERIDIAN_SESSION_DIR: join(root, 'sessions'),
-    MERIDIAN_WORKDIR: root, MERIDIAN_PASSTHROUGH: '1', MERIDIAN_TELEMETRY_PERSIST: '0' })
+    MERIDIAN_WORKDIR: proxyWorkdir, MERIDIAN_PASSTHROUGH: '1', MERIDIAN_TELEMETRY_PERSIST: '0' })
   await startMeridian()
 }
 const requests = []
@@ -62,8 +69,11 @@ let deliveredResultSeen = false
 const endpoint = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
   const body = await request.json()
   const headers = Object.fromEntries([...request.headers].filter(([key]) => (key.startsWith('x-') && key !== 'x-api-key') || key === 'user-agent'))
-  const row = { requestId: crypto.randomUUID(), path: new URL(request.url).pathname, model: body.model, headers, hasForkMarker: JSON.stringify(body.messages).includes(forkMarker),
-    hasUndoMarker: JSON.stringify(body.messages).includes(undoMarker), startedAt: Date.now() }
+  const systemText = typeof body.system === 'string' ? body.system : (body.system ?? []).map(block => block.text ?? '').join('\n')
+  const clientCwd = systemText.match(/Working directory:\s*([^\n]+)/i)?.[1]?.trim()
+  const clientSystemHash = createHash('sha256').update(JSON.stringify(body.system ?? null)).digest('hex')
+  const row = { clientSystemHash, clientCwd, requestId: crypto.randomUUID(), path: new URL(request.url).pathname, model: body.model, headers, hasForkMarker: JSON.stringify(body.messages).includes(forkMarker),
+    hasUndoMarker: JSON.stringify(body.messages).includes(undoMarker), hasSummaryMarker: JSON.stringify(body.messages).includes(summaryMarker), startedAt: Date.now() }
   requests.push(row)
   if (live) {
     const forwardedHeaders = new Headers(request.headers)
@@ -136,6 +146,10 @@ async function latestPrimaryTelemetry(session) {
   return row
 }
 function verifyResume(prior, current, label) {
+  const priorRequest = requests.find(row => row.requestId === prior.requestId)
+  const currentRequest = requests.find(row => row.requestId === current.requestId)
+  assert(priorRequest && currentRequest)
+  assert.equal(currentRequest.clientSystemHash, priorRequest.clientSystemHash, `${label}: client changed its system prompt; cache comparison is not stable`)
   assert.equal(current.isResume, true, `${label} did not resume`)
   assert.equal(current.lineageType, 'continuation', `${label} replayed the conversation`)
   assert.notEqual(current.sdkSessionId, prior.sdkSessionId, `${label} did not publish a distinct fork`)
@@ -182,7 +196,12 @@ try {
     assert(restarted.some(event => event.type === 'text' && event.part?.text.includes(receipt)), 'Restart lost the receipt')
     verifyResume(priorTelemetry, await latestPrimaryTelemetry(session), 'process restart')
   }
-  if (!v1) await run([...base, '--session', session, '--agent', 'summary', 'Summarize the fixture receipt in one sentence.'])
+  // Hidden-agent header probing must not switch the primary client's active agent.
+  if (!v1) {
+    const summary = parse(await run([...base, '--session', session, '--fork', '--agent', 'summary', `Summarize the fixture receipt in one sentence. Probe token: ${summaryMarker}`]))
+    assert(summary.some(event => event.sessionID && event.sessionID !== session))
+    assert(requests.some(row => row.headers['x-opencode-agent-name'] === 'summary' && row.hasSummaryMarker))
+  }
   const fork = parse(await run([...base, '--session', session, '--agent', 'build', '--fork', `This fork has tracking token ${forkMarker}. Return the same receipt, without tools.`]))
   assert(fork.some(event => event.type === 'text' && event.part?.text.includes(receipt)))
   const forkSession = fork.find(event => event.sessionID)?.sessionID
@@ -242,6 +261,11 @@ try {
   }
   if (!live) assert(deliveredResultSeen, 'Actual file result did not return to the API')
   assert.equal((await run([client, '--version'])).trim(), version)
+  const primaryRows = requests.filter(row => row.headers['x-opencode-agent-name'] === 'build')
+  assert(primaryRows.length > 0)
+  assert(primaryRows.every(row => !row.hasSummaryMarker), 'Hidden-agent probe entered primary client history')
+  assert(primaryRows.every(row => row.clientCwd === root), JSON.stringify(primaryRows.map(row => row.clientCwd)))
+  if (process.argv.includes('--separate-proxy-cwd')) assert.notEqual(proxyWorkdir, root)
   console.log(JSON.stringify({ result: 'PASS', version, source, live, extended, root, session, requests, resumeEvidence }))
 } finally {
   console.log(JSON.stringify({ requestTrace: requests }))
