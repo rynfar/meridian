@@ -2186,8 +2186,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // continuation into a full fresh replay. The opt-in admits that
         // captured shape for this adapter only, gated on the single
         // complete expected-ID echo.
-        const claudeCodeSystemDeltaOptions = adapterBase === "claude-code"
-          ? { allowClaudeCodeSystemDelta: true }
+        const trailingSystemReminderOptions = adapterBase === "claude-code"
+          ? { allowTrailingSystemReminder: true }
           : undefined
         const durableCheckpointContinuation = durableCheckpointIds?.length
           && durableMappingAtTurn.status === "found"
@@ -2195,7 +2195,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           ? coalesceCompleteToolResultContinuation(
             (body.messages || []).slice(durableMappingAtTurn.session.messageCount),
             durableCheckpointIds,
-            claudeCodeSystemDeltaOptions,
+            trailingSystemReminderOptions,
           )
           : undefined
         const advancesDurableCheckpoint = Boolean(durableCheckpointContinuation)
@@ -2526,7 +2526,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const checkpointContinuation = coalesceCompleteToolResultContinuation(
           messagesToConvert,
           passthroughToolCallIds ?? [],
-          claudeCodeSystemDeltaOptions,
+          trailingSystemReminderOptions,
         )
         if (checkpointContinuation) {
           messagesToConvert = checkpointContinuation
