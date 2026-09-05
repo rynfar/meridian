@@ -1151,12 +1151,10 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.options.forkSession).toBe(true)
   })
 
-  // Captured from claude-cli with mid-conversation-system enabled (2.1.259
-  // in staging; reproduced on 2.1.261): the client closes its tool-result
-  // delta with a trailing system-role reminder turn (assistant[tool_use] ->
-  // user[tool_result] -> system[text]). The generic helpers reject
-  // role=system, which forced a full fresh replay; the opt-in must resume
-  // the checkpoint and deliver the reminder as unprivileged user text.
+  // claude-cli with mid-conversation-system on ends a tool-result delta with a
+  // trailing system reminder (assistant[tool_use] -> user[tool_result] ->
+  // system[text]); the generic helpers reject role=system and forced a fresh
+  // replay. The opt-in must resume and deliver the reminder as user text.
   it("stream: resumes the checkpoint through the claude-code trailing system reminder", async () => {
     const sessionId = `cc-delta-${TEST_RUN_ID}`
     const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."
@@ -1165,8 +1163,7 @@ describe("Integration: passthrough early stop", () => {
       { type: "tool_use", id: "cc-delta-tu1", name: "read", input: { file_path: "x" } },
     ])
 
-    // Turn 1: initial user turn plus the system prompt as a text block with
-    // cache_control — the captured request1 shape.
+    // Turn 1: system prompt as a cached text block, as claude-cli sends it.
     mockMessages = [
       messageStart("msg_cc_delta_1"),
       toolUseBlockStart(0, "read", "cc-delta-tu1"),
@@ -1197,9 +1194,8 @@ describe("Integration: passthrough early stop", () => {
     expect(stored?.passthroughToolCallIds).toEqual(["cc-delta-tu1"])
     expect(stored?.passthroughToolCallAssistantUuid).toBe(toolTurn.uuid)
 
-    // Turn 2: same prefix with the SAME system as an equivalent plain string
-    // (the representation flip lineage canonicalizes), then the exact live
-    // delta: echoed tool_use, real tool_result, trailing system reminder.
+    // Turn 2: the same system prompt as a plain string (lineage canonicalizes
+    // the flip), then echo, tool_result, trailing reminder.
     mockMessages = [
       messageStart("msg_cc_delta_2"),
       textBlockStart(0),
@@ -1237,8 +1233,7 @@ describe("Integration: passthrough early stop", () => {
     // No fresh-replay framing; the reminder never reaches the SDK system prompt.
     expect(secondBody).not.toContain("conversation_history")
     expect(JSON.stringify(resumed.options.systemPrompt ?? "")).not.toContain(trailingSystemText)
-    // SDK prompt is exactly the native tool_result then the reminder as
-    // ordinary user text, with cache_control stripped.
+    // SDK input: native tool_result, then the reminder as plain user text, cache_control stripped.
     expect(typeof resumed.prompt).not.toBe("string")
     const promptMessages: any[] = []
     for await (const message of resumed.prompt) promptMessages.push(message)
@@ -1257,9 +1252,8 @@ describe("Integration: passthrough early stop", () => {
     expect(row!.isResume).toBe(true)
   })
 
-  // Fail-closed twin of the accepted shape above: a SECOND trailing system
-  // message breaks the one-reminder contract, so the whole continuation
-  // must fail closed to a fresh replay — no resume options at all.
+  // Fail-closed twin: a second trailing system breaks the one-reminder
+  // contract, so the continuation must fall back to a fresh replay.
   it("stream: two trailing system reminders fail closed to a fresh replay", async () => {
     const sessionId = `cc-delta-fc-${TEST_RUN_ID}`
     const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."
@@ -1327,8 +1321,7 @@ describe("Integration: passthrough early stop", () => {
     expect(second.status).toBe(200)
     expect(await second.text()).toContain("message_stop")
 
-    // Checkpoint rejected → fresh structured replay: no resume options at all,
-    // and neither reminder reaches the SDK system prompt.
+    // Rejected checkpoint: fresh replay, no resume options, reminders kept out of the system prompt.
     const replayed = capturedQueryParamsAll[1]
     expect(replayed.options.resume).toBeUndefined()
     expect(replayed.options.resumeSessionAt).toBeUndefined()
@@ -1344,9 +1337,8 @@ describe("Integration: passthrough early stop", () => {
     expect(row!.isResume).toBe(false)
   })
 
-  // The gate lives in server.ts, not in the helper default: the exact wire
-  // shape the claude-code adapter accepts must stay a fresh replay on any
-  // other adapter, which never passes the opt-in.
+  // The gate is the adapter check in server.ts: the same wire shape on any
+  // other adapter gets no opt-in and stays a fresh replay.
   it("stream: non-claude-code adapters never opt in — reminder shape stays a fresh replay", async () => {
     const toolTurn = assistantMessage([
       { type: "tool_use", id: "oc-gate-tu1", name: "read", input: { file_path: "x" } },
@@ -1364,8 +1356,7 @@ describe("Integration: passthrough early stop", () => {
     expect(first.status).toBe(200)
     await first.text()
 
-    // Turn 2: the exact accepted shape (echo, result, one trailing system
-    // reminder) — but the x-opencode-session adapter carries no opt-in.
+    // Turn 2: the accepted shape, but this adapter carries no opt-in.
     mockMessages = [assistantMessage([{ type: "text", text: "continued" }])]
     const second = await post(app, {
       model: "claude-sonnet-4-5",

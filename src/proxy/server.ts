@@ -2178,7 +2178,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const durableCheckpointIds = durableMappingAtTurn.status === "found"
           ? durableMappingAtTurn.session.passthroughToolCallIds
           : undefined
-        // NOTE: agent-specific (claude-code) — the shape comes from Claude Code's mid-conversation-system feature (seen on claude-cli 2.1.259 and 2.1.261), admitted only for this adapter; rationale: the allowTrailingSystemReminder JSDoc in passthroughEarlyStop.
+        // NOTE: agent-specific (claude-code) — trailing system reminder of its mid-conversation-system feature; see allowTrailingSystemReminder.
         const trailingSystemReminderOptions = adapterBase === "claude-code"
           ? { allowTrailingSystemReminder: true }
           : undefined
