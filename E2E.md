@@ -21,6 +21,28 @@ curl -s http://127.0.0.1:3456/health | jq .status   # → "healthy"
 kill $(lsof -ti :3456)
 ```
 
+### Error telemetry and SDK billing refusals (#836 / #829)
+
+```bash
+bun scripts/e2e-error-telemetry.mjs
+```
+
+The real CLI and SDK call a local Anthropic API fixture that refuses billing.
+Its normalized `Credit balance is too low` error must classify as a billing
+refusal. Pinned requests fail with the correct account/model telemetry in both
+response modes. Unpinned priority requests must fail over to real Claude Max,
+return a visible recovery receipt, and record the refusing and serving accounts
+under the same request id, in both modes. No SDK query is mocked.
+
+Each case uses a fresh proxy instance so a preceding case's expected account
+cooldown cannot skip the refusal being tested. Configuration, session metadata
+and working directory are disposable; Claude Max retains its normal authentication.
+The local API uses a dummy key. `E2E_MERIDIAN_ROOT` selects source from another
+checkout for before/after comparisons; `--failover-only` selects one failure case.
+This verifies actual SDK refusal handling and live recovery, not two separate
+paid accounts. Run the full priority-routing suite and all four E41 modes to
+retain the barrier against failover after real content, tools or structured output.
+
 ### Consecutive idle stalls (#868)
 
 ```bash

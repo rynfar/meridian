@@ -1493,6 +1493,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // failure fired before the profile resolved.
       let resolvedProfileId: string | undefined
 
+      // Hoisted for the same reason: the outer catch records a telemetry row,
+      // but `profile`/`model` are block-scoped inside the try. Without these,
+      // a priority-routing failover files its refusal row with no profileId,
+      // so the row cannot say WHICH account refused — and since #825 stopped
+      // forking requestId per attempt, profileId is what distinguishes the
+      // attempts. Assigned as soon as each value is known; still undefined
+      // when the request fails before that point (early validation), which is
+      // exactly when the row genuinely has nothing to report. See #829.
+      let attemptedModel: string | undefined
+      let attemptedRequestModel: string | undefined
       try {
         const body = options.body
         const idleRequestKey = idleStallRequestKey(body)
@@ -1503,7 +1513,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           exposure.reason = reason
         }
         const observePriorityAttemptMessage = (message: any): void => {
-          if (message?.type === "assistant" && Array.isArray(message.message?.content) && message.message.content.length > 0) {
+          // SDK error assistants describe a refusal, not content delivered to the
+          // client. They must not prevent failover before any real exposure.
+          if (message?.type === "assistant" && !message.error && Array.isArray(message.message?.content) && message.message.content.length > 0) {
             markPriorityAttemptExposure("assistant_content")
             return
           }
@@ -1746,6 +1758,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             ? { routingMode, stickySessionKey: adapter.getSessionId(c, body) }
             : undefined
         )
+        // Also identifies failure telemetry; priority retries resolve each account here.
         resolvedProfileId = profile.id
 
         const authStatus = await getClaudeAuthStatusAsync(
@@ -1779,6 +1792,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // exactly as before.
         const benchSessionKey = adapter.getSessionId(c, body) || undefined
         let model = mapModelToClaudeModel(requestedModel, authStatus?.subscriptionType, agentMode, profile.id, benchSessionKey)
+        // Error telemetry names the initially resolved model for this account
+        // attempt. Later context fallbacks do not rewrite that identity.
+        attemptedModel = model
+        attemptedRequestModel = typeof body.model === "string" ? body.model : undefined
         // Explicitly versioned ids override their tier's canonical pin for
         // this request (spread last in query.ts env, so they also beat
         // operator env) — a proxy must never substitute models. Bare aliases
@@ -6572,8 +6589,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           requestId: requestMeta.requestId,
           timestamp: Date.now(),
           adapter: adapter.name,
-          model: "unknown",
-          requestModel: undefined,
+          // #829: name the account that failed. On a priority-routing failover
+          // the refusal row is otherwise indistinguishable from any other
+          // attempt under the same requestId. Still "unknown"/absent when the
+          // request died before profile/model resolution.
+          profileId: resolvedProfileId,
+          model: attemptedModel ?? "unknown",
+          requestModel: attemptedRequestModel,
           mode: "non-stream",
           isResume: false,
           isPassthrough: envBool("PASSTHROUGH"),
