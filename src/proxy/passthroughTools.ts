@@ -35,14 +35,10 @@ interface JsonSchemaNode {
  * emits every argument as a string, so a declared `number` arrives as `"60"`
  * and a declared object as `'{"cdp_url":"..."}'`.
  *
- * That has to be repaired HERE, before validation, because a rejected call
- * never reaches the PreToolUse hook — so the proxy captures nothing, has
- * nothing to forward to the client, and the passthrough turn cap (maxTurns=1,
- * see query.ts) leaves the model no turn to correct itself. The SDK then ends
- * the query with `error_max_turns`, which server.ts can only report as a 500:
- * a hard, user-visible stream error for a call the client would have executed
- * fine. Measured live: every failing call carried `timeout: "60"` where the
- * client's schema says `number`.
+ * Use this at MCP validation and client capture. Current Claude Code repairs
+ * some top-level fields before PreToolUse, but nested values can remain strings.
+ * The hook precedes the MCP handler, and streamed arguments precede the hook:
+ * repairing only the handler cannot correct what the client receives.
  *
  * Only slips whose declared type makes the intent unambiguous are repaired,
  * and only from a string. A declared `string` is never JSON-parsed: that would
@@ -51,16 +47,21 @@ interface JsonSchemaNode {
 function repairTypeSlip(schema: JsonSchemaNode, value: unknown): unknown {
   if (typeof value !== "string") return value
 
-  if (schema.type === "integer") {
-    if (value.trim() === "") return value
+  if (schema.type === "number" || schema.type === "integer") {
+    const match = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(value.trim())
+    if (!match) return value
     const parsed = Number(value)
-    return Number.isSafeInteger(parsed) ? parsed : value
-  }
-
-  if (schema.type === "number") {
-    if (value.trim() === "") return value
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : value
+    if (!Number.isFinite(parsed)) return value
+    if (schema.type === "integer") {
+      if (!Number.isSafeInteger(parsed)) return value
+      // Number() can round a non-integral decimal such as 1.0000000000000001
+      // to an integer. Check the decimal's fractional digits before accepting.
+      const fraction = match[3] ?? ""
+      const digits = `${match[2]}${fraction}`.replace(/^0+/, "")
+      const scale = Number(match[4] ?? 0) - fraction.length
+      if (digits && scale < 0 && (-scale > digits.length || /[1-9]/.test(digits.slice(scale)))) return value
+    }
+    return parsed
   }
 
   if (schema.type === "boolean") {
@@ -83,6 +84,37 @@ function repairTypeSlip(schema: JsonSchemaNode, value: unknown): unknown {
   return value
 }
 
+/** Repair capture input too: CLI PreToolUse precedes the MCP handler parser. */
+function repairCapturedValue(schema: unknown, value: unknown): unknown {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return value
+  const node = schema as JsonSchemaNode
+  const repaired = repairTypeSlip(node, value)
+  if (node.type === "array" && Array.isArray(repaired)) {
+    return repaired.map(item => repairCapturedValue(node.items, item))
+  }
+  if (node.type === "object" && repaired && typeof repaired === "object" && !Array.isArray(repaired) && node.properties) {
+    return repairCapturedObject(repaired as Record<string, unknown>, node.properties)
+  }
+  return repaired
+}
+
+function repairCapturedObject(input: Record<string, unknown>, properties: Record<string, unknown>): Record<string, unknown> {
+  // Preserve every key, including fields outside the simplified schema subset.
+  // Parsing through a ZodObject here would strip unknown client arguments.
+  return Object.fromEntries(Object.entries(input).map(([key, value]) => [key,
+    repairCapturedValue(Object.hasOwn(properties, key) ? properties[key] : undefined, value),
+  ]))
+}
+
+/** Only buffer streamed arguments whose declared fields can need type repair. */
+export function hasRepairableToolInput(schema: { properties?: Record<string, unknown> } | undefined): boolean {
+  return Object.values(schema?.properties ?? {}).some(property => {
+    if (!property || typeof property !== "object" || Array.isArray(property)) return false
+    const type = (property as { type?: unknown }).type
+    return type === "number" || type === "integer" || type === "boolean" || type === "object" || type === "array"
+  })
+}
+
 /**
  * The MCP schema converter reads `description` from the OUTERMOST node only —
  * an inner `.describe()` under `.optional()` or a `preprocess` pipe is dropped
@@ -97,7 +129,10 @@ function withDescription(node: z.ZodTypeAny, schema: JsonSchemaNode): z.ZodTypeA
 
 /** Wrap a validating node so a repairable slip is fixed instead of rejected. */
 function repairing(schema: JsonSchemaNode, node: z.ZodTypeAny): z.ZodTypeAny {
-  return z.preprocess(value => repairTypeSlip(schema, value), node)
+  // A preprocess pipe accepts unknown input at the type level. MCP's input
+  // schema converter otherwise drops required fields, despite runtime rejection
+  // of undefined. Optional properties are wrapped explicitly by the caller.
+  return z.preprocess(value => repairTypeSlip(schema, value), node).nonoptional()
 }
 
 /**
@@ -319,14 +354,15 @@ export function normalizeToolInput(
   input: Record<string, unknown> | undefined,
   clientSchema: { properties?: Record<string, unknown>; required?: string[] } | undefined,
 ): Record<string, unknown> | undefined {
-  if (!input || !clientSchema?.properties) return input
+  if (!input || typeof input !== "object" || Array.isArray(input) || !clientSchema?.properties) return input
 
   const schemaKeys = new Set(Object.keys(clientSchema.properties))
   const required = new Set(clientSchema.required ?? [])
 
-  // Fast path: all required fields are present, no normalization needed
+  // Name normalization is only needed for missing required fields. Type repair
+  // also applies when every field is present, including optional/nested fields.
   const missingRequired = [...required].filter(k => input[k] === undefined)
-  if (missingRequired.length === 0) return input
+  if (missingRequired.length === 0) return repairCapturedObject(input, clientSchema.properties)
 
   const normalized = { ...input }
 
@@ -349,5 +385,5 @@ export function normalizeToolInput(
     }
   }
 
-  return normalized
+  return repairCapturedObject(normalized, clientSchema.properties)
 }

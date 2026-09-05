@@ -1,10 +1,11 @@
-import { describe, expect, it, mock, beforeEach } from "bun:test"
+import { describe, expect, it, beforeEach } from "bun:test"
 import { z } from "zod"
+import { installSdkMock } from "./sdkMock"
 
 // Same minimal SDK mock the sibling passthrough tests use: capture what would
 // be registered instead of reaching the real Agent SDK.
 let registeredTools: Array<{ name: string; inputSchema: Record<string, z.ZodType> }> = []
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   createSdkMcpServer: (options: {
     tools?: Array<{ name: string; inputSchema: Record<string, z.ZodType> }>
   }) => {
@@ -13,7 +14,7 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     }
     return { type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }
   },
-}))
+}), "passthrough-input-coercion.test.ts")
 
 import { createPassthroughMcpServer } from "../proxy/passthroughTools"
 
@@ -50,6 +51,57 @@ beforeEach(() => {
 })
 
 describe("passthrough tool input coercion", () => {
+  it("preserves requiredness and validation over the real SDK MCP protocol", () => {
+    // A child isolates the real SDK from the suite's process-global mocks.
+    const moduleUrl = new URL("../proxy/passthroughTools.ts", import.meta.url).href
+    const script = `
+      import assert from "node:assert/strict";
+      import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+      import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+      import { createPassthroughMcpServer } from ${JSON.stringify(moduleUrl)};
+      const properties = {
+        count: { type: "integer" }, timeout: { type: "number", description: "Seconds" },
+        enabled: { type: "boolean" }, names: { type: "array", items: { type: "string" } },
+        app: { type: "object", properties: { relay: { type: "boolean" } }, required: ["relay"] },
+        label: { type: "string", description: "Optional label" },
+      };
+      const required = ["count", "timeout", "enabled", "names", "app"];
+      const { server } = createPassthroughMcpServer([{ name: "test", input_schema: { type: "object", properties, required } }]);
+      const client = new Client({ name: "test", version: "1" });
+      const [a, b] = InMemoryTransport.createLinkedPair();
+      await server.instance.connect(b); await client.connect(a);
+      try {
+        const schema = (await client.listTools()).tools[0].inputSchema;
+        assert.deepEqual(schema.required, required);
+        assert.deepEqual(schema.properties.app.required, ["relay"]);
+        assert.equal(schema.properties.timeout.type, "number");
+        assert.equal(schema.properties.timeout.description, "Seconds");
+        assert.equal(schema.properties.label.description, "Optional label");
+        const args = { count: "2", timeout: "60", enabled: "true", names: '["first"]', app: '{"relay":"false"}' };
+        assert(!(await client.callTool({ name: "test", arguments: args })).isError);
+        assert((await client.callTool({ name: "test", arguments: { ...args, timeout: "soon" } })).isError);
+        delete args.timeout;
+        assert((await client.callTool({ name: "test", arguments: args })).isError);
+      } finally { await client.close(); await server.instance.close(); }
+    `
+    const child = Bun.spawnSync({ cmd: [process.execPath, "-e", script], stdout: "pipe", stderr: "pipe" })
+    expect(child.exitCode, child.stderr.toString()).toBe(0)
+  })
+
+  it("advertises required repaired fields and nested required fields", () => {
+    createPassthroughMcpServer([{ name: "required", input_schema: {
+      type: "object", properties: {
+        ...BROWSER_SCHEMA.properties,
+        app: { ...BROWSER_SCHEMA.properties.app, required: ["relay"] },
+      },
+      required: Object.keys(BROWSER_SCHEMA.properties),
+    } }])
+    const tool = registeredTools.find(entry => entry.name === "required")
+    if (!tool) throw new Error("required tool missing")
+    const advertised = z.toJSONSchema(z.object(tool.inputSchema), { io: "input" })
+    expect(advertised.required).toEqual(Object.keys(BROWSER_SCHEMA.properties))
+    expect(advertised.properties?.app).toMatchObject({ required: ["relay"] })
+  })
   it("accepts the stringified arguments that made the SDK refuse the call", () => {
     const schema = registerBrowser()
 
@@ -81,6 +133,16 @@ describe("passthrough tool input coercion", () => {
 
     expect(schema.safeParse({ action: "open", retryCount: "1.5" }).success).toBe(false)
     expect(schema.safeParse({ action: "open", retryCount: "9007199254740993" }).success).toBe(false)
+    expect(schema.safeParse({ action: "open", retryCount: "1.0000000000000001" }).success).toBe(false)
+    expect(schema.safeParse({ action: "open", retryCount: "2.0" }).success).toBe(true)
+    expect(schema.safeParse({ action: "open", retryCount: "2e1" }).success).toBe(true)
+  })
+  it("only repairs JSON numeric syntax", () => {
+    const schema = registerBrowser()
+    for (const value of ["0x10", "0b10", "+2", "01", "", " ", "Infinity", "NaN"]) {
+      expect(schema.safeParse({ action: "open", timeout: value }).success).toBe(false)
+    }
+    expect(schema.safeParse({ action: "open", timeout: " 1.25e2 " }).data?.timeout).toBe(125)
   })
   it("still advertises the client's declared types and descriptions", () => {
     const schema = registerBrowser()

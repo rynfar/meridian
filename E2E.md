@@ -21,6 +21,29 @@ curl -s http://127.0.0.1:3456/health | jq .status   # → "healthy"
 kill $(lsof -ti :3456)
 ```
 
+### Passthrough argument repair (#925)
+
+```bash
+bun scripts/e2e-tool-input-repair.mjs --fixture
+bun scripts/e2e-tool-input-repair.mjs --fixture --stream
+bun scripts/e2e-tool-input-repair.mjs
+bun scripts/e2e-tool-input-repair.mjs --stream
+```
+
+The deterministic fixture runs the real CLI and SDK against a local Anthropic
+API response containing stringified tool arguments. It verifies repaired client
+arguments in both modes, a real client tool result reaching the resumed CLI,
+checkpoint forking, the exact follow-up receipt, and unchanged source history
+through supported SDK inspection. It uses a dummy local API key and does not
+contact a model service. The two runs without `--fixture` use Claude Max and
+validate compatibility with real model output. Their `repairExercised` flag
+distinguishes actual string repair from already-typed model calls.
+
+Required/optional advertised MCP schemas and malformed numeric inputs have
+automated protocol/unit coverage. Streamed arguments with repairable declared
+types are buffered until their block completes; text and string-only tool
+arguments retain normal streaming. Run all four E41 modes after changes here.
+
 ### Profile-switch retirement admission (#923)
 
 ```bash
