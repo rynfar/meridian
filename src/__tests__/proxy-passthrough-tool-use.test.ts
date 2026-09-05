@@ -132,6 +132,34 @@ describe("Passthrough streaming: early termination on tool_use stop", () => {
     }
   })
 
+  it("repairs complete split JSON arguments independently for parallel streamed calls", async () => {
+    const tool = { name: "measure", input_schema: { type: "object", properties: {
+      timeout: { type: "number" },
+      app: { type: "object", properties: { relay: { type: "boolean" } } },
+      label: { type: "string" },
+    }, required: ["timeout"] } }
+    const expected = [
+      { timeout: 60, app: { relay: true, extra: "kept" }, label: '{"keep":"string"}' },
+      { timeout: 30, app: { relay: false }, label: "second" },
+    ]
+    mockMessages = [messageStart()]
+    for (const [index, value] of expected.entries()) {
+      const raw = JSON.stringify({ ...value, timeout: String(value.timeout), app: JSON.stringify({ ...value.app, relay: String(value.app.relay) }) })
+      mockMessages.push(toolUseBlockStart(index, `${PASSTHROUGH_PREFIX}measure`, `toolu_measure_${index}`),
+        inputJsonDelta(index, raw.slice(0, 19)), inputJsonDelta(index, raw.slice(19)), blockStop(index))
+    }
+    mockMessages.push(messageDelta("tool_use"), messageStop())
+    const events = parseSSE(await postStream(createTestApp(), [tool]))
+    expect(events.filter(event => event.event === "error")).toHaveLength(0)
+    expect(events.filter(event => event.event === "message_stop")).toHaveLength(1)
+    for (const [index, value] of expected.entries()) {
+      const json = events.filter(event => event.event === "content_block_delta" && event.data.index === index)
+        .map(event => (event.data.delta as { partial_json: string }).partial_json).join("")
+      expect(JSON.parse(json)).toEqual(value)
+      expect(events.filter(event => event.event === "content_block_stop" && event.data.index === index)).toHaveLength(1)
+    }
+  })
+
   it("stream ends with message_stop immediately after message_delta(stop_reason:tool_use)", async () => {
     // Simulate: model streams a passthrough tool_use, then the SDK would
     // normally continue (turn 2) — but we should break before that happens.

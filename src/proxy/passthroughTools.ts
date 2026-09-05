@@ -17,39 +17,173 @@ export const PASSTHROUGH_MCP_NAME = "oc"
 export const PASSTHROUGH_MCP_PREFIX = `mcp__${PASSTHROUGH_MCP_NAME}__`
 
 /**
- * Convert a JSON Schema object to a Zod schema (simplified).
+ * The JSON Schema subset a client's tool definitions actually use. Anything
+ * richer (`anyOf`, `$ref`, tuple `items`, …) falls through to `z.any()` below,
+ * exactly as before.
+ */
+interface JsonSchemaNode {
+  type?: string
+  description?: string
+  enum?: string[]
+  items?: JsonSchemaNode
+  properties?: Record<string, JsonSchemaNode>
+  required?: string[]
+}
+
+/**
+ * Repair the one tool-input slip the model makes often enough to matter: it
+ * emits every argument as a string, so a declared `number` arrives as `"60"`
+ * and a declared object as `'{"cdp_url":"..."}'`.
+ *
+ * Use this at MCP validation and client capture. Current Claude Code repairs
+ * some top-level fields before PreToolUse, but nested values can remain strings.
+ * The hook precedes the MCP handler, and streamed arguments precede the hook:
+ * repairing only the handler cannot correct what the client receives.
+ *
+ * Only slips whose declared type makes the intent unambiguous are repaired,
+ * and only from a string. A declared `string` is never JSON-parsed: that would
+ * corrupt legitimate input which merely looks like JSON.
+ */
+function repairTypeSlip(schema: JsonSchemaNode, value: unknown): unknown {
+  if (typeof value !== "string") return value
+
+  if (schema.type === "number" || schema.type === "integer") {
+    const match = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(value.trim())
+    if (!match) return value
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return value
+    if (schema.type === "integer") {
+      if (!Number.isSafeInteger(parsed)) return value
+      // Number() can round a non-integral decimal such as 1.0000000000000001
+      // to an integer. Check the decimal's fractional digits before accepting.
+      const fraction = match[3] ?? ""
+      const digits = `${match[2]}${fraction}`.replace(/^0+/, "")
+      const scale = Number(match[4] ?? 0) - fraction.length
+      if (digits && scale < 0 && (-scale > digits.length || /[1-9]/.test(digits.slice(scale)))) return value
+    }
+    return parsed
+  }
+
+  if (schema.type === "boolean") {
+    if (value === "true") return true
+    if (value === "false") return false
+    return value
+  }
+
+  if (schema.type === "object" || schema.type === "array") {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return value
+    }
+    if (schema.type === "array") return Array.isArray(parsed) ? parsed : value
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : value
+  }
+
+  return value
+}
+
+/** Repair capture input too: CLI PreToolUse precedes the MCP handler parser. */
+function repairCapturedValue(schema: unknown, value: unknown): unknown {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return value
+  const node = schema as JsonSchemaNode
+  const repaired = repairTypeSlip(node, value)
+  if (node.type === "array" && Array.isArray(repaired)) {
+    return repaired.map(item => repairCapturedValue(node.items, item))
+  }
+  if (node.type === "object" && repaired && typeof repaired === "object" && !Array.isArray(repaired) && node.properties) {
+    return repairCapturedObject(repaired as Record<string, unknown>, node.properties)
+  }
+  return repaired
+}
+
+function repairCapturedObject(input: Record<string, unknown>, properties: Record<string, unknown>): Record<string, unknown> {
+  // Preserve every key, including fields outside the simplified schema subset.
+  // Parsing through a ZodObject here would strip unknown client arguments.
+  return Object.fromEntries(Object.entries(input).map(([key, value]) => [key,
+    repairCapturedValue(Object.hasOwn(properties, key) ? properties[key] : undefined, value),
+  ]))
+}
+
+/** Only buffer streamed arguments whose declared fields can need type repair. */
+export function hasRepairableToolInput(schema: { properties?: Record<string, unknown> } | undefined): boolean {
+  return Object.values(schema?.properties ?? {}).some(property => {
+    if (!property || typeof property !== "object" || Array.isArray(property)) return false
+    const type = (property as { type?: unknown }).type
+    return type === "number" || type === "integer" || type === "boolean" || type === "object" || type === "array"
+  })
+}
+
+/**
+ * The MCP schema converter reads `description` from the OUTERMOST node only —
+ * an inner `.describe()` under `.optional()` or a `preprocess` pipe is dropped
+ * from the advertised schema. Apply it last so the model keeps seeing what the
+ * client wrote, optional parameters included.
+ */
+function withDescription(node: z.ZodTypeAny, schema: JsonSchemaNode): z.ZodTypeAny {
+  return typeof schema.description === "string" && schema.description
+    ? node.describe(schema.description)
+    : node
+}
+
+/** Wrap a validating node so a repairable slip is fixed instead of rejected. */
+function repairing(schema: JsonSchemaNode, node: z.ZodTypeAny): z.ZodTypeAny {
+  // A preprocess pipe accepts unknown input at the type level. MCP's input
+  // schema converter otherwise drops required fields, despite runtime rejection
+  // of undefined. Optional properties are wrapped explicitly by the caller.
+  return z.preprocess(value => repairTypeSlip(schema, value), node).nonoptional()
+}
+
+/**
+ * Convert a JSON Schema node to a Zod schema (simplified).
  * Handles the common types OpenCode sends. Falls back to z.any() for complex types.
  */
-function jsonSchemaToZod(schema: any): z.ZodTypeAny {
+function jsonSchemaToZod(schema: unknown): z.ZodTypeAny {
   if (!schema || typeof schema !== "object") return z.any()
+  const node = schema as JsonSchemaNode
+  return withDescription(buildZodNode(node), node)
+}
+
+function buildZodNode(schema: JsonSchemaNode): z.ZodTypeAny {
 
   if (schema.type === "string") {
-    let s = z.string()
-    if (schema.description) s = s.describe(schema.description)
     if (schema.enum) return z.enum(schema.enum as [string, ...string[]])
-    return s
+    return z.string()
   }
-  if (schema.type === "number" || schema.type === "integer") {
-    let n = z.number()
-    if (schema.description) n = n.describe(schema.description)
-    return n
+  if (schema.type === "integer") {
+    return repairing(schema, z.number().int())
   }
-  if (schema.type === "boolean") return z.boolean()
+  if (schema.type === "number") {
+    return repairing(schema, z.number())
+  }
+  if (schema.type === "boolean") return repairing(schema, z.boolean())
   if (schema.type === "array") {
     const items = schema.items ? jsonSchemaToZod(schema.items) : z.any()
-    return z.array(items)
+    return repairing(schema, z.array(items))
   }
   if (schema.type === "object" && schema.properties) {
-    const shape: Record<string, z.ZodTypeAny> = {}
-    const required = new Set(schema.required || [])
-    for (const [key, propSchema] of Object.entries(schema.properties)) {
-      const zodProp = jsonSchemaToZod(propSchema as any)
-      shape[key] = required.has(key) ? zodProp : zodProp.optional()
-    }
-    return z.object(shape)
+    return repairing(schema, z.object(objectShapeFromJsonSchema(schema)))
   }
 
   return z.any()
+}
+
+/**
+ * The property shape of a JSON Schema object, with optionality applied.
+ *
+ * Kept separate from `jsonSchemaToZod` because the MCP registration needs the
+ * root as a raw shape, and the root arguments object is never a slip candidate
+ * — the protocol always delivers it as an object.
+ */
+function objectShapeFromJsonSchema(schema: JsonSchemaNode): Record<string, z.ZodType> {
+  const shape: Record<string, z.ZodType> = {}
+  const required = new Set<string>(schema.required ?? [])
+  for (const [key, propSchema] of Object.entries(schema.properties ?? {})) {
+    const prop = jsonSchemaToZod(propSchema)
+    shape[key] = required.has(key) ? prop : withDescription(prop.optional(), propSchema)
+  }
+  return shape
 }
 
 /** Default threshold: auto-defer when tool count exceeds this.
@@ -73,7 +207,7 @@ export function getAutoDeferThreshold(): number {
  * Client-provided defer_loading: true also triggers deferral for specific tools.
  */
 export function createPassthroughMcpServer(
-  tools: Array<{ name: string; description?: string; input_schema?: any; defer_loading?: boolean }>,
+  tools: Array<{ name: string; description?: string; input_schema?: JsonSchemaNode; defer_loading?: boolean }>,
   coreToolNames?: readonly string[]
 ) {
   // Auto-defer: if tool count exceeds threshold and adapter provides core tools
@@ -101,12 +235,13 @@ export function createPassthroughMcpServer(
       // Register through the Agent SDK helper so its Zod 4 peer owns the MCP
       // compatibility boundary. Registering through the nested MCP instance
       // instead couples this module to that package's separate Zod version.
-      const zodSchema = passthroughTool.input_schema?.properties
-        ? jsonSchemaToZod(passthroughTool.input_schema)
-        : z.object({})
-      const shape: Record<string, z.ZodType> = zodSchema instanceof z.ZodObject
-        ? zodSchema.shape
-        : { input: z.any() }
+      //
+      // The root is built as a raw shape rather than a converted object: the
+      // arguments object always arrives as an object over the protocol, so it
+      // is never a repair candidate, and the SDK wants the shape anyway.
+      const shape = passthroughTool.input_schema?.properties
+        ? objectShapeFromJsonSchema(passthroughTool.input_schema)
+        : {}
       return defineTool(shape)
     } catch {
       const fallbackShape: Record<string, z.ZodType> = { input: z.string().optional() }
@@ -219,14 +354,15 @@ export function normalizeToolInput(
   input: Record<string, unknown> | undefined,
   clientSchema: { properties?: Record<string, unknown>; required?: string[] } | undefined,
 ): Record<string, unknown> | undefined {
-  if (!input || !clientSchema?.properties) return input
+  if (!input || typeof input !== "object" || Array.isArray(input) || !clientSchema?.properties) return input
 
   const schemaKeys = new Set(Object.keys(clientSchema.properties))
   const required = new Set(clientSchema.required ?? [])
 
-  // Fast path: all required fields are present, no normalization needed
+  // Name normalization is only needed for missing required fields. Type repair
+  // also applies when every field is present, including optional/nested fields.
   const missingRequired = [...required].filter(k => input[k] === undefined)
-  if (missingRequired.length === 0) return input
+  if (missingRequired.length === 0) return repairCapturedObject(input, clientSchema.properties)
 
   const normalized = { ...input }
 
@@ -249,5 +385,5 @@ export function normalizeToolInput(
     }
   }
 
-  return normalized
+  return repairCapturedObject(normalized, clientSchema.properties)
 }

@@ -44,7 +44,7 @@ import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
-import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { createPassthroughMcpServer, stripMcpPrefix, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
@@ -4202,6 +4202,33 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // path closes these explicitly before its final frames.
             const openClientBlocks = new Set<number>()
 
+            // Keep argument buffers alive across drain/abort recovery, which can
+            // close a block even when its SDK content_block_stop never arrived.
+            const pendingToolArguments = new Map<number, { name: string; json: string }>()
+            const flushToolArguments = (clientIdx: number): void => {
+              const buffered = pendingToolArguments.get(clientIdx)
+              pendingToolArguments.delete(clientIdx)
+              if (!buffered?.json) return
+              let fixed = buffered.json
+              try {
+                const clientTool = requestTools.find((tool: { name: string; input_schema?: Parameters<typeof normalizeToolInput>[1] }) => tool.name === buffered.name)
+                const parsed = normalizeToolInput(JSON.parse(buffered.json), clientTool?.input_schema)
+                // NOTE: agent-specific — preserve Task alias normalization.
+                if (buffered.name.toLowerCase() === "task" && typeof parsed?.subagent_type === "string") {
+                  parsed.subagent_type = resolveAgentAlias(parsed.subagent_type, validAgentNames)
+                }
+                fixed = JSON.stringify(parsed)
+              } catch {
+                // Malformed JSON retains the original wire payload.
+              }
+              safeEnqueue(encoder.encode(
+                `event: content_block_delta\ndata: ${JSON.stringify({
+                  type: "content_block_delta", index: clientIdx,
+                  delta: { type: "input_json_delta", partial_json: fixed },
+                })}\n\n`
+              ), "passthrough_tool_fixed_delta")
+            }
+
             // Envelope integrity: every path that ends the client stream must
             // first terminate any content block whose start was forwarded but
             // whose stop hasn't been — an unterminated block renders
@@ -4223,6 +4250,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               })))
               claudeLog("stream.dangling_blocks_closed", { source, count: openClientBlocks.size })
               for (const idx of openClientBlocks) {
+                flushToolArguments(idx)
                 safeEnqueue(encoder.encode(
                   `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: idx })}\n\n`
                 ), `${source}_close_dangling`)
@@ -4515,12 +4543,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }, 15_000)
 
               const skipBlockIndices = new Set<number>()
-              // NOTE: agent-specific — track block indices for "task" tool_use blocks
-              // so we can normalize subagent_type in streamed input_json_delta events.
-              // Deltas are buffered because input_json_delta sends JSON in chunks —
-              // the key-value pair may span multiple deltas, preventing regex match.
-              const taskToolBlockIndices = new Set<number>()
-              const taskToolJsonBuffer = new Map<number, string>()
+              // Complete JSON is needed to repair typed client arguments. Keep
+              // text streaming normally and flush each tool's arguments at its stop.
+              const passthroughToolBlockNames = new Map<number, string>()
 
               // Block index remapping: the SDK resets indices on each turn, but
               // we skip intermediate message_start/stop so the client sees one
@@ -4762,15 +4787,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           // condition fires correctly.
                           streamedToolUseIds.add(block.id)
                         }
-                        // NOTE: agent-specific — track "task" tool blocks so we can
-                        // normalize subagent_type in their streamed input_json_delta.
-                        if (passthrough && eventIndex !== undefined && block.name.toLowerCase() === "task") {
-                          taskToolBlockIndices.add(eventIndex)
+                        if (passthrough && eventIndex !== undefined) {
+                          const clientTool = requestTools.find((tool: { name: string }) => tool.name === block.name)
+                          // NOTE: agent-specific — Task still buffers for alias normalization.
+                          if (block.name.toLowerCase() === "task" || hasRepairableToolInput(clientTool?.input_schema)) {
+                            passthroughToolBlockNames.set(eventIndex, block.name)
+                          }
                         }
                       }
                       // Assign a monotonic client index for this forwarded block
                       if (eventIndex !== undefined) {
                         sdkToClientIndex.set(eventIndex, nextClientBlockIndex++)
+                        const toolName = passthroughToolBlockNames.get(eventIndex)
+                        if (toolName) {
+                          pendingToolArguments.set(sdkToClientIndex.get(eventIndex)!, { name: toolName, json: "" })
+                        }
                       }
                     }
 
@@ -4796,49 +4827,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       }
                     }
 
-                    // NOTE: agent-specific — buffer input_json_delta for Task tool blocks.
-                    // Claude sends PascalCase subagent_type (e.g., "Explore") and aliases
-                    // like "general-purpose" that OpenCode rejects. input_json_delta sends
-                    // JSON in chunks so we can't normalize individual deltas — buffer
-                    // all chunks, parse the complete JSON, and emit the fixed version
-                    // at content_block_stop.
+                    // The stream precedes PreToolUse capture, so it needs the
+                    // same argument repair before the client can execute a call.
+                    // JSON strings can span chunks; flush once the block is complete.
                     if (
                       passthrough &&
                       eventIndex !== undefined &&
-                      taskToolBlockIndices.has(eventIndex)
+                      passthroughToolBlockNames.has(eventIndex)
                     ) {
+                      const clientIdx = sdkToClientIndex.get(eventIndex) ?? eventIndex
+                      const buffered = pendingToolArguments.get(clientIdx)
                       if (eventType === "content_block_delta") {
-                        const delta = (event as any).delta
-                        if (delta?.type === "input_json_delta" && typeof delta.partial_json === "string") {
-                          const prev = taskToolJsonBuffer.get(eventIndex) ?? ""
-                          taskToolJsonBuffer.set(eventIndex, prev + delta.partial_json)
-                          continue // Don't forward — emit complete JSON at block_stop
+                        const delta = (event as { delta?: { type?: string; partial_json?: string } }).delta
+                        if (buffered && delta?.type === "input_json_delta" && typeof delta.partial_json === "string") {
+                          buffered.json += delta.partial_json
+                          continue
                         }
                       }
                       if (eventType === "content_block_stop") {
-                        const buffered = taskToolJsonBuffer.get(eventIndex)
-                        if (buffered) {
-                          let fixed = buffered
-                          try {
-                            const parsed = JSON.parse(buffered) as Record<string, unknown>
-                            if (typeof parsed.subagent_type === "string") {
-                              parsed.subagent_type = resolveAgentAlias(parsed.subagent_type, validAgentNames)
-                            }
-                            fixed = JSON.stringify(parsed)
-                          } catch {
-                            // Malformed JSON — forward buffer unchanged rather than drop the block
-                          }
-                          const clientIdx = sdkToClientIndex.get(eventIndex) ?? eventIndex
-                          safeEnqueue(encoder.encode(
-                            `event: content_block_delta\ndata: ${JSON.stringify({
-                              type: "content_block_delta",
-                              index: clientIdx,
-                              delta: { type: "input_json_delta", partial_json: fixed }
-                            })}\n\n`
-                          ), "task_tool_fixed_delta")
-                          taskToolJsonBuffer.delete(eventIndex)
-                        }
-                        // Fall through to forward content_block_stop normally
+                        flushToolArguments(clientIdx)
+                        passthroughToolBlockNames.delete(eventIndex)
                       }
                     }
 

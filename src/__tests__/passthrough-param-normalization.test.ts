@@ -1,7 +1,25 @@
 import { describe, expect, it } from "bun:test"
-import { normalizeToolInput } from "../proxy/passthroughTools"
+import { normalizeToolInput, hasRepairableToolInput } from "../proxy/passthroughTools"
 
 describe("normalizeToolInput", () => {
+  it("only buffers streams with declared repairable fields", () => {
+    expect(hasRepairableToolInput(undefined)).toBe(false)
+    expect(hasRepairableToolInput({ properties: { path: { type: "string" } } })).toBe(false)
+    for (const type of ["number", "integer", "boolean", "object", "array"]) {
+      expect(hasRepairableToolInput({ properties: { input: { type } } })).toBe(true)
+    }
+  })
+  it("repairs nested values delivered by the real CLI hook without losing unknown fields", () => {
+    const input = { timeout: 60, app: { relay: "true", extra: "kept" }, label: '{"literal":true}' }
+    const schema = { properties: {
+      timeout: { type: "number" },
+      app: { type: "object", properties: { relay: { type: "boolean" } } },
+      label: { type: "string" },
+    }, required: ["timeout", "app"] }
+    expect(normalizeToolInput(input, schema)).toEqual({ timeout: 60, app: { relay: true, extra: "kept" }, label: '{"literal":true}' })
+    expect(input.app.relay).toBe("true")
+  })
+
   it("returns input unchanged when all required fields are present", () => {
     const input = { filePath: "/src/app.ts", offset: 0 }
     const schema = {
