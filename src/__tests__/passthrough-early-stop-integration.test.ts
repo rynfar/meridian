@@ -1151,12 +1151,13 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.options.forkSession).toBe(true)
   })
 
-  // Live claude-cli 2.1.259 closes its tool-result delta with a trailing
-  // system-role reminder turn (assistant[tool_use] -> user[tool_result] ->
-  // system[text], a <total_tokens>-style message). The generic helpers
-  // reject role=system, which forced a full fresh replay; the claude-code
-  // opt-in must resume the checkpoint and deliver the reminder as
-  // unprivileged user text.
+  // Captured claude-cli 2.1.259 with mid-conversation-system enabled closes
+  // its tool-result delta with a trailing system-role reminder turn
+  // (assistant[tool_use] -> user[tool_result] -> system[text]). Newer
+  // clients (2.1.261) embed the reminder in the user tool_result and need
+  // no opt-in. The generic helpers reject role=system, which forced a full
+  // fresh replay; the opt-in must resume the checkpoint and deliver the
+  // reminder as unprivileged user text.
   it("stream: resumes the checkpoint through the claude-code trailing system reminder", async () => {
     const sessionId = `cc-delta-${TEST_RUN_ID}`
     const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."

@@ -400,7 +400,7 @@ describe("claude-code trailing system delta", () => {
   })
   const opts = { allowClaudeCodeSystemDelta: true }
 
-  it("accepts the live delta: complete expected-ID echo, results, trailing reminder", () => {
+  it("accepts the captured delta: complete expected-ID echo, results, trailing reminder", () => {
     const results = [result("t1"), result("t2")]
     // String and text-block-with-cache_control reminder forms pass through
     // as-is; cache_control is stripped by the caller's existing strip path.
