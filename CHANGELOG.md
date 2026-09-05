@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.68.0](https://github.com/rynfar/meridian/compare/meridian-v1.67.0...meridian-v1.68.0) (2026-09-05)
+
+
+### Features
+
+* **openai:** support structured output via response_format ([#930](https://github.com/rynfar/meridian/issues/930)) ([db9546c](https://github.com/rynfar/meridian/commit/db9546c908d4fa86cf2af0577da5c9703a9374f7))
+
+
+### Bug Fixes
+
+* classify CLI model incompatibility without false client errors ([3ce6a57](https://github.com/rynfar/meridian/commit/3ce6a57d6e2b3508342a216c7bba8e8af5158b6e))
+* finish Claude Code reminder validation ([82164d2](https://github.com/rynfar/meridian/commit/82164d22ad8ad6fc9e76a7110eadfb61f55117cf))
+* isolate concurrent Pi replays and committed tool caches ([04d1c93](https://github.com/rynfar/meridian/commit/04d1c93bf757b31c7cf48600812270005ce5bacf))
+* preserve account attribution and SDK billing failover ([#961](https://github.com/rynfar/meridian/issues/961)) ([1ae1810](https://github.com/rynfar/meridian/commit/1ae1810dc2a24250c4a3f4d21546b03e56b9b388)), closes [#829](https://github.com/rynfar/meridian/issues/829)
+* preserve client context across proxy workdirs ([#959](https://github.com/rynfar/meridian/issues/959)) ([288cc10](https://github.com/rynfar/meridian/commit/288cc105c8adecac12f340cbd33eb4ea14a58748))
+* preserve fresh-request admission after passive retirement ([235c4ac](https://github.com/rynfar/meridian/commit/235c4ac23eb4089a7ce344004c15a4ab436a0102))
+* preserve replay tool history and protect transcript publication ([6e2d24c](https://github.com/rynfar/meridian/commit/6e2d24ce47af8d595ca6eb854d029fadd896d199))
+* preserve safe appended context and deliver resume deltas atomically ([9d28328](https://github.com/rynfar/meridian/commit/9d2832885686b20f9a09326d2ff22afddf12a06c))
+* recover capped passthrough turns without hiding empty answers ([9d22324](https://github.com/rynfar/meridian/commit/9d223244000e97100488785770d84405f1bda598))
+* repair passthrough arguments without weakening tool schemas ([4c67144](https://github.com/rynfar/meridian/commit/4c671447a5b19e731b62e2cf5fefd33520850982))
+* replay revised passthrough turns with faithful checkpoints ([879f2be](https://github.com/rynfar/meridian/commit/879f2be97a3e62246d3e761899948d258d1ee863))
+* replay undo histories that exceed the rollback boundary ([#939](https://github.com/rynfar/meridian/issues/939)) ([4135922](https://github.com/rynfar/meridian/commit/41359222c5270dfec5dda74deacdbecebed1b70b))
+* resume Claude Code reminders without losing history ([fb8f3a3](https://github.com/rynfar/meridian/commit/fb8f3a39c709196a7538075085e9606604e067d9))
+* separate lineage hash domains and preserve result semantics ([5ba7c2b](https://github.com/rynfar/meridian/commit/5ba7c2b2bb7f3f7dc0adec3938ae7cb8ff618b79))
+* stop repeated idle stalls across client retry policies ([#960](https://github.com/rynfar/meridian/issues/960)) ([6365ae0](https://github.com/rynfar/meridian/commit/6365ae0ed5445fbf6ea5c89055919570a7c76406))
+* support validated OpenCode beta plugin packages ([#958](https://github.com/rynfar/meridian/issues/958)) ([cc179fa](https://github.com/rynfar/meridian/commit/cc179faf96df1adcae5d9ef0493c72c198867229))
+* update vulnerable URI and HTTP dependencies ([cc4f761](https://github.com/rynfar/meridian/commit/cc4f76178d6d1af63788fc9937aeaef386147173))
+
 ## [1.67.0](https://github.com/rynfar/meridian/compare/meridian-v1.66.0...meridian-v1.67.0) (2026-09-04)
 
 
