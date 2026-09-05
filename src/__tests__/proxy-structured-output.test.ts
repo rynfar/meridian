@@ -111,6 +111,39 @@ describe("native structured output", () => {
     else process.env.MERIDIAN_PASSTHROUGH = originalPassthrough
   })
 
+  for (const stream of [false, true]) {
+    it(`internal StructuredOutput cannot leave a passthrough checkpoint (stream=${stream})`, async () => {
+      const key = crypto.randomUUID()
+      mockMessages = [
+        { type: "assistant", uuid: crypto.randomUUID(), session_id: "structured-session", message: {
+          role: "assistant", content: [{ type: "tool_use", id: "internal-format", name: "StructuredOutput", input: { answer: "grounded" } }],
+        } },
+        { type: "user", uuid: crypto.randomUUID(), session_id: "structured-session", message: {
+          role: "user", content: [{ type: "tool_result", tool_use_id: "internal-format", content: "Structured output provided successfully" }],
+        } },
+        resultMessage({ answer: "grounded" }),
+      ]
+      const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+      const first = await app.fetch(request(stream, undefined, {}, key))
+      expect(first.status).toBe(200)
+      await first.text()
+      const stored = lookupSharedSessionResult(key)
+      if (stored.status !== "found") throw new Error("Structured result was not published")
+      expect(stored.session.passthroughToolCallAssistantUuid).toBeUndefined()
+      expect(stored.session.passthroughToolCallIds?.length ?? 0).toBe(0)
+      mockMessages = [resultMessage({ answer: "grounded" })]
+      const next = await app.fetch(request(stream, undefined, { messages: [
+        { role: "user", content: "Return an answer." },
+        { role: "assistant", content: '{"answer":"grounded"}' },
+        { role: "user", content: "Repeat the answer." },
+      ] }, key))
+      expect(next.status).toBe(200)
+      await next.text()
+      expect(capturedOptions.resume).toBe(stored.session.claudeSessionId)
+      expect(capturedOptions.resumeSessionAt).toBeUndefined()
+    })
+  }
+
   it("maps output_config.format to the Agent SDK and returns authoritative JSON", async () => {
     mockMessages = [resultMessage({ answer: "grounded" })]
     const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app

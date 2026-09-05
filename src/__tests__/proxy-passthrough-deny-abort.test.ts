@@ -714,3 +714,121 @@ describe("envelope integrity tripwire", () => {
     expect(after - before).toBe(0)
   })
 })
+
+describe("dropped duplicate tool_use is excluded from persisted checkpoint", () => {
+  let origEnv: string | undefined
+  let origEarlyStop: string | undefined
+
+  beforeEach(() => {
+    origEnv = process.env.MERIDIAN_PASSTHROUGH
+    origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    process.env.MERIDIAN_PASSTHROUGH = "1"
+    delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP // early stop ON (default)
+    mockTurns = []
+    capturedController = undefined
+    capturedResume = undefined
+    clearSessionCache()
+  })
+
+  afterEach(() => {
+    if (origEnv === undefined) delete process.env.MERIDIAN_PASSTHROUGH
+    else process.env.MERIDIAN_PASSTHROUGH = origEnv
+    if (origEarlyStop === undefined) delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    else process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = origEarlyStop
+  })
+
+  function streamEvent(event: Record<string, unknown>) {
+    return { type: "stream_event", event, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session" }
+  }
+
+  function duplicateTurn() {
+    // Two tool_use blocks: same name + same input → second is an exact duplicate
+    const turn = toolTurn("toolu_d1", "read", { filePath: "a.txt" })
+    turn.message.content = [
+      { type: "tool_use", id: "toolu_d1", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+      { type: "tool_use", id: "toolu_d2", name: `${PASSTHROUGH_PREFIX}read`, input: { filePath: "a.txt" } },
+    ]
+    return turn
+  }
+
+  function denyUser(ids: string[]) {
+    return {
+      type: "user",
+      message: {
+        role: "user",
+        content: ids.map((id) => ({
+          type: "tool_result",
+          tool_use_id: id,
+          is_error: true,
+          content: "This tool call has been forwarded to the client for execution. " +
+            "The result will be delivered in a future turn. " +
+            "Do not retry, do not call additional tools, and do not generate further text — end your turn now.",
+        })),
+      },
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      session_id: "test-session",
+    }
+  }
+
+  for (const stream of [false, true]) {
+  it(`checkpoint matches the visible calls and resumes (stream=${stream})`, async () => {
+    // First turn: model emits two reads, second is an exact duplicate.
+    // The hook drops toolu_d2 (isExactDuplicate) → added to droppedToolUseIds.
+    // Non-stream hides d2; streaming already delivered both. Match that set.
+    mockTurns = [
+      ...(stream ? [streamMessageStart(), ...["toolu_d1", "toolu_d2"].flatMap((id, index) => [
+        streamEvent({ type: "content_block_start", index, content_block: { type: "tool_use", id, name: `${PASSTHROUGH_PREFIX}read`, input: {} } }),
+        streamEvent({ type: "content_block_delta", index, delta: { type: "input_json_delta", partial_json: '{"filePath":"a.txt"}' } }),
+        streamEvent({ type: "content_block_stop", index }),
+      ]), streamEvent({ type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 30 } })] : []),
+      duplicateTurn(),
+      denyUser(["toolu_d1", "toolu_d2"]),
+      { type: "assistant", message: {
+        id: "msg_digest", type: "message", role: "assistant",
+        content: [{ type: "text", text: "hidden digest" }],
+        model: "claude-sonnet-4-5-20250929", stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 10 },
+      }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session" },
+      { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    const first = await post(app, stream)
+    expect(first.status).toBe(200)
+
+    const firstRaw = await first.text()
+    const visibleIds = stream
+      ? firstRaw.split("\n").filter(line => line.startsWith("data:")).map(line => JSON.parse(line.slice(5)))
+        .filter(event => event.type === "content_block_start" && event.content_block?.type === "tool_use")
+        .map(event => event.content_block.id)
+      : JSON.parse(firstRaw).content.filter((block: { type: string }) => block.type === "tool_use").map((block: { id: string }) => block.id)
+    expect(visibleIds).toEqual(stream ? ["toolu_d1", "toolu_d2"] : ["toolu_d1"])
+    const { lookupSharedSession } = await import("../proxy/sessionStore")
+    const stored = lookupSharedSession("deny-abort-session")
+    expect(stored?.passthroughToolCallIds).toEqual(visibleIds)
+
+    // Follow-up: client sends back the real result for toolu_d1 only.
+    // If the checkpoint incorrectly included toolu_d2, isCompleteToolResultContinuation
+    // would fail (expected size 2, actual size 1) and the request would fresh-replay.
+    mockTurns = [
+      { type: "assistant", message: {
+        id: "msg_final", type: "message", role: "assistant",
+        content: [{ type: "text", text: "File read successfully." }],
+        model: "claude-sonnet-4-5-20250929", stop_reason: "end_turn",
+        usage: { input_tokens: 10, output_tokens: 10 },
+      }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "test-session" },
+    ]
+    capturedResume = undefined
+    const second = await post(app, stream, [
+      { role: "user", content: "Do the thing." },
+      { role: "assistant", content: visibleIds.map((id: string) => ({ type: "tool_use", id, name: "read", input: { filePath: "a.txt" } })) },
+      { role: "user", content: visibleIds.map((id: string) => ({ type: "tool_result", tool_use_id: id, content: "contents of a.txt" })) },
+    ])
+    expect(second.status).toBe(200)
+    await second.text()
+    // Must resume — if the checkpoint included toolu_d2, this would fresh-replay
+    expect(stored?.claudeSessionId).toBeDefined()
+    expect(capturedResume ?? "(not resumed)").toBe(stored?.claudeSessionId ?? "(missing mapping)")
+  })
+  }
+})

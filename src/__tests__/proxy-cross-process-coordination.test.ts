@@ -217,7 +217,7 @@ function spawnProxyWorker(
   id: string,
   clientSessionId: string,
   messages: Array<{ role: string, content: unknown }>,
-  options: { adapter?: "pi"; stream?: boolean } = {},
+  options: { adapter?: "pi"; stream?: boolean; passthrough?: boolean } = {},
 ): WorkerHandle {
   const releaseFile = join(paths.base, `release-${id}`)
   const requestBody = JSON.stringify({
@@ -233,7 +233,7 @@ function spawnProxyWorker(
       SERVER_MODULE: serverModule,
       SESSION_STORE_MODULE: sessionStoreModule,
       MERIDIAN_SESSION_DIR: paths.sessions,
-      MERIDIAN_PASSTHROUGH: "0",
+      MERIDIAN_PASSTHROUGH: options.passthrough ? "1" : "0",
       CLAUDE_PROXY_PASSTHROUGH: "0",
       MERIDIAN_MAX_CONCURRENT: "8",
       MERIDIAN_SESSION_TURN_ACQUIRE_TIMEOUT_MS: "5000",
@@ -345,6 +345,36 @@ describe("proxy coordination across OS processes", () => {
         expect(followupSdk.resume).toBe(firstName === "side" ? waiterSdk.sdkSessionId! : null)
         await release(followup)
         expect((await result(paths, followup)).status).toBe(200)
+      }, 20_000)
+    }
+  }
+
+  for (const stream of [false, true]) {
+    for (const passthrough of [false, true]) {
+      test(`modified-history conflict is replayable only in passthrough across processes: passthrough=${passthrough}, stream=${stream}`, async () => {
+        const paths = await makePaths()
+        const key = `modified-${stream}-${passthrough}`
+        const opening = [{ role: "user", content: "shared fixture" }, { role: "assistant", content: "ok" },
+          { role: "user", content: "old fixture value" }]
+        const revised = [...opening.slice(0, 2), { role: "user", content: "revised fixture value" },
+          { role: "assistant", content: "revised decision" }, { role: "user", content: "repeat the decision" }]
+        const owner = spawnProxyWorker(paths, "modified-owner", key, opening, { stream, passthrough })
+        const ownerSdk = await waitForEvent(paths.events, owner.id, "sdk-start")
+        const waiter = spawnProxyWorker(paths, "modified-waiter", key, revised, { stream, passthrough })
+        await waitForEvent(paths.events, waiter.id, "arrival-snapshot")
+        expect((await readEvents(paths.events)).some(row => row.workerId === waiter.id && row.name === "sdk-start")).toBe(false)
+        await release(owner)
+        expect((await result(paths, owner)).status).toBe(200)
+        if (passthrough) {
+          const waiterSdk = await waitForEvent(paths.events, waiter.id, "sdk-start")
+          expect(waiterSdk.resume).toBeNull()
+          expect(waiterSdk.sdkSessionId).not.toBe(ownerSdk.sdkSessionId)
+          await release(waiter)
+          expect((await result(paths, waiter)).status).toBe(200)
+        } else {
+          expect((await result(paths, waiter)).status).toBe(400)
+          expect((await readEvents(paths.events)).some(row => row.workerId === waiter.id && row.name === "sdk-start")).toBe(false)
+        }
       }, 20_000)
     }
   }

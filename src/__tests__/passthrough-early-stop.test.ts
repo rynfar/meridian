@@ -53,6 +53,11 @@ describe("isClientForwardedToolUse", () => {
     expect(isClientForwardedToolUse(toolUse("t2", "Bash"))).toBe(true)
   })
 
+  it("excludes SDK StructuredOutput but preserves a client MCP tool with that name", () => {
+    expect(isClientForwardedToolUse(toolUse("internal", "StructuredOutput"))).toBe(false)
+    expect(isClientForwardedToolUse(toolUse("client", "mcp__oc__StructuredOutput"))).toBe(true)
+  })
+
   it("excludes ToolSearch (internal, SDK-executed for deferred loading)", () => {
     expect(isClientForwardedToolUse(toolUse("t1", "ToolSearch"))).toBe(false)
   })
