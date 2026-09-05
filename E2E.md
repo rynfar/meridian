@@ -3746,3 +3746,9 @@ Run the direct gate with `--blank-reminder` in both response modes, with and wit
 Run `bun scripts/e2e-claude-code-client.mjs` for the full installed Claude Code 2.1.259 → Meridian → real SDK loop. `E2E_CLAUDE_CLIENT` can name that exact client binary. The fixture isolates the outer client's settings and enables its `CLAUDE_CODE_FORCE_MID_CONVERSATION_SYSTEM` flag; `--bare` suppresses the shape and is unsuitable. The real CLI reads a disposable fixture, sends its native `<total_tokens>` system reminder, then resumes for an ordinary follow-up. Require both proxy continuations to resume, delivery of both reminders to SDK user history, correct answers, and unchanged source history.
 
 `--capture` runs only the real client's wire-format probe against a scripted local endpoint. It does not contact the SDK and is not a substitute for the full E2E gate. The fixture checks the exact client version; newer versions are separate compatibility targets. This case does not validate OpenCode/Orca cross-tool session ownership (#946).
+
+## CLI model-version rejection
+
+Run `E2E_CLAUDE_PATH=/path/to/old/claude bun scripts/e2e-cli-model-version.mjs --expect-rejection` and again with `--stream`. Use an old CLI that actually rejects the default `fable` model (2.1.177 was validated). Require HTTP 400/invalid_request_error or a single actionable SSE invalid_request_error without message_stop, the installed/required versions and override remedy, and exactly one proxy SDK query.
+
+Run the same old binary with `E2E_MODEL=claude-haiku-4-5-20251001`, omitting `--expect-rejection`, in both modes. Then omit both overrides to validate the bundled CLI with `fable` in both modes. Supported requests must return exactly READY. Each run isolates Meridian config, sessions and working directory; it does not change the installed CLI or subscription credentials.

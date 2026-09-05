@@ -193,7 +193,16 @@ const OVERFLOW_PHRASES = [
  *  an unsupported *tool* or *flag* ("this tool does not support streaming
  *  input") cannot take the branch: that is a different failure with a
  *  different remedy. */
-const CLI_MODEL_UNSUPPORTED = /claude code(?: \d[\w.]*)? does not support this model/
+// Require an error-message opening, after only known SDK/CLI wrappers. A
+// quoted phrase in a tool error or overload diagnostic is not this rejection:
+// falsely returning 400 would prevent a legitimate retry. Only the observed
+// 400 wrapper is admitted. A bare phrase on a later diagnostic line is not
+// an error opening; only the server's explicit stderr marker reopens one.
+const CLI_MODEL_UNSUPPORTED = new RegExp(
+  String.raw`(?:^\s*|\r?\n[ \t]*subprocess stderr:\s*)`
+  + String.raw`(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*(?:400\s+)?)*`
+  + String.raw`claude code(?: \d[\w.+-]*)? does not support this model\b`,
+)
 
 /** Either the phrase opens a line (after the known SDK/CLI wrappers), or it
  *  opens the `message` value of an API error envelope — `API Error: 400
