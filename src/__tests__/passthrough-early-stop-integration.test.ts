@@ -1151,13 +1151,12 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.options.forkSession).toBe(true)
   })
 
-  // Captured claude-cli 2.1.259 with mid-conversation-system enabled closes
-  // its tool-result delta with a trailing system-role reminder turn
-  // (assistant[tool_use] -> user[tool_result] -> system[text]). Newer
-  // clients (2.1.261) embed the reminder in the user tool_result and need
-  // no opt-in. The generic helpers reject role=system, which forced a full
-  // fresh replay; the opt-in must resume the checkpoint and deliver the
-  // reminder as unprivileged user text.
+  // Captured from claude-cli with mid-conversation-system enabled (2.1.259
+  // in staging; reproduced on 2.1.261): the client closes its tool-result
+  // delta with a trailing system-role reminder turn (assistant[tool_use] ->
+  // user[tool_result] -> system[text]). The generic helpers reject
+  // role=system, which forced a full fresh replay; the opt-in must resume
+  // the checkpoint and deliver the reminder as unprivileged user text.
   it("stream: resumes the checkpoint through the claude-code trailing system reminder", async () => {
     const sessionId = `cc-delta-${TEST_RUN_ID}`
     const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."
@@ -1256,6 +1255,134 @@ describe("Integration: passthrough early stop", () => {
     }
     expect(row).toBeDefined()
     expect(row!.isResume).toBe(true)
+  })
+
+  // Fail-closed twin of the accepted shape above: a SECOND trailing system
+  // message breaks the one-reminder contract, so the whole continuation
+  // must fail closed to a fresh replay — no resume options at all.
+  it("stream: two trailing system reminders fail closed to a fresh replay", async () => {
+    const sessionId = `cc-delta-fc-${TEST_RUN_ID}`
+    const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."
+    const firstReminder = "<system-reminder>Total tokens: 4151</system-reminder>"
+    const secondReminder = "<system-reminder>Context low</system-reminder>"
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "cc-delta-fc-tu1", name: "read", input: { file_path: "x" } },
+    ])
+
+    // Turn 1 mirrors the accepted test: arm the checkpoint.
+    mockMessages = [
+      messageStart("msg_cc_delta_fc_1"),
+      toolUseBlockStart(0, "read", "cc-delta-fc-tu1"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("cc-delta-fc-tu1"),
+      assistantMessage([{ type: "text", text: "CC_DELTA_FC_GARBAGE_DIGEST" }]),
+    ]
+    const first = await postClaudeCode(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "system", content: [{ type: "text", text: initialSystemText, cache_control: { type: "ephemeral" } }] },
+      ],
+    }, sessionId)
+    expect(first.status).toBe(200)
+    await first.text()
+    let stored: any
+    for (let i = 0; i < 500 && !stored?.passthroughToolCallAssistantUuid; i++) {
+      stored = lookupSharedSession(sessionId)
+      if (!stored?.passthroughToolCallAssistantUuid) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(stored?.passthroughToolCallIds).toEqual(["cc-delta-fc-tu1"])
+
+    // Turn 2: the accepted delta, but with TWO trailing system messages.
+    mockMessages = [
+      messageStart("msg_cc_delta_fc_2"),
+      textBlockStart(0),
+      textDelta(0, "fresh replay answer"),
+      blockStop(0),
+      messageDelta("end_turn"),
+      messageStop(),
+      assistantMessage([{ type: "text", text: "fresh replay answer" }]),
+    ]
+    const requestId = `cc-delta-fc-turn2-${TEST_RUN_ID}`
+    const second = await postClaudeCode(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "system", content: initialSystemText },
+        { role: "assistant", content: [{ type: "tool_use", id: "cc-delta-fc-tu1", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "cc-delta-fc-tu1", content: "hi" }] },
+        { role: "system", content: [{ type: "text", text: firstReminder }] },
+        { role: "system", content: [{ type: "text", text: secondReminder }] },
+      ],
+    }, sessionId, { "x-request-id": requestId })
+    expect(second.status).toBe(200)
+    expect(await second.text()).toContain("message_stop")
+
+    // Checkpoint rejected → fresh structured replay: no resume options at all,
+    // and neither reminder reaches the SDK system prompt.
+    const replayed = capturedQueryParamsAll[1]
+    expect(replayed.options.resume).toBeUndefined()
+    expect(replayed.options.resumeSessionAt).toBeUndefined()
+    expect(JSON.stringify(replayed.options.systemPrompt ?? "")).not.toContain(firstReminder)
+    expect(JSON.stringify(replayed.options.systemPrompt ?? "")).not.toContain(secondReminder)
+
+    let row: any
+    for (let i = 0; i < 500 && !row; i++) {
+      row = telemetryStore.getRecent({ limit: 200 }).find((m: any) => m.requestId === requestId)
+      if (!row) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(row).toBeDefined()
+    expect(row!.isResume).toBe(false)
+  })
+
+  // The gate lives in server.ts, not in the helper default: the exact wire
+  // shape the claude-code adapter accepts must stay a fresh replay on any
+  // other adapter, which never passes the opt-in.
+  it("stream: non-claude-code adapters never opt in — reminder shape stays a fresh replay", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "oc-gate-tu1", name: "read", input: { file_path: "x" } },
+    ])
+
+    // Turn 1 through the generic OpenCode adapter: arm the checkpoint.
+    mockMessages = [toolTurn, userDenyMessage("oc-gate-tu1")]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read gate x" }],
+    }, "es-oc-gate")
+    expect(first.status).toBe(200)
+    await first.text()
+
+    // Turn 2: the exact accepted shape (echo, result, one trailing system
+    // reminder) — but the x-opencode-session adapter carries no opt-in.
+    mockMessages = [assistantMessage([{ type: "text", text: "continued" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read gate x" },
+        { role: "assistant", content: [{ type: "tool_use", id: "oc-gate-tu1", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "oc-gate-tu1", content: "hi" }] },
+        { role: "system", content: [{ type: "text", text: "<system-reminder>Tokens: 4151</system-reminder>" }] },
+      ],
+    }, "es-oc-gate")
+    expect(second.status).toBe(200)
+    await second.text()
+    expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
   })
 
   it("stream: waits for late parallel assistant metadata before freezing the checkpoint", async () => {

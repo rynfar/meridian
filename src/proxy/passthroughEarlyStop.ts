@@ -164,21 +164,23 @@ export function allForwardedCallsResolved(tracker: EarlyStopTracker): boolean {
  */
 export interface CompleteToolResultContinuationOptions {
   /**
-   * NOTE: agent-specific (claude-code) — claude-cli 2.1.259 with
-   * mid-conversation-system enabled closes its tool-result delta with a
-   * trailing `system` reminder turn (`assistant[tool_use] ->
-   * user[tool_result] -> system[text]`, a `<total_tokens>`-style message).
-   * The generic Anthropic contract has no system role in `messages`, so
-   * that captured shape is admitted only under this explicit opt-in, only
-   * as the final message of the delta, and only with a single assistant
-   * echo carrying the complete exact expected ID set. The reminder is
-   * delivered as unprivileged user text after the results and any queued
-   * user content — never dropped, never escalated to an SDK system prompt.
-   * Newer clients (observed on 2.1.261) fold the reminder into the user
-   * tool_result instead and need no system-role opt-in — which is why this
-   * stays scoped to the captured shape.
+   * NOTE: agent-specific (claude-code) — with Claude Code's
+   * `mid-conversation-system` feature enabled (beta
+   * `mid-conversation-system-2026-04-07`), claude-cli closes its
+   * tool-result delta with a trailing `system` reminder turn
+   * (`assistant[tool_use] -> user[tool_result] -> system[text]`, a
+   * `<total_tokens>`-style message); observed on 2.1.259 and 2.1.261.
+   * With the feature off the same clients fold the reminder into the
+   * user tool_result and need no opt-in — the gate is the feature, not
+   * the version. The generic Anthropic contract has no system role in
+   * `messages`, so that shape is admitted only under this explicit
+   * opt-in, only as the final message of the delta, and only with a
+   * single assistant echo carrying the complete exact expected ID set.
+   * The reminder is delivered as unprivileged user text after the
+   * results and any queued user content — never dropped, never
+   * escalated to an SDK system prompt.
    */
-  allowClaudeCodeSystemDelta?: boolean
+  allowTrailingSystemReminder?: boolean
 }
 
 /**
@@ -200,28 +202,24 @@ export function coalesceCompleteToolResultContinuation(
   let sawUser = false
   let sawNonToolResult = false
   let sawTrailingSystem = false
-  let systemTextBlocks: unknown[] = []
+  const systemTextBlocks: unknown[] = []
   let echoMessages = 0
 
   for (const message of messages) {
-    // NOTE: agent-specific (claude-code) — the captured 2.1.259 shape
-    // carries exactly one trailing system reminder AFTER the result batch;
-    // nothing may follow it, and leading/late/repeated reminders fail
-    // closed. Without the opt-in this branch is dead and the generic
-    // rejection below applies.
+    // Opt-in trailing reminder: the admitted shape lives on the allowTrailingSystemReminder JSDoc above; without the opt-in this branch is dead and the generic rejection below applies.
     if (message.role === "system") {
-      if (!options?.allowClaudeCodeSystemDelta) return undefined
+      if (!options?.allowTrailingSystemReminder) return undefined
       if (!sawUser || sawTrailingSystem) return undefined
       sawTrailingSystem = true
       if (typeof message.content === "string") {
-        if (message.content.length === 0) return undefined
+        if (message.content.trim().length === 0) return undefined
         systemTextBlocks.push({ type: "text", text: message.content })
         continue
       }
       if (Array.isArray(message.content)) {
         for (const rawBlock of message.content) {
           const block = rawBlock as { type?: unknown; text?: unknown } | null | undefined
-          if (block?.type !== "text" || typeof block.text !== "string" || block.text.length === 0) return undefined
+          if (block?.type !== "text" || typeof block.text !== "string" || block.text.trim().length === 0) return undefined
           // Pass blocks through untouched; cache_control is stripped by the
           // caller's existing strip path before the SDK sees the prompt.
           systemTextBlocks.push(block)
@@ -278,10 +276,10 @@ export function coalesceCompleteToolResultContinuation(
     actual.size !== expected.size ||
     (echoedCalls.size !== 0 && echoedCalls.size !== expected.size)
   ) return undefined
-  // A system reminder is a captured 2.1.259 delta only with a single
-  // assistant echo carrying the complete expected ID set; a split, partial,
-  // or absent echo proves nothing causal and the replay must stay fresh.
-  // (Adjacent thinking/text blocks stay tolerated, as without the reminder.)
+  // A reminder-bearing delta is admitted only behind a single assistant echo
+  // carrying the complete expected ID set; a split, partial, or absent echo
+  // proves nothing causal and the replay must stay fresh. (Adjacent
+  // thinking/text blocks stay tolerated, as without the reminder.)
   if (sawTrailingSystem && (echoMessages !== 1 || echoedCalls.size !== expected.size)) return undefined
   // Delivered after the results and any queued user content, matching the
   // wire order; nothing ever follows the reminder on the wire.

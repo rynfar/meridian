@@ -2178,19 +2178,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const durableCheckpointIds = durableMappingAtTurn.status === "found"
           ? durableMappingAtTurn.session.passthroughToolCallIds
           : undefined
-        // NOTE: agent-specific (claude-code) — claude-cli 2.1.259 with
-        // mid-conversation-system enabled closes its tool-result delta with
-        // a trailing system-role reminder turn (`assistant[tool_use] ->
-        // user[tool_result] -> system[text]`). The generic checkpoint
-        // helpers reject every role=system message, which turned each such
-        // continuation into a full fresh replay. The opt-in admits that
-        // captured shape for this adapter only, gated on the single
-        // complete expected-ID echo.
-        const claudeCodeSystemDeltaOptions = adapterBase === "claude-code"
-          ? { allowClaudeCodeSystemDelta: true }
+        // NOTE: agent-specific (claude-code) — the shape comes from Claude Code's mid-conversation-system feature (seen on claude-cli 2.1.259 and 2.1.261), admitted only for this adapter; rationale: the allowTrailingSystemReminder JSDoc in passthroughEarlyStop.
+        const trailingSystemReminderOptions = adapterBase === "claude-code"
+          ? { allowTrailingSystemReminder: true }
           : undefined
         const durableCheckpointContinuation = durableCheckpointIds?.length
-          ? findCompleteToolResultCheckpoint(body.messages || [], durableCheckpointIds, claudeCodeSystemDeltaOptions)
+          ? findCompleteToolResultCheckpoint(body.messages || [], durableCheckpointIds, trailingSystemReminderOptions)
           : undefined
         const advancesDurableCheckpoint = Boolean(durableCheckpointContinuation)
         if (
@@ -2505,7 +2498,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const checkpointContinuation = coalesceCompleteToolResultContinuation(
           messagesToConvert,
           passthroughToolCallIds ?? [],
-          claudeCodeSystemDeltaOptions,
+          trailingSystemReminderOptions,
         )
         if (checkpointContinuation) {
           messagesToConvert = checkpointContinuation
