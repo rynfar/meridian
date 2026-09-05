@@ -56,7 +56,7 @@ describe("meridian setup CLI", () => {
     })
   }
 
-  test("installs the V2 source plugin for the exact beta through an npm-style shim", () => {
+  test("installs the V2 source plugin package for a supported beta through an npm-style shim", () => {
     const binary = writeVersionCommand(root, "opencode2 v0.0.0-beta-18314")
     const result = runSetup(["--v2", "--opencode-bin", binary])
 
@@ -64,7 +64,16 @@ describe("meridian setup CLI", () => {
     expect(result.stdout).toContain("configured for OpenCode V2")
     const config = JSON.parse(readFileSync(configPath, "utf8"))
     expect(config.plugins).toHaveLength(1)
-    expect(config.plugins[0]).toEndWith(join("plugin", "meridian-v2.ts"))
+    expect(config.plugins[0]).toEndWith(join("plugin", "meridian-v2"))
+  })
+
+  test("installs the V2 source plugin package for beta 18866", () => {
+    const binary = writeVersionCommand(root, "opencode2 v0.0.0-beta-18866")
+    const result = runSetup(["--v2", "--opencode-bin", binary])
+
+    expect(result.status).toBe(0)
+    const config = JSON.parse(readFileSync(configPath, "utf8"))
+    expect(config.plugins[0]).toEndWith(join("plugin", "meridian-v2"))
   })
 
   test("preserves the V1 setup path when explicitly selected", () => {

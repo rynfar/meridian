@@ -25,7 +25,7 @@ import {
   type MutableHeaders,
 } from "./priority-attestation"
 
-/** Exact V2 host used to compile and validate this beta-only integration. */
+/** SDK contract used to compile this plugin; setup gates separately validated host versions. */
 export const SUPPORTED_OPENCODE_V2_VERSION = "0.0.0-beta-18314"
 
 const MERIDIAN_PROVIDERS = new Set(["anthropic", "meridian"])

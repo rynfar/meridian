@@ -213,7 +213,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
-| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Manual**, pinned `@opencode-ai/cli@0.0.0-beta-18314`: hidden title/summary isolation, durable continuation and restart, passthrough tools, supported undo/fork/compaction, and concurrent general subagents. **Run after any V2 plugin/API change; another beta version is not a pass** | 2026-08-27 |
+| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction and overlapping general children. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3716,21 +3716,42 @@ hidden title/summary work, attached compaction, and child sessions without
 changing request bodies. It also proves that durable primary lineage survives
 real V2 tools, a Meridian restart, undo, fork, and parallel subagents.
 
-Use only the pinned beta. The beta CLI can update itself, so verify the version
-before and after the run and disable automatic updates:
+Validate both supported hosts, `0.0.0-beta-18314` and `0.0.0-beta-18866`.
+The beta CLI can update itself, so the automated gate verifies its exact version
+before and after each run and disables automatic updates. Use isolated installs:
 
 ```bash
-npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-18314
-export OPENCODE_DISABLE_AUTOUPDATE=1
-BIN=$HOME/.local/bin/opencode2
-$BIN --version                 # → opencode2 v0.0.0-beta-18314
+npm install --prefix /tmp/opencode-18314 @opencode-ai/cli@0.0.0-beta-18314
+npm install --prefix /tmp/opencode-18866 @opencode-ai/cli@0.0.0-beta-18866
 npm run build
-meridian setup --v2 --opencode-bin "$BIN"
+E2E_OPENCODE_BIN=/tmp/opencode-18314/node_modules/.bin/opencode2 bun scripts/e2e-opencode-v2-package.mjs --live --extended
+E2E_OPENCODE_BIN=/tmp/opencode-18866/node_modules/.bin/opencode2 bun scripts/e2e-opencode-v2-package.mjs --live --extended
 ```
+
+Without `--live`, this uses the actual client against a scripted local API. It
+requires successful file reading and the exact tool result reaching the API,
+continuation, detached title/summary requests, and independent fork/original
+histories. `--source` runs setup from TypeScript and loads the source package.
+Set `E2E_MERIDIAN_ROOT` to an independently installed `npm pack` consumer to test
+the shipped package without development dependencies. Run both betas in source
+and consumer modes. `--v1` with the pinned V1 `opencode@1.18.11` executable is the
+V1 package compatibility control (install the `opencode-ai` npm package).
+
+`--live --extended` routes actual client traffic through a disposable Meridian
+subprocess and Claude Max. It additionally checks a true proxy process restart,
+supported undo and compaction APIs, and overlapping general child sessions.
+Ordinary and restart continuations must resume a distinct durable SDK fork and
+read at least 95% of the previous cached prefix. The local client API uses a
+fixture-only password; only its disposable directory receives extra file access.
+
+Run `scripts/e2e-opencode-package-integrity.mjs` and again with `--manifest`,
+using the same `E2E_OPENCODE_BIN`. They copy the build into a disposable install,
+remove the entry or manifest, and require setup to reject it without changing
+the existing configuration. This must fail against the original #924 proposal.
 
 Use an isolated `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`,
 `XDG_STATE_HOME`, project directory, and `MERIDIAN_SESSION_STORE_DIR`. The
-OpenCode config must load only `dist/meridian-v2.js` plus the Anthropic provider
+OpenCode config must load only `dist/meridian-v2` plus the Anthropic provider
 pointed at the test Meridian port. Do not use third-party plugins, MCP servers,
 custom agents, or unrelated credentials for this gate.
 
@@ -3766,7 +3787,7 @@ Run this real-client sequence:
 - Ordinary continuation reads the cached prefix; restart continuation uses the
   same durable mapping; undo logs `lineage=undo`; fork and original histories
   remain isolated.
-- The packaged `dist/meridian-v2.js` is the plugin under test, not the TypeScript
+- The packaged `dist/meridian-v2` is the plugin under test, not the TypeScript
   source or a diagnostic plugin.
 
 **Verified:** 2026-08-27 on `0.0.0-beta-18314`. The exact pinned binary returned
