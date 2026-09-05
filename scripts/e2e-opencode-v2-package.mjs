@@ -77,7 +77,9 @@ const endpoint = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request
   if (primary && primaryRequests > 1 && body.messages.some(message => Array.isArray(message.content) && message.content.some(block =>
     block.type === 'tool_result' && block.tool_use_id === 'toolu_beta_read' && JSON.stringify(block.content).includes(receipt)))) deliveredResultSeen = true
   const text = receipt
-  const toolInput = { filePath: fixturePath }
+  const pathKey = read?.input_schema?.properties?.path ? 'path' : 'filePath'
+  if (read) assert(read.input_schema.properties[pathKey], 'Read tool has no supported file path property')
+  const toolInput = { [pathKey]: fixturePath }
   const events = [
     { type: 'message_start', message: { id: `msg_${requests.length}`, type: 'message', role: 'assistant', content: [], model: body.model,
       stop_reason: null, stop_sequence: null, usage: { input_tokens: 100, output_tokens: 0 } } },
@@ -242,6 +244,7 @@ try {
   assert.equal((await run([client, '--version'])).trim(), version)
   console.log(JSON.stringify({ result: 'PASS', version, source, live, extended, root, session, requests, resumeEvidence }))
 } finally {
+  console.log(JSON.stringify({ requestTrace: requests }))
   if (server) { server.kill(); await server.exited; console.log(JSON.stringify({ serverOutput: await serverOutput })) }
   await endpoint.stop(true)
   await proxy?.close()
