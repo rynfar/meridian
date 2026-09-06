@@ -185,3 +185,46 @@ describe("createResponsesSseTranslator with aliases", () => {
     expect(done).toEqual({ type: "custom_tool_call", id: "fc_toolu_p", call_id: "toolu_p", name: "apply_patch", input: "*** Begin Patch\n*** End Patch\n", status: "completed" })
   })
 })
+
+describe("function_call_output content items", () => {
+  // MCP tool results come back from Codex as content items, not a string
+  // (FunctionCallOutputBody::ContentItems); a verbatim pass-through reached
+  // Anthropic as `tool_result.content[0].type = "input_text"` → 400.
+  it("maps input_text and data-URL input_image items to tool_result blocks", () => {
+    const png = "data:image/png;base64,iVBORw0KGgo="
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      tools,
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "go" }] },
+        { type: "function_call", name: "iskron_orient", namespace: "mcp__iskron-bridge", arguments: "{}", call_id: "call_1" },
+        { type: "function_call_output", call_id: "call_1", output: [
+          { type: "input_text", text: "ГРАФ: merkazim [60]" },
+          { type: "input_image", image_url: png },
+          { type: "encrypted_content", encrypted_content: "opaque" },
+        ] },
+      ] as never,
+    })!
+    const result = (r.messages.at(-1)!.content as unknown as Array<Record<string, unknown>>).find((b) => b.type === "tool_result")!
+    expect(result.tool_use_id).toBe("call_1")
+    expect(result.content).toEqual([
+      { type: "text", text: "ГРАФ: merkazim [60]" },
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } },
+      { type: "text", text: "[Unsupported encrypted_content tool output part omitted]" },
+    ])
+  })
+
+  it("keeps string outputs as strings and turns an empty item list into an empty string", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        { type: "function_call", name: "shell", arguments: "{}", call_id: "call_1" },
+        { type: "function_call_output", call_id: "call_1", output: "a.txt" },
+        { type: "function_call", name: "shell", arguments: "{}", call_id: "call_2" },
+        { type: "function_call_output", call_id: "call_2", output: [] },
+      ] as never,
+    })!
+    const results = r.messages.flatMap((m) => m.content as unknown as Array<Record<string, unknown>>).filter((b) => b.type === "tool_result")
+    expect(results.map((b) => b.content)).toEqual(["a.txt", ""])
+  })
+})
