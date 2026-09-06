@@ -243,3 +243,80 @@ describe("/v1/responses session continuity via prompt_cache_key (#655)", () => {
     expect(capturedOptions[1].resume).toBeUndefined()
   })
 })
+
+describe("/v1/responses keeps a spawned Codex thread out of its parent's session", () => {
+  beforeEach(() => {
+    clearSessionCache()
+    capturedOptions = []
+  })
+
+  const parentKey = "01a077c4-9c1c-73d1-bddb-7887bef18554"
+  const childThread = "01a07806-a29d-79b3-af96-876d8fa1be83"
+
+  const userItem = {
+    type: "message",
+    role: "user",
+    content: [{ type: "input_text", text: "Read data.txt and count the lines." }],
+  }
+  const loopTurnInput = [
+    userItem,
+    { type: "function_call", name: "exec_command", arguments: '{"cmd":"wc -l data.txt"}', call_id: "toolu_test_1" },
+    { type: "function_call_output", call_id: "toolu_test_1", output: "3 data.txt" },
+  ]
+
+  // Codex Desktop hands a spawned subagent the parent's prompt_cache_key, so
+  // the key alone cannot tell two live conversations apart. Its turn metadata
+  // can: the thread id is the subagent's own.
+  const clientMetadata = (thread: string, source: string) => ({
+    "x-codex-turn-metadata": JSON.stringify({
+      session_id: parentKey,
+      thread_id: thread,
+      turn_id: "01a07829-00f7-7a71-82d6-6b3a2626ebc8",
+      request_kind: "turn",
+      thread_source: source,
+    }),
+  })
+
+  it("gives the subagent its own SDK session and leaves the parent's resumable", async () => {
+    const app = createTestApp()
+    const parentTurn = (input: unknown) => postResponses(app, {
+      model: "claude-sonnet-5",
+      input,
+      stream: false,
+      prompt_cache_key: parentKey,
+      client_metadata: clientMetadata(parentKey, "user"),
+    })
+
+    expect((await parentTurn([userItem])).status).toBe(200)
+    const subagent = await postResponses(app, {
+      model: "claude-sonnet-5",
+      input: [userItem],
+      stream: false,
+      prompt_cache_key: parentKey,
+      client_metadata: clientMetadata(childThread, "subagent"),
+    })
+    expect(subagent.status).toBe(200)
+    expect((await parentTurn(loopTurnInput)).status).toBe(200)
+
+    expect(capturedOptions).toHaveLength(3)
+    // The subagent starts its own conversation rather than rebinding the key…
+    expect(capturedOptions[1].resume).toBeUndefined()
+    expect(capturedOptions[1].sessionId).not.toBe(capturedOptions[0].sessionId)
+    // …so the parent's next turn still resumes the session it left.
+    expect(capturedOptions[2].resume).toBe(capturedOptions[0].sessionId)
+  })
+
+  it("keeps resuming a user thread that sends turn metadata", async () => {
+    const app = createTestApp()
+    const body = (input: unknown) => ({
+      model: "claude-sonnet-5",
+      input,
+      stream: false,
+      prompt_cache_key: parentKey,
+      client_metadata: clientMetadata(parentKey, "user"),
+    })
+    await postResponses(app, body([userItem]))
+    await postResponses(app, body(loopTurnInput))
+    expect(capturedOptions[1].resume).toBe(capturedOptions[0].sessionId)
+  })
+})
