@@ -1,13 +1,17 @@
 /**
- * The codex transform must name Codex's own built-ins as core tools: the
- * inherited OpenCode list matches nothing Codex sends, so auto-defer deferred
- * every tool (exec_command included) and each turn paid a discovery round.
+ * The codex transform must switch auto-defer off: it inherits OpenCode's core
+ * tool list, which names nothing Codex sends, so a Codex request past the
+ * defer threshold deferred every tool (exec_command included) and each
+ * tool-calling turn paid the SDK's digest turn on the full context. With no
+ * core set the passthrough MCP server never defers and the single-turn cap
+ * holds.
  */
 
 import { describe, it, expect } from "bun:test"
 import { codexTransforms } from "../proxy/transforms/codex"
 import { openCodeTransforms } from "../proxy/transforms/opencode"
 import type { RequestContext } from "../proxy/transform"
+import { createPassthroughMcpServer } from "../proxy/passthroughTools"
 
 function runCodexPipeline(body: Record<string, unknown>): RequestContext {
   let ctx = { body, adapter: "codex" } as unknown as RequestContext
@@ -17,12 +21,13 @@ function runCodexPipeline(body: Record<string, unknown>): RequestContext {
   return ctx
 }
 
-describe("codex transform core tools", () => {
-  it("forces passthrough and names Codex built-ins as the always-loaded set", () => {
-    const ctx = runCodexPipeline({ model: "m", messages: [], tools: [{ name: "exec_command" }, { name: "mcp__iskron_bridge__iskron_orient" }] })
+describe("codex transform auto-defer", () => {
+  it("forces passthrough and leaves no core set so nothing is deferred", () => {
+    const tools = Array.from({ length: 40 }, (_, i) => ({ name: i === 0 ? "exec_command" : `mcp__iskron_bridge__tool_${i}` }))
+    const ctx = runCodexPipeline({ model: "m", messages: [], tools })
     expect(ctx.passthrough).toBe(true)
-    expect(ctx.coreToolNames).toContain("exec_command")
-    expect(ctx.coreToolNames).toContain("apply_patch")
-    expect(ctx.coreToolNames).not.toContain("bash")
+    expect(ctx.coreToolNames).toBeUndefined()
+    const mcp = createPassthroughMcpServer(tools, ctx.coreToolNames ? [...ctx.coreToolNames] : undefined)
+    expect(mcp.hasDeferredTools).toBe(false)
   })
 })
