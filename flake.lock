@@ -87,11 +87,11 @@
     "meridian-plugin-hermes-scrub": {
       "flake": false,
       "locked": {
-        "lastModified": 1784311548,
-        "narHash": "sha256-7uBHuF7HuUZV3E1mYwZEK5AzyhfMVFUPpmGn0P31fmg=",
+        "lastModified": 1785833370,
+        "narHash": "sha256-OaTBWJZEd9N/Mm51gWP7vXykFbxFFwAoV/4sBhtBFuM=",
         "owner": "rynfar",
         "repo": "meridian-plugin-hermes-scrub",
-        "rev": "e54d44576f68af72725acb64ae62ce95389b06e0",
+        "rev": "4d265c4dd1999464ddc15d64f7fc12936b00cf90",
         "type": "github"
       },
       "original": {
