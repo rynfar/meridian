@@ -26,6 +26,7 @@ import type {
   AnthropicUsage,
 } from "./openai"
 import { mergeAnthropicUsage, parseDataUrlImage, totalAnthropicInputTokens } from "./openai"
+import { createHash } from "node:crypto"
 
 // ---------------------------------------------------------------------------
 // Responses request types (subset Codex actually sends)
@@ -47,11 +48,36 @@ interface ResponsesMessageItem {
 interface ResponsesFunctionCallItem {
   type: "function_call"
   name: string
+  /** Set when the tool lives in a `namespace` tool entry (an MCP server). */
+  namespace?: string
   arguments: string
   call_id: string
 }
+/**
+ * `function_call_output.output` is a plain string for shell-style tools and an
+ * array of content items for MCP tools (Codex's FunctionCallOutputBody is an
+ * untagged Text | ContentItems); custom tool outputs are always strings.
+ */
+interface ResponsesOutputContentItem {
+  type: "input_text" | "input_image" | "input_audio" | "encrypted_content" | string
+  text?: string
+  image_url?: string
+}
 interface ResponsesFunctionCallOutputItem {
   type: "function_call_output"
+  call_id: string
+  output: string | ResponsesOutputContentItem[]
+}
+/** A freeform (`type:"custom"`) tool call — Codex's `apply_patch`. */
+interface ResponsesCustomToolCallItem {
+  type: "custom_tool_call"
+  name: string
+  namespace?: string
+  input: string
+  call_id: string
+}
+interface ResponsesCustomToolCallOutputItem {
+  type: "custom_tool_call_output"
   call_id: string
   output: string
 }
@@ -63,14 +89,20 @@ type ResponsesInputItem =
   | ResponsesMessageItem
   | ResponsesFunctionCallItem
   | ResponsesFunctionCallOutputItem
+  | ResponsesCustomToolCallItem
+  | ResponsesCustomToolCallOutputItem
   | ResponsesReasoningItem
 
-interface ResponsesTool {
-  type: "function" | string
+export interface ResponsesTool {
+  type: "function" | "custom" | "namespace" | string
   name: string
   description?: string
   strict?: boolean
   parameters?: unknown
+  /** `custom` tools: the freeform grammar Codex expects the input to follow. */
+  format?: unknown
+  /** `namespace` tools: the nested function/custom tools of one MCP server. */
+  tools?: ResponsesTool[]
 }
 
 export interface ResponsesRequest {
@@ -86,6 +118,150 @@ export interface ResponsesRequest {
   reasoning?: { effort?: string }
   stream?: boolean
   [k: string]: unknown
+}
+
+// ---------------------------------------------------------------------------
+// Tool aliasing: namespaced and custom tools
+// ---------------------------------------------------------------------------
+
+/**
+ * Codex (0.15x) ships every MCP server as one `{type:"namespace", name,
+ * tools:[…]}` entry with the tool definitions nested inside, and its freeform
+ * `apply_patch` as `{type:"custom"}`. Claude sees one flat list of function
+ * tools, so each nested or custom tool is exposed under an alias, and the alias
+ * table maps Claude's call back onto the exact `{namespace, name}` pair Codex's
+ * router resolves (`ToolName::new(namespace, name)` — a flattened name without
+ * `namespace` never matches a namespaced tool).
+ */
+export interface ResponsesToolAlias {
+  namespace?: string
+  name: string
+  kind: "function" | "custom"
+}
+export type ResponsesToolAliases = Map<string, ResponsesToolAlias>
+
+/**
+ * Claude tool names are `[A-Za-z0-9_-]{1,64}`, and the passthrough MCP server
+ * prepends its own `mcp__oc__` (PASSTHROUGH_MCP_PREFIX in passthroughTools.ts;
+ * a test pins the two in sync), so an alias gets the remainder.
+ */
+const PASSTHROUGH_PREFIX_LENGTH = "mcp__oc__".length
+export const RESPONSES_TOOL_ALIAS_MAX = 64 - PASSTHROUGH_PREFIX_LENGTH
+
+/**
+ * The Claude-visible name of a tool. Deterministic on (namespace, name): the
+ * history Codex replays next turn carries the same pair and must land on the
+ * same alias, or the replayed `tool_use` names no longer match the tool set.
+ */
+export function responsesToolAlias(namespace: string | undefined, name: string): string {
+  const raw = namespace ? `${namespace}__${name}` : name
+  const safe = raw.replace(/[^A-Za-z0-9_-]/g, "_")
+  if (safe.length <= RESPONSES_TOOL_ALIAS_MAX) return safe
+  const digest = createHash("sha256").update(raw).digest("hex").slice(0, 8)
+  return `${safe.slice(0, RESPONSES_TOOL_ALIAS_MAX - digest.length - 1)}_${digest}`
+}
+
+/**
+ * Alias table for a request's tools. Pure and deterministic, so the route can
+ * rebuild it for the response side without threading state through the
+ * request translator. Top-level function tools keep their own names and are
+ * not listed.
+ */
+export function buildResponsesToolAliases(tools: ResponsesTool[] | undefined): ResponsesToolAliases {
+  const aliases: ResponsesToolAliases = new Map()
+  for (const tool of tools ?? []) {
+    if (tool.type === "custom") {
+      aliases.set(responsesToolAlias(undefined, tool.name), { name: tool.name, kind: "custom" })
+    } else if (tool.type === "namespace") {
+      for (const nested of tool.tools ?? []) {
+        if (nested.type !== "function" && nested.type !== "custom") continue
+        aliases.set(responsesToolAlias(tool.name, nested.name), {
+          namespace: tool.name,
+          name: nested.name,
+          kind: nested.type,
+        })
+      }
+    }
+  }
+  return aliases
+}
+
+/**
+ * A freeform tool has no JSON arguments: Claude gets a single `input` string
+ * and the whole payload is passed through verbatim as `custom_tool_call.input`.
+ */
+const CUSTOM_TOOL_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    input: { type: "string", description: "The complete freeform payload, exactly as the tool's format requires." },
+  },
+  required: ["input"],
+  additionalProperties: false,
+}
+
+function customToolDescription(tool: ResponsesTool): string {
+  const parts = [tool.description ?? "", "Freeform tool: put the entire payload in the `input` string; do not wrap it in JSON."]
+  const format = tool.format && typeof tool.format === "object" ? (tool.format as { syntax?: unknown; definition?: unknown }) : undefined
+  if (typeof format?.definition === "string") {
+    parts.push(`Input grammar${typeof format.syntax === "string" ? ` (${format.syntax})` : ""}:\n${format.definition}`)
+  }
+  return parts.filter((s) => s.length > 0).join("\n\n")
+}
+
+function translateResponsesTools(tools: ResponsesTool[]): AnthropicTool[] {
+  const out: AnthropicTool[] = []
+  const push = (namespace: string | undefined, tool: ResponsesTool) => {
+    if (tool.type === "function") {
+      out.push({
+        name: namespace ? responsesToolAlias(namespace, tool.name) : tool.name,
+        description: namespace ? `[${namespace}] ${tool.description ?? ""}`.trimEnd() : tool.description ?? "",
+        input_schema: tool.parameters ?? { type: "object", properties: {} },
+      })
+    } else if (tool.type === "custom") {
+      out.push({
+        name: responsesToolAlias(namespace, tool.name),
+        description: customToolDescription(tool),
+        input_schema: CUSTOM_TOOL_INPUT_SCHEMA,
+      })
+    }
+    // Server-side tool kinds (`web_search`, …) have no Claude counterpart here.
+  }
+  for (const tool of tools) {
+    if (tool.type === "namespace") {
+      for (const nested of tool.tools ?? []) push(tool.name, nested)
+    } else {
+      push(undefined, tool)
+    }
+  }
+  return out
+}
+
+/** The Responses item for a Claude `tool_use`, resolved through the alias table. */
+function toolCallItem(
+  ctx: ResponsesCtx,
+  id: string,
+  callId: string,
+  name: string,
+  argsJson: string,
+  status: "in_progress" | "completed"
+): Record<string, unknown> {
+  const alias = ctx.toolAliases?.get(name)
+  const namespace = alias?.namespace ? { namespace: alias.namespace } : {}
+  if (alias?.kind === "custom") {
+    let input = argsJson
+    try {
+      const parsed: unknown = JSON.parse(argsJson || "{}")
+      if (parsed && typeof parsed === "object" && typeof (parsed as { input?: unknown }).input === "string") {
+        input = (parsed as { input: string }).input
+      } else if (argsJson === "" || argsJson === "{}") {
+        input = ""
+      }
+    } catch {
+      // Not JSON: Claude may already have emitted the freeform payload itself.
+    }
+    return { type: "custom_tool_call", id, call_id: callId, name: alias.name, ...namespace, input, status }
+  }
+  return { type: "function_call", id, call_id: callId, name: alias?.name ?? name, ...namespace, arguments: argsJson, status }
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +322,32 @@ function partsToBlocks(content: ResponsesContentPart[] | string | undefined): An
     }
   }
   return blocks
+}
+
+/**
+ * Anthropic `tool_result.content` for a Responses tool output. Content items
+ * are mapped part by part — `input_text` → text, data-URL `input_image` →
+ * image — and anything else becomes an omission note, so an MCP tool that
+ * answered with structured content never reaches the API as an unknown tag.
+ */
+function toolOutputToContent(output: string | ResponsesOutputContentItem[] | undefined): string | AnthropicContentBlock[] {
+  if (output === undefined || output === null) return ""
+  if (typeof output === "string") return output
+  if (!Array.isArray(output)) return typeof output === "object" ? JSON.stringify(output) : String(output)
+  const blocks: AnthropicContentBlock[] = []
+  for (const part of output) {
+    if (!part || typeof part !== "object") continue
+    if (typeof part.text === "string") {
+      blocks.push({ type: "text", text: part.text })
+    } else if (part.type === "input_image") {
+      const image = typeof part.image_url === "string" ? parseDataUrlImage(part.image_url) : null
+      blocks.push(image ?? { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" })
+    } else {
+      blocks.push({ type: "text", text: `[Unsupported ${String(part.type)} tool output part omitted]` })
+    }
+  }
+  // Anthropic rejects an empty content array; an empty string is fine.
+  return blocks.length > 0 ? blocks : ""
 }
 
 /**
@@ -219,12 +421,24 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
         const fc = item as ResponsesFunctionCallItem
         let input: Record<string, unknown> = {}
         try { input = fc.arguments ? JSON.parse(fc.arguments) : {} } catch { input = {} }
-        pushBlock("assistant", { type: "tool_use", id: fc.call_id, name: fc.name, input })
+        const name = fc.namespace ? responsesToolAlias(fc.namespace, fc.name) : fc.name
+        pushBlock("assistant", { type: "tool_use", id: fc.call_id, name, input })
         break
       }
       case "function_call_output": {
         const fo = item as ResponsesFunctionCallOutputItem
-        pushBlock("user", { type: "tool_result", tool_use_id: fo.call_id, content: fo.output })
+        pushBlock("user", { type: "tool_result", tool_use_id: fo.call_id, content: toolOutputToContent(fo.output) })
+        break
+      }
+      case "custom_tool_call": {
+        const ct = item as ResponsesCustomToolCallItem
+        const name = responsesToolAlias(ct.namespace, ct.name)
+        pushBlock("assistant", { type: "tool_use", id: ct.call_id, name, input: { input: ct.input ?? "" } })
+        break
+      }
+      case "custom_tool_call_output": {
+        const co = item as ResponsesCustomToolCallOutputItem
+        pushBlock("user", { type: "tool_result", tool_use_id: co.call_id, content: toolOutputToContent(co.output) })
         break
       }
       case "reasoning":
@@ -244,13 +458,7 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
   }
   if (systemParts.length > 0) result.system = systemParts.join("\n\n")
   if (Array.isArray(body.tools) && body.tools.length > 0) {
-    result.tools = body.tools
-      .filter((t) => t.type === "function")
-      .map((t): AnthropicTool => ({
-        name: t.name,
-        description: t.description ?? "",
-        input_schema: t.parameters ?? { type: "object", properties: {} },
-      }))
+    result.tools = translateResponsesTools(body.tools)
   }
   const tc = mapToolChoice(body.tool_choice)
   if (tc) result.tool_choice = tc
@@ -277,6 +485,11 @@ export interface ResponsesCtx {
    * satisfy its state machine. Set from `reasoningRequested(body)`.
    */
   reasoningRequested?: boolean
+  /**
+   * Alias table from `buildResponsesToolAliases(request.tools)`: maps Claude's
+   * tool_use names back onto Codex's `{namespace, name}` and custom tools.
+   */
+  toolAliases?: ResponsesToolAliases
 }
 
 /** Did the Responses request ask for reasoning output? */
@@ -329,14 +542,8 @@ export function translateAnthropicToResponses(res: AnthropicResponseLike, ctx: R
     if (block.type === "text" && typeof block.text === "string") {
       textParts.push({ type: "output_text", text: block.text, annotations: [] })
     } else if (block.type === "tool_use") {
-      output.push({
-        type: "function_call",
-        id: `fc_${block.id}`,
-        call_id: block.id,
-        name: block.name,
-        arguments: JSON.stringify(block.input ?? {}),
-        status: "completed",
-      })
+      const callId = String(block.id)
+      output.push(toolCallItem(ctx, `fc_${callId}`, callId, String(block.name), JSON.stringify(block.input ?? {}), "completed"))
     }
     // thinking: dropped (phase 1)
   }
@@ -419,6 +626,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
     args: string          // accumulated JSON (tool blocks)
     callId?: string
     name?: string
+    custom?: boolean      // freeform tool: no argument deltas, one done item
   }
   const blocks = new Map<number, BlockState>()
   // Completed items collected for the terminal response.completed.
@@ -489,10 +697,13 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
         } else if (cb.type === "tool_use") {
           const oi = outputIndex++
           const itemId = `fc_${cb.id}`
-          blocks.set(idx, { kind: "tool", outputIndex: oi, itemId, text: "", args: "", callId: cb.id, name: cb.name })
+          const callId = String(cb.id ?? "")
+          const name = String(cb.name ?? "")
+          const custom = ctx.toolAliases?.get(name)?.kind === "custom"
+          blocks.set(idx, { kind: "tool", outputIndex: oi, itemId, text: "", args: "", callId, name, custom })
           out.push(emit("response.output_item.added", {
             output_index: oi,
-            item: { type: "function_call", id: itemId, call_id: cb.id, name: cb.name, arguments: "", status: "in_progress" },
+            item: toolCallItem(ctx, itemId, callId, name, "", "in_progress"),
           }))
         } else {
           // thinking / unknown → skip, but track so deltas/stop are ignored.
@@ -512,9 +723,14 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
           }))
         } else if (st.kind === "tool" && event.delta?.type === "input_json_delta" && typeof event.delta.partial_json === "string") {
           st.args += event.delta.partial_json
-          out.push(emit("response.function_call_arguments.delta", {
-            item_id: st.itemId, output_index: st.outputIndex, delta: event.delta.partial_json,
-          }))
+          // A custom tool's payload is the `input` string inside Claude's JSON
+          // — it cannot be streamed as freeform deltas; Codex takes the whole
+          // item from response.output_item.done.
+          if (!st.custom) {
+            out.push(emit("response.function_call_arguments.delta", {
+              item_id: st.itemId, output_index: st.outputIndex, delta: event.delta.partial_json,
+            }))
+          }
         }
         break
       }
@@ -538,13 +754,12 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
           finalOutput.push(item)
           out.push(emit("response.output_item.done", { output_index: st.outputIndex, item }))
         } else if (st.kind === "tool") {
-          out.push(emit("response.function_call_arguments.done", {
-            item_id: st.itemId, output_index: st.outputIndex, arguments: st.args,
-          }))
-          const item = {
-            type: "function_call", id: st.itemId, call_id: st.callId, name: st.name,
-            arguments: st.args, status: "completed",
+          if (!st.custom) {
+            out.push(emit("response.function_call_arguments.done", {
+              item_id: st.itemId, output_index: st.outputIndex, arguments: st.args,
+            }))
           }
+          const item = toolCallItem(ctx, st.itemId, st.callId ?? "", st.name ?? "", st.args, "completed")
           finalOutput.push(item)
           out.push(emit("response.output_item.done", { output_index: st.outputIndex, item }))
         }
