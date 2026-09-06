@@ -53,10 +53,20 @@ interface ResponsesFunctionCallItem {
   arguments: string
   call_id: string
 }
+/**
+ * `function_call_output.output` is a plain string for shell-style tools and an
+ * array of content items for MCP tools (Codex's FunctionCallOutputBody is an
+ * untagged Text | ContentItems); custom tool outputs are always strings.
+ */
+interface ResponsesOutputContentItem {
+  type: "input_text" | "input_image" | "input_audio" | "encrypted_content" | string
+  text?: string
+  image_url?: string
+}
 interface ResponsesFunctionCallOutputItem {
   type: "function_call_output"
   call_id: string
-  output: string
+  output: string | ResponsesOutputContentItem[]
 }
 /** A freeform (`type:"custom"`) tool call — Codex's `apply_patch`. */
 interface ResponsesCustomToolCallItem {
@@ -315,6 +325,32 @@ function partsToBlocks(content: ResponsesContentPart[] | string | undefined): An
 }
 
 /**
+ * Anthropic `tool_result.content` for a Responses tool output. Content items
+ * are mapped part by part — `input_text` → text, data-URL `input_image` →
+ * image — and anything else becomes an omission note, so an MCP tool that
+ * answered with structured content never reaches the API as an unknown tag.
+ */
+function toolOutputToContent(output: string | ResponsesOutputContentItem[] | undefined): string | AnthropicContentBlock[] {
+  if (output === undefined || output === null) return ""
+  if (typeof output === "string") return output
+  if (!Array.isArray(output)) return typeof output === "object" ? JSON.stringify(output) : String(output)
+  const blocks: AnthropicContentBlock[] = []
+  for (const part of output) {
+    if (!part || typeof part !== "object") continue
+    if (typeof part.text === "string") {
+      blocks.push({ type: "text", text: part.text })
+    } else if (part.type === "input_image") {
+      const image = typeof part.image_url === "string" ? parseDataUrlImage(part.image_url) : null
+      blocks.push(image ?? { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" })
+    } else {
+      blocks.push({ type: "text", text: `[Unsupported ${String(part.type)} tool output part omitted]` })
+    }
+  }
+  // Anthropic rejects an empty content array; an empty string is fine.
+  return blocks.length > 0 ? blocks : ""
+}
+
+/**
  * Map a Responses `tool_choice` to Anthropic's. Codex sends `"auto"`,
  * `"required"`, `"none"`, or `{type:"function", name}`. `"none"` maps to
  * undefined (Anthropic has no explicit none — omitting lets the model decide,
@@ -391,7 +427,7 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
       }
       case "function_call_output": {
         const fo = item as ResponsesFunctionCallOutputItem
-        pushBlock("user", { type: "tool_result", tool_use_id: fo.call_id, content: fo.output })
+        pushBlock("user", { type: "tool_result", tool_use_id: fo.call_id, content: toolOutputToContent(fo.output) })
         break
       }
       case "custom_tool_call": {
@@ -402,7 +438,7 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
       }
       case "custom_tool_call_output": {
         const co = item as ResponsesCustomToolCallOutputItem
-        pushBlock("user", { type: "tool_result", tool_use_id: co.call_id, content: co.output })
+        pushBlock("user", { type: "tool_result", tool_use_id: co.call_id, content: toolOutputToContent(co.output) })
         break
       }
       case "reasoning":
