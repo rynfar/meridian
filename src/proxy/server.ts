@@ -74,7 +74,7 @@ import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDef
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
-import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
+import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages } from "./replay"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
 import { requireAuth, authEnabled } from "./auth"
@@ -7518,15 +7518,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       "Content-Type": "application/json",
       "x-meridian-agent": "codex",
     }
-    // NOTE: agent-specific (Codex) — prompt_cache_key is Codex's stable
-    // per-conversation id (mirrored as session_id in its client_metadata).
-    // Forward it as the codex adapter's session header so consecutive turns
+    // NOTE: agent-specific (Codex) — the thread this turn belongs to.
+    // Forwarded as the codex adapter's session header so consecutive turns
     // resume the same SDK session: Claude's signed thinking then persists
-    // across turns natively and the prompt cache stays warm (#655).
-    const promptCacheKey = (rawBody as { prompt_cache_key?: unknown }).prompt_cache_key
-    if (typeof promptCacheKey === "string" && promptCacheKey.length > 0) {
-      internalHeaders["x-codex-session"] = promptCacheKey
-    }
+    // across turns natively and the prompt cache stays warm (#655). A turn
+    // from a spawned thread also declares its own concurrent flow, because a
+    // subagent inherits its parent's `prompt_cache_key` — see
+    // resolveCodexThreadIdentity for what each signal answers.
+    const codexThread = resolveCodexThreadIdentity(rawBody, c.req.header("x-codex-turn-metadata"))
+    if (codexThread.sessionKey) internalHeaders["x-codex-session"] = codexThread.sessionKey
+    if (codexThread.requestSource) internalHeaders["x-meridian-source"] = codexThread.requestSource
     const xApiKey = c.req.header("x-api-key")
     if (xApiKey) internalHeaders["x-api-key"] = xApiKey
     const authz = c.req.header("authorization")

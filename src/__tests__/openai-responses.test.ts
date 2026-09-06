@@ -10,6 +10,7 @@ import {
   translateResponsesToAnthropic,
   translateAnthropicToResponses,
   createResponsesSseTranslator,
+  resolveCodexThreadIdentity,
 } from "../proxy/openaiResponses"
 import type { AnthropicContentBlock } from "../proxy/openai"
 
@@ -539,5 +540,100 @@ describe("createResponsesSseTranslator (stream)", () => {
     for (const e of run(textStream)) {
       expect((e.data as any).type).toBe(e.event)
     }
+  })
+})
+
+describe("resolveCodexThreadIdentity", () => {
+  // Wire shapes below are a real capture: Codex Desktop 0.144.4 sends this
+  // metadata as both a header and a `client_metadata` entry, and a subagent's
+  // rollout records the same split — own `id`, parent's `session_id`.
+  const turnMetadata = (over: Record<string, unknown>) => JSON.stringify({
+    installation_id: "66bcfba4-e581-41e3-9487-57705ef35f60",
+    session_id: "01a07829-00b2-7c23-b950-26b07808dc26",
+    thread_id: "01a07829-00b2-7c23-b950-26b07808dc26",
+    turn_id: "01a07829-00f7-7a71-82d6-6b3a2626ebc8",
+    request_kind: "turn",
+    thread_source: "user",
+    ...over,
+  })
+
+  it("falls back to prompt_cache_key when no metadata is sent", () => {
+    expect(resolveCodexThreadIdentity({ prompt_cache_key: "conv-a" })).toEqual({ sessionKey: "conv-a" })
+  })
+
+  it("carries no identity at all when neither is sent", () => {
+    expect(resolveCodexThreadIdentity({ model: "claude-sonnet-5" })).toEqual({})
+  })
+
+  it("keys a user thread the same way prompt_cache_key did", () => {
+    const key = "01a07829-00b2-7c23-b950-26b07808dc26"
+    const identity = resolveCodexThreadIdentity({ prompt_cache_key: key }, turnMetadata({}))
+    expect(identity).toEqual({ sessionKey: key })
+  })
+
+  it("keys a subagent by its own thread, not the parent's cache key", () => {
+    const identity = resolveCodexThreadIdentity(
+      { prompt_cache_key: "01a077c4-9c1c-73d1-bddb-7887bef18554" },
+      turnMetadata({
+        session_id: "01a077c4-9c1c-73d1-bddb-7887bef18554",
+        thread_id: "01a07806-a29d-79b3-af96-876d8fa1be83",
+        thread_source: "subagent",
+      }),
+    )
+    expect(identity).toEqual({
+      sessionKey: "01a07806-a29d-79b3-af96-876d8fa1be83",
+      requestSource: "fork-codex-subagent",
+    })
+  })
+
+  it("declares a concurrent flow even when the spawned thread reuses the id", () => {
+    const shared = "01a077c4-9c1c-73d1-bddb-7887bef18554"
+    const identity = resolveCodexThreadIdentity(
+      { prompt_cache_key: shared },
+      turnMetadata({ session_id: shared, thread_id: shared, thread_source: "subagent" }),
+    )
+    expect(identity.sessionKey).toBe(shared)
+    expect(identity.requestSource).toBe("fork-codex-subagent")
+  })
+
+  it("reads the metadata from client_metadata when the header is absent", () => {
+    const identity = resolveCodexThreadIdentity({
+      prompt_cache_key: "parent",
+      client_metadata: {
+        "x-codex-turn-metadata": turnMetadata({ thread_id: "child", thread_source: "subagent" }),
+      },
+    })
+    expect(identity).toEqual({ sessionKey: "child", requestSource: "fork-codex-subagent" })
+  })
+
+  it("prefers the header over client_metadata", () => {
+    const identity = resolveCodexThreadIdentity(
+      {
+        prompt_cache_key: "parent",
+        client_metadata: { "x-codex-turn-metadata": turnMetadata({ thread_id: "from-body" }) },
+      },
+      turnMetadata({ thread_id: "from-header" }),
+    )
+    expect(identity.sessionKey).toBe("from-header")
+  })
+
+  it("keeps the cache-key path when the metadata is unparseable", () => {
+    expect(resolveCodexThreadIdentity({ prompt_cache_key: "conv-a" }, "{not json")).toEqual({ sessionKey: "conv-a" })
+  })
+
+  it("sanitizes an unexpected thread_source into a header-safe source", () => {
+    const identity = resolveCodexThreadIdentity(
+      { prompt_cache_key: "parent" },
+      turnMetadata({ thread_id: "child", thread_source: "Cloud Task/2" }),
+    )
+    expect(identity.requestSource).toBe("fork-codex-cloud-task-2")
+  })
+
+  it("declares nothing for a thread_source that survives sanitizing as separators only", () => {
+    const identity = resolveCodexThreadIdentity(
+      { prompt_cache_key: "parent" },
+      turnMetadata({ thread_id: "child", thread_source: "///" }),
+    )
+    expect(identity.requestSource).toBeUndefined()
   })
 })

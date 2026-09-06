@@ -89,6 +89,98 @@ export interface ResponsesRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Codex thread identity
+// ---------------------------------------------------------------------------
+
+/** What one Codex turn says about the conversation it belongs to. */
+export interface CodexThreadIdentity {
+  /** Conversation key for session resume — the codex adapter's `x-codex-session`. */
+  sessionKey?: string
+  /** Concurrency declaration for a turn that is not the thread the user drives. */
+  requestSource?: string
+}
+
+/** The fields of Codex's turn metadata this route reads. */
+interface CodexTurnMetadata {
+  thread_id?: unknown
+  session_id?: unknown
+  thread_source?: unknown
+}
+
+/** Codex sends this both as a request header and inside `client_metadata`. */
+const CODEX_TURN_METADATA = "x-codex-turn-metadata"
+
+/** Longest `thread_source` tag echoed into a request source. */
+const CODEX_THREAD_SOURCE_MAX = 24
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
+function parseCodexTurnMetadata(value: unknown): CodexTurnMetadata | undefined {
+  if (value && typeof value === "object") return value as CodexTurnMetadata
+  const raw = nonEmptyString(value)
+  if (!raw) return undefined
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return parsed && typeof parsed === "object" ? parsed as CodexTurnMetadata : undefined
+  } catch {
+    // A client that garbles its own metadata still gets the cache-key path.
+    return undefined
+  }
+}
+
+function codexTurnMetadataFromBody(body: ResponsesRequest): unknown {
+  const metadata = body.client_metadata
+  if (!metadata || typeof metadata !== "object") return undefined
+  return (metadata as Record<string, unknown>)[CODEX_TURN_METADATA]
+}
+
+/**
+ * Reads the conversation identity Codex attaches to a turn.
+ *
+ * `prompt_cache_key` was the only identity this route had (#655), and for the
+ * thread a user drives it is exactly that thread's id. A subagent is the case
+ * it cannot describe: Codex Desktop spawns one as its own thread, with its own
+ * instructions and its own tools, and hands it the *parent's*
+ * `prompt_cache_key`. Keyed on that alone two live conversations become one
+ * session — the subagent's first turn rebinds the key to its own SDK session,
+ * and the parent's next turn then reads as a rewrite of it: refused as a
+ * concurrent conflict when it loses the session-turn race, replayed from
+ * scratch when it wins.
+ *
+ * `x-codex-turn-metadata` names the thread itself, so the thread id is the
+ * honest key: identical to `prompt_cache_key` for a user thread — this
+ * re-anchors no existing session — and distinct for every spawned one.
+ * `thread_source` carries the same fact independently, so a turn from a
+ * spawned thread also declares a concurrent flow and is admitted rather than
+ * refused should a client ever reuse one id across flows. `fork-` and not
+ * `subagent-`: the tier a Codex subagent runs on is the client's choice, and
+ * a concurrency declaration must not silently rewrite it.
+ */
+export function resolveCodexThreadIdentity(
+  body: ResponsesRequest,
+  metadataHeader?: string,
+): CodexThreadIdentity {
+  const metadata = parseCodexTurnMetadata(metadataHeader)
+    ?? parseCodexTurnMetadata(codexTurnMetadataFromBody(body))
+  const identity: CodexThreadIdentity = {}
+
+  const sessionKey = nonEmptyString(metadata?.thread_id) ?? nonEmptyString(body.prompt_cache_key)
+  if (sessionKey) identity.sessionKey = sessionKey
+
+  const threadSource = nonEmptyString(metadata?.thread_source)
+  if (threadSource && threadSource !== "user") {
+    const tag = threadSource
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .slice(0, CODEX_THREAD_SOURCE_MAX)
+    if (tag.replace(/-/g, "")) identity.requestSource = `fork-codex-${tag}`
+  }
+
+  return identity
+}
+// ---------------------------------------------------------------------------
 // Request translation: Responses → Anthropic
 // ---------------------------------------------------------------------------
 
