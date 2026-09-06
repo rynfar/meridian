@@ -380,8 +380,10 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
       ? [{ type: "message", role: "user", content: [{ type: "input_text", text: body.input }] }]
       : body.input
 
-  // System: instructions + any developer/system-role messages folded in
-  // (Codex's harness rules arrive as developer turns).
+  // System: instructions + the developer/system-role messages that PRECEDE
+  // the conversation (Codex's harness rules arrive as leading developer
+  // turns). A developer message that arrives mid-history stays in the
+  // history — see the `message` case for why.
   const systemParts: string[] = []
   if (body.instructions) systemParts.push(body.instructions)
 
@@ -389,11 +391,25 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
   const pushBlock = (role: "user" | "assistant", block: AnthropicContentBlock) => {
     const last = messages[messages.length - 1]
     if (last && last.role === role && Array.isArray(last.content)) {
-      last.content.push(block)
+      // A tool_result must lead its user message. An inlined developer note
+      // can land between two tool outputs of one batch, so a result arriving
+      // after text is filed ahead of the text rather than behind it.
+      if (block.type === "tool_result") {
+        const firstText = last.content.findIndex(b => b.type !== "tool_result")
+        if (firstText === -1) last.content.push(block)
+        else last.content.splice(firstText, 0, block)
+      } else {
+        last.content.push(block)
+      }
     } else {
       messages.push({ role, content: [block] })
     }
   }
+
+  // Whether a conversation item (user, assistant, tool call or result) has
+  // been seen yet; developer/system items before that are the harness
+  // preamble, developer items after it are events inside the conversation.
+  let conversationStarted = false
 
   for (const item of items) {
     // NOTE: this switches on a COMPUTED discriminator, not on `item.type`, so
@@ -404,9 +420,28 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
         const msg = item as ResponsesMessageItem
         if (msg.role === "developer" || msg.role === "system") {
           const t = partsToText(msg.content)
-          if (t) systemParts.push(t)
+          if (!t) break
+          if (!conversationStarted) {
+            systemParts.push(t)
+            break
+          }
+          // Anthropic caches the prompt as one prefix in the order
+          // tools → system → messages. Folding a developer message that
+          // appeared mid-conversation into `system` rewrites the system
+          // block on the turn it first shows up, which invalidates every
+          // cached token past the tools — the entire history. Codex emits
+          // exactly such messages as ordinary events: `<image_resize_notice>`
+          // after every image, `<model_switch>` on a model change,
+          // `<app-context>` when the app refreshes. Observed live: every
+          // cache collapse in a long thread (14 of 14, 240k–584k tokens
+          // re-written each) followed one of these by one to three seconds,
+          // with the tools block the only part still hitting. Kept in the
+          // history at its own position, the note is just another message:
+          // the prefix before it stays cached and the turn costs its size.
+          pushBlock("user", { type: "text", text: t })
           break
         }
+        conversationStarted = true
         const role = msg.role === "assistant" ? "assistant" : "user"
         const imageBlocks = partsToBlocks(msg.content)
         if (imageBlocks) {
@@ -418,6 +453,7 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
         break
       }
       case "function_call": {
+        conversationStarted = true
         const fc = item as ResponsesFunctionCallItem
         let input: Record<string, unknown> = {}
         try { input = fc.arguments ? JSON.parse(fc.arguments) : {} } catch { input = {} }
@@ -426,6 +462,7 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
         break
       }
       case "function_call_output": {
+        conversationStarted = true
         const fo = item as ResponsesFunctionCallOutputItem
         pushBlock("user", { type: "tool_result", tool_use_id: fo.call_id, content: toolOutputToContent(fo.output) })
         break

@@ -40,6 +40,66 @@ describe("translateResponsesToAnthropic", () => {
     expect(r.messages[0]!.role).toBe("user")
   })
 
+  // Anthropic caches the prompt as one prefix, tools → system → messages.
+  // A developer message that appears mid-conversation and gets folded into
+  // `system` rewrites the system block on the turn it first shows up and
+  // invalidates the entire cached history behind it. Observed live with
+  // Codex's `<image_resize_notice>`: 240k–584k tokens re-written per image.
+  it("keeps a mid-conversation developer message in the history, not in system", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      instructions: "You are Codex.",
+      input: [
+        { type: "message", role: "developer", content: [{ type: "input_text", text: "House rules." }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "look at the picture" }] },
+        { type: "message", role: "assistant", content: [{ type: "output_text", text: "Looking." }] },
+        { type: "message", role: "developer", content: [{ type: "input_text", text: "<image_resize_notice>resized</image_resize_notice>" }] },
+        { type: "message", role: "user", content: [{ type: "input_text", text: "and now?" }] },
+      ],
+    })!
+    expect(r.system).toBe("You are Codex.\n\nHouse rules.")
+    expect(r.system).not.toContain("image_resize_notice")
+    expect(r.messages).toEqual([
+      { role: "user", content: [{ type: "text", text: "look at the picture" }] },
+      { role: "assistant", content: [{ type: "text", text: "Looking." }] },
+      { role: "user", content: [
+        { type: "text", text: "<image_resize_notice>resized</image_resize_notice>" },
+        { type: "text", text: "and now?" },
+      ] },
+    ])
+  })
+
+  it("files a tool result ahead of a developer note that landed between two outputs", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        { type: "message", role: "user", content: [{ type: "input_text", text: "go" }] },
+        { type: "function_call", name: "a", arguments: "{}", call_id: "c1" },
+        { type: "function_call", name: "b", arguments: "{}", call_id: "c2" },
+        { type: "function_call_output", call_id: "c1", output: "one" },
+        { type: "message", role: "developer", content: [{ type: "input_text", text: "<image_resize_notice/>" }] },
+        { type: "function_call_output", call_id: "c2", output: "two" },
+      ],
+    })!
+    const last = r.messages[r.messages.length - 1]!
+    expect(last.role).toBe("user")
+    const blocks = Array.isArray(last.content) ? last.content : []
+    expect(blocks.map((b) => b.type)).toEqual(["tool_result", "tool_result", "text"])
+  })
+
+  it("still folds a system-role item that opens the conversation", () => {
+    const r = translateResponsesToAnthropic({
+      model: "m",
+      input: [
+        { role: "system", content: "Be terse." },
+        { role: "developer", content: "And polite." },
+        { role: "user", content: [{ type: "input_text", text: "hello" }] },
+      ],
+    })!
+    expect(r.system).toBe("Be terse.\n\nAnd polite.")
+    expect(r.messages).toHaveLength(1)
+  })
+
   // Bare `{role, content}` items are spec-valid and sent by the Vercel AI SDK.
   it("treats input items without a type as messages", () => {
     const r = translateResponsesToAnthropic({
