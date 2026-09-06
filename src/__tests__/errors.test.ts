@@ -910,6 +910,13 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["SDK wrapper newline", "Claude Code returned an error result:\nYou've reached your Fable 5 limit."],
     ["trailing newline", "You've reached your Fable 5 limit.\n"],
     ["CRLF line ending", "You've reached your Fable 5 limit.\r\n"],
+    // The prose suffix, not a slash command. Observed live on 1.66.0 through a
+    // gateway fronting a Claude Max pool: every Fable turn came back in this
+    // exact shape, classified api_error, and failed nothing over while three
+    // other profiles in the pool had Fable window left.
+    ["prose switch suffix", "Claude Code returned an error result: You've reached your Fable limit. Switch to another model to continue."],
+    ["prose switch suffix, bare banner", "You've reached your Fable 5 limit. Switch to another model to continue."],
+    ["prose switch suffix without the trailing clause", "You've reached your Opus limit. Switch to another model."],
   ])("maps the credits-era per-tier %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
@@ -931,6 +938,9 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["joined run command", "You've reached your Fable 5 limitRun /usage-credits"],
     ["joined usage command", "You've reached your Fable 5 limit/usage-credits"],
     ["unspaced punctuated command", "You've reached your Fable 5 limit.Run /usage-credits"],
+    // The prose suffix is enumerated, not a licence for any tail: a sentence
+    // that merely starts like it must still fall through.
+    ["prose switch suffix continuing into documentation", "You've reached your Fable 5 limit. Switch to another model to continue, the docs say, but the account is healthy"],
   ])("does not classify credits-era per-tier %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).toBe("api_error")
   })
