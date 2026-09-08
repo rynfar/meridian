@@ -270,6 +270,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 | E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
 | E46 | [Codex namespace and MCP tools](#e46-codex-namespace-and-mcp-tools) | **Automated**: `bun scripts/e2e-codex-namespace-tools.mjs [--stream]` — real proxy + SDK. Codex 0.15x sends MCP servers as `{type:"namespace", tools:[...]}`, which the Responses translator dropped. Asserts namespaced tools reach Claude, calls come back carrying `namespace`, and a `function_call_output` whose output is a content-item ARRAY does not 400. **Run before releases touching the Responses translator or Codex tool handling** | 2026-09-08 |
+| E48 | [Responses developer-note cache](#e48-responses-developer-note-cache) | **Automated**: `bun scripts/e2e-responses-developer-cache.mjs` — real proxy + SDK, A/B. A `developer` item folded into `system` mid-conversation re-wrote the whole cached prefix. Asserts the note's turn re-writes no more than the control's (measured 7.8x pre-fix, 1.2x after). **Run before releases touching Responses prompt assembly or system-block construction** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4044,6 +4045,51 @@ path is covered by unit tests only and is **not** live-verified here.
 
 **Verified:** 2026-09-08, both modes. Against pre-fix code the same gate fails
 with `tools=1` and no call returned.
+
+## E48: Responses developer-note cache
+
+**What it proves:** a `developer` item that first appears mid-conversation does
+not invalidate the prompt cache for the whole history.
+
+Anthropic caches the prompt as one prefix ordered **tools → system →
+messages**. `/v1/responses` folded every `developer`/`system` input item into
+the Anthropic `system` block regardless of position, so a note arriving on turn
+N rewrote `system` and invalidated everything behind the tools block. Codex
+emits exactly these as ordinary conversation events —
+`<image_resize_notice>` after `view_image`, `<model_switch>` and
+`<collaboration_mode>` on a model change, `<app-context>` on app refresh.
+
+A real codex-cli 0.153.4 capture confirms the harness preamble arrives as a
+**leading** `developer` item (`input roles: ["developer","user",...]`). That case
+must keep folding into `system`; only a note arriving after the conversation
+starts is inlined.
+
+```bash
+bun scripts/e2e-responses-developer-cache.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Both conversations complete, and the control's second turn reads its prefix
+  from cache.
+- **The note's turn re-writes no more than 3x the control's `cache_write`.**
+
+**Why the assertion is a ratio, not a hit rate.** Hit percentage does not scale
+down to a probe. The reported collapse was on a ~700k-token thread where
+`system` sits behind a ~125k tools block, so losing everything behind it cost
+240k-584k tokens. In a ~6.5k probe the same bug only moves the rate from 98% to
+~86%, which any sensible percentage threshold waves through — an earlier draft
+of this gate passed both before and after for exactly that reason. Re-written
+tokens are the invariant:
+
+```
+pre-fix   A cache_write=99    B cache_write=769   ->  7.8x   FAIL
+with fix  A cache_write=117   B cache_write=141   ->  1.2x   PASS
+```
+
+The hit rate is still printed, as context rather than as a check.
+
+**Verified:** 2026-09-08. Discriminates as tabled above.
 
 ## Concurrent transcript publication
 
