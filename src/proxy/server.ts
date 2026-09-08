@@ -57,6 +57,7 @@ import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, rend
 import type { RequestMetric } from "../telemetry"
 import { canRecoverCapturedToolUses, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal } from "./errors"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, getAuthRenewalStatus, resolveRenewalWarnDays, type CredentialStore } from "./tokenRefresh"
+import { isCredentialsReadOnly, logCredentialsModeBanner } from "./credentialsMode"
 import {
   createFileDesignTokenStore,
   createDesignLogin,
@@ -8044,6 +8045,7 @@ export function installProxyProcessErrorHandlers(): void {
 }
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
+  logCredentialsModeBanner()
   claudeExecutable = await resolveClaudeExecutableAsync()
   const {
     app,
@@ -8146,18 +8148,32 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
   // watches the default Claude credential store. Multi-profile credentials
   // live under each profile's CLAUDE_CONFIG_DIR, so poll the discovered
   // profile list and refresh any browser-login profile that is near expiry.
+  //
+  // Both timers below are skipped under MERIDIAN_CREDENTIALS_READONLY. The
+  // refresh one obviously so. The keepalive is less obvious but no less
+  // important: it shells out to `claude auth status`, which runs the Claude
+  // CLI against the profile's CLAUDE_CONFIG_DIR and so is the CLI's own
+  // opportunity to rotate and rewrite the credential file — a write this
+  // process cannot intercept, because it happens in a subprocess. Not arming
+  // the timer is the only way to prevent it. (startBackgroundRefresh above
+  // self-gates; see its own guard.)
+  const credentialsReadOnly = isCredentialsReadOnly()
+
   const PROFILE_TOKEN_REFRESH_MS = 45_000
-  void ensureFreshTokenForProfiles(finalConfig)
-  const profileTokenRefreshInterval = setInterval(() => {
+  let profileTokenRefreshInterval: ReturnType<typeof setInterval> | undefined
+  if (!credentialsReadOnly) {
     void ensureFreshTokenForProfiles(finalConfig)
-  }, PROFILE_TOKEN_REFRESH_MS)
-  if (profileTokenRefreshInterval.unref) profileTokenRefreshInterval.unref()
+    profileTokenRefreshInterval = setInterval(() => {
+      void ensureFreshTokenForProfiles(finalConfig)
+    }, PROFILE_TOKEN_REFRESH_MS)
+    if (profileTokenRefreshInterval.unref) profileTokenRefreshInterval.unref()
+  }
 
   // Background auth keepalive: periodically refresh auth status for all
   // configured profiles so switching is instant (no stale token delay).
   let authKeepaliveInterval: ReturnType<typeof setInterval> | undefined
   const effectiveProfiles = getEffectiveProfiles(finalConfig.profiles)
-  if (effectiveProfiles.length > 0) {
+  if (!credentialsReadOnly && effectiveProfiles.length > 0) {
     const AUTH_KEEPALIVE_MS = 45_000 // 45s — well within the 60s TTL
     authKeepaliveInterval = setInterval(async () => {
       // Re-read effective profiles on each tick (picks up new profiles from disk)
@@ -8181,7 +8197,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     config: finalConfig,
     close() {
       closePromise ??= (async () => {
-        clearInterval(profileTokenRefreshInterval)
+        if (profileTokenRefreshInterval) clearInterval(profileTokenRefreshInterval)
         if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
         if (sessionGcInterval) clearInterval(sessionGcInterval)
         // Refuse new work before potentially waiting for a deletion child.

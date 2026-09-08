@@ -17,6 +17,7 @@ import { homedir } from "node:os"
 import { join, dirname } from "node:path"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import type { CredentialStore } from "./tokenRefresh"
+import { isCredentialsReadOnly, refuseCredentialWrite } from "./credentialsMode"
 import {
   createManualOAuthSession,
   parseAuthorizationCodeInput,
@@ -65,6 +66,16 @@ export function createFileDesignTokenStore(path: string = defaultDesignTokenPath
       }
     },
     async write(data) {
+      // Second credential store, guarded for the same reason as the OAuth one
+      // — and a live example of the call site nobody thought of.
+      // `defaultDesignTokenPath()` does NOT honour MERIDIAN_CONFIG_DIR, so a
+      // second instance writes the FIRST instance's design token no matter
+      // how its config dir is set, and this token carries a refresh token that
+      // rotates on use (see getDesignAccessToken).
+      if (isCredentialsReadOnly()) {
+        refuseCredentialWrite("design-token-store", path)
+        return
+      }
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, JSON.stringify(data), { mode: 0o600 })
     },
@@ -92,6 +103,15 @@ export async function getDesignAccessToken(opts: {
   if (!data) return null
   if (isDesignTokenFresh(data, now)) return data.accessToken
   if (!data.refreshToken) return null
+
+  // Same hazard as the OAuth refresh: the grant below rotates the token
+  // server-side, so making the call at all can invalidate the copy the other
+  // instance is using. Null is this function's existing refresh-failed
+  // contract — callers fall back to profile credentials.
+  if (isCredentialsReadOnly()) {
+    refuseCredentialWrite("design-token-refresh", "design-token")
+    return null
+  }
 
   let response: Response
   try {
