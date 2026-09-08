@@ -267,6 +267,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
 | E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction and overlapping general children. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
 | E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
+| E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3902,6 +3903,52 @@ system CLI 2.1.263. All four combinations passed: haiku and `claude-opus-5`,
 streaming and non-streaming, subject plus both controls. Against the same commit
 without the fix, the subject shape returned HTTP 500 non-streaming and delivered
 `read` with `stop_reason: max_tokens` streaming.
+
+## E44: Tier refusal failover
+
+**What it proves:** a credits-era per-tier refusal is classified as a rate limit
+and priority routing really moves the request to a healthy profile.
+
+**Why unit tests were not enough.** `classifyError` returned
+`rate_limit_error` for the banner as quoted in #962 while the live request still
+returned 500 and failed nothing over. The reason is that an API-key or gateway
+profile never delivers the banner bare — the SDK splices the upstream status in
+front of it:
+
+```
+Claude Code returned an error result: API Error: 400 You've reached your Fable limit. Switch to another model to continue.
+```
+
+That numeric status sat between the accepted wrappers and the banner and
+defeated the line anchor for *every* suffix, including the two that already
+worked. Only driving the real failover path surfaced it.
+
+```bash
+bun scripts/e2e-tier-refusal-failover.mjs
+bun scripts/e2e-tier-refusal-failover.mjs --stream
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A pre-flight check that the banner classifies as `rate_limit_error` and that
+  the type is a failover trigger, so a classifier regression is named as such
+  rather than surfacing as a confusing routing failure.
+- The real CLI reaches the refusal upstream on every case — a cooldown carried
+  over from the previous case cannot let a run skip straight to the fallback.
+- Exactly one refused attempt, recorded against the refusing profile with
+  status **429**, not 500.
+- HTTP 200 overall, exactly one served row, served by the healthy profile, and
+  the real Claude Max fallback answers with the run's receipt string.
+
+**What is stubbed, and why that is acceptable.** The refusal is a local fixture
+upstream: producing this banner for real means exhausting a real Fable tier on
+a real account, which a gate cannot do on demand. The **fallback leg is real** —
+a live Claude Max profile answering a live prompt — so what is stubbed is the
+condition we cannot cause, not the behavior under test.
+
+**Verified:** 2026-09-08. Both modes pass. Against the contributor's suffix fix
+alone the gate fails with the refused attempt recorded 500 and no failover,
+which is what identified the missing status allowance.
 
 ## Concurrent transcript publication
 
