@@ -266,6 +266,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
 | E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction and overlapping general children. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
+| E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3848,6 +3849,59 @@ Run this real-client sequence:
 `EXACTUNDO`, `EXACTFORK`, `EXACTORIGINAL`,
 `EXACTPARALLEL[ALPHA,BRAVO]`, and `EXACTAFTERCOMPACT`. The binary SHA-256 stayed
 unchanged through the matrix.
+
+## E43: Passthrough tools in a namespaced client
+
+**What it proves:** a client whose own tool names already carry an MCP
+namespace can still receive, execute, and answer a forwarded passthrough call.
+
+**Why it needs the real SDK:** Meridian nests client tools inside its own `oc`
+MCP server, so a client that aggregates MCP servers itself — a Claude Code CLI
+job with an `oc` server configured, for instance — declares tools like
+`mcp__oc__read` that collide with that namespace. The collision broke two
+things at once, and only one of them is visible to a mocked SDK:
+
+- **Registration.** The tool was advertised as `mcp__oc__mcp__oc__read`. On SDK
+  0.2.141 / CLI 2.1.263 the CLI lists that name but never dispatches it, so the
+  PreToolUse hook never fired and nothing was captured (`tools=0/1` in the
+  `sdk_termination` line). Non-streaming returned HTTP 500; streaming ended
+  `stop_reason: max_tokens` with an inline `error` event.
+- **Delivery.** The reverse translation was a blind prefix strip, so the leaked
+  tool_use reached the client renamed to `read` — a tool it never declared.
+
+Either half breaks the promise the forwarding hook makes to the model ("the
+result will be delivered in a future turn"): a client cannot answer a call it
+does not recognize, so that turn never comes, and a coordinator watching the
+stalled job re-dispatches it (#967).
+
+```bash
+bun scripts/e2e-passthrough-namespaced-tools.mjs
+bun scripts/e2e-passthrough-namespaced-tools.mjs --stream
+PROBE_MODEL=claude-opus-5 bun scripts/e2e-passthrough-namespaced-tools.mjs
+PROBE_MODEL=claude-opus-5 bun scripts/e2e-passthrough-namespaced-tools.mjs --stream
+```
+
+**Pass criteria** (asserted per tool shape and response mode, non-zero exit on any):
+
+- The call is dispatched and captured: `stop_reason: tool_use`, exactly one
+  tool_use block, no error event.
+- The delivered name is byte-identical to what the client declared, and its
+  arguments survive.
+- Replaying that call's real `tool_result` yields an answer quoting the
+  fixture's content, and the answer never claims the call went unanswered.
+- The ordinary (`read`) and foreign-namespace (`mcp__zed__read`) controls pass
+  in the same process, so a green run cannot come from a dead proxy.
+
+The fixture uses a deliberately short `/tmp` path. Under macOS `mkdtemp`, Opus
+truncates a `/private/var/folders/...`-length path in its own tool argument and
+says so in its reply — a model artifact that would fail the argument check for a
+reason unrelated to what this gate measures.
+
+**Verified:** 2026-09-08 on the fix branch, SDK 0.2.141 / bundled CLI 2.1.259 /
+system CLI 2.1.263. All four combinations passed: haiku and `claude-opus-5`,
+streaming and non-streaming, subject plus both controls. Against the same commit
+without the fix, the subject shape returned HTTP 500 non-streaming and delivered
+`read` with `stop_reason: max_tokens` streaming.
 
 ## Concurrent transcript publication
 
