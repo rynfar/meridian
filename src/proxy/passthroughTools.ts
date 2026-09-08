@@ -375,7 +375,13 @@ export function buildPassthroughToolAliases(
   for (const name of ordered) {
     if (!name.startsWith(PASSTHROUGH_MCP_PREFIX)) continue
     if (aliasByClientName.has(name)) continue
-    const base = name.slice(PASSTHROUGH_MCP_PREFIX.length) || "tool"
+    // Strip EVERY leading copy, not just one: a name that is already doubled
+    // would otherwise alias straight back to the undispatchable form.
+    let base = name
+    while (base.startsWith(PASSTHROUGH_MCP_PREFIX)) {
+      base = base.slice(PASSTHROUGH_MCP_PREFIX.length)
+    }
+    if (!base) base = "tool"
     let alias = base
     let attempt = 2
     while (clientNameByAlias.has(alias)) alias = `${base}_${attempt++}`

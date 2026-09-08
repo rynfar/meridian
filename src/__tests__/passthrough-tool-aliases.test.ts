@@ -66,6 +66,27 @@ describe("buildPassthroughToolAliases", () => {
     expect([...a.aliasByClientName]).toEqual([...b.aliasByClientName])
   })
 
+  it("strips every leading copy, so an already-doubled name is still dispatchable", () => {
+    const { aliasByClientName, clientNameByAlias } = buildPassthroughToolAliases([
+      "mcp__oc__mcp__oc__read",
+    ])
+    // Stripping only one copy would alias back to the undispatchable form.
+    expect(aliasByClientName.get("mcp__oc__mcp__oc__read")).toBe("read")
+    expect(clientNameByAlias.get("read")).toBe("mcp__oc__mcp__oc__read")
+  })
+
+  it("keeps a singly- and doubly-prefixed name apart", () => {
+    const { aliasByClientName, clientNameByAlias } = buildPassthroughToolAliases([
+      "mcp__oc__read",
+      "mcp__oc__mcp__oc__read",
+    ])
+    const single = aliasByClientName.get("mcp__oc__read")!
+    const double = aliasByClientName.get("mcp__oc__mcp__oc__read")!
+    expect(single).not.toBe(double)
+    expect(clientNameByAlias.get(single)).toBe("mcp__oc__read")
+    expect(clientNameByAlias.get(double)).toBe("mcp__oc__mcp__oc__read")
+  })
+
   it("survives a degenerate name that is nothing but the prefix", () => {
     const { aliasByClientName, clientNameByAlias } = buildPassthroughToolAliases(["mcp__oc__"])
     const alias = aliasByClientName.get("mcp__oc__")!
