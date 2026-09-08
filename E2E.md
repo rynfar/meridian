@@ -269,6 +269,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 | E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
+| E46 | [Codex namespace and MCP tools](#e46-codex-namespace-and-mcp-tools) | **Automated**: `bun scripts/e2e-codex-namespace-tools.mjs [--stream]` — real proxy + SDK. Codex 0.15x sends MCP servers as `{type:"namespace", tools:[...]}`, which the Responses translator dropped. Asserts namespaced tools reach Claude, calls come back carrying `namespace`, and a `function_call_output` whose output is a content-item ARRAY does not 400. **Run before releases touching the Responses translator or Codex tool handling** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3997,6 +3998,52 @@ gate does not carry a check that looks meaningful and discriminates nothing.
 
 **Verified:** 2026-09-08. Against pre-fix code the first two checks fail with
 the diagnostics quoted above; with the fix all five pass.
+
+## E46: Codex namespace and MCP tools
+
+**What it proves:** a Codex session's MCP tools reach Claude, its calls come
+back in a form Codex can route, and a turn replaying an MCP result succeeds.
+
+**The shapes were taken from a real capture, not from docs.** codex-cli 0.153.4
+was pointed at a recording endpoint with an actual stdio MCP server attached.
+It sent 13 top-level tool entries: 10 flat `function`, one `web_search`, and
+**2 `namespace` entries holding 7 nested tools**. Feeding that captured request
+through the pre-fix translator, 10 tools reached Claude and all 7 namespaced
+ones vanished — including Codex's own `multi_agent_v1` namespace
+(`spawn_agent`, `wait_agent`, …), so sub-agents were unavailable, not just the
+user's MCP server.
+
+```bash
+bun scripts/e2e-codex-namespace-tools.mjs
+bun scripts/e2e-codex-namespace-tools.mjs --stream
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- The flattened client tool count reaches Claude (`tools=4` for the fixture:
+  one flat plus three nested; `web_search` is correctly dropped, having no
+  client-side counterpart).
+- A `function_call` comes back named as Codex declared it and **carrying its
+  `namespace`**. Codex's router resolves `ToolName::new(namespace, name)`, so a
+  flattened name is silently unroutable — the call looks fine and never
+  dispatches.
+- A follow-up turn whose `function_call_output.output` is an **array of content
+  items** returns 200 and the model answers from it. MCP tools return arrays;
+  passed verbatim they reach Anthropic as `tool_result.content[0].type =
+  "input_text"` and 400, killing every turn after an MCP call.
+
+**Harness note.** In streaming, `function_call` arguments arrive as their own
+delta events and the completed item can carry an empty `arguments`. The gate
+accumulates them before replaying turn 2 — without that it replays an
+argument-less call, the model simply calls the tool again, and the run looks
+like a broken emitter when the emitter is fine.
+
+**Not covered.** Codex's freeform `apply_patch` (`{type:"custom", format:
+{grammar}}`) did not appear in a default-config capture, so the custom-tool
+path is covered by unit tests only and is **not** live-verified here.
+
+**Verified:** 2026-09-08, both modes. Against pre-fix code the same gate fails
+with `tools=1` and no call returned.
 
 ## Concurrent transcript publication
 
