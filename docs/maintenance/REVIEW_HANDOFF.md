@@ -35,8 +35,8 @@ and it is fixed in
 `codex/fix-oc-prefixed-client-tools`, worktree
 `/Users/rynfar/repos/meridian-wt/oc-prefixed-client-tools`). Base
 `38c1db2b25de70be873f4b1b6436334566107bff`; delivery commits
-`4646b932` (fix + tests) and `8ec39e41` (E43 gate + E2E.md), head
-`8ec39e41871d589a244482952d0537e36bc60894`. No contributor commits exist for
+`4646b932` (fix + tests), `8ec39e41` (E43 gate + E2E.md), `6823b687` (this
+checkpoint) and `9447f8a7` (doubled-name hardening). No contributor commits exist for
 this item, so there is no cherry-pick author mapping; the reporter is credited
 in the PR body. **#967 is NOT resolved and must stay open** — see below.
 
@@ -78,7 +78,7 @@ foreign `mcp__*` namespace was and remains fine.
 The respawn decision itself is above Meridian — the reporter's own job records
 show `respawnFlags: []`.
 
-**Validation.** `npm test` 3622 pass / 0 fail / 1 pre-existing skip;
+**Validation.** `npm test` 3624 pass / 0 fail / 1 pre-existing skip;
 `npm run typecheck` and `npm run build` clean. Failed-before/passed-after on the
 same assertions: `src/__tests__/proxy-passthrough-oc-prefixed-tools.test.ts`
 fails 6/8 on the parent commit (delivering `read` and `read_2` where
@@ -91,6 +91,11 @@ stream/non-stream) PASS. Post-fix live accounting shows `captured=1` and
 `sdk_termination_recovered` where the same probe previously logged `tools=0/1`
 with `envelope=open`. Versions: SDK 0.2.141, bundled Claude Code 2.1.259, system
 CLI 2.1.263, OpenCode 1.18.29, Node v22.22.3, macOS arm64.
+
+The Opus E43 runs were made before `9447f8a7`, which only changes names
+carrying two or more leading copies of the prefix — a shape the gate does not
+exercise and whose single-prefix behavior is byte-identical. E43 was re-run on
+haiku in both modes after that commit and stayed green.
 
 **Known limitations and next action.**
 
