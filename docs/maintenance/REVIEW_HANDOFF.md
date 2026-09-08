@@ -67,12 +67,24 @@ foreign `mcp__*` namespace was and remains fine.
 - The compounding "strict prefix-extension" replay is
   [#767](https://github.com/rynfar/meridian/issues/767)'s signature: a fresh
   replay opens a new SDK session, hence a new transcript that is a
-  prefix-extension of the last. Still unfixed on main for the trailing-block
-  shape connor-grady measured — `hasOnlyNewToolResults` in
-  `src/proxy/session/lineage.ts` requires every appended boundary block to be a
-  new `tool_result`, so an appended `text` block (`user[tool_result,text]`)
-  falls through to `modified-history` and replays. Verified present on
-  `38c1db2b`.
+  prefix-extension of the last.
+
+  **This bullet originally claimed the trailing-block shape was still unfixed
+  on main via `hasOnlyNewToolResults`. That was wrong.** That symbol no longer
+  exists: `9d283288` (2026-09-04, shipped in 1.68.0, incorporating #872 with
+  Serge Baranov's credit) replaced it with `appendedBlocksAreNew`, which
+  permits non-`tool_result` blocks appended to a slot that is already a
+  tool-result turn. Verified directly against main: `user[tool_result,text]`
+  returns `continuation`, and a plain `user[text]` turn gaining appended text
+  returns `diverged / modified-history` by deliberate design ("the user edited
+  their own turn").
+
+  **Process lesson worth more than the fact:** the error came from reading
+  `src/proxy/session/lineage.ts` out of the owner's checkout, which sits on a
+  divergent feature branch (`237acbf7`, not an ancestor of main), and then
+  asserting it as main's state. Read source for a claim about main from a
+  worktree on main, or via `git show origin/main:<path>`; `git log -S <symbol>`
+  settles when a rule changed in seconds.
 
 The respawn decision itself is above Meridian — the reporter's own job records
 show `respawnFlags: []`.
@@ -98,11 +110,16 @@ haiku in both modes after that commit and stayed green.
 
 **Known limitations and next action.**
 
-- Attribution of the reporter's incident to this defect is **not established**.
-  It holds only if those bg jobs declared `mcp__oc__*`-named tools, which needs
-  their tool list. `opencode-with-claude` was not installed locally and was not
-  inspected. No comment has been posted — asking the reporter needs the owner's
-  authorization.
+- Attribution of the reporter's incident to this defect is **not established**,
+  and is now actively doubtful. `opencode-with-claude` 1.10.1 was unpacked from
+  npm and checked rather than assumed: ~7.7 KB, one exported OpenCode `Plugin`,
+  no `mcp__` strings, no MCP server registration, no `child_process`/`spawn`,
+  no task/subagent bridging. It starts Meridian and resolves profiles. So it
+  does not bridge subagents to bg jobs as the report assumes, and the `oc`-named
+  MCP server in that environment is Meridian's own passthrough registration —
+  meaning the transcripts sampled there are Meridian's nested sessions.
+  Findings and a correction were posted to #967; nothing was asked of the
+  reporter. Determining a contributor's environment is our job, not theirs.
 - #967 stays open. Closing it needs both the attribution above and #767's
   replay driver.
 - #893 (the `oc` namespace ignoring `getMcpServerName()`) stays open and is
@@ -126,11 +143,15 @@ delivery branch `codex/fix-oc-prefixed-client-tools` was deleted; the worktree
 was retained.
 
 **Issue #967 is OPEN and must stay open.** It was auto-closed on merge and then
-reopened. Cause worth knowing before writing another PR body: the body's own
-limitation line read "Does not close #967", and GitHub's closing-keyword parser
-does not read negation — it linked that as a closing reference. **Never write
-`close/closes/closed/fix/fixes/resolves #N` in a PR body, even to deny it**;
-phrase it as "issue #N stays open" instead. The body has been corrected.
+reopened. Cause worth knowing before writing another PR body: that body's
+limitation line paired a closing keyword with the issue number in order to deny
+it, and GitHub's closing-keyword parser does not read negation — it linked that
+as a closing reference. **Never put a closing keyword next to an issue number
+in a PR body or commit message, even to deny it**; write "issue NNN stays open"
+instead. This paragraph deliberately does not quote the offending phrase, since
+a verbatim copy carries the same hazard wherever it is pasted. Verify with
+`grep -niE '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+'` before
+merging. The bodies have been corrected.
 
 **Release Please opened [PR #970](https://github.com/rynfar/meridian/pull/970)
 (`chore(main): release meridian 1.68.1`) automatically.** It is NOT authorized
@@ -161,9 +182,15 @@ immediately before, so it is intermittent rather than newly broken. No fix was
 attempted here — that is a separate bounded item, and it should start by
 reproducing the timeout rather than by loosening the assertion.
 
-- **Next action:** the strongest remaining lead is #767's
-  `hasOnlyNewToolResults` trailing-`text` shape — the compounding-replay half of
-  #967 — followed by the five unreviewed Codex-adapter PRs (#962–#966).
+- **Next action:** #767's remaining surface is smaller and murkier than this
+  handoff first claimed. Four of connor-grady's six captures
+  (`user[tool_result,text]`) now continue. The other two were `user[text]` with
+  a *single* text block, which cannot be an append — so the stored text block's
+  own hash changes between requests, which lineage can only read as a turn
+  edit. Why a stock client's user text re-hashes at all is the open question;
+  it needs live reproduction with the per-index diagnostic from #797, not more
+  code reading. Treat it as an investigation, not a known fix. The five
+  unreviewed Codex-adapter PRs (#962–#966) are the better-defined next batch.
 
 ## Completed checkpoint
 
