@@ -9,11 +9,11 @@ Codex, or another repository agent can resume this work.
 
 Follow [meridian-upstream-review](../../.agents/skills/meridian-upstream-review/SKILL.md)
 and [AGENTS.md](../../AGENTS.md). The current item is
-[PR #969](https://github.com/rynfar/meridian/pull/969), open and awaiting
-final-head CI at this checkpoint. Continue when the owner asks; this document
-does not start background work or authorize two agents to work the same queue.
-A prior agent's paused/blocked goal is not a claim that the backlog is
-complete.
+[PR #969](https://github.com/rynfar/meridian/pull/969); check its live state
+rather than trusting this line, since it was written from the branch being
+merged. Continue when the owner asks; this document does not start background
+work or authorize two agents to work the same queue. A prior agent's
+paused/blocked goal is not a claim that the backlog is complete.
 
 Keep this checkpoint current after a delivered ticket or meaningful pause.
 Record the item, disposition, original/delivery/base SHAs, author mapping,
@@ -113,11 +113,12 @@ haiku in both modes after that commit and stayed green.
   a bare `mcp__*` name as an internal SDK tool, so a foreign-namespace client
   tool would not arm the early-stop tracker if the SDK emitted its bare form.
   It does not today; the E43 foreign-namespace control passes in both modes.
-- **Next action:** confirm PR #969's final-head CI (including `test`), recheck
-  head/base/merge state immediately before merging, then
-  `gh pr merge 969 --squash --match-head-commit <verified-SHA>`. After merge,
-  the strongest remaining lead is #767's `hasOnlyNewToolResults` trailing-`text`
-  shape, which is the compounding-replay half of #967.
+- **Next action:** PR #969 was taken to green final-head CI and squash-merged
+  with `--match-head-commit` on the verified head; this file was written from
+  that branch, so confirm the merge landed and that #967 is still open before
+  building on it. Then the strongest remaining lead is #767's
+  `hasOnlyNewToolResults` trailing-`text` shape — the compounding-replay half of
+  #967 — followed by the five unreviewed Codex-adapter PRs (#962–#966).
 
 ## Completed checkpoint
 
