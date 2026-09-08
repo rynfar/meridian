@@ -153,6 +153,32 @@ a verbatim copy carries the same hazard wherever it is pasted. Verify with
 `grep -niE '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+'` before
 merging. The bodies have been corrected.
 
+**Two fresh data points for #917 / #933, both timeout expiries rather than
+logic failures.** Collected incidentally: each appeared on a *docs-only* diff
+that cannot influence it, which is what makes them clean observations.
+
+| where | test | duration | mechanism |
+|---|---|---|---|
+| `windows-smoke` | `process-incarnation.test.ts:123` | 10265 ms | `WINDOWS_PROBE_TIMEOUT_MS` is 10 s. The `powershell.exe` probe in `src/proxy/session/processIncarnation.ts` exceeded it, so `captureProcessIncarnation()` **failed closed and returned `undefined`** — which is the module's documented behavior — while the test asserts the capture is always defined on win32. |
+| `test` | `failover-request-id.test.ts:76` | 5002.97 ms | No explicit `it` timeout, so bun's default 5 s applied and expired. An assertion failure would not land on the default boundary to the millisecond. |
+
+Both went green on a later run of the same tree, so they are intermittent, not
+newly broken. #917 describes "concurrency tests fail fast, never the same one
+twice" — a pool of tests with fixed time budgets on a contended runner produces
+exactly that: whichever one is unlucky trips, so the name changes every time.
+
+This is a **candidate mechanism for part of** #917 / #933, not a proof of all of
+it, and no frequency has been measured. Two distinct sub-problems if picked up:
+
+- The incarnation test asserts something the module may legitimately not
+  provide. That is a genuine test defect and should be corrected by accepting a
+  fail-closed capture, not by widening the probe timeout.
+- The failover test simply lacks a CI-realistic timeout.
+
+Resist the reflex to loosen assertions across the suite to make CI quiet; that
+would mask the concurrency failures #917 is actually about. Start by measuring
+which tests run closest to their budget.
+
 **Release Please opened [PR #970](https://github.com/rynfar/meridian/pull/970)
 (`chore(main): release meridian 1.68.1`) automatically.** It is NOT authorized
 by this review and was not merged. A release needs the owner's explicit
