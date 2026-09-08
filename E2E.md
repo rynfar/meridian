@@ -268,6 +268,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction and overlapping general children. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
 | E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
+| E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -3949,6 +3950,53 @@ condition we cannot cause, not the behavior under test.
 **Verified:** 2026-09-08. Both modes pass. Against the contributor's suffix fix
 alone the gate fails with the refused attempt recorded 500 and no failover,
 which is what identified the missing status allowance.
+
+## E45: Codex auto-defer
+
+**What it proves:** a Codex request past the auto-defer threshold keeps its
+tools loaded, and `exec_command` in particular does not have to be discovered
+before it can be used.
+
+**Why it needs the real SDK.** `codexTransforms` runs after the shared OpenCode
+transform and inherited its `coreToolNames`
+(`read, write, edit, bash, glob, grep`). Codex sends none of those names, so
+once a session crossed the threshold — trivial for Codex, which inlines every
+MCP namespace's tool definitions — the core set matched nothing and **every**
+tool was deferred, `exec_command` included. Live pre-fix diagnostic:
+
+```
+deferred=40/40 tools (core: read,write,edit,bash,glob,grep)
+discovered=1 (exec_command) session_total=1
+```
+
+Deferral also has a second cost: `computePassthroughMaxTurns` only returns the
+single-turn cap when `singleTurnHandoff` holds, and that requires
+`!hasDeferredTools` — so turning deferral on lifted the cap from 1 to 4 and let
+the SDK's discarded digest turn generate on the full context.
+
+```bash
+bun scripts/e2e-codex-auto-defer.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- No `deferred=` diagnostic. That line is the observable for
+  `hasDeferredTools`, which is what moves the turn cap.
+- No `discovered=` diagnostic — `exec_command` is loaded directly rather than
+  costing a ToolSearch round trip.
+- HTTP 200, at least one `function_call` returned, and one of them named
+  `exec_command`. These are regression guards, not discriminators: they pass
+  before and after, and exist so a "fix" that merely made the prompt cheaper
+  while breaking Codex would still fail.
+
+**What this gate does NOT prove.** The digest-turn cost is real but
+scale-dependent — #963 measured 2–3× cache reads per turn on a 680k-token
+session, and a 40-tool probe on a short prompt does not reliably provoke the
+extra turn. The model-call count is therefore reported, not asserted, so the
+gate does not carry a check that looks meaningful and discriminates nothing.
+
+**Verified:** 2026-09-08. Against pre-fix code the first two checks fail with
+the diagnostics quoted above; with the fix all five pass.
 
 ## Concurrent transcript publication
 
