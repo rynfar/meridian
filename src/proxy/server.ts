@@ -1810,8 +1810,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // NOTE: OpenCode-specific legacy fallback. Older integrations sent
         // this header even when another adapter was selected; preserve that
         // behavior while adapters migrate to the normalized extension point.
+        // Polytoken never consumes it: the client owns agent orchestration,
+        // and an unrelated OpenCode header must not flip native traffic into
+        // subagent handling (cache isolation, fingerprint skips).
         const declaredAgentMode =
-          adapter.getAgentMode?.(c, body) ?? c.req.header("x-opencode-agent-mode") ?? null
+          adapter.getAgentMode?.(c, body)
+          ?? (adapter.baseName === "polytoken" || adapter.name === "polytoken"
+            ? undefined
+            : c.req.header("x-opencode-agent-mode"))
+          ?? null
         // A generic subagent source and an adapter-specific mode declaration
         // describe the same semantic fact. Treat either as authoritative so a
         // client cannot accidentally get cache isolation without the base model
@@ -1943,9 +1950,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Extract effort, thinking, taskBudget, and native structured output
         // from standard Anthropic API fields.
         // Header overrides take precedence over body values.
-        const effortHeader = c.req.header("x-opencode-effort")
-        const thinkingHeader = c.req.header("x-opencode-thinking")
-        const taskBudgetHeader = c.req.header("x-opencode-task-budget")
+        // NOTE: Polytoken-specific. x-opencode-* headers are OpenCode's legacy
+        // control channel; a Polytoken request carrying unrelated OpenCode
+        // headers (a shared gateway, a recording proxy) must not have its
+        // effort/thinking/task-budget silently overridden by them. Standard
+        // Anthropic body fields still apply.
+        const isPolytokenBase = adapterBase === "polytoken"
+        const effortHeader = isPolytokenBase ? undefined : c.req.header("x-opencode-effort")
+        const thinkingHeader = isPolytokenBase ? undefined : c.req.header("x-opencode-thinking")
+        const taskBudgetHeader = isPolytokenBase ? undefined : c.req.header("x-opencode-task-budget")
         // NOTE: anthropic-beta header filtering is delegated to `filterBetasForProfile`.
         // Default policy (`allow-safe`) strips only betas known to trigger Extra-Usage
         // billing (see BILLABLE_BETA_PREFIXES_ON_MAX in betas.ts). Free betas like
@@ -2290,11 +2303,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // Adapter can override the global passthrough env var per-agent.
         // Instance passthrough override (#476) beats the adapter transform's
         // default, which beats the global env var.
-        const passthrough = adapter.instancePassthrough !== undefined
-          ? adapter.instancePassthrough
-          : pipelineCtx.passthrough !== undefined
-            ? pipelineCtx.passthrough
-            : envBool("PASSTHROUGH")
+        // NOTE: Polytoken-specific. Passthrough is MANDATORY for this protocol:
+        // the client owns the tool loop, so an instance passthrough:false or a
+        // global MERIDIAN_PASSTHROUGH=0 would strand every tool call on the
+        // proxy host. The setting is ineffective for polytoken (documented);
+        // every other adapter's precedence is unchanged.
+        const passthrough = adapterBase === "polytoken"
+          ? true
+          : adapter.instancePassthrough !== undefined
+            ? adapter.instancePassthrough
+            : pipelineCtx.passthrough !== undefined
+              ? pipelineCtx.passthrough
+              : envBool("PASSTHROUGH")
         if (
           advancesDurableCheckpoint &&
           lineageResult.type !== "continuation" &&
@@ -3085,7 +3105,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // (e.g., "general-purpose") that OpenCode rejects. We send the
                 // canonical lowercase agent name that OpenCode's config declares.
                 let toolInput = normalizeToolInput(input.tool_input, clientTool?.input_schema)
-                if (toolName.toLowerCase() === "task" && toolInput?.subagent_type && typeof toolInput.subagent_type === "string") {
+                // NOTE: agent-specific — preserve Task alias normalization.
+                // Polytoken is exempt: its client owns agent orchestration and
+                // validates subagent_type itself, so a payload that arrives as
+                // "Explore" (or any other value Claude chose) must reach the
+                // client byte-identical instead of being rewritten to a
+                // lowercase agent name OpenCode-style config would declare.
+                if (
+                  adapterBase !== "polytoken"
+                  && toolName.toLowerCase() === "task"
+                  && toolInput?.subagent_type
+                  && typeof toolInput.subagent_type === "string"
+                ) {
                   toolInput = { ...toolInput, subagent_type: resolveAgentAlias(toolInput.subagent_type, validAgentNames) }
                 }
                 // Decide whether to forward this captured tool_use, or drop it
@@ -4408,7 +4439,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 const clientTool = requestTools.find((tool: { name: string; input_schema?: Parameters<typeof normalizeToolInput>[1] }) => tool.name === buffered.name)
                 const parsed = normalizeToolInput(JSON.parse(buffered.json), clientTool?.input_schema)
                 // NOTE: agent-specific — preserve Task alias normalization.
-                if (buffered.name.toLowerCase() === "task" && typeof parsed?.subagent_type === "string") {
+                // Polytoken is exempt (client-owned orchestration, exact
+                // payload preservation — see the capture-hook note above).
+                if (
+                  adapterBase !== "polytoken"
+                  && buffered.name.toLowerCase() === "task"
+                  && typeof parsed?.subagent_type === "string"
+                ) {
                   parsed.subagent_type = resolveAgentAlias(parsed.subagent_type, validAgentNames)
                 }
                 fixed = JSON.stringify(parsed)
