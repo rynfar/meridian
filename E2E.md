@@ -270,6 +270,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 | E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
 | E46 | [Codex namespace and MCP tools](#e46-codex-namespace-and-mcp-tools) | **Automated**: `bun scripts/e2e-codex-namespace-tools.mjs [--stream]` — real proxy + SDK. Codex 0.15x sends MCP servers as `{type:"namespace", tools:[...]}`, which the Responses translator dropped. Asserts namespaced tools reach Claude, calls come back carrying `namespace`, and a `function_call_output` whose output is a content-item ARRAY does not 400. **Run before releases touching the Responses translator or Codex tool handling** | 2026-09-08 |
+| E47 | [Codex thread identity](#e47-codex-thread-identity) | **Automated**: `bun scripts/e2e-codex-thread-identity.mjs` — real proxy + SDK. Codex hands a spawned subagent and its compaction the PARENT's `prompt_cache_key`. Asserts a user thread still resumes unchanged, siblings get their own sessions, and the parent still resumes after both. **Run before releases touching Responses session identity, the turn coordinator, or request-source admission** | 2026-09-08 |
 | E48 | [Responses developer-note cache](#e48-responses-developer-note-cache) | **Automated**: `bun scripts/e2e-responses-developer-cache.mjs` — real proxy + SDK, A/B. A `developer` item folded into `system` mid-conversation re-wrote the whole cached prefix. Asserts the note's turn re-writes no more than the control's (measured 7.8x pre-fix, 1.2x after). **Run before releases touching Responses prompt assembly or system-block construction** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -4045,6 +4046,63 @@ path is covered by unit tests only and is **not** live-verified here.
 
 **Verified:** 2026-09-08, both modes. Against pre-fix code the same gate fails
 with `tools=1` and no call returned.
+
+## E47: Codex thread identity
+
+**What it proves:** a Codex conversation keeps its own SDK session when a
+sibling flow shares its `prompt_cache_key`.
+
+**The metadata was verified against a real capture**, not read from docs.
+codex-cli 0.153.4 sends, inside `client_metadata`:
+
+```
+"x-codex-turn-metadata": "{... \"thread_id\":\"<id>\", \"request_kind\":\"turn\",
+                           \"thread_source\":\"user\", \"agent_name\":\"/root\" ...}"
+```
+
+and for a user-driven thread **`thread_id` equals `prompt_cache_key`**. That
+equality is the safety property: keying on the thread cannot re-anchor a session
+any existing client already established.
+
+```bash
+bun scripts/e2e-codex-thread-identity.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A user thread completes two turns and the second is a `continuation` — the
+  no-regression property, and the one worth failing loudest.
+- A spawned thread (`thread_source: subagent`, own `thread_id`, parent's cache
+  key) is admitted and gets its own SDK session.
+- A `request_kind: compact` request on the same thread is admitted and does not
+  land on the conversation's session.
+- **After both siblings, the parent turn is still a `continuation`.**
+
+**Which check actually discriminates.** Only the last one. Pre-fix, each
+sibling's first turn also opened its own SDK session, so those two checks pass
+either way — they are guards against a worse shape, not evidence. Measured
+against pre-fix code the parent's third turn returns `lineage=undo`: the
+compaction landed on the conversation's session and the next real turn read as a
+rewrite of it. With the fix it is `continuation`.
+
+The gate also asserts the parent still recalls a word from turn 1. That check
+passes **both** ways — an `undo` replays the history, so correctness survives
+and only cost does not (fresh session, 0% cache). It exists to catch the worse
+failure where the parent answers out of a sibling's session.
+
+**Harness note.** `/v1/responses` is stateless; a real Codex client resends the
+whole thread as `input` every turn. A harness that sends one message per request
+makes every turn a fresh one-message conversation, nothing ever resumes, and it
+looks exactly like broken session identity.
+
+**Not covered.** A genuine `thread_source: subagent` request could not be
+produced locally — `codex exec` offers `multi_agent_v1.spawn_agent` but does not
+spawn, so that shape needs Codex Desktop's interactive flow. The subagent case
+here uses the verified metadata wire format rather than a captured subagent
+request.
+
+**Verified:** 2026-09-08. All nine checks pass with the fix; pre-fix the
+discriminating check fails with `lineage=undo`.
 
 ## E48: Responses developer-note cache
 
