@@ -2,6 +2,21 @@
 
 Project guidelines for AI agents working in this codebase.
 
+## Repository skills and continuation
+
+For contributor PR/issue reviews, maintainer fixes to those contributions,
+authorized releases, or resuming this backlog, read and follow
+[meridian-upstream-review](.agents/skills/meridian-upstream-review/SKILL.md)
+before acting. Claude also has a discovery entrypoint in `.claude/skills/`;
+both use the same canonical instructions.
+
+For continuation, read [the current review handoff](docs/maintenance/REVIEW_HANDOFF.md),
+then refresh GitHub and origin/main. Update that handoff at a meaningful stop or
+handoff point. Do not rely on personal memories, old chat summaries, or a goal
+runner's status to decide what shipped or what remains. User instructions take
+precedence; this workflow does not start the backlog or authorize external
+actions by itself.
+
 ## What This Is
 
 A proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK). See `ARCHITECTURE.md` for the full module map and dependency rules.
@@ -9,10 +24,14 @@ A proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK). 
 ## Commands
 
 ```bash
-npm test          # Run all tests (bun test)
-npm run build     # Build with tsup
+npm test          # Full suite with process-global mocks isolated
+npm run build     # Bundle with Bun, emit declarations and check Node entrypoints
 npm start         # Start the proxy server
+npm run typecheck # tsc --noEmit; tests do not typecheck
 ```
+
+Use `npm test` for the full suite, not bare `bun test`: the npm script runs
+process-global mock users in separate Bun invocations.
 
 ## Code Rules
 
@@ -38,7 +57,7 @@ OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Speci
 - Integration tests go through the HTTP layer with mocked SDK
 - **All tests must pass before any change is considered complete**
 - New test files go in `src/__tests__/`
-- **E2E tests** are documented in [`E2E.md`](./E2E.md) — run manually before releases or after major refactors (requires Claude Max subscription)
+- **Live E2E is required for every accepted behavior change and before releases**, using the real SDK/model and affected client flow. See [`E2E.md`](./E2E.md) and the upstream-review skill. Mock-only tests, a different model/platform, or a green rerun do not prove the reported problem fixed.
 
 ### Style
 
@@ -102,41 +121,42 @@ If you need to modify any of these, open an issue first — breaking changes aff
 
 ### Development workflow — NEVER push directly to main
 
-All changes go through this process, no exceptions:
+1. Use a feature branch from current main, preferably in a fresh isolated
+   worktree, preserving the user's checkout. For upstream reviews, use the
+   repository skill above to assess desirability and preserve contributor
+   Author/AuthorDate through cherry-picks and separate maintainer corrections.
+2. Commit, push the feature branch, and create a PR targeting main. Use
+   Conventional Commits and describe the final behavior and validation.
+3. Run the required local checks and affected-flow live E2E, then wait for all
+   relevant final-head CI checks, including `test`. Recheck the head, base and
+   merge state immediately before merging; a changed head invalidates old checks.
+4. Normal PRs use `gh pr merge <N> --squash --match-head-commit <verified-SHA>`.
+   Delete only branches owned by this workflow after they are no longer needed.
+   Release Please PRs use `--merge` instead.
+5. Verify the merged tree and contributor credit. Recheck an incorporated
+   original PR's head before closing it, so newer contributor work is not lost.
+   Only close an issue when the validated behavior actually resolves it.
 
-1. **Create a feature branch** from `main`:
-   ```bash
-   git checkout -b feat/my-feature main
-   ```
+Squash keeps changelog entries one per PR. Preserve repository settings
+`squash_merge_commit_title=PR_TITLE` and `squash_merge_commit_message=BLANK`;
+do not paste intermediate conventional-commit subjects into the squash body.
+Verify human contributor credit instead of assuming every maintainer integration
+PR automatically receives all needed co-author trailers. No AI attribution.
 
-2. **Make changes, commit, push the branch:**
-   ```bash
-   git add -A && git commit -m "feat: my feature"
-   git push origin feat/my-feature
-   ```
+Signed-commit requirements can block a contributor PR. Inspect the actual block;
+use an authored cherry-pick in a maintainer integration PR when needed, with
+separate maintainer fixes. Never retype a contribution under your own authorship.
+Do not routinely use `--admin` or bypass checks.
 
-3. **Create a PR** targeting `main`:
-   ```bash
-   gh pr create --title "feat: my feature" --base main
-   ```
-
-4. **Wait for CI** — the `test` job must pass before merging:
-   ```bash
-   gh pr checks <PR_NUMBER>
-   ```
-
-5. **Merge the PR** (squash merge preferred):
-   ```bash
-   gh pr merge <PR_NUMBER> --squash --delete-branch
-   ```
-
-6. **Never** run `git push origin main` directly — all code reaches `main` through merged PRs only.
+Do not post comments or send messages to others without explicit authorization;
+draft explanations locally. Never run `git push origin main` directly.
 
 ## Releasing
 
 **Do NOT run `npm version`, `git push --tags`, or `npm publish` manually.**
 
-Releases are handled automatically by [Release Please](https://github.com/googleapis/release-please):
+For release validation and publication verification, follow the repository skill
+above and its release reference. Releases are handled automatically by [Release Please](https://github.com/googleapis/release-please):
 
 1. Merge PRs to `main` using [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, etc.)
 2. Release Please auto-creates/updates a release PR that batches all unreleased changes
@@ -155,8 +175,8 @@ Multiple PRs get batched into a single release. Never publish manually.
 ### Troubleshooting releases
 
 - **Changelog shows entire history?** — Release Please can't find the previous release tag. Check that `meridian-v<version>` tags exist for recent releases: `git tag -l 'meridian-v*' | tail -5`
-- **Release PR not updating?** — It only updates on `push` to `main`. If you closed it, push any commit to main to regenerate.
-- **Publish failed with E403?** — The version was already published. This is safe to ignore; the release is already on npm.
+- **Release PR not updating?** — Inspect the Release Please run and PR state. Changes still reach main through normal PRs; never push directly to main to trigger the bot.
+- **Publish failed with E403?** — Check the actual registry version, release commit and provenance before deciding an existing publication is correct; do not blindly ignore the error.
 - **`publish_only` workflow dispatch** — Emergency escape hatch to publish the current version without Release Please. Only use when the normal flow is broken.
 
 ### Release config files
