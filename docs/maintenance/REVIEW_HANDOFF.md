@@ -1,6 +1,6 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-08, after PR #969 merged (issue #967 triage). Refresh GitHub and
+Checkpoint: 2026-09-08, after the Codex contributor cluster. Refresh GitHub and
 origin/main before continuing; this is a dated checkpoint, not a live queue.
 The owner requested portable skills and agent instructions so either Claude,
 Codex, or another repository agent can resume this work.
@@ -8,9 +8,11 @@ Codex, or another repository agent can resume this work.
 ## Read first
 
 Follow [meridian-upstream-review](../../.agents/skills/meridian-upstream-review/SKILL.md)
-and [AGENTS.md](../../AGENTS.md). The last delivered item was
-[PR #969](https://github.com/rynfar/meridian/pull/969), merged. No new backlog
-fix is in progress. Continue when the owner asks; this document does not start
+and [AGENTS.md](../../AGENTS.md). The last delivered items were the Codex
+contributor cluster (#962-#966). **One PR is open and deliberately unmerged:
+[PR #977](https://github.com/rynfar/meridian/pull/977)** — green on everything,
+held for owner review because it changes session identity. Nothing else is in
+progress. Continue when the owner asks; this document does not start
 background work or authorize two agents to work the same queue. A prior agent's
 paused/blocked goal is not a claim that the backlog is complete.
 
@@ -253,6 +255,81 @@ stays open. Nothing was asked of the reporters — reproduction is our job.
 Reproduce with: `/tmp/e767` (stock) and `/tmp/e767b` (plugin stack) harness
 layout, Meridian on ports 3499 / 3498. Both are disposable; recreate from the
 recipe rather than trusting leftover dirs.
+
+## Delivered: the Codex contributor cluster (#962-#966), all by @justprosh
+
+Five contributor PRs, each cherry-picked with Author/AuthorDate preserved, each
+with a separate maintainer commit where live validation demanded one, and each
+carrying an explicit `Co-authored-by` trailer in the squash body.
+
+| original | integration | on main | disposition |
+|---|---|---|---|
+| #962 tier refusal ending in prose | #974 | `94e88cf0` | merged, original closed |
+| #963 Codex auto-defer | #975 | `dabd969b` | merged, original closed |
+| #964 namespace/custom tools | #976 | `907a00ee` | merged, original closed |
+| #965 thread session identity | #977 | — | OPEN, held for owner review |
+| #966 mid-conversation developer message | #978 | `4a031b97` | merged, original closed |
+
+**Credit mechanics matter here and are easy to get wrong.** Repository settings
+are `PR_TITLE` / `BLANK`, so a plain squash **drops the cherry-picked author
+entirely**. Every merge above passed
+`--body "Co-authored-by: Aleksey Proshutinskiy <alexey.prosh@fluence.one>"`.
+Verify that trailer on the resulting commit; do not assume it appears.
+
+The inverse error also happened once and was caught: a maintainer gate commit
+created immediately after a multi-commit cherry-pick **inherited the
+contributor's author line**. Falsely crediting a contributor for maintainer test
+code is the same class of fault as dropping their credit. Check
+`git log --format='%an'` over the series before pushing.
+
+**Two contributor branches track a `node_modules` symlink** pointing at
+`/Users/aleksei/dev/meridian/node_modules` (#963 `b9bca255`, #964 `432bead6`).
+Both authors' own follow-up commits remove it, so their heads are clean, but
+cherry-picking *through* the middle commit replaces a local install with a
+dangling link. It happened once here. Only final commits were incorporated where
+possible, and main is unaffected.
+
+**Live validation added five gates**, all real proxy plus real SDK: E44
+tier-refusal failover, E45 Codex auto-defer, E46 Codex namespace/MCP round-trip,
+E47 Codex thread identity (on the #977 branch, not yet on main), E48 Responses
+developer-note cache.
+
+**Where live E2E changed the outcome rather than confirming it.** Twice:
+
+- The #962 change was correct for the banner as quoted but insufficient for the
+  deployment it was reported from. A gateway profile never delivers the banner
+  bare — the SDK splices `API Error: 400` in front, and that numeric status
+  defeated the line anchor for every suffix, including the two that already
+  worked. `classifyError` returned 429 for the bare string while a live request
+  still 500'd. A separate maintainer commit allows exactly three digits.
+- A real Codex capture showed the #964 report was understated: the dropped
+  namespaces include Codex's own `multi_agent_v1`, so sub-agents were
+  unavailable, not only user MCP servers.
+
+**Two of my own gates initially proved nothing and were corrected before
+landing.** Recorded because the failure mode is seductive — a check that passes
+both before and after looks like evidence. E45's digest-turn count passes either
+way at probe scale, so it is reported rather than asserted. E48's first version
+asserted cache hit percentage, which barely moves in a 6.5k probe even when the
+prefix is re-written; the invariant is the ratio of re-written tokens, 7.8x
+pre-fix against 1.2x after. Always confirm a new gate fails against pre-fix
+code.
+
+**Verifying contributor claims by capture rather than by reading.** codex-cli
+0.153.4 was driven against a recording endpoint under an isolated `CODEX_HOME`
+with a real stdio MCP server. That settled the tool shapes
+(`{"function":10,"namespace":2,"web_search":1}`), the metadata schema, and the
+critical safety property behind #965: for a user-driven thread `thread_id`
+equals `prompt_cache_key`, so keying on the thread cannot re-anchor an existing
+session. Reproduce with the recipe in E2E.md E46 and E47.
+
+**PR #977 is held, not blocked.** Green on everything: 3665 tests, E47's nine
+checks, E41 all four modes, and E46 still 8/8 alongside it. Two honest gaps: a
+genuine `thread_source: subagent` request could not be produced locally
+(`codex exec` offers `multi_agent_v1.spawn_agent` but does not spawn, so it needs
+Codex Desktop), and two of E47's nine checks are guards rather than
+discriminators. Its conflict resolution against #976 also merits a second
+reader: both conflicting regions were purely additive and both blocks were kept.
 
 ## Completed checkpoint
 
