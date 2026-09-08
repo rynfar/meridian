@@ -637,6 +637,67 @@ The design token is stored at `~/.config/meridian/design-token.json` (mode `0600
 
 > Contributed by [@sittitep](https://github.com/sittitep) (#543).
 
+### Polytoken
+
+[Polytoken](https://polytoken.dev/) talks native Anthropic Messages and executes its own tools, so
+Meridian always runs it in passthrough mode — tool_use blocks come back to
+Polytoken, which executes them client-side and posts `tool_result` continuations.
+
+```yaml
+# Polytoken provider config (config.yaml)
+providers:
+  meridian:
+    kind:
+      type: catalog
+      name: anthropic
+    url: http://127.0.0.1:3456
+    auth:
+      type: static_key
+      key: <the proxy's MERIDIAN_API_KEY, if set>
+    headers:
+      x-meridian-profile: work   # optional profile pin
+```
+
+Detection (first match wins):
+
+1. A valid `X-Polytoken-Session` header — Polytoken is selected and that
+   header **is the session identity**.
+2. A `Polytoken <version>` or `Polytoken/<version>` User-Agent (token-boundary
+   match; `PolytokenImpostor` does not match). UA-only selection never
+   manufactures identity — requests without the native header run
+   fingerprint-less and are never resumed.
+3. `x-meridian-agent: polytoken` / `MERIDIAN_DEFAULT_AGENT=polytoken` for
+   explicit selection.
+
+Precedence with other selection signals: an explicit `x-meridian-agent`
+override (built-in or instance name) beats the native header, which beats
+automatic instance match rules, which beat the User-Agent chain. Unrelated
+OpenCode headers (`x-opencode-*`, `x-session-affinity`) have no effect on
+Polytoken traffic.
+
+Contract notes:
+
+- **The session header is identity, not authentication.** Same trust model as
+  every other adapter's headers — protect the proxy with `MERIDIAN_API_KEY`
+  if it is network-exposed.
+- **Client-owned tools are mandatory.** Passthrough cannot be disabled for
+  this protocol: an instance `passthrough: false` or a global
+  `MERIDIAN_PASSTHROUGH=0` is ineffective for `polytoken` (all other
+  adapters keep their normal precedence). Tool names, descriptions, schemas,
+  and payloads — including `Task`/`task` `subagent_type` values — pass
+  through byte-exact; no alias rewriting, no SDK subagent routing.
+- **Native prompt defaults.** No Claude Code preset is layered on
+  (`codeSystemPrompt: false`); the client's system prompt is the prompt.
+  Memory/dreaming/CLAUDE.md injection stay off. Explicit overrides via
+  `/settings` or an instance's `features` still apply.
+- **Thinking.** Signed/redacted thinking blocks from the model are preserved
+  through streaming and non-streaming responses. The thinking-generation and
+  `thinkingPassthrough` settings keep their existing semantics.
+- **Profile scoping.** With non-default profiles, the native key is scoped
+  per profile (`<profile>:<key>`) for resume state, exactly like other
+  keyed adapters. Blank/missing keys never resume (by design — no invented
+  fallback identity).
+
 ### Any Anthropic-compatible tool
 
 ```bash

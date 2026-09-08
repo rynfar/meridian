@@ -131,6 +131,23 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   codex: {
     codeSystemPrompt: false,
   },
+  // Polytoken is a native Anthropic Messages client that owns its prompt and
+  // its tool loop end to end. Layering the ~28KB Claude Code preset (or any
+  // Claude Code harness context) on top would override the client's prompt and
+  // inject foreign instructions, so the preset stays OFF and memory/dreaming/
+  // sharedMemory/claudeMd stay off — the client's system prompt IS the prompt.
+  // Signed/redacted thinking is preserved through the native response paths
+  // regardless: supportsThinking true on the adapter, and thinkingPassthrough
+  // is not a signature-stripping control. Explicit user/instance overrides
+  // keep their documented precedence.
+  polytoken: {
+    codeSystemPrompt: false,
+    clientSystemPrompt: true,
+    claudeMd: "off" as const,
+    memory: false,
+    dreaming: false,
+    sharedMemory: false,
+  },
 }
 
 function getConfigPath(): string {
