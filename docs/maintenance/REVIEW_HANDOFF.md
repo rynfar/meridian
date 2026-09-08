@@ -137,6 +137,30 @@ phrase it as "issue #N stays open" instead. The body has been corrected.
 by this review and was not merged. A release needs the owner's explicit
 authorization and the release reference in the skill.
 
+**New lead found while landing this checkpoint: `windows-smoke` is
+intermittently red for a characterizable reason.** On the checkpoint PR — a
+docs-only diff that cannot influence it — `windows-smoke` failed at
+`src/__tests__/process-incarnation.test.ts:123`, with
+`captureProcessIncarnation()` returning `undefined` after **10265 ms**. That
+duration is exactly `WINDOWS_PROBE_TIMEOUT_MS` (10 s) in
+`src/proxy/session/processIncarnation.ts`, whose Windows path shells out to
+`powershell.exe` via `spawnSync`. The test's own comment budgets "two cold
+PowerShell probes at up to 10s each" under a 25 s test timeout.
+
+So the module did what it is designed to do — fail closed when the host probe
+is uncertain — while the test asserts the capture is *always* defined on
+win32. On a cold or contended GitHub Windows runner the probe exceeds its
+timeout and the assertion fails. This is a test-strictness problem, not a
+proven product defect, and it is a concrete candidate mechanism for part of
+#917 / #933 ("intermittent CI failures", "flaky ~1 in 3").
+
+Scope and honesty limits: this is **one** observation, not a measured
+frequency, and it does not explain the concurrency-test failures #917
+describes. `windows-smoke` was green on `3a83560d` and on main's `282cbb0b`
+immediately before, so it is intermittent rather than newly broken. No fix was
+attempted here — that is a separate bounded item, and it should start by
+reproducing the timeout rather than by loosening the assertion.
+
 - **Next action:** the strongest remaining lead is #767's
   `hasOnlyNewToolResults` trailing-`text` shape — the compounding-replay half of
   #967 — followed by the five unreviewed Codex-adapter PRs (#962–#966).
