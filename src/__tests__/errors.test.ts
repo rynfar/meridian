@@ -917,6 +917,14 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["prose switch suffix", "Claude Code returned an error result: You've reached your Fable limit. Switch to another model to continue."],
     ["prose switch suffix, bare banner", "You've reached your Fable 5 limit. Switch to another model to continue."],
     ["prose switch suffix without the trailing clause", "You've reached your Opus limit. Switch to another model."],
+    // An API-key or gateway profile gets the upstream status spliced in ahead of
+    // the banner. Found by driving the real failover path: the classifier said
+    // rate_limit_error for the bare string while the live request still 500'd,
+    // because this is the shape that actually arrives. It defeated every suffix,
+    // including the two that already worked.
+    ["status-prefixed prose suffix", "Claude Code returned an error result: API Error: 400 You've reached your Fable limit. Switch to another model to continue."],
+    ["status-prefixed slash suffix", "Claude Code returned an error result: API Error: 429 You've reached your Fable 5 limit. /model to switch models."],
+    ["status-prefixed bare banner", "API Error: 400 You've reached your Opus limit."],
   ])("maps the credits-era per-tier %s to rate_limit_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("rate_limit_error")
@@ -941,6 +949,12 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     // The prose suffix is enumerated, not a licence for any tail: a sentence
     // that merely starts like it must still fall through.
     ["prose switch suffix continuing into documentation", "You've reached your Fable 5 limit. Switch to another model to continue, the docs say, but the account is healthy"],
+    // The status allowance is exactly three digits immediately before the
+    // banner, so neither a longer number nor an arbitrary numeric preamble
+    // opens the line up.
+    ["four-digit lookalike before the banner", "API Error: 4000 You've reached your Fable limit."],
+    ["numeric preamble that is not a status", "Retried 3 times: you've reached your Fable limit before, but not now"],
+    ["status prefix on a non-quota qualifier", "API Error: 400 You've reached your configured limit."],
   ])("does not classify credits-era per-tier %s as a rate limit", (_label, msg) => {
     expect(classifyError(msg).type).toBe("api_error")
   })
