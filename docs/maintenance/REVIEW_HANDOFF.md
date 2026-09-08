@@ -208,15 +208,51 @@ immediately before, so it is intermittent rather than newly broken. No fix was
 attempted here — that is a separate bounded item, and it should start by
 reproducing the timeout rather than by loosening the assertion.
 
-- **Next action:** #767's remaining surface is smaller and murkier than this
-  handoff first claimed. Four of connor-grady's six captures
-  (`user[tool_result,text]`) now continue. The other two were `user[text]` with
-  a *single* text block, which cannot be an append — so the stored text block's
-  own hash changes between requests, which lineage can only read as a turn
-  edit. Why a stock client's user text re-hashes at all is the open question;
-  it needs live reproduction with the per-index diagnostic from #797, not more
-  code reading. Treat it as an investigation, not a known fix. The five
-  unreviewed Codex-adapter PRs (#962–#966) are the better-defined next batch.
+- **Next action:** the five unreviewed Codex-adapter PRs (#962–#966). #767 was
+  investigated live and did not reproduce — see below.
+
+## Investigated: #767 does not reproduce live on main
+
+Ran the original report's own recipe against main (`a0ee33f2`) rather than
+reasoning from code: real `opencode` 1.18.29 → real Meridian on an isolated
+port, isolated `XDG_*`/config/session-store/project dirs, `claude-opus-5`,
+genuine read/edit/write/bash tool use, one continuous session per config.
+
+| config | plugins | turns | msgs | opus lineage | `Stale session detected` |
+|---|---|---|---|---|---|
+| stock | Meridian only | 12 | 49 | 24 continuation / 1 new | 0 |
+| plugin stack | + oh-my-openagent, opencode-memory, opencode-worktree, opencode-history-search, openslimedit | 7 | 31 | 15 continuation / 1 new | 0 |
+
+The lone `new` in each is that session's first turn. Zero divergence
+diagnostics fired. Cache shape is inverted from the report's fresh-replay
+signature — `cacheRead` climbs with the transcript while `cacheCreation` stays
+in the low hundreds per turn:
+
+```
+stock         cacheCreation  31,199   cacheRead   367,589   ratio 11.8x
+plugin stack  cacheCreation  95,707   cacheRead 1,630,777   ratio 17.0x
+```
+
+The plugin stack pinned ~67.6k of cache-read on turn one, close to the report's
+~54.5k, which is the evidence the stack was genuinely loaded and shaping the
+prompt rather than silently absent.
+
+Consistent with `9d283288` (in 1.68.0) having addressed the mechanism:
+connor-grady's captures were on 1.62.7, and four of their six were the
+`user[tool_result,text]` shape that `appendedBlocksAreNew` now permits. It also
+fits tetipong2542's own correction that Opus alone was 82% clean and the failure
+required a plugin interaction.
+
+**Do not read this as resolved.** Bounded by: session scale (49 and 31 messages
+versus overlaps of 776–797 in the captures); agent profile (default agent, not
+oh-my-openagent's "Sisyphus - ultraworker", which drives far longer reasoning);
+`opencode-pty` and `opencode-quota` not installed; and one run per config, which
+is not a measured rate. Evidence and these limits were posted to #767, which
+stays open. Nothing was asked of the reporters — reproduction is our job.
+
+Reproduce with: `/tmp/e767` (stock) and `/tmp/e767b` (plugin stack) harness
+layout, Meridian on ports 3499 / 3498. Both are disposable; recreate from the
+recipe rather than trusting leftover dirs.
 
 ## Completed checkpoint
 
