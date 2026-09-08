@@ -1,6 +1,6 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-08, before the workflow-documentation PR. Refresh GitHub and
+Checkpoint: 2026-09-08, at PR #969 (issue #967 triage). Refresh GitHub and
 origin/main before continuing; this is a dated checkpoint, not a live queue.
 The owner requested portable skills and agent instructions so either Claude,
 Codex, or another repository agent can resume this work.
@@ -8,11 +8,12 @@ Codex, or another repository agent can resume this work.
 ## Read first
 
 Follow [meridian-upstream-review](../../.agents/skills/meridian-upstream-review/SKILL.md)
-and [AGENTS.md](../../AGENTS.md). The prior review run stopped after its current
-ticket and an authorized release. No new backlog fix is in progress. Continue
-when the owner asks; this document does not start background work or authorize
-two agents to work the same queue. A prior agent's paused/blocked goal is not a
-claim that the backlog is complete.
+and [AGENTS.md](../../AGENTS.md). The current item is
+[PR #969](https://github.com/rynfar/meridian/pull/969), open and awaiting
+final-head CI at this checkpoint. Continue when the owner asks; this document
+does not start background work or authorize two agents to work the same queue.
+A prior agent's paused/blocked goal is not a claim that the backlog is
+complete.
 
 Keep this checkpoint current after a delivered ticket or meaningful pause.
 Record the item, disposition, original/delivery/base SHAs, author mapping,
@@ -20,6 +21,98 @@ worktree/branch, before/after proof, tests and E2E versions, CI URLs, merge and
 closure status, limitations, and the exact next action. Put portable evidence in
 the PR or linked review record; optional private local logs are not prerequisites
 for discovering the workflow. Never invent test evidence if those logs are absent.
+
+## Current item: issue #967 triage, delivered as PR #969
+
+**Item.** [Issue #967](https://github.com/rynfar/meridian/issues/967) —
+"Passthrough tool forwards are undeliverable for headless bg-job subagents →
+compounding respawn loop", reported by filipporovelli against 1.68.0.
+
+**Disposition.** Accepted in part, as a maintainer fix from triage. Triage found
+a real and distinct Meridian defect that produces the reported symptom exactly,
+and it is fixed in
+[PR #969](https://github.com/rynfar/meridian/pull/969) (branch
+`codex/fix-oc-prefixed-client-tools`, worktree
+`/Users/rynfar/repos/meridian-wt/oc-prefixed-client-tools`). Base
+`38c1db2b25de70be873f4b1b6436334566107bff`; delivery commits
+`4646b932` (fix + tests) and `8ec39e41` (E43 gate + E2E.md), head
+`8ec39e41871d589a244482952d0537e36bc60894`. No contributor commits exist for
+this item, so there is no cherry-pick author mapping; the reporter is credited
+in the PR body. **#967 is NOT resolved and must stay open** — see below.
+
+**The defect that was fixed.** Client tools are registered inside Meridian's own
+`oc` MCP server, so a client whose tool names already start with `mcp__oc__` —
+a Claude Code CLI job with an `oc` MCP server configured, for instance —
+collides with that namespace. Registration advertised
+`mcp__oc__mcp__oc__read`, which SDK 0.2.141 / CLI 2.1.263 lists but never
+dispatches: the PreToolUse hook never fired, nothing was captured
+(`tools=0/1`), non-streaming returned HTTP 500, and streaming ended
+`stop_reason: max_tokens` with an inline `error` event while leaking a tool_use
+the blind reverse strip had renamed to `read`. Fixed by registering colliding
+tools under a collision-free alias and reversing through an explicit map.
+Ordinary tool sets alias to themselves, so model-visible names and the prompt
+cache are unchanged. Only the exact `mcp__oc__` collision was affected; a
+foreign `mcp__*` namespace was and remains fine.
+
+**Two of the issue's inferences were refuted. Do not chase them again.**
+
+- A nested SDK transcript terminating at the forward stub is the **designed
+  steady state** of every passthrough tool step, on every client — not evidence
+  of a stall. `PASSTHROUGH_DENY_REASON` has exactly one call site, inside
+  Meridian's own PreToolUse hook, and is never sent to a client as a
+  `tool_result`; Meridian then resumes the checkpoint with `forkSession`, so the
+  denial branch is deliberately dead history. E41 already asserts the active
+  fork holds exactly one real answer and zero denials per delivered call. The
+  issue's "18 of 20 newest transcripts terminate at the forward stub" therefore
+  describes Meridian's own nested sessions.
+- The compounding "strict prefix-extension" replay is
+  [#767](https://github.com/rynfar/meridian/issues/767)'s signature: a fresh
+  replay opens a new SDK session, hence a new transcript that is a
+  prefix-extension of the last. Still unfixed on main for the trailing-block
+  shape connor-grady measured — `hasOnlyNewToolResults` in
+  `src/proxy/session/lineage.ts` requires every appended boundary block to be a
+  new `tool_result`, so an appended `text` block (`user[tool_result,text]`)
+  falls through to `modified-history` and replays. Verified present on
+  `38c1db2b`.
+
+The respawn decision itself is above Meridian — the reporter's own job records
+show `respawnFlags: []`.
+
+**Validation.** `npm test` 3622 pass / 0 fail / 1 pre-existing skip;
+`npm run typecheck` and `npm run build` clean. Failed-before/passed-after on the
+same assertions: `src/__tests__/proxy-passthrough-oc-prefixed-tools.test.ts`
+fails 6/8 on the parent commit (delivering `read` and `read_2` where
+`mcp__oc__read` was declared) and passes 8/8 with the fix; the 2 that pass
+either way are the no-regression controls. New **E43** live gate
+(`scripts/e2e-passthrough-namespaced-tools.mjs`) passed all four combinations —
+haiku and `claude-opus-5`, streaming and non-streaming, subject plus an ordinary
+and a foreign-namespace control. **E41 all four modes** (chain/parallel ×
+stream/non-stream) PASS. Post-fix live accounting shows `captured=1` and
+`sdk_termination_recovered` where the same probe previously logged `tools=0/1`
+with `envelope=open`. Versions: SDK 0.2.141, bundled Claude Code 2.1.259, system
+CLI 2.1.263, OpenCode 1.18.29, Node v22.22.3, macOS arm64.
+
+**Known limitations and next action.**
+
+- Attribution of the reporter's incident to this defect is **not established**.
+  It holds only if those bg jobs declared `mcp__oc__*`-named tools, which needs
+  their tool list. `opencode-with-claude` was not installed locally and was not
+  inspected. No comment has been posted — asking the reporter needs the owner's
+  authorization.
+- #967 stays open. Closing it needs both the attribution above and #767's
+  replay driver.
+- #893 (the `oc` namespace ignoring `getMcpServerName()`) stays open and is
+  untouched. If it lands, `buildPassthroughToolAliases` and the
+  `passthroughEarlyStop.ts` prefix mirror must follow the same value.
+- A pre-existing gap deliberately left alone: `isClientForwardedToolUse` treats
+  a bare `mcp__*` name as an internal SDK tool, so a foreign-namespace client
+  tool would not arm the early-stop tracker if the SDK emitted its bare form.
+  It does not today; the E43 foreign-namespace control passes in both modes.
+- **Next action:** confirm PR #969's final-head CI (including `test`), recheck
+  head/base/merge state immediately before merging, then
+  `gh pr merge 969 --squash --match-head-commit <verified-SHA>`. After merge,
+  the strongest remaining lead is #767's `hasOnlyNewToolResults` trailing-`text`
+  shape, which is the compounding-replay half of #967.
 
 ## Completed checkpoint
 
@@ -70,18 +163,18 @@ released; original #898 was closed as superseded.
 The September 8 snapshot had **32 open PRs and 18 open issues** before the
 workflow-documentation PR. Refresh both lists; do not act solely on this count.
 
-Prioritize bounded triage of [issue #967](https://github.com/rynfar/meridian/issues/967),
-which reports a growing headless-background-job respawn loop on Meridian1.68.0.
-The reporter's environment is OpenCode1.18.29, opencode-with-claude1.10.1,
-Claude Code2.1.263 and a resumed Opus session. Headless jobs reportedly receive
-client-tool forwarding stubs without a client able to return the result.
+Issue #967 has been triaged and its Meridian half fixed in PR #969. Read the
+current-item section above before touching it again, and do not re-derive the
+two refuted inferences recorded there. The unresolved half of that report is
+#767's replay driver, plus attribution that needs the reporter's tool list.
 
-This is a report, **not a verified root cause, a proven regression, or an approved
-implementation**. Reproduce with bounded attempts and isolated fixtures, establish
-which component owns the behavior, and validate the affected model/client versions.
-Their fresh Haiku attempts passed; earlier Haiku validation neither disproves the
-report nor resolves it. Do not read private SDK transcript files referenced in
-an issue; use supported APIs and controlled reproduction.
+Pick one bounded item from the refreshed lists. Each is a report or proposal,
+**not a verified root cause, a proven regression, or an approved
+implementation**. Reproduce with bounded attempts and isolated fixtures,
+establish which component owns the behavior, and validate the affected
+model/client versions — a passing Haiku run neither disproves nor resolves an
+Opus report. Do not read private SDK transcript files referenced in an issue;
+use supported APIs and controlled reproduction.
 
 New unreviewed contributor PRs since the prior checkpoint:
 
