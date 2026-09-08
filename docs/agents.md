@@ -639,9 +639,7 @@ The design token is stored at `~/.config/meridian/design-token.json` (mode `0600
 
 ### Polytoken
 
-[Polytoken](https://polytoken.dev/) talks native Anthropic Messages and executes its own tools, so
-Meridian always runs it in passthrough mode — tool_use blocks come back to
-Polytoken, which executes them client-side and posts `tool_result` continuations.
+[Polytoken](https://polytoken.dev/) talks native Anthropic Messages and executes its own tools, so Meridian always runs it in passthrough mode. tool_use blocks come back to Polytoken, which executes them client-side and posts `tool_result` continuations.
 
 ```yaml
 # Polytoken provider config (config.yaml)
@@ -660,14 +658,9 @@ providers:
 
 Detection (first match wins):
 
-1. A valid `X-Polytoken-Session` header — Polytoken is selected and that
-   header **is the session identity**.
-2. A `Polytoken <version>` or `Polytoken/<version>` User-Agent (token-boundary
-   match; `PolytokenImpostor` does not match). UA-only selection never
-   manufactures identity — requests without the native header run
-   fingerprint-less and are never resumed.
-3. `x-meridian-agent: polytoken` / `MERIDIAN_DEFAULT_AGENT=polytoken` for
-   explicit selection.
+1. A valid `X-Polytoken-Session` header — Polytoken is selected and that header **is the session identity**.
+2. A `Polytoken <version>` or `Polytoken/<version>` User-Agent (token-boundary match; `PolytokenImpostor` does not match). UA-only selection never manufactures identity: without a valid native header there is no session key, so tool-result continuations run independent and are never resumed (plain text turns still fall back to the generic first-message fingerprint, as for any other headerless client).
+3. `x-meridian-agent: polytoken` / `MERIDIAN_DEFAULT_AGENT=polytoken` for explicit selection.
 
 Precedence with other selection signals: an explicit `x-meridian-agent`
 override (built-in or instance name) beats the native header, which beats
