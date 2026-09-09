@@ -291,7 +291,7 @@ describe("polytoken mandatory passthrough", () => {
     expect((options as Record<string, unknown>).thinking ?? null).toBeNull()
   })
 
-  it("preserves Task/Task subagent_type payloads byte-exact (no alias rewriting)", async () => {
+  it("preserves Task/Task subagent_type payloads (no alias rewriting)", async () => {
     const { app } = createProxyServer({ silent: true })
     const tools = [{
       name: "Task",
@@ -409,14 +409,16 @@ describe("polytoken append-only tool loop and resume", () => {
     expect(captured[3]!.options!.resume).not.toBe(sessionA)
   })
 
-  it("keeps missing/blank-key requests safely independent (no resume, no shared state)", async () => {
+  it("keeps blank-key requests safely independent (no polytoken selection, no resume)", async () => {
     const { app } = createProxyServer({ silent: true })
-    // Blank key: not a match, not an identity.
+    // A whitespace-only native header is not a match: detection falls through,
+    // so this request does not select polytoken at all — it exercises the
+    // headerless default path the same way any other client would.
     const blank = await post(app, haikuBody({ tools: [clientTool] }), { "x-polytoken-session": "   " })
     expect(blank.status).toBe(200)
     expect(captured[0]!.options!.resume).toBeUndefined()
     expect(captured[0]!.options!.sessionId).toBeTruthy()
-    // A second blank-key request must not resume the first's session.
+    // A second headerless request must not resume the first's session.
     await post(app, haikuBody({ tools: [clientTool] }))
     expect(captured[1]!.options!.resume).toBeUndefined()
     expect(captured[1]!.options!.sessionId).not.toBe(captured[0]!.options!.sessionId)
@@ -465,7 +467,7 @@ describe("polytoken prompt defaults and overrides", () => {
     expect(options.settingSources).toEqual([])
   })
 
-  it("preserves signed/redacted thinking and exact usage counters (nonstream)", async () => {
+  it("preserves signed thinking and exact usage counters (nonstream)", async () => {
     const { app } = createProxyServer({ silent: true })
     // Replace the SDK mock stream for this test with a thinking-bearing one.
     const { setSdkMock } = await import("./sdkMock")

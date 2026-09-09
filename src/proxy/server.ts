@@ -3109,7 +3109,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // Polytoken is exempt: its client owns agent orchestration and
                 // validates subagent_type itself, so a payload that arrives as
                 // "Explore" (or any other value Claude chose) must reach the
-                // client byte-identical instead of being rewritten to a
+                // client unchanged instead of being rewritten to a
                 // lowercase agent name OpenCode-style config would declare.
                 if (
                   adapterBase !== "polytoken"
