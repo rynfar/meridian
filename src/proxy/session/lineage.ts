@@ -231,6 +231,17 @@ export interface LineageMismatch {
   previousDigest?: string
   storedCount: number
   incomingCount: number
+  /** How many blocks the STORED message had at this index. Undefined for a
+   *  session cached before block hashes were recorded (pre-1.61.0). */
+  storedBlockCount?: number
+  /** Blocks the incoming message has at this index, counted over the same
+   *  hashable domain as the stored side so the two are comparable. */
+  incomingBlockCount?: number
+  /** What the client did to this message, when the stored block hashes make it
+   *  decidable. Appended/dropped/rewritten are three different client bugs and
+   *  the log could not tell them apart (#886) — which is precisely the question
+   *  #767 turns on. */
+  blockChange?: "appended" | "dropped" | "rewritten" | "reordered" | "unknown"
 }
 
 function describeShape(message: { role: string; content: any }): MessageShape {
@@ -275,13 +286,49 @@ export function describeLineageMismatch(
   }
   if (index < 0) return base
 
+  // The stored block hashes are already in hand and verifyLineage's own
+  // boundary tolerance consumes them a few lines later; the diagnostic simply
+  // never looked. Counting both sides turns "this message changed" into
+  // "the client appended / dropped / rewrote a block", which is the difference
+  // between a safe continuation and a history the client no longer claims.
+  const storedBlocks = cached.messageBlockHashes?.[index]
+  const incomingMessage = messages[index]
+  const incomingBlocks = incomingMessage
+    ? computeMessageBlockHashes([incomingMessage])[0]
+    : undefined
+
   return {
     ...base,
     storedDigest: storedHashes[index],
     incomingDigest: incomingHashes[index],
-    incomingShape: messages[index] ? describeShape(messages[index]!) : undefined,
+    incomingShape: incomingMessage ? describeShape(incomingMessage) : undefined,
     previousDigest: index > 0 ? storedHashes[index - 1] : undefined,
+    storedBlockCount: storedBlocks?.length,
+    incomingBlockCount: incomingBlocks?.length,
+    blockChange: classifyBlockChange(storedBlocks, incomingBlocks),
   }
+}
+
+/**
+ * Name the block-level edit, using only the hashes both sides already carry.
+ *
+ * `appended` and `dropped` require the shorter side to be an exact ORDERED
+ * PREFIX of the longer one. A count change alone is not enough: dropping one
+ * block and adding two also grows the list, and calling that an append would
+ * describe a rewrite as something safe to resume.
+ */
+function classifyBlockChange(
+  stored: readonly string[] | undefined,
+  incoming: readonly string[] | undefined,
+): LineageMismatch["blockChange"] {
+  if (!stored || !incoming) return "unknown"
+  const isPrefix = (short: readonly string[], long: readonly string[]) =>
+    short.every((hash, i) => long[i] === hash)
+  if (incoming.length > stored.length) return isPrefix(stored, incoming) ? "appended" : "rewritten"
+  if (incoming.length < stored.length) return isPrefix(incoming, stored) ? "dropped" : "rewritten"
+  // Same length: an in-place edit, unless the same blocks merely moved.
+  const same = [...stored].sort().join() === [...incoming].sort().join()
+  return same ? "reordered" : "rewritten"
 }
 
 /**
@@ -305,10 +352,16 @@ export function formatLineageMismatch(mismatch: LineageMismatch): string | undef
   const shape = mismatch.incomingShape
     ? `${mismatch.incomingShape.role}[${mismatch.incomingShape.blocks}] ${mismatch.incomingShape.bytes}B`
     : "unknown"
+  // Block counts and the verdict are integers and a fixed word: no content, so
+  // the line stays as safe to paste into a public issue as it was before.
+  const blocks = mismatch.storedBlockCount !== undefined && mismatch.incomingBlockCount !== undefined
+    ? `, stored ${mismatch.storedBlockCount} blocks -> incoming ${mismatch.incomingBlockCount} blocks`
+      + (mismatch.blockChange && mismatch.blockChange !== "unknown" ? ` (${mismatch.blockChange})` : "")
+    : ", stored block hashes unavailable (session cached before 1.61.0)"
   return (
     `first mismatch at index ${mismatch.index}${trailing}: ` +
     `stored=${short(mismatch.storedDigest)} incoming=${short(mismatch.incomingDigest)}, ` +
-    `incoming now ${shape}`
+    `incoming now ${shape}${blocks}`
   )
 }
 
