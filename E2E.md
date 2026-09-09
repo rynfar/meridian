@@ -278,6 +278,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E52 | [Host identity](#e52-host-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-host-id.mjs`. Reproduces the derived `hostId` moving with the pid-namespace inode across `docker restart`, then asserts `MERIDIAN_HOST_ID` makes it stable across namespaces and distinct across hosts sharing a baked machine-id. **Run before releases touching process incarnation or store locking** | 2026-09-08 |
 | E53 | [Auto-defer pin](#e53-auto-defer-pin) | **Automated**: `bun scripts/e2e-defer-pin.mjs` — real proxy + SDK, A/B. Two three-turn conversations, one crossing the auto-defer threshold on its last turn. Asserts deferral (and so `maxTurns`) does not flip mid-session and that the suppressed flip is logged. **Run before releases touching auto-defer, tool registration, or prompt assembly** | 2026-09-09 |
 | E54 | [Lineage divergence reason](#e54-lineage-divergence-reason) | **Automated**: `bun scripts/e2e-lineage-divergence-reason.mjs` — real proxy + SDK, A/B. Drives a headerless pi tool loop and the same loop with `x-session-affinity`. Asserts no divergence is silent, that the headerless bypass names itself, that the advice is printed once per process, and that the named remedy actually restores resume and prompt-cache reuse. **Run before releases touching lineage classification, the independence guards, or the request log line** | 2026-09-09 |
+| E55 | [Gateway-fronted Claude Code](#e55-gateway-fronted-claude-code) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-passthrough-claude-code-session.mjs` — real proxy + SDK, and the REAL Claude Code CLI as the client. Asserts a gateway-fronted Claude Code session keeps the tool-loop exemption it has on a direct connection, that its following turn resumes, and that the CLI's auxiliary requests do not collide with the conversation. **Run before releases touching the independence guards, adapter detection, or passthrough session identity** | 2026-09-09 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4437,6 +4438,86 @@ B keyed       round 4  msgs=7  lineage=continuation  diverged=—               
 `cache_read` pinned at 5789 while the conversation grows is the reporters' own
 signature at probe scale; they measured it pinned at 30629 across 12,781 to
 13,030 messages. Per-round cache-write ratio measured 7.2x and 7.1x.
+
+## E55: Gateway-fronted Claude Code
+
+**What it proves:** a Claude Code session behind an API gateway keeps the
+tool-loop exemption it already has on a direct connection — and the change
+that delivers it does not turn a silent inefficiency into a hard failure.
+
+The headerless tool-result bypass exempts `adapterBase === "claude-code"`,
+because Claude Code owns its tool loop but still expects Meridian to resume the
+backing SDK session. Behind LiteLLM the passthrough heuristic claims the
+request first, so that exemption was lost — and LiteLLM owns the
+`x-litellm-*` namespace for its own Langfuse session tracking and does not
+forward `x-litellm-session-id` upstream on the `anthropic/` provider route, so
+there was no session key either. Every tool round of the whole agentic loop
+took the bypass (#820): 35k-56k cache-write tokens per turn with `cache_read`
+pinned at 30629, against 46-53 tokens on a direct connection, and one 764-turn
+session accumulating 90M cache-creation tokens.
+
+**Why it needs the real CLI, and why it changed the fix.** The obvious change
+was to read `x-claude-code-session-id` as a session key. The header is real —
+verified against Claude Code 2.1.266 that it is the CLI session UUID, pinned
+exactly by `--session-id` and distinct across sessions. But driving the actual
+client showed the CLI reusing one session id across the auxiliary requests it
+makes alongside a conversation. Keyed that way, two unrelated first messages
+land under one key: classified `unrelated-history`, then refused with
+**HTTP 400 "This session advanced while the request was waiting."** A
+hand-written two-request probe would never have produced that second request.
+So the header identifies the client and nothing else; keying stays on the
+conversation fingerprint, exactly as a direct Claude Code request already does.
+
+```bash
+bun scripts/e2e-passthrough-claude-code-session.mjs
+```
+
+`MERIDIAN_DEFAULT_AGENT=passthrough` resolves the ambiguous `claude-cli/`
+User-Agent to the passthrough adapter, reproducing the reported topology
+without a LiteLLM instance: same adapter, same absent `x-litellm-session-id`,
+same real client. The client runs with its own `CLAUDE_CONFIG_DIR` and a dummy
+bearer token; the proxy keeps its real Claude Max authentication. The child
+environment is scrubbed of `CLAUDE*` variables so running the gate from inside
+Claude Code cannot hand the client a live messaging socket.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- All three client invocations exit 0 and answer correctly.
+- **No request takes the headerless tool-result bypass.**
+- The turn after the tool round reports `lineage=continuation`. Before the fix
+  the bypass skipped the end-of-turn store, so nothing was ever written under
+  the key and no later turn could resume either.
+- **No request classifies `unrelated-history`, and no invocation is refused
+  with a 4xx** — the guard against the session-id keying above.
+- A second conversation with the same prompt in its own directory does not
+  inherit the first, which is what the fingerprint's working-directory
+  component has to do in the absence of a key.
+
+**What this gate deliberately does not assert.** The tool round *itself* still
+classifies `not-found`, which is a separate and larger defect tracked in #996:
+the passthrough adapter never resumes a tool round even with a session key it
+does read, while `pi` and `opencode` resume the identical shape. The entry
+stored at a passthrough early stop is a checkpoint boundary that lineage lookup
+reports as missing by design, and the recovery path that should upgrade it does
+not fire on this adapter. It predates this change and behaves identically with
+a forwarded `x-litellm-session-id`, so the gate prints the classification as a
+note rather than asserting it. It is also not a LiteLLM integration test — a real gateway would rewrite
+the User-Agent and relay the body, which this does not model.
+
+**Verified:** 2026-09-09, Claude Code 2.1.266 client, Haiku 4.5, 7 proxy
+requests across three invocations. Pre-change the tool round reports
+`diverged=independent-request:headerless-tool-result` and the `--resume`d turn
+cannot resume. After:
+
+```
+turn 1   tools=0   msgCount=1  lineage=new           diverged=not-found      (auxiliary CLI request)
+turn 1   tools=12  msgCount=1  lineage=new           diverged=not-found
+turn 1   tools=12  msgCount=3  lineage=new           diverged=not-found      (tool round, no longer bypassed)
+turn 2   tools=12  msgCount=5  lineage=continuation
+```
+
+Keyed on `x-claude-code-session-id` instead, the same run produced
+`diverged=unrelated-history` and `API Error: 400`.
 
 ## Concurrent transcript publication
 

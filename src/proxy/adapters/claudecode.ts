@@ -121,6 +121,31 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi
   return extractClaudeCodeSessionIdentity(body)?.parentSessionId
 }
 
+/**
+ * Is this request from the Claude Code CLI, whatever adapter is handling it?
+ *
+ * Claude Code sends `x-claude-code-session-id` on every request — verified
+ * against 2.1.266 that it is the CLI session UUID, pinned exactly by
+ * `--session-id`. No other client sends it, so it identifies the client even
+ * when a gateway has rewritten the User-Agent and the LiteLLM heuristic has
+ * already claimed the request.
+ *
+ * This answers "who owns the tool loop", not "which adapter should run". The
+ * header is deliberately NOT used for adapter selection: routing gateway
+ * traffic to the claude-code adapter would swap tool handling, MCP naming and
+ * prompt shape for every existing LiteLLM user and move their cache prefix.
+ *
+ * It is also NOT a session key. The CLI reuses one session id across the
+ * auxiliary requests it makes alongside a conversation, so keying on it puts
+ * two unrelated histories under one key — measured live as
+ * `unrelated-history` and an HTTP 400 concurrent conflict, i.e. a hard failure
+ * where there had only been a silent inefficiency. See
+ * `scripts/e2e-passthrough-claude-code-session.mjs`, which guards that.
+ */
+export function isClaudeCodeClient(c: Context): boolean {
+  return Boolean(c.req.header("x-claude-code-session-id"))
+}
+
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
 

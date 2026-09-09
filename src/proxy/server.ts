@@ -75,6 +75,7 @@ import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDef
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
+import { isClaudeCodeClient } from "./adapters/claudecode"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages } from "./replay"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
@@ -2163,7 +2164,19 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // resume the backing SDK session. Older clients may omit metadata, so
         // preserve fingerprint resume instead of treating their tool results
         // as unrelated headerless workflow requests.
-        const isClientDrivenLoop = adapterBase !== "claude-code" && !agentSessionId && lastIsToolResult
+        //
+        // The exemption follows the CLIENT, not the adapter. Behind a gateway
+        // the LiteLLM heuristic claims the request first, so a Claude Code
+        // session arrived on the passthrough adapter and lost the exemption —
+        // and LiteLLM does not forward `x-litellm-session-id` upstream on the
+        // `anthropic/` provider route, so it had no session key either. Every
+        // tool round of the whole agentic loop then took this bypass (#820),
+        // measured at 35k-56k cache-write tokens per turn against 46-53 on a
+        // direct connection. `isClaudeCodeClient` restores the parity: same
+        // fingerprint keying a direct Claude Code request already gets, with
+        // adapter selection untouched.
+        const ownsToolLoopWithResume = adapterBase === "claude-code" || isClaudeCodeClient(c)
+        const isClientDrivenLoop = !ownsToolLoopWithResume && !agentSessionId && lastIsToolResult
         const durableMappingKey = profileSessionId
           || getConversationFingerprint(lineageMessages, profileScopedCwd)
         // The fork/subagent independence guard protects HEADERLESS flows from

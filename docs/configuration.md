@@ -274,6 +274,49 @@ rewrites the opening message.
 | `passthrough` (LiteLLM) | `x-litellm-session-id` |
 | `cherry`, `droid`, `forgecode`, `openai` | none — fingerprint only |
 
+### Claude Code behind a gateway
+
+The bypass described below exempts Claude Code, because Claude Code owns its
+tool loop but still expects Meridian to resume the backing SDK session. That
+exemption follows the **client**, identified by the `x-claude-code-session-id`
+header the CLI sends on every request — not the adapter that happens to be
+handling it.
+
+This matters behind an API gateway. LiteLLM traffic resolves to the
+`passthrough` adapter, so a Claude Code session used to lose the exemption; and
+LiteLLM owns the `x-litellm-*` namespace for its own Langfuse session tracking
+and does not forward `x-litellm-session-id` upstream on the `anthropic/`
+provider route, so it had no session key either. Every tool round of the whole
+agentic loop then took the bypass, measured in
+[#820](https://github.com/rynfar/meridian/issues/820) at 35k-56k cache-write
+tokens per turn with `cache_read` pinned at 30629, against 46-53 tokens on a
+direct connection — one 764-turn session accumulated 90M cache-creation tokens.
+
+Two things the header is deliberately **not** used for:
+
+- **Adapter selection.** Routing gateway traffic to the `claudecode` adapter on
+  this signal would swap tool handling, MCP naming and prompt shape for every
+  existing LiteLLM user and move their prompt-cache prefix.
+- **A session key.** The CLI reuses one session id across the auxiliary
+  requests it makes alongside a conversation, so keying on it puts two
+  unrelated histories under one key. Measured live, that produced
+  `diverged=unrelated-history` and then `HTTP 400 This session advanced while
+  the request was waiting` — a hard client failure where there had only been a
+  silent inefficiency. Keying stays on the conversation fingerprint, exactly as
+  a direct Claude Code request already does.
+
+If you run LiteLLM and would rather it forward its own session header, an
+explicit pass-through route restores it, and an explicit key always wins over
+the fingerprint:
+
+```yaml
+general_settings:
+  pass_through_endpoints:
+    - path: "/meridian/v1/messages"
+      target: "http://<meridian>/v1/messages"
+      forward_headers: true
+```
+
 ### Client-driven tool loops need a session header
 
 A request whose last message is a `tool_result` is a round of the client's own
