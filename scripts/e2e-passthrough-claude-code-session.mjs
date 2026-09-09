@@ -231,12 +231,34 @@ check(refused.length === 0, 'no invocation was refused with a 4xx',
 
 // 4. Two conversations in different directories stay apart. With no session
 //    key the fingerprint's working-directory component is what does this.
+//
+//    Asserted as non-INHERITANCE, not as absence of resume. An earlier version
+//    required conversation 2 to show no `continuation` at all, which encoded
+//    the pre-#998 world where a passthrough tool round could never resume
+//    anything. Now that it can, "resumes its own session" and "inherits the
+//    other conversation's" have to be told apart by session id — the shape of
+//    the lineage word cannot do it.
+const resumedSessions = lines => [...new Set(
+  lines.map(l => /session=([0-9a-f]{6,})/.exec(l)?.[1]).filter(Boolean))]
+const conversation1 = new Set([...resumedSessions(firstLines), ...resumedSessions(secondLines)])
+const conversation2 = resumedSessions(otherLines)
+
 check(other.out.includes('BRAVO-VALUE') && !other.out.includes('ALPHA-VALUE'),
   'a second conversation with the same prompt does not inherit the first',
   `answer=${JSON.stringify(other.out.slice(0, 60))}`)
-check(otherLines.length > 0 && !otherLines.some(l => l.includes('lineage=continuation')),
-  'its first turns start fresh rather than resuming the other conversation',
-  otherLines.map(l => /lineage=(\S+)/.exec(l)?.[1]).join(', ') || '(no request)')
+check(otherLines.length > 0 && !otherLines[0].includes('lineage=continuation'),
+  'its first turn cannot resume anything',
+  otherLines[0] ? `round 1 lineage=${/lineage=(\S+)/.exec(otherLines[0])?.[1]}` : '(no request)')
+// Not conditioned on conversation 2 having resumed anything. The real client
+// decides how many tool rounds to take, so whether a checkpoint gets stored at
+// all varies between runs — measured both ways on consecutive runs. An empty
+// set satisfies non-inheritance correctly, and E56 owns the separate question
+// of whether a keyed tool round resumes, which it can assert deterministically
+// because it drives the loop itself.
+check(conversation2.every(s => !conversation1.has(s)),
+  'it never resumes a session belonging to the first conversation',
+  `conversation 2 resumed [${conversation2.join(', ') || 'nothing'}]; `
+  + `conversation 1 held [${[...conversation1].join(', ') || 'nothing'}]`)
 
 say(`\n=== verdict ===`)
 if (failures.length) {

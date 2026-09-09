@@ -4492,8 +4492,15 @@ Claude Code cannot hand the client a live messaging socket.
 - **No request classifies `unrelated-history`, and no invocation is refused
   with a 4xx** — the guard against the session-id keying above.
 - A second conversation with the same prompt in its own directory does not
-  inherit the first, which is what the fingerprint's working-directory
-  component has to do in the absence of a key.
+  inherit the first: its opening turn resumes nothing, and no session id it
+  resumes belongs to the first conversation. Asserted by session id rather than
+  by the absence of `continuation` — since #998 a passthrough tool round can
+  resume its own session, so the lineage word alone cannot tell "resumed mine"
+  from "inherited yours". Whether conversation 2 resumes at all is **not**
+  asserted: the real client chooses how many tool rounds to take, so whether a
+  checkpoint is stored varies between runs (measured both ways on consecutive
+  runs). E56 owns the resume question, which it can assert deterministically
+  because it drives the loop itself.
 
 **What this gate deliberately does not assert.** The tool round *itself* still
 classifies `not-found`, which is a separate and larger defect tracked in #996:
