@@ -1,19 +1,28 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-08, after the Codex cluster and an issue sweep. Refresh GitHub and
-origin/main before continuing; this is a dated checkpoint, not a live queue.
+Checkpoint: 2026-09-09, after issue #820 and a race-harness deflake. Refresh
+GitHub and origin/main before continuing; this is a dated checkpoint, not a
+live queue.
 The owner requested portable skills and agent instructions so either Claude,
 Codex, or another repository agent can resume this work.
 
 ## Read first
 
 Follow [meridian-upstream-review](../../.agents/skills/meridian-upstream-review/SKILL.md)
-and [AGENTS.md](../../AGENTS.md). The last delivered items were the Codex
-contributor cluster (#962-#966). **One PR is open and deliberately unmerged:
-[PR #977](https://github.com/rynfar/meridian/pull/977)** — green on everything,
-held for owner review because it changes session identity. Nothing else is in
-progress. Continue when the owner asks; this document does not start
-background work or authorize two agents to work the same queue. A prior agent's
+and [AGENTS.md](../../AGENTS.md). The last delivered items were issue #820
+(PRs #994 and #995), the OpenCode V1 plugin packaging fix (#988) and a
+race-harness deflake (#997), plus #996 — a regression in our own #983, found
+while validating #820 and fixed in #998.
+
+**Two things are open and deliberately unmerged.**
+[PR #977](https://github.com/rynfar/meridian/pull/977) is green on everything
+and held for owner review because it changes session identity.
+[PR #970](https://github.com/rynfar/meridian/pull/970) is the Release Please
+PR for 1.69.0 and is held: a release needs explicit authorization and a backlog
+review does not grant it. Nothing else is in progress.
+
+Continue when the owner asks; this document does not start background work or
+authorize two agents to work the same queue. A prior agent's
 paused/blocked goal is not a claim that the backlog is complete.
 
 Keep this checkpoint current after a delivered ticket or meaningful pause.
@@ -23,14 +32,17 @@ closure status, limitations, and the exact next action. Put portable evidence in
 the PR or linked review record; optional private local logs are not prerequisites
 for discovering the workflow. Never invent test evidence if those logs are absent.
 
-## Current item: OpenCode Desktop cannot load the V1 plugin, PR #988
+## Delivered: OpenCode Desktop cannot load the V1 plugin, PR #988
 
 Maintainer-originated fix, not a contributor PR. Owner-reported: OpenCode
 Desktop on macOS could not use Meridian after a normal `meridian setup`.
 
 Base `d3bfe795`, branch `codex/ship-compiled-opencode-v1-plugin`, worktree
 `/Users/rynfar/repos/meridian-wt/opencode-v1-compiled-plugin`, delivery commit
-`12ae3f74`. Disposition: accept as maintainer fix.
+`12ae3f74`. Disposition: accept as maintainer fix. **Rebased onto `ac8bd6c2`
+and revalidated before merge** (3775 pass / 1 skip / 0 fail on bun 1.3.11,
+typecheck, build, tarball rebuilt); merged as `d075cc7c`. No external
+contributor is involved, so no author mapping or co-author trailer applies.
 
 Cause: `findPluginPath` returned `plugin/meridian.ts` for every install. The Bun
 CLI loads TypeScript, but OpenCode Desktop (`ai.opencode.desktop` 1.18.23,
@@ -40,8 +52,62 @@ under node_modules, so an installed package wrote a path the desktop client
 cannot import: `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`. Relocating the
 `.ts` does not help either — `plugin/meridian.ts` imports
 `./priority-attestation` without an extension, which is `ERR_MODULE_NOT_FOUND`
-under Node ESM. OpenCode's loader resolves a file spec to `pathToFileURL(...)`
-and dynamic-imports it with no transpile step.
+under Node ESM. OpenCode's loader dynamic-imports the spec with no
+transpile step.
+
+**Correction to an earlier version of this note.** It said the loader
+"resolves a file spec to `pathToFileURL(...)`" full stop. That is only true for
+a FILE spec. For a directory it reads the directory's `package.json` and
+imports its `main`: `resolvePathPluginTarget` returns the directory URL when a
+`package.json` exists, `readPluginPackage` reads it, `resolvePackageEntrypoint`
+takes `packageMain(pkg)` for kind `server`, and `resolvePackagePath` returns
+`pathToFileURL(join(dir, main)).href`. Read out of the Desktop server bundle
+(`app.asar` → `out/main/chunks/node-BOFfwe6w.js`). This matters: a probe that
+imports the bare directory gets `ERR_UNSUPPORTED_DIR_IMPORT` and reports a
+false failure for a plugin that actually loads. That happened here before the
+loader was read.
+
+### Verified against the desktop runtime
+
+#988 was already green and validated live against the OpenCode 1.18.29 Bun CLI,
+but carried a recorded limitation: "not yet exercised through the OpenCode
+Desktop GUI". That is now closed without a click-through, and the method is
+worth reusing.
+
+**OpenCode Desktop runs its server in an Electron utility process, not a Bun
+sidecar.** `app.asar` → `out/main/sidecar.js` takes a `process.parentPort`
+message, `await import("./chunks/node-BOFfwe6w.js")`, then `Server.listen(...)`.
+No spawned `opencode` binary, so the plugin is loaded by Electron's bundled
+Node — which is the premise the PR rests on, now verified rather than assumed.
+
+**How that server resolves a directory plugin**, read out of the same bundle:
+`resolvePathPluginTarget` returns the directory URL when the directory has a
+`package.json`; `readPluginPackage` reads it; `resolvePackageEntrypoint` takes
+`packageMain(pkg)` for kind `server`; `resolvePackagePath` returns
+`pathToFileURL(join(dir, main)).href`. So the shim's `"main": "./index.js"` is
+precisely what makes `dist/meridian` importable — and a probe that imports the
+bare directory reports a false `ERR_UNSUPPORTED_DIR_IMPORT`. Mine did, before I
+read the loader. Read the loader.
+
+Replicating that resolution against an installed tarball:
+
+```
+runtime node=22.22.3 electron=none            (plain Node)
+  OLD (plugin/meridian.ts)   => FAILED: ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING
+  NEW (dist/meridian)        => LOADED via meridian/index.js, default is function: true
+
+runtime node=24.15.0 electron=42.3.3          (OpenCode Desktop 1.18.30's server runtime)
+  OLD (plugin/meridian.ts)   => FAILED: ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING
+  NEW (dist/meridian)        => LOADED via meridian/index.js, default is function: true
+```
+
+Rebased onto `ac8bd6c2` and revalidated: 3775 pass / 1 skip / 0 fail, typecheck
+and build clean, tarball rebuilt.
+
+Still open on that item: `isMeridianEntry`'s `endsWith("/meridian-v2")` is
+POSIX-separator-only, so source-install detection on Windows is a pre-existing
+gap, deliberately left out of scope.
+
 
 Fix mirrors the existing V2 shape: `plugin/meridian/` shim package compiled to
 `dist/meridian/`, `findPluginPath` mirroring `findV2PluginPath` (source keeps
@@ -77,7 +143,7 @@ client stalls on a repeating design-MCP OAuth discovery loop against the proxy
 `isMeridianEntry`'s `endsWith("/meridian-v2")` is POSIX-separator-only, so V2
 source-install detection on Windows is a pre-existing gap.
 
-## Current item: issue #967 triage, delivered as PR #969
+## Delivered: issue #967 triage, delivered as PR #969
 
 **Item.** [Issue #967](https://github.com/rynfar/meridian/issues/967) —
 "Passthrough tool forwards are undeliverable for headless bg-job subagents →
@@ -397,7 +463,7 @@ reader: both conflicting regions were purely additive and both blocks were kept.
 
 ## Delivered: issue sweep
 
-Seven issues addressed, each proven live before merge. Five are now closed, two
+Ten issues addressed, each proven live before merge. Eight are now closed, two
 (#917 and #933) left open deliberately.
 
 | issue | PR | on main | note |
@@ -408,6 +474,9 @@ Seven issues addressed, each proven live before merge. Five are now closed, two
 | #917 / #933 CI flakiness | #986 | `d3bfe795` | left OPEN |
 | #906 `/health` lies | #985 | `264cfc3a` | closed |
 | #905 container `hostId` | #987 | `b5f73aed` | closed |
+| #861 auto-defer flip mid-session | #991 | `68c0eca6` | closed |
+| #889 degraded fingerprint invisible | #992 | `824bbbfa` | closed |
+| #865 startup banner under MERIDIAN_QUIET | #993 | `0e773b56` | closed |
 | #842 + #847 first-turn 400 | none | none | closed on evidence, no code change |
 
 **#842 and #847 were retired on evidence rather than code.** Five fresh
@@ -465,6 +534,184 @@ change, which reads as evidence and is not:
 **Always confirm a new gate fails against pre-change source.** Every gate above
 has its measured before/after recorded in E2E.md.
 
+## Delivered: issue #820, both halves
+
+**Item.** [Issue #820](https://github.com/rynfar/meridian/issues/820) — "pi
+adapter: 99.8% of long conversations diverge to `lineage=new` with no
+diagnostic", reported by @odfalik, with independent reproductions from
+@RobertoNegro and a second adapter's case from @StanChmielewski, plus a
+structural analysis of the missing diagnostics from @connor-grady.
+
+**Disposition.** Accepted, delivered as two maintainer PRs. No contributor
+commits existed, so there is no cherry-pick author mapping; all four are
+credited in the PR bodies and three carry `Co-authored-by` trailers on the
+diagnostic commit (their extension code ships in the docs, and the
+request-line design is @connor-grady's proposal).
+
+| PR | on main | what |
+|---|---|---|
+| [#994](https://github.com/rynfar/meridian/pull/994) | `ac8bd6c2` | every divergence names itself; the bypass advice; docs; gate E54 |
+| [#995](https://github.com/rynfar/meridian/pull/995) | `7375351` | the gateway-fronted Claude Code exemption; gate E55 |
+
+#994 was based on `0e773b56`; #995 was rebased forward twice as main moved and
+merged from `d075cc7c`. Worktrees
+`/Users/rynfar/repos/meridian-wt/lineage-divergence-reasons` and
+`/Users/rynfar/repos/meridian-wt/passthrough-cc-session`; the before-code
+baseline is `/Users/rynfar/repos/meridian-wt/divergence-reason-baseline`
+(detached at `0e773b56` — do not delete, it is the failed-before evidence).
+
+**#994 — the diagnostic half.** The request line now carries `diverged=<reason>`
+on every divergence, and `independent-request` names which of its four rules
+fired. `isIndependentSession` is *derived* from the new pure
+`independentRequestCause` rather than computed beside it, so the printed label
+cannot drift from the decision it explains. `classifyLineage` also names
+`unverifiable`, `replayed-request` and `unrelated-history`; `not-found` stays on
+the request line only, because it is the first turn of every conversation. The
+headerless tool-result bypass warns once per process, matching the
+degraded-fingerprint precedent.
+
+`diverged=` is a separate field rather than a wider `lineage=` value on purpose:
+`e2e-passthrough-turns.mjs` and field log analysis match
+`lineage=<value> session=` as one unit, and a test pins that adjacency.
+
+**#995 — the gateway half.** The tool-loop exemption follows the *client* now,
+not the adapter: `adapterBase === "claude-code" || isClaudeCodeClient(c)`, where
+`isClaudeCodeClient` reads `x-claude-code-session-id`. Behind LiteLLM the
+passthrough heuristic claims the request first, so Claude Code lost the
+exemption, and LiteLLM does not forward `x-litellm-session-id` upstream on the
+`anthropic/` provider route, so it had no key either.
+
+**The live gate changed this fix — read this before revisiting it.** The obvious
+change was to read `x-claude-code-session-id` as a session key in
+`passthroughAdapter.getSessionId`. That was built first, and the header is
+genuine: verified against Claude Code 2.1.266 that it is the CLI session UUID,
+pinned exactly by `--session-id`. Driving the **real CLI** showed it makes
+auxiliary requests under the same session id, so two unrelated first messages
+land under one key — `unrelated-history`, then `HTTP 400 This session advanced
+while the request was waiting`. That converts a silent inefficiency into a hard
+client failure. Two of E55's ten checks exist solely to guard that approach.
+Suggestion 2 from the report (routing on the header in `detect.ts`) was declined:
+it would swap tool handling, MCP naming and prompt shape for every existing
+LiteLLM user and move their cache prefix.
+
+**Evidence.** `npm test` 3765 pass / 1 skip / 0 fail for #994 and 3775 / 1 / 0
+for #995, both on bun 1.3.11 to match CI; typecheck and build clean; E41 all
+four modes on both; E54 and E55 pass. Failed-before runs are recorded in each PR
+body with the exact assertion output.
+
+**Gates added.** E54 `e2e-lineage-divergence-reason.mjs` — a real headerless pi
+tool loop against the same loop with `x-session-affinity`, asserting that no
+divergence is silent and that the remedy the log names works. It reproduces the
+report's cache signature at probe scale: `cache_read` pinned at 5789 while the
+conversation grows against 6562 → 6811 → 6919 when keyed, and a per-round
+cache-write ratio of 6.5x-7.2x across three runs. E55
+`e2e-passthrough-claude-code-session.mjs` — the **real Claude Code CLI** as the
+client against a passthrough Meridian, skipping cleanly when `claude` is absent.
+
+**Two things E54 taught that are not in the report.** A headerless passthrough
+loop recovers through the durable checkpoint *exactly once*: the checkpoint
+upgrade rewrites the lineage result but leaves the request independent, so the
+end-of-turn store is skipped and the checkpoint never advances past the first
+tool call. That explains the reporter's 10 continuations against 6,019 `new` at
+1000+ messages. And the bypass cannot be safely relaxed to "resume when lineage
+verification passes": several identical concurrent loops match at the prefix,
+which is the collision the guard exists to prevent.
+
+**Found while validating, and it was ours: [#996](https://github.com/rynfar/meridian/issues/996).**
+The passthrough adapter never resumed a client-driven tool round even with a
+session key it does read. Filed as an unexplained asymmetry, then diagnosed as
+a regression from #983 and fixed — see its own section below. #820 is closed on
+its own asks.
+
+**Local environment note for whoever runs the suite next.** CI uses bun 1.3.11
+(`oven-sh/setup-bun@v2`). Two test files are bun-version-sensitive and will
+report false failures on other versions: `dependency-uri-resolution.test.ts`
+fails 4 on bun 1.3.14, and `fix-bun-exports.test.ts` fails 1 on bun 1.4.2. Both
+pass on 1.3.11 and on unmodified main. Match CI's version before attributing a
+failure to a change.
+
+## Delivered: #996, a regression from our own #983
+
+**Item.** [#996](https://github.com/rynfar/meridian/issues/996), filed during
+the #820 validation: the `passthrough` adapter never resumed a client-driven
+tool round, even with the session key it reads. `pi` and `opencode` resumed the
+identical shape.
+
+**Disposition.** Accepted as a maintainer fix. Delivered in
+[PR #998](https://github.com/rynfar/meridian/pull/998), merged `0538a98b`, worktree
+`/Users/rynfar/repos/meridian-wt/early-stop-namespace`, base `7375351`. The
+before-code baseline is `/Users/rynfar/repos/meridian-wt/pre-983-baseline`
+(detached at `15529b12` — do not delete, it is the bisect evidence).
+
+**Cause, and it is ours.** #983 gave each adapter its own passthrough
+client-tool namespace, so the LiteLLM adapter registers client tools as
+`mcp__litellm__*`. The early-stop tracker freezes the resume checkpoint and
+arms by matching those names, but `noteAssistantMessage` called
+`noteAssistantContent` **without a prefix parameter**, so it only ever matched
+the default `mcp__oc__`. `server.ts` threads `clientToolPrefix` into the two
+`isClientForwardedToolUse` sites and could not thread it here. On the
+passthrough adapter nothing entered `expected`: no checkpoint UUID, no stored
+`passthroughToolCallIds`, so `advancesDurableCheckpoint` could never fire.
+
+`isClientForwardedToolUse` is strict about foreign `mcp__*` names by design,
+which is what made the missed call site silent. #983's own test file pins the
+hazard — `it("would reject that same tool under the default prefix")` — so the
+assertion existed and a call site that trips it was still missed.
+
+**Bisect, `pi` as the control:**
+
+```
+15529b12 (pre-#983)   pi 3/3 continuation   passthrough 3/3 continuation
+96dc5605 (main)       pi 3/3 continuation   passthrough 0/3
+with the fix          pi 3/3 continuation   passthrough 3/3 continuation
+```
+
+**Gate E56** drives an identical keyed tool loop on `pi`, `passthrough` and
+`opencode`. Its load-bearing assertion is that all three **agree** on the
+tool-round shape. That is the transferable lesson: a single-adapter gate passed
+throughout this entire regression, because each adapter looks self-consistent
+on its own. Anything that makes behaviour per-adapter needs a cross-adapter
+gate, not a deeper one.
+
+Six unit tests in `early-stop-namespace.test.ts` pin the threading; three of
+them fail on `main`.
+
+## Delivered: race-harness deflake (#997), and what #917/#933 still need
+
+PR #995's `test` check failed on
+`does not refuse the user's turn that queued behind an in-flight title turn`.
+Causality was established before anything was changed: for a request carrying
+`x-opencode-session` the new term in `isClientDrivenLoop` cannot alter the
+decision, and **the same test had already failed on main** at `264cfc3a`
+([run 34315620193](https://github.com/rynfar/meridian/actions/runs/34315620193)),
+hours before that branch existed.
+
+**The shape, now named.** Poll to a short wall-clock deadline, then assert on
+what the poll observed. The title-lease harness gave the user's turn 100 ms to
+traverse the route handler and then asserted a boolean, so a loaded runner
+fails with `Expected: true, Received: false` and says nothing about timing. It
+occurs three times, all fixed in #997:
+
+| file | was | now |
+|---|---|---|
+| `opencode-title-agent-collision` | 100 ms poll | a signal from the SDK mock |
+| `proxy-stream-deny-hold` | 1.5 s, then `toContain` | 5 s, timeout names itself |
+| `concurrency-hardening` | 3 s, then `toEqual` | 5 s, timeout names itself |
+
+Two controls were added and **verified by inverting them**, because raising a
+ceiling from 100 ms to 10 s could otherwise make the assertion unfalsifiable: a
+non-title prompt in the title lease scope (contends, must report `false`), and a
+second title turn on one session (must not reach the SDK call while the first is
+held).
+
+**#917 and #933 stay open, deliberately.** The same CI run also failed
+`Session tool cache > updates cached tools when client sends a new set`, which
+has no timing bound at all — three sequential requests and an assertion that the
+third inherits the cached tool set — so this diagnosis does not cover it, and it
+did not reproduce locally. Run 34315145910 failed
+`Extra usage required fallback > does not use exponential backoff`, also
+unexplained. **Leave #917 and #933 open; #997 does not settle them.**
+
 ## Completed checkpoint
 
 [Meridian 1.68.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.68.0)
@@ -511,37 +758,82 @@ released; original #898 was closed as superseded.
 
 ## Next item to triage on resumption
 
-The September 8 snapshot had **32 open PRs and 18 open issues** before the
-workflow-documentation PR. Refresh both lists; do not act solely on this count.
+Live at this checkpoint: **9 open issues, 31 open PRs.** Refresh both; do not
+act on these counts. #820 and #996 are both fully addressed and were closed
+once #998 merged, so the live issue list should be shorter than this table.
 
-Issue #967 has been triaged and its Meridian half fixed in PR #969. Read the
-current-item section above before touching it again, and do not re-derive the
-two refuted inferences recorded there. The unresolved half of that report is
-#767's replay driver, plus attribution that needs the reporter's tool list.
-
-Pick one bounded item from the refreshed lists. Each is a report or proposal,
-**not a verified root cause, a proven regression, or an approved
-implementation**. Reproduce with bounded attempts and isolated fixtures,
-establish which component owns the behavior, and validate the affected
-model/client versions — a passing Haiku run neither disproves nor resolves an
-Opus report. Do not read private SDK transcript files referenced in an issue;
-use supported APIs and controlled reproduction.
-
-New unreviewed contributor PRs since the prior checkpoint:
-
-| PR | Proposed change |
+| issue | state at this checkpoint |
 |---|---|
-| [#962](https://github.com/rynfar/meridian/pull/962) | Per-tier refusal ending in prose |
-| [#963](https://github.com/rynfar/meridian/pull/963) | Disable auto-defer for Codex requests |
-| [#964](https://github.com/rynfar/meridian/pull/964) | Codex namespace/custom tool forwarding |
-| [#965](https://github.com/rynfar/meridian/pull/965) | Codex thread session identity |
-| [#966](https://github.com/rynfar/meridian/pull/966) | Mid-conversation developer messages |
+| #996 passthrough never resumes a tool round | filed, bisected to our own #983, fixed in [#998](https://github.com/rynfar/meridian/pull/998), `0538a98b` |
+| #917 / #933 CI flakiness | one mechanism removed in #997; two failures still unexplained. Do NOT close on #997 |
+| #967 headless bg-job respawn loop | Meridian half fixed in #969; the rest needs the reporter's tool list |
+| #895 Windows session GC | contributor PR #896 exists and **cannot be validated here** — no Windows host, and POSIX path fixtures are not a Windows run |
+| #820 pi/gateway lineage | both halves delivered (#994, #995); remainder is #996 |
+| #767 Opus resume divergence | investigated, does not reproduce live on main; evidence recorded above |
+| #769 OpenClaw scrub plugin | feature proposal, needs a product decision |
+| #650 plugin-input bumps | infrastructure proposal, needs a product decision |
 
-Existing unresolved priorities: #896/#895 (Windows session GC), #765 (Nix plugin
-inputs; its head changed after the prior snapshot), #917/#933 (historical
-concurrency failures), #767 (Opus-specific resume divergence), #905 (container
-incarnation) and #889 (missing client environment). The full live backlog also
-contains feature proposals and other issues; these lists do not approve them.
+**#917/#933 is the strongest remaining engineering item**, and it needs a
+different approach from the one that has been tried. #997 removed one confirmed
+mechanism; the two remaining failures
+(`Session tool cache > updates cached tools when client sends a new set`, and
+`Extra usage required fallback > does not use exponential backoff`) have no
+timing bound and did not reproduce locally. Neither is a concurrency test in
+the sense #917's title claims, which is itself worth noting: the issue's own
+framing may be wrong. Consider capturing a failing CI run's full ordering
+rather than reasoning from the assertion text.
+
+**A caution from #996, which was our own regression.** Anything that makes
+behaviour per-adapter needs a **cross-adapter** gate. A single-adapter gate
+passed through that entire regression because each adapter looked
+self-consistent on its own, and the defect was only visible as an asymmetry.
+
+Roughly 21 of the open PRs are `feat` proposals, mostly from one contributor.
+The owner asked to skip those during the issue sweep; each still needs a
+per-PR product decision about whether the behavior is wanted before any
+technical review is worth doing.
+
+Pick one bounded item. Each is a report or proposal, **not a verified root
+cause, a proven regression, or an approved implementation**. Reproduce with
+bounded attempts and isolated fixtures, establish which component owns the
+behavior, and validate the affected model/client versions — a passing Haiku run
+neither disproves nor resolves an Opus report. Do not read private SDK
+transcript files referenced in an issue; use supported APIs and controlled
+reproduction.
+
+### A closing keyword closed an issue this checkpoint was told to keep open
+
+PR #997's body contained a sentence of the form "It does not `resolve` `#917`",
+written specifically to say the issue stays open. GitHub's linked-issue parser
+matches the keyword-then-number pattern and ignores the negation, so merging
+merging #997 shut #917. #933 survived only because the second number in the
+same sentence had no keyword in front of it. #917 has been reopened, the phrasing is
+edited out of #997's body, and the issue carries a comment explaining that its
+status did not change.
+
+This is the second occurrence of the same hazard in this backlog — #969 shut #967 with a
+"Does not `close` `#967`" line. The guard exists and was not applied at the
+right moment: it had been run against issue comments and not against PR bodies.
+
+**Before creating or merging any PR whose body discusses an issue it does not
+fix**, grep the body for
+`(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]*:?[[:space:]]*#[0-9]+`
+and require zero hits. Prefer "issue NNN stays open"; never place the keyword
+adjacent to a number, even inside a quotation documenting the hazard.
+
+### Two environment facts that will otherwise cost an hour
+
+**Match CI's bun version before attributing a test failure to a change.** CI
+uses bun 1.3.11 (`oven-sh/setup-bun@v2`). Two files are bun-version-sensitive
+and report false failures elsewhere: `dependency-uri-resolution.test.ts` fails
+4 on bun 1.3.14, and `fix-bun-exports.test.ts` fails 1 on bun 1.4.2. Both pass
+on 1.3.11 and on unmodified main.
+
+**Commit as the repository's configured identity.** `main` has
+`required_signatures` enabled. A commit authored under an email that is not on
+the GitHub account verifies as `no_user`, and the merge is refused with "the
+base branch policy prohibits the merge" with no mention of signatures. Use the
+repo's `user.email`; do not substitute one from the environment.
 
 ## Restart safely
 

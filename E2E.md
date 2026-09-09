@@ -4438,7 +4438,8 @@ B keyed       round 4  msgs=7  lineage=continuation  diverged=—               
 
 `cache_read` pinned at 5789 while the conversation grows is the reporters' own
 signature at probe scale; they measured it pinned at 30629 across 12,781 to
-13,030 messages. Per-round cache-write ratio measured 7.2x and 7.1x.
+13,030 messages. Per-round cache-write ratio measured 7.2x, 7.1x and 6.5x
+across three runs.
 
 ## E55: Gateway-fronted Claude Code
 
