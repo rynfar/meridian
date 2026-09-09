@@ -41,8 +41,10 @@
  * Pure module — no I/O, no imports from server.ts or session/.
  */
 
-/** Passthrough MCP prefix — mirrors PASSTHROUGH_MCP_PREFIX in passthroughTools.
- *  Duplicated here (with a cross-check test) to keep this module leaf-pure. */
+/** Default passthrough MCP prefix — mirrors PASSTHROUGH_MCP_PREFIX in
+ *  passthroughTools. Duplicated here (with a cross-check test) to keep this
+ *  module leaf-pure. An adapter with its own namespace passes it in instead
+ *  (#893); the default is what every adapter used before that existed. */
 const CLIENT_TOOL_PREFIX = "mcp__oc__"
 
 /** Internal SDK tools execute inside the SDK. Their results never require
@@ -79,23 +81,30 @@ export interface ClientForwardedToolUse {
   name: string
 }
 
-export function isClientForwardedToolUse(block: unknown): block is ClientForwardedToolUse {
+export function isClientForwardedToolUse(
+  block: unknown,
+  clientToolPrefix: string = CLIENT_TOOL_PREFIX,
+): block is ClientForwardedToolUse {
   const b = block as { type?: unknown; id?: unknown; name?: unknown } | null | undefined
   if (!b || b.type !== "tool_use") return false
   if (typeof b.id !== "string" || b.id.length === 0) return false
   if (typeof b.name !== "string") return false
   if (INTERNAL_TOOLS.has(b.name)) return false
-  if (b.name.startsWith("mcp__") && !b.name.startsWith(CLIENT_TOOL_PREFIX)) return false
+  if (b.name.startsWith("mcp__") && !b.name.startsWith(clientToolPrefix)) return false
   return true
 }
 
 /**
  * Record the client-forwarded tool_use ids from an assistant message's content.
  */
-export function noteAssistantContent(tracker: EarlyStopTracker, content: unknown): void {
+export function noteAssistantContent(
+  tracker: EarlyStopTracker,
+  content: unknown,
+  clientToolPrefix: string = CLIENT_TOOL_PREFIX,
+): void {
   if (!Array.isArray(content)) return
   for (const block of content) {
-    if (isClientForwardedToolUse(block)) {
+    if (isClientForwardedToolUse(block, clientToolPrefix)) {
       tracker.expected.add(block.id)
     }
   }

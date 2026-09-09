@@ -45,7 +45,7 @@ import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
-import { createPassthroughMcpServer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX } from "./passthroughTools"
+import { createPassthroughMcpServer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix } from "./passthroughTools"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
@@ -2925,13 +2925,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           plog(`[PROXY] ${requestMeta.requestId} tools_restored: client sent 0 tools but continued branch had ${cached.tools.length} — reusing cached tools to preserve prompt cache`)
         }
       }
+      // #893: the namespace client tools are nested under. `oc` for every
+      // adapter that does not declare its own, which is what they all used
+      // before this existed — so no existing client's prompt moves.
+      const passthroughMcpName = adapter.getPassthroughMcpName?.() ?? PASSTHROUGH_MCP_NAME
+      const clientToolPrefix = passthroughMcpPrefix(passthroughMcpName)
       if (passthrough && requestTools.length > 0) {
         const toolSetKey = computeToolSetKey(requestTools)
         const cachedMcp = profileSessionId ? sessionMcpCache.get(profileSessionId) : undefined
         if (cachedMcp && cachedMcp.key === toolSetKey) {
           passthroughMcp = cachedMcp.mcp
         } else {
-          passthroughMcp = createPassthroughMcpServer(requestTools, pipelineCtx.coreToolNames ? [...pipelineCtx.coreToolNames] : undefined)
+          passthroughMcp = createPassthroughMcpServer(requestTools, pipelineCtx.coreToolNames ? [...pipelineCtx.coreToolNames] : undefined, passthroughMcpName)
           if (profileSessionId) {
             sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
             if (cachedMcp) {
@@ -3003,7 +3008,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 }
                 markPriorityAttemptExposure("tool_use")
                 // Track deferred tools that were discovered via ToolSearch
-                const toolName = resolveClientToolName(input.tool_name, passthroughMcp?.clientNameByAlias)
+                const toolName = resolveClientToolName(input.tool_name, passthroughMcp?.clientNameByAlias, passthroughMcpName)
                 if (hasDeferredTools && coreSet && !coreSet.has(toolName.toLowerCase())) {
                   discoveredTools.add(toolName)
                 }
@@ -3656,7 +3661,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // The predicate the tracker arms `expected` with, so the two
                   // sets are comparable by construction.
                   const block = event.content_block
-                  if (isClientForwardedToolUse(block)) streamedToolUseIds.add(block.id)
+                  if (isClientForwardedToolUse(block, clientToolPrefix)) streamedToolUseIds.add(block.id)
                 }
               }
               if (message.type === "assistant") {
@@ -3736,7 +3741,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     }
                     // In passthrough mode, strip MCP prefix from tool names
                     if (passthrough && b.type === "tool_use" && typeof b.name === "string") {
-                      b.name = resolveClientToolName(b.name as string, passthroughMcp?.clientNameByAlias)
+                      b.name = resolveClientToolName(b.name as string, passthroughMcp?.clientNameByAlias, passthroughMcpName)
                     }
                     contentBlocks.push(b)
                   }
@@ -4942,12 +4947,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           if (eventIndex !== undefined) skipBlockIndices.add(eventIndex)
                           continue
                         }
-                        if (passthrough && block.name.startsWith(PASSTHROUGH_MCP_PREFIX)) {
+                        if (passthrough && block.name.startsWith(clientToolPrefix)) {
                           // Passthrough mode: SDK sent the name WITH the mcp__oc__ prefix.
                           // Resolve it back to the name the client declared — usually just
                           // the prefix stripped, but not for a client tool whose own name
                           // carries this namespace (#967).
-                          block.name = resolveClientToolName(block.name, passthroughMcp?.clientNameByAlias)
+                          block.name = resolveClientToolName(block.name, passthroughMcp?.clientNameByAlias, passthroughMcpName)
                           if (block.id) streamedToolUseIds.add(block.id)
                         } else if (block.name.startsWith("mcp__")) {
                           // Internal MCP tool (mcp__opencode__* etc.) — skip, SDK handles it
@@ -4960,7 +4965,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                           // condition fires correctly. The name here is the registered alias,
                           // so it still needs resolving back to what the client declared —
                           // for an ordinary tool that is a no-op.
-                          block.name = resolveClientToolName(block.name, passthroughMcp?.clientNameByAlias)
+                          block.name = resolveClientToolName(block.name, passthroughMcp?.clientNameByAlias, passthroughMcpName)
                           streamedToolUseIds.add(block.id)
                         }
                         if (passthrough && eventIndex !== undefined) {
@@ -5498,7 +5503,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     if (recoveryEvent.type === "message_start") turnGenerating = true
                     if (
                       recoveryEvent.type === "content_block_start"
-                      && isClientForwardedToolUse(recoveryEvent.content_block)
+                      && isClientForwardedToolUse(recoveryEvent.content_block, clientToolPrefix)
                     ) {
                       recoveryStreamedToolUseIds.add(
                         (recoveryEvent.content_block as { id: string }).id,

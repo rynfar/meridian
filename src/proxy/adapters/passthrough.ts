@@ -100,6 +100,17 @@ export const passthroughAdapter: AgentAdapter = {
     return MCP_SERVER_NAME
   },
 
+  /**
+   * This file has documented `mcp__litellm__*` since it was written, and the
+   * name was computed and then discarded on the one path where client tools are
+   * registered — so a LiteLLM-pinned model actually read its own tools as
+   * `mcp__oc__*`, i.e. as OpenCode's (#893, reported by @groundnuty while
+   * measuring the tool names a model reasons about).
+   */
+  getPassthroughMcpName(): string {
+    return MCP_SERVER_NAME
+  },
+
   getAllowedMcpTools(): readonly string[] {
     return ALLOWED_MCP_TOOLS
   },

@@ -514,7 +514,10 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
             disallowedTools: [...allBlockedTools],
             ...(passthroughMcp ? {
               allowedTools: [...passthroughMcp.toolNames],
-              mcpServers: { [PASSTHROUGH_MCP_NAME]: passthroughMcp.server },
+              // The namespace comes from the server the caller built, not a
+              // module constant — that constant was computed and then
+              // discarded on exactly this path (#893).
+              mcpServers: { [passthroughMcp.serverName]: passthroughMcp.server },
             } : {}),
           }
         : {

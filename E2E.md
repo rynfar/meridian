@@ -273,6 +273,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E47 | [Codex thread identity](#e47-codex-thread-identity) | **Automated**: `bun scripts/e2e-codex-thread-identity.mjs` — real proxy + SDK. Codex hands a spawned subagent and its compaction the PARENT's `prompt_cache_key`. Asserts a user thread still resumes unchanged, siblings get their own sessions, and the parent still resumes after both. **Run before releases touching Responses session identity, the turn coordinator, or request-source admission** | 2026-09-08 |
 | E48 | [Responses developer-note cache](#e48-responses-developer-note-cache) | **Automated**: `bun scripts/e2e-responses-developer-cache.mjs` — real proxy + SDK, A/B. A `developer` item folded into `system` mid-conversation re-wrote the whole cached prefix. Asserts the note's turn re-writes no more than the control's (measured 7.8x pre-fix, 1.2x after). **Run before releases touching Responses prompt assembly or system-block construction** | 2026-09-08 |
 | E49 | [max_tokens enforcement](#e49-max_tokens-enforcement) | **Automated**: `bun scripts/e2e-max-tokens.mjs` — real proxy + SDK. Opt-in via `MERIDIAN_ENFORCE_MAX_TOKENS=1`: a tiny cap bounds output and reports `stop_reason: max_tokens` in both modes, a generous cap is untouched, and with the flag unset the cap is ignored exactly as before. **Run before releases touching the SDK call builder, env plumbing, or terminal stop reasons** | 2026-09-08 |
+| E50 | [Passthrough MCP namespace](#e50-passthrough-mcp-namespace) | **Automated**: `bun scripts/e2e-passthrough-mcp-namespace.mjs` — real proxy + SDK. Asks the model to state its own tool name, the only place the namespace is visible. A LiteLLM-pinned request must read `mcp__litellm__*`; an OpenCode request must still read `mcp__oc__*`. **Run before releases touching passthrough tool registration or adapter tool config** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4196,6 +4197,45 @@ The capability is exact when asked for, and off otherwise.
 
 **Verified:** 2026-09-08. Ten checks pass. Enabling it turned the reported
 16 -> 3900 overshoot into 16 -> 64 with `stop_reason: max_tokens`.
+
+## E50: Passthrough MCP namespace
+
+**What it proves:** an adapter's declared passthrough namespace reaches the
+model, and OpenCode's does not move.
+
+In passthrough mode the client's tools are nested inside an SDK MCP server, so
+the model reads them as `mcp__<namespace>__<tool>`. That namespace was a module
+constant, `oc`, on every adapter — including the LiteLLM/`passthrough` adapter,
+whose own file has documented `mcp__litellm__*` since it was written and whose
+`getMcpServerName()` was computed and then discarded on exactly the path where
+client tools get registered (#893).
+
+**Why the model has to be asked.** `stripMcpPrefix` maps the name back before
+the client ever sees it, so nothing errors and no response differs — the effect
+exists only in what the model reads. @groundnuty found it by asking the model to
+state its own tool name, and that is the only method that proves it.
+
+```bash
+bun scripts/e2e-passthrough-mcp-namespace.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A LiteLLM-pinned request (`x-meridian-agent: passthrough`) has the model read
+  `mcp__litellm__sparql_select`.
+- **An OpenCode request still has the model read `mcp__oc__sparql_select`**, and
+  explicitly not `mcp__opencode__sparql_select`.
+
+**Why the second check is the important one.** The obvious implementation —
+reuse `getMcpServerName()` — returns "opencode" for the OpenCode adapter. That
+would rename every client tool from `mcp__oc__read` to `mcp__opencode__read`,
+moving the model-visible prompt and therefore the prompt cache for the entire
+existing user base, and colliding with the `mcp__opencode__*` names
+`passthroughEarlyStop` excludes precisely because they are internal. The
+namespace is a separate, explicit adapter method defaulting to `oc` for that
+reason.
+
+**Verified:** 2026-09-08. Both namespaces confirmed from the model's own words.
 
 ## Concurrent transcript publication
 

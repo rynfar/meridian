@@ -13,8 +13,16 @@
 import { createSdkMcpServer, type SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk"
 import { z } from "zod"
 
+/** The namespace client tools are nested under unless an adapter overrides it.
+ *  Every adapter used this before `getPassthroughMcpName` existed, so it stays
+ *  the default: changing it would move the model-visible prompt for everyone. */
 export const PASSTHROUGH_MCP_NAME = "oc"
 export const PASSTHROUGH_MCP_PREFIX = `mcp__${PASSTHROUGH_MCP_NAME}__`
+
+/** The model-visible prefix for a given passthrough namespace. */
+export function passthroughMcpPrefix(serverName: string = PASSTHROUGH_MCP_NAME): string {
+  return `mcp__${serverName}__`
+}
 
 /**
  * The JSON Schema subset a client's tool definitions actually use. Anything
@@ -208,7 +216,8 @@ export function getAutoDeferThreshold(): number {
  */
 export function createPassthroughMcpServer(
   tools: Array<{ name: string; description?: string; input_schema?: JsonSchemaNode; defer_loading?: boolean }>,
-  coreToolNames?: readonly string[]
+  coreToolNames?: readonly string[],
+  serverName: string = PASSTHROUGH_MCP_NAME,
 ) {
   // Auto-defer: if tool count exceeds threshold and adapter provides core tools
   const threshold = getAutoDeferThreshold()
@@ -224,7 +233,7 @@ export function createPassthroughMcpServer(
   const sortedTools = [...tools].sort((a, b) => a.name.localeCompare(b.name))
   // Register under collision-free aliases; alwaysLoad and the deferral decision
   // still key off the CLIENT's name, which is what coreToolNames describes.
-  const aliases = buildPassthroughToolAliases(sortedTools.map(tool => tool.name))
+  const aliases = buildPassthroughToolAliases(sortedTools.map(tool => tool.name), serverName)
   const definitions = sortedTools.map((passthroughTool) => {
     const alwaysLoad = hasDeferredTools && shouldAlwaysLoad(passthroughTool, coreSet)
     const defineTool = (shape: Record<string, z.ZodType>): SdkMcpToolDefinition<Record<string, z.ZodType>> => ({
@@ -252,10 +261,13 @@ export function createPassthroughMcpServer(
     }
   })
 
-  const server = createSdkMcpServer({ name: PASSTHROUGH_MCP_NAME, tools: definitions })
+  const server = createSdkMcpServer({ name: serverName, tools: definitions })
+  const prefix = passthroughMcpPrefix(serverName)
   return {
     server,
-    toolNames: definitions.map(definition => `${PASSTHROUGH_MCP_PREFIX}${definition.name}`),
+    serverName,
+    prefix,
+    toolNames: definitions.map(definition => `${prefix}${definition.name}`),
     hasDeferredTools,
     clientNameByAlias: aliases.clientNameByAlias,
   }
@@ -325,9 +337,10 @@ export function toolUseSignature(name: string, input: unknown): string {
  * Strip the MCP prefix from a tool name to get the OpenCode tool name.
  * e.g., "mcp__oc__todowrite" → "todowrite"
  */
-export function stripMcpPrefix(toolName: string): string {
-  if (toolName.startsWith(PASSTHROUGH_MCP_PREFIX)) {
-    return toolName.slice(PASSTHROUGH_MCP_PREFIX.length)
+export function stripMcpPrefix(toolName: string, serverName: string = PASSTHROUGH_MCP_NAME): string {
+  const prefix = passthroughMcpPrefix(serverName)
+  if (toolName.startsWith(prefix)) {
+    return toolName.slice(prefix.length)
   }
   return toolName
 }
@@ -363,23 +376,25 @@ export interface PassthroughToolAliases {
  */
 export function buildPassthroughToolAliases(
   names: readonly string[],
+  serverName: string = PASSTHROUGH_MCP_NAME,
 ): PassthroughToolAliases {
+  const PREFIX = passthroughMcpPrefix(serverName)
   const aliasByClientName = new Map<string, string>()
   const clientNameByAlias = new Map<string, string>()
   const ordered = [...names].sort((a, b) => a.localeCompare(b))
   for (const name of ordered) {
-    if (name.startsWith(PASSTHROUGH_MCP_PREFIX)) continue
+    if (name.startsWith(PREFIX)) continue
     aliasByClientName.set(name, name)
     clientNameByAlias.set(name, name)
   }
   for (const name of ordered) {
-    if (!name.startsWith(PASSTHROUGH_MCP_PREFIX)) continue
+    if (!name.startsWith(PREFIX)) continue
     if (aliasByClientName.has(name)) continue
     // Strip EVERY leading copy, not just one: a name that is already doubled
     // would otherwise alias straight back to the undispatchable form.
     let base = name
-    while (base.startsWith(PASSTHROUGH_MCP_PREFIX)) {
-      base = base.slice(PASSTHROUGH_MCP_PREFIX.length)
+    while (base.startsWith(PREFIX)) {
+      base = base.slice(PREFIX.length)
     }
     if (!base) base = "tool"
     let alias = base
@@ -401,8 +416,9 @@ export function buildPassthroughToolAliases(
 export function resolveClientToolName(
   sdkToolName: string,
   clientNameByAlias?: ReadonlyMap<string, string>,
+  serverName: string = PASSTHROUGH_MCP_NAME,
 ): string {
-  const alias = stripMcpPrefix(sdkToolName)
+  const alias = stripMcpPrefix(sdkToolName, serverName)
   return clientNameByAlias?.get(alias) ?? alias
 }
 

@@ -137,6 +137,23 @@ export interface AgentIdentity {
    * Tools are registered as `mcp__{name}__{tool}`.
    */
   getMcpServerName(): string
+
+  /**
+   * The namespace the CLIENT'S tools are nested under in passthrough mode,
+   * where they appear to the model as `mcp__{name}__{tool}`.
+   *
+   * Deliberately NOT `getMcpServerName()`, which names the server Meridian
+   * registers in INTERNAL mode. Reusing that would rename every OpenCode
+   * client tool from `mcp__oc__read` to `mcp__opencode__read`, moving the
+   * model-visible prompt — and so the prompt cache — for the entire existing
+   * user base, and colliding with the `mcp__opencode__*` names
+   * `passthroughEarlyStop` excludes precisely because they are internal.
+   *
+   * Defaults to `oc` when unset, which is what every adapter used before this
+   * existed. Override it only where the default actively misleads: `oc` reads
+   * as "opencode" to a model on an adapter that is not OpenCode (#893).
+   */
+  getPassthroughMcpName?(): string
 }
 
 /**
