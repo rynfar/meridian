@@ -13,7 +13,7 @@ import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assistantMessage, messageStart, textBlockStart, textDelta, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId } from "./helpers"
+import { assistantMessage, messageStart, textBlockStart, textDelta, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta, messageStop, parseSSE, resolveMockSdkSessionId } from "./helpers"
 
 interface LifecycleResourceSnapshot {
   locator: { sessionId: string }
@@ -2373,6 +2373,71 @@ describe("Integration: passthrough early stop", () => {
     const body = await res.text()
     expect(body).toContain("answered after the lift")
     expect(body).not.toContain("event: error")
+    expect(capturedQueryParamsAll.length).toBe(2)
+    expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
+    expect(capturedQueryParamsAll[1].options.maxTurns).toBe(3)
+  })
+
+  it("stream: reissues a capped turn after an empty visible envelope, with the turn cap lifted", async () => {
+    mockAttemptScripts = [
+      {
+        messages: [
+          messageStart("msg_cap_empty_envelope"),
+          textBlockStart(0),
+          blockStop(0),
+          { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+        ],
+        terminalError: new Error(CAPPED_TURN_ERROR),
+      },
+      {
+        messages: [
+          messageStart("msg_cap_empty_envelope_lifted"),
+          textBlockStart(0),
+          textDelta(0, "answered after the visible-envelope lift"),
+          blockStop(0),
+          messageDelta("end_turn"),
+          { type: "result", subtype: "success", is_error: false, session_id: "test-session" },
+        ],
+      },
+    ]
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "answer me" }],
+    }, "es-capped-visible-envelope")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("answered after the visible-envelope lift")
+    expect(body).not.toContain("event: error")
+
+    const events = parseSSE(body)
+    expect(events.filter((event) => event.event === "message_start")).toHaveLength(1)
+    expect(events.filter((event) => event.event === "message_delta")).toHaveLength(1)
+    expect(events.filter((event) => event.event === "message_stop")).toHaveLength(1)
+    expect(events.map((event) => event.event)).toEqual([
+      "message_start",
+      "content_block_start",
+      "content_block_stop",
+      "content_block_start",
+      "content_block_delta",
+      "content_block_stop",
+      "message_delta",
+      "message_stop",
+    ])
+
+    const blockStarts = events.filter((event) => event.event === "content_block_start")
+    const blockStops = events.filter((event) => event.event === "content_block_stop")
+    const textDeltas = events.filter((event) => event.event === "content_block_delta")
+    expect(blockStarts.map((event) => event.data.index)).toEqual([0, 1])
+    expect(blockStops.map((event) => event.data.index)).toEqual([0, 1])
+    expect(textDeltas).toHaveLength(1)
+    expect(textDeltas[0]?.data.index).toBe(1)
+    expect((textDeltas[0]?.data.delta as { type?: string; text?: string }).text).toBe("answered after the visible-envelope lift")
+    expect((events.find((event) => event.event === "message_delta")?.data as { delta?: { stop_reason?: string } }).delta?.stop_reason).toBe("end_turn")
+
     expect(capturedQueryParamsAll.length).toBe(2)
     expect(capturedQueryParamsAll[0].options.maxTurns).toBe(1)
     expect(capturedQueryParamsAll[1].options.maxTurns).toBe(3)

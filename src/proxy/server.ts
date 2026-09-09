@@ -1,3 +1,5 @@
+// pattern: Imperative Shell
+
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { stream } from "hono/streaming"
@@ -4573,8 +4575,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     const errMsg = error instanceof Error ? error.message : String(error)
 
                     // Tool hooks and structured output are committed exposure
-                    // even before the first client-visible SSE event.
-                    if (didYieldClientEvent || options.priorityAttemptExposure?.committed) throw error
+                    // even before the first client-visible SSE event. An exception
+                    // is an empty envelope produced by the proxy-owned single-turn
+                    // cap: message_start and an empty block are not actionable, so
+                    // the cap-lift retry can append the real answer to this same
+                    // client envelope without emitting a second message_start.
+                    const canRetryVisibleEmptyCap =
+                      passthrough &&
+                      didYieldClientEvent &&
+                      !singleTurnCapLifted &&
+                      attemptMaxTurns === 1 &&
+                      capturedToolUses.length === 0 &&
+                      streamedToolUseIds.size === 0 &&
+                      textCharsForwarded === 0 &&
+                      extractSdkTermination(errMsg).reason === "max_turns" &&
+                      singleTurnCapLiftRaisesBudget(hasDeferredTools, advisorModel)
+                    if (
+                      (didYieldClientEvent && !canRetryVisibleEmptyCap) ||
+                      options.priorityAttemptExposure?.committed
+                    ) throw error
 
                     // Retry: the resume was refused, not answered — see the
                     // non-stream branch above for the full rationale. The busy
@@ -4755,20 +4774,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       }
                     }
 
-                    // A capped turn that produced NOTHING never reached the
-                    // tool boundary the cap exists to stop at, so the single
-                    // turn bought nothing and cost the whole turn. Observed in
-                    // production as a resumed opus[1m] passthrough turn that
-                    // ran 108s, yielded no wire event at all, and terminated
+                    // A capped turn that produced no actionable content never
+                    // reached the tool boundary the cap exists to stop at, so
+                    // the single turn bought nothing and cost the whole turn.
+                    // This includes both the fully silent production shape and
+                    // the empty visible envelope covered by the regression:
                     // `max_turns turns=1`; the client's own identical retry
                     // then answered normally. Reissue it once with the cap
                     // lifted — the refused turn is the one that would have
                     // answered.
                     //
-                    // Safe by the guard at the top of this catch: nothing was
-                    // yielded downstream, so no SSE frame, no message_start
-                    // and no committed priority exposure can be duplicated by
-                    // a second attempt. `capturedToolUses` is checked too
+                    // Safe by the guard at the top of this catch: either no
+                    // client output was yielded, or only an empty envelope was
+                    // opened and the retry reuses it without a second
+                    // message_start. Committed priority exposure can never be
+                    // duplicated. `capturedToolUses` is checked too
                     // because a capped turn WITH captured calls is already
                     // recoverable as a tool_use envelope downstream, and that
                     // is the cheaper answer. `attemptMaxTurns === 1` keeps it
