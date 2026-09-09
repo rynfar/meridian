@@ -114,5 +114,12 @@ describe("request id stability across priority failover", () => {
     expect(served).toHaveLength(1)
     expect(served[0]!.profileId).toBe("personal")
     expect(mine.filter(m => m.status === 429)).toHaveLength(1)
-  })
+  // Measured at 4.05s locally against bun's 5s default — under a second of
+  // margin, which a contended CI runner eats. It failed twice in one day at
+  // exactly 5002.97ms, on diffs that could not have affected it, and
+  // @justprosh hit the same thing and pushed an empty commit to retrigger
+  // (#917/#933). The work is a full priority-failover round trip through the
+  // HTTP layer with a mocked SDK; it is legitimately slow, not stuck, so the
+  // budget is the thing that was wrong.
+  }, 30_000)
 })
