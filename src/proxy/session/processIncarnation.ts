@@ -228,6 +228,40 @@ Write-Output $boot.ToUniversalTime().Ticks
   }
 }
 
+/**
+ * Operator-pinned host identity (#905).
+ *
+ * The derived `hostId` is wrong in both directions inside a container:
+ *
+ *   - NOT STABLE. It mixes in the pid-namespace inode, which changes on every
+ *     `docker restart`. The session store lives in the writable layer and
+ *     survives that restart, so a proxy SIGKILLed while holding a store lock
+ *     comes back with a different `hostId`; `probeProcessIncarnation` then
+ *     returns `indeterminate` rather than `dead`, `retireStaleLock` refuses to
+ *     retire it, and every request fails with `timed out waiting for lock`
+ *     until the container is recreated. It fails toward a permanent hang.
+ *   - NOT UNIQUE. Every container from a given image tag has a byte-identical
+ *     `/etc/machine-id`, so `hostId` reduces to that pid-namespace inode, which
+ *     is allocated from a fixed base at boot. Two freshly-booted hosts sharing
+ *     a session directory can each read the other's LIVE lock as `dead` and
+ *     retire it, deleting session resources under a running owner.
+ *
+ * Pinning it — the container ID works — fixes both. Unset outside containers,
+ * where the derived value is genuinely stable and unique, so nothing changes.
+ *
+ * Hashed like the derived value rather than used raw: `hostId` is compared for
+ * equality only, and hashing keeps a pinned value from leaking an operator's
+ * hostname into a lock file that is read cross-host.
+ */
+export function pinnedHostIdFor(pin: string | undefined): string | undefined {
+  const trimmed = pin?.trim()
+  return trimmed ? hashIdentity(`pinned:${trimmed}`) : undefined
+}
+
+function pinnedHostId(): string | undefined {
+  return pinnedHostIdFor(process.env.MERIDIAN_HOST_ID)
+}
+
 function getLocalBootIdentity(): LocalBootIdentity | undefined {
   if (cachedLocalBootIdentity) return cachedLocalBootIdentity
   try {
@@ -238,8 +272,12 @@ function getLocalBootIdentity(): LocalBootIdentity | undefined {
         : process.platform === "win32"
           ? windowsLocalBootIdentity()
           : undefined
-    if (identity) cachedLocalBootIdentity = identity
-    return identity
+    // The pin replaces only hostId. bootId still comes from the platform, so a
+    // reboot is still detected — pinning must not make a dead owner look alive.
+    const pinned = pinnedHostId()
+    const resolved = identity && pinned ? { ...identity, hostId: pinned } : identity
+    if (resolved) cachedLocalBootIdentity = resolved
+    return resolved
   } catch {
     return undefined
   }

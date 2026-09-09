@@ -275,6 +275,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E49 | [max_tokens enforcement](#e49-max_tokens-enforcement) | **Automated**: `bun scripts/e2e-max-tokens.mjs` — real proxy + SDK. Opt-in via `MERIDIAN_ENFORCE_MAX_TOKENS=1`: a tiny cap bounds output and reports `stop_reason: max_tokens` in both modes, a generous cap is untouched, and with the flag unset the cap is ignored exactly as before. **Run before releases touching the SDK call builder, env plumbing, or terminal stop reasons** | 2026-09-08 |
 | E50 | [Passthrough MCP namespace](#e50-passthrough-mcp-namespace) | **Automated**: `bun scripts/e2e-passthrough-mcp-namespace.mjs` — real proxy + SDK. Asks the model to state its own tool name, the only place the namespace is visible. A LiteLLM-pinned request must read `mcp__litellm__*`; an OpenCode request must still read `mcp__oc__*`. **Run before releases touching passthrough tool registration or adapter tool config** | 2026-09-08 |
 | E51 | [Boot identity](#e51-boot-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-boot-identity.mjs`. In an image with no `/etc/machine-id`, asserts startup refuses with an actionable cause and `/health` returns 503 `unhealthy`; with a valid machine-id the same image starts normally. **Run before releases touching startup validation, `/health`, or process incarnation** | 2026-09-08 |
+| E52 | [Host identity](#e52-host-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-host-id.mjs`. Reproduces the derived `hostId` moving with the pid-namespace inode across `docker restart`, then asserts `MERIDIAN_HOST_ID` makes it stable across namespaces and distinct across hosts sharing a baked machine-id. **Run before releases touching process incarnation or store locking** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4281,6 +4282,50 @@ cannot even load libsql on Linux.
 **Verified:** 2026-09-08. Eight checks pass across both environments:
 `refused=true namesCause=true` / `http=503 unhealthy` without machine-id, and
 `refused=false` / `http=200` with it.
+
+## E52: Host identity
+
+**What it proves:** `MERIDIAN_HOST_ID` makes `hostId` stable across a container
+restart and distinct across containers that share a baked machine-id.
+
+`linuxLocalBootIdentity` derives `hostId` from the machine-id **and** the
+pid-namespace inode, which is wrong twice over inside a container (#905):
+
+- **Not stable.** The inode changes on every `docker restart` while the session
+  store survives in the writable layer. A proxy SIGKILLed holding a store lock
+  returns with a different `hostId`, so the old lock probes `indeterminate`
+  rather than `dead`, is never retired, and every request fails with
+  `timed out waiting for lock` until the container is recreated — a permanent
+  hang rather than a visible error.
+- **Not unique.** Every container from an image tag shares a byte-identical
+  `/etc/machine-id`, so `hostId` reduces to that inode, allocated from a fixed
+  base at boot. Two freshly-booted hosts sharing a session directory can each
+  read the other's LIVE lock as `dead` and delete resources under a running
+  owner.
+
+```bash
+bun scripts/e2e-host-id.mjs        # skips cleanly if Docker is absent
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- The machine-id survives the restart, isolating the variable.
+- The **derived** `hostId` moves with the pid-namespace inode — the reported bug,
+  reproduced. Measured: `b16b50f5ed94f77c -> 1af99c215cd93186` across one
+  restart with an unchanged machine-id.
+- Two containers genuinely differ in pid namespace, and **the same pin yields
+  the same `hostId` across them** — the property that makes a restart safe.
+- **Distinct pins yield distinct `hostId`s despite a shared machine-id** — the
+  property that stops one host retiring another's live lock.
+
+**One conditional check.** Docker occasionally reuses a pid-namespace inode
+across a restart. When that happens the instability cannot be observed, so the
+gate says so and skips that one assertion rather than failing — the bug is still
+real, and a gate whose red is sometimes noise stops being read. The pinned
+checks are unconditional.
+
+**Verified:** 2026-09-08. Five checks pass, including reproducing the reported
+instability.
 
 ## Concurrent transcript publication
 
