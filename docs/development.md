@@ -41,7 +41,8 @@ telemetry/
 ├── profileBar.ts          ← Shared site header (brand, nav, status, active profile)
 └── profilePage.ts         ← Profile management page
 plugin/
-└── meridian.ts            ← OpenCode plugin (session headers + agent mode)
+├── meridian.ts            ← OpenCode V1 plugin (session headers + agent mode)
+└── meridian/              ← V1 plugin package; compiled to dist/meridian for installs
 ```
 
 ### Session Management

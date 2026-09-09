@@ -31,6 +31,13 @@ export class UnparseableConfigError extends Error {
   }
 }
 
+export class MissingV1PluginError extends Error {
+  constructor(public readonly expectedPath: string) {
+    super(`OpenCode V1 plugin bundle not found at ${expectedPath}`)
+    this.name = "MissingV1PluginError"
+  }
+}
+
 export class MissingV2PluginError extends Error {
   constructor(public readonly expectedPath: string) {
     super(`OpenCode V2 plugin bundle not found at ${expectedPath}`)
@@ -92,12 +99,31 @@ function siblingOpencodeConfigPath(configPath: string): string | undefined {
 }
 
 /**
- * Resolve the absolute path to plugin/meridian.ts from any entry point.
- * Works whether called from bin/cli.ts (dev) or dist/cli.js (installed).
+ * Resolve the V1 plugin package from any entry point. Works whether called from
+ * bin/cli.ts (dev) or dist/cli.js (installed).
+ *
+ * NOTE: an installed CLI must select the compiled package, not TypeScript.
+ * OpenCode Desktop runs its server inside Electron's Node rather than Bun, and
+ * Node refuses to strip types for files under node_modules
+ * (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING), so a published install that
+ * points at plugin/meridian.ts cannot load the plugin at all.
  */
 export function findPluginPath(fromUrl: string): string {
-  const dir = dirname(fileURLToPath(fromUrl))
-  return join(dir, "..", "plugin", "meridian.ts")
+  const entryPath = fileURLToPath(fromUrl)
+  const dir = dirname(entryPath)
+
+  // A source CLI must use the source plugin even when an old dist/ exists.
+  if (entryPath.endsWith(".ts")) {
+    const sourcePlugin = join(dir, "..", "plugin", "meridian")
+    if (hasPluginPackageEntry(sourcePlugin)) return sourcePlugin
+    throw new MissingV1PluginError(sourcePlugin)
+  }
+
+  // Published and Docker CLIs use the package beside dist/cli.js. Do not fall
+  // back to TypeScript: Node cannot load it from an installed package.
+  const bundledPlugin = join(dir, "meridian")
+  if (hasPluginPackageEntry(bundledPlugin)) return bundledPlugin
+  throw new MissingV1PluginError(bundledPlugin)
 }
 
 export type OpenCodeGeneration = "v1" | "v2"
@@ -114,7 +140,7 @@ export const SUPPORTED_OPENCODE_V2_VERSIONS = new Set([
 ])
 
 /** Check our package manifest and entry without executing plugin code during setup. */
-function hasV2PluginEntry(path: string): boolean {
+function hasPluginPackageEntry(path: string): boolean {
   try {
     if (!statSync(join(path, "index.js"), { throwIfNoEntry: false })?.isFile()) return false
     const manifest: unknown = JSON.parse(readFileSync(join(path, "package.json"), "utf8"))
@@ -134,14 +160,14 @@ export function findV2PluginPath(fromUrl: string): string {
   // A source CLI must use the source plugin even when an old dist/ exists.
   if (entryPath.endsWith(".ts")) {
     const sourcePlugin = join(dir, "..", "plugin", "meridian-v2")
-    if (hasV2PluginEntry(sourcePlugin)) return sourcePlugin
+    if (hasPluginPackageEntry(sourcePlugin)) return sourcePlugin
     throw new MissingV2PluginError(sourcePlugin)
   }
 
   // Published and Docker CLIs use the package beside dist/cli.js. Do not fall
   // back to TypeScript: production installs omit the V2 SDK dev dependency.
   const bundledPlugin = join(dir, "meridian-v2")
-  if (hasV2PluginEntry(bundledPlugin)) return bundledPlugin
+  if (hasPluginPackageEntry(bundledPlugin)) return bundledPlugin
   throw new MissingV2PluginError(bundledPlugin)
 }
 
@@ -216,9 +242,12 @@ function isMeridianEntry(entry: unknown): boolean {
   const packageName = pluginEntryPackage(entry)
   if (!packageName) return false
   return STALE_PATTERNS.some(pattern => packageName.includes(pattern)) ||
+    // Configured by an earlier release. Still valid under the Bun CLI, so it
+    // must keep reporting as configured rather than warning on every request.
     packageName.includes("meridian.ts") ||
     packageName.includes("meridian-v2.") ||
     packageName.endsWith("/meridian-v2") ||
+    /[\\/]meridian$/.test(packageName) ||
     packageName.includes("@rynfar/meridian")
 }
 

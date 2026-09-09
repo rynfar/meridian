@@ -11,7 +11,7 @@
  *   meridian setup
  *
  * Or manually add to ~/.config/opencode/opencode.json:
- *   { "plugin": ["/absolute/path/to/plugin/meridian.ts"] }
+ *   { "plugin": ["/absolute/path/to/dist/meridian"] }
  */
 
 import {

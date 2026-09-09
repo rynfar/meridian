@@ -16,14 +16,17 @@ import {
   detectOpenCodeGeneration,
   DuplicateMeridianConfigError,
   findOpencodeConfigPath,
+  findPluginPath,
   findV2PluginPath,
+  MissingV1PluginError,
   MissingV2PluginError,
   runSetup,
   SUPPORTED_OPENCODE_V2_VERSIONS,
   UnparseableConfigError,
 } from "../proxy/setup"
 
-const PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/plugin/meridian.ts"
+const PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/dist/meridian"
+const LEGACY_PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/plugin/meridian.ts"
 const V2_PLUGIN_PATH = "/usr/local/lib/node_modules/@rynfar/meridian/dist/meridian-v2"
 
 function makeTmpDir() {
@@ -113,6 +116,64 @@ describe("OpenCode generation detection", () => {
 
   it("falls back to V1 when no OpenCode executable is available", () => {
     expect(detectOpenCodeGeneration(["missing"], () => undefined)).toEqual({ generation: "v1" })
+  })
+})
+
+describe("findPluginPath", () => {
+  let tmp: string
+
+  beforeEach(() => { tmp = makeTmpDir() })
+  afterEach(() => rmSync(tmp, { recursive: true }))
+
+  function writePluginPackage(dir: string, manifest = '{"type":"module","main":"./index.js"}') {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, "package.json"), manifest)
+    writeFileSync(join(dir, "index.js"), "export default {}")
+  }
+
+  // An installed CLI must select compiled JavaScript. OpenCode Desktop runs its
+  // server inside Electron's Node, which refuses to strip types under
+  // node_modules (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING), so a published
+  // install that points at plugin/meridian.ts cannot load the plugin at all.
+  it("selects the compiled plugin package beside an installed CLI", () => {
+    const dist = join(tmp, "dist")
+    mkdirSync(dist)
+    const cli = join(dist, "cli.js")
+    writeFileSync(cli, "")
+    const plugin = join(dist, "meridian")
+    writePluginPackage(plugin)
+
+    expect(findPluginPath(pathToFileURL(cli).href)).toBe(plugin)
+  })
+
+  it("selects the source plugin package even when dist is stale", () => {
+    const bin = join(tmp, "bin")
+    mkdirSync(bin)
+    const cli = join(bin, "cli.ts")
+    writeFileSync(cli, "")
+    const sourcePlugin = join(tmp, "plugin", "meridian")
+    writePluginPackage(sourcePlugin)
+    mkdirSync(join(tmp, "dist", "meridian"), { recursive: true })
+
+    expect(findPluginPath(pathToFileURL(cli).href)).toBe(sourcePlugin)
+  })
+
+  it("fails closed when an installed CLI is missing its V1 bundle", () => {
+    const dist = join(tmp, "dist")
+    mkdirSync(dist)
+    writeFileSync(join(dist, "cli.js"), "")
+
+    expect(() => findPluginPath(pathToFileURL(join(dist, "cli.js")).href)).toThrow(MissingV1PluginError)
+  })
+
+  it.each(["{", "null", "[]", '{"type":"commonjs","main":"./index.js"}', '{"type":"module","main":"./missing.js"}'])("rejects an unusable V1 manifest: %s", (manifest) => {
+    const dist = join(tmp, "dist")
+    const plugin = join(dist, "meridian")
+    mkdirSync(plugin, { recursive: true })
+    writeFileSync(join(plugin, "package.json"), manifest)
+    writeFileSync(join(plugin, "index.js"), "export default {}")
+
+    expect(() => findPluginPath(pathToFileURL(join(dist, "cli.js")).href)).toThrow(MissingV1PluginError)
   })
 })
 
@@ -212,9 +273,24 @@ describe("checkPluginConfigured", () => {
     expect(checkPluginConfigured(path)).toBe(false)
   })
 
-  it("returns true when meridian.ts path is present", () => {
+  it("returns true when the bundled V1 plugin package is present", () => {
     const path = join(tmp, "opencode.json")
     writeFileSync(path, JSON.stringify({ plugin: [PLUGIN_PATH] }))
+    expect(checkPluginConfigured(path)).toBe(true)
+  })
+
+  it("recognizes the source V1 plugin package", () => {
+    const path = join(tmp, "opencode.json")
+    writeFileSync(path, JSON.stringify({ plugin: ["/workspace/plugin/meridian"] }))
+    expect(checkPluginConfigured(path)).toBe(true)
+  })
+
+  // Installs configured by an earlier release still point at the TypeScript
+  // entry. They keep working under the Bun CLI, so detection must not start
+  // reporting them as unconfigured.
+  it("still recognizes the legacy meridian.ts entry", () => {
+    const path = join(tmp, "opencode.json")
+    writeFileSync(path, JSON.stringify({ plugin: [LEGACY_PLUGIN_PATH] }))
     expect(checkPluginConfigured(path)).toBe(true)
   })
 

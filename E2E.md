@@ -3629,7 +3629,7 @@ printf 'alpha\nbeta\ngamma\n' > $BASE/proj/notes.txt
 cat > $BASE/cfg/opencode.json <<'JSON'
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["/absolute/path/to/meridian/plugin/meridian.ts"],
+  "plugin": ["/absolute/path/to/meridian/dist/meridian"],
   "provider": { "anthropic": { "options": { "apiKey": "dummy", "baseURL": "http://127.0.0.1:3499" } } },
   "model": "anthropic/claude-haiku-4-5",
   "small_model": "anthropic/claude-haiku-4-5"

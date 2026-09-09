@@ -83,7 +83,7 @@ describe("meridian setup CLI", () => {
     expect(result.status).toBe(0)
     expect(result.stdout).toContain("configured for OpenCode V1")
     const config = JSON.parse(readFileSync(configPath, "utf8"))
-    expect(config.plugin[0]).toEndWith(join("plugin", "meridian.ts"))
+    expect(config.plugin[0]).toEndWith(join("plugin", "meridian"))
   })
 
   test("rejects an invalid explicit version probe without touching config", () => {
