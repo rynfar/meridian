@@ -121,6 +121,8 @@ import {
   normalizeContextUsage,
   withClientAssistantUuid,
   reconcileReturnedSessionUuids,
+  independentRequestCause,
+  formatDivergence,
   type LineageResult,
   type TokenUsageIteration,
   type TokenUsage,
@@ -137,6 +139,7 @@ import {
   getMaxSessionsLimit,
   evictSession as evictCachedSession,
   getSessionByClaudeId,
+  warnHeaderlessToolLoopOnce,
   type PrioritySessionPublication,
 } from "./session/cache"
 import { processSessionTurns, type SessionTurnLease } from "./session/turnCoordinator"
@@ -2161,6 +2164,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // preserve fingerprint resume instead of treating their tool results
         // as unrelated headerless workflow requests.
         const isClientDrivenLoop = adapterBase !== "claude-code" && !agentSessionId && lastIsToolResult
+        const durableMappingKey = profileSessionId
+          || getConversationFingerprint(lineageMessages, profileScopedCwd)
         // The fork/subagent independence guard protects HEADERLESS flows from
         // colliding on the shared (firstUserMessage, cwd) fingerprint. Adapter
         // mode and generic source declarations share the subagent behavior. An
@@ -2169,15 +2174,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // fork/subagent source. Without this, pylon's long-lived subagent
         // workers fresh-replayed every turn: prompt-cache hits decayed to the
         // static-prefix floor and turn latency grew with conversation length.
-        let isIndependentSession =
-          (!agentSessionId && (requestSource?.startsWith("fork-") || isSubagentRequest)) ||
-          isClientDrivenLoop || false
-        const durableMappingKey = profileSessionId
-          || getConversationFingerprint(lineageMessages, profileScopedCwd)
-        // Image-only and otherwise text-free headerless requests have no stable
-        // cache identity. Run them fresh instead of manufacturing a generation
-        // for an empty key or failing before the SDK is called.
-        if (!durableMappingKey) isIndependentSession = true
+        //
+        // A request with no session key and no derivable fingerprint (image-only
+        // and otherwise text-free bodies) has no stable cache identity either,
+        // and runs fresh rather than manufacturing a generation for an empty key.
+        //
+        // One decision, one reported cause: deriving the flag from the cause is
+        // what keeps the log honest. #820 was a log full of `lineage=new` whose
+        // only explanation lived in this file, and a label computed separately
+        // from the decision would drift away from it.
+        const independentCause = independentRequestCause({
+          hasSessionKey: Boolean(agentSessionId),
+          forkSource: Boolean(requestSource?.startsWith("fork-")),
+          isSubagent: isSubagentRequest,
+          clientDrivenLoop: isClientDrivenLoop,
+          hasDurableKey: Boolean(durableMappingKey),
+        })
+        const isIndependentSession = independentCause !== undefined
+        // Once per process: the operator cannot see this in success metrics.
+        if (independentCause === "headerless-tool-result") warnHeaderlessToolLoopOnce(adapter.name)
         const durableMappingAtTurn = durableMappingKey
           ? lookupSharedSessionResult(durableMappingKey)
           : { status: "missing" as const }
@@ -2484,10 +2499,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           return `${m.role}[${contentTypes}]`
         }).join(" → ")
         const lineageType = lineageResult.type === "diverged" && !cachedSession ? "new" : lineageResult.type
+        // `lineage=` renders every divergence without a cached session as the
+        // same `new`, so a key that never resolved, a history that did not
+        // match and a request that never looked were indistinguishable (#820).
+        // Added as its own field rather than folded into `lineage=`: existing
+        // log analysis and the E2E gates match `lineage=<value> session=`, and
+        // widening that value would break them for no gain.
+        const divergedReason = formatDivergence(lineageResult, independentCause)
         const msgCount = Array.isArray(body.messages) ? body.messages.length : 0
         const toolCount = body.tools?.length ?? 0
         const sdkSnapshot = sdkSemaphore.snapshot
-        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
+        const requestLogLine = `${requestMeta.requestId} adapter=${adapter.name}${requestSource ? ` source=${requestSource}` : ""}${profile.id !== "default" ? ` profile=${profile.id}${routingMode === "sticky" ? "(sticky)" : options.forcedProfileId ? "(priority)" : ""}` : ""} model=${model} stream=${stream} tools=${toolCount} lineage=${lineageType} session=${resumeSessionId?.slice(0, 8) || "new"}${isUndo && undoRollbackUuid ? ` rollback=${undoRollbackUuid.slice(0, 8)}` : ""}${divergedReason ? ` diverged=${divergedReason}` : ""}${agentMode ? ` agent=${agentMode}` : ""} sdkActive=${sdkSnapshot.active}/${sdkSnapshot.limit} sdkQueued=${sdkSnapshot.queued} sessionWait=${requestMeta.sessionQueueWaitMs}ms msgCount=${msgCount}`
         plog(`[PROXY] ${requestLogLine} msgs=${msgSummary}`)
         diagnosticLog.session(`${requestLogLine}`, requestMeta.requestId)
 

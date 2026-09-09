@@ -265,6 +265,20 @@ function classifyLineage(
       + (detail ? `\n  ${detail}` : "")
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
+  } else if (result.type === "diverged") {
+    // Every remaining rejection was silent. A stored session existed under
+    // this key and was refused, but the request line renders all of them as
+    // the same `lineage=new`, so `unverifiable`, `replayed-request` and
+    // `unrelated-history` were indistinguishable from a key that never
+    // resolved (#820).
+    //
+    // `not-found` never reaches here: `lookupSession` returns it before
+    // classifying, which is right — it is the first turn of every
+    // conversation, so it belongs on the request line that is printed anyway
+    // rather than on a diagnostic line of its own.
+    const msg = `Session not resumable (key=${cacheKey.slice(0, 8)}…): reason=${result.reason}, prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. Starting fresh replay.`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
   }
 
   return result
@@ -289,6 +303,43 @@ function warnDegradedFingerprintOnce(): void {
     + "will share a session. The directory is read from the <env> block of the system prompt; a "
     + "plugin implementing experimental.chat.system.transform (for example opencode-scrub) may "
     + "have removed it. Send a session header (meridian setup) to key conversations explicitly."
+  console.warn(msg)
+  diagnosticLog.lineage(msg)
+}
+
+let warnedHeaderlessToolLoop = false
+
+/** Reset between tests; the warning is one-shot per process by design. */
+export function resetHeaderlessToolLoopWarningForTests(): void {
+  warnedHeaderlessToolLoop = false
+}
+
+/**
+ * Say once that a client's tool loop is not resuming.
+ *
+ * The headerless tool-result bypass is the most expensive lineage outcome in
+ * the field and the only one that printed nothing at all: #820 measured 99.8%
+ * of 1000+-message pi requests skipping resume, and two reporters
+ * independently drained a Max window before finding it — one measured ~280k
+ * cache-write tokens per turn against ~214 with a session key. Every request
+ * still returns 200, so nothing in the proxy's own success metrics moves.
+ *
+ * Warned once per process, matching the degraded-fingerprint warning above:
+ * it is a property of how the client is wired, not of a turn, and one line per
+ * tool round would bury it. The per-request detail rides on the request line
+ * as `diverged=independent-request:headerless-tool-result`.
+ */
+export function warnHeaderlessToolLoopOnce(adapterName: string): void {
+  if (warnedHeaderlessToolLoop) return
+  warnedHeaderlessToolLoop = true
+  const msg =
+    `[PROXY] Client-driven tool loop with no session identity (adapter=${adapterName}): `
+    + "the request ends in a tool_result and carries no session key, so this and every "
+    + "following tool round starts a fresh SDK session. The conversation does not resume, "
+    + "and the model sees none of its own earlier turns. This is correct for concurrent "
+    + "headless workflow loops, which must not share one conversation fingerprint; an "
+    + "interactive client should send a session header instead — see \"Session identity\" "
+    + "in docs/configuration.md."
   console.warn(msg)
   diagnosticLog.lineage(msg)
 }

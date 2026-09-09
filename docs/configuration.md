@@ -246,6 +246,128 @@ While draining:
   whichever comes first. If the grace period elapses first, a warning is
   logged and any remaining HTTP connections are forcibly closed.
 
+## Session identity
+
+Meridian resumes the backing Claude SDK session between turns. Resuming is
+what keeps the model's own earlier turns in context and what keeps the prompt
+cache warm; a turn that cannot resume is sent as a fresh session and pays to
+re-write its prompt prefix.
+
+Identity is resolved in this order:
+
+1. **The adapter's session header**, if the client sends one.
+2. **A conversation fingerprint** — a hash of the opening user message plus the
+   client working directory — when there is no header.
+
+The fingerprint is a fallback, not an equivalent. It cannot distinguish two
+concurrent conversations that open with the same text, and it moves if anything
+rewrites the opening message.
+
+| Adapter | Session identity it reads |
+|---|---|
+| `opencode` | `x-opencode-session`, then `x-session-affinity` |
+| `pi`, `prime` | `x-session-affinity`, then `metadata.user_id` `{"session_id": …}` |
+| `claudecode` | `metadata.user_id` `{"session_id": …}` |
+| `codex` | `x-codex-session` |
+| `crush` | `x-session-id`, then `x-session-affinity` |
+| `jcode` | `x-jcode-session` |
+| `passthrough` (LiteLLM) | `x-litellm-session-id` |
+| `cherry`, `droid`, `forgecode`, `openai` | none — fingerprint only |
+
+### Client-driven tool loops need a session header
+
+A request whose last message is a `tool_result` is a round of the client's own
+tool loop. When such a request carries **no** session identity, Meridian skips
+session lookup entirely and runs it as a fresh session.
+
+That is deliberate. Headerless rounds all collapse onto the same
+`(first user message, working directory)` fingerprint, so a workflow engine
+running several loops concurrently would have one run resume another run's
+Claude session and corrupt it — premature `end_turn`, dropped tool calls. A
+conversation fingerprint is not proof that two requests are the same chat, and
+an explicit key is.
+
+For an **interactive** client the same rule is expensive, because every
+agentic turn ends in a `tool_result`:
+
+- the model receives none of its own previous turns and re-derives the same
+  intent each round, re-issuing the same read-only tool calls;
+- the prompt cache decays to the static-prefix floor — `cache_read` stops
+  moving while the conversation grows, and `cache_write` is paid again every
+  round.
+
+None of this fails a request. Every one returns 200, so it is invisible in
+success metrics and shows up only as burn rate and a model that behaves as
+though it has amnesia.
+
+Send a session header and the loop resumes. If the client has no native
+header, `x-session-affinity` is honoured by the `opencode`, `pi`, `prime` and
+`crush` adapters.
+
+Pi has no native header, but it exposes a `before_provider_headers`
+extension hook. Save this as `~/.pi/agent/extensions/session-affinity.ts`:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
+
+const PROVIDER = "anthropic"
+
+export default function (pi: ExtensionAPI) {
+  pi.on("before_provider_headers", (event, ctx) => {
+    if (ctx.model?.provider !== PROVIDER) return
+    // Without this, adapter detection does not resolve to `pi` and the
+    // affinity key is not read the way the pi adapter reads it.
+    event.headers["x-meridian-agent"] = "pi"
+    const sessionId = ctx.sessionManager.getSessionId()
+    if (sessionId) event.headers["x-session-affinity"] = sessionId
+  })
+}
+```
+
+Contributed by @odfalik and @RobertoNegro in
+[#820](https://github.com/rynfar/meridian/issues/820) and verified there
+against pi 0.84.1 with a full 27-tool configuration: turns 3 onward moved from
+`lineage=new` to `lineage=continuation` at 99% cache hit rate and
+`cache_write` around 214 tokens, against ~280k per turn on a control session
+started before the extension existed.
+
+The `provider` check is broad — it also sets both headers when the `anthropic`
+provider points straight at `api.anthropic.com`, which is harmless since
+unknown headers are ignored upstream. Gate on the resolved base URL being a
+local Meridian endpoint instead if your pi version exposes it on the hook
+context.
+
+Extensions load at startup, so a pi session started before the file existed
+keeps the old behaviour until pi is restarted.
+
+### Reading the log
+
+Every request line carries `lineage=`, and every divergence also carries
+`diverged=` naming why the turn did not resume:
+
+| `diverged=` | Meaning |
+|---|---|
+| `not-found` | The key resolved to nothing — a first turn, or an evicted entry |
+| `unverifiable` | An entry exists but cannot prove which history its session holds |
+| `replayed-request` | The same history arrived again; a retry, not a continuation |
+| `modified-history` | The stored prefix changed, so resume would skip history |
+| `undo-gap` | An undo whose rollback point would omit supplied history |
+| `unrelated-history` | The key resolved to a different conversation |
+| `missing-session-header` | An OpenCode request arrived without its session header |
+| `concurrent-race`, `priority-failback` | Lost a commit race; routed to another profile |
+| `independent-request:headerless-tool-result` | The client-driven tool loop above |
+| `independent-request:fork-source` | Declared `x-meridian-source: fork-*` |
+| `independent-request:subagent` | Declared a subagent flow |
+| `independent-request:no-cache-identity` | No header and no derivable fingerprint |
+
+A resumed turn prints no `diverged=` field at all. The three
+`independent-request:*` causes skip session lookup before it happens; the rest
+are the verdict of a lookup that ran.
+
+`headerless-tool-result` also prints a one-time warning at the first
+occurrence, because it is a property of how the client is wired rather than of
+a single turn.
+
 ## Concurrent requests to the same session
 
 Requests that share a reliable session identity supplied by the client

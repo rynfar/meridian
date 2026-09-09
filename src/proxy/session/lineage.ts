@@ -366,6 +366,72 @@ export function formatLineageMismatch(mismatch: LineageMismatch): string | undef
 }
 
 /**
+ * Why a request skipped session lookup entirely.
+ *
+ * `independent-request` is assigned in server.ts before `classifyLineage` runs,
+ * so it is the one divergence that emits no diagnostic at all — and four
+ * unrelated causes collapse into that single silent outcome. #820 was a log
+ * full of `lineage=new` with zero explanatory lines; the reporter could only
+ * identify the bypass by reading server.ts.
+ *
+ * Naming the cause is log-only. The `LineageDivergenceReason` handed to the
+ * `onSession` transform hook is unchanged, so plugins switching on it are
+ * unaffected.
+ */
+export type IndependentRequestCause =
+  | "fork-source"
+  | "subagent"
+  | "headerless-tool-result"
+  | "no-cache-identity"
+
+/**
+ * Decide whether a request bypasses session lookup, and say which rule did it.
+ *
+ * The caller derives `isIndependentSession` from this result rather than
+ * computing it separately, so the reported cause cannot drift away from the
+ * decision it explains. Evaluation order mirrors the guards' own precedence.
+ */
+export function independentRequestCause(input: {
+  /** An explicit session key. Distinct flows carry distinct keys, so a keyed
+   *  request cannot collide and never needs the independence guard. */
+  hasSessionKey: boolean
+  /** `x-meridian-source: fork-*` — a declared independent sub-request flow. */
+  forkSource: boolean
+  isSubagent: boolean
+  /** The last message carries a tool_result and the request has no session
+   *  key, so it is a self-contained round of the client's own tool loop. */
+  clientDrivenLoop: boolean
+  /** Whether a session key or a conversation fingerprint could be derived.
+   *  Image-only and otherwise text-free headerless requests have neither. */
+  hasDurableKey: boolean
+}): IndependentRequestCause | undefined {
+  if (!input.hasSessionKey && input.forkSource) return "fork-source"
+  if (!input.hasSessionKey && input.isSubagent) return "subagent"
+  if (input.clientDrivenLoop) return "headerless-tool-result"
+  if (!input.hasDurableKey) return "no-cache-identity"
+  return undefined
+}
+
+/**
+ * The `diverged=` field for the request log line.
+ *
+ * The line renders `lineage=new` for every divergence without a cached
+ * session, so a key that never resolved, a history that did not match and a
+ * request that never looked are indistinguishable (#820). The reason is
+ * already in memory on every request; it was only reachable by writing a
+ * plugin. Reasons are fixed identifiers, never message content.
+ */
+export function formatDivergence(
+  result: LineageResult,
+  cause?: IndependentRequestCause,
+): string | undefined {
+  if (result.type !== "diverged") return undefined
+  return result.reason === "independent-request" && cause
+    ? `${result.reason}:${cause}`
+    : result.reason
+}
+
+/**
  * Compute per-message hashes for an entire message array.
  */
 export function computeMessageHashes(messages: Array<{ role: string; content: any }>): string[] {

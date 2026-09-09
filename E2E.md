@@ -277,6 +277,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E51 | [Boot identity](#e51-boot-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-boot-identity.mjs`. In an image with no `/etc/machine-id`, asserts startup refuses with an actionable cause and `/health` returns 503 `unhealthy`; with a valid machine-id the same image starts normally. **Run before releases touching startup validation, `/health`, or process incarnation** | 2026-09-08 |
 | E52 | [Host identity](#e52-host-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-host-id.mjs`. Reproduces the derived `hostId` moving with the pid-namespace inode across `docker restart`, then asserts `MERIDIAN_HOST_ID` makes it stable across namespaces and distinct across hosts sharing a baked machine-id. **Run before releases touching process incarnation or store locking** | 2026-09-08 |
 | E53 | [Auto-defer pin](#e53-auto-defer-pin) | **Automated**: `bun scripts/e2e-defer-pin.mjs` — real proxy + SDK, A/B. Two three-turn conversations, one crossing the auto-defer threshold on its last turn. Asserts deferral (and so `maxTurns`) does not flip mid-session and that the suppressed flip is logged. **Run before releases touching auto-defer, tool registration, or prompt assembly** | 2026-09-09 |
+| E54 | [Lineage divergence reason](#e54-lineage-divergence-reason) | **Automated**: `bun scripts/e2e-lineage-divergence-reason.mjs` — real proxy + SDK, A/B. Drives a headerless pi tool loop and the same loop with `x-session-affinity`. Asserts no divergence is silent, that the headerless bypass names itself, that the advice is printed once per process, and that the named remedy actually restores resume and prompt-cache reuse. **Run before releases touching lineage classification, the independence guards, or the request log line** | 2026-09-09 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4371,6 +4372,71 @@ of it, and that is what is asserted. The cache numbers are printed as context.
 **Verified:** 2026-09-09. Pre-change the crossing conversation flips to
 `deferred=true` on turn 3 and no `defer_flip` line appears; with the pin it
 stays `false` and the suppression is logged.
+
+## E54: Lineage divergence reason
+
+**What it proves:** every lineage divergence names why it diverged, and the
+remedy the log names for the expensive one actually works.
+
+`classifyLineage` logged four outcomes, and for `diverged` only
+`modified-history` and `undo-gap`. Everything else was silent, and the request
+line renders every divergence without a cached session as the same literal
+`lineage=new`. #820 is the cost of that: 6,514 `lineage=new` requests with zero
+explanatory lines, across which the four `classifyLineage` diagnostics all sat
+at exactly zero. The most expensive outcome — the headerless tool-result bypass
+— is assigned before `classifyLineage` runs, so it printed nothing at all and
+was identified only by reading `server.ts`. Two reporters drained a Max
+subscription window first, because every one of those requests returns 200.
+
+```bash
+bun scripts/e2e-lineage-divergence-reason.mjs
+```
+
+A four-round client-driven tool loop on the `pi` adapter in passthrough mode,
+run twice — once headerless, once with `x-session-affinity`. 22 filler tools
+give the prompt prefix enough mass to clear Anthropic's minimum cacheable
+length; without them every round of both loops reports `cache_read=0
+cache_write=0` and the cost claim is untestable.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- No round in either loop diverges without a `diverged=` reason.
+- A headerless tool round names `independent-request:headerless-tool-result`.
+- The one-time advice is printed **exactly once** across all rounds of both
+  loops, not once per round.
+- A first turn under a key that resolved to nothing reports `not-found`, which
+  used to be indistinguishable from the bypass.
+- The keyed loop resumes on every tool round and prints no `diverged=` at all.
+- **The field cache signature is reproduced.** A bypassed round reads the same
+  static prefix however far the conversation got, while a resumed round reads
+  more as it grows; and a bypassed round pays several times over per round to
+  re-write the prefix.
+
+**What this gate deliberately does not assert.** Not every headerless tool
+round takes the bypass. A headerless passthrough loop recovers through the
+durable checkpoint exactly once: the checkpoint upgrade rewrites the lineage
+result but leaves the request independent, so the end-of-turn store is still
+skipped and the checkpoint never advances past the first tool call. Every later
+round then finds a stale checkpoint and takes the bypass. That is the shape the
+field report shows — 6,019 `new` against 10 `continuation` at 1000+ messages —
+so the gate asserts that a bypassed round names itself, not that every round is
+one. It also does not assert the field's cost magnitude: ~280k cache-write
+tokens per turn against ~214 was measured on a 454-message conversation, and a
+four-round probe reproduces the direction and the signature, not the size.
+
+**Verified:** 2026-09-09, Haiku 4.5, two consecutive runs. Pre-change the same
+rounds print `lineage=new session=new` with no reason and no warning. After:
+
+```
+A headerless  round 3  msgs=5  lineage=new           diverged=independent-request:headerless-tool-result  cache_write=1286  cache_read=5789
+A headerless  round 4  msgs=7  lineage=new           diverged=independent-request:headerless-tool-result  cache_write=1497  cache_read=5789
+B keyed       round 3  msgs=5  lineage=continuation  diverged=—                                           cache_write= 167  cache_read=6752
+B keyed       round 4  msgs=7  lineage=continuation  diverged=—                                           cache_write= 166  cache_read=6919
+```
+
+`cache_read` pinned at 5789 while the conversation grows is the reporters' own
+signature at probe scale; they measured it pinned at 30629 across 12,781 to
+13,030 messages. Per-round cache-write ratio measured 7.2x and 7.1x.
 
 ## Concurrent transcript publication
 
