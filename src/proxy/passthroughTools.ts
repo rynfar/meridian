@@ -207,6 +207,27 @@ export function getAutoDeferThreshold(): number {
 }
 
 /**
+ * Whether auto-defer applies to a tool set of this size.
+ *
+ * Pure, and exported so the caller can pin the answer for a session.
+ *
+ * The decision was taken from the LIVE tool count, so a client crossing the
+ * threshold mid-conversation — one tool added or removed — flipped deferral for
+ * every non-core tool at once. That moves the `anthropic/alwaysLoad` marker on
+ * each definition, and tools render at position 0 of the prompt, so it
+ * invalidates the tools, system AND message cache tiers. It also flips
+ * `ENABLE_TOOL_SEARCH` and, since #860, `maxTurns` — silently re-enabling the
+ * billed digest turn for that request (#861).
+ */
+export function autoDeferDecision(
+  threshold: number,
+  coreToolNames: readonly string[] | undefined,
+  toolCount: number,
+): boolean {
+  return !!(threshold > 0 && coreToolNames && coreToolNames.length > 0 && toolCount > threshold)
+}
+
+/**
  * Create an MCP server with tool definitions matching OpenCode's request.
  *
  * Auto-defer: when the tool count exceeds the threshold and coreToolNames
@@ -218,11 +239,13 @@ export function createPassthroughMcpServer(
   tools: Array<{ name: string; description?: string; input_schema?: JsonSchemaNode; defer_loading?: boolean }>,
   coreToolNames?: readonly string[],
   serverName: string = PASSTHROUGH_MCP_NAME,
+  /** Pinned auto-defer decision for this session, when one has been made (#861). */
+  pinnedAutoDefer?: boolean,
 ) {
   // Auto-defer: if tool count exceeds threshold and adapter provides core tools
   const threshold = getAutoDeferThreshold()
-  const autoDefer = !!(threshold > 0 && coreToolNames && coreToolNames.length > 0 && tools.length > threshold)
-  const coreSet = autoDefer ? new Set(coreToolNames.map(n => n.toLowerCase())) : undefined
+  const autoDefer = pinnedAutoDefer ?? autoDeferDecision(threshold, coreToolNames, tools.length)
+  const coreSet = autoDefer && coreToolNames ? new Set(coreToolNames.map(n => n.toLowerCase())) : undefined
 
   // hasDeferredTools is true when: client explicitly defers any tool, OR auto-defer kicks in
   const hasDeferredTools = tools.some(t => t.defer_loading === true) || autoDefer

@@ -276,6 +276,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E50 | [Passthrough MCP namespace](#e50-passthrough-mcp-namespace) | **Automated**: `bun scripts/e2e-passthrough-mcp-namespace.mjs` — real proxy + SDK. Asks the model to state its own tool name, the only place the namespace is visible. A LiteLLM-pinned request must read `mcp__litellm__*`; an OpenCode request must still read `mcp__oc__*`. **Run before releases touching passthrough tool registration or adapter tool config** | 2026-09-08 |
 | E51 | [Boot identity](#e51-boot-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-boot-identity.mjs`. In an image with no `/etc/machine-id`, asserts startup refuses with an actionable cause and `/health` returns 503 `unhealthy`; with a valid machine-id the same image starts normally. **Run before releases touching startup validation, `/health`, or process incarnation** | 2026-09-08 |
 | E52 | [Host identity](#e52-host-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-host-id.mjs`. Reproduces the derived `hostId` moving with the pid-namespace inode across `docker restart`, then asserts `MERIDIAN_HOST_ID` makes it stable across namespaces and distinct across hosts sharing a baked machine-id. **Run before releases touching process incarnation or store locking** | 2026-09-08 |
+| E53 | [Auto-defer pin](#e53-auto-defer-pin) | **Automated**: `bun scripts/e2e-defer-pin.mjs` — real proxy + SDK, A/B. Two three-turn conversations, one crossing the auto-defer threshold on its last turn. Asserts deferral (and so `maxTurns`) does not flip mid-session and that the suppressed flip is logged. **Run before releases touching auto-defer, tool registration, or prompt assembly** | 2026-09-09 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4326,6 +4327,50 @@ checks are unconditional.
 
 **Verified:** 2026-09-08. Five checks pass, including reproducing the reported
 instability.
+
+## E53: Auto-defer pin
+
+**What it proves:** crossing the auto-defer threshold mid-session no longer
+flips deferral, and therefore no longer flips `maxTurns`.
+
+The decision was taken from the LIVE tool count, so one tool added or removed
+flipped deferral for every non-core tool at once. That moves the
+`anthropic/alwaysLoad` marker on every definition, flips `ENABLE_TOOL_SEARCH`,
+and — since #860 — flips `maxTurns`, silently re-enabling the billed digest turn
+for that request (#861). OpenCode switching agents, an MCP server connecting or
+dropping, or a plugin toggling a tool all trigger it, and none looks to a user
+like a cache-affecting change.
+
+```bash
+bun scripts/e2e-defer-pin.mjs
+```
+
+Two three-turn conversations with identical prompts; only one crosses:
+
+```
+A (control)   15 -> 15 -> 15 tools
+B (crossing)  15 -> 15 -> 16 tools
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Both conversations complete.
+- **Deferral state is identical on turn 3**, so `maxTurns` did not change under
+  a live session. Measured pre-change: `control=false crossing=true`. With the
+  pin: both `false`.
+- The suppressed flip is logged (`defer_flip suppressed`) rather than hidden,
+  which is the observability the issue asked for regardless of which fix landed.
+
+**What this gate deliberately does not assert.** An earlier draft asserted a
+cache-write ratio and failed honestly. Adding a tool changes the tool block, and
+the tool block is prompt position 0, so the prompt cache is invalidated whatever
+the pin does — measured at `cache=0%` on turn 3 even *with* the pin. That cost
+is inherent to changing the tool set. The bug was the **amplification** on top
+of it, and that is what is asserted. The cache numbers are printed as context.
+
+**Verified:** 2026-09-09. Pre-change the crossing conversation flips to
+`deferred=true` on turn 3 and no `defer_flip` line appears; with the pin it
+stays `false` and the suppression is logged.
 
 ## Concurrent transcript publication
 

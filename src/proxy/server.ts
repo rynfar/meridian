@@ -45,7 +45,7 @@ import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
-import { createPassthroughMcpServer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix } from "./passthroughTools"
+import { createPassthroughMcpServer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, autoDeferDecision, getAutoDeferThreshold } from "./passthroughTools"
 import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
@@ -600,6 +600,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // invalidation from MCP server re-creation. Key hashes tool name + schema
   // so silently-updated tool definitions force a rebuild.
   const sessionMcpCache = new LRUMap<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>(getMaxSessionsLimit())
+
+  // The auto-defer decision, pinned for the session's lifetime (#861).
+  //
+  // Taken from the LIVE tool count, one tool added or removed flipped deferral
+  // for every non-core tool at once. Tools render at position 0 of the prompt,
+  // so that moves the `alwaysLoad` marker on every definition, and it also
+  // flipped `maxTurns` — silently re-enabling the billed digest turn.
+  //
+  // Pinned rather than hysteresis-damped: hysteresis only helps a client
+  // oscillating AT the boundary, not one that swings wide, which is what
+  // OpenCode does when it switches agents. Bounded like its neighbours.
+  const sessionDeferPin = new LRUMap<string, boolean>(getMaxSessionsLimit())
 
   // Consecutive upstream-idle stalls per session, for the retry ceiling.
   const idleStalls = new IdleStallTracker(UPSTREAM_IDLE_MAX_CONSECUTIVE, getMaxSessionsLimit())
@@ -2934,16 +2946,32 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       if (passthrough && requestTools.length > 0) {
         const toolSetKey = computeToolSetKey(requestTools)
         const cachedMcp = profileSessionId ? sessionMcpCache.get(profileSessionId) : undefined
+        const coreNamesForDefer = pipelineCtx.coreToolNames ? [...pipelineCtx.coreToolNames] : undefined
+        // Consulted even when the MCP server is rebuilt: a changed tool set
+        // already costs one cache miss, and re-deciding on top of it would ALSO
+        // flip maxTurns mid-session. The suppressed flip is logged whenever the
+        // live count would decide differently, which is the observability the
+        // issue asked for regardless of which fix landed.
+        const pinnedDefer = profileSessionId ? sessionDeferPin.get(profileSessionId) : undefined
+        const liveDefer = autoDeferDecision(getAutoDeferThreshold(), coreNamesForDefer, requestTools.length)
+        if (pinnedDefer !== undefined && pinnedDefer !== liveDefer) {
+          plog(`[PROXY] ${requestMeta.requestId} defer_flip suppressed: session pinned autoDefer=${pinnedDefer}, live tool count ${requestTools.length} would give ${liveDefer}`)
+          claudeLog("passthrough.defer_flip_suppressed", { pinned: pinnedDefer, live: liveDefer, toolCount: requestTools.length })
+        }
         if (cachedMcp && cachedMcp.key === toolSetKey) {
           passthroughMcp = cachedMcp.mcp
         } else {
-          passthroughMcp = createPassthroughMcpServer(requestTools, pipelineCtx.coreToolNames ? [...pipelineCtx.coreToolNames] : undefined, passthroughMcpName)
+          passthroughMcp = createPassthroughMcpServer(requestTools, coreNamesForDefer, passthroughMcpName, pinnedDefer)
           if (profileSessionId) {
             sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
             if (cachedMcp) {
               plog(`[PROXY] ${requestMeta.requestId} tools_changed: MCP server recreated (prompt cache likely invalidates)`)
             }
           }
+        }
+        // First request in the session decides; later ones inherit.
+        if (profileSessionId && !sessionDeferPin.has(profileSessionId)) {
+          sessionDeferPin.set(profileSessionId, passthroughMcp.hasDeferredTools)
         }
       }
       const hasDeferredTools = passthroughMcp?.hasDeferredTools ?? false
