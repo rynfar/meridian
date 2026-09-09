@@ -723,6 +723,10 @@ describe("Session lineage: post-compaction behavior", () => {
     ], "sdk-2c")
 
     expect(getCaptured()?.options?.resume).toBeDefined()
+  // Measured at 5317ms on CI, over the 5s default this suite used to run with.
+  // It drives four compaction rounds through the HTTP layer, so it is
+  // legitimately slow rather than stuck; the harness budget is now 30s
+  // (#917/#933).
   })
 
   it("undo after compaction is correctly rejected", async () => {

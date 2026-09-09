@@ -383,19 +383,37 @@ describe("Extra usage required fallback", () => {
   describe("No backoff needed", () => {
     it("does not use exponential backoff for extra usage errors", async () => {
       mockBehavior = "extra_usage_then_succeed"
-      const app = createTestApp()
 
-      const start = Date.now()
-      await post(app, {
-        model: "sonnet",
-        stream: false,
-        messages: [{ role: "user", content: "hello" }],
-      })
-      const elapsed = Date.now() - start
-
-      // Should complete nearly instantly (no 1s+ backoff delay)
-      // Rate limit retry uses 1000ms minimum — extra usage should be <500ms
-      expect(elapsed).toBeLessThan(500)
+      // AMPLIFY the signal rather than tighten the threshold.
+      //
+      // This asserted `elapsed < 500` against a real backoff floor of 1000ms,
+      // leaving 500ms of headroom for the whole request — and it failed on CI
+      // at 756ms, which is BELOW the backoff floor. No backoff had happened; the
+      // test measured a contended runner (#917/#933). Nudging the bound to 1000
+      // would only move the coin-flip.
+      //
+      // Making the backoff enormous instead turns a ~500ms judgement call into
+      // an unmissable one: a rate-limit path would now sleep 10s, so anything
+      // near-instant proves the extra-usage path took no backoff at all, and no
+      // amount of runner noise closes that gap.
+      const priorDelay = process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
+      process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = "10000"
+      try {
+        const app = createTestApp()
+        const start = Date.now()
+        await post(app, {
+          model: "sonnet",
+          stream: false,
+          messages: [{ role: "user", content: "hello" }],
+        })
+        const elapsed = Date.now() - start
+        // Generous for the request itself, still an order of magnitude under
+        // the 10s a single backoff would now cost.
+        expect(elapsed).toBeLessThan(5_000)
+      } finally {
+        if (priorDelay === undefined) delete process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS
+        else process.env.MERIDIAN_RATE_LIMIT_BASE_DELAY_MS = priorDelay
+      }
     })
   })
 
