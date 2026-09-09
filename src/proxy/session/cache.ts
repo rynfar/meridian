@@ -273,6 +273,26 @@ function classifyLineage(
 /** Look up a cached session by header or fingerprint.
  *  Returns a LineageResult that classifies the mutation and includes the
  *  session state needed for the correct SDK action. */
+let warnedDegradedFingerprint = false
+
+/** Reset between tests; the warning is one-shot per process by design. */
+export function resetDegradedFingerprintWarningForTests(): void {
+  warnedDegradedFingerprint = false
+}
+
+function warnDegradedFingerprintOnce(): void {
+  if (warnedDegradedFingerprint) return
+  warnedDegradedFingerprint = true
+  const msg =
+    "[PROXY] Session fingerprint has no working directory, so it hashes only the opening "
+    + "user message — two conversations in different directories that start with the same text "
+    + "will share a session. The directory is read from the <env> block of the system prompt; a "
+    + "plugin implementing experimental.chat.system.transform (for example opencode-scrub) may "
+    + "have removed it. Send a session header (meridian setup) to key conversations explicitly."
+  console.warn(msg)
+  diagnosticLog.lineage(msg)
+}
+
 export function lookupSession(
   sessionId: string | undefined,
   messages: Array<{ role: string; content: any }>,
@@ -302,6 +322,20 @@ export function lookupSession(
     return result
   }
 
+  // A fingerprint keyed WITHOUT a working directory is a degraded key: it is a
+  // hash of the opening user message alone, so two conversations in different
+  // repositories that begin with the same text collide onto one session (#889).
+  //
+  // The directory is regexed out of the `<env>` block in the system prompt, and
+  // any plugin implementing `experimental.chat.system.transform` may legally
+  // remove that block — `opencode-scrub` deletes it deliberately, and #769
+  // tracks an official equivalent. Nothing said so, which is the actual
+  // problem: the reporter observed no misbehaviour precisely because the
+  // opencode adapter's session header keeps this path unreached.
+  //
+  // Warned once per process rather than per request: it is a property of the
+  // deployment, not of a turn, and per-request would bury it.
+  if (!workingDirectory) warnDegradedFingerprintOnce()
   const fp = getConversationFingerprint(messages, workingDirectory)
   if (fp) {
     const shared = lookupSharedSessionResult(fp)
