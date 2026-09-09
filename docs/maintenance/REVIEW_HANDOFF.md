@@ -23,6 +23,60 @@ closure status, limitations, and the exact next action. Put portable evidence in
 the PR or linked review record; optional private local logs are not prerequisites
 for discovering the workflow. Never invent test evidence if those logs are absent.
 
+## Current item: OpenCode Desktop cannot load the V1 plugin, PR #988
+
+Maintainer-originated fix, not a contributor PR. Owner-reported: OpenCode
+Desktop on macOS could not use Meridian after a normal `meridian setup`.
+
+Base `d3bfe795`, branch `codex/ship-compiled-opencode-v1-plugin`, worktree
+`/Users/rynfar/repos/meridian-wt/opencode-v1-compiled-plugin`, delivery commit
+`12ae3f74`. Disposition: accept as maintainer fix.
+
+Cause: `findPluginPath` returned `plugin/meridian.ts` for every install. The Bun
+CLI loads TypeScript, but OpenCode Desktop (`ai.opencode.desktop` 1.18.23,
+Electron 42 / Node 24) runs the OpenCode server in-process under Node and ships
+no Bun binary; its native modules are Node-ABI. Node refuses type stripping
+under node_modules, so an installed package wrote a path the desktop client
+cannot import: `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`. Relocating the
+`.ts` does not help either — `plugin/meridian.ts` imports
+`./priority-attestation` without an extension, which is `ERR_MODULE_NOT_FOUND`
+under Node ESM. OpenCode's loader resolves a file spec to `pathToFileURL(...)`
+and dynamic-imports it with no transpile step.
+
+Fix mirrors the existing V2 shape: `plugin/meridian/` shim package compiled to
+`dist/meridian/`, `findPluginPath` mirroring `findV2PluginPath` (source keeps
+source, installed selects compiled, fail closed), `MissingV1PluginError`,
+shared `hasPluginPackageEntry`, generalized
+`scripts/package-opencode-plugins.mjs`, and `node --check dist/meridian/index.js`
+in postbuild. Detection still matches legacy `meridian.ts` entries so older
+installs keep reporting configured.
+
+Proof, from an independently packed and installed tarball:
+old path `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, new path imports with a
+function default. `meridian setup` from that installed CLI writes
+`node_modules/@rynfar/meridian/dist/meridian`.
+
+Live E2E: OpenCode 1.18.29, `claude-opus-4-6`, isolated proxy port 3466,
+isolated `XDG_CONFIG_HOME` and workdir, plugin loaded from the installed
+tarball. Returned the expected sentinel; proxy recorded
+`agent=primary model=opus[1m]` and `agent=subagent model=haiku`, no pluginless
+warning. Gates: `npm test` 3713 pass / 0 fail / 1 pre-existing skip, typecheck,
+build. All PR #988 checks green at head `12ae3f74`, mergeState CLEAN.
+
+NOT YET DONE — do not merge until this is closed: no run through the OpenCode
+Desktop GUI itself. The desktop runtime constraint is proven by the Node import
+reproduction, not by a click-through. The desktop app would not stay running
+when launched from the agent shell (`Contents/MacOS/OpenCode` is a launcher stub
+and `open -a` did not survive), and screen capture is unavailable, so this needs
+the owner to launch the app and send one message while watching for
+`agent=primary` in the proxy log.
+
+Unrelated observations from the same session, not addressed here: the OpenCode
+client stalls on a repeating design-MCP OAuth discovery loop against the proxy
+(`/.well-known/oauth-*`, `POST /register` logged as UNHANDLED); and
+`isMeridianEntry`'s `endsWith("/meridian-v2")` is POSIX-separator-only, so V2
+source-install detection on Windows is a pre-existing gap.
+
 ## Current item: issue #967 triage, delivered as PR #969
 
 **Item.** [Issue #967](https://github.com/rynfar/meridian/issues/967) —
