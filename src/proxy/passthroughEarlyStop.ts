@@ -119,12 +119,23 @@ export function noteAssistantContent(
  * updating the boundary for every forwarded call leaves the correct stable
  * checkpoint.
  */
-export function noteAssistantMessage(tracker: EarlyStopTracker, message: unknown): void {
+export function noteAssistantMessage(
+  tracker: EarlyStopTracker,
+  message: unknown,
+  clientToolPrefix: string = CLIENT_TOOL_PREFIX,
+): void {
   const m = message as { type?: unknown; uuid?: unknown; message?: { content?: unknown } } | null | undefined
   if (m?.type !== "assistant") return
   const content = m.message?.content
   const before = tracker.expected.size
-  noteAssistantContent(tracker, content)
+  // The prefix MUST be threaded through. Defaulting it here silently armed the
+  // tracker only for `mcp__oc__*`, so on an adapter with its own namespace
+  // (`mcp__litellm__*` since #983) nothing was ever expected: no checkpoint
+  // UUID, no stored `passthroughToolCallIds`, and therefore no tool round ever
+  // resumed (#996). `isClientForwardedToolUse` is deliberately strict about
+  // foreign `mcp__*` names, which is what makes a missed prefix silent rather
+  // than noisy.
+  noteAssistantContent(tracker, content, clientToolPrefix)
   if (tracker.expected.size > before) {
     // A newer tool-bearing assistant message supersedes the older checkpoint.
     // Fail closed when its UUID is absent: the older message may not contain

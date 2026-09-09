@@ -279,6 +279,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E53 | [Auto-defer pin](#e53-auto-defer-pin) | **Automated**: `bun scripts/e2e-defer-pin.mjs` — real proxy + SDK, A/B. Two three-turn conversations, one crossing the auto-defer threshold on its last turn. Asserts deferral (and so `maxTurns`) does not flip mid-session and that the suppressed flip is logged. **Run before releases touching auto-defer, tool registration, or prompt assembly** | 2026-09-09 |
 | E54 | [Lineage divergence reason](#e54-lineage-divergence-reason) | **Automated**: `bun scripts/e2e-lineage-divergence-reason.mjs` — real proxy + SDK, A/B. Drives a headerless pi tool loop and the same loop with `x-session-affinity`. Asserts no divergence is silent, that the headerless bypass names itself, that the advice is printed once per process, and that the named remedy actually restores resume and prompt-cache reuse. **Run before releases touching lineage classification, the independence guards, or the request log line** | 2026-09-09 |
 | E55 | [Gateway-fronted Claude Code](#e55-gateway-fronted-claude-code) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-passthrough-claude-code-session.mjs` — real proxy + SDK, and the REAL Claude Code CLI as the client. Asserts a gateway-fronted Claude Code session keeps the tool-loop exemption it has on a direct connection, that its following turn resumes, and that the CLI's auxiliary requests do not collide with the conversation. **Run before releases touching the independence guards, adapter detection, or passthrough session identity** | 2026-09-09 |
+| E56 | [Namespaced tool-round resume](#e56-namespaced-tool-round-resume) | **Automated**: `bun scripts/e2e-passthrough-namespace-resume.mjs` — real proxy + SDK, three adapters. Drives an identical keyed tool loop on `pi`, `passthrough` and `opencode` and asserts every keyed tool round resumes on all of them, so an adapter-specific client-tool namespace cannot silently take the resume checkpoint away. **Run before releases touching the passthrough namespace, the early-stop tracker, or checkpoint storage** | 2026-09-09 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4518,6 +4519,50 @@ turn 2   tools=12  msgCount=5  lineage=continuation
 
 Keyed on `x-claude-code-session-id` instead, the same run produced
 `diverged=unrelated-history` and `API Error: 400`.
+
+## E56: Namespaced tool-round resume
+
+**What it proves:** a client-driven tool round resumes on **every** adapter,
+whatever namespace its client tools sit in.
+
+#983 gave each adapter its own passthrough client-tool namespace, so the
+LiteLLM adapter registers client tools as `mcp__litellm__*`. The early-stop
+tracker is what freezes the resume checkpoint, and it arms by matching those
+names — but `noteAssistantMessage` called `noteAssistantContent` with the
+**default** prefix. On that adapter nothing was ever added to `expected`: no
+checkpoint UUID was frozen, no `passthroughToolCallIds` were stored, and every
+tool round started a fresh SDK session (#996).
+
+`isClientForwardedToolUse` is strict about foreign `mcp__*` names on purpose,
+which is exactly what made the missed prefix silent instead of noisy. It took a
+cross-adapter A/B and then a bisect to find:
+
+```
+15529b12 (pre-#983)  passthrough resumed 3/3 keyed tool rounds
+96dc5605 (main)      passthrough resumed 0/3
+with the fix         passthrough resumed 3/3
+```
+
+```bash
+bun scripts/e2e-passthrough-namespace-resume.mjs
+```
+
+An identical four-round keyed tool loop on the three adapters that read an
+explicit session key and run passthrough tool loops. `passthrough` is the one
+that regressed; `pi` and `opencode` are the controls that made the regression
+visible as an asymmetry rather than as an absolute.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Every loop completes and runs at least two real tool rounds.
+- **Every keyed tool round reports `lineage=continuation`, on every adapter.**
+- All three adapters agree on the tool-round shape. This is the assertion that
+  actually catches the class of bug: a single-adapter gate would have passed
+  throughout, because each adapter looks self-consistent on its own.
+
+**Verified:** 2026-09-09, Haiku 4.5. On main before the fix, `pi` and
+`opencode` report `continuation` on all three tool rounds and `passthrough`
+reports `new` on all three. After, all three agree.
 
 ## Concurrent transcript publication
 

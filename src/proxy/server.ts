@@ -3668,7 +3668,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // until the full client-visible ID set is covered; internal and
                 // duplicate calls are filtered by noteAssistantMessage.
                 const expectedBefore = earlyStop.expected.size
-                noteAssistantMessage(earlyStop, message)
+                noteAssistantMessage(earlyStop, message, clientToolPrefix)
                 assistantAddedForwardedCall = earlyStop.expected.size > expectedBefore
               } else if (passthrough && message.type === "user" && !earlyStopFired) {
                 noteUserContent(earlyStop, (message as any).message?.content)
@@ -4824,7 +4824,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   let assistantAddedForwardedCall = false
                   if (earlyStopEnabled && message.type === "assistant" && !earlyStopFired) {
                     const expectedBefore = earlyStop.expected.size
-                    noteAssistantMessage(earlyStop, message)
+                    noteAssistantMessage(earlyStop, message, clientToolPrefix)
                     assistantAddedForwardedCall = earlyStop.expected.size > expectedBefore
                   } else if (earlyStopEnabled && message.type === "user" && !earlyStopFired) {
                     noteUserContent(earlyStop, (message as any).message?.content)
@@ -5550,7 +5550,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       recoverySessionId = recoveryMessage.session_id
                     }
                     if (recoveryMessage.type === "assistant") {
-                      noteAssistantMessage(recoveryEarlyStop, recoveryMessage)
+                      noteAssistantMessage(recoveryEarlyStop, recoveryMessage, clientToolPrefix)
                     } else if (recoveryMessage.type === "user") {
                       noteUserContent(recoveryEarlyStop, recoveryMessage.message?.content)
                     }
