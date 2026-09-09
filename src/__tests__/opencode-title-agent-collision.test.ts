@@ -58,6 +58,20 @@ let holdTitleUntil: Promise<void> | undefined
  *  request definitively holds it — which is what makes the race a signal and
  *  not a sleep. */
 let onTitleEnteredQuery: (() => void) | undefined
+/** How many title requests have reached the generator body. Used as the
+ *  positive control below: two title turns share one lease scope, so the
+ *  second must NOT get in while the first is held. */
+let titleQueryEntries = 0
+/** Fired when a NON-title request reaches the generator body — the same
+ *  signal, for the other side of the race.
+ *
+ *  This replaces a 100 ms poll (`for (let i = 0; i < 50; i++) await
+ *  setTimeout(2)`) that gave the user's turn a wall-clock budget to traverse
+ *  the route handler. A loaded CI runner does not always manage it: that exact
+ *  assertion failed on main at `264cfc3a`
+ *  (actions/runs/34315620193) while passing 10/10 locally (#917, #933). A
+ *  signal is not a budget. */
+let onUserEnteredQuery: (() => void) | undefined
 
 installSdkMock(() => ({
   query: (params: any) => {
@@ -68,8 +82,11 @@ installSdkMock(() => ({
     const isTitle = typeof params.prompt === "string" && params.prompt.includes("Generate a title")
     return (async function* () {
       if (isTitle) {
+        titleQueryEntries++
         onTitleEnteredQuery?.()
         if (holdTitleUntil) await holdTitleUntil
+      } else {
+        onUserEnteredQuery?.()
       }
       if (capturePromptItems) capturedPromptValue = params.prompt
       if (
@@ -130,6 +147,16 @@ const TITLE_BODY = {
     role: "user",
     content: 'Generate a title for this conversation:\n"Read notes.txt and tell me the second line."',
   }],
+}
+
+/** A second title turn on the same session — same lease scope as the first. */
+const TITLE_BODY_2 = {
+  ...TITLE_BODY,
+  messages: [
+    ...TITLE_BODY.messages,
+    { role: "assistant", content: "Reading notes.txt" },
+    { role: "user", content: "Generate a title for this conversation:\n\"And the third line?\"" },
+  ],
 }
 
 /** The user's own turn, same OpenCode session id. */
@@ -221,12 +248,15 @@ describe("OpenCode title agent vs the user's conversation", () => {
     capturedPromptItems = []
     holdTitleUntil = undefined
     onTitleEnteredQuery = undefined
+    onUserEnteredQuery = undefined
+    titleQueryEntries = 0
     telemetryStore.clear()
     clearSessionCache()
   })
   afterEach(() => {
     holdTitleUntil = undefined
     onTitleEnteredQuery = undefined
+    onUserEnteredQuery = undefined
     clearSessionCache()
   })
 
@@ -327,17 +357,20 @@ describe("OpenCode title agent vs the user's conversation", () => {
     // is after the route handler took the turn lease.
     await titleHasLease
 
+    const userEnteredQuery = new Promise<void>((resolve) => { onUserEnteredQuery = resolve })
     const userPromise = post(app, USER_TURN_1, USER_HEADERS)
-    // Give the user's turn time to reach the lease and block on it. Bounded,
-    // and the sessionQueueWaitMs assertion below fails loudly if it did not —
-    // a race harness that silently stops racing is worse than no test.
-    for (let i = 0; i < 50 && capturedOptions.length < 2; i++) {
-      await new Promise((r) => setTimeout(r, 2))
-    }
     // The title query is still gated. Entering the user's query before release
-    // proves the scoped requests did not contend on the same turn lease. This
-    // is stronger and less clock-sensitive than requiring a 0 ms metric.
-    const userEnteredBeforeRelease = capturedOptions.length === 2
+    // proves the scoped requests did not contend on the same turn lease.
+    //
+    // Waited on as a SIGNAL with a generous ceiling, not as a 100 ms poll. The
+    // ceiling only has to exceed how long a request takes to reach the SDK
+    // call on the slowest host we run on; if the two turns really do share a
+    // lease the signal cannot fire before `release()` at any ceiling, which is
+    // what the positive control below pins.
+    const userEnteredBeforeRelease = await Promise.race([
+      userEnteredQuery.then(() => true),
+      Bun.sleep(10_000).then(() => false),
+    ])
     release()
 
     const [title, user] = await Promise.all([titlePromise, userPromise])
@@ -346,5 +379,58 @@ describe("OpenCode title agent vs the user's conversation", () => {
     expect(user.status).toBe(200)
     const userBody = await user.json() as any
     expect(JSON.stringify(userBody)).not.toContain("session advanced")
+  })
+
+  // NEGATIVE CONTROL for the harness above, on the same signal and the same
+  // code path: a non-title prompt sent into the TITLE lease scope. `isTitle`
+  // is decided by prompt content and the lease scope by the agent headers, so
+  // this turn fires `onUserEnteredQuery` and contends. Verified to report
+  // `false`, which is what makes the assertion above falsifiable rather than
+  // a bound that always holds.
+  it("does not report early entry for a turn that shares the held lease", async () => {
+    const app = createTestApp()
+    let release!: () => void
+    holdTitleUntil = new Promise<void>((resolve) => { release = resolve })
+    const titleEntered = new Promise<void>((resolve) => { onTitleEnteredQuery = resolve })
+    const userEnteredQuery = new Promise<void>((resolve) => { onUserEnteredQuery = resolve })
+
+    const titlePromise = post(app, TITLE_BODY, TITLE_HEADERS)
+    await titleEntered
+    const samescopePromise = post(app, USER_TURN_1, TITLE_HEADERS)
+    // Slowness makes this MORE likely to hold, so the bound is safe: a starved
+    // runner delays the contending turn further.
+    const enteredBeforeRelease = await Promise.race([
+      userEnteredQuery.then(() => true),
+      Bun.sleep(400).then(() => false),
+    ])
+    release()
+    await Promise.all([titlePromise, samescopePromise])
+
+    expect(enteredBeforeRelease).toBe(false)
+  })
+
+  // POSITIVE CONTROL for the harness above. Raising a bound is only safe if
+  // the assertion can still fail, so pin the other direction with turns that
+  // genuinely share a lease scope: two title turns on one session. The second
+  // must not reach the SDK call while the first is held, at any ceiling.
+  it("still sees contention when two turns really do share one lease", async () => {
+    const app = createTestApp()
+    let release!: () => void
+    holdTitleUntil = new Promise<void>((resolve) => { release = resolve })
+    const firstEntered = new Promise<void>((resolve) => { onTitleEnteredQuery = resolve })
+
+    const firstPromise = post(app, TITLE_BODY, TITLE_HEADERS)
+    await firstEntered
+    expect(titleQueryEntries).toBe(1)
+
+    const secondPromise = post(app, TITLE_BODY_2, TITLE_HEADERS)
+    // Slowness makes this MORE likely to hold, not less, so the wait is safe
+    // to bound: a starved runner delays the second turn further.
+    await Bun.sleep(250)
+    const secondEnteredEarly = titleQueryEntries > 1
+    release()
+    await Promise.all([firstPromise, secondPromise])
+
+    expect(secondEnteredEarly).toBe(false)
   })
 })

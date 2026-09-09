@@ -250,8 +250,16 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     expect(dangling).toEqual([])
     // The client response ends at turn 1 while the digest drains invisibly to
     // the canonical durability boundary in the background.
-    const deadline = Date.now() + 1500
+    // Polls to a deadline and then asserts on what it polled for, which is the
+    // shape that turns a slow runner into a confusing "expected to contain"
+    // failure instead of a timeout (#917, #933). Budget raised to the suite's
+    // 5 s convention from 1.5 s, and the timeout now names itself. A longer
+    // wait cannot make a false condition true, so it hides nothing.
+    const deadline = Date.now() + 5_000
     while (!timeline.includes("canonical_result") && Date.now() < deadline) await sleep(10)
+    if (!timeline.includes("canonical_result")) {
+      throw new Error(`timed out after 5s waiting for canonical_result; timeline=[${timeline.join(", ")}]`)
+    }
     expect(capturedController!.signal.aborted).toBe(false)
     expect(timeline).toContain("turn2_consumed")
     expect(timeline).toContain("canonical_result")

@@ -267,10 +267,16 @@ describe("queue telemetry under cancellation", () => {
 
     try {
       // Synchronize on the real queue, not a guessed request-setup duration.
-      const deadline = Date.now() + 3000
+      // Budget raised to the suite's 5 s convention, and the timeout names
+      // itself rather than surfacing as an `undefined` snapshot: polling to a
+      // deadline and then asserting on the polled value is the shape behind
+      // the CI failures in #917 and #933. A longer wait cannot make a false
+      // condition true.
+      const deadline = Date.now() + 5_000
       while (!queuedSemaphore && Date.now() < deadline) {
         await new Promise(resolve => setTimeout(resolve, 5))
       }
+      if (!queuedSemaphore) throw new Error("timed out after 5s waiting for the second request to queue on the SDK semaphore")
       expect(queuedSemaphore?.snapshot).toEqual({ active: 1, queued: 1, limit: 1 })
       // Ensure this wait spans the millisecond clock used by the metric.
       await new Promise(resolve => setTimeout(resolve, 10))
