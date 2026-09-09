@@ -1,6 +1,7 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-09, after issue #820 and a race-harness deflake. Refresh
+Checkpoint: 2026-09-09, after issue #820, a race-harness deflake and the
+1.69.0 release. Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
 The owner requested portable skills and agent instructions so either Claude,
@@ -14,10 +15,10 @@ and [AGENTS.md](../../AGENTS.md). The last delivered items were issue #820
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
 
-**One thing is open and deliberately unmerged.**
-[PR #970](https://github.com/rynfar/meridian/pull/970) is the Release Please
-PR for 1.69.0 and is held: a release needs explicit authorization and a backlog
-review does not grant it. Nothing else is in progress.
+**1.69.0 is published.** The owner authorized it explicitly; PR #970 was merged
+and the publication is verified below. Nothing is in progress and nothing is
+held. A future release still needs its own explicit authorization — this one
+does not carry forward.
 
 An earlier version of this block said PR #977 was "green on everything and
 held for owner review". That was already stale when it was written: #977 merged
@@ -717,7 +718,64 @@ did not reproduce locally. Run 34315145910 failed
 `Extra usage required fallback > does not use exponential backoff`, also
 unexplained. **Leave #917 and #933 open; #997 does not settle them.**
 
-## Completed checkpoint
+## Completed checkpoint: Meridian 1.69.0
+
+[Meridian 1.69.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.69.0)
+shipped through [release PR #970](https://github.com/rynfar/meridian/pull/970),
+authorized explicitly by the owner. **Published and installed-package
+validated** — not merely merged. Do not republish it.
+
+| | |
+|---|---|
+| Candidate tree | `04f65101` ([CI success](https://github.com/rynfar/meridian/actions/runs/34394242824)) |
+| Release PR head | `e52f453c`, merged with `--merge --match-head-commit` |
+| Release/tag commit | `3d38f6987632cd798b092c4d1dd83231f8ea3280` |
+| npm | `1.69.0`, `latest` → `1.69.0` |
+| Tarball integrity | `sha512-4ZN4BR9lFMRqFjzWdldT2+Z4weaDJVZWLGov6nW0xJBvVU3yn+jFywGMzPAnsPvljvOhpbCvacja79/Ca82iKg==` |
+| SLSA provenance | `gitCommit: 3d38f698…`, workflow `.github/workflows/release-please.yml`, subject `pkg:npm/@rynfar/meridian@1.69.0` |
+| Docker | `1.69.0` and `latest`, `linux/amd64` + `linux/arm64` |
+| Post-release workflows on `3d38f698` | CI, Release Please, Docker, Sync bun.nix — all success |
+
+Provenance was verified by **content, not presence**: the attestation's
+`resolvedDependencies.digest.gitCommit` equals the tag commit. An attestation
+that merely exists says nothing about what was built.
+
+**Gates run before the merge, all green.** `npm test` 3793 pass / 1 skip / 0
+fail on bun 1.3.11; typecheck; build; E41 all four modes; E54; E55 three runs;
+E56; **E42 live+extended against both pinned betas** (`0.0.0-beta-18314` and
+`0.0.0-beta-18866`, each verifying its own version in-output because the beta
+CLI can self-update); `e2e-opencode-package-integrity.mjs` with and without
+`--manifest`.
+
+E42 was required here for a non-obvious reason worth remembering: this release
+looks V1-only, but #988 generalized `package-meridian-v2-plugin.mjs` into
+`package-opencode-plugins.mjs`, which also emits the **V2** manifest. The
+pinned betas had to be reinstalled because the gate's isolated installs live
+under `/tmp`.
+
+**Installed-package validation** drove the published tarball, not the source
+tree: a clean `npm install @rynfar/meridian@1.69.0`, the installed CLI started
+as a real subprocess, `/health` reporting `1.69.0`, and the keyed tool loop run
+on all three adapters:
+
+```
+  PASS  pi           toolRounds=3 resumed=3
+  PASS  passthrough  toolRounds=3 resumed=3
+  PASS  opencode     toolRounds=3 resumed=3
+```
+
+`passthrough resumed=3` is the load-bearing line: it proves #998's fix is in
+the shipped artifact. #983 introduced that regression during this same cycle,
+so no released version ever carried it — which is why both entries appear in
+one changelog.
+
+**One gate had to be corrected mid-validation.** E55 was asserting pre-#998
+behaviour and failed on correct behaviour; fixed in #1001 before the release
+merge. The process miss: #998 changed the passthrough tool loop and only the
+new gate (E56) was re-run, not the existing gates on the same path. Re-run
+every gate that touches a changed path, not just the one written for it.
+
+## Previous checkpoint: Meridian 1.68.0
 
 [Meridian 1.68.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.68.0)
 shipped through [release PR #937](https://github.com/rynfar/meridian/pull/937).
