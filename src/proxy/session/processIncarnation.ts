@@ -245,6 +245,55 @@ function getLocalBootIdentity(): LocalBootIdentity | undefined {
   }
 }
 
+/**
+ * Whether this host can produce a boot identity, and what to do if it cannot.
+ *
+ * Every session-store write takes a lock stamped with a process incarnation,
+ * and `captureProcessIncarnation` returns undefined without a boot identity —
+ * so `acquireLock` throws and EVERY request that touches a session fails with a
+ * 500. `/health` never probed this, so a container missing `/etc/machine-id`
+ * reported healthy to Docker and to any orchestrator while serving nothing,
+ * which is why the original occurrence took three days to find (#906, split
+ * from #903).
+ *
+ * Exported so both the startup check and `/health` read the same source rather
+ * than each inferring it.
+ */
+export interface BootIdentityStatus {
+  available: boolean
+  platform: string
+  /** Actionable next step, present only when unavailable. */
+  hint?: string
+}
+
+/**
+ * What to tell an operator when this platform produced no boot identity.
+ *
+ * Pure and exported separately so every branch is testable without breaking the
+ * host it runs on. "cannot capture lock owner process incarnation" is what the
+ * original failure said, and it names nothing an operator can act on.
+ */
+export function bootIdentityHint(platform: string): string {
+  if (platform === "linux") {
+    return "no readable /etc/machine-id or /var/lib/dbus/machine-id, or /proc is not mounted. "
+      + "Distroless, scratch, chroot and gVisor images commonly lack machine-id: "
+      + "generate one (`dbus-uuidgen > /etc/machine-id`) or bind-mount the host's."
+  }
+  if (platform === "darwin") {
+    return "could not read the hardware UUID or boot time from the system profiler."
+  }
+  if (platform === "win32") {
+    return "could not read the machine GUID or boot time from the registry."
+  }
+  return `unsupported platform "${platform}" — boot identity is implemented for linux, darwin and win32 only.`
+}
+
+export function describeLocalBootIdentity(): BootIdentityStatus {
+  const platform = process.platform
+  if (getLocalBootIdentity()) return { available: true, platform }
+  return { available: false, platform, hint: bootIdentityHint(platform) }
+}
+
 function pidPresence(pid: number): "present" | "missing" | "indeterminate" {
   try {
     process.kill(pid, 0)

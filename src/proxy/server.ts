@@ -46,6 +46,7 @@ import { promisify } from "util"
 import { randomUUID } from "crypto"
 import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix } from "./passthroughTools"
+import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
 import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
@@ -7157,6 +7158,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         message: "Meridian is shutting down; route new requests to another instance.",
       }, 503)
     }
+    // Boot identity, before auth: without it every session-store write throws
+    // and EVERY request fails with a 500, yet this endpoint used to report
+    // healthy — so Docker's HEALTHCHECK and any orchestrator kept routing
+    // traffic to a process serving nothing (#906). Checked here rather than
+    // only at startup because the answer can change under a running process.
+    const bootIdentity = describeLocalBootIdentity()
+    if (!bootIdentity.available) {
+      return c.json({
+        status: "unhealthy",
+        version: serverVersion,
+        error: "Cannot capture a process incarnation, so no request that touches a session can be served.",
+        bootIdentity,
+      }, 503)
+    }
     try {
       // Use active profile's auth context for health check
       const healthProfile = resolveProfile(finalConfig.profiles, finalConfig.defaultProfile)
@@ -8110,6 +8125,45 @@ export function installProxyProcessErrorHandlers(): void {
 }
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
+  // Refuse to bind a port we cannot serve from (#906). Without a boot identity
+  // every session-store write throws, so every request that touches a session
+  // returns a 500 — a total, non-transient failure. Binding anyway is what let
+  // a container missing /etc/machine-id report healthy to Docker for three days
+  // while serving nothing.
+  //
+  // The escape hatch exists so a false negative in the probe cannot brick an
+  // install: with it set the process starts, and /health still reports
+  // unhealthy, which is the honest combination.
+  // Retried before refusing. On Linux the identity is read from files and is
+  // deterministic, but darwin and win32 derive it from a SUBPROCESS that can
+  // transiently time out — the Windows probe has a 10s budget, and a 10265ms
+  // expiry on a contended CI runner is exactly the shape recorded against
+  // #917/#933. Refusing to start on a transient probe timeout would turn a slow
+  // host into a dead one, so give it a few attempts first. `getLocalBootIdentity`
+  // caches only successes, so each attempt genuinely re-probes.
+  let bootIdentity = describeLocalBootIdentity()
+  for (let attempt = 1; !bootIdentity.available && attempt <= 3; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 250 * attempt))
+    bootIdentity = describeLocalBootIdentity()
+    if (bootIdentity.available) {
+      console.error(`[PROXY] Boot identity captured on attempt ${attempt + 1} (the first probe failed).`)
+    }
+  }
+  if (!bootIdentity.available && !envBool("ALLOW_MISSING_BOOT_IDENTITY")) {
+    throw new Error(
+      "[PROXY] Refusing to start: cannot capture a process incarnation on this host, "
+      + "so no request that touches a session could be served.\n"
+      + `  platform: ${bootIdentity.platform}\n`
+      + `  cause: ${bootIdentity.hint}\n`
+      + "  Set MERIDIAN_ALLOW_MISSING_BOOT_IDENTITY=1 to start anyway (requests will still fail).",
+    )
+  }
+  if (!bootIdentity.available) {
+    console.error(
+      "[PROXY] Starting WITHOUT a boot identity because MERIDIAN_ALLOW_MISSING_BOOT_IDENTITY is set. "
+      + `Requests that touch a session will fail with 500. Cause: ${bootIdentity.hint}`,
+    )
+  }
   claudeExecutable = await resolveClaudeExecutableAsync()
   const {
     app,

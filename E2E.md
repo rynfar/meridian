@@ -274,6 +274,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E48 | [Responses developer-note cache](#e48-responses-developer-note-cache) | **Automated**: `bun scripts/e2e-responses-developer-cache.mjs` — real proxy + SDK, A/B. A `developer` item folded into `system` mid-conversation re-wrote the whole cached prefix. Asserts the note's turn re-writes no more than the control's (measured 7.8x pre-fix, 1.2x after). **Run before releases touching Responses prompt assembly or system-block construction** | 2026-09-08 |
 | E49 | [max_tokens enforcement](#e49-max_tokens-enforcement) | **Automated**: `bun scripts/e2e-max-tokens.mjs` — real proxy + SDK. Opt-in via `MERIDIAN_ENFORCE_MAX_TOKENS=1`: a tiny cap bounds output and reports `stop_reason: max_tokens` in both modes, a generous cap is untouched, and with the flag unset the cap is ignored exactly as before. **Run before releases touching the SDK call builder, env plumbing, or terminal stop reasons** | 2026-09-08 |
 | E50 | [Passthrough MCP namespace](#e50-passthrough-mcp-namespace) | **Automated**: `bun scripts/e2e-passthrough-mcp-namespace.mjs` — real proxy + SDK. Asks the model to state its own tool name, the only place the namespace is visible. A LiteLLM-pinned request must read `mcp__litellm__*`; an OpenCode request must still read `mcp__oc__*`. **Run before releases touching passthrough tool registration or adapter tool config** | 2026-09-08 |
+| E51 | [Boot identity](#e51-boot-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-boot-identity.mjs`. In an image with no `/etc/machine-id`, asserts startup refuses with an actionable cause and `/health` returns 503 `unhealthy`; with a valid machine-id the same image starts normally. **Run before releases touching startup validation, `/health`, or process incarnation** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4236,6 +4237,50 @@ namespace is a separate, explicit adapter method defaulting to `oc` for that
 reason.
 
 **Verified:** 2026-09-08. Both namespaces confirmed from the model's own words.
+
+## E51: Boot identity
+
+**What it proves:** a host that cannot produce a boot identity refuses to serve,
+says so on `/health`, and an ordinary host is unaffected.
+
+Every session-store write takes a lock stamped with a process incarnation, and
+`captureProcessIncarnation` returns undefined without a boot identity — so
+`acquireLock` throws and every request that touches a session returns a 500.
+`/health` never probed it, so a container missing `/etc/machine-id` reported
+`healthy` to Docker's `HEALTHCHECK` and to any orchestrator while serving
+nothing, and traffic kept being routed to it. The original occurrence took three
+days to find for exactly that reason (#906, split from #903).
+
+**Why this needs a container.** The failure is a property of the HOST. On a
+developer machine and on ordinary CI, boot identity is always available, so no
+unit test can reach the branch that matters. `oven/bun:1-slim` ships without
+`/etc/machine-id`, which is the reported environment verbatim and the same shape
+as distroless, scratch, chroot and gVisor images.
+
+```bash
+bun scripts/e2e-boot-identity.mjs        # skips cleanly if Docker is absent
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- With no `/etc/machine-id`: `startProxyServer` refuses to start, and the error
+  names the missing file rather than repeating "cannot capture lock owner
+  process incarnation", which names nothing an operator can act on.
+- Under `MERIDIAN_ALLOW_MISSING_BOOT_IDENTITY=1` it starts, and `/health`
+  returns **503 `unhealthy`** carrying the verdict and the cause — the honest
+  combination when an operator has forced a start.
+- **With a valid machine-id the same image starts normally and `/health`
+  reports no boot-identity problem.** This is the regression guard: fail-fast
+  that false-positives on ordinary deployments would be worse than the bug.
+
+The gate copies the source into a staging directory rather than bind-mounting
+the checkout, because `bun install` inside the container would otherwise
+overwrite the host's platform-specific `node_modules` — a mounted macOS build
+cannot even load libsql on Linux.
+
+**Verified:** 2026-09-08. Eight checks pass across both environments:
+`refused=true namesCause=true` / `http=503 unhealthy` without machine-id, and
+`refused=false` / `http=200` with it.
 
 ## Concurrent transcript publication
 
