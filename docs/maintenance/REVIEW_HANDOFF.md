@@ -1,6 +1,6 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-08, after the Codex contributor cluster. Refresh GitHub and
+Checkpoint: 2026-09-08, after the Codex cluster and an issue sweep. Refresh GitHub and
 origin/main before continuing; this is a dated checkpoint, not a live queue.
 The owner requested portable skills and agent instructions so either Claude,
 Codex, or another repository agent can resume this work.
@@ -210,8 +210,18 @@ immediately before, so it is intermittent rather than newly broken. No fix was
 attempted here — that is a separate bounded item, and it should start by
 reproducing the timeout rather than by loosening the assertion.
 
-- **Next action:** the five unreviewed Codex-adapter PRs (#962–#966). #767 was
-  investigated live and did not reproduce — see below.
+- **Next action:** the remaining issues, in this order of tractability —
+  **#861** (auto-defer threshold invalidating the prompt cache mid-session:
+  #975 turned auto-defer off for Codex only, the general case stands),
+  **#889** (`extractClientCwd` parsing an `<env>` block a plugin may legally
+  remove), **#865** (suppressing one startup log, small), then **#820** (pi
+  adapter divergence, the highest user impact and the least diagnosed).
+  **#895** has a contributor patch in PR #896 that cannot be validated here: a
+  real Windows E2E is impossible on this macOS host, and POSIX fixtures are not
+  a Windows run. **#769** and **#650** are feature/infra asks needing a product
+  decision. Issues **#967** and **#767** are carried with their evidence
+  recorded; neither reproduces on main from here. The 21 open `feat` PRs still
+  need a product decision each.
 
 ## Investigated: #767 does not reproduce live on main
 
@@ -330,6 +340,76 @@ genuine `thread_source: subagent` request could not be produced locally
 Codex Desktop), and two of E47's nine checks are guards rather than
 discriminators. Its conflict resolution against #976 also merits a second
 reader: both conflicting regions were purely additive and both blocks were kept.
+
+## Delivered: issue sweep
+
+Seven issues addressed, each proven live before merge. Five are now closed, two
+(#917 and #933) left open deliberately.
+
+| issue | PR | on main | note |
+|---|---|---|---|
+| #886 lineage mismatch diagnostic | #981 | `c3ea178b` | closed |
+| #874 `max_tokens` not enforced | #982 + #984 | `15529b12`, `14fc9395` | closed, opt-in |
+| #893 `mcp__oc__` on every adapter | #983 | `99fc2d7a` | closed |
+| #917 / #933 CI flakiness | #986 | `d3bfe795` | left OPEN |
+| #906 `/health` lies | #985 | `264cfc3a` | closed |
+| #905 container `hostId` | #987 | `b5f73aed` | closed |
+| #842 + #847 first-turn 400 | none | none | closed on evidence, no code change |
+
+**#842 and #847 were retired on evidence rather than code.** Five fresh
+real-OpenCode sessions on current main: 0 client-side 400s, 0 proxy
+`session_turn_conflict`, and a maximum `sessionWait` of **7 ms** against the
+6360 ms the report measured. The title agent now runs as `agent=subagent` with
+its own key, so the collision those reports describe cannot occur — the #845
+agent-scoping work already handled them. Limit stated on both: haiku for primary
+and small; an Opus primary could not be dispatched under the isolated config.
+
+**Three new Docker-based gates**, which this repo had none of before. E51 (boot
+identity) and E52 (host identity) reproduce failures that are properties of the
+HOST and unreachable from a single process; both skip cleanly without Docker and
+cost no tokens. `oven/bun:1-slim` ships with no `/etc/machine-id`, which is
+issue #906's environment verbatim.
+
+**Where proving it changed the answer rather than confirming it.** Three times:
+
+- Issue #874: the SDK exposes no output cap at all, and the CLI's
+  `CLAUDE_CODE_MAX_OUTPUT_TOKENS` **throws** instead of truncating. Wiring it
+  naively converts a satisfiable request into a hard error. It works only
+  because the API really stops generating first — probed at a cap of 64, the
+  turn produced real text and *then* threw.
+- Issue #874 again: enforcing it broke the E44 gate at `max_tokens: 128`,
+  because the cap counts thinking plus text. An A/B against pre-change source
+  confirmed the regression was mine, which is why it shipped **off by default**.
+- Issue #906: the first revision refused to start on the first failed probe.
+  That is right for Linux, where identity is read from files, but darwin and
+  win32 derive it from a subprocess with a 10s budget — and a 10265 ms expiry
+  was recorded on Windows CI during this very run. Refusing on a transient
+  timeout would turn a slow host into a dead one, so startup retries three times
+  first.
+
+**Issues #917 and #933 stay open on purpose.** Two sightings were diagnosed and
+corrected — both time-budget expiries, and `failover-request-id` measured at
+**4.05 s against bun's 5 s default**. A scan of every I/O test without an
+explicit timeout found no other single test near the boundary. But neither is a
+concurrency test, and #917 is specifically about concurrency tests failing fast
+and never the same one twice. **Do not widen timeouts across the suite** to
+quiet CI: that would mask exactly what #917 is about.
+
+**Gate quality discipline, because it bit repeatedly.** Four gates written this
+session initially asserted something that passed both before and after the
+change, which reads as evidence and is not:
+
+- E45's digest-turn count (now reported, not asserted).
+- E48's cache **hit percentage** — barely moves in a 6.5k probe; the invariant
+  is the **ratio of re-written tokens**, 7.8x pre-change against 1.2x after.
+- E49's default-off check used an absolute token threshold; now relative to the
+  capped run.
+- E44 asserted the model echoed a receipt verbatim and was flaky at ~1 in 3.
+  Instrumented: the model complied once in five runs while the fallback answered
+  every time. It now asserts the fallback produced text.
+
+**Always confirm a new gate fails against pre-change source.** Every gate above
+has its measured before/after recorded in E2E.md.
 
 ## Completed checkpoint
 
