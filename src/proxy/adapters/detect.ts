@@ -209,6 +209,20 @@ export function detectAdapter(c: Context): AgentAdapter {
     return crushAdapter
   }
 
+  // Polytoken's own User-Agent, without a session header. Token-boundary
+  // match: "Polytoken" followed by whitespace, "/", or end-of-string — so
+  // "Polytoken v0.8.3" and "Polytoken/0.8.3" match while "PolytokenImpostor"
+  // does not. UA-only selection is identification only: the adapter's
+  // getSessionId still returns undefined. This must precede the generic
+  // affinity fallback below — that fallback exists for OpenCode-family
+  // clients, and an affinity header on a Polytoken UA is exactly the
+  // "unrelated identity adoption" the affinity demotion (#546 family) was
+  // meant to prevent. Stronger explicit signals (native header, overrides)
+  // were all handled above.
+  if (/^Polytoken(?:[\s/]|$)/.test(userAgent)) {
+    return polytokenAdapter
+  }
+
   // x-session-affinity is a generic session-stickiness header, NOT an OpenCode
   // marker: Crush 0.87 sends it too (alongside x-session-id), and while it was
   // checked ahead of the User-Agent chain that made every Crush request resolve
@@ -235,17 +249,6 @@ export function detectAdapter(c: Context): AgentAdapter {
       return ADAPTER_MAP[claudeCliOverride]!
     }
     return claudeCodeAdapter
-  }
-
-  // Polytoken's own User-Agent, without a session header. Token-boundary
-  // match: "Polytoken" followed by whitespace, "/", or end-of-string — so
-  // "Polytoken v0.8.3" and "Polytoken/0.8.3" match while "PolytokenImpostor"
-  // does not. UA-only selection is identification only: the adapter's
-  // getSessionId still returns undefined, and this must outrank the generic
-  // affinity fallback (which belongs to OpenCode-family clients) without
-  // displacing any stronger explicit header signal (all handled above).
-  if (/^Polytoken(?:[\s/]|$)/.test(userAgent)) {
-    return polytokenAdapter
   }
 
   if (isLiteLLMRequest(c)) {

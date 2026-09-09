@@ -4631,15 +4631,68 @@ Also run the E42 actual OpenCode gate with `--live --extended --separate-proxy-c
 
 ## Polytoken native Haiku loop
 
-Run the documented live exercise against a locally built candidate image tagged `meridian:polytoken-<commit>` before swapping the compose file's `image:` line. Safety contract: shared request budget of at most 12 forwarded client requests across all automated live exercises (file-backed, consumed atomically by the test-only loopback gateway on `127.0.0.1:3468`), POST `/v1/messages` to the fixed loopback origin only, exact `claude-haiku-4-5` model, native `X-Polytoken-Session` header, work-profile pin, bounded request/response bytes, no redirect following, no gateway retries.
+> **Status: manual procedure.** The gateway and driver this exercise used were session-local
+> test scripts and are intentionally not committed (they hardcode a loopback origin, a personal
+> systemd unit name and a personal profile id). Everything needed to reconstruct them is
+> specified below. Reconstruct before running; do not point the gateway at a shared origin.
 
-Pre-flight (fail closed before any model call): polytoken `fallbackModel` empty and `maxBudgetUsd` positive in `sdk-features.json`; the gateway rejects non-haiku models, missing native session headers, and budget-exhausted requests with no upstream contact.
+Build a candidate image locally from this checkout and tag it `meridian:polytoken-<short-commit>`
+(`docker build -t meridian:polytoken-<short-commit> .`). Record the deployment baseline first:
+the compose file's sha256, the running image ID (`docker inspect --format "{{.Image}}"`), the
+container's user/port/mounts, and a `/health` response. Swap the deployment compose file's
+`image:` line to the candidate tag and restart it (the deployment in view used a user oneshot
+systemd unit wrapping `docker compose up/down`); wait for a bounded `/health` readiness probe.
+
+Safety contract for the exercise: a shared, file-backed request budget of at most 12 forwarded
+client requests across all automated live exercises, consumed atomically per request by a
+test-only loopback gateway. The gateway (a ~100-line Node `http` server on `127.0.0.1:3468`,
+forwarding to the Meridian loopback origin — typically `127.0.0.1:3456`) enforces:
+
+- POST `/v1/messages` only; any other method/path gets a 404 without upstream contact.
+- The request body's `model` must be exactly `claude-haiku-4-5`; anything else is a 400.
+- The `X-Polytoken-Session` header must be present and non-blank; anything else is a 400.
+- One budget unit is consumed before each forward; exhausted budget is a 429 with no upstream
+  contact. The bound measures forwarded client requests; hidden SDK recovery calls stay on the
+  same concrete Haiku pin (fallback disabled) and are not separately counted.
+- `fetch(..., { redirect: "error" })` — no redirect following. Bounded request body (~2 MB) and
+  response (~1 MB) sizes. No retries inside the gateway.
+
+Gateway pre-flight (fail closed before listening): the deployment's `sdk-features.json` must
+have a `polytoken` entry with an empty `fallbackModel` and a positive `maxBudgetUsd` (test-only
+overrides — back the file up and restore it afterwards). Verify the gateway's rejections by
+probing it with a non-haiku model and confirming no budget consumption.
 
 Exercises:
 
-1. **HTTP append-only tool loop** — a deterministic client-owned tool (`ledger_add`) driven by the local driver with a synthetic stable prompt (~8k input tokens, above the Haiku cache minimum, below 12k). Turns append returned blocks and tool results unchanged. Require per-turn `adapter=polytoken` proxy log lines, `lineage=continuation` from turn 2 (native-key resume through the durable mapping), growing `cache_read_input_tokens` on warmed turns (a fresh turn reports 0 with a matching `cache_creation`), and correct tool sums. Each turn's SDK session id differs (per-turn managed forks are the durable publication design); lineage continuation is the resume proof.
-2. **Fresh no-tools CLI smoke** — `polytoken --config-dir <isolated temp config> exec --model <haiku pin> --max-tool-turns 0 "Reply with the fixed marker"`, against a temporary facet with no tools/hooks/MCP/subagents and a model pin of `tool_loading: no_tools` through the same gateway. Require the gateway to forward it, the proxy to log `adapter=polytoken … tools=0` (native header detection and response transport), and the fixed marker back. A gateway budget refusal must end the run (no retries on other models). The temp config lives entirely under the repo checkout; user Polytoken configuration is never modified.
+1. **HTTP append-only tool loop** — a deterministic client-owned tool (e.g. `ledger_add`, an
+   integer sum) driven by a small driver script with a synthetic stable prompt (~8k input
+   tokens, above the Haiku cache minimum, below 12k). Each turn appends the returned blocks and
+   the computed tool result unchanged before posting the continuation. Require per-turn
+   `adapter=polytoken` proxy log lines, `lineage=continuation` from turn 2 (native-key resume
+   through the durable mapping), growing `cache_read_input_tokens` on warmed turns (a fresh
+   turn reports 0 with a matching `cache_creation`), and correct tool sums. Each turn's SDK
+   session id differs (per-turn managed forks are the durable publication design); lineage
+   continuation is the resume proof.
+2. **Fresh no-tools CLI smoke** — a temporary Polytoken config directory (never the user's own)
+   whose single provider points at the gateway with an `anthropic`-catalog kind, one
+   `claude-haiku-4-5` model entry with `tool_loading: no_tools`, and a temporary facet with no
+   tools/hooks/MCP/subagents. Validate with `polytoken --config-dir <dir> config validate` and
+   `polytoken --config-dir <dir> models` (the model must show `tool_loading: no_tools`) before
+   any call. Then run `polytoken --config-dir <dir> exec --model <that model> --max-tool-turns 0
+   "Reply with the fixed marker"`. Require the gateway to forward it, the proxy to log
+   `adapter=polytoken … tools=0` (native header detection and response transport), and the
+   fixed marker back. A gateway budget refusal must end the run — expect Polytoken's provider
+   retry loop to consume extra budget units before the refusal lands, so the cap must leave
+   headroom (or accept, and report, the overshoot honestly; this exercise consumed 14 against
+   the 12 cap).
 
-Cache measurement has external variability: an inconclusive cache result is reported as an unresolved live finding, never converted into an acceptance pass, and never broadened to a different model.
+Cache measurement has external variability: an inconclusive cache result is reported as an
+unresolved live finding, never converted into an acceptance pass, and never broadened to a
+different model.
 
-Restore: revert the compose `image:` line to the recorded original tag, `systemctl --user restart meridian.service`, then verify health, the original image ID, the loopback binding and the config mount match the recorded baseline. Delete any test-only feature overrides from `sdk-features.json`. The candidate image stays on disk for an explicit later rollout; this procedure performs no permanent rollout.
+Restore: revert the compose `image:` line to the recorded original tag (verify the file hash
+matches the recorded baseline), restart the deployment lifecycle, then verify health, the
+original image ID, the loopback binding and the config mount match the recorded baseline.
+Delete any test-only feature overrides from `sdk-features.json` (restore the backup). The
+candidate image stays on disk for an explicit later rollout; this procedure performs no
+permanent rollout.
