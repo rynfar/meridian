@@ -14,12 +14,17 @@ and [AGENTS.md](../../AGENTS.md). The last delivered items were issue #820
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
 
-**Two things are open and deliberately unmerged.**
-[PR #977](https://github.com/rynfar/meridian/pull/977) is green on everything
-and held for owner review because it changes session identity.
+**One thing is open and deliberately unmerged.**
 [PR #970](https://github.com/rynfar/meridian/pull/970) is the Release Please
 PR for 1.69.0 and is held: a release needs explicit authorization and a backlog
 review does not grant it. Nothing else is in progress.
+
+An earlier version of this block said PR #977 was "green on everything and
+held for owner review". That was already stale when it was written: #977 merged
+at 2026-09-09T03:18Z as `03fe5716` and appears in #970's changelog. The claim
+was carried forward from the previous checkpoint without being rechecked, which
+is the specific failure the "Read first" instruction above warns about — refresh
+live GitHub state, do not trust the dated text.
 
 Continue when the owner asks; this document does not start background work or
 authorize two agents to work the same queue. A prior agent's
