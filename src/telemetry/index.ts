@@ -22,7 +22,18 @@ function createStores(): { telemetry: ITelemetryStore; diagnostics: IDiagnosticL
     const dbPath = env("TELEMETRY_DB") ?? getDefaultDbPath()
     const retention = envInt("TELEMETRY_RETENTION_DAYS", 7)
     const stores = createSqliteStores(dbPath, retention)
-    console.error(`[telemetry] SQLite persistence enabled: ${dbPath} (${retention}d retention)`)
+    // Informational, and it confirms a setting the operator turned on
+    // themselves — so it is noise on every start for anyone whose stderr
+    // surfaces in a UI. Meridian spawned by a wrapper or plugin is exactly
+    // that case (#865).
+    //
+    // The `silent` config option cannot gate this: the stores are created at
+    // module load, before any config exists, so an env var is the only lever
+    // that exists this early. Deferring store creation to reach `silent` would
+    // mean restructuring a load-bearing module-load side effect for a log line.
+    if (!envBool("QUIET")) {
+      console.error(`[telemetry] SQLite persistence enabled: ${dbPath} (${retention}d retention)`)
+    }
     return { telemetry: stores.telemetry, diagnostics: stores.diagnostics }
   } catch {
     console.warn("[telemetry] MERIDIAN_TELEMETRY_PERSIST is set but libsql is not installed. Run: npm install libsql")
