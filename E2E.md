@@ -272,6 +272,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E46 | [Codex namespace and MCP tools](#e46-codex-namespace-and-mcp-tools) | **Automated**: `bun scripts/e2e-codex-namespace-tools.mjs [--stream]` — real proxy + SDK. Codex 0.15x sends MCP servers as `{type:"namespace", tools:[...]}`, which the Responses translator dropped. Asserts namespaced tools reach Claude, calls come back carrying `namespace`, and a `function_call_output` whose output is a content-item ARRAY does not 400. **Run before releases touching the Responses translator or Codex tool handling** | 2026-09-08 |
 | E47 | [Codex thread identity](#e47-codex-thread-identity) | **Automated**: `bun scripts/e2e-codex-thread-identity.mjs` — real proxy + SDK. Codex hands a spawned subagent and its compaction the PARENT's `prompt_cache_key`. Asserts a user thread still resumes unchanged, siblings get their own sessions, and the parent still resumes after both. **Run before releases touching Responses session identity, the turn coordinator, or request-source admission** | 2026-09-08 |
 | E48 | [Responses developer-note cache](#e48-responses-developer-note-cache) | **Automated**: `bun scripts/e2e-responses-developer-cache.mjs` — real proxy + SDK, A/B. A `developer` item folded into `system` mid-conversation re-wrote the whole cached prefix. Asserts the note's turn re-writes no more than the control's (measured 7.8x pre-fix, 1.2x after). **Run before releases touching Responses prompt assembly or system-block construction** | 2026-09-08 |
+| E49 | [max_tokens enforcement](#e49-max_tokens-enforcement) | **Automated**: `bun scripts/e2e-max-tokens.mjs` — real proxy + SDK. Opt-in via `MERIDIAN_ENFORCE_MAX_TOKENS=1`: a tiny cap bounds output and reports `stop_reason: max_tokens` in both modes, a generous cap is untouched, and with the flag unset the cap is ignored exactly as before. **Run before releases touching the SDK call builder, env plumbing, or terminal stop reasons** | 2026-09-08 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -4148,6 +4149,53 @@ with fix  A cache_write=117   B cache_write=141   ->  1.2x   PASS
 The hit rate is still printed, as context rather than as a check.
 
 **Verified:** 2026-09-08. Discriminates as tabled above.
+
+## E49: max_tokens enforcement
+
+**What it proves:** when enabled, the client's `max_tokens` actually bounds
+output and a truncated turn says so.
+
+`max_tokens` is required on `/v1/messages` and the contract makes it a hard cap
+on thinking plus output, with a cut-off response reporting
+`stop_reason: "max_tokens"`. Nothing on that path read it — #874 measured 16 ->
+3900 output tokens (244x) and `end_turn` every time.
+
+**Why this needed the real SDK.** The Agent SDK's `Options` has no output cap;
+the only lever is the CLI's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, and when it trips
+the CLI **throws** rather than returning a truncated turn. Wiring it up naively
+converts a satisfiable request into a hard error. Probed at 64 against CLI
+2.1.263, the turn produced genuine text (154 chars) and then threw — the API
+really stopped generating, only the shape coming back was wrong. The fix
+translates that refusal into the stop reason the wire defines.
+
+```bash
+MERIDIAN_ENFORCE_MAX_TOKENS=1   # opt-in; the gate sets this itself
+bun scripts/e2e-max-tokens.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A tiny cap does not fail the request, reports `stop_reason: max_tokens`, and
+  bounds output. The bound is asserted as a large multiple of the cap, not an
+  exact count: the cap covers thinking plus text, and the defect was a 244x
+  overshoot rather than an off-by-a-few.
+- Streaming delivers no error frame and closes as `max_tokens`, including when
+  thinking consumed the whole budget and no text was produced — an empty
+  response with that stop reason is what the wire defines for it.
+- A generous cap is unchanged in both modes.
+- **With the flag unset a tiny cap is ignored, exactly as before.** Asserted in
+  a second proxy, against the capped run rather than a fixed number.
+
+**Why it is opt-in.** The cap counts thinking plus text, and an agentic turn
+spends tokens on thinking the client never sized for. Measured: a 128-token cap
+could no longer complete a turn whose visible answer was ~15 tokens, and a
+16-token cap produced no text at all. Clients here send caps sized for a direct
+answer — OpenCode sends 32000 — so enforcing by default would change behaviour
+for every existing caller to close a conformance gap only some of them need.
+The capability is exact when asked for, and off otherwise.
+
+**Verified:** 2026-09-08. Ten checks pass. Enabling it turned the reported
+16 -> 3900 overshoot into 16 -> 64 with `stop_reason: max_tokens`.
 
 ## Concurrent transcript publication
 

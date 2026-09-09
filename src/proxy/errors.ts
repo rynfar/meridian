@@ -155,6 +155,31 @@ const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an 
  * `claude login` for what is actually a quota refusal. */
 const REACHED_YOUR_TIER_LIMIT = /^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|switch[ \t]+to[ \t]+another[ \t]+model(?:[ \t]+to[ \t]+continue)?)\.?|[.!]?)[ \t\r]*$/m
 
+/**
+ * The CLI's refusal when a turn hit the output-token maximum.
+ *
+ * `max_tokens` on `/v1/messages` is a hard cap on output, and a response cut
+ * short is supposed to report `stop_reason: "max_tokens"` (#874). The Agent
+ * SDK's `Options` has no output cap at all — the only lever is the CLI's
+ * `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, and when that trips the CLI does NOT return
+ * a truncated turn: it throws this. Verified against CLI 2.1.263 with a cap of
+ * 64, which produced real assistant text and then this error.
+ *
+ * So the cap works — the API genuinely stops generating — and the only thing
+ * wrong is the shape it comes back in. Recognising it lets the recovery paths
+ * deliver the content that did arrive under the stop reason the wire expects,
+ * instead of a 500.
+ *
+ * Anchored on the distinctive phrase and a digit count so it cannot collide
+ * with the context-window refusal above, which is about INPUT length.
+ */
+const OUTPUT_TOKEN_MAXIMUM = /response exceeded the \d+ output token maximum/i
+
+/** True when a turn failed only because it hit the client's output cap. */
+export function isOutputTokenCapExceeded(message: string | undefined | null): boolean {
+  return typeof message === "string" && OUTPUT_TOKEN_MAXIMUM.test(message)
+}
+
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
  * cannot exhaust every profile in a priority pool. */

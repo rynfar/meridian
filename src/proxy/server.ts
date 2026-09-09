@@ -55,7 +55,7 @@ import { LRUMap } from "../utils/lruMap"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
-import { canRecoverCapturedToolUses, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal } from "./errors"
+import { canRecoverCapturedToolUses, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, getAuthRenewalStatus, resolveRenewalWarnDays, type CredentialStore } from "./tokenRefresh"
 import {
   createFileDesignTokenStore,
@@ -1505,6 +1505,26 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       let attemptedRequestModel: string | undefined
       try {
         const body = options.body
+        // #874: `max_tokens` is required on /v1/messages and is a hard cap on
+        // output, but nothing on this path ever read it. Honour it through the
+        // CLI's own cap (see query.ts). Only a positive finite value counts —
+        // anything else leaves the cap unset rather than inventing one, so a
+        // malformed request keeps today's behaviour instead of clamping to 0.
+        //
+        // OPT-IN, and deliberately so. The cap counts thinking PLUS text, just
+        // as the Anthropic contract says, and an agentic turn spends tokens on
+        // thinking the client never sized for. Measured: a 128-token cap could
+        // no longer complete a turn whose visible answer was ~15 tokens, and a
+        // 16-token cap produced no text at all. Clients here send caps sized
+        // for a direct answer (OpenCode sends 32000), so enforcing it by
+        // default would change behaviour for every existing caller to fix a
+        // conformance gap only some of them care about. Off unless asked for;
+        // when asked for, it is exact.
+        const rawMaxTokens = Number(body?.max_tokens)
+        const clientMaxOutputTokens = envBool("ENFORCE_MAX_TOKENS")
+          && Number.isFinite(rawMaxTokens) && rawMaxTokens > 0
+          ? Math.floor(rawMaxTokens)
+          : undefined
         const idleRequestKey = idleStallRequestKey(body)
         const markPriorityAttemptExposure = (reason: string): void => {
           const exposure = options.priorityAttemptExposure
@@ -3279,7 +3299,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
                     claudeAiConnectors: sdkFeatures.claudeAiConnectors,
-                    maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                    maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
                     sdkDebug: sdkFeatures.sdkDebug,
                     additionalDirectories: sdkFeatures.additionalDirectories
                       ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
@@ -3384,7 +3404,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
                     claudeAiConnectors: sdkFeatures.claudeAiConnectors,
-                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
                       sdkDebug: sdkFeatures.sdkDebug,
                       additionalDirectories: sdkFeatures.additionalDirectories
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
@@ -3444,7 +3464,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
                     claudeAiConnectors: sdkFeatures.claudeAiConnectors,
-                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
                       sdkDebug: sdkFeatures.sdkDebug,
                       additionalDirectories: sdkFeatures.additionalDirectories
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
@@ -3856,6 +3876,21 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // Do not rethrow — execution continues into the merge block, which
               // backfills contentBlocks from capturedToolUses and builds a clean
               // stop_reason:"tool_use" response.
+            } else if (clientMaxOutputTokens && isOutputTokenCapExceeded(error instanceof Error ? error.message : String(error ?? ""))) {
+              // The client's own `max_tokens` stopped generation (#874). The
+              // API really did cap the turn, so the content that arrived is a
+              // complete truncated response — not a partial one we invented —
+              // and the SDK session holds the same text, so resume stays
+              // consistent. Report the stop reason the wire defines for this
+              // instead of answering a satisfiable request with a 500.
+              lastStopReason = "max_tokens"
+              claudeLog("upstream.output_cap_truncated", {
+                mode: "non_stream",
+                cap: clientMaxOutputTokens,
+                blocks: contentBlocks.length,
+              })
+              plog(`[PROXY] ${requestMeta.requestId} output capped at client max_tokens=${clientMaxOutputTokens} — reporting stop_reason=max_tokens`)
+              if (lastUsage) logUsage(requestMeta.requestId, lastUsage)
             } else if (passthrough && sdkTerm.reason === "max_turns" && hasTruncatableText(contentBlocks)) {
               // The turn hit its budget without producing a forwardable tool
               // call, but it did produce visible text. Throwing here would answer a
@@ -4409,7 +4444,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
                     claudeAiConnectors: sdkFeatures.claudeAiConnectors,
-                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                      maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
                       sdkDebug: sdkFeatures.sdkDebug,
                       additionalDirectories: sdkFeatures.additionalDirectories
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
@@ -4493,7 +4528,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                     webFetchPreflight: sdkFeatures.webFetchPreflight,
                     claudeAiConnectors: sdkFeatures.claudeAiConnectors,
-                        maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                        maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
                         sdkDebug: sdkFeatures.sdkDebug,
                         additionalDirectories: sdkFeatures.additionalDirectories
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
@@ -4549,7 +4584,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                         memory: sdkFeatures.memory, dreaming: sdkFeatures.dreaming, sharedMemory: sdkFeatures.sharedMemory,
                         webFetchPreflight: sdkFeatures.webFetchPreflight,
                         claudeAiConnectors: sdkFeatures.claudeAiConnectors,
-                        maxBudgetUsd: sdkFeatures.maxBudgetUsd, fallbackModel: sdkFeatures.fallbackModel,
+                        maxBudgetUsd: sdkFeatures.maxBudgetUsd, maxOutputTokens: clientMaxOutputTokens, fallbackModel: sdkFeatures.fallbackModel,
                         sdkDebug: sdkFeatures.sdkDebug,
                         additionalDirectories: sdkFeatures.additionalDirectories
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
@@ -6295,13 +6330,35 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // overflow, duplicate abort, early-stop reversion). Ending that
               // with `max_tokens` leaves a call the client is told neither to
               // run nor to discard, so it keeps the error it gets today.
+              // #874: the client's own `max_tokens` stopping generation is the
+              // same shape as a capped turn — a truncated but complete answer
+              // that must close as `max_tokens`, not as an error frame. It is
+              // not passthrough-specific and does not arrive as `max_turns`,
+              // so it joins the condition rather than reusing it.
+              //
+              // The no-tool-calls guard is deliberately kept for the cap case
+              // too. A cap that lands mid-`tool_use` would otherwise deliver a
+              // half-built call, which is the #552 "red reads" failure this
+              // codebase has paid for repeatedly. That shape stays on the error
+              // path until it can be delivered safely.
+              const outputCapTruncated = Boolean(clientMaxOutputTokens) && isOutputTokenCapExceeded(errMsg)
               if (
-                passthrough &&
-                sdkTerm.reason === "max_turns" &&
+                (
+                  (passthrough && sdkTerm.reason === "max_turns") ||
+                  outputCapTruncated
+                ) &&
                 capturedToolUses.length === 0 &&
                 streamedToolUseIds.size === 0 &&
                 messageStartEmitted &&
-                textCharsForwarded > 0
+                // A capped turn need not have produced text. With a small cap
+                // the model's thinking can consume the whole budget before any
+                // text is forwarded, and an EMPTY response with
+                // `stop_reason: max_tokens` is exactly what the wire defines
+                // for that — the client asked for 16 tokens and thinking spent
+                // them. For `max_turns` the same emptiness means something went
+                // wrong and stays on the error path, which is why the text
+                // requirement survives only for that case.
+                (outputCapTruncated || textCharsForwarded > 0)
               ) {
                 flushOpenClientBlocks("capped_turn")
                 diagnosticLog.session(
