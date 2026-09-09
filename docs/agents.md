@@ -662,11 +662,11 @@ Detection (first match wins):
 2. A `Polytoken <version>` or `Polytoken/<version>` User-Agent (token-boundary match; `PolytokenImpostor` does not match). UA-only selection never manufactures identity: without a valid native header there is no session key, so tool-result continuations run independent and are never resumed (plain text turns still fall back to the generic first-message fingerprint, as for any other headerless client).
 3. `x-meridian-agent: polytoken` / `MERIDIAN_DEFAULT_AGENT=polytoken` for explicit selection.
 
-Precedence with other selection signals: an explicit `x-meridian-agent`
-override (built-in or instance name) beats the native header, which beats
-automatic instance match rules, which beat the User-Agent chain. Unrelated
-OpenCode headers (`x-opencode-*`, `x-session-affinity`) have no effect on
-Polytoken traffic.
+An explicit `x-meridian-agent` override (built-in adapter or instance name)
+beats everything above it: it is checked before the native header. The full
+order is explicit selection → native header → automatic instance match
+rules → the User-Agent chain. Unrelated OpenCode headers (`x-opencode-*`,
+`x-session-affinity`) have no effect on Polytoken traffic.
 
 Contract notes:
 
@@ -677,14 +677,18 @@ Contract notes:
   this protocol: an instance `passthrough: false` or a global
   `MERIDIAN_PASSTHROUGH=0` is ineffective for `polytoken` (all other
   adapters keep their normal precedence). Tool names, descriptions, schemas,
-  and payloads — including `Task`/`task` `subagent_type` values — pass
-  through byte-exact; no alias rewriting, no SDK subagent routing.
+  and `Task`/`task` `subagent_type` values are preserved: no alias
+  rewriting, no SDK subagent routing. The proxy still repairs common
+  input slips (camelCase keys, string-typed numbers) the same way it does
+  for every adapter, before the call reaches the client.
 - **Native prompt defaults.** No Claude Code preset is layered on
   (`codeSystemPrompt: false`); the client's system prompt is the prompt.
   Memory/dreaming/CLAUDE.md injection stay off. Explicit overrides via
   `/settings` or an instance's `features` still apply.
-- **Thinking.** Signed/redacted thinking blocks from the model are preserved
-  through streaming and non-streaming responses. The thinking-generation and
+- **Thinking.** Thinking blocks from the model are preserved through
+  streaming and non-streaming responses, signatures included (redacted
+  thinking rides the same path; automated coverage exercises the signed
+  form on the non-streaming route). The thinking-generation and
   `thinkingPassthrough` settings keep their existing semantics.
 - **Profile scoping.** With non-default profiles, the native key is scoped
   per profile (`<profile>:<key>`) for resume state, exactly like other
