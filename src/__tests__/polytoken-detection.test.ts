@@ -168,6 +168,23 @@ describe("polytoken detection — User-Agent boundaries", () => {
     expect(a.getSessionId(c)).toBeUndefined()
   })
 
+  it("Polytoken UA beats the generic affinity fallback (no identity adoption)", () => {
+    // x-session-affinity is OpenCode-family's fallback signal. A Polytoken UA
+    // carrying it (a shared gateway stamping affinity blindly) must select
+    // polytoken — not OpenCode with an unrelated affinity key as identity.
+    const a = detectAdapter(makeContext("Polytoken v0.8.3", { "x-session-affinity": "aff-77" }))
+    expect(a).toBe(polytokenAdapter)
+    expect(a.getSessionId(makeContext("Polytoken v0.8.3", { "x-session-affinity": "aff-77" }))).toBeUndefined()
+  })
+
+  it("native header still beats affinity; affinity alone still selects OpenCode", () => {
+    expect(detectAdapter(makeContext("Polytoken v0.8.3", {
+      "x-session-affinity": "aff-1",
+      "x-polytoken-session": "p-1",
+    }))).toBe(polytokenAdapter)
+    expect(detectAdapter(makeContext("some-unknown-client/9", { "x-session-affinity": "ses_abc" }))).toBe(openCodeAdapter)
+  })
+
   it("registers polytoken for explicit selection and default-agent resolution", () => {
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "polytoken" }))).toBe(polytokenAdapter)
     expect(detectAdapter(makeContext("", { "x-meridian-agent": "POLYTOKEN" }))).toBe(polytokenAdapter)
