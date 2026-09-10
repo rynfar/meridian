@@ -511,6 +511,12 @@ describe("POST /v1/chat/completions — streaming", () => {
 
     expect(res.status).toBe(200)
     expect(res.headers.get("content-type")).toContain("text/event-stream")
+    // Drain the stream: leaving the SSE producer pending lets it outlive this
+    // file and invoke a LATER file's process-global SDK mock (same leak class
+    // as the proxy-streaming-message drain fix). Consume fully and require a
+    // clean terminal frame.
+    const body = await readStream(res)
+    expect(body).toContain("data: [DONE]")
   })
 
   it("emits OpenAI SSE chunks with correct shape", async () => {
