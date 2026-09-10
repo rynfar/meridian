@@ -93,8 +93,17 @@ const BILLING_SIGNALS: readonly RegExp[] = [
  *  the same reason: this classification can pull a profile out of a pool, so a
  *  runbook or an MCP server quoting the sentence mid-line must not trigger it.
  *  An optional three-digit status covers the API-key/gateway shape, where the
- *  SDK prefixes the upstream status ("API Error: 403 Your organization ..."). */
-const SUBSCRIPTION_ACCESS_DISABLED = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*(?:\d{3} )?your (?:organization|org) has disabled claude subscription access/m
+ *  SDK prefixes the upstream status ("API Error: 403 Your organization ...").
+ *
+ *  On that gateway path the CLI also interposes a bare "Failed to authenticate."
+ *  between its own wrapper and the upstream status, so the real string is
+ *  "Claude Code returned an error result: Failed to authenticate. API Error: 403
+ *  Your organization has disabled ...". That clause ends in a period rather than
+ *  a colon, so it is alternated into the wrapper group instead of being a
+ *  wrapper itself. Without it the API-key shape still fell through to api_error
+ *  and did not fail over — caught by driving a real refusal through the
+ *  error-telemetry failover harness, not by the string in the bug report. */
+const SUBSCRIPTION_ACCESS_DISABLED = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*|failed to authenticate\.\s*)*(?:\d{3} )?your (?:organization|org) has disabled claude subscription access/m
 
 /** "hit your limit", "hit your session limit", "hit your weekly limit", and any
  *  future single-word qualifier the CLI adopts. Anchored on both sides so it

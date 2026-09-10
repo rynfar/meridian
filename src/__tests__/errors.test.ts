@@ -1021,6 +1021,12 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     ["short 'org' spelling", "Your org has disabled Claude subscription access for Claude Code"],
     ["behind an API status prefix", "API Error: 403 Your organization has disabled Claude subscription access for Claude Code"],
     ["on an unlabelled stderr line", "Claude Code process exited with code 1\nSubprocess stderr: Your organization has disabled Claude subscription access for Claude Code"],
+    // The shape the CLI actually emits on the API-key/gateway path: a bare
+    // "Failed to authenticate." sits between its own wrapper and the upstream
+    // status. Captured from a real refusal driven through the error-telemetry
+    // failover harness; the hand-written "API Error: 403 ..." case above does
+    // not exercise it, and the entitlement fell through to api_error without it.
+    ["behind the CLI's own authenticate notice", "Claude Code returned an error result: Failed to authenticate. API Error: 403 Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access"],
   ])("maps the %s of a disabled subscription entitlement to a failover-eligible billing_error", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).toBe("billing_error")
@@ -1032,6 +1038,12 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
   it.each([
     ["quoted mid-line", "The runbook says your organization has disabled Claude subscription access when a seat is revoked"],
     ["a different capability", "Your organization has disabled MCP servers for Claude Code"],
+    // The authenticate notice is only allowed to PREFIX the entitlement string,
+    // never to stand in for it: a plain auth failure must keep its own
+    // classification, and a different disabled capability must not fail over
+    // just because the notice precedes it.
+    ["the authenticate notice alone", "Claude Code returned an error result: Failed to authenticate."],
+    ["the notice before a different capability", "Claude Code returned an error result: Failed to authenticate. API Error: 403 Your organization has disabled MCP servers for Claude Code"],
   ])("does not read %s as a disabled subscription entitlement", (_label, msg) => {
     const r = classifyError(msg)
     expect(r.type).not.toBe("billing_error")
