@@ -40,15 +40,15 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 
 ### OpenCode V2 beta
 
-Meridian currently supports the exact public beta used by its V2 plugin:
-`@opencode-ai/cli@0.0.0-beta-18314`. V2 plugin APIs are still changing, so setup
-fails closed for another V2 version instead of installing a plugin with an
-unknown contract.
+Meridian supports the exact public betas its V2 plugin is validated against:
+`@opencode-ai/cli@0.0.0-beta-18314` and `0.0.0-beta-18866`. V2 plugin APIs are
+still changing, so setup fails closed for another V2 version instead of
+installing a plugin with an unknown contract.
 
-Install the pinned beta and select its executable:
+Install a supported beta and select its executable:
 
 ```bash
-npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-18314
+npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-18866
 meridian setup --v2 --opencode-bin ~/.local/bin/opencode2
 ```
 
@@ -67,11 +67,11 @@ Configure V2's Anthropic provider to use Meridian. Keep the existing settings in
 {
   "model": "anthropic/claude-opus-4-6",
   "small_model": "anthropic/claude-haiku-4-5",
-  "provider": {
+  "providers": {
     "anthropic": {
-      "options": {
+      "settings": {
         "apiKey": "x",
-        "baseURL": "http://127.0.0.1:3456"
+        "baseURL": "http://127.0.0.1:3456/v1"
       },
       "models": {
         "claude-opus-4-6": { "name": "Claude Opus 4.6" },
@@ -81,6 +81,12 @@ Configure V2's Anthropic provider to use Meridian. Keep the existing settings in
   }
 }
 ```
+
+V2 renamed these keys: it reads `providers` and `settings`, where V1 read
+`provider` and `options`. A V1-shaped block is silently ignored, so the client
+would talk to the real Anthropic API instead of Meridian. Anything you put under
+`models` is your own override and wins over both the built-in catalog and
+Meridian's advertised models.
 
 Then start the pinned client:
 
@@ -92,6 +98,22 @@ The V2 plugin uses the native `model.request` and `http.request` hooks. It keeps
 primary and compaction requests attached to the correct OpenCode session,
 detaches concurrent hidden title/summary requests, and gives each visible
 subagent its own trusted identity. Request bodies and model input are unchanged.
+
+The V2 plugin also reads `GET /v1/models` from the configured Meridian base URL
+and writes what it finds into V2's model catalog: the context window your
+subscription actually gets, and one model variant per effort level the proxy
+accepts. This corrects OpenCode's built-in models.dev entries, which advertise a
+1M Sonnet that Meridian deliberately serves at 200k. Select an effort with
+`provider/model#variant`, for example `anthropic/claude-opus-5#high`. Discovery
+never blocks startup: if Meridian is unreachable or answers with anything
+unexpected, the catalog is left exactly as OpenCode built it.
+
+**Known limitation.** Discovery cannot run until OpenCode has finished
+assembling the catalog, so the very first request against a freshly started
+server still sees the built-in entries. Naming a Meridian-only variant on that
+first request — `anthropic/claude-haiku-4-5#xhigh`, say — fails with
+`provider.no-route`; the next request succeeds. Selecting the model in the TUI is
+unaffected, because the picker renders after discovery has landed.
 
 For either generation, the plugin enables:
 
