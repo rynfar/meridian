@@ -762,6 +762,30 @@ describe("formatSdkTermination", () => {
     expect(line).toContain("source=main")
     expect(line).toContain('raw="Some weird upstream failure"')
   })
+
+  it("appends abort=none when the cause snapshot says no Meridian-linked abort fired", () => {
+    const line = formatSdkTermination(
+      { reason: "max_turns", turns: 1 },
+      { model: "sonnet", abort: { cause: "none", aborted: false } },
+    )
+    expect(line).toContain("reason=max_turns")
+    expect(line).toContain("turns=1")
+    expect(line).toContain("abort=none")
+  })
+
+  it("appends the classified abort cause when one fired", () => {
+    const line = formatSdkTermination(
+      { reason: "aborted" },
+      { abort: { cause: "session_watchdog", aborted: true, elapsedMs: 600_012 } },
+    )
+    expect(line).toContain("abort=session_watchdog")
+    expect(line).not.toContain("elapsed")
+  })
+
+  it("omits the abort field entirely when no snapshot is provided", () => {
+    const line = formatSdkTermination({ reason: "max_turns", turns: 1 }, { model: "sonnet" })
+    expect(line).not.toContain("abort=")
+  })
 })
 
 describe("classifyError: session/usage limit phrasings (live-observed)", () => {
