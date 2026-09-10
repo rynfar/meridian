@@ -529,6 +529,9 @@ const MeridianV2Plugin = Plugin.define({
         }, { providerID }))
       }
     } catch (error) {
+      // Setup never returns its cleanup on this path, so the discovery
+      // subscription and its poll loop would otherwise outlive the failure.
+      modelDiscoveryController.abort()
       await Promise.allSettled(registered.map(({ dispose }) => dispose()))
       throw error
     }
