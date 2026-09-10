@@ -1006,6 +1006,38 @@ describe("classifyError: session/usage limit phrasings (live-observed)", () => {
     expect(isQuotaRefusal(r.type)).toBe(false)
   })
 
+  // The org-admin switch, observed live on a Max profile: every request came
+  // back 500 while a Pro profile in the same priority pool served the identical
+  // request. The refusal names no limit and no payment method, so nothing
+  // matched it, isAccountFailoverError said no, and the pool sat on an account
+  // that could not serve any request until an admin re-enabled it.
+  //
+  // billing_error rather than rate_limit_error, for the same reason as the
+  // entitlement cap above: an access switch an admin has to flip is not a spent
+  // window, so isQuotaRefusal must not send the cooldown looking up a five-hour
+  // reset that will never arrive.
+  it.each([
+    ["verbatim CLI refusal", "Claude Code returned an error result: Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access"],
+    ["short 'org' spelling", "Your org has disabled Claude subscription access for Claude Code"],
+    ["behind an API status prefix", "API Error: 403 Your organization has disabled Claude subscription access for Claude Code"],
+    ["on an unlabelled stderr line", "Claude Code process exited with code 1\nSubprocess stderr: Your organization has disabled Claude subscription access for Claude Code"],
+  ])("maps the %s of a disabled subscription entitlement to a failover-eligible billing_error", (_label, msg) => {
+    const r = classifyError(msg)
+    expect(r.type).toBe("billing_error")
+    expect(r.status).toBe(402)
+    expect(isAccountFailoverError(r.type)).toBe(true)
+    expect(isQuotaRefusal(r.type)).toBe(false)
+  })
+
+  it.each([
+    ["quoted mid-line", "The runbook says your organization has disabled Claude subscription access when a seat is revoked"],
+    ["a different capability", "Your organization has disabled MCP servers for Claude Code"],
+  ])("does not read %s as a disabled subscription entitlement", (_label, msg) => {
+    const r = classifyError(msg)
+    expect(r.type).not.toBe("billing_error")
+    expect(isAccountFailoverError(r.type)).toBe(false)
+  })
+
   // #764 and #787 were the same bug twice: a new qualifier, a 500 instead of
   // failover, a PR. These pin the shape so the next variant is already covered.
   it.each([
