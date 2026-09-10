@@ -1,7 +1,7 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-09, after issue #820, a race-harness deflake and the
-1.69.0 release. Refresh
+Checkpoint: 2026-09-10, after incorporating contributor PR #1003 as #1004.
+Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
 The owner requested portable skills and agent instructions so either Claude,
@@ -10,7 +10,8 @@ Codex, or another repository agent can resume this work.
 ## Read first
 
 Follow [meridian-upstream-review](../../.agents/skills/meridian-upstream-review/SKILL.md)
-and [AGENTS.md](../../AGENTS.md). The last delivered items were issue #820
+and [AGENTS.md](../../AGENTS.md). The last delivered item is contributor PR
+#1003, incorporated as #1004 and merged as `7028c697`. Before that: issue #820
 (PRs #994 and #995), the OpenCode V1 plugin packaging fix (#988) and a
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
@@ -37,6 +38,106 @@ worktree/branch, before/after proof, tests and E2E versions, CI URLs, merge and
 closure status, limitations, and the exact next action. Put portable evidence in
 the PR or linked review record; optional private local logs are not prerequisites
 for discovering the workflow. Never invent test evidence if those logs are absent.
+
+## Delivered: OpenCode V2 model discovery, contributor PR #1003 as #1004
+
+**Item.** [PR #1003](https://github.com/rynfar/meridian/pull/1003) by
+martinmiglio — read Meridian's `/v1/models` from the V2 plugin and write the
+result into OpenCode V2's model catalog.
+
+**Disposition.** Accepted with maintainer corrections. Delivered as
+[PR #1004](https://github.com/rynfar/meridian/pull/1004), squash-merged
+2026-09-10T14:46Z as `7028c697` with
+`Co-authored-by: Martin Miglio <marmig0404@gmail.com>`. #1003 auto-closed at the
+same second; its head was still `a6657962`, rechecked immediately before merge,
+so no later contributor work was discarded.
+
+Base `a1f04df6`. Branch `codex/opencode-v2-model-discovery` (deleted on merge),
+worktree `/Users/rynfar/repos/meridian-wt/v2-model-discovery`. Author mapping:
+`a6657962` → `9a25b773`, Author and AuthorDate (2026-09-02) preserved.
+Maintainer commits `b98de38f`, `50b16f3c`, `a63b27a2`.
+
+**Half the PR was already on main.** #1003 also packaged the V2 plugin as a
+directory package. #988 landed that first, byte-for-byte for
+`plugin/meridian-v2/`, plus a generalized `scripts/package-opencode-plugins.mjs`
+covering V1 too. #1003 branched from `1ea97d01` and predates it, which is why it
+was `CONFLICTING`. That half was dropped as superseded during the cherry-pick.
+
+**The discovery half did not work, in two independent ways.** Both were found
+live against the pinned `opencode2 0.0.0-beta-18866`, not by reading the diff.
+
+- V2's Anthropic provider carries the API version in its base URL, so
+  `http://127.0.0.1:3466/v1` was turned into a request for `/v1/v1/models`. That
+  path answers 404 and `/v1/models` answers 200, so the fetch always failed.
+- The skip guard read `catalog.provider.get(id).models` and treated a hit as
+  user configuration. Inside a transform that map is the assembled models.dev
+  catalog, which already lists all nine models Meridian serves — so every model
+  was skipped even once the URL was fixed.
+
+**What made the second fix safe, and it is worth remembering.** V2 layers
+`providers.<id>.models` on top of plugin transforms. Verified directly: a
+configured `claude-opus-5` override (`name: "USER OVERRIDE"`, context 12345)
+survived a transform that wrote a different name and context to the same model,
+while a model the user had not configured took the transform's value. A plugin
+can therefore write authoritative values without clobbering user overrides — the
+opposite of what #1003 assumed.
+
+That correction matters beyond the variants: beta-18866 advertises a 1M Sonnet,
+while Meridian deliberately serves Sonnet at 200k so a long turn is not billed
+as Extra Usage.
+
+**Evidence.** Same isolated config, Meridian unreachable versus reachable:
+
+```
+unreachable (= the pre-fix result)
+  claude-sonnet-5    ctx=1000000  ['none','low','medium','high','xhigh','max']
+  claude-haiku-4-5   ctx=200000   ['high','max']
+reachable, fix applied
+  claude-sonnet-5    ctx=200000   ['low','medium','high','xhigh','max']
+  claude-haiku-4-5   ctx=200000   ['low','medium','high','xhigh','max']
+  claude-sonnet-4-5  ctx=1000000  ['high','max']   <- not served by Meridian, untouched
+```
+
+Live E2E: `opencode2 0.0.0-beta-18866` (installed to `/tmp/oc2pin`, not the
+user's global `~/.local/bin/opencode2`, which had self-updated to 19242 and is
+outside the supported set), Meridian from source on isolated port 3466 with an
+isolated session store, isolated `OPENCODE_CONFIG_DIR` and all four `XDG_*`
+dirs, real Claude Max (`max`, profile `work`). Through a logging tap in front of
+the proxy, `--model 'anthropic/claude-haiku-4-5#xhigh'` produced
+`POST /v1/messages?beta=true model=claude-haiku-4-5 effort="xhigh" stream=true`
+→ 200, and Meridian logged `agent=primary model=haiku` with
+`source=subagent-title` detached separately. Negative control with the base URL
+on a dead port: catalog untouched, nothing logged as an error.
+
+Gates at head `a63b27a2`: `npm test` 3803 pass / 0 fail / 1 pre-existing skip
+(bun 1.3.14), `npm run typecheck`, `npm run build`. CI green on `test`, `smoke`,
+`windows-smoke`, `build-push`; `changelog-duplication` skipped. Failed-before /
+passed-after retained for both new plugin regressions.
+
+**Known limitation, documented in `docs/agents.md` and accepted by the owner.**
+Discovery cannot read the catalog until OpenCode has assembled it — awaiting
+`context.catalog.provider.get()` inside `setup` deadlocks the server, confirmed
+by a probe plugin that hung the process with no output. So the first request
+against a freshly started server still sees the built-in entries, and naming a
+Meridian-only variant there (`anthropic/claude-haiku-4-5#xhigh`) fails with
+`provider.no-route`; the next request succeeds. Reproducible, not intermittent.
+The TUI picker is unaffected because it renders after discovery lands.
+
+No OpenCode release fixes this. `@opencode-ai/plugin@0.0.0-beta-19271`, the
+newest published beta, still declares `Transform` with a synchronous callback
+(`CatalogDraft` merely renamed to `CatalogEditor`) and still exposes no config
+domain. Closing the race would need a persisted catalog cache seeded during
+setup — a separate design decision, not started.
+
+**Also fixed while validating this.** `docs/agents.md` documented a V1-shaped
+provider block for the V2 section. V2 reads `providers` and `settings`;
+`provider` and `options` are silently ignored, which points the client at the
+real Anthropic API instead of Meridian. The base URL also needs its `/v1`
+suffix. The same section listed only beta-18314 while
+`SUPPORTED_OPENCODE_V2_VERSIONS` accepts 18866 as well.
+
+**Next action.** None outstanding for this item. 1.69.0 is published and a
+release for `7028c697` needs its own explicit authorization.
 
 ## Delivered: OpenCode Desktop cannot load the V1 plugin, PR #988
 
