@@ -1,6 +1,7 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-10, after incorporating contributor PR #1003 as #1004.
+Checkpoint: 2026-09-10, after incorporating contributor PRs #1003, #980 and
+#1005.
 Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
@@ -11,7 +12,8 @@ Codex, or another repository agent can resume this work.
 
 Follow [meridian-upstream-review](../../.agents/skills/meridian-upstream-review/SKILL.md)
 and [AGENTS.md](../../AGENTS.md). The last delivered item is contributor PR
-#1003, incorporated as #1004 and merged as `7028c697`. Before that: issue #820
+#1005, incorporated as #1012 and merged as `c3dc2279`. Before that: #980 as
+#1010 (`3db622fa`), #1003 as #1004 (`7028c697`), issue #820
 (PRs #994 and #995), the OpenCode V1 plugin packaging fix (#988) and a
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
@@ -38,6 +40,129 @@ worktree/branch, before/after proof, tests and E2E versions, CI URLs, merge and
 closure status, limitations, and the exact next action. Put portable evidence in
 the PR or linked review record; optional private local logs are not prerequisites
 for discovering the workflow. Never invent test evidence if those logs are absent.
+
+## Standing instruction, 2026-09-10: file a ticket
+
+The owner asked that anything flagged as a real problem needing a fix becomes a
+GitHub issue, not a line in a PR body or a doc: "i cant keep up with all of
+this." Applied retroactively to the V2 cold-start race as #1008. Observations
+that need no fix stay observations; a "known limitation" note is not a ticket.
+
+## Delivered: disabled subscription entitlement, contributor PR #1005 as #1012
+
+**Item.** [PR #1005](https://github.com/rynfar/meridian/pull/1005) by
+StanChmielewski — an org admin can switch Claude Code subscription access off;
+the refusal named no limit and no payment method, so `classifyError` fell
+through to `api_error`, `isAccountFailoverError` said no, and priority routing
+kept selecting an account that could serve nothing.
+
+**Disposition.** Accepted with one maintainer correction. Merged 2026-09-10 as
+`c3dc2279` with `Co-authored-by: Stan Chmielewski <s.chmielewski@it-tower.pl>`.
+Author mapping `06a44e2a` → `2b6681e5`, AuthorDate preserved; maintainer commit
+`0560d4a7`. Base `3db622fa`, worktree
+`/Users/rynfar/repos/meridian-wt/org-entitlement`. #1005 head rechecked as
+`06a44e2a` immediately before merge, then auto-closed.
+
+**Reproduced on main before changing anything**: `sdk result` → 500 `api_error`,
+`stderr exit1` → **401 `authentication_error`**, `api 403` → 500 `api_error`,
+all with `failover=false`. The 401 is the sharp edge — a bare code-1 exit reads
+as an expired login, so the operator is told to run `claude login` for an
+entitlement only an admin can restore.
+
+**The maintainer correction, and the lesson.** The PR claimed to cover the
+API-key/gateway shape with `API Error: 403 Your organization has disabled ...`.
+That string is not what reaches `classifyError`. The CLI actually emits:
+
+```
+Claude Code returned an error result: Failed to authenticate. API Error: 403
+Your organization has disabled Claude subscription access for Claude Code · ...
+```
+
+A bare `Failed to authenticate.` sits between the CLI's wrapper and the upstream
+status. It ends in a period, so it is not one of the recognised colon-wrappers,
+and the anchored pattern never reached the entitlement string — that path was
+still `api_error` and still did not fail over. **A hand-written example of a
+wire string is not the wire string.** It was found by driving a real refusal
+through the failover harness, not by reading the report.
+
+**Evidence.** Ten adversarial classification cases pass, including the negatives
+`has not disabled`, a mid-line quote, `disabled MCP servers`, the authenticate
+notice alone, and the notice before a different capability. Live E2E through the
+#836/#829 error-telemetry harness with only the refusal fixture swapped to the
+org-disabled message at HTTP 403: pinned 402 `billing_error` (streaming and not),
+failover 200 from real Claude Max with the receipt, `PASS`. That harness FAILED
+at the pinned assertion before the maintainer fix. Gates: `npm test` 3880 pass /
+0 fail / 1 pre-existing skip, typecheck, build; CI green on all four checks.
+
+**Limitation.** An actual org-disabled account could not be reproduced here; the
+contributor's own run against one is the primary evidence for the real-world
+shape, and the harness drives the refusal instead.
+
+## Delivered: Polytoken harness adapter, contributor PR #980 as #1010
+
+**Item.** [PR #980](https://github.com/rynfar/meridian/pull/980) by jakewimmer —
+a native adapter for [Polytoken](https://polytoken.dev), an Anthropic-Messages
+coding agent that owns its tool loop.
+
+**Disposition.** Accepted in part. Merged 2026-09-10 as `3db622fa` with
+`Co-authored-by: Jake Wimmer`. Base `fb06c924`, worktree
+`/Users/rynfar/repos/meridian-wt/polytoken`. #980 head rechecked as `f185e76e`
+before merge, then auto-closed. Author mapping, all AuthorDates preserved:
+`68a0092e`→`6878e515`, `1bbf7a4b`→`64fc6e68`, `f22856f4`→`639af5e2`,
+`9b7b21d4`→`dd84557e`, `0edf2c63`→`58518d61`, `76f30fa9`→`58e307a8`,
+`acc0c661`→`2a878eea`. Maintainer commit `1dff13fd`.
+
+**Three commits were split out**, all preserved with authorship on the pushed
+branch `codex/polytoken-extras` — do not retype them:
+
+- `f185e76e` uncaptured-tool recovery. The only commit that does not apply to
+  current main; conflicts with #998's rework of the same early-stop region. The
+  contributor states it is "default OFF until canaried" with non-streaming
+  parity deferred. Tracked in **#1009**.
+- `1b2ba3a9` recover visible empty capped streams, and `016eb53c` classify abort
+  causes in `sdk_termination`. Both clean and green, held so each gets its own
+  changelog line and its own gate; the first lands in the #983 → #996 → #998
+  path. Tracked in **#1011**.
+
+The contributor's reported "1 failed" full suite does not reproduce — that flake
+was fixed by #997, now in the base.
+
+**Maintainer correction: a gate anyone can run.** #980's E2E was a manual Docker
+image swap plus a personal systemd unit and a budget gateway, driven by scripts
+deliberately not committed, and it overshot its own request budget (14 against a
+cap of 12). Replaced with this repository's existing mechanism: Polytoken added
+to `scripts/e2e-client-detection.mjs` (honouring `E2E_POLYTOKEN_BIN`) with its
+real 0.8.6 headers recorded in `client-headers.json`, so
+`client-detection-fixtures` pins the adapter in CI and a client-side change is a
+git diff. This is the #733 class of bug, and a PR whose detection keys on a UA
+plus a native header is exactly what that fixture protects.
+`x-polytoken-session` joined the redacted-value set, or every re-capture would
+churn on a fresh session id.
+
+**Evidence, live against the real client.** Polytoken 0.8.6 macos-arm64
+(sha256 `71353a6d…0793e7`, verified against the published `SHA256SUMS.macos`),
+installed to `/tmp/pt`, real Claude Max on `claude-haiku-4-5`, disposable
+Meridian on port 3468. A `polytoken exec` client-owned read returned `LINES=4`
+in **four** client round-trips, `adapter=polytoken` throughout, `lineage=new`
+then `lineage=continuation` on a stable `x-polytoken-session`. The read ran on
+the Polytoken side — the proxy's own workdir has no such fixture. Repeated with
+`MERIDIAN_PASSTHROUGH=0`: identical, so the global setting cannot hand the loop
+to the SDK. Detection controls: `PolytokenImpostor/1.0` → `opencode`, blank
+header → `opencode`, valid header → `polytoken`, UA alone → `polytoken`.
+Captured wire identity: `user-agent: Polytoken v0.8.6`, `x-polytoken-session`,
+`accept: text/event-stream`. Gates 3871 pass / 0 fail / 1 skip, typecheck,
+build; CI green.
+
+**Behavior change to remember.** A valid `x-polytoken-session` now outranks
+automatic adapter-instance match rules (#476). Explicit `x-meridian-agent` still
+wins over both.
+
+**Polytoken install, for the next run.** `https://get.polytoken.dev` shell
+installer, or `https://dl.polytoken.dev/<version>/<platform>/polytoken.zip` with
+`SHA256SUMS.<os>`. Config is `config.yaml` in `--config-dir`; a Meridian
+provider needs `kind.type: custom_anthropic_compatible`, `protocol:
+anthropic_messages`, `auth.type: static_key`, and a model entry with both
+`provider` (instance name) and `provider_name` (wire id) plus a `class`.
 
 ## Delivered: OpenCode V2 model discovery, contributor PR #1003 as #1004
 
