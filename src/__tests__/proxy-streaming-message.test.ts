@@ -372,5 +372,18 @@ describe("Default streaming behavior", () => {
     const contentType = response.headers.get("content-type") || ""
 
     expect(contentType).toContain("text/event-stream")
+    // Drain the body and pin the terminal envelope. Returning without
+    // consuming the response leaves the streaming producer (SDK query,
+    // semaphore, session bookkeeping) running past this file's teardown;
+    // sdkMock resolves implementations at call time, so the orphaned
+    // producer then invokes a LATER file's mock and pollutes that file's
+    // captured query list (observed as proxy-block-continuations' first
+    // captured query carrying resume=undefined). Fully settling the
+    // stream while this file's mock is active removes the leak.
+    const body = await response.text()
+    const events = parseSSE(body)
+    expect(events.filter((event) => event.event === "message_start")).toHaveLength(1)
+    expect(events.filter((event) => event.event === "message_stop")).toHaveLength(1)
+    expect(events.filter((event) => event.event === "error")).toHaveLength(0)
   })
 })
