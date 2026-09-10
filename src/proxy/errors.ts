@@ -3,6 +3,8 @@
  * Maps raw error messages to structured HTTP error responses.
  */
 
+import type { AbortCauseSnapshot } from "./requestAbort"
+
 export interface ClassifiedError {
   status: number
   type: string
@@ -755,6 +757,8 @@ export function formatSdkTermination(
     isResume?: boolean
     hasDeferredTools?: boolean
     sdkSessionId?: string
+    /** Abort-cause snapshot: which Meridian-linked producer fired, if any. */
+    abort?: AbortCauseSnapshot
   },
 ): string {
   const parts: string[] = [`reason=${t.reason}`]
@@ -765,6 +769,12 @@ export function formatSdkTermination(
   if (ctx.isResume !== undefined) parts.push(`resume=${ctx.isResume}`)
   if (ctx.hasDeferredTools !== undefined) parts.push(`deferred=${ctx.hasDeferredTools}`)
   if (ctx.sdkSessionId) parts.push(`session=${ctx.sdkSessionId.slice(0, 8)}`)
+  if (ctx.abort) {
+    // `none` means no Meridian-linked abort fired — the marker that
+    // discriminates the uncaptured-tool-turn incident from a genuine client
+    // or watchdog cancellation. It is NOT proof the CLI never aborted.
+    parts.push(`abort=${ctx.abort.cause}`)
+  }
   if (t.rawTail) parts.push(`raw=${JSON.stringify(t.rawTail)}`)
   if (t.stderrTail) parts.push(`stderr=${JSON.stringify(t.stderrTail)}`)
   return `sdk_termination ${parts.join(" ")}`

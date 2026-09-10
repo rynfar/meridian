@@ -11,7 +11,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk"
 import { rateLimitStore } from "./rateLimitStore"
 import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { IdleStallCeilingError, IdleStallTracker, idleStallRequestKey } from "./idleStallCeiling"
-import { linkRequestAbort } from "./requestAbort"
+import { linkRequestAbort, type RequestAbortLink } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
@@ -297,6 +297,14 @@ interface HandleMessagesOptions {
   body: any
   forcedProfileId?: string
   turnWatchdogSignal?: AbortSignal
+  /**
+   * The request-wide abort link created by the outer handler. Adopted (not
+   * recreated) here so the single cause registry spans queue retries and
+   * profile-failover re-entries of this handler, and so outer producers —
+   * client disconnect, body cancel, watchdog, subtree cancel, process
+   * shutdown — label the same registry the SDK query sees.
+   */
+  requestAbortLink?: RequestAbortLink
   forceFreshPriorityReplay?: boolean
   priorityPublication?: PrioritySessionPublication
   priorityAttemptExposure?: PriorityAttemptExposure
@@ -561,6 +569,7 @@ type PriorityDispatchOptions = {
   readonly wantsStream: boolean
   readonly currentProfileId: string | undefined
   readonly turnWatchdogSignal?: AbortSignal
+  readonly requestAbortLink?: RequestAbortLink
   readonly publicationTurn?: {
     readonly turnId: string
     readonly issuedAt: number
@@ -757,6 +766,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   let durableWritesRevoked = false
   let inFlightRequests = 0
   const activeRequestAborts = new Set<AbortController>()
+  /** Cause-aware shutdown aborts: each entry labels its request's registry
+   * before the controller fires, because the shutdown producer aborts the
+   * turnWatchdog controller directly (not through the request's own link)
+   * and would otherwise surface as unknown_abort. */
+  const activeShutdownLabels = new Map<AbortController, () => void>()
 
   // Admission belongs at the PUBLIC entrypoint. /v1/chat/completions and
   // /v1/responses translate their body before re-entering /v1/messages, so
@@ -1213,6 +1227,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         body: options.body,
         forcedProfileId: candidate,
         turnWatchdogSignal: options.turnWatchdogSignal,
+        requestAbortLink: options.requestAbortLink,
         forceFreshPriorityReplay: priorityPublication !== undefined
           && (options.durableRoute?.forceFreshReplay === true
             || (options.currentProfileId !== undefined && candidate !== options.currentProfileId)),
@@ -1317,7 +1332,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const requestSignal = options.turnWatchdogSignal
       ? AbortSignal.any([c.req.raw.signal, options.turnWatchdogSignal])
       : c.req.raw.signal
-    const requestAbort = linkRequestAbort(requestSignal)
+    // Adopt the outer handler's link when provided so one cause registry
+    // spans queue retries and profile-failover re-entries; create one only
+    // when no outer link exists (direct in-process callers).
+    const requestAbort = options.requestAbortLink ?? linkRequestAbort(requestSignal)
     let streamOwnsAbortLink = false
 
     return withClaudeLogContext({ requestId: requestMeta.requestId, endpoint: requestMeta.endpoint }, async () => {
@@ -1781,6 +1799,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 wantsStream: body.stream === true,
                 currentProfileId: assignedProfile,
                 turnWatchdogSignal: options.turnWatchdogSignal,
+                requestAbortLink: options.requestAbortLink,
                 publicationTurn,
                 claimTurn: trustedTurn,
                 durableRoute,
@@ -3183,6 +3202,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // real SDK). Aborting the query's controller SIGTERMs the
                   // subprocess; the abort-shaped termination is converted into a
                   // clean stop_reason:"tool_use" response by the recovery paths.
+                  requestAbort.setCause("passthrough_single_step")
                   requestAbort.abort("passthrough single-step complete")
                 } else {
                   capturedSignatures.add(signature)
@@ -3960,6 +3980,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               diagnosticLog.session(
                 `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
                   model, requestSource, isResume, hasDeferredTools, sdkSessionId: currentSessionId || resumeSessionId,
+                  abort: requestAbort.abortSnapshot(),
                 })} captured=${capturedToolUses.length}`,
                 requestMeta.requestId,
               )
@@ -4405,6 +4426,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             // terminal delta leaves the proxy, and it leaves last, once the
             // turn's real stop_reason is known.
             let pendingTerminalDelta: Uint8Array | null = null
+            // The turn budget the LAST SDK attempt asked for. attemptMaxTurns
+            // is attempt-local; the outer catch (recovery predicates) needs
+            // the final value.
+            let lastAttemptMaxTurns: number | undefined
             let pendingStructuredFrames: Array<{ payload: Uint8Array; source: string }> = []
             let pendingStructuredTextLength = 0
             let terminalDeltaSent = false
@@ -4560,6 +4585,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       advisorModel,
                     }, requestAbort.controller)
                     attemptMaxTurns = attemptQuery.options.maxTurns
+                    lastAttemptMaxTurns = attemptMaxTurns
                     for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators())) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
@@ -6494,6 +6520,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     isResume,
                     hasDeferredTools,
                     sdkSessionId: currentSessionId || resumeSessionId,
+                    abort: requestAbort.abortSnapshot(),
                   })} blocks=${nextClientBlockIndex}`,
                   requestMeta.requestId,
                 )
@@ -6575,6 +6602,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   isResume,
                   hasDeferredTools,
                   sdkSessionId: currentSessionId || resumeSessionId,
+                  abort: requestAbort.abortSnapshot(),
                 })} envelope=${messageStartEmitted ? "open" : "unopened"} blocks=${contentBlocksForwarded} ` +
                 `text=${textEventsForwarded} tools=${capturedToolUses.length}/${streamedToolUseIds.size}`,
                 requestMeta.requestId,
@@ -6688,15 +6716,23 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             } finally {
               await abandonManagedFork("stream_complete_without_commit")
               if (priorityRollbackRetirement) await priorityRollbackRetirement
-              requestAbort.detach()
+              // Detach only when this handler owns the link. An ADOPTED
+              // request-wide link must stay attached: a later profile-failover
+              // attempt re-enters this handler with the same link, and a
+              // per-attempt detach would deafen it to watchdog, subtree,
+              // client, and shutdown aborts for the rest of the request.
+              if (!streamOwnsAbortLink) requestAbort.detach()
             }
             })().finally(() => {
               resolveStreamCompletion()
             })
           },
           cancel(reason) {
+            requestAbort.setCause("stream_cancel")
             requestAbort.abort(reason)
-            requestAbort.detach()
+            // Only the owner detaches the link; an adopted request-wide link
+            // stays attached for the outer handler's lifetime.
+            if (!streamOwnsAbortLink) requestAbort.detach()
             // A cancelled response body is the other way a client says "stop",
             // and the only one an in-process caller can reach. Children are
             // cancelled here as well, latched so a real socket teardown —
@@ -6767,6 +6803,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         diagnosticLog.error(
           `${requestMeta.requestId} ${formatSdkTermination(sdkTerm, {
             requestSource: c.req.header("x-meridian-source")?.slice(0, 64) || undefined,
+            abort: requestAbort.abortSnapshot(),
           })}`,
           requestMeta.requestId,
         )
@@ -6907,6 +6944,23 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     }
     const turnWatchdogAbort = new AbortController()
     activeRequestAborts.add(turnWatchdogAbort)
+    // One request-wide cause registry, created here where every external
+    // producer (client disconnect, body cancel, watchdog, subtree cancel,
+    // process shutdown) lives, and adopted by handleMessages across queue
+    // retries and profile-failover re-entries. It listens on the COMBINED
+    // signal — client + watchdog — so a watchdog or subtree abort reaches the
+    // SDK query exactly as the per-request link it replaces did.
+    // A raw request-signal abort with no other cause labeled is a client
+    // disconnect; label it before the link forwards so the diagnostic reads
+    // client_abort instead of unknown_abort. Watchdog/subtree/shutdown label
+    // first, and first-cause-wins keeps their more specific classification.
+    const requestSignalForLink = AbortSignal.any([c.req.raw.signal, turnWatchdogAbort.signal])
+    const labelClientAbort = () => {
+      if (!turnWatchdogAbort.signal.aborted) requestAbortLink?.setCause("client_abort")
+    }
+    c.req.raw.signal.addEventListener("abort", labelClientAbort, { once: true })
+    const requestAbortLink = linkRequestAbort(requestSignalForLink)
+    activeShutdownLabels.set(turnWatchdogAbort, () => requestAbortLink.setCause("process_shutdown"))
     let finished = false
     let leaseReleased = false
     let retainSessionTurnFence = false
@@ -6935,6 +6989,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     const finishRequest = () => {
       if (finished) return
       finished = true
+      // Terminal request cleanup for the request-wide abort link: detach its
+      // combined-signal listener and drop the raw client-abort label
+      // listener. handleMessages never detaches an adopted link (a later
+      // failover attempt must keep receiving aborts), so ownership of the
+      // terminal detach belongs here, which runs exactly once.
+      requestAbortLink.detach()
+      c.req.raw.signal.removeEventListener("abort", labelClientAbort)
       if (retainSessionTurnFence && (sessionTurnLease || crossProcessTurnLease)) {
         leaseReleased = true
         if (leaseWatchdog) clearTimeout(leaseWatchdog)
@@ -6950,6 +7011,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       sessionTreeRegistration?.release()
       sessionTreeRegistration = undefined
       activeRequestAborts.delete(turnWatchdogAbort)
+      activeShutdownLabels.delete(turnWatchdogAbort)
       inFlightRequests--
     }
 
@@ -6991,7 +7053,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             requestId,
             sessionKey: agentSessionId,
             parentKey: adapter.getParentSessionId?.(c, body),
-            abort: (reason) => turnWatchdogAbort.abort(reason),
+            abort: (reason) => {
+              // A parent cancellation reaches this request through the
+              // session tree; classify it distinctly from the watchdog,
+              // which shares the same controller.
+              requestAbortLink.setCause("subtree_cancel")
+              turnWatchdogAbort.abort(reason)
+            },
           })
           subtreeSessionKey = agentSessionId
           const clientSignal = c.req.raw.signal
@@ -7019,6 +7087,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             leaseWatchdog = setTimeout(() => {
               claudeLog("session.turn_watchdog_abort", { requestId, heldMs: SESSION_TURN_MAX_HOLD_MS })
               plog(`[PROXY] ${requestId} session turn exceeded ${SESSION_TURN_MAX_HOLD_MS}ms — aborting without releasing its fencing lease`)
+              requestAbortLink.setCause("session_watchdog")
               turnWatchdogAbort.abort(new Error("Session turn exceeded its maximum hold time"))
             }, SESSION_TURN_MAX_HOLD_MS)
             leaseWatchdog.unref?.()
@@ -7104,6 +7173,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const response = await handleMessages(c, requestMeta, {
         body,
         turnWatchdogSignal: turnWatchdogAbort.signal,
+        requestAbortLink,
       })
       const completion = responseCompletions.get(response)
       if (completion) {
@@ -8211,6 +8281,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     beginDrain: () => { draining = true },
     forceAbortInFlight: () => {
       durableWritesRevoked = true
+      // Label every request's cause registry BEFORE aborting: shutdown is
+      // the producer, and the diagnostic must not read unknown_abort.
+      for (const label of activeShutdownLabels.values()) label()
       for (const controller of activeRequestAborts) {
         controller.abort(new Error("Proxy shutdown grace period elapsed"))
       }
