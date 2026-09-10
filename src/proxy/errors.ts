@@ -76,6 +76,26 @@ const BILLING_SIGNALS: readonly RegExp[] = [
   /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*your (?:group|organization|org)(?:'|’)s usage limit is set to \$\d/m,
 ]
 
+/** The org-admin entitlement switch: "Your organization has disabled Claude
+ *  subscription access for Claude Code · Use an Anthropic API key instead, or
+ *  ask your admin to enable access". Observed live on a Max profile that
+ *  returned 500 on every request while a Pro profile in the same priority pool
+ *  served the identical request from the same container.
+ *
+ *  It names no limit and no payment method, so nothing above matched it: the
+ *  refusal fell through to a generic api_error, isAccountFailoverError said no,
+ *  and priority routing kept handing requests to an account that could not
+ *  serve any of them. In the stderr shape it was worse than a missed failover —
+ *  a bare code-1 exit reads as an auth failure, so the operator was told to run
+ *  `claude login` for an entitlement an admin has to restore.
+ *
+ *  Line-anchored after the known SDK wrappers, like the banners above and for
+ *  the same reason: this classification can pull a profile out of a pool, so a
+ *  runbook or an MCP server quoting the sentence mid-line must not trigger it.
+ *  An optional three-digit status covers the API-key/gateway shape, where the
+ *  SDK prefixes the upstream status ("API Error: 403 Your organization ..."). */
+const SUBSCRIPTION_ACCESS_DISABLED = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*(?:\d{3} )?your (?:organization|org) has disabled claude subscription access/m
+
 /** "hit your limit", "hit your session limit", "hit your weekly limit", and any
  *  future single-word qualifier the CLI adopts. Anchored on both sides so it
  *  can't drift into unrelated text that happens to contain "limit". */
@@ -279,6 +299,21 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
       status: 401,
       type: "authentication_error",
       message: "Claude OAuth token has expired and could not be refreshed automatically. Run 'claude login' in your terminal to re-authenticate."
+    }
+  }
+
+  // Org-level entitlement, checked before the auth branches below: the stderr
+  // shape of this refusal ends in a code-1 exit, which those branches read as
+  // an expired login. billing_error rather than rate_limit_error — an access
+  // switch an admin has to flip is not a spent window, so isQuotaRefusal must
+  // not send the cooldown looking up a five-hour reset that never arrives —
+  // and failover-eligible, because another profile in the pool may well be on
+  // an organization that still allows it.
+  if (SUBSCRIPTION_ACCESS_DISABLED.test(lower)) {
+    return {
+      status: 402,
+      type: "billing_error",
+      message: "This account's organization has disabled Claude subscription access for Claude Code. Ask the organization admin to re-enable it, or serve this request from an API-key profile — an identical retry on this account fails the same way."
     }
   }
 
