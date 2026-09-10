@@ -4629,70 +4629,103 @@ Both response modes must preserve OpenCode-shaped Windows client paths, execute 
 
 Also run the E42 actual OpenCode gate with `--live --extended --separate-proxy-cwd` and the pinned `E2E_OPENCODE_BIN`. The harness isolates the client HOME/PWD as well as XDG state, while the proxy retains its normal Claude authentication. It asserts the client directory from actual request bodies and stable client system prompts before comparing cache reuse. The manually invoked hidden-summary probe runs in a disposable client fork: this checks stripped headers without switching the primary client agent or injecting its tool-catalog update into primary history. A marker assertion rejects any leak into primary requests. This keeps the client project and configured SDK workdir distinct through tool use, restart, undo, fork, compaction and concurrent children. Run all four E41 modes after CWD/session-identity changes.
 
-## Polytoken native Haiku loop
+## Polytoken native client loop
 
-> **Status: manual procedure.** The gateway and driver this exercise used were session-local
-> test scripts and are intentionally not committed (they hardcode a loopback origin, a personal
-> systemd unit name and a personal profile id). Everything needed to reconstruct them is
-> specified below. Reconstruct before running; do not point the gateway at a shared origin.
+**What it proves:** a real Polytoken binary is detected as `polytoken`, keeps its
+own tool loop, and resumes by its native session header.
 
-Build a candidate image locally from this checkout and tag it `meridian:polytoken-<short-commit>`
-(`docker build -t meridian:polytoken-<short-commit> .`). Record the deployment baseline first:
-the compose file's sha256, the running image ID (`docker inspect --format "{{.Image}}"`), the
-container's user/port/mounts, and a `/health` response. Swap the deployment compose file's
-`image:` line to the candidate tag and restart it (the deployment in view used a user oneshot
-systemd unit wrapping `docker compose up/down`); wait for a bounded `/health` readiness probe.
+Two gates. The first costs no tokens and belongs in the detection sweep; the
+second is the live loop.
 
-Safety contract for the exercise: a shared, file-backed request budget of at most 12 forwarded
-client requests across all automated live exercises, consumed atomically per request by a
-test-only loopback gateway. The gateway (a ~100-line Node `http` server on `127.0.0.1:3468`,
-forwarding to the Meridian loopback origin — typically `127.0.0.1:3456`) enforces:
+### Detection drift
 
-- POST `/v1/messages` only; any other method/path gets a 404 without upstream contact.
-- The request body's `model` must be exactly `claude-haiku-4-5`; anything else is a 400.
-- The `X-Polytoken-Session` header must be present and non-blank; anything else is a 400.
-- One budget unit is consumed before each forward; exhausted budget is a 429 with no upstream
-  contact. The bound measures forwarded client requests; hidden SDK recovery calls stay on the
-  same concrete Haiku pin (fallback disabled) and are not separately counted.
-- `fetch(..., { redirect: "error" })` — no redirect following. Bounded request body (~2 MB) and
-  response (~1 MB) sizes. No retries inside the gateway.
+`scripts/e2e-client-detection.mjs` drives an installed Polytoken against a local
+stub and diffs its real headers against
+`src/__tests__/fixtures/client-headers.json`. Polytoken ships as a single static
+binary that is usually outside `PATH`, so point the harness at it:
 
-Gateway pre-flight (fail closed before listening): the deployment's `sdk-features.json` must
-have a `polytoken` entry with an empty `fallbackModel` and a positive `maxBudgetUsd` (test-only
-overrides — back the file up and restore it afterwards). Verify the gateway's rejections by
-probing it with a non-haiku model and confirming no budget consumption.
+```bash
+E2E_POLYTOKEN_BIN=/path/to/polytoken bun scripts/e2e-client-detection.mjs
+```
 
-Exercises:
+`client-detection-fixtures.test.ts` pins the recorded set to the `polytoken`
+adapter, so a change to detection ORDERING fails in CI; the script catches a
+change on the CLIENT side. Re-run with `--update` after a Polytoken upgrade and
+commit the diff. The session header is redacted at capture time, so a re-capture
+that only changes the session id produces no diff.
 
-1. **HTTP append-only tool loop** — a deterministic client-owned tool (e.g. `ledger_add`, an
-   integer sum) driven by a small driver script with a synthetic stable prompt (~8k input
-   tokens, above the Haiku cache minimum, below 12k). Each turn appends the returned blocks and
-   the computed tool result unchanged before posting the continuation. Require per-turn
-   `adapter=polytoken` proxy log lines, `lineage=continuation` from turn 2 (native-key resume
-   through the durable mapping), growing `cache_read_input_tokens` on warmed turns (a fresh
-   turn reports 0 with a matching `cache_creation`), and correct tool sums. Each turn's SDK
-   session id differs (per-turn managed forks are the durable publication design); lineage
-   continuation is the resume proof.
-2. **Fresh no-tools CLI smoke** — a temporary Polytoken config directory (never the user's own)
-   whose single provider points at the gateway with an `anthropic`-catalog kind, one
-   `claude-haiku-4-5` model entry with `tool_loading: no_tools`, and a temporary facet with no
-   tools/hooks/MCP/subagents. Validate with `polytoken --config-dir <dir> config validate` and
-   `polytoken --config-dir <dir> models` (the model must show `tool_loading: no_tools`) before
-   any call. Then run `polytoken --config-dir <dir> exec --model <that model> --max-tool-turns 0
-   "Reply with the fixed marker"`. Require the gateway to forward it, the proxy to log
-   `adapter=polytoken … tools=0` (native header detection and response transport), and the
-   fixed marker back. A gateway budget refusal must end the run — expect Polytoken's provider
-   retry loop to consume extra budget units before the refusal lands, so the cap must leave
-   headroom (or accept, and report, the overshoot honestly; this exercise consumed 14 against
-   the 12 cap).
+Captured from 0.8.6: `user-agent: Polytoken v0.8.6`, `x-polytoken-session`,
+`accept: text/event-stream`.
 
-Cache measurement has external variability: an inconclusive cache result is reported as an
-unresolved live finding, never converted into an acceptance pass, and never broadened to a
-different model.
+### Live client-owned tool loop
 
-Restore: revert the compose `image:` line to the recorded original tag (verify the file hash
-matches the recorded baseline), restart the deployment lifecycle, then verify health, the
-original image ID, the loopback binding and the config mount match the recorded baseline.
-Delete any test-only feature overrides from `sdk-features.json` (restore the backup). The
-candidate image stays on disk for an explicit later rollout; this procedure performs no
-permanent rollout.
+Costs tokens. Uses a disposable Meridian on an isolated port and a temporary
+Polytoken config directory — never the operator's own config.
+
+```bash
+BASE=/tmp/e2e-polytoken; rm -rf $BASE; mkdir -p $BASE/cfg $BASE/proj
+printf 'alpha\nbeta\ngamma\ndelta\n' > $BASE/proj/notes.txt
+cat > $BASE/cfg/config.yaml <<'YAML'
+version: 1
+providers:
+  meridian:
+    kind:
+      type: custom_anthropic_compatible
+    url: http://127.0.0.1:3468
+    protocol: anthropic_messages
+    auth:
+      type: static_key
+      key: local-fixture-key
+      format: anthropic_x_api_key
+models:
+  claude-haiku-4-5:
+    provider: meridian
+    provider_name: claude-haiku-4-5
+    class: full
+    context_window: 200000
+YAML
+
+MERIDIAN_PORT=3468 MERIDIAN_SESSION_STORE_DIR=$BASE/store bun bin/cli.ts > $BASE/proxy.log 2>&1 &
+
+polytoken --config-dir $BASE/cfg config validate            # exit 0
+polytoken --config-dir $BASE/cfg models                     # lists claude-haiku-4-5
+cd $BASE/proj && polytoken --config-dir $BASE/cfg --working-dir $BASE/proj \
+  exec --model claude-haiku-4-5 \
+  'Read the file notes.txt in the current directory using your read tool, then reply with exactly: LINES=<number of lines>'
+```
+
+**Pass criteria:**
+
+- The answer is `LINES=4`. The read executed on the Polytoken side; Meridian's
+  own working directory does not contain the fixture, so a proxy-executed read
+  could not produce it.
+- Every proxy line shows `adapter=polytoken`, with client tools forwarded
+  (`tools=N`, N>0).
+- `lineage=new` on the first turn and `lineage=continuation` on each later turn
+  of the same `x-polytoken-session`. The SDK session id differs per turn: the
+  per-turn managed fork is the durable publication design, and lineage
+  continuation is the resume proof.
+- More than one client request reaches the proxy for a single `exec`. One
+  request would mean Meridian ran the loop itself.
+
+**Mandatory-passthrough control.** Restart the proxy with `MERIDIAN_PASSTHROUGH=0`
+and repeat. The result must be identical: Polytoken owns tool execution, so
+neither the global setting nor a configured instance may hand the loop to the
+SDK.
+
+**Detection controls**, cheap and worth running with the loop:
+
+```bash
+# rejected -> adapter=opencode
+curl -s -XPOST localhost:3468/v1/messages -H 'content-type: application/json' \
+  -H 'user-agent: PolytokenImpostor/1.0' -d '{...}'
+# blank header is not a match -> adapter=opencode
+curl ... -H 'x-polytoken-session:   '
+# valid header, or the Polytoken UA alone -> adapter=polytoken
+```
+
+**Verified:** 2026-09-10 against Polytoken 0.8.6 (macos-arm64, sha256
+`71353a6d…0793e7`) and real Claude Max on `claude-haiku-4-5`. The tool loop
+returned `LINES=4` in four client round-trips with `adapter=polytoken` and
+`lineage=continuation` from turn 2, unchanged with `MERIDIAN_PASSTHROUGH=0`. All
+four detection controls behaved as recorded above.

@@ -63,6 +63,19 @@
         "content-type": "application/json",
         "x-opencode-session": "ses_045efb928ffejLOGaHyZy9rPdQ"
       }
+    },
+    {
+      "client": "polytoken",
+      "version": "0.8.6",
+      "capturedAt": "2026-09-10",
+      "expectedAdapter": "polytoken",
+      "headers": {
+        "content-type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-polytoken-session": "<session>",
+        "accept": "text/event-stream",
+        "user-agent": "Polytoken v0.8.6"
+      }
     }
   ]
 }
