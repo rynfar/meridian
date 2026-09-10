@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
+import type { CatalogDraft } from "@opencode-ai/plugin/promise/catalog"
+import type { DeepMutable } from "@opencode-ai/plugin/promise/types"
+import { Model } from "@opencode-ai/schema/model"
+import { Provider } from "@opencode-ai/schema/provider"
+import { VALID_EFFORTS } from "../proxy/effort"
 import {
+  MERIDIAN_V2_EFFORTS,
   applyMeridianModels,
   fetchMeridianModels,
   loadMeridianModels,
@@ -20,12 +26,72 @@ const MERIDIAN_MODELS = {
   ],
 }
 
+/**
+ * Stand-in for V2's catalog draft, built from the SDK's own model factory so the
+ * entries carry the real shape. `model.update` creates a missing entry the way
+ * beta-18866 does, and records what the transform wrote.
+ */
+function makeCatalogDraft(existing: readonly string[]) {
+  const models = new Map<string, DeepMutable<Model.Info>>(
+    existing.map(id => [id, { ...Model.Info.default(Provider.ID.make("meridian"), Model.ID.make(id)), name: `existing ${id}` }]),
+  )
+  const written: DeepMutable<Model.Info>[] = []
+  const catalog: CatalogDraft = {
+    provider: {
+      list: () => [],
+      // applyMeridianModels reads the catalog only through model.update.
+      get: () => undefined,
+      update: () => {},
+      remove: () => {},
+    },
+    model: {
+      get: (_providerID, modelID) => models.get(modelID),
+      update: (providerID, modelID, update) => {
+        const entry = models.get(modelID)
+          ?? { ...Model.Info.default(Provider.ID.make(providerID), Model.ID.make(modelID)) }
+        update(entry)
+        models.set(modelID, entry)
+        written.push(entry)
+      },
+      remove: () => {},
+      default: { get: () => undefined, set: () => {} },
+    },
+  }
+  const wrote = () => written.map(entry => ({
+    modelID: String(entry.id),
+    name: entry.name,
+    context: entry.limit.context,
+    variants: entry.variants.map(variant => ({ id: String(variant.id), body: variant.body })),
+  }))
+  return { catalog, wrote }
+}
+
 describe("Meridian OpenCode V2 model discovery", () => {
+  // The plugin cannot import from src/, so the effort vocabulary is duplicated.
+  // A drift here would advertise a variant the proxy drops, or hide one it takes.
+  test("advertises exactly the effort levels the proxy accepts", () => {
+    expect(MERIDIAN_V2_EFFORTS).toEqual([...VALID_EFFORTS])
+  })
+
   test("preserves a configured base URL path when finding the models endpoint", () => {
     expect(meridianModelsURL("http://127.0.0.1:3456/meridian")).toBe(
       "http://127.0.0.1:3456/meridian/v1/models",
     )
     expect(meridianModelsURL("not a URL")).toBeUndefined()
+  })
+
+  // The V2 Anthropic provider is configured with the API version already in the
+  // base URL, which is what the packaged V2 gate writes. Appending `v1/models`
+  // there asked Meridian for `/v1/v1/models` and got a 404, so discovery never
+  // ran on the documented configuration.
+  test("does not double the version segment of an already-versioned base URL", () => {
+    expect(meridianModelsURL("http://127.0.0.1:3456/v1")).toBe("http://127.0.0.1:3456/v1/models")
+    expect(meridianModelsURL("http://127.0.0.1:3456/v1/")).toBe("http://127.0.0.1:3456/v1/models")
+    expect(meridianModelsURL("http://127.0.0.1:3456")).toBe("http://127.0.0.1:3456/v1/models")
+    // Only an exact trailing `v1` segment counts.
+    expect(meridianModelsURL("http://127.0.0.1:3456/apiv1")).toBe(
+      "http://127.0.0.1:3456/apiv1/v1/models",
+    )
   })
 
   test("accepts only a complete, unique model list", () => {
@@ -94,33 +160,34 @@ describe("Meridian OpenCode V2 model discovery", () => {
     expect(discovered).toEqual([{ providerID: "meridian", models: parseMeridianModels(MERIDIAN_MODELS) ?? [] }])
   })
 
-  test("adds discovered models but preserves exact user-defined overrides", () => {
-    const updates: Array<{ providerID: string; modelID: string; name: string; context: number; variants: string[] }> = []
-    const catalog = {
-      provider: {
-        get: () => ({
-          provider: { settings: {} },
-          models: new Map([["claude-haiku-4-5", { name: "Fast alias" }]]),
-        }),
-      },
-      model: {
-        update: (providerID: string, modelID: string, update: (model: { name: string; limit: { context: number } }) => void) => {
-          const model = { name: modelID, limit: { context: 200_000 }, variants: [] as Array<{ id: string }> }
-          update(model)
-          updates.push({ providerID, modelID, name: model.name, context: model.limit.context, variants: model.variants.map(variant => variant.id) })
-        },
-      },
-    }
+  // OpenCode's built-in models.dev catalog already carries every model Meridian
+  // advertises, so skipping known ids applied nothing at all on the documented
+  // provider. It also disagrees with the proxy: beta-18866 lists a 1M Sonnet
+  // while Meridian pins Sonnet to 200k. Existing entries must be corrected.
+  test("corrects catalog entries that already exist for models Meridian serves", () => {
+    const { catalog, wrote } = makeCatalogDraft(["claude-haiku-4-5"])
 
     applyMeridianModels(catalog, "meridian", parseMeridianModels(MERIDIAN_MODELS) ?? [])
 
-    expect(updates).toEqual([{
-      providerID: "meridian",
-      modelID: "claude-fable-5",
-      name: "Claude Fable 5",
-      context: 1_000_000,
-      variants: ["low", "high"],
-    }])
+    // Both models are written, including the one the catalog already had, and
+    // the effort level lands in the request body the proxy reads.
+    expect(wrote()).toEqual([
+      {
+        modelID: "claude-fable-5",
+        name: "Claude Fable 5",
+        context: 1_000_000,
+        variants: [
+          { id: "low", body: { effort: "low" } },
+          { id: "high", body: { effort: "high" } },
+        ],
+      },
+      {
+        modelID: "claude-haiku-4-5",
+        name: "Claude Haiku 4.5",
+        context: 200_000,
+        variants: [],
+      },
+    ])
   })
 
   test("supports the legacy local Anthropic provider without fetching a direct Anthropic endpoint", async () => {

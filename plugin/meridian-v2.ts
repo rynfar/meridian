@@ -16,6 +16,8 @@
  */
 
 import * as Plugin from "@opencode-ai/plugin/promise/plugin"
+import { Model } from "@opencode-ai/schema/model"
+import type { CatalogDraft } from "@opencode-ai/plugin/promise/catalog"
 import {
   PRIORITY_ATTESTATION_HEADER,
   createPriorityAttestation,
@@ -34,7 +36,13 @@ const PARENT_SESSION_ONE_SHOTS = new Set(["title", "summary"])
 const ATTACHED_COMPACTION_AGENT = "compaction"
 const MODEL_DISCOVERY_TIMEOUT_MS = 3_000
 const PROVIDER_READY_POLL_MS = 25
+// The plugin tree does not import from src/, so this mirrors VALID_EFFORTS in
+// src/proxy/effort.ts. A test asserts the two stay identical. Filtering in this
+// order also gives every model its variants low -> max regardless of the order
+// the proxy happens to serialise its capability object in.
 const MERIDIAN_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
+
+export const MERIDIAN_V2_EFFORTS: readonly string[] = MERIDIAN_EFFORTS
 
 const SESSION_AFFINITY_HEADERS = [
   "x-opencode-session",
@@ -154,18 +162,6 @@ type MeridianCatalogClient = {
   reload(): Promise<void>
 }
 
-type MeridianCatalogDraft = {
-  provider: {
-    get(providerID: string): { models: ReadonlyMap<string, unknown> } | undefined
-  }
-  model: {
-    update(providerID: string, modelID: string, update: (model: {
-      name: string
-      limit: { context: number }
-    }) => void): void
-  }
-}
-
 type ModelFetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
 export function meridianModelsURL(baseURL: unknown): string | undefined {
@@ -176,7 +172,13 @@ export function meridianModelsURL(baseURL: unknown): string | undefined {
     url.search = ""
     url.hash = ""
     if (!url.pathname.endsWith("/")) url.pathname += "/"
-    return new URL("v1/models", url).toString()
+    // OpenCode's Anthropic provider carries the API version in the base URL
+    // (`http://127.0.0.1:3456/v1`), which is also the shape the V2 package gate
+    // configures. Appending `v1/models` there requests `/v1/v1/models`, a 404
+    // that silently disables discovery, so resolve `models` against an existing
+    // version segment instead.
+    const endpoint = /(?:^|\/)v1\/$/.test(url.pathname) ? "models" : "v1/models"
+    return new URL(endpoint, url).toString()
   } catch {
     return undefined
   }
@@ -289,23 +291,31 @@ export async function loadMeridianModels(
   return []
 }
 
+/**
+ * Write Meridian's advertised models over the assembled V2 catalog.
+ *
+ * Meridian is authoritative for what it will actually serve: the context window
+ * follows the signed-in subscription (Sonnet stays 200k so a 1M turn is not
+ * billed as Extra Usage), and the effort levels are the ones the proxy accepts.
+ * OpenCode's built-in models.dev entries disagree — beta-18866 advertises a 1M
+ * Sonnet — so an entry that already exists must be corrected, not skipped.
+ *
+ * This does not overwrite user configuration. V2 layers `providers.<id>.models`
+ * on top of plugin transforms, verified live on beta-18866: a configured
+ * `claude-opus-5` override survived a transform that wrote a different name and
+ * context to the same model.
+ */
 export function applyMeridianModels(
-  catalog: MeridianCatalogDraft,
+  catalog: CatalogDraft,
   providerID: string,
   models: readonly MeridianModel[],
 ): void {
-  const configuredModels = catalog.provider.get(providerID)?.models
   for (const model of models) {
-    // An existing model is user-owned configuration, including aliases and overrides.
-    if (configuredModels?.has(model.id)) continue
     catalog.model.update(providerID, model.id, (entry) => {
       entry.name = model.name
       entry.limit.context = model.contextWindow
-      const variants = entry as unknown as {
-        variants: Array<{ id: string; headers: Record<string, string>; body: Record<string, string> }>
-      }
-      variants.variants = model.efforts.map((effort) => ({
-        id: effort,
+      entry.variants = model.efforts.map((effort) => ({
+        id: Model.VariantID.make(effort),
         headers: {},
         body: { effort },
       }))
