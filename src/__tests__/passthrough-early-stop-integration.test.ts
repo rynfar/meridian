@@ -199,6 +199,7 @@ describe("Integration: passthrough early stop", () => {
   let app: any
   let savedPassthrough: string | undefined
   let savedEarlyStop: string | undefined
+  let savedUncapturedRecovery: string | undefined
 
   beforeAll(() => {
     setSessionStoreDir(TEST_SESSION_DIR)
@@ -236,6 +237,8 @@ describe("Integration: passthrough early stop", () => {
     else delete process.env.MERIDIAN_PASSTHROUGH
     if (savedEarlyStop !== undefined) process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = savedEarlyStop
     else delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    if (savedUncapturedRecovery !== undefined) process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = savedUncapturedRecovery
+    else delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
   })
 
   it("replays and replaces a legacy user-denial boundary without a false conflict", async () => {
@@ -2310,6 +2313,14 @@ describe("Integration: passthrough early stop", () => {
   // forwarded (forced-single overflow, duplicate abort, early-stop reversion).
   // Ending that with `max_tokens` would leave a call the client is told
   // neither to run nor to drop, so it stays on the error path.
+  //
+  // Observed exception (2026-09-10, 0a95wd-tusk): an external abort landing
+  // between stream completion and tool dispatch makes the CLI yield
+  // `max_turns_reached` WITHOUT running the hook — captures are empty though
+  // every streamed block is complete and the call belongs to a declared
+  // client tool. With MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY=1 that
+  // shape recovers as a normal tool-use handoff; the flag defaults OFF, so
+  // the default behavior below is unchanged.
   it("stream: a capped turn with an uncaptured streamed tool call still reports the failure", async () => {
     mockMessages = [
       messageStart("msg_capped_dangling"),
@@ -2329,6 +2340,72 @@ describe("Integration: passthrough early stop", () => {
     }, "es-capped-dangling")
     expect(res.status).toBe(200)
     const body = await res.text()
+    expect(body).toContain("event: error")
+  })
+
+  it("stream: uncaptured streamed tool call recovers as tool_use when the flag is on", async () => {
+    savedUncapturedRecovery = process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = "1"
+    mockMessages = [
+      messageStart("msg_capped_uncaptured"),
+      toolUseBlockStart(0, "read", "toolu_uncaptured_recovered"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "call read" }],
+    }, "es-capped-uncaptured-recovered")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    // No error frame: the failure became a clean handoff.
+    expect(body).not.toContain("event: error")
+    const events = parseSSE(body)
+    // The original streamed call appears exactly once, complete.
+    const toolStarts = events.filter(e =>
+      e.event === "content_block_start" && (e.data as any).content_block?.type === "tool_use")
+    expect(toolStarts).toHaveLength(1)
+    const toolStart = (toolStarts[0]!.data as any).content_block
+    expect(toolStart.name).toBe("read")
+    expect(toolStart.id).toBe("toolu_uncaptured_recovered")
+    // Terminal pair authorizes the client to run the call.
+    const terminalDelta = events.filter(e => e.event === "message_delta")
+    expect(terminalDelta).toHaveLength(1)
+    expect((terminalDelta[0]!.data as any).delta?.stop_reason).toBe("tool_use")
+    const stops = events.filter(e => e.event === "message_stop")
+    expect(stops).toHaveLength(1)
+    // Envelope stays balanced: one message_start, closed with message_stop.
+    expect(events.filter(e => e.event === "message_start")).toHaveLength(1)
+  })
+
+  it("stream: uncaptured recovery is refused when the block never completed", async () => {
+    savedUncapturedRecovery = process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = "1"
+    mockMessages = [
+      messageStart("msg_capped_partial"),
+      toolUseBlockStart(0, "read", "toolu_partial"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      // No blockStop — the tool arguments never completed.
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "call read" }],
+    }, "es-capped-uncaptured-partial")
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    // Incomplete arguments stay on the error path even with the flag on.
     expect(body).toContain("event: error")
   })
 

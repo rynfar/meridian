@@ -56,7 +56,7 @@ import { LRUMap } from "../utils/lruMap"
 
 import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, renderPrometheusMetrics } from "../telemetry"
 import type { RequestMetric } from "../telemetry"
-import { canRecoverCapturedToolUses, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
+import { canRecoverCapturedToolUses, canRecoverUncapturedToolUses, isStreamedToolBlockComplete, type StreamedToolBlockRecord, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, getAuthRenewalStatus, resolveRenewalWarnDays, type CredentialStore } from "./tokenRefresh"
 import {
   createFileDesignTokenStore,
@@ -4401,6 +4401,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             let nextPassthroughToolCallAssistantUuid: string | undefined
             let nextPassthroughToolCallIds: string[] | undefined
             let sawCanonicalResult = false
+            // Uncaptured-tool recovery (the 0a95wd-tusk incident shape): a
+            // capped turn whose tool_use blocks fully streamed but were never
+            // captured or dispatched because an abort landed between stream
+            // completion and hook dispatch. Opt-IN while the authorization
+            // boundary is validated (MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY=1).
+            // The tracker below is likewise flag-gated: with the recovery off,
+            // no per-block records are kept and diagnostics continue to show
+            // tools=0/N on the error path as before.
+            const uncapturedToolRecoveryEnabled =
+              env("PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY") === "1"
+            // Per-client-index completeness record for every forwarded tool_use
+            // block. Populated only on real wire forwarding — synthetic
+            // flushOpenClientBlocks closures never mark naturalStop.
+            const streamedToolBlockRecords = new Map<number, StreamedToolBlockRecord>()
             // Silent-turn recovery state (see turnOutcome.ts). Kill switch:
             // MERIDIAN_SILENT_TURN_RECOVERY=0 leaves the detection and the
             // telemetry in place and skips only the extra model turn — so an
@@ -5155,6 +5169,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (eventType === "content_block_stop") {
                         flushToolArguments(clientIdx)
                         passthroughToolBlockNames.delete(eventIndex)
+                        // Buffered repair path: the block really stopped.
+                        const record = streamedToolBlockRecords.get(clientIdx)
+                        if (record) record.naturalStop = true
                       }
                     }
 
@@ -5201,6 +5218,40 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     } else if (eventType === "content_block_stop") {
                       const idx = (event as any).index
                       if (typeof idx === "number") openClientBlocks.delete(idx)
+                    }
+
+                    // Uncaptured-recovery completeness tracker: record what the
+                    // client actually received for each forwarded tool_use block,
+                    // AFTER the SDK→client index remap. A block counts as
+                    // complete only when its content_block_stop was really
+                    // enqueued (synthetic flushOpenClientBlocks closures never
+                    // count) and its accumulated JSON parses as an object.
+                    if (passthrough && uncapturedToolRecoveryEnabled) {
+                      const clientIdx = eventIndex !== undefined ? sdkToClientIndex.get(eventIndex) ?? eventIndex : undefined
+                      if (clientIdx !== undefined) {
+                        if (eventType === "content_block_start") {
+                          const block = (event as any).content_block
+                          if (block?.type === "tool_use" && typeof block?.id === "string" && block.id) {
+                            streamedToolBlockRecords.set(clientIdx, {
+                              id: block.id,
+                              name: block.name,
+                              json: "",
+                              startedInputObject: block.input !== undefined && block.input !== null,
+                              forwardedStart: true,
+                              naturalStop: false,
+                            })
+                          }
+                        } else if (eventType === "content_block_delta") {
+                          const delta = (event as any).delta
+                          const record = streamedToolBlockRecords.get(clientIdx)
+                          if (record && delta?.type === "input_json_delta" && typeof delta.partial_json === "string") {
+                            record.json += delta.partial_json
+                          }
+                        } else if (eventType === "content_block_stop") {
+                          const record = streamedToolBlockRecords.get(clientIdx)
+                          if (record) record.naturalStop = true
+                        }
+                      }
                     }
 
                     // NOTE: agent-specific (passthrough mode) — close the client stream
@@ -6172,27 +6223,66 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 abortIsOurs: sawDuplicateToolUse,
               }) && messageStartEmitted
 
+              // Uncaptured-streamed recovery (opt-in): the abort-window shape
+              // where every tool_use block fully streamed but the hook never
+              // ran. All the caller-side gates live here: attempted cap, no
+              // drop/duplicate/forced-single/early-stop state, no cancellation
+              // of any kind, open envelope, and every streamed block complete
+              // with a declared client tool name. An aborted request must
+              // never be salvaged into a success — `abort=none` is required.
+              const uncapturedEligible = (() => {
+                if (!canRecoverUncapturedToolUses({
+                  reason: sdkTerm.reason,
+                  passthrough,
+                  capturedToolUses: capturedToolUses.length,
+                  streamedToolUses: streamedToolUseIds.size,
+                  droppedToolUseIds: droppedToolUseIds.size,
+                  sawDuplicateToolUse,
+                  forceSingleToolUse,
+                  earlyStopFired,
+                  uncapturedRecoveryEnabled: uncapturedToolRecoveryEnabled,
+                  attemptedMaxTurns: lastAttemptMaxTurns,
+                })) return false
+                if (!messageStartEmitted || streamClosed || pendingTerminalDelta) return false
+                if (durableWritesRevoked) return false
+                if (requestAbort.abortSnapshot().aborted) return false
+                // Every streamed block must be complete AND name a declared
+                // client tool (after alias resolution — records store the
+                // resolved name already).
+                for (const record of streamedToolBlockRecords.values()) {
+                  if (!isStreamedToolBlockComplete(record)) return false
+                  const declared = requestTools.some((t: { name: string }) => t.name === record.name)
+                  if (!declared) return false
+                }
+                // The tracker must cover every streamed id; a divergence
+                // (e.g. a block the buffered path skipped tracking) is a veto.
+                if (streamedToolBlockRecords.size !== streamedToolUseIds.size) return false
+                return true
+              })()
+              const uncapturedRecoveryActive = uncapturedEligible
+
               // A turn-cap stop is the one drain failure whose checkpoint is
-              // safe to keep, and the reason is specific: the SDK can only
-              // report `max_turns` from a `result` message it has already
-              // enqueued, and it awaits its transcript flush on `result`
-              // (Query.readMessages in the bundled agent SDK builds the error
-              // text from lastErrorResultText, which only a delivered result
-              // populates). So the transcript is committed by the time we see
-              // this — categorically unlike the abort-shaped failure that
-              // motivated the eviction, where a SIGTERM'd subprocess emits no
-              // result at all. That is the invariant passthroughEarlyStop.ts
-              // requires before a resumeSessionAt UUID may be published.
+              // safe to keep — but only for the CAPTURED path, and the reason
+              // is specific: the SDK can only report `max_turns` from a
+              // `result` message it has already enqueued, and it awaits its
+              // transcript flush on `result` (Query.readMessages in the
+              // bundled agent SDK builds the error text from
+              // lastErrorResultText, which only a delivered result
+              // populates). So in the captured case the transcript is
+              // committed by the time we see this.
               //
-              // Which also means `sawCanonicalResult` is already true here, so
-              // the eviction below would not have fired on this path anyway;
-              // naming the case in the guard is belt-and-braces, and the
-              // load-bearing half is the storeSession further down.
+              // That inference does NOT extend to the uncaptured shape:
+              // the CLI's abort path yields the same `max_turns_reached`
+              // attachment without running the hook or committing a
+              // transcript (verified 2026-09-10, sessions 46466398/ee5c8ac9
+              // never wrote one). Uncaptured recovery therefore always
+              // evicts; it never publishes a resumeSessionAt checkpoint.
               //
-              // Keeping it lets the next request rewind to the tool-use
-              // boundary and append the client's real tool_result, instead of
-              // replaying the conversation against a cold cache. Other drain
-              // failures remain unsafe and are evicted.
+              // Keeping the captured checkpoint lets the next request rewind
+              // to the tool-use boundary and append the client's real
+              // tool_result, instead of replaying the conversation against a
+              // cold cache. Other drain failures remain unsafe and are
+              // evicted.
               const recoverableCheckpoint =
                 canRecoverAsToolUse &&
                 sdkTerm.reason === "max_turns" &&
@@ -6204,7 +6294,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 !sawDuplicateToolUse
 
               const mustEvictBeforeRecoveredTerminal =
-                !isIndependentSession && canRecoverAsToolUse && !recoverableCheckpoint
+                (!isIndependentSession && canRecoverAsToolUse && !recoverableCheckpoint) ||
+                // Uncaptured recovery never has a tool-boundary UUID to pin
+                // (the hook never ran), so the checkpoint is always false and
+                // the durable mapping must be invalidated before the terminal
+                // authorizes tool execution.
+                (!isIndependentSession && uncapturedRecoveryActive && !recoverableCheckpoint)
               if (
                 mustEvictBeforeRecoveredTerminal ||
                 (
@@ -6229,7 +6324,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 claudeLog("passthrough.noncanonical_session_evicted", { mode: "stream", reason: "drain_error" })
               }
 
-              if (canRecoverAsToolUse) {
+              if (canRecoverAsToolUse || uncapturedRecoveryActive) {
                 // A recovered stall delivered the client its tool calls, so the
                 // session is making progress and its streak starts over. Without
                 // this the counter climbs through stalls that were absorbed, and
@@ -6239,14 +6334,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                 // Log the recovery at session level (not error) — it's a
                 // notable flow control event but not a failure for the client.
                 diagnosticLog.session(
-                  `${requestMeta.requestId} sdk_termination_recovered ${formatSdkTermination(sdkTerm, {
+                  `${requestMeta.requestId} sdk_termination_recovered${uncapturedRecoveryActive ? "_uncaptured" : ""} ${formatSdkTermination(sdkTerm, {
                     model,
                     requestSource,
                     isResume,
                     hasDeferredTools,
                     sdkSessionId: currentSessionId || resumeSessionId,
                     abort: requestAbort.abortSnapshot(),
-                  })} captured=${capturedToolUses.length}`,
+                  })} captured=${capturedToolUses.length}${uncapturedRecoveryActive ? ` completed=${streamedToolBlockRecords.size}` : ""}`,
                   requestMeta.requestId,
                 )
 

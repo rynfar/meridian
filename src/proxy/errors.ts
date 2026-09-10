@@ -718,6 +718,91 @@ export function canRecoverCapturedToolUses(input: {
   }
 }
 
+/**
+ * Per-block completeness record for a tool_use the client received on the
+ * wire (uncaptured-recovery tracker). Populated only by real forwarding;
+ * `naturalStop` is set exclusively when the block's own content_block_stop
+ * was enqueued — a synthetic flush closure never counts, because a dangling
+ * block's arguments may be incomplete.
+ */
+export interface StreamedToolBlockRecord {
+  id: string
+  name: string
+  /** Accumulated input_json_delta partials (plus any inline start input). */
+  json: string
+  /** True when the block carried an inline input object at start (no deltas). */
+  startedInputObject: boolean
+  forwardedStart: boolean
+  naturalStop: boolean
+}
+
+/**
+ * Is a streamed-but-uncaptured tool call complete and executable?
+ * Pure function — no I/O.
+ */
+export function isStreamedToolBlockComplete(
+  record: StreamedToolBlockRecord,
+): boolean {
+  if (!record.forwardedStart) return false
+  if (!record.naturalStop) return false
+  if (record.startedInputObject) return true
+  // Zero-argument calls stream as `{}` deltas; anything must parse as an
+  // object. A truncated JSON string is not executable.
+  if (!record.json.trim()) return false
+  try {
+    const parsed = JSON.parse(record.json)
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Can a failed passthrough turn whose tool_use blocks fully streamed but
+ * were NEVER captured by the PreToolUse hook still be delivered as a
+ * tool-use response?
+ *
+ * This is the 2026-09-10 0a95wd-tusk incident shape: an abort landing
+ * between stream completion and tool dispatch makes the CLI yield
+ * `max_turns_reached` WITHOUT running the hook, so captures are empty even
+ * though every streamed block is complete and names a declared client tool.
+ * This is a materially different trust basis from
+ * `canRecoverCapturedToolUses` (which requires the hook to have seen the
+ * calls) and is therefore a separate predicate, not a relaxed count.
+ *
+ * Callers must further verify: the attempted maxTurns was 1, the kill switch
+ * is enabled, no cancellation of any kind fired, no forced-single/duplicate/
+ * early-stop state exists, and the envelope is still open. Every streamed
+ * block must pass `isStreamedToolBlockComplete`.
+ */
+export function canRecoverUncapturedToolUses(input: {
+  reason: SdkTermination["reason"]
+  passthrough: boolean
+  capturedToolUses: number
+  streamedToolUses: number
+  droppedToolUseIds: number
+  sawDuplicateToolUse: boolean
+  forceSingleToolUse: boolean
+  earlyStopFired: boolean
+  uncapturedRecoveryEnabled: boolean
+  attemptedMaxTurns: number | undefined
+}): boolean {
+  if (!input.uncapturedRecoveryEnabled) return false
+  if (!input.passthrough) return false
+  if (input.reason !== "max_turns") return false
+  // Only a turn this proxy capped at 1 qualifies; an uncapped budget that
+  // ran out is a different failure, and a cap-lifted reissue is already a
+  // second attempt at recovery.
+  if (input.attemptedMaxTurns !== 1) return false
+  if (input.capturedToolUses > 0) return false
+  if (input.streamedToolUses <= 0) return false
+  if (input.droppedToolUseIds > 0) return false
+  if (input.sawDuplicateToolUse) return false
+  if (input.forceSingleToolUse) return false
+  if (input.earlyStopFired) return false
+  return true
+}
+
 export function extractSdkTermination(errMsg: string): SdkTermination {
   const stderrTail = extractStderrTail(errMsg)
 
