@@ -454,12 +454,10 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
     }
   }
 
-  // The proxy's own session-bookkeeping locks and limits. These arrive with
-  // "timed out" in the text, so the generic timeout branch below would call
-  // them a request timeout and send the operator to shrink a context that has
-  // nothing to do with it. 503 overloaded names the real cause: proxy load.
-  // The raw message stays out of the body — it names absolute host paths,
-  // which are not the client's business; the diagnostic log keeps them.
+  // The proxy's own bookkeeping locks and limits. They carry "timed out", so
+  // the generic timeout branch below would answer them as a request timeout and
+  // send the operator to shrink a context that has nothing to do with it. The
+  // raw text names absolute host paths, so only the reason reaches the client.
   if (
     (lower.includes("timed out waiting for") && lower.includes(".lock"))
     || lower.includes("ownership backlog is full")

@@ -967,53 +967,48 @@ interface StoreDocumentCache {
   document: SessionStoreDocument
 }
 
-// Meridian usually runs one proxy per store, so nearly every read sees a file
-// this process wrote itself, and a foreign writer always publishes through
-// renameSync — a new inode — so identity-keyed caching is exact. It takes the
-// synchronous full-file parse (well over a hundred milliseconds on a
-// long-lived store) off every lookup, including out from under the session
-// lifecycle lock. Callers must treat the returned
-// document and its sessions as immutable; mutation goes through mutateStore.
+// Takes the synchronous full-file parse — well over a hundred milliseconds on a
+// long-lived store — off every lookup and out from under the session lifecycle
+// lock. Identity keying is exact because every writer, this process or a
+// foreign one, publishes through renameSync and therefore a new inode.
+// Callers must treat the document and its sessions as immutable; mutation goes
+// through mutateStore.
 let storeDocumentCache: StoreDocumentCache | undefined
 
 function readStoreDocumentCached(path: string): SessionStoreDocument {
-  let info: ReturnType<typeof statSync>
+  let fd: number | undefined
   try {
-    info = statSync(path)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      storeDocumentCache = undefined
-      return emptyStoreDocument()
+    const info = statSync(path)
+    const cached = storeDocumentCache
+    if (cached?.path === path && cached.ino === info.ino && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+      return cached.document
     }
-    throw error
-  }
-  const cached = storeDocumentCache
-  if (cached?.path === path && cached.ino === info.ino && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
-    return cached.document
-  }
-  // Read from the same inode the identity was taken from: if another process
-  // renames a new file into place between stat and read, this parses exactly
-  // the file the identity names or throws — never mixes identity and content
-  // of two different files. A deletion landing in that same window is the one
-  // ENOENT the strict read treats as an empty store; match it here instead of
-  // surfacing a transient read error to the caller.
-  let fd: number
-  try {
+    // Identity is re-taken from the same fd the content is read from, so a
+    // rename landing between stat and read can never pair one file's identity
+    // with another file's bytes.
     fd = openSync(path, "r")
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      storeDocumentCache = undefined
-      return emptyStoreDocument()
-    }
-    throw error
-  }
-  try {
     const identity = fstatSync(fd)
     const document = parseStoreDocument(readFileSync(fd, "utf8"))
     storeDocumentCache = { path, ino: identity.ino, mtimeMs: identity.mtimeMs, size: identity.size, document }
     return document
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    storeDocumentCache = undefined
+    return emptyStoreDocument()
   } finally {
-    closeSync(fd)
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+/** Publish a just-written document under the identity of the file it landed in.
+ *  A failure to read that identity only costs the next reader a re-parse, so it
+ *  must never turn a committed write into a thrown mutation. */
+function publishStoreCache(path: string, document: SessionStoreDocument): void {
+  try {
+    const info = statSync(path)
+    storeDocumentCache = { path, ino: info.ino, mtimeMs: info.mtimeMs, size: info.size, document }
+  } catch {
+    storeDocumentCache = undefined
   }
 }
 
@@ -1028,8 +1023,7 @@ function readStoreDocumentStrict(path: string): SessionStoreDocument {
   return parseStoreDocument(data)
 }
 
-/** Parse and validate raw store bytes. Shared by the strict read and the
- *  cached read so validation exists in exactly one place. */
+/** Parse and validate raw store bytes, for both the strict and the cached read. */
 function parseStoreDocument(data: string): SessionStoreDocument {
   const parsed: unknown = JSON.parse(data)
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -1120,8 +1114,8 @@ function writeStore(path: string, document: SessionStoreDocument): void {
     fd = openSync(tmp, "wx", 0o600)
     fchmodSync(fd, 0o600)
     const serialized = { [STORE_META_KEY]: document.meta, ...document.sessions }
-    // Compact JSON on purpose: machine-read only, and indentation costs ~20%
-    // of the bytes and of the stringify CPU on a large store.
+    // Compact on purpose: machine-read only, and indentation costs ~20% of the
+    // bytes and of the stringify CPU on a large store.
     writeFileSync(fd, JSON.stringify(serialized), "utf8")
     fsyncSync(fd)
     closeSync(fd)
@@ -1154,11 +1148,7 @@ function mutateStore(mutator: (document: SessionStoreDocument) => boolean): void
     const document = readStoreDocumentStrict(path)
     if (mutator(document)) {
       writeStore(path, document)
-      // writeStore renamed the mutated document into place: publish it under
-      // the new inode's identity so the next cached read serves exactly these
-      // bytes. A mutator returning false leaves the cache untouched.
-      const info = statSync(path)
-      storeDocumentCache = { path, ino: info.ino, mtimeMs: info.mtimeMs, size: info.size, document }
+      publishStoreCache(path, document)
     }
   } finally {
     releaseLock(lock)
@@ -1353,10 +1343,8 @@ export function storeSharedSession(
         ? existing?.passthroughToolCallIds
         : passthroughToolCallIds ?? undefined,
       contextUsage: contextUsage ?? existing?.contextUsage,
-      // Never alias caller-owned locators into the document: the document is
-      // republished as the read cache, and an aliased object lets a later
-      // caller-side mutation (or a lifecycle fill-back) diverge the cache
-      // from the file. Shallow copy — a locator is flat.
+      // Copy, never alias: the document is republished as the read cache, so a
+      // later mutation of the caller's locator would diverge it from the file.
       ...(resolvedCurrentTranscript ? { currentTranscript: { ...resolvedCurrentTranscript } } : {}),
       ...(previousTranscript ? { previousTranscript: { ...previousTranscript } } : {}),
       ...(previousClaudeSessionId ? { previousClaudeSessionId } : {}),
@@ -1975,8 +1963,7 @@ export function attachSharedTranscriptLocator(
     if (!existing || existing.claudeSessionId !== expectedClaudeSessionId) return false
     if (expectedGeneration !== undefined && getStoredSessionGeneration(existing, key) !== expectedGeneration) return false
     if (!sameTranscriptLocator(existing.currentTranscript, locator)) {
-      // Copy, never alias: the caller's locator outlives this mutation, and
-      // the document (republished as the read cache) must not share it.
+      // Copy, never alias — same reason as in storeSharedSession.
       existing.currentTranscript = { ...locator }
       existing.revision = (existing.revision ?? 0) + 1
       existing.generationId = randomUUID()

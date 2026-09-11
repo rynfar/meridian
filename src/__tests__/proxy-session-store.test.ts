@@ -133,10 +133,8 @@ describe("Shared session store", () => {
   })
 
   it("never aliases a caller-owned locator into the cached document", () => {
-    // The read cache serves the document the last write published. If that
-    // document shared a locator object with its caller, any later mutation of
-    // the caller's object (a lifecycle fill-back, a stray assignment) would
-    // silently diverge the cache from the file on disk.
+    // A shared locator object would let a later caller-side mutation diverge the
+    // read cache from the file on disk.
     const callerLocator: { sessionId: string; configDir: string; projectDir?: string } =
       { sessionId: "claude-sess-alias", configDir: "/config" }
     storeSharedSession(

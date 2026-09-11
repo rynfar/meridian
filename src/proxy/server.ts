@@ -678,13 +678,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       0,
       envInt("SESSION_GC_GRACE_MS", SESSION_TURN_MAX_HOLD_MS + 60_000),
     ),
-    // The lock wait is a queue budget on one global lifecycle lock: a deployment
-    // with many concurrent conversations may prefer a slower turn over a failed
-    // one. The default stays what sessionLifecycle ships.
+    // A queue budget on one global lock: a deployment with many concurrent
+    // conversations may prefer a slower turn over a failed one.
     lockWaitMs: Math.max(100, envInt("SESSION_GC_LOCK_WAIT_MS", 2_000)),
-    // Sized by the turn watchdog, like the prepared grace: a lease a request
-    // still holds cannot outlive the watchdog, and one that did is a release
-    // that failed — collect it by age instead of fencing the conversation.
+    // No lease a live request holds can outlive the turn watchdog.
     unarmedLeaseTtlMs: SESSION_TURN_MAX_HOLD_MS + 60_000,
     deletionTimeoutMs: Math.max(1_000, envInt("SESSION_GC_DELETE_TIMEOUT_MS", 30_000)),
     runTimeoutMs: Math.max(1_000, envInt("SESSION_GC_RUN_TIMEOUT_MS", 30_000)),
@@ -2719,10 +2716,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const prepareManagedFork = async (sourceSessionId: string): Promise<void> => {
         if (managedForkTarget) return
         managedFreshTarget = false
-        // A shallow copy, on purpose: this locator is handed to lifecycle calls
-        // that fill the caller's locator back (Object.assign), and the session
-        // store now serves its cached document — mutating the stored object in
-        // place would silently diverge the cache from the file on disk.
+        // Copy: lifecycle calls fill the caller's locator back in place, and the
+        // store now serves a cached document that must not be mutated.
         managedForkSource = cachedSession?.currentTranscript?.sessionId === sourceSessionId
           ? { ...cachedSession.currentTranscript }
           : transcriptLocator(sourceSessionId)
@@ -5609,8 +5604,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     throw new Error("Silent recovery has no durable source mapping")
                   }
                   const storedRecoverySource = lookupSharedSession(lifecycleMappingKey)?.currentTranscript
-                  // Shallow copy for the same reason as the managed fork source:
-                  // the stored locator must not be filled back in place (cache).
+                  // Copy, for the same reason as the managed fork source above.
                   recoveryForkSource = storedRecoverySource
                     ? { ...storedRecoverySource }
                     : transcriptLocator(recoverySourceId)
