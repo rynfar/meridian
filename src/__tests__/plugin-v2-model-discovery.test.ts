@@ -125,7 +125,8 @@ describe("Meridian OpenCode V2 model discovery", () => {
       provider: { get: async () => { throw new Error("provider unavailable") } },
       reload: async () => { throw new Error("must not reload") },
     }
-    expect(await loadMeridianModels(failingCatalog, controller.signal)).toEqual([])
+    expect(await loadMeridianModels(failingCatalog, controller.signal))
+      .toEqual({ configured: [], discovered: [] })
 
     const models = await fetchMeridianModels(
       "http://127.0.0.1:3456",
@@ -157,7 +158,14 @@ describe("Meridian OpenCode V2 model discovery", () => {
 
     expect(meridianLookups).toBeGreaterThan(1)
     expect(urls).toEqual(["http://127.0.0.1:3456/v1/models"])
-    expect(discovered).toEqual([{ providerID: "meridian", models: parseMeridianModels(MERIDIAN_MODELS) ?? [] }])
+    expect(discovered).toEqual({
+      configured: ["meridian"],
+      discovered: [{
+        providerID: "meridian",
+        baseURL: "http://127.0.0.1:3456",
+        models: parseMeridianModels(MERIDIAN_MODELS) ?? [],
+      }],
+    })
   })
 
   // OpenCode's built-in models.dev catalog already carries every model Meridian
@@ -215,9 +223,13 @@ describe("Meridian OpenCode V2 model discovery", () => {
 
     expect(providerLookups.sort()).toEqual(["anthropic", "meridian"])
     expect(urls).toEqual(["http://localhost:3456/v1/models"])
-    expect(discovered).toEqual([{
-      providerID: "anthropic",
-      models: parseMeridianModels(MERIDIAN_MODELS) ?? [],
-    }])
+    expect(discovered).toEqual({
+      configured: ["anthropic"],
+      discovered: [{
+        providerID: "anthropic",
+        baseURL: "http://localhost:3456",
+        models: parseMeridianModels(MERIDIAN_MODELS) ?? [],
+      }],
+    })
   })
 })

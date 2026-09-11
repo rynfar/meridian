@@ -106,14 +106,26 @@ accepts. This corrects OpenCode's built-in models.dev entries, which advertise a
 1M Sonnet that Meridian deliberately serves at 200k. Select an effort with
 `provider/model#variant`, for example `anthropic/claude-opus-5#high`. Discovery
 never blocks startup: if Meridian is unreachable or answers with anything
-unexpected, the catalog is left exactly as OpenCode built it.
+unexpected, and nothing has been discovered before, the catalog is left exactly
+as OpenCode built it.
 
-**Known limitation.** Discovery cannot run until OpenCode has finished
-assembling the catalog, so the very first request against a freshly started
-server still sees the built-in entries. Naming a Meridian-only variant on that
-first request — `anthropic/claude-haiku-4-5#xhigh`, say — fails with
-`provider.no-route`; the next request succeeds. Selecting the model in the TUI is
-unaffected, because the picker renders after discovery has landed.
+Discovery cannot run until OpenCode has finished assembling the catalog, so the
+first request against a freshly started server used to see only the built-in
+entries and reject a Meridian-only variant with `provider.no-route`. The plugin
+now caches each successful discovery in
+`~/.config/meridian/opencode-v2-catalog.json` and seeds the catalog from it
+before the first request, so a cold `anthropic/claude-haiku-4-5#xhigh` works.
+The cache is refreshed by every successful discovery and is ignored after seven
+days.
+
+**What this means if you change the provider.** While a cache is present, a
+freshly started server uses the last catalog Meridian served rather than
+OpenCode's built-in entries — including when Meridian is down. If you repoint
+the provider at something that is not Meridian, discovery notices that no
+Meridian base URL is configured, deletes the cache and rebuilds the catalog
+without it; the run after that is back to OpenCode's own entries. To clear it by
+hand, delete that file. The very first run after a brand-new install has no
+cache yet, so a Meridian-only variant still needs one prior request.
 
 For either generation, the plugin enables:
 

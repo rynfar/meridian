@@ -3822,7 +3822,26 @@ starts: a one-shot client process outruns the catalog reload (#1008).
 
 `--no-discovery` is the negative control. The fixture answers the catalog request
 with 404 and the whole gate must still pass, proving discovery fails closed
-rather than breaking the session.
+rather than breaking the session. With no cache present the catalog is left
+exactly as OpenCode built it.
+
+### Cold start and cache invalidation (#1008)
+
+After the main flow has discovered once, the gate spawns a **fresh
+`--standalone` process** — deliberately not the warm server — and requires
+`anthropic/claude-haiku-4-5#xhigh` to be accepted on its first request with the
+effort reaching the proxy. That only passes if the plugin seeded the catalog
+from `opencode-v2-catalog.json` before the first transform ran. On a pre-fix
+tree it reports `{"errors":["provider.no-route"],"efforts":[]}`.
+
+In non-live mode the gate then repoints the provider at a non-Meridian URL and
+runs cold twice. It requires the cache file to be deleted and the second run to
+reject the variant, which is the self-healing half of invalidation: the seed
+cannot be validated against the provider's URL inside a transform, because a
+draft `Provider.Info` exposes only `id`, `name`, `activation`, `package`,
+`integrationID` and `headers` — no URL at all, verified on beta-18866. The first
+repointed run is recorded but not asserted; whether it still offers the variant
+depends on how far model resolution gets before discovery lands.
 
 ```bash
 E2E_OPENCODE_BIN=/tmp/opencode-18866/node_modules/.bin/opencode2 \

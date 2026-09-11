@@ -2,7 +2,7 @@
 // Actual pinned OpenCode host against a local API, with isolated client state.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -274,6 +274,27 @@ try {
     assert(variantProbe.completed, 'Variant request never completed upstream')
   }
 
+  // #1008: a cold client process must accept a Meridian-only variant on its
+  // FIRST request. That only works if the plugin seeded the catalog from its
+  // cache before the first transform ran, so this deliberately spawns a fresh
+  // `--standalone` process rather than reusing the warm server.
+  let coldStartProbe
+  if (!v1 && discovery) {
+    const coldArgs = [client, 'run', '--standalone', '--format', 'json',
+      '--model', 'anthropic/claude-haiku-4-5#xhigh',
+      'Reply with exactly COLD_OK and nothing else. Do not call tools.']
+    const before = requests.length
+    const output = await run(coldArgs, { allowFailure: true })
+    const events = parse(output)
+    const errors = events.filter(event => event.type === 'error').map(event => event.error?.type ?? 'unknown')
+    const served = requests.slice(before)
+    coldStartProbe = { errors, efforts: served.map(row => row.effort ?? null) }
+    console.log(JSON.stringify({ coldStartProbe }))
+    assert(errors.length === 0, `Cold start rejected the Meridian-only variant: ${JSON.stringify(errors)}`)
+    assert(coldStartProbe.efforts.includes('xhigh'),
+      `Cold start did not send the effort: ${JSON.stringify(coldStartProbe.efforts)}`)
+  }
+
   // Hidden-agent header probing must not switch the primary client's active agent.
   if (!v1) {
     const summary = parse(await run([...base, '--session', session, '--fork', '--agent', 'summary', `Summarize the fixture receipt in one sentence. Probe token: ${summaryMarker}`]))
@@ -373,7 +394,35 @@ try {
       assert(catalogHits.every(row => row.status === 404), 'Negative control served a catalog')
     }
   }
-  console.log(JSON.stringify({ result: 'PASS', version, source, live, extended, discovery, root, session, requests, resumeEvidence, discoveryRequests, variantProbe }))
+
+  // #1008 invalidation. The seed is applied optimistically, because a draft
+  // Provider.Info carries no URL to check it against, so the guarantee is
+  // self-healing rather than prevention: once a cold process sees no
+  // Meridian-shaped provider it drops the cache, and the next one is back to
+  // OpenCode's own catalog. Only those two facts are asserted. The first
+  // repointed run is recorded but not asserted — whether it still offers the
+  // variant depends on how far model resolution gets before discovery lands.
+  // Asserted here, at the end, because it rewrites the client config.
+  let invalidationProbe
+  if (!v1 && discovery && !live) {
+    const cachePath = join(root, 'meridian', 'opencode-v2-catalog.json')
+    assert(existsSync(cachePath), 'Discovery never wrote a catalog cache to seed')
+    const repointed = JSON.parse(readFileSync(path, 'utf8'))
+    repointed.providers = { anthropic: { settings: { apiKey: 'local-fixture-key', baseURL: 'https://meridian-repointed.invalid/v1' } } }
+    writeFileSync(path, JSON.stringify(repointed, null, 2))
+    const variantArgs = ['run', '--standalone', '--format', 'json',
+      '--model', 'anthropic/claude-haiku-4-5#xhigh', 'Reply with exactly REPOINTED and nothing else.']
+    const firstOutput = await run([client, ...variantArgs], { allowFailure: true })
+    const cacheDropped = !existsSync(cachePath)
+    const secondOutput = await run([client, ...variantArgs], { allowFailure: true })
+    const errorsOf = output => parse(output).filter(event => event.type === 'error').map(event => event.error?.type ?? 'unknown')
+    invalidationProbe = { cacheDropped, first: errorsOf(firstOutput), second: errorsOf(secondOutput) }
+    console.log(JSON.stringify({ invalidationProbe }))
+    assert(cacheDropped, 'Repointing the provider away from Meridian left the seed in place')
+    assert(invalidationProbe.second.includes('provider.no-route'),
+      `A repointed provider still offered a Meridian-only variant: ${JSON.stringify(invalidationProbe.second)}`)
+  }
+  console.log(JSON.stringify({ result: 'PASS', version, source, live, extended, discovery, root, session, requests, resumeEvidence, discoveryRequests, variantProbe, coldStartProbe, invalidationProbe }))
 } finally {
   console.log(JSON.stringify({ requestTrace: requests, discoveryTrace: discoveryRequests }))
   if (server) { server.kill(); await server.exited; console.log(JSON.stringify({ serverOutput: await serverOutput })) }

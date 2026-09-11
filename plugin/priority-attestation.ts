@@ -32,8 +32,18 @@ export interface PriorityAttestationSignInput {
   readonly issuedAt: number
 }
 
-function configDirectory(): string {
+/**
+ * Meridian's own configuration directory, as the plugin sees it.
+ *
+ * Exported because the V2 plugin also keeps its catalog cache here: the plugin
+ * tree must not import from src/, so this is the one place the resolution lives.
+ */
+export function meridianConfigDirectory(): string {
   return process.env.MERIDIAN_CONFIG_DIR ?? join(homedir(), ".config", "meridian")
+}
+
+function configDirectory(): string {
+  return meridianConfigDirectory()
 }
 
 export function priorityAttestationKeyPath(): string {
