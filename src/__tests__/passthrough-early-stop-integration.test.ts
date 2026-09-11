@@ -13,7 +13,7 @@ import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { assistantMessage, messageStart, textBlockStart, textDelta, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId } from "./helpers"
+import { assistantMessage, messageStart, textBlockStart, textDelta, toolUseBlockStart, inputJsonDelta, blockStop, messageDelta, messageStop, parseSSE, resolveMockSdkSessionId } from "./helpers"
 
 interface LifecycleResourceSnapshot {
   locator: { sessionId: string }
@@ -2367,17 +2367,21 @@ describe("Integration: passthrough early stop", () => {
     // No error frame: the failure became a clean handoff.
     expect(body).not.toContain("event: error")
     const events = parseSSE(body)
+    const nested = (data: Record<string, unknown>, key: string): Record<string, unknown> => {
+      const value = data[key]
+      return typeof value === "object" && value !== null ? value as Record<string, unknown> : {}
+    }
     // The original streamed call appears exactly once, complete.
     const toolStarts = events.filter(e =>
-      e.event === "content_block_start" && (e.data as any).content_block?.type === "tool_use")
+      e.event === "content_block_start" && nested(e.data, "content_block").type === "tool_use")
     expect(toolStarts).toHaveLength(1)
-    const toolStart = (toolStarts[0]!.data as any).content_block
+    const toolStart = nested(toolStarts[0]!.data, "content_block")
     expect(toolStart.name).toBe("read")
     expect(toolStart.id).toBe("toolu_uncaptured_recovered")
     // Terminal pair authorizes the client to run the call.
     const terminalDelta = events.filter(e => e.event === "message_delta")
     expect(terminalDelta).toHaveLength(1)
-    expect((terminalDelta[0]!.data as any).delta?.stop_reason).toBe("tool_use")
+    expect(nested(terminalDelta[0]!.data, "delta").stop_reason).toBe("tool_use")
     const stops = events.filter(e => e.event === "message_stop")
     expect(stops).toHaveLength(1)
     // Envelope stays balanced: one message_start, closed with message_stop.
