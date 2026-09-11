@@ -1,7 +1,7 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-10, after incorporating contributor PRs #1003, #980 and
-#1005.
+Checkpoint: 2026-09-11, after publishing Meridian 1.70.0, which released the
+three contributor incorporations #1003, #980 and #1005.
 Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
@@ -18,10 +18,12 @@ and [AGENTS.md](../../AGENTS.md). The last delivered item is contributor PR
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
 
-**1.69.0 is published.** The owner authorized it explicitly; PR #970 was merged
-and the publication is verified below. Nothing is in progress and nothing is
-held. A future release still needs its own explicit authorization — this one
-does not carry forward.
+**1.70.0 is published.** The owner authorized it explicitly; PR #1006 was merged
+as `0acf3b19` and the publication is verified below — npm, provenance by
+content, Docker and a registry-install run of the real client flow. Nothing is
+in progress and nothing is held. A future release still needs its own explicit
+authorization — this one does not carry forward. 1.69.0's section has been
+demoted to "Previous checkpoint"; do not republish either.
 
 An earlier version of this block said PR #977 was "green on everything and
 held for owner review". That was already stale when it was written: #977 merged
@@ -47,6 +49,11 @@ The owner asked that anything flagged as a real problem needing a fix becomes a
 GitHub issue, not a line in a PR body or a doc: "i cant keep up with all of
 this." Applied retroactively to the V2 cold-start race as #1008. Observations
 that need no fix stay observations; a "known limitation" note is not a ticket.
+
+Tickets opened under this instruction so far: #1008 (V2 cold-start race),
+#1009 (deferred uncaptured-tool recovery), #1011 (the two held passthrough
+commits on `codex/polytoken-extras`) and #1014 (the E42 gate's exit code and
+its missing discovery coverage, found during 1.70.0 release validation).
 
 ## Delivered: disabled subscription entitlement, contributor PR #1005 as #1012
 
@@ -944,7 +951,104 @@ did not reproduce locally. Run 34315145910 failed
 `Extra usage required fallback > does not use exponential backoff`, also
 unexplained. **Leave #917 and #933 open; #997 does not settle them.**
 
-## Completed checkpoint: Meridian 1.69.0
+## Completed checkpoint: Meridian 1.70.0
+
+[Meridian 1.70.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.70.0)
+shipped through [release PR #1006](https://github.com/rynfar/meridian/pull/1006),
+authorized explicitly by the owner. **Published and installed-package
+validated** — not merely merged. Do not republish it.
+
+| | |
+|---|---|
+| Candidate tree | `c925dbba` (parent `c3dc2279`), all four checks green |
+| Release PR head | `c925dbba`, merged with `--merge --match-head-commit` |
+| Release/tag commit | `0acf3b1906f7b16a9bf507925bf1998b9931cd2f` |
+| npm | `1.70.0`, `latest` → `1.70.0` |
+| Tarball integrity | `sha512-/EqHIcKAv7TvlScooHmGxePSmrOpXehtY8fh433NBBoNh+UKjNtyIfKPxIOo0X+n/zoCf5iGrYUwO3TH5gxQHA==` (shasum `184f4eb5…866f`) |
+| SLSA provenance | `gitCommit: 0acf3b19…`, workflow `.github/workflows/release-please.yml`, subject `pkg:npm/@rynfar/meridian@1.70.0` |
+| Docker | `1.70.0` and `latest`, `linux/amd64` + `linux/arm64` |
+| Post-release workflows on `0acf3b19` | CI, Release Please, Docker, Sync bun.nix — all success |
+
+Provenance was verified by **content, not presence**: the attestation's
+`resolvedDependencies.digest.gitCommit` equals the tag commit.
+
+Changelog, one entry per PR: `feat` Polytoken harness adapter (#1010) and
+OpenCode V2 model discovery (#1004); `fix(errors)` disabled subscription
+entitlement classified as billing (#1012).
+
+**The candidate's own CI had to be approved to run at all.** Release Please
+branches arrive as bot pull requests whose workflows sit at `action_required`.
+For 1.69.0 nobody approved them and all four expired as `failure`; that release
+merged on the strength of CI on `main` instead. This time the four runs on
+`c925dbba` were approved and all four came back green before the merge. **Do
+this every release** — `gh api -X POST repos/rynfar/meridian/actions/runs/<id>/approve`
+for each run on the release head — otherwise the candidate tree is never
+actually built.
+
+**Gates run before the merge, all green.** `npm test` 3880 pass / 1 skip / 0
+fail on bun 1.3.14; typecheck; build; `e2e-client-detection.mjs` with three real
+clients and no fixture drift (opencode 1.18.29, crush 0.87.0, Polytoken 0.8.6);
+`e2e-error-telemetry.mjs` PASS on all four cases with live Claude Max failover;
+`e2e-opencode-package-integrity.mjs` with and without `--manifest`; **E42
+`--live --extended --separate-proxy-cwd` against both pinned betas**
+(`0.0.0-beta-18314` and `0.0.0-beta-18866`), each self-verifying its own version,
+each run against the **packed 1.70.0 consumer** rather than the source tree, both
+reporting 100% cache reuse on ordinary continuation and on process restart.
+
+Note on `npm ci` in this repo: it fails. `bun2nix`'s postinstall runs with its
+own package directory as cwd and cannot find `bun.lock`, so dependencies never
+install and `tsc` is absent. Use `bun install --frozen-lockfile`.
+
+**Installed-package validation** drove the published artifact, not the source
+tree: a clean `npm install @rynfar/meridian@1.70.0`, the installed CLI started
+as a real `node` subprocess, `/health` reporting `1.70.0` with
+`build.source=npm`, and a keyed client-driven tool loop on every adapter that
+keys its own sessions:
+
+```
+  PASS  pi           toolRounds=3 resumed=3
+  PASS  passthrough  toolRounds=3 resumed=3
+  PASS  opencode     toolRounds=3 resumed=3
+  PASS  polytoken    toolRounds=3 resumed=3
+```
+
+`polytoken resumed=3` is the new line this release: #1010's adapter resumes its
+own keyed tool rounds in the shipped artifact, not only in the source gate. The
+same loop was run first against the locally packed tarball and then against the
+registry download, with identical results.
+
+**An environment trap that will cost the next agent an hour.** On this machine
+the `personal` profile's OAuth has expired. A run with an isolated
+`MERIDIAN_CONFIG_DIR` defaults to that profile and every request fails with
+`Failed to authenticate: OAuth session expired and could not be refreshed`,
+which looks exactly like a release regression. It is not: seed the disposable
+config from `~/.config/meridian` and send `x-meridian-profile: work`. For the
+same reason `/health` reports `status: degraded` / `Could not verify auth
+status` — **confirmed pre-existing by installing published 1.69.0 and getting
+the byte-identical response**. Run that control before believing a health
+regression.
+
+**Known limitation, ticketed as
+[#1014](https://github.com/rynfar/meridian/issues/1014).** The E42 gate
+now always exits 1, even on a fully passing run, and it cannot exercise #1004's
+model discovery at all. Its recording fixture calls `request.json()`
+unconditionally, so the body-less `GET /v1/models` that discovery issues throws
+`SyntaxError: Unexpected end of JSON input`; in live mode the same handler also
+forwards with a hardcoded `method: 'POST'`. Causality was established by A/B on
+an otherwise identical tree:
+
+| fixture | `result` | `GET - /v1/models failed` | exit |
+|---|---|---|---|
+| as shipped | `PASS` | 5 | **1** |
+| patched to answer non-POST | `PASS` | 0 | **0** |
+
+This is test infrastructure only — 1.70.0 ships the feature unaffected, and
+discovery against a real Meridian was verified by hand during #1004. But the
+gate's exit code is now meaningless, and the feature has no automated live
+coverage. The probe patch was reverted; the candidate tree was confirmed
+pristine at `c925dbba` before the merge.
+
+## Previous checkpoint: Meridian 1.69.0
 
 [Meridian 1.69.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.69.0)
 shipped through [release PR #970](https://github.com/rynfar/meridian/pull/970),
@@ -1001,7 +1105,7 @@ merge. The process miss: #998 changed the passthrough tool loop and only the
 new gate (E56) was re-run, not the existing gates on the same path. Re-run
 every gate that touches a changed path, not just the one written for it.
 
-## Previous checkpoint: Meridian 1.68.0
+## Earlier checkpoint: Meridian 1.68.0
 
 [Meridian 1.68.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.68.0)
 shipped through [release PR #937](https://github.com/rynfar/meridian/pull/937).
@@ -1047,9 +1151,20 @@ released; original #898 was closed as superseded.
 
 ## Next item to triage on resumption
 
-Live at this checkpoint: **9 open issues, 31 open PRs.** Refresh both; do not
-act on these counts. #820 and #996 are both fully addressed and were closed
-once #998 merged, so the live issue list should be shorter than this table.
+Live at this checkpoint: refresh the counts; do not act on any written here.
+#820 and #996 are both fully addressed and were closed once #998 merged, so the
+live issue list should be shorter than this table.
+
+Maintainer-filed tickets are the freshest work and are listed first. They are
+ours, fully diagnosed, and each carries a reproduction and acceptance criteria —
+so they are cheaper to pick up than any contributor report below.
+
+| ticket | state at this checkpoint |
+|---|---|
+| #1014 E42 gate exits 1, no discovery coverage | filed 2026-09-11 during release validation, cause proven by A/B, fix is small and test-only. **Strongest next item** |
+| #1008 OpenCode V2 cold-start race | filed; a scripted first request naming a Meridian-only variant against a fresh server fails `provider.no-route`. Remedy is a persisted catalog cache seeded during plugin setup |
+| #1009 deferred uncaptured-tool recovery | contributor commit held on `codex/polytoken-extras`, "default OFF until canaried", collides with #998's rework |
+| #1011 two held passthrough commits | clean but unrelated to the adapter they arrived with; preserved with authorship, not retyped |
 
 | issue | state at this checkpoint |
 |---|---|
@@ -1062,7 +1177,11 @@ once #998 merged, so the live issue list should be shorter than this table.
 | #769 OpenClaw scrub plugin | feature proposal, needs a product decision |
 | #650 plugin-input bumps | infrastructure proposal, needs a product decision |
 
-**#917/#933 is the strongest remaining engineering item**, and it needs a
+Contributor backlog still untouched: #896 (Windows session GC, cannot be
+validated here), #849, and roughly 21 `feat` proposals, mostly from one
+contributor, each needing a product decision before technical review.
+
+**#917/#933 is the strongest remaining contributor-reported item**, and it needs a
 different approach from the one that has been tried. #997 removed one confirmed
 mechanism; the two remaining failures
 (`Session tool cache > updates cached tools when client sends a new set`, and
