@@ -1,7 +1,7 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-11, after publishing Meridian 1.70.0, which released the
-three contributor incorporations #1003, #980 and #1005.
+Checkpoint: 2026-09-11, after publishing Meridian 1.70.0 (contributor
+incorporations #1003, #980 and #1005) and repairing the E42 gate it exposed.
 Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
@@ -17,6 +17,9 @@ and [AGENTS.md](../../AGENTS.md). The last delivered item is contributor PR
 (PRs #994 and #995), the OpenCode V1 plugin packaging fix (#988) and a
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
+
+The last delivered item is **#1014**, a maintainer ticket filed during the
+1.70.0 release validation and fixed in #1016 (`1519f8d8`).
 
 **1.70.0 is published.** The owner authorized it explicitly; PR #1006 was merged
 as `0acf3b19` and the publication is verified below — npm, provenance by
@@ -54,6 +57,82 @@ Tickets opened under this instruction so far: #1008 (V2 cold-start race),
 #1009 (deferred uncaptured-tool recovery), #1011 (the two held passthrough
 commits on `codex/polytoken-extras`) and #1014 (the E42 gate's exit code and
 its missing discovery coverage, found during 1.70.0 release validation).
+
+## Delivered: the E42 gate's exit code and its missing discovery coverage, #1014 as #1016
+
+Maintainer-originated, filed by us during 1.70.0 release validation under the
+owner's standing ticket instruction. Base `3145fc49`, branch
+`codex/e42-discovery-gate`, worktree `/tmp/meridian-1014`, delivery commit
+`36362440`, merged as `1519f8d8`. #1014 closed by the PR body. No external
+contributor is involved, so no author mapping applies. Test infrastructure only:
+no source, plugin or configuration change.
+
+**The defect.** `scripts/e2e-opencode-v2-package.mjs` recorded traffic through a
+`Bun.serve` fixture that called `request.json()` on every request. The
+`GET /v1/models` that #1004's model discovery issues has no body, so it threw.
+Discovery failed closed, and the unhandled rejection set the process exit code —
+the gate printed `{"result":"PASS"}` and exited **1**. So the mandatory V2 gate
+had a meaningless exit code *and* the feature released in 1.70.0 had no
+automated coverage. Causality established by A/B before changing anything:
+
+| fixture | `result` | `GET - /v1/models failed` | exit |
+|---|---|---|---|
+| as shipped | `PASS` | 5 | **1** |
+| patched to answer non-POST | `PASS` | 0 | **0** |
+
+A second instance of the same class surfaced only once the first fix let the run
+get far enough: the live forward hardcoded `method: 'POST'`, and an abort
+mid-forward threw out of the handler. A one-shot client process exiting with
+discovery in flight does exactly that; it appeared as `status: null`. Both are
+now caught and recorded rather than thrown.
+
+**What the gate now asserts.** A `GET` to *exactly* `/v1/models` — the original
+contributor version requested `/v1/v1/models`, because the Anthropic provider
+carries the API version in its base URL, and that 404 disabled discovery
+silently. Then the response must carry `claude-haiku-4-5` with a 200k window and
+a supported `xhigh` effort, the two values OpenCode's own models.dev entry gets
+wrong. In `--live --extended` it selects `anthropic/claude-haiku-4-5#xhigh` and
+requires the effort to reach the proxy; that variant is
+`provider.no-route — Variant unavailable` without discovery, so a pass can only
+come from the applied catalog. `--no-discovery` is the new negative control.
+
+**A flaky assertion caught before it shipped.** The variant probe first asserted
+the model emitted a literal sentinel. That was true on one run and false on the
+next — same code, same host. It is now recorded but not asserted; the
+deterministic facts are asserted instead (no error events, the effort observed
+at the proxy, the request completing upstream). Both live hosts show
+`answered` disagreeing between runs, which is exactly why.
+
+**Validation.** `npm test` 3880 pass / 1 skip / 0 fail on bun 1.3.14, typecheck,
+build. Exit codes, which are the point of this ticket:
+
+| run | exit |
+|---|---|
+| `--live --extended --separate-proxy-cwd`, `0.0.0-beta-18866` | 0 |
+| `--live --extended --separate-proxy-cwd`, `0.0.0-beta-18314` | 0 |
+| non-live, beta-18866 | 0 |
+| `--no-discovery` negative control | 0 |
+| `--v1` control, pinned `opencode@1.18.11` | 0, `discoveryTrace: []` |
+| one assertion deliberately broken | 1, no `PASS` printed |
+
+Both live runs: variant selected, `effort: "xhigh"` observed at the proxy, 100%
+cache reuse on ordinary continuation and process restart.
+`e2e-opencode-package-integrity.mjs` passes with and without `--manifest`.
+The merged tree was confirmed byte-identical to the validated tree.
+
+**An hour lost to a bad probe, worth not repeating.** Before using the real
+gate, an ad-hoc harness was built to answer "does the applied catalog actually
+expose the variant?" It reported `provider.no-route` even with discovery
+returning 200 and a valid catalog, which looked like a product defect in #1004.
+It was not — the probe's own client/server wiring was wrong. The real gate,
+which already has correct port reservation, `OPENCODE_SERVER_PASSWORD` auth and
+a warm server, showed the variant working on the first try. **Reach for the
+existing gate before building a probe**; if a probe contradicts a hand-verified
+live result, suspect the probe.
+
+`opencode2 models` lists model ids without variants, and `/api/provider/{id}`
+and `/api/model` return empty unless the provider is fully active, so neither is
+a usable catalog assertion. The tap-observed traffic is.
 
 ## Delivered: disabled subscription entitlement, contributor PR #1005 as #1012
 
@@ -1155,14 +1234,14 @@ Live at this checkpoint: refresh the counts; do not act on any written here.
 #820 and #996 are both fully addressed and were closed once #998 merged, so the
 live issue list should be shorter than this table.
 
-Maintainer-filed tickets are the freshest work and are listed first. They are
+#1014 is **delivered** (#1016, `1519f8d8`); its section is above. The rest of
+the maintainer-filed tickets are listed first below. They are
 ours, fully diagnosed, and each carries a reproduction and acceptance criteria —
 so they are cheaper to pick up than any contributor report below.
 
 | ticket | state at this checkpoint |
 |---|---|
-| #1014 E42 gate exits 1, no discovery coverage | filed 2026-09-11 during release validation, cause proven by A/B, fix is small and test-only. **Strongest next item** |
-| #1008 OpenCode V2 cold-start race | filed; a scripted first request naming a Meridian-only variant against a fresh server fails `provider.no-route`. Remedy is a persisted catalog cache seeded during plugin setup |
+| #1008 OpenCode V2 cold-start race | filed; a scripted first request naming a Meridian-only variant against a fresh server fails `provider.no-route`. Remedy is a persisted catalog cache seeded during plugin setup. **Strongest next item** — #1016 now gives it a gate to prove a fix against, and confirmed the race is real: the variant needs the warm server `--extended` starts |
 | #1009 deferred uncaptured-tool recovery | contributor commit held on `codex/polytoken-extras`, "default OFF until canaried", collides with #998's rework |
 | #1011 two held passthrough commits | clean but unrelated to the adapter they arrived with; preserved with authorship, not retyped |
 
