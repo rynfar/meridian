@@ -11,7 +11,9 @@
  *   seq 2  tools=10  msgs=1  x-session-affinity: ses_fe4c…   ← the user's turn
  *
  * Both attempts of that run returned HTTP 400 `session_turn_conflict` after a
- * ~8s wait. The agent-scoped session key that fixes this reads the plugin's
+ * ~8s wait. Since #1024 that collision is admitted and reclassified instead —
+ * the loser replays against a cold cache — so the exposure is a cost rather
+ * than a failure. The warning still fires, because the fix is still the plugin. The agent-scoped session key that fixes this reads the plugin's
  * `x-opencode-agent-mode`, so it cannot reach a client that sends none.
  *
  * Inferring the agent from request shape was tried and reverted — "tool-less,
@@ -30,7 +32,7 @@ import { installSdkMock, setSdkMock } from "./sdkMock"
 import { installLoggerMock, setLoggerMock } from "./loggerMock"
 import { installMcpToolsMock, setMcpToolsMock } from "./mcpToolsMock"
 import { resolveMockSdkSessionId } from "./helpers"
-import { notePluginlessOpenCodeRequest, clearPluginlessWarnings } from "../proxy/setup"
+import { notePluginlessOpenCodeRequest, clearPluginlessWarnings, isPluginlessOpenCodeRequest } from "../proxy/setup"
 
 const OPENCODE_UA = "opencode/1.18.11 ai-sdk/provider-utils/4.0.27 runtime/bun/1.3.14"
 
@@ -105,8 +107,12 @@ describe("notePluginlessOpenCodeRequest", () => {
       userAgent: OPENCODE_UA, agentModeHeader: undefined, sessionId: "ses_g",
     })!
     // An operator who reads only this line should understand why they care.
+    // Since #1024 the consequence is a cold replay rather than a 400, so the
+    // line must name the cost that remains, not the failure that no longer
+    // happens.
     expect(msg.toLowerCase()).toContain("title")
-    expect(msg).toMatch(/cold cache|400/)
+    expect(msg).toMatch(/cold prompt cache/)
+    expect(msg).not.toContain("400")
   })
 
   it("does not leak a whole session id into the log line", () => {
@@ -193,5 +199,35 @@ describe("plugin-less warning through the HTTP path", () => {
     const afterPluginful = diagnosticLog.getRecent({ limit: 50 })
       .filter((l) => l.message.includes("without the Meridian plugin"))
     expect(afterPluginful.length).toBe(1)
+  })
+})
+
+/**
+ * The same fact now decides more than the warning: a client that cannot send
+ * the plugin's signal is not held to the strict one-turn-per-session-key rule
+ * (#1024). Both readers must agree, so the predicate is pinned directly.
+ */
+describe("isPluginlessOpenCodeRequest", () => {
+  const OPENCODE_UA = "opencode/1.18.30 ai-sdk/provider-utils/4.0.46 runtime/bun/1.3.14"
+
+  it("is true for an OpenCode client that sends no agent mode", () => {
+    expect(isPluginlessOpenCodeRequest({ userAgent: OPENCODE_UA, agentModeHeader: undefined })).toBe(true)
+    // Case is not the client's to guarantee.
+    expect(isPluginlessOpenCodeRequest({ userAgent: "OpenCode/1.18.30", agentModeHeader: undefined })).toBe(true)
+  })
+
+  it("is false once the plugin stamps an agent mode", () => {
+    for (const mode of ["primary", "subagent"]) {
+      expect(isPluginlessOpenCodeRequest({ userAgent: OPENCODE_UA, agentModeHeader: mode })).toBe(false)
+    }
+  })
+
+  it("is false for anything that is not OpenCode", () => {
+    // Relaxing the conflict guard must not reach another client by accident —
+    // `opencode2` is the V2 host, which ships its own plugin signal, and the
+    // substring must not match in the middle of an unrelated agent string.
+    for (const ua of [undefined, "", "crush/0.87.0", "Polytoken v0.8.6", "curl/8.7.1", "my-opencode/1.0"]) {
+      expect(isPluginlessOpenCodeRequest({ userAgent: ua, agentModeHeader: undefined })).toBe(false)
+    }
   })
 })

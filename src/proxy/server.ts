@@ -68,7 +68,7 @@ import {
   isDesignAuthFailure,
   DESIGN_UPSTREAM_ORIGIN,
 } from "./design"
-import { checkPluginConfigured, notePluginlessOpenCodeRequest } from "./setup"
+import { checkPluginConfigured, isPluginlessOpenCodeRequest, notePluginlessOpenCodeRequest } from "./setup"
 import { describeBuildDrift, getBuildInfo } from "./buildInfo"
 import { getLatestVersion, startUpdateCheck, stopUpdateCheck } from "./updateCheck"
 import { mapModelToClaudeModel, resolveClaudeExecutableAsync, resolveSdkModelDefaults, explicitModelPin, CANONICAL_SONNET_MODEL, isClosedControllerError, getClaudeAuthStatusAsync, getAuthCacheInfo, getResolvedClaudeExecutableInfo, hasExtendedContext, stripExtendedContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, subscriptionIncludesExtendedContext } from "./models"
@@ -2123,6 +2123,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // conversation, and that exposure is otherwise silent — the startup
         // warning is gated on an OpenCode config file existing. Once per
         // session; the helper owns the bookkeeping.
+        // The same fact the warning reports also decides whether this request
+        // can be held to the strict one-turn-per-session-key rule (#1024).
+        const pluginlessOpenCode = isPluginlessOpenCodeRequest({
+          userAgent: c.req.header("user-agent"),
+          agentModeHeader: c.req.header("x-opencode-agent-mode"),
+        })
         const pluginlessWarning = notePluginlessOpenCodeRequest({
           userAgent: c.req.header("user-agent"),
           agentModeHeader: c.req.header("x-opencode-agent-mode"),
@@ -2290,12 +2296,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // client has no per-flow signal to send: pi carries one session id for
         // the main turn and its side calls alike, so the loser of that race is
         // reclassified rather than refused. See runsConcurrentTurnsPerSessionKey.
+        //
+        // NOTE: agent-specific (opencode). An OpenCode client with no Meridian
+        // plugin is in exactly pi's position and for the same reason: it runs a
+        // hidden title/summary agent under the user's own session id and has no
+        // header with which to say so. Holding it to the strict rule failed the
+        // FIRST turn of every new session with a 400 (#1024). Degrade it to the
+        // same reclassification instead — a cold replay, which the pluginless
+        // warning already names as the alternative outcome — and keep warning
+        // that `meridian setup` is the actual fix. A plugin-equipped client
+        // sends the signal, so it keeps the strict guard.
+        const protocolRunsConcurrentTurnsPerSessionKey =
+          adapter.runsConcurrentTurnsPerSessionKey === true
+          || pluginlessOpenCode
         const declaresPerRequestConcurrentFlow =
           requestSource?.startsWith("fork-") === true
           || isSubagentRequest
         const declaresConcurrentFlow =
           declaresPerRequestConcurrentFlow
-          || adapter.runsConcurrentTurnsPerSessionKey === true
+          || protocolRunsConcurrentTurnsPerSessionKey
         // Exact pending tool IDs identify the batch, not the earlier history.
         // Rebinding a checkpoint must also preserve its complete stored prefix;
         // otherwise a revised user instruction would be silently discarded.
@@ -2428,7 +2447,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         if (
           lostRaceWhileWaiting &&
           !declaresPerRequestConcurrentFlow &&
-          adapter.runsConcurrentTurnsPerSessionKey === true &&
+          protocolRunsConcurrentTurnsPerSessionKey &&
           lineageResult.type === "undo"
         ) {
           lineageResult = { type: "diverged", reason: "concurrent-race" }

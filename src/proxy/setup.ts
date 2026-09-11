@@ -322,6 +322,25 @@ export function clearPluginlessWarnings(): void {
  * Returns the message to log, or undefined when there is nothing to say.
  * Stateful but I/O-free — the caller owns the logging.
  */
+/**
+ * Is this an OpenCode request that carries no Meridian plugin signal?
+ *
+ * Such a client cannot tell Meridian which of its concurrent streams is the
+ * hidden title/summary agent, so the proxy must not hold it to the strict
+ * one-turn-per-session-key rule — see the concurrent-flow declaration in
+ * server.ts. Pure so both the warning and that decision read the same fact.
+ */
+export function isPluginlessOpenCodeRequest(input: {
+  userAgent: string | undefined
+  /** The plugin's `x-opencode-agent-mode` header, if it sent one. */
+  agentModeHeader: string | undefined
+}): boolean {
+  if (!input.userAgent?.toLowerCase().startsWith("opencode/")) return false
+  // A plugin old enough to omit the agent headers is equally unable to prevent
+  // the collision, so it counts the same.
+  return !input.agentModeHeader
+}
+
 export function notePluginlessOpenCodeRequest(input: {
   userAgent: string | undefined
   /** The plugin's `x-opencode-agent-mode` header, if it sent one. */
@@ -329,10 +348,7 @@ export function notePluginlessOpenCodeRequest(input: {
   /** Client session id — used only to warn once per conversation. */
   sessionId: string | undefined
 }): string | undefined {
-  if (!input.userAgent?.toLowerCase().startsWith("opencode/")) return undefined
-  // A plugin old enough to omit the agent headers is equally unable to prevent
-  // the collision, so it gets the same warning.
-  if (input.agentModeHeader) return undefined
+  if (!isPluginlessOpenCodeRequest(input)) return undefined
 
   const key = input.sessionId || "(keyless)"
   if (pluginlessWarned.get(key)) return undefined
@@ -343,8 +359,9 @@ export function notePluginlessOpenCodeRequest(input: {
   return (
     `OpenCode request without the Meridian plugin's agent headers (session ${shortId}). ` +
     `OpenCode runs its internal title/summary agents under your session id, so Meridian ` +
-    `cannot tell them apart from your conversation: the first turn of each session can fail ` +
-    `with a 400 or replay against a cold cache. Fix: meridian setup (or update the plugin).`
+    `cannot tell them apart from your conversation: concurrent turns are admitted rather ` +
+    `than refused, but the one that loses the race replays against a cold prompt cache — ` +
+    `slower and billed as uncached input. Fix: meridian setup (or update the plugin).`
   )
 }
 
