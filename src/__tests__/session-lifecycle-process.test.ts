@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { randomUUID } from "node:crypto"
 import { existsSync, readFileSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -6,6 +7,7 @@ import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import {
   getTranscriptResourceKey,
+  prepareFork,
   reconcile,
   runGc,
   type TranscriptLocator,
@@ -96,6 +98,8 @@ interface StoredActiveLease {
 
 interface StoredResource {
   state: string
+  attempts?: number
+  lastError?: string
   activeLeases?: Record<string, StoredActiveLease>
 }
 
@@ -342,4 +346,30 @@ describe("session lifecycle leases across OS processes", () => {
     expect(deletes).toBe(1)
     expect(readSidecar(fixture.root).resources[key]?.state).toBe("deleted")
   }, 15_000)
+
+  test("classifies a child-reported absent transcript as notFound and tombstones it", async () => {
+    if (process.platform === "win32") return
+    const fixture = await makeFixture(randomUUID())
+    await prepareFork(fixture.locator, gcOptions(fixture.root))
+
+    const result = await runGc([], gcOptions(fixture.root))
+
+    expect(result).toEqual({ deleted: 0, notFound: 1, failed: 0, deferred: 0 })
+    expect(readSidecar(fixture.root).resources[getTranscriptResourceKey(fixture.locator)]?.state)
+      .toBe("deleted")
+  }, 20_000)
+
+  test("keeps a genuine child deletion failure failed for retry", async () => {
+    if (process.platform === "win32") return
+    const fixture = await makeFixture("not-a-uuid")
+    await prepareFork(fixture.locator, gcOptions(fixture.root))
+
+    const result = await runGc([], gcOptions(fixture.root))
+
+    expect(result).toEqual({ deleted: 0, notFound: 0, failed: 1, deferred: 1 })
+    const resource = readSidecar(fixture.root).resources[getTranscriptResourceKey(fixture.locator)]
+    expect(resource?.state).toBe("retired")
+    expect(resource?.attempts).toBe(1)
+    expect(resource?.lastError).toContain("session deletion child exited 1")
+  }, 20_000)
 })
