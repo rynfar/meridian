@@ -79,6 +79,7 @@ describe("OpenCode generation detection", () => {
     expect(SUPPORTED_OPENCODE_V2_VERSIONS).toEqual(new Set([
       "0.0.0-beta-18314",
       "0.0.0-beta-18866",
+      "0.0.0-beta-19425",
     ]))
   })
 
