@@ -2,7 +2,8 @@
 
 Checkpoint: 2026-09-11, after publishing Meridian 1.70.0 (contributor
 incorporations #1003, #980 and #1005), repairing the E42 gate it exposed
-(#1014), and closing the V2 cold-start gap (#1008).
+(#1014), closing the V2 cold-start gap (#1008), and landing two of the three
+commits split out of #980 (#1011, #1009).
 Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
@@ -19,12 +20,18 @@ and [AGENTS.md](../../AGENTS.md). The last delivered item is contributor PR
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
 
-The last delivered item is **#1008**, the OpenCode V2 cold-start gap, fixed in
-#1018 (`52b581b6`). Before it: #1014 (#1016, `1519f8d8`) and the probe-discipline
-rules added to this skill in #1019 (`619bbe70`).
+The last delivered items are the **#980 splits**: abort-cause diagnostics
+(#1022, `0fd59403`) and uncaptured-tool recovery (#1025, `d8516bea`, off by
+default). Before them: #1008 (#1018, `52b581b6`), #1014 (#1016, `1519f8d8`) and
+the probe-discipline rules in #1019 (`619bbe70`).
 
-**Unreleased on `main`:** one `fix` (#1018) and one `test` (#1016). A release
-needs its own explicit owner authorization; 1.70.0's does not carry forward.
+**Nothing is in progress.** Held by explicit owner decision: the third #980
+split, `fix: recover visible empty capped streams` — see #1011. Still open for a
+canary and a live gate: #1009.
+
+**Unreleased on `main`:** two `feat` (#1022, #1025), two `fix` (#1018 and the
+`abort` call-site correction inside #1022), one `test` (#1016). A release needs
+its own explicit owner authorization; 1.70.0's does not carry forward.
 
 **1.70.0 is published.** The owner authorized it explicitly; PR #1006 was merged
 as `0acf3b19` and the publication is verified below — npm, provenance by
@@ -62,6 +69,77 @@ Tickets opened under this instruction so far: #1008 (V2 cold-start race),
 #1009 (deferred uncaptured-tool recovery), #1011 (the two held passthrough
 commits on `codex/polytoken-extras`) and #1014 (the E42 gate's exit code and
 its missing discovery coverage, found during 1.70.0 release validation).
+
+## Delivered: two of three #980 splits (#1011 partly, #1009 landed off by default)
+
+Both cherry-picked from preserved contributor commits by @jakewimmer, authorship
+and AuthorDate intact, each with maintainer corrections in separate commits.
+
+| split | original | incorporated | delivery | disposition |
+|---|---|---|---|---|
+| abort-cause diagnostics | `016eb53c` → `77667583` | `8f362e18` | `0fd59403` (#1022) | landed |
+| uncaptured-tool recovery | `f185e76e` | `929d351f` | `d8516bea` (#1025) | landed, flag off |
+| visible empty capped streams | `c5804275` | — | — | **deferred by owner** |
+
+Both squashes carry `Co-authored-by: Jake Wimmer`. `c5804275` remains on
+`codex/polytoken-extras`; do not retype it.
+
+**Deferred by owner decision: `fix: recover visible empty capped streams`.** It
+changes a documented, gate-defended guarantee and introduces a stream/non-stream
+asymmetry. `E2E.md` says "empty output, thinking alone and unhandled calls must
+fail" (#926); with the commit applied, live:
+
+| case | non-stream | stream |
+|---|---|---|
+| `empty` capped turn | 1 cap query — fails, as documented | **2** — lifts the cap and retries |
+| `thinking`-only capped turn | 1 — fails | **2** — retries |
+
+`--case=empty --stream` and `--case=thinking --stream` both fail on
+`assert.equal(capQueries.length, retry ? 2 : 1)`. Everything else was green,
+including all four E41 modes and the #925 `--drop-stop` control — the
+contributor's own validation was the unit suite, which never runs these gates.
+The owner chose to defer rather than rewrite the contract; the full evidence and
+the two ways to pick it up are in #1011's body.
+
+**Two maintainer corrections worth remembering.**
+
+`1cf83e46` (in #1022): the contributor's message said all five
+`formatSdkTermination` call sites pass the abort snapshot. Four did. The missing
+one was `sdk_termination_recovered` on the captured-tool recovery path — the
+diagnostic closest to the incident the field exists for. Nothing failed, because
+an omitted context field simply does not render. Fixed, with a source invariant
+that fails without it, because the capped-turn fixtures never reach that site.
+Observed live afterwards: `sdk_termination reason=max_turns turns=1 abort=none`.
+
+`012103f0` (in #1025): the uncaptured-recovery feature's **central test had
+never executed**. It called `parseSSE` without importing it — `tsc` reports
+`TS2304`, bun throws `ReferenceError`. So the behaviour the commit exists for
+had no running coverage. `bun test` does not typecheck; this is the second time
+that trap appeared today, the first being my own new test file caught by CI in
+#1018. With the import fixed (and four forbidden `as any` casts replaced) the
+test passes.
+
+**Why #1025 was safe to land while #1011's sibling was not.** #1025 is
+`MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY`, off by default, every new path
+flag-gated. All 14 capped-turn controls and all four E41 modes pass with it off;
+with it **on**, `unhandled`, `empty`, `partial` and `retry` (stream) still behave
+exactly as documented, so the refusal boundary holds live. The deferred commit
+changed default behaviour and broke two of those same controls.
+
+**What #1009 still needs** (it is deliberately still open): a live gate for the
+positive abort-window shape — the fixture streams a complete `tool_use` block
+but for an *undeclared* tool, so it exercises refusal, not recovery; reproducing
+the real shape needs an abort injected between a declared tool's
+`content_block_stop` and hook dispatch, which the fixture cannot do and which is
+racy to time. Plus the non-streaming parity decision, documented as a
+flag-scoped limitation rather than decided. Plus the canary itself.
+
+**A hazard that nearly fired.** #1025's PR body originally read "why this does
+not close #1009". GitHub's linked-issue parser ignores the negation, so merging
+would have shut the ticket that tracks the remaining work — the same failure as
+#997/#917 and #969/#967. The pre-creation grep caught it; `closingIssuesReferences`
+was verified empty before merging. **Grep the PR body for keyword-then-number
+before creating it, and check `closingIssuesReferences` before merging.**
 
 ## Delivered: OpenCode V2 cold-start catalog, #1008 as #1018
 
@@ -1311,17 +1389,17 @@ Live at this checkpoint: refresh the counts; do not act on any written here.
 #820 and #996 are both fully addressed and were closed once #998 merged, so the
 live issue list should be shorter than this table.
 
-#1014 (#1016) and #1008 (#1018) are both **delivered**; their sections are
-above. The remaining maintainer-filed tickets are listed first below, and
-#1009/#1011 are now the cheapest items left — both are contributor commits
-already preserved with authorship on `codex/polytoken-extras`. They are
+#1014 (#1016), #1008 (#1018), #1011's two landable commits (#1022) and #1009's
+commit (#1025) are all **delivered**; their sections are above. #1011 and #1009
+both stay open with narrowed scope recorded in their own bodies. The contributor
+backlog below is now the whole remaining queue. They are
 ours, fully diagnosed, and each carries a reproduction and acceptance criteria —
 so they are cheaper to pick up than any contributor report below.
 
 | ticket | state at this checkpoint |
 |---|---|
-| #1009 deferred uncaptured-tool recovery | contributor commit held on `codex/polytoken-extras`, "default OFF until canaried", collides with #998's rework |
-| #1011 two held passthrough commits | clean but unrelated to the adapter they arrived with; preserved with authorship, not retyped |
+| #1009 uncaptured-tool recovery | **landed off by default** (#1025). Open for a live abort-window gate, the non-streaming parity decision, and the canary |
+| #1011 the last held passthrough commit | two of three landed (#1022); `c5804275` deferred by owner — it changes a gate-defended contract and adds a stream/non-stream asymmetry. Evidence in the ticket body |
 
 | issue | state at this checkpoint |
 |---|---|
