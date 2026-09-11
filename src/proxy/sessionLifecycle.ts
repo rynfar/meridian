@@ -47,9 +47,18 @@ const DEFAULT_LOCK_STALE_MS = 60_000
 const DEFAULT_PREPARED_GRACE_MS = 5 * 60_000
 const DEFAULT_DELETING_LEASE_MS = 60_000
 const DEFAULT_RETIRED_GRACE_MS = 11 * 60_000
+// An unarmed lease's lifetime is its own knob and NOT the prepared grace: a
+// deployment (or test) may size the grace small to fast-forward prepared-fork
+// expiry, and that must not instantly expire leases a live request still holds.
+const DEFAULT_UNARMED_LEASE_TTL_MS = 11 * 60_000
 const DEFAULT_RETRY_BASE_MS = 5_000
 const DEFAULT_RETRY_MAX_MS = 60 * 60_000
 const DEFAULT_DELETE_TIMEOUT_MS = 30_000
+// The deletion child reports "nothing to delete" by exit code, not by message:
+// the parent only keeps a bounded clip of the child output, and a Node crash
+// report buries the SDK's "not found" verdict under minified vendor source.
+// 75 is already taken by the gate timeout inside the child script.
+const SESSION_GC_NOT_FOUND_EXIT_CODE = 69
 
 export interface TranscriptLocator {
   sessionId: string
@@ -118,6 +127,8 @@ export interface SessionLifecycleOptions {
   deletingLeaseMs?: number
   /** Quarantine after retirement so old readers and rolling upgrades can drain. */
   retiredGraceMs?: number
+  /** Lifetime of an unarmed lease; sized by the caller's turn watchdog. */
+  unarmedLeaseTtlMs?: number
   retryBaseMs?: number
   retryMaxMs?: number
   deletionTimeoutMs?: number
@@ -190,12 +201,13 @@ export async function acquireActiveTranscriptLease(
   const token = randomUUID()
   await withSidecarLock(options, async (paths) => {
     const sidecar = await readSidecar(paths.sidecar)
+    const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     for (const [key, locator] of normalized) {
       const resource = sidecar.resources[key]
       if (!resource) throw new SessionLifecycleError(`cannot lease unjournaled transcript ${key}`)
       assertSameLocator(resource.locator, locator)
       assertExactLifecycleGeneration(resource, locator)
-      pruneDeadActiveLeases(resource)
+      pruneDeadActiveLeases(resource, nowMs(options), unarmedLeaseTtlMs)
       if (Object.values(resource.activeLeases ?? {}).some(lease => lease.purpose !== "publication")) {
         throw new SessionLifecycleError(`transcript ${key} already has an active SDK writer`)
       }
@@ -588,10 +600,14 @@ export async function reconcile(
       deletingRecovered: 0,
     }
     const now = nowMs(options)
-    const preparedCutoff = now - nonNegativeOption(options.preparedGraceMs, DEFAULT_PREPARED_GRACE_MS, "preparedGraceMs")
+    // One grace bounds both a prepared fork and an unarmed lease: neither may
+    // outlive the turn watchdog by which the caller sizes it.
+    const preparedGraceMs = nonNegativeOption(options.preparedGraceMs, DEFAULT_PREPARED_GRACE_MS, "preparedGraceMs")
+    const preparedCutoff = now - preparedGraceMs
     let changed = false
+    const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     for (const resource of Object.values(sidecar.resources)) {
-      if (pruneDeadActiveLeases(resource)) changed = true
+      if (pruneDeadActiveLeases(resource, now, unarmedLeaseTtlMs)) changed = true
     }
     let pending = pendingResourceCount(sidecar)
     const maxPending = option(options.maxPending, DEFAULT_MAX_PENDING, "maxPending")
@@ -757,9 +773,10 @@ async function claimDeletion(
     const sidecar = await readSidecar(paths.sidecar)
     const finalPins = (options.pinProvider?.() ?? pins).map(canonicalizeTranscriptLocator)
     const now = nowMs(options)
+    const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     let leasesChanged = false
     for (const resource of Object.values(sidecar.resources)) {
-      if (pruneDeadActiveLeases(resource)) leasesChanged = true
+      if (pruneDeadActiveLeases(resource, now, unarmedLeaseTtlMs)) leasesChanged = true
     }
     const candidate = Object.values(sidecar.resources)
       .filter((resource) =>
@@ -953,8 +970,19 @@ try {
   await sdk.deleteSession(process.env.MERIDIAN_GC_SESSION_ID, options);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  if (!options || !message.includes("not found")) throw error;
-  await sdk.deleteSession(process.env.MERIDIAN_GC_SESSION_ID);
+  if (!message.includes("not found")) throw error;
+  if (options) {
+    try {
+      await sdk.deleteSession(process.env.MERIDIAN_GC_SESSION_ID);
+      // The dir-less fallback really deleted it — report a deletion,
+      // not an absence.
+      process.exit(0);
+    } catch (fallbackError) {
+      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      if (!fallbackMessage.includes("not found")) throw fallbackError;
+    }
+  }
+  process.exit(${SESSION_GC_NOT_FOUND_EXIT_CODE});
 }
 `
   const child = spawn(getSessionGcNodeExecutable(), ["--input-type=module", "--eval", script], {
@@ -1014,8 +1042,15 @@ try {
     if (!joined) {
       throw new DeletionStillRunningError("session deletion process group remains active")
     }
+    if (status.code === SESSION_GC_NOT_FOUND_EXIT_CODE) {
+      // The child exits this code only when the SDK itself reported the
+      // transcript already absent on its final attempt. Phrase it in the exact
+      // wording the not-found classifier matches, instead of trusting the
+      // truncatable child output.
+      throw new Error(`session deletion child reported the transcript already absent: Session ${locator.sessionId} not found`)
+    }
     if (status.code !== 0) {
-      throw new Error(`session deletion child exited ${status.code ?? status.signal}: ${output.slice(-4_000)}`)
+      throw new Error(`session deletion child exited ${status.code ?? status.signal}: ${clipChildOutput(output)}`)
     }
   } finally {
     if (timer) clearTimeout(timer)
@@ -1037,6 +1072,20 @@ try {
       throw new DeletionStillRunningError("session deletion process group remains unjoined")
     }
   }
+}
+
+/**
+ * Keep both ends of collected child output within the storage budget. The
+ * SDK's error verdict sits at the head while a Node crash report floods the
+ * tail with minified vendor source; keeping only the tail is what hid the
+ * not-found cause from stored errors. Exported for the clipper unit test,
+ * like getSessionGcNodeExecutable.
+ */
+export function clipChildOutput(output: string): string {
+  const halfBudget = 2_000
+  if (output.length <= halfBudget * 2) return output
+  const elided = output.length - halfBudget * 2
+  return `${output.slice(0, halfBudget)}\n…[${elided} chars elided]…\n${output.slice(-halfBudget)}`
 }
 
 function getStoreDir(options: SessionLifecycleOptions): string {
@@ -1404,7 +1453,10 @@ async function writeSidecar(path: string, sidecar: SessionGcSidecar): Promise<vo
   let handle: Awaited<ReturnType<typeof open>> | undefined
   try {
     handle = await open(temp, "wx", 0o600)
-    await handle.writeFile(`${JSON.stringify(sidecar, null, 2)}\n`, "utf8")
+    // Compact JSON on purpose: the sidecar is machine-read only, and
+    // indentation costs ~25% of its bytes and of the CPU spent serialising it
+    // under the lock on a long-lived store.
+    await handle.writeFile(`${JSON.stringify(sidecar)}\n`, "utf8")
     await handle.sync()
     await handle.close()
     handle = undefined
@@ -1581,7 +1633,7 @@ function releasePublicationLease(resource: TranscriptResource): boolean {
   return changed
 }
 
-function pruneDeadActiveLeases(resource: TranscriptResource): boolean {
+function pruneDeadActiveLeases(resource: TranscriptResource, now: number, unarmedLeaseTtlMs: number): boolean {
   if (!resource.activeLeases) return false
   let changed = false
   for (const [token, lease] of Object.entries(resource.activeLeases)) {
@@ -1589,9 +1641,14 @@ function pruneDeadActiveLeases(resource: TranscriptResource): boolean {
       ? processIncarnationIsDead(lease.executor)
       : false
     // An unarmed lease cannot have started a physical writer: production opens
-    // the SDK gate only after attachActiveTranscriptExecutor commits.
+    // the SDK gate only after attachActiveTranscriptExecutor commits. No request
+    // legitimately holds one longer than the turn watchdog (the TTL passed here
+    // is sized by it), so an unarmed lease older than that — writer or
+    // publication, with its owner still alive — can only be a release that
+    // failed; age retires it.
     const unarmedOwnerDead = !lease.executor && processIncarnationIsDead(lease.owner)
-    if (!executorDead && !unarmedOwnerDead) continue
+    const unarmedLeaseExpired = !lease.executor && now - lease.createdAt > unarmedLeaseTtlMs
+    if (!executorDead && !unarmedOwnerDead && !unarmedLeaseExpired) continue
     delete resource.activeLeases[token]
     changed = true
   }

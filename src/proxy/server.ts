@@ -678,6 +678,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       0,
       envInt("SESSION_GC_GRACE_MS", SESSION_TURN_MAX_HOLD_MS + 60_000),
     ),
+    // The lock wait is a queue budget on one global lifecycle lock: a deployment
+    // with many concurrent conversations may prefer a slower turn over a failed
+    // one. The default stays what sessionLifecycle ships.
+    lockWaitMs: Math.max(100, envInt("SESSION_GC_LOCK_WAIT_MS", 2_000)),
+    // Sized by the turn watchdog, like the prepared grace: a lease a request
+    // still holds cannot outlive the watchdog, and one that did is a release
+    // that failed — collect it by age instead of fencing the conversation.
+    unarmedLeaseTtlMs: SESSION_TURN_MAX_HOLD_MS + 60_000,
     deletionTimeoutMs: Math.max(1_000, envInt("SESSION_GC_DELETE_TIMEOUT_MS", 30_000)),
     runTimeoutMs: Math.max(1_000, envInt("SESSION_GC_RUN_TIMEOUT_MS", 30_000)),
   }
@@ -2711,8 +2719,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       const prepareManagedFork = async (sourceSessionId: string): Promise<void> => {
         if (managedForkTarget) return
         managedFreshTarget = false
+        // A shallow copy, on purpose: this locator is handed to lifecycle calls
+        // that fill the caller's locator back (Object.assign), and the session
+        // store now serves its cached document — mutating the stored object in
+        // place would silently diverge the cache from the file on disk.
         managedForkSource = cachedSession?.currentTranscript?.sessionId === sourceSessionId
-          ? cachedSession.currentTranscript
+          ? { ...cachedSession.currentTranscript }
           : transcriptLocator(sourceSessionId)
         managedForkTarget = transcriptLocator(randomUUID())
         releaseManagedForkPins = pinActiveSessionGcLocators(managedForkSource, managedForkTarget)
@@ -5596,8 +5608,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   if (!recoverySourceId || !lifecycleMappingKey) {
                     throw new Error("Silent recovery has no durable source mapping")
                   }
-                  recoveryForkSource = lookupSharedSession(lifecycleMappingKey)?.currentTranscript
-                    ?? transcriptLocator(recoverySourceId)
+                  const storedRecoverySource = lookupSharedSession(lifecycleMappingKey)?.currentTranscript
+                  // Shallow copy for the same reason as the managed fork source:
+                  // the stored locator must not be filled back in place (cache).
+                  recoveryForkSource = storedRecoverySource
+                    ? { ...storedRecoverySource }
+                    : transcriptLocator(recoverySourceId)
                   const recoveryAttachedGeneration = recoveryForkSource.sessionId === recoverySourceId
                     ? await attachPinnedTranscript(
                       recoveryForkSource,
