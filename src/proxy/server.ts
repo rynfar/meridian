@@ -6245,6 +6245,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     isResume,
                     hasDeferredTools,
                     sdkSessionId: currentSessionId || resumeSessionId,
+                    abort: requestAbort.abortSnapshot(),
                   })} captured=${capturedToolUses.length}`,
                   requestMeta.requestId,
                 )

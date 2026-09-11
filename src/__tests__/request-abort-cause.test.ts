@@ -121,3 +121,24 @@ describe("linkRequestAbort cause registry", () => {
     link.detach()
   })
 })
+
+/**
+ * Maintainer guard. The commit that introduced `abort=<cause>` described all
+ * five `formatSdkTermination` call sites as passing the snapshot; one of them —
+ * `sdk_termination_recovered` on the captured-tool recovery path — did not, so
+ * the field was silently absent from the diagnostic closest to the incident it
+ * was written for. Nothing failed, because an omitted context field just does
+ * not render.
+ *
+ * The fixtures in `e2e-capped-turns.mjs` never reach that site, so no live gate
+ * covers it. This pins the invariant at the source instead.
+ */
+describe("every SDK termination diagnostic carries an abort cause", () => {
+  test("each formatSdkTermination call site passes the snapshot", async () => {
+    const source = await Bun.file(new URL("../proxy/server.ts", import.meta.url)).text()
+    const callSites = source.match(/formatSdkTermination\(/g) ?? []
+    const snapshots = source.match(/abort: requestAbort\.abortSnapshot\(\)/g) ?? []
+    expect(callSites.length).toBeGreaterThan(0)
+    expect(snapshots.length).toBe(callSites.length)
+  })
+})
