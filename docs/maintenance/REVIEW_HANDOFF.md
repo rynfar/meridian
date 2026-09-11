@@ -1,9 +1,9 @@
 # Upstream review handoff
 
-Checkpoint: 2026-09-11, after publishing Meridian 1.70.0 (contributor
-incorporations #1003, #980 and #1005), repairing the E42 gate it exposed
-(#1014), closing the V2 cold-start gap (#1008), and landing two of the three
-commits split out of #980 (#1011, #1009).
+Checkpoint: 2026-09-11, after publishing Meridian 1.70.0 and then 1.71.0,
+repairing the E42 gate (#1014), closing the V2 cold-start gap (#1008), landing
+two of the three #980 splits (#1011, #1009), and triaging #1024 to
+configuration.
 Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
@@ -29,9 +29,8 @@ the probe-discipline rules in #1019 (`619bbe70`).
 split, `fix: recover visible empty capped streams` — see #1011. Still open for a
 canary and a live gate: #1009.
 
-**Unreleased on `main`:** two `feat` (#1022, #1025), two `fix` (#1018 and the
-`abort` call-site correction inside #1022), one `test` (#1016). A release needs
-its own explicit owner authorization; 1.70.0's does not carry forward.
+**1.71.0 is published**, authorized explicitly by the owner; verified below.
+Nothing on `main` is unreleased. A future release needs its own authorization.
 
 **1.70.0 is published.** The owner authorized it explicitly; PR #1006 was merged
 as `0acf3b19` and the publication is verified below — npm, provenance by
@@ -66,9 +65,106 @@ this." Applied retroactively to the V2 cold-start race as #1008. Observations
 that need no fix stay observations; a "known limitation" note is not a ticket.
 
 Tickets opened under this instruction so far: #1008 (V2 cold-start race),
-#1009 (deferred uncaptured-tool recovery), #1011 (the two held passthrough
-commits on `codex/polytoken-extras`) and #1014 (the E42 gate's exit code and
-its missing discovery coverage, found during 1.70.0 release validation).
+#1009 (deferred uncaptured-tool recovery), #1011 (the held passthrough
+commits on `codex/polytoken-extras`), #1014 (the E42 gate's exit code and its
+missing discovery coverage), #1027 (supported V2 betas have drifted, and #1023's
+version does not exist) and #1028 (E42 can exit 1 after PASS when a straggler
+hits the fixture during teardown). All six came out of validation runs, not
+from reading code.
+
+## Completed checkpoint: Meridian 1.71.0
+
+[Meridian 1.71.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.71.0)
+shipped through [release PR #1020](https://github.com/rynfar/meridian/pull/1020),
+authorized explicitly by the owner. **Published and installed-package
+validated.** Do not republish it.
+
+| | |
+|---|---|
+| Candidate tree | `a6ae7050` (parent `d8516bea`), all four checks green after approval |
+| Release/tag commit | `60722ad95983e0518d60378b5e0fdcce89b1e765` |
+| npm | `1.71.0`, `latest` → `1.71.0` |
+| Tarball integrity | `sha512-ugp+7bC9e0owstbxr7rnda3/8vlSc1iWRrGbXNDeS8u3B+FjtzC1juLpnyTTxnYPDOapQ8WlU25c3j4iYLBH6A==` |
+| SLSA provenance | `gitCommit: 60722ad9…` equals the tag commit; workflow `release-please.yml` |
+| Docker | `1.71.0` and `latest`, `linux/amd64` + `linux/arm64` |
+| Post-release on `60722ad9` | CI, Release Please, Docker — success |
+
+Changelog: `feat` abort-cause diagnostics (#1022) and uncaptured-tool recovery
+(#1025); `fix` V2 catalog cold-start seed (#1018).
+
+**Gates before the merge.** `npm test` 3922 pass / 1 skip / 0 fail on bun
+1.3.14, typecheck, build. Live: E42 `--live --extended --separate-proxy-cwd`
+against **both** pinned betas using the packed 1.71.0 consumer, plus the
+`--no-discovery` and `--v1` controls; all 14 capped-turn controls with the
+uncaptured-recovery flag off and four more with it on; all four E41 modes; both
+`e2e-opencode-package-integrity.mjs` variants. Installed-package validation ran
+twice — packed tarball and then the registry download — with
+`toolRounds=3 resumed=3` on `pi`, `passthrough`, `opencode` and `polytoken`.
+
+The candidate's CI again arrived `action_required` and had to be approved run by
+run, as the 1.70.0 section warns. One approval returned
+`403 This workflow run is not waiting for approval` because it had already
+started — that is success, not a failure.
+
+**A flaky gate found during this release, ticketed as #1028.** The first E42 run
+against `0.0.0-beta-18314` printed `{"result":"PASS"}` with every probe green and
+then exited **1**. Cause is in the log, not a guess: a straggler client request
+reached the fixture during teardown, after `proxy.close()`, and the fixture's
+**live POST forward is unguarded**, so the rejection set the exit code —
+`ConnectionRefused`/`ECONNRESET` at `scripts/e2e-opencode-v2-package.mjs:128`.
+#1016 hardened the non-POST branch for exactly this and the POST branch was
+never given the same treatment. A second run exited 0 with identical
+assertions. The release was not held: the artifact under test passed everything,
+and the defect is in the harness. **This was not written off as "a rerun
+passed"** — it is root-caused to a named code path and tracked.
+
+## Investigated: #1024 is configuration, not a Meridian defect
+
+Reported by @calebdw against Meridian 1.68.0 through the third-party
+`opencode-with-claude@1.10.1`: the first message of every new session fails with
+`This session advanced while the request was waiting`. OpenCode fires a Haiku
+`agent=title` stream and the Opus primary turn concurrently on one OpenCode
+session id.
+
+Reproduced on the 1.71.0 candidate with the reporter's models, firing the title
+one second after the primary:
+
+| setup | primary | title |
+|---|---|---|
+| no Meridian agent headers (reporter's shape) | 200 | **400** `This session advanced while the request was waiting` |
+| Meridian's plugin headers present | 200 | 200 |
+
+In the passing control the log shows `source=subagent-title agent=subagent`
+running concurrently with `agent=primary` (`sdkActive=1/10`) — the title is
+detached exactly as designed. In the failing variant the proxy prints its own
+warning, which describes this failure precisely: "OpenCode request without the
+Meridian plugin's agent headers … the first turn of each session can fail with a
+400 … Fix: meridian setup".
+
+So the reporter is missing Meridian's own plugin; the third-party one does not
+stamp those headers. Their observation that 1.62.1 worked is consistent: the
+stricter session-advance check landed later, so the same collision was
+previously silent — replaying against a cold cache instead of failing.
+
+Note one difference from the report: in our reproduction the **title** took the
+400 and the primary completed, where theirs lost the Opus stream. Which side
+loses is timing-dependent; the mechanism is identical.
+
+**A reply is drafted but NOT posted** — sending needs owner authorization. The
+open product question, which is the owner's: should Meridian absorb header-less
+concurrency by serialising or forking per mapped session instead of returning
+400, which is what a drop-in Anthropic API would do? Today it fails the turn.
+
+## Open: supported V2 betas have drifted, #1027
+
+Surfaced triaging #1023 (@Ardumine), which adds `0.0.0-beta-19425` to
+`SUPPORTED_OPENCODE_V2_VERSIONS`. **That version does not exist on npm** — 404;
+the 5-digit beta series ends at `0.0.0-beta-19271`. A supported beta must pass
+E42 against that exact binary, so #1023 cannot be accepted as written whatever
+its merits. Upstream has also moved to date-based versioning
+(`0.0.0-beta-202608110357`, 1107 betas total), leaving our newest supported host
+`18866` roughly 400 revisions behind. #1027 asks for a policy — how many hosts,
+a set or a floor — before any bump is worth validating.
 
 ## Delivered: two of three #980 splits (#1011 partly, #1009 landed off by default)
 
@@ -1185,7 +1281,7 @@ did not reproduce locally. Run 34315145910 failed
 `Extra usage required fallback > does not use exponential backoff`, also
 unexplained. **Leave #917 and #933 open; #997 does not settle them.**
 
-## Completed checkpoint: Meridian 1.70.0
+## Previous checkpoint: Meridian 1.70.0
 
 [Meridian 1.70.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.70.0)
 shipped through [release PR #1006](https://github.com/rynfar/meridian/pull/1006),
@@ -1282,7 +1378,7 @@ gate's exit code is now meaningless, and the feature has no automated live
 coverage. The probe patch was reverted; the candidate tree was confirmed
 pristine at `c925dbba` before the merge.
 
-## Previous checkpoint: Meridian 1.69.0
+## Earlier checkpoint: Meridian 1.69.0
 
 [Meridian 1.69.0](https://github.com/rynfar/meridian/releases/tag/meridian-v1.69.0)
 shipped through [release PR #970](https://github.com/rynfar/meridian/pull/970),
