@@ -1,7 +1,8 @@
 # Upstream review handoff
 
 Checkpoint: 2026-09-11, after publishing Meridian 1.70.0 (contributor
-incorporations #1003, #980 and #1005) and repairing the E42 gate it exposed.
+incorporations #1003, #980 and #1005), repairing the E42 gate it exposed
+(#1014), and closing the V2 cold-start gap (#1008).
 Refresh
 GitHub and origin/main before continuing; this is a dated checkpoint, not a
 live queue.
@@ -18,8 +19,12 @@ and [AGENTS.md](../../AGENTS.md). The last delivered item is contributor PR
 race-harness deflake (#997), plus #996 — a regression in our own #983, found
 while validating #820 and fixed in #998.
 
-The last delivered item is **#1014**, a maintainer ticket filed during the
-1.70.0 release validation and fixed in #1016 (`1519f8d8`).
+The last delivered item is **#1008**, the OpenCode V2 cold-start gap, fixed in
+#1018 (`52b581b6`). Before it: #1014 (#1016, `1519f8d8`) and the probe-discipline
+rules added to this skill in #1019 (`619bbe70`).
+
+**Unreleased on `main`:** one `fix` (#1018) and one `test` (#1016). A release
+needs its own explicit owner authorization; 1.70.0's does not carry forward.
 
 **1.70.0 is published.** The owner authorized it explicitly; PR #1006 was merged
 as `0acf3b19` and the publication is verified below — npm, provenance by
@@ -57,6 +62,78 @@ Tickets opened under this instruction so far: #1008 (V2 cold-start race),
 #1009 (deferred uncaptured-tool recovery), #1011 (the two held passthrough
 commits on `codex/polytoken-extras`) and #1014 (the E42 gate's exit code and
 its missing discovery coverage, found during 1.70.0 release validation).
+
+## Delivered: OpenCode V2 cold-start catalog, #1008 as #1018
+
+Maintainer-originated, filed by us while validating #1004. Base `00b41a6f`,
+branch `codex/v2-catalog-cold-start`, worktree `/tmp/meridian-1008`, delivery
+commit `eabd78dd`, merged as `52b581b6`. #1008 closed by the PR body.
+
+**Before / after**, same new gate assertion, same host:
+
+| tree | coldStartProbe | exit |
+|---|---|---|
+| pre-fix (`00b41a6f` + gate only) | `{"errors":["provider.no-route"],"efforts":[]}` | 1 |
+| fixed | `{"errors":[],"efforts":[null,"xhigh"]}` | 0 |
+
+**The fix.** Each successful discovery is cached in
+`~/.config/meridian/opencode-v2-catalog.json`; the plugin reads it
+*synchronously* in `setup`, before the first transform can run. The seed cannot
+be a catalog read — awaiting the catalog in `setup` deadlocks the server, which
+is why discovery is driven off `catalog.updated` at all.
+
+**The finding that changed the design.** The plan was to validate a cached entry
+against the provider's configured base URL so a repointed provider could never
+apply another Meridian's models. That is impossible inside a transform: a draft
+`Provider.Info` exposes only
+`["id","name","activation","package","integrationID","headers"]`, and the whole
+record contains **no URL anywhere** — observed by instrumenting the real host on
+beta-18866, after the types suggested otherwise. So the guarantee is self-healing
+rather than preventive:
+
+- the seed is applied optimistically to any Meridian provider still in the catalog;
+- when discovery finds no Meridian-shaped base URL the provider has been
+  repointed, so the cache is deleted and the catalog rebuilt without it;
+- a provider that is configured but unreachable keeps its seed, because the last
+  catalog Meridian served beats models.dev's 1M Sonnet.
+
+**Behaviour narrowed, deliberately.** "Meridian unreachable leaves the catalog
+exactly as OpenCode built it" now holds only when no cache is present. Recorded
+in `docs/agents.md` with how to clear the file. The `--no-discovery` control
+still passes because it runs with an isolated config directory. A brand-new
+install's very first request still has no cache; no plugin API allows better —
+`@opencode-ai/plugin@0.0.0-beta-19271` still has a synchronous `Transform` and no
+config domain.
+
+**New gate coverage** in `e2e-opencode-v2-package.mjs`: a cold-start probe that
+spawns a fresh `--standalone` process rather than reusing the warm server, and a
+non-live invalidation probe that repoints the provider, requires the cache file
+to be deleted and the next cold run to reject the variant. The first repointed
+run is recorded but not asserted — whether it still offers the variant depends on
+how far model resolution gets before discovery lands.
+
+**Validation.** `npm test` 3890 pass / 1 skip / 0 fail on bun 1.3.14 (10 new),
+typecheck, build. Exit 0 for: live `--extended --separate-proxy-cwd` on
+beta-18866 and beta-18314; the same against an independently `npm pack`-installed
+consumer; non-live; `--no-discovery`; and the `--v1` control on pinned
+`opencode@1.18.11` with `discoveryTrace: []`. Exit 1 with one new assertion
+deliberately broken. `e2e-opencode-package-integrity.mjs` passes both variants.
+The merged tree was confirmed file-by-file identical to the validated tree.
+
+**Two process notes from this ticket.**
+
+`npm test` does **not** typecheck, and CI runs `npm run typecheck` inside the
+`test` job. A new test file typechecked fine locally only because typecheck was
+last run before it existed; CI caught four `TS2345` errors from a hand-rolled
+`CatalogDraft` stand-in. Run `npm run typecheck` *after* adding or editing test
+files, not before. The fix was to narrow the function's parameter to the
+`CatalogProviderProbe` interface it actually needs, which is better typing than
+the stub it replaced.
+
+A `--v1` control failed with `ENOENT` on the pinned binary, which looked like a
+regression and was not: the previous ticket's cleanup had deleted
+`/tmp/opencode-v1-11`. Reinstall `opencode-ai@1.18.11` before reading anything
+into a V1 failure.
 
 ## Delivered: the E42 gate's exit code and its missing discovery coverage, #1014 as #1016
 
@@ -1234,14 +1311,15 @@ Live at this checkpoint: refresh the counts; do not act on any written here.
 #820 and #996 are both fully addressed and were closed once #998 merged, so the
 live issue list should be shorter than this table.
 
-#1014 is **delivered** (#1016, `1519f8d8`); its section is above. The rest of
-the maintainer-filed tickets are listed first below. They are
+#1014 (#1016) and #1008 (#1018) are both **delivered**; their sections are
+above. The remaining maintainer-filed tickets are listed first below, and
+#1009/#1011 are now the cheapest items left — both are contributor commits
+already preserved with authorship on `codex/polytoken-extras`. They are
 ours, fully diagnosed, and each carries a reproduction and acceptance criteria —
 so they are cheaper to pick up than any contributor report below.
 
 | ticket | state at this checkpoint |
 |---|---|
-| #1008 OpenCode V2 cold-start race | filed; a scripted first request naming a Meridian-only variant against a fresh server fails `provider.no-route`. Remedy is a persisted catalog cache seeded during plugin setup. **Strongest next item** — #1016 now gives it a gate to prove a fix against, and confirmed the race is real: the variant needs the warm server `--extended` starts |
 | #1009 deferred uncaptured-tool recovery | contributor commit held on `codex/polytoken-extras`, "default OFF until canaried", collides with #998's rework |
 | #1011 two held passthrough commits | clean but unrelated to the adapter they arrived with; preserved with authorship, not retyped |
 
