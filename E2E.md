@@ -265,7 +265,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
-| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction and overlapping general children. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
+| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction, overlapping general children and the model-discovery round trip with its Meridian-only effort variant. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
 | E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 | E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
@@ -3798,6 +3798,41 @@ Without `--live`, this uses the actual client against a scripted local API. It
 requires successful file reading and the exact tool result reaching the API,
 continuation, detached title/summary requests, and independent fork/original
 histories. `--source` runs setup from TypeScript and loads the source package.
+
+### Model discovery (#1004)
+
+The gate asserts the discovery round trip, not merely that some request arrived.
+It requires a `GET` to exactly `/v1/models` — the first version of this feature
+asked for `/v1/v1/models`, because the Anthropic provider carries the API version
+in its base URL, and a silent 404 disabled discovery with nothing failing. It then
+requires the response to carry `claude-haiku-4-5` with a 200k window and a
+supported `xhigh` effort: the two values OpenCode's own models.dev entry gets
+wrong, and the reason the catalog must be overwritten rather than skipped.
+
+Discovery attempts the client abandons when a one-shot process exits are
+recorded and allowed; at least one must complete, and no attempt may fail for
+any other reason.
+
+In `--live --extended` the gate additionally selects
+`anthropic/claude-haiku-4-5#xhigh` and requires the run to succeed with
+`effort: "xhigh"` reaching the proxy. That variant is
+`provider.no-route — Variant unavailable` without discovery, so a pass can only
+come from the applied catalog. It needs the warm server that `--extended`
+starts: a one-shot client process outruns the catalog reload (#1008).
+
+`--no-discovery` is the negative control. The fixture answers the catalog request
+with 404 and the whole gate must still pass, proving discovery fails closed
+rather than breaking the session.
+
+```bash
+E2E_OPENCODE_BIN=/tmp/opencode-18866/node_modules/.bin/opencode2 \
+  bun scripts/e2e-opencode-v2-package.mjs --no-discovery
+```
+
+The fixture answers non-`POST` requests without parsing a body, and forwards them
+upstream with their original method. Parsing unconditionally used to throw on the
+body-less catalog `GET`, which failed discovery closed **and** set the process
+exit code — the gate printed `PASS` and exited 1 (#1014).
 Set `E2E_MERIDIAN_ROOT` to an independently installed `npm pack` consumer to test
 the shipped package without development dependencies. Run both betas in source
 and consumer modes. `--v1` with the pinned V1 `opencode@1.18.11` executable is the
