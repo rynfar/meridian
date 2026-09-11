@@ -118,7 +118,63 @@ assertions. The release was not held: the artifact under test passed everything,
 and the defect is in the harness. **This was not written off as "a rerun
 passed"** — it is root-caused to a named code path and tracked.
 
-## Investigated: #1024 is configuration, not a Meridian defect
+## Delivered: #1024, plugin-less OpenCode concurrency, as #1031
+
+Root cause is configuration; the fix shipped anyway because failing a user's
+first turn is the wrong response to a client that cannot send the signal.
+
+Merged as `2e118a92`, branch `codex/opencode-pluginless-concurrent-flow`,
+worktree `/tmp/meridian-1024fix`. **#1024 deliberately stays open** until
+@calebdw confirms on their machine.
+
+**The decision, and why it was narrow.** The owner had no strong view, so the
+options were priced against the code. The conflict guard already skips when
+`declaresConcurrentFlow` is true, and `adapters/pi.ts` already sets
+`runsConcurrentTurnsPerSessionKey: true` for exactly this reason — the in-code
+rationale reads "an adapter can declare the same fact for its whole protocol
+when the client has no per-flow signal to send". A plugin-less OpenCode request
+*is* such a client. So the change reuses that mechanism and applies it only to
+requests carrying no plugin signal, via a pure predicate
+(`isPluginlessOpenCodeRequest`) that the existing warning already computed.
+
+Rejected: setting `runsConcurrentTurnsPerSessionKey` on the whole OpenCode
+adapter. One line shorter, but it would relax the guard for plugin-equipped
+users too, where a collision is a real defect and should stay loud.
+
+Also rejected, and previously tried and reverted — see the header of
+`pluginless-opencode-warning.test.ts`: inferring which stream is the title from
+request shape. "Tool-less, one message" is equally the first turn of an ordinary
+chat.
+
+**Before / after, live, reporter's models:**
+
+| headerless, Opus primary + Haiku title | before | after |
+|---|---|---|
+| primary | 200 | 200 |
+| title | **400** | **200** |
+
+Plugin-equipped control unchanged at 200/200 with no warning. Serialization is
+untouched (`maxActiveQueries` still 1) and the loser still runs fresh; the cost
+is a cold prompt cache, which the warning text now states instead of predicting
+a 400 that no longer happens.
+
+**Coverage added, because none existed.** The full suite passed *before* the
+change too — no test pinned the plugin-less 400, which is why the behaviour
+could be relaxed silently. Added: predicate unit tests (UA case, both agent
+modes, and negatives including `opencode2`, `crush`, `Polytoken`,
+`my-opencode/1.0` as a prefix-not-substring check); an HTTP-layer test that a
+plugin-less pair is admitted, still serialized, runs fresh and emits no
+`session_turn_conflict`, **verified to fail on the tree without the one-line
+condition**; and an HTTP-layer control that a plugin-equipped pair still takes
+the 400 — that control passes with *and* without the fix, which is what proves
+the scoping.
+
+`npm test` 3927 pass / 1 skip / 0 fail, typecheck, build, all four E41 modes.
+
+**A reply to @calebdw is drafted and NOT posted**; sending still needs owner
+authorization.
+
+## Superseded triage note: #1024 was first read as configuration only
 
 Reported by @calebdw against Meridian 1.68.0 through the third-party
 `opencode-with-claude@1.10.1`: the first message of every new session fails with
