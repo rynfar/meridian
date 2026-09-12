@@ -1,6 +1,6 @@
 ---
 name: meridian-upstream-review
-description: Review Meridian contributor PRs and issues, validate fixes with real E2E, prepare authorized releases, and resume the checked-in review handoff.
+description: Review or incorporate Meridian contributor changes, resume that review backlog, or validate an authorized release.
 ---
 
 # Meridian upstream review

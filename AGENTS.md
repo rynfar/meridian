@@ -1,186 +1,30 @@
-# AGENTS.md
+# Meridian
 
-Project guidelines for AI agents working in this codebase.
+Meridian bridges Anthropic-compatible clients to Claude Max through the Agent SDK.
 
-## Repository skills and continuation
+## Working scope
 
-For contributor PR/issue reviews, maintainer fixes to those contributions,
-authorized releases, or resuming this backlog, read and follow
-[meridian-upstream-review](.agents/skills/meridian-upstream-review/SKILL.md)
-before acting. Claude also has a discovery entrypoint in `.claude/skills/`;
-both use the same canonical instructions.
+Continue authorized implementation through relevant verification, corrections, and a PR. Preserve the user's checkout; use an isolated feature branch from current `origin/main`. Do not push directly to main. An instruction cleanup or typo fix does not start the contributor backlog, run live model calls, or publish a release.
 
-For continuation, read [the current review handoff](docs/maintenance/REVIEW_HANDOFF.md),
-then refresh GitHub and origin/main. Update that handoff at a meaningful stop or
-handoff point. Do not rely on personal memories, old chat summaries, or a goal
-runner's status to decide what shipped or what remains. User instructions take
-precedence; this workflow does not start the backlog or authorize external
-actions by itself.
+- Use `ARCHITECTURE.md` for module and dependency changes, `DESIGN.md` for user-facing UI/brand changes, and `E2E.md` for affected-client live verification.
+- Use [meridian-upstream-review](.agents/skills/meridian-upstream-review/SKILL.md) for contributor review/incorporation or authorized release work. Read `docs/maintenance/REVIEW_HANDOFF.md` only when continuing that work; refresh live GitHub status before relying on a dated checkpoint.
+- For commits/PRs/merges, use [contribution workflow](.agents/references/contributing.md). Normal PRs squash with `--match-head-commit`; Release Please PRs merge with `--merge`. Required final-head CI, including `test`, remains a merge gate. Never bypass checks routinely.
+- External comments/messages need explicit authorization. Release authorization is separate from completing a change. Never manually run `npm version`, push tags, or `npm publish`; use the release reference in the review skill.
 
-## What This Is
+## Engineering boundaries
 
-A proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK). See `ARCHITECTURE.md` for the full module map and dependency rules.
+Keep `server.ts` focused on orchestration. `session/lineage.ts` is pure: no I/O or cache/server imports. Leaf modules such as `errors.ts`, `retryAfter.ts`, `models.ts`, `tools.ts` and `messages.ts` must not import `server.ts` or `session/`; dependencies flow downward without cycles.
 
-## Commands
+Keep agent-specific logic in the adapter boundary. When changing existing special cases, consult the Agent-Specific Logic section of `ARCHITECTURE.md`, retain useful `NOTE:` markers, and avoid spreading them into unrelated modules. Do not use `as any`, `@ts-ignore`, `@ts-expect-error`, or empty catch blocks.
 
-```bash
-npm test          # Full suite with process-global mocks isolated
-npm run build     # Bundle with Bun, emit declarations and check Node entrypoints
-npm start         # Start the proxy server
-npm run typecheck # tsc --noEmit; tests do not typecheck
-```
+Public plugin interfaces require owner approval and an issue before modification; an existing explicit request covering the change supplies approval. Consult [API contract](.agents/references/api-contract.md) when touching exported proxy configuration/lifecycle, session/profile headers, health, messages or profile routes. Internal fixes that preserve these interfaces do not require new approval.
 
-Use `npm test` for the full suite, not bare `bun test`: the npm script runs
-process-global mock users in separate Bun invocations.
+UI uses `DESIGN.md`, color tokens from `themeCss` in `src/telemetry/profileBar.ts`, and the shared `profileBarCss/Html/Js` header. Pages do not set their own body background. Blue `--accent` means interactive/active; violet `--accent2` means code/meta/secondary brand.
 
-## Code Rules
+## Validation
 
-### Module Boundaries
+`npm test` runs the full suite with process-global mocks isolated; bare all-files `bun test` does not. Targeted `bun test <file>` is useful while developing. `npm run typecheck` checks types independently of tests; `npm run build` bundles and checks Node entrypoints.
 
-- **Do not add code to `server.ts` that belongs in a leaf module.** If it's pure logic (no HTTP, no Hono), extract it.
-- **`session/lineage.ts` must stay pure.** No side effects, no I/O, no imports from cache or server.
-- **Leaf modules (`errors.ts`, `models.ts`, `tools.ts`, `messages.ts`) must not import from `server.ts` or `session/`.** Dependencies flow downward only.
-- **No circular dependencies.**
+Choose focused checks during iteration and fix failures caused by the change. For code changes, the final local gates are `npm test`, typecheck and build. Documentation/instruction-only changes need content, link and diff validation, not model calls or an application rebuild. Required CI still applies before merge.
 
-### Agent-Specific Logic
-
-OpenCode-specific behavior is documented in `ARCHITECTURE.md` under "Agent-Specific Logic". When modifying these areas:
-
-- Add a `NOTE:` comment marking the code as agent-specific
-- Do not spread agent-specific logic into new modules
-- Future work will use an adapter pattern — see `DEFERRED.md`
-
-### Testing
-
-- Every extracted module must have unit tests
-- Pure functions get direct unit tests (no mocks)
-- Integration tests go through the HTTP layer with mocked SDK
-- **All tests must pass before any change is considered complete**
-- New test files go in `src/__tests__/`
-- **Live E2E is required for every accepted behavior change and before releases**, using the real SDK/model and affected client flow. See [`E2E.md`](./E2E.md) and the upstream-review skill. Mock-only tests, a different model/platform, or a green rerun do not prove the reported problem fixed.
-
-### Style
-
-- No `as any`, `@ts-ignore`, or `@ts-expect-error`
-- No empty catch blocks
-- Match existing patterns — check neighboring code before writing
-- Keep `server.ts` as thin as possible — it should orchestrate, not compute
-
-### Design (web UI + brand assets)
-
-- **All user-facing surfaces follow [`DESIGN.md`](./DESIGN.md)** — the full design language (palette, chrome, components, principles).
-- Color tokens come from `themeCss` in `src/telemetry/profileBar.ts`; never hardcode hex colors in page CSS.
-- Every page embeds the shared site header (`profileBarCss/Html/Js`) and must not set its own `body` background.
-- Blue (`--accent`) = interactive/active; violet (`--accent2`) = code/meta/brand-secondary — never swap these roles.
-
-## Architecture Quick Reference
-
-```
-server.ts          → HTTP routes, SSE streaming, concurrency (orchestration only)
-adapter.ts         → AgentAdapter interface (extensibility point)
-adapters/
-  opencode.ts      → OpenCode-specific: headers, CWD, tool config
-  forgecode.ts     → ForgeCode-specific: XML CWD, patch/shell tools, passthrough
-query.ts           → buildQueryOptions (shared stream/non-stream SDK call builder)
-errors.ts          → classifyError (pure)
-models.ts          → mapModelToClaudeModel, resolveClaudeExecutableAsync
-tools.ts           → BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME
-messages.ts        → normalizeContent, getLastUserMessage (pure)
-fileChanges.ts     → PostToolUse hook: file write/edit tracking + summary formatting (pure)
-session/
-  lineage.ts       → Hashing, lineage verification (PURE — no I/O)
-  fingerprint.ts   → extractClientCwd, getConversationFingerprint
-  cache.ts         → LRU caches, lookupSession, storeSession (stateful)
-```
-
-## Stable API Contract
-
-External plugins depend on these interfaces. **Do not change without project owner approval.**
-
-| Interface | Location | Used by |
-|-----------|----------|---------|
-| `startProxyServer(config)` → `ProxyInstance` | `server.ts` | Plugins that spawn proxy instances |
-| `ProxyInstance.close()` | `types.ts` | Plugins for graceful shutdown |
-| `ProxyConfig` type | `types.ts` | Plugin configuration |
-| `x-opencode-session` header | `adapters/opencode.ts` | Session tracking from agent plugins |
-| `x-meridian-profile` header | `server.ts`, `profiles.ts` | Per-request profile selection |
-| `GET /health` response shape | `server.ts` | Plugin health checks |
-| `POST /v1/messages` request/response format | `server.ts` | All agents (Anthropic API contract) |
-| `GET /profiles/list` response shape | `server.ts` | Profile management UI and CLI |
-| `POST /profiles/active` request/response | `server.ts` | Profile switching from CLI and UI |
-
-If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
-
-## Git & Workflow
-
-### Commit format
-
-- Format: `type: brief description`
-- Types: feat, fix, refactor, perf, test, docs, chore
-- No AI attribution lines
-
-### Development workflow — NEVER push directly to main
-
-1. Use a feature branch from current main, preferably in a fresh isolated
-   worktree, preserving the user's checkout. For upstream reviews, use the
-   repository skill above to assess desirability and preserve contributor
-   Author/AuthorDate through cherry-picks and separate maintainer corrections.
-2. Commit, push the feature branch, and create a PR targeting main. Use
-   Conventional Commits and describe the final behavior and validation.
-3. Run the required local checks and affected-flow live E2E, then wait for all
-   relevant final-head CI checks, including `test`. Recheck the head, base and
-   merge state immediately before merging; a changed head invalidates old checks.
-4. Normal PRs use `gh pr merge <N> --squash --match-head-commit <verified-SHA>`.
-   Delete only branches owned by this workflow after they are no longer needed.
-   Release Please PRs use `--merge` instead.
-5. Verify the merged tree and contributor credit. Recheck an incorporated
-   original PR's head before closing it, so newer contributor work is not lost.
-   Only close an issue when the validated behavior actually resolves it.
-
-Squash keeps changelog entries one per PR. Preserve repository settings
-`squash_merge_commit_title=PR_TITLE` and `squash_merge_commit_message=BLANK`;
-do not paste intermediate conventional-commit subjects into the squash body.
-Verify human contributor credit instead of assuming every maintainer integration
-PR automatically receives all needed co-author trailers. No AI attribution.
-
-Signed-commit requirements can block a contributor PR. Inspect the actual block;
-use an authored cherry-pick in a maintainer integration PR when needed, with
-separate maintainer fixes. Never retype a contribution under your own authorship.
-Do not routinely use `--admin` or bypass checks.
-
-Do not post comments or send messages to others without explicit authorization;
-draft explanations locally. Never run `git push origin main` directly.
-
-## Releasing
-
-**Do NOT run `npm version`, `git push --tags`, or `npm publish` manually.**
-
-For release validation and publication verification, follow the repository skill
-above and its release reference. Releases are handled automatically by [Release Please](https://github.com/googleapis/release-please):
-
-1. Merge PRs to `main` using [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, etc.)
-2. Release Please auto-creates/updates a release PR that batches all unreleased changes
-3. Review the release PR — the changelog should only show changes since the last release
-4. When ready to ship, merge the release PR:
-   ```bash
-   gh pr merge <RELEASE_PR_NUMBER> --merge
-   ```
-5. Merging the release PR automatically:
-   - Bumps `package.json` and `CHANGELOG.md`
-   - Creates a git tag (`meridian-v*`) and GitHub Release
-   - Runs tests, builds, and publishes to npm with provenance
-
-Multiple PRs get batched into a single release. Never publish manually.
-
-### Troubleshooting releases
-
-- **Changelog shows entire history?** — Release Please can't find the previous release tag. Check that `meridian-v<version>` tags exist for recent releases: `git tag -l 'meridian-v*' | tail -5`
-- **Release PR not updating?** — Inspect the Release Please run and PR state. Changes still reach main through normal PRs; never push directly to main to trigger the bot.
-- **Publish failed with E403?** — Check the actual registry version, release commit and provenance before deciding an existing publication is correct; do not blindly ignore the error.
-- **`publish_only` workflow dispatch** — Emergency escape hatch to publish the current version without Release Please. Only use when the normal flow is broken.
-
-### Release config files
-
-- **`.release-please-manifest.json`** — tracks the current released version. Release Please updates this automatically when a release PR is merged. **Do not edit manually** unless resetting the version anchor.
-- **`release-please-config.json`** — defines the release type (`node`), component name, and changelog section mapping.
-- **`.github/workflows/release-please.yml`** — the workflow that runs on every push to `main`. It creates/updates the release PR and publishes to npm when merged.
+Cover meaningful extracted behavior with direct pure-function tests or HTTP integration tests through the mocked SDK; tests live in `src/__tests__/`. Every accepted product behavior change and release requires affected-flow live E2E using the actual implicated model, SDK, client and platform. Use `E2E.md`; mocks, another platform/model, or an unexplained green rerun cannot establish that the reported problem is fixed. Preserve missing evidence explicitly and continue any independent work.
