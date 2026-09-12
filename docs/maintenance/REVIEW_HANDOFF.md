@@ -29,8 +29,13 @@ the probe-discipline rules in #1019 (`619bbe70`).
 split, `fix: recover visible empty capped streams` — see #1011. Still open for a
 canary and a live gate: #1009.
 
-**1.71.0 is published**, authorized explicitly by the owner; verified below.
-Nothing on `main` is unreleased. A future release needs its own authorization.
+**1.71.1 is published**, authorized explicitly by the owner: tag `ea5e9845`,
+npm `latest`, provenance `gitCommit` equal to the tag commit, Docker on both
+architectures, and the published artifact driven from the registry. It carries
+the #1024 fix the reporter was waiting on.
+
+**Unreleased on `main`:** the typecheck hook (#1035) and the session bookkeeping
+incorporation (#1036). A release needs its own explicit authorization.
 
 **1.70.0 is published.** The owner authorized it explicitly; PR #1006 was merged
 as `0acf3b19` and the publication is verified below — npm, provenance by
@@ -117,6 +122,71 @@ never given the same treatment. A second run exited 0 with identical
 assertions. The release was not held: the artifact under test passed everything,
 and the defect is in the harness. **This was not written off as "a rerun
 passed"** — it is root-caused to a named code path and tracked.
+
+## Delivered: session bookkeeping off the request path, #1030 as #1036
+
+Contributor PR by @justprosh, incorporated as `596a0d83` with Aleksey
+Proshutinskiy's authorship preserved (`ba3792b8` → `2a524584`, `8b573a3c` →
+`cf1aac50`) and a `Co-authored-by` trailer on the squash. Both commits applied
+cleanly to current `main` — no conflicts. Branch `codex/session-bookkeeping`,
+worktree `/tmp/meridian-1030`.
+
+**#1030 is still OPEN.** Its head was rechecked as `8b573a3c`, unchanged, so
+nothing of theirs was lost. Closing it notifies the contributor, so that is left
+to the owner along with a note.
+
+**What it fixes.** A ~500 turns/hour deployment losing **13–16% of turns** to a
+504 that blamed the request. Four independent bookkeeping defects: a deletion
+backlog that never drained (254 attempts on one resource, then
+`ownership backlog is full` for every *new* conversation); a 26 MiB store parsed
+synchronously (135 ms) several times per request and once under the lifecycle
+lock; unarmed leases with no TTL fencing conversations until restart (30 leaked,
+28 older than 15 minutes); and pretty-printed machine-only files costing ~20–25%
+of bytes and CPU under the lock. Saturation now answers 503 `overloaded_error`
+naming the reason instead of a 504.
+
+**How it was reviewed, and the one thing that mattered.** The new tests were run
+against the **pre-fix** tree, which is the only way to tell evidence from
+decoration:
+
+| new tests | pre-fix |
+|---|---|
+| `classifyError` saturation | 3 of 4 fail (the 4th is a control) |
+| read-cache identity reuse | fails |
+| read-cache safety properties | pass — regression guards, not demonstrations |
+| lease TTL | could not run (imports a symbol absent pre-fix) |
+| **deletion verdict** | **pass** |
+
+The headline defect's tests pass pre-fix. Their fixture's child output is short
+enough that the old `output.slice(-4_000)` still contained the verdict, so they
+prove the new mechanism works but not that it fixes the reported failure — only
+an output larger than the tail budget separates them. `cd753c73` pins that shape
+directly. **This is the fourth time this month a test passed while covering
+nothing** (#1025, the plugin-less 400, #1004's missing gate, now this one);
+running a PR's own tests against the pre-fix tree is the cheapest way to catch
+it and should be routine.
+
+**The read cache's premise was checked, not taken.** Identity keying by
+`{path, ino, mtimeMs, size}` is exact only if every writer publishes through
+`rename`. `writeStore` writes a unique temp, fsyncs, renames — new inode per
+publish — and re-takes identity from the same fd it reads bytes from, closing
+the stat/read race. The other two `writeFileSync` calls in that module target
+lock and claim paths, never the store.
+
+`3d2a8755` documents `MERIDIAN_SESSION_GC_LOCK_WAIT_MS`, which shipped
+undocumented — the knob an operator reaches for when the new 503 says a lock is
+busy. Env names verified against `src/env.ts`, not assumed.
+
+**Validation.** `npm test` 3948 pass / 1 skip / 0 fail, build. Live E41 all four
+modes plus `publication-lifetime`, `settlement-proof` and `duplicate-checkpoint`
+— run twice, on the incorporated tree and again after the two maintainer
+commits.
+
+**Not verified, deliberately:** the three quantitative claims (254 attempts,
+135 ms under lock, 30 leaked leases) are the reporter's measurements. The
+mechanisms and their guards were verified; the load was not reproduced. A
+synthetic 26 MiB store is the obvious next gate if the performance claim should
+be pinned rather than argued.
 
 ## Delivered: #1024, plugin-less OpenCode concurrency, as #1031
 
