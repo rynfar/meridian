@@ -9,6 +9,7 @@
  */
 
 import { profileBarCss, profileBarHtml, profileBarJs, themeCss } from "./profileBar"
+import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrder"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -41,6 +42,7 @@ export const landingHtml = `<!DOCTYPE html>
   .profile-card.switchable { cursor: pointer; }
   .profile-card.switchable:hover { border-color: var(--accent); }
   .profile-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  ${reorderCss}
   .profile-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
   .profile-name { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
   .profile-name .prof-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
@@ -93,6 +95,7 @@ export const landingHtml = `<!DOCTYPE html>
 ` + profileBarHtml + `
 <div class="container">
   <div id="content"><div style="color:var(--muted);padding:40px;text-align:center">Loading…</div></div>
+  ${reorderLiveRegionHtml}
 </div>
 <script>
 function ms(v){if(v==null||v===0)return '—';return v<1000?v+'ms':(v/1000).toFixed(1)+'s'}
@@ -127,6 +130,8 @@ function paceColor(pc){return pc.status==='over'?'var(--red)':pc.status==='ahead
 
 function resetIn(ts){if(ts==null)return '';var d=ts-Date.now();if(d<=0)return 'resetting…';var m=Math.ceil(d/60000);if(m<60)return 'in '+m+'m';var h=Math.floor(m/60);if(h<24)return 'in '+h+'h'+(m%60?' '+(m%60)+'m':'');var days=Math.floor(h/24);return 'in '+days+'d'+(h%24?' '+(h%24)+'h':'')}
 
+${reorderClientJs}
+
 function introSection(h){
   var meta=[];
   if(h.auth&&h.auth.loggedIn)meta.push(esc(h.auth.email||'')+(h.auth.subscriptionType?' ('+esc(h.auth.subscriptionType)+')':''));
@@ -158,7 +163,12 @@ function profileSection(q,s,pl,h){
     for(var k in byProfile){if(!seen[k])profs.push({id:k,label:k==='default'?(email||'account'):k,configured:false});seen[k]=1}
   }
   if(profs.length===0)return '';
+  // The persisted order is the base order everywhere. /profiles writes it;
+  // this page read config order instead, so the two disagreed after a drag.
+  profs=meridianReorder.sortProfiles(profs);
+  var reorderable=multi&&!meridianReorder.envPinned();
   var cards='';
+  var pos=0;
   for(var i=0;i<profs.length;i++){
     var p=profs[i];var cost=byProfile[p.id];
     var wins=(quotaByProfile[p.id]||[]).filter(function(w){return w.utilization!=null});
@@ -202,14 +212,20 @@ function profileSection(q,s,pl,h){
           :' <span class="pool-chip exhausted">exhausted · resets '+resetIn(exh.until)+'</span>';
       }
     }
-    cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'+(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
-      +'<div class="profile-head"><span class="profile-name"><span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'
+    var draggable=reorderable&&p.configured;
+    cards+='<div class="profile-card'+(p.isActive?' active':'')+(switchable?' switchable':'')+'"'
+      +(p.configured?' data-id="'+esc(p.id)+'" data-index="'+pos+'"':'')
+      +(switchable?' data-profile="'+esc(p.id)+'" role="button" tabindex="0"':'')+'>'
+      +'<div class="profile-head"><span class="profile-name">'+(draggable?meridianReorder.handleHtml(p.id,pos,profs.length):'')+'<span class="prof-dot"></span>'+esc(p.label||p.id)+' '+badge+'</span>'
       +'<span class="profile-cost">'+usd(cost?cost.estimatedUsd:0)+'</span></div>'
       +'<div class="profile-sub">'+(cost?cost.requests+' request'+(cost.requests===1?'':'s')+' · est. API value · 24h':'no traffic · 24h')+'</div>'
       +rows+'</div>';
+    if(p.configured)pos++;
   }
   if(!cards)return '';
-  return '<div class="section"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div><div class="profile-grid">'+cards+'</div></div>';
+  return '<div class="section"><div class="section-title">'+(profs.length===1?'Account':'Accounts')+'</div>'
+    +(multi?meridianReorder.noteHtml(reorderable):'')
+    +'<div class="profile-grid">'+cards+'</div></div>';
 }
 
 function strip(items){
@@ -222,12 +238,14 @@ function strip(items){
 
 async function refresh(){
   try{
-    const [health,stats,quota,profiles]=await Promise.all([
+    const [health,stats,quota,profiles,routing]=await Promise.all([
       fetch('/health').then(r=>r.json()),
       fetch('/telemetry/summary?window=86400000').then(r=>r.json()),
       fetch('/v1/usage/quota/all').then(r=>r.json()).catch(function(){return null}),
-      fetch('/profiles/list').then(r=>r.json()).catch(function(){return null})
+      fetch('/profiles/list').then(r=>r.json()).catch(function(){return null}),
+      fetch('/settings/api/routing').then(r=>r.json()).catch(function(){return null})
     ]);
+    meridianReorder.adopt(routing);
     render(health,stats,quota,profiles);
   }catch(e){document.getElementById('content').innerHTML='<div style="color:var(--red);padding:40px;text-align:center">Could not connect</div>'}
 }
@@ -235,6 +253,7 @@ async function refresh(){
 function tokens(v){if(v==null)return '—';if(v>=1e6)return (v/1e6).toFixed(1)+'M';if(v>=1e3)return (v/1e3).toFixed(1)+'k';return String(v)}
 
 function render(h,s,q,pl){
+  var refocusId=meridianReorder.focusAnchor();
   let o='';
   o+=introSection(h);
 
@@ -259,6 +278,7 @@ function render(h,s,q,pl){
 
   o+='<div class="footer">Meridian · <a href="https://github.com/rynfar/meridian">GitHub</a> · Built on the <a href="https://github.com/anthropics/claude-agent-sdk-typescript">Claude Agent SDK</a></div>';
   document.getElementById('content').innerHTML=o;
+  meridianReorder.restoreFocus(refocusId);
 }
 
 function switchProfile(id){
@@ -267,16 +287,23 @@ function switchProfile(id){
     .then(function(data){if(data.success){refresh();if(window.meridianHeaderRefresh)window.meridianHeaderRefresh()}})
     .catch(function(){});
 }
+// The handle sits inside a card that is itself a switch button, so without
+// this every grab of the handle would also change the active account.
+function onHandle(e){return !!(e.target.closest&&e.target.closest('.drag-handle'))}
 document.getElementById('content').addEventListener('click',function(e){
+  if(onHandle(e))return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile)switchProfile(card.dataset.profile);
 });
 document.getElementById('content').addEventListener('keydown',function(e){
   if(e.key!=='Enter'&&e.key!==' ')return;
+  if(onHandle(e))return;
   var card=e.target.closest('.profile-card.switchable');
   if(card&&card.dataset.profile){e.preventDefault();switchProfile(card.dataset.profile)}
 });
-refresh();setInterval(refresh,10000);
+meridianReorder.init({onSaved:refresh});
+refresh();
+setInterval(function(){if(!meridianReorder.dragging())refresh()},10000);
 ` + profileBarJs + `
 </script>
 </body>
