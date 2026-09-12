@@ -21,6 +21,7 @@ import {
   acquireActiveTranscriptLease,
   attachActiveTranscriptExecutor,
   attachPinnedTranscript,
+  clipChildOutput,
   commitFork,
   getSessionGcNodeExecutable,
   getTranscriptResourceKey,
@@ -437,6 +438,40 @@ describe("session transcript lifecycle", () => {
     await releaseActiveTranscriptLease(second, options)
   })
 
+  it("expires an unarmed writer lease older than its TTL, independently of the prepared grace", async () => {
+    const graceOptions = { ...options, unarmedLeaseTtlMs: 100, preparedGraceMs: 10_000 }
+    const fork = locator("stale-unarmed-writer")
+    await prepareFork(fork, graceOptions)
+    const first = await acquireActiveTranscriptLease([fork], graceOptions)
+    await expect(acquireActiveTranscriptLease([fork], graceOptions)).rejects.toThrow("active SDK writer")
+
+    now += 101
+    const second = await acquireActiveTranscriptLease([fork], graceOptions)
+    expect(second.token).not.toBe(first.token)
+    await releaseActiveTranscriptLease(second, graceOptions)
+  })
+
+  it("keeps a fresh unarmed writer lease exclusive", async () => {
+    const graceOptions = { ...options, unarmedLeaseTtlMs: 100 }
+    const fork = locator("fresh-unarmed-writer")
+    await prepareFork(fork, graceOptions)
+    await acquireActiveTranscriptLease([fork], graceOptions)
+    now += 50
+    await expect(acquireActiveTranscriptLease([fork], graceOptions)).rejects.toThrow("active SDK writer")
+  })
+
+  it("retires an unpinned live resource once its stale publication lease expires", async () => {
+    const graceOptions = { ...options, unarmedLeaseTtlMs: 100 }
+    const fork = locator("stale-publication-lease")
+    await prepareForkForPublication(fork, graceOptions)
+    await commitFork(fork, graceOptions)
+    expect((await reconcile([], graceOptions)).liveRetired).toBe(0)
+
+    now += 101
+    expect((await reconcile([], graceOptions)).liveRetired).toBe(1)
+    expect(readSidecar(storeDir).resources[getTranscriptResourceKey(fork)]?.state).toBe("retired")
+  })
+
   it("keeps current and previous pins and deletes only retired forks", async () => {
     const current = locator("current")
     const previous = locator("previous")
@@ -501,6 +536,38 @@ describe("session transcript lifecycle", () => {
   it("uses a real Node executable when tests run under Bun", () => {
     expect(process.versions.bun).toBeDefined()
     expect(getSessionGcNodeExecutable()).toBe("node")
+  })
+
+  it("clips child output keeping both ends within the budget", () => {
+    const head = "h".repeat(2_000)
+    const tail = "t".repeat(2_000)
+    const clipped = clipChildOutput(`${head}${"m".repeat(3_000)}${tail}`)
+
+    expect(clipped.startsWith(head)).toBe(true)
+    expect(clipped.endsWith(tail)).toBe(true)
+    expect(clipped).toContain("3000 chars elided")
+    expect(clipChildOutput("short child output")).toBe("short child output")
+  })
+
+  it("keeps a verdict that the old tail-only clip would have lost (#1030)", () => {
+    // The reported failure, stated as a test. The child writes its verdict
+    // first and a Node crash report follows it. The previous
+    // `output.slice(-4_000)` kept only the crash report, so the parent's string
+    // match never fired, the resource stayed `retired` and was retried forever
+    // — 254 attempts on the reporting deployment — until `pending` reached
+    // `maxPending` and every NEW conversation failed with "ownership backlog is
+    // full".
+    //
+    // Worth pinning separately from the mechanics above: the end-to-end
+    // deletion test passes on the pre-fix tree too, because its fixture's
+    // output is short enough that the old tail match still found the verdict.
+    // Only an output larger than the budget distinguishes them.
+    const verdict = "Error: Session 0e0f7a11-0000-4000-8000-000000000000 not found"
+    const crashReport = "#".repeat(9_000)
+    const output = `${verdict}\n${crashReport}`
+
+    expect(output.slice(-4_000)).not.toContain(verdict)
+    expect(clipChildOutput(output)).toContain(verdict)
   })
 
   it("defers retired deletion through the reader-drain grace period", async () => {

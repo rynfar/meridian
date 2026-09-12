@@ -15,6 +15,7 @@ import {
   closeSync,
   existsSync,
   fchmodSync,
+  fstatSync,
   fsyncSync,
   linkSync,
   lstatSync,
@@ -958,6 +959,59 @@ function validateStoreMeta(value: unknown): SessionStoreMeta {
   }
 }
 
+interface StoreDocumentCache {
+  path: string
+  ino: number
+  mtimeMs: number
+  size: number
+  document: SessionStoreDocument
+}
+
+// Takes the synchronous full-file parse — well over a hundred milliseconds on a
+// long-lived store — off every lookup and out from under the session lifecycle
+// lock. Identity keying is exact because every writer, this process or a
+// foreign one, publishes through renameSync and therefore a new inode.
+// Callers must treat the document and its sessions as immutable; mutation goes
+// through mutateStore.
+let storeDocumentCache: StoreDocumentCache | undefined
+
+function readStoreDocumentCached(path: string): SessionStoreDocument {
+  let fd: number | undefined
+  try {
+    const info = statSync(path)
+    const cached = storeDocumentCache
+    if (cached?.path === path && cached.ino === info.ino && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+      return cached.document
+    }
+    // Identity is re-taken from the same fd the content is read from, so a
+    // rename landing between stat and read can never pair one file's identity
+    // with another file's bytes.
+    fd = openSync(path, "r")
+    const identity = fstatSync(fd)
+    const document = parseStoreDocument(readFileSync(fd, "utf8"))
+    storeDocumentCache = { path, ino: identity.ino, mtimeMs: identity.mtimeMs, size: identity.size, document }
+    return document
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    storeDocumentCache = undefined
+    return emptyStoreDocument()
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+/** Publish a just-written document under the identity of the file it landed in.
+ *  A failure to read that identity only costs the next reader a re-parse, so it
+ *  must never turn a committed write into a thrown mutation. */
+function publishStoreCache(path: string, document: SessionStoreDocument): void {
+  try {
+    const info = statSync(path)
+    storeDocumentCache = { path, ino: info.ino, mtimeMs: info.mtimeMs, size: info.size, document }
+  } catch {
+    storeDocumentCache = undefined
+  }
+}
+
 function readStoreDocumentStrict(path: string): SessionStoreDocument {
   let data: string
   try {
@@ -966,7 +1020,11 @@ function readStoreDocumentStrict(path: string): SessionStoreDocument {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyStoreDocument()
     throw error
   }
+  return parseStoreDocument(data)
+}
 
+/** Parse and validate raw store bytes, for both the strict and the cached read. */
+function parseStoreDocument(data: string): SessionStoreDocument {
   const parsed: unknown = JSON.parse(data)
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("session store must contain a JSON object")
@@ -1000,7 +1058,7 @@ function readStoreDocumentStrict(path: string): SessionStoreDocument {
 }
 
 function readStoreStrict(path: string): Record<string, StoredSession> {
-  return readStoreDocumentStrict(path).sessions
+  return readStoreDocumentCached(path).sessions
 }
 
 /** Read a strict, coherent snapshot for maintenance tasks such as session GC.
@@ -1014,7 +1072,7 @@ export function readSessionStoreGenerationSnapshot(
   adapterSessionId: string,
   profileIds: readonly string[] = [],
 ): Record<string, StoredSessionGeneration> {
-  const document = readStoreDocumentStrict(getStorePath())
+  const document = readStoreDocumentCached(getStorePath())
   const keys = new Set(Object.keys(document.sessions).filter((key) =>
     key === adapterSessionId || key.endsWith(`:${adapterSessionId}`)))
   keys.add(adapterSessionId)
@@ -1056,7 +1114,9 @@ function writeStore(path: string, document: SessionStoreDocument): void {
     fd = openSync(tmp, "wx", 0o600)
     fchmodSync(fd, 0o600)
     const serialized = { [STORE_META_KEY]: document.meta, ...document.sessions }
-    writeFileSync(fd, JSON.stringify(serialized, null, 2), "utf8")
+    // Compact on purpose: machine-read only, and indentation costs ~20% of the
+    // bytes and of the stringify CPU on a large store.
+    writeFileSync(fd, JSON.stringify(serialized), "utf8")
     fsyncSync(fd)
     closeSync(fd)
     fd = undefined
@@ -1086,7 +1146,10 @@ function mutateStore(mutator: (document: SessionStoreDocument) => boolean): void
   const lock = acquireLock(`${path}.lock`)
   try {
     const document = readStoreDocumentStrict(path)
-    if (mutator(document)) writeStore(path, document)
+    if (mutator(document)) {
+      writeStore(path, document)
+      publishStoreCache(path, document)
+    }
   } finally {
     releaseLock(lock)
   }
@@ -1105,7 +1168,7 @@ export type SharedSessionLookupResult =
 /** Distinguish an authoritative absence from a transient/corrupt read. */
 export function lookupSharedSessionResult(key: string): SharedSessionLookupResult {
   try {
-    const document = readStoreDocumentStrict(getStorePath())
+    const document = readStoreDocumentCached(getStorePath())
     const session = document.sessions[key]
     const generation = keyGeneration(key, session, document.meta)
     if (!session) return { status: "missing", generation }
@@ -1139,7 +1202,7 @@ export type PriorityAssignmentLookupResult =
 /** Read one exact durable route. V1 documents authoritatively contain none. */
 export function lookupPriorityAssignmentResult(routeKey: string): PriorityAssignmentLookupResult {
   try {
-    const document = readStoreDocumentStrict(getStorePath())
+    const document = readStoreDocumentCached(getStorePath())
     const assignment = document.meta.version === PRIORITY_STORE_META_VERSION
       ? document.meta.priorityAssignments[routeKey]
       : undefined
@@ -1159,7 +1222,7 @@ export function lookupPriorityAssignmentResult(routeKey: string): PriorityAssign
 
 export function lookupSharedSessionByClaudeIdResult(claudeSessionId: string): SharedSessionLookupResult {
   try {
-    const document = readStoreDocumentStrict(getStorePath())
+    const document = readStoreDocumentCached(getStorePath())
     let newest: StoredSession | undefined
     let newestKey: string | undefined
     for (const [key, session] of Object.entries(document.sessions)) {
@@ -1280,8 +1343,10 @@ export function storeSharedSession(
         ? existing?.passthroughToolCallIds
         : passthroughToolCallIds ?? undefined,
       contextUsage: contextUsage ?? existing?.contextUsage,
-      ...(resolvedCurrentTranscript ? { currentTranscript: resolvedCurrentTranscript } : {}),
-      ...(previousTranscript ? { previousTranscript } : {}),
+      // Copy, never alias: the document is republished as the read cache, so a
+      // later mutation of the caller's locator would diverge it from the file.
+      ...(resolvedCurrentTranscript ? { currentTranscript: { ...resolvedCurrentTranscript } } : {}),
+      ...(previousTranscript ? { previousTranscript: { ...previousTranscript } } : {}),
       ...(previousClaudeSessionId ? { previousClaudeSessionId } : {}),
     }
 
@@ -1898,7 +1963,8 @@ export function attachSharedTranscriptLocator(
     if (!existing || existing.claudeSessionId !== expectedClaudeSessionId) return false
     if (expectedGeneration !== undefined && getStoredSessionGeneration(existing, key) !== expectedGeneration) return false
     if (!sameTranscriptLocator(existing.currentTranscript, locator)) {
-      existing.currentTranscript = locator
+      // Copy, never alias — same reason as in storeSharedSession.
+      existing.currentTranscript = { ...locator }
       existing.revision = (existing.revision ?? 0) + 1
       existing.generationId = randomUUID()
       advanceKeySlot(key, meta)

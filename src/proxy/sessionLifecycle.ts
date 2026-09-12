@@ -47,9 +47,16 @@ const DEFAULT_LOCK_STALE_MS = 60_000
 const DEFAULT_PREPARED_GRACE_MS = 5 * 60_000
 const DEFAULT_DELETING_LEASE_MS = 60_000
 const DEFAULT_RETIRED_GRACE_MS = 11 * 60_000
+// Deliberately its own knob, not the prepared grace: a deployment may size the
+// grace small to expire prepared forks fast, which must not expire leases a
+// live request still holds.
+const DEFAULT_UNARMED_LEASE_TTL_MS = 11 * 60_000
 const DEFAULT_RETRY_BASE_MS = 5_000
 const DEFAULT_RETRY_MAX_MS = 60 * 60_000
 const DEFAULT_DELETE_TIMEOUT_MS = 30_000
+// "Nothing to delete" travels as an exit code because child output is clipped,
+// and a Node crash report can bury the verdict. 75 is the gate timeout.
+const SESSION_GC_NOT_FOUND_EXIT_CODE = 69
 
 export interface TranscriptLocator {
   sessionId: string
@@ -118,6 +125,8 @@ export interface SessionLifecycleOptions {
   deletingLeaseMs?: number
   /** Quarantine after retirement so old readers and rolling upgrades can drain. */
   retiredGraceMs?: number
+  /** Lifetime of an unarmed lease; sized by the caller's turn watchdog. */
+  unarmedLeaseTtlMs?: number
   retryBaseMs?: number
   retryMaxMs?: number
   deletionTimeoutMs?: number
@@ -190,12 +199,13 @@ export async function acquireActiveTranscriptLease(
   const token = randomUUID()
   await withSidecarLock(options, async (paths) => {
     const sidecar = await readSidecar(paths.sidecar)
+    const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     for (const [key, locator] of normalized) {
       const resource = sidecar.resources[key]
       if (!resource) throw new SessionLifecycleError(`cannot lease unjournaled transcript ${key}`)
       assertSameLocator(resource.locator, locator)
       assertExactLifecycleGeneration(resource, locator)
-      pruneDeadActiveLeases(resource)
+      pruneDeadActiveLeases(resource, nowMs(options), unarmedLeaseTtlMs)
       if (Object.values(resource.activeLeases ?? {}).some(lease => lease.purpose !== "publication")) {
         throw new SessionLifecycleError(`transcript ${key} already has an active SDK writer`)
       }
@@ -590,8 +600,9 @@ export async function reconcile(
     const now = nowMs(options)
     const preparedCutoff = now - nonNegativeOption(options.preparedGraceMs, DEFAULT_PREPARED_GRACE_MS, "preparedGraceMs")
     let changed = false
+    const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     for (const resource of Object.values(sidecar.resources)) {
-      if (pruneDeadActiveLeases(resource)) changed = true
+      if (pruneDeadActiveLeases(resource, now, unarmedLeaseTtlMs)) changed = true
     }
     let pending = pendingResourceCount(sidecar)
     const maxPending = option(options.maxPending, DEFAULT_MAX_PENDING, "maxPending")
@@ -757,9 +768,10 @@ async function claimDeletion(
     const sidecar = await readSidecar(paths.sidecar)
     const finalPins = (options.pinProvider?.() ?? pins).map(canonicalizeTranscriptLocator)
     const now = nowMs(options)
+    const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     let leasesChanged = false
     for (const resource of Object.values(sidecar.resources)) {
-      if (pruneDeadActiveLeases(resource)) leasesChanged = true
+      if (pruneDeadActiveLeases(resource, now, unarmedLeaseTtlMs)) leasesChanged = true
     }
     const candidate = Object.values(sidecar.resources)
       .filter((resource) =>
@@ -855,6 +867,9 @@ async function countDeferred(
 
 class DeletionStillRunningError extends Error {}
 
+/** The SDK reported the transcript already gone: there is nothing left to delete. */
+class TranscriptAlreadyAbsentError extends Error {}
+
 async function awaitCustomDeleter(deletion: Promise<void>, timeoutMs: number): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_resolve, reject) => {
@@ -946,15 +961,31 @@ while (!existsSync(process.env.MERIDIAN_GC_GATE_PATH)) {
   await wait(10);
 }
 const sdk = await import(process.env.MERIDIAN_GC_SDK_URL);
+const sessionId = process.env.MERIDIAN_GC_SESSION_ID;
 const options = process.env.MERIDIAN_GC_PROJECT_DIR
   ? { dir: process.env.MERIDIAN_GC_PROJECT_DIR }
   : undefined;
+// Only the SDK's session-specific verdict means "already absent". A generic
+// "not found" can be the SDK or the child itself failing to load, and must stay
+// a retryable failure rather than tombstone a transcript still on disk.
+const absent = (message) => message.includes(process.env.MERIDIAN_GC_ABSENT_PHRASE);
 try {
-  await sdk.deleteSession(process.env.MERIDIAN_GC_SESSION_ID, options);
+  await sdk.deleteSession(sessionId, options);
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  if (!options || !message.includes("not found")) throw error;
-  await sdk.deleteSession(process.env.MERIDIAN_GC_SESSION_ID);
+  if (!message.includes("not found")) throw error;
+  if (options) {
+    try {
+      await sdk.deleteSession(sessionId);
+      process.exit(0); // The dir-less retry deleted it: a deletion, not an absence.
+    } catch (fallbackError) {
+      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      if (!absent(fallbackMessage)) throw fallbackError;
+      process.exit(${SESSION_GC_NOT_FOUND_EXIT_CODE});
+    }
+  }
+  if (!absent(message)) throw error;
+  process.exit(${SESSION_GC_NOT_FOUND_EXIT_CODE});
 }
 `
   const child = spawn(getSessionGcNodeExecutable(), ["--input-type=module", "--eval", script], {
@@ -963,6 +994,7 @@ try {
       CLAUDE_CONFIG_DIR: locator.configDir,
       MERIDIAN_GC_SDK_URL: sdkUrl,
       MERIDIAN_GC_SESSION_ID: locator.sessionId,
+      MERIDIAN_GC_ABSENT_PHRASE: sessionAbsentPhrase(locator.sessionId),
       MERIDIAN_GC_PROJECT_DIR: locator.projectDir ?? "",
       MERIDIAN_GC_GATE_PATH: gatePath,
       MERIDIAN_GC_GATE_TIMEOUT_MS: String(timeoutMs),
@@ -1014,8 +1046,13 @@ try {
     if (!joined) {
       throw new DeletionStillRunningError("session deletion process group remains active")
     }
+    if (status.code === SESSION_GC_NOT_FOUND_EXIT_CODE) {
+      throw new TranscriptAlreadyAbsentError(
+        `session deletion child reported transcript ${locator.sessionId} already absent`,
+      )
+    }
     if (status.code !== 0) {
-      throw new Error(`session deletion child exited ${status.code ?? status.signal}: ${output.slice(-4_000)}`)
+      throw new Error(`session deletion child exited ${status.code ?? status.signal}: ${clipChildOutput(output)}`)
     }
   } finally {
     if (timer) clearTimeout(timer)
@@ -1037,6 +1074,15 @@ try {
       throw new DeletionStillRunningError("session deletion process group remains unjoined")
     }
   }
+}
+
+/** Keep both ends of child output within the storage budget: the verdict sits
+ *  at the head, while a Node crash report floods the tail with vendor source. */
+export function clipChildOutput(output: string): string {
+  const halfBudget = 2_000
+  if (output.length <= halfBudget * 2) return output
+  const elided = output.length - halfBudget * 2
+  return `${output.slice(0, halfBudget)}\n…[${elided} chars elided]…\n${output.slice(-halfBudget)}`
 }
 
 function getStoreDir(options: SessionLifecycleOptions): string {
@@ -1404,7 +1450,9 @@ async function writeSidecar(path: string, sidecar: SessionGcSidecar): Promise<vo
   let handle: Awaited<ReturnType<typeof open>> | undefined
   try {
     handle = await open(temp, "wx", 0o600)
-    await handle.writeFile(`${JSON.stringify(sidecar, null, 2)}\n`, "utf8")
+    // Compact on purpose: machine-read only, and indentation costs ~25% of the
+    // bytes and of the serialisation CPU spent under the lock.
+    await handle.writeFile(`${JSON.stringify(sidecar)}\n`, "utf8")
     await handle.sync()
     await handle.close()
     handle = undefined
@@ -1581,7 +1629,7 @@ function releasePublicationLease(resource: TranscriptResource): boolean {
   return changed
 }
 
-function pruneDeadActiveLeases(resource: TranscriptResource): boolean {
+function pruneDeadActiveLeases(resource: TranscriptResource, now: number, unarmedLeaseTtlMs: number): boolean {
   if (!resource.activeLeases) return false
   let changed = false
   for (const [token, lease] of Object.entries(resource.activeLeases)) {
@@ -1589,9 +1637,13 @@ function pruneDeadActiveLeases(resource: TranscriptResource): boolean {
       ? processIncarnationIsDead(lease.executor)
       : false
     // An unarmed lease cannot have started a physical writer: production opens
-    // the SDK gate only after attachActiveTranscriptExecutor commits.
+    // the SDK gate only after attachActiveTranscriptExecutor commits. The TTL is
+    // sized by the turn watchdog, so one that outlives it with its owner still
+    // alive can only be a release that failed — collect it by age instead of
+    // fencing the conversation until restart.
     const unarmedOwnerDead = !lease.executor && processIncarnationIsDead(lease.owner)
-    if (!executorDead && !unarmedOwnerDead) continue
+    const unarmedLeaseExpired = !lease.executor && now - lease.createdAt > unarmedLeaseTtlMs
+    if (!executorDead && !unarmedOwnerDead && !unarmedLeaseExpired) continue
     delete resource.activeLeases[token]
     changed = true
   }
@@ -1689,10 +1741,16 @@ function isState(value: unknown): value is TranscriptResourceState {
     || value === "deleting" || value === "deleted"
 }
 
+/** The SDK's UUID-specific absence verdict — the only wording either the parent
+ *  or the deletion child may read as "already gone". ENOENT and generic "not
+ *  found" can mean the child or the SDK failed to load, and must be retried. */
+function sessionAbsentPhrase(sessionId: string): string {
+  return `Session ${sessionId} not found`
+}
+
 function isNotFoundError(error: unknown, sessionId: string): boolean {
-  // Match the SDK's UUID-specific response only. ENOENT and generic "not found"
-  // errors can mean the child or SDK failed to load and must be retried.
-  return errorMessage(error).includes(`Session ${sessionId} not found`)
+  if (error instanceof TranscriptAlreadyAbsentError) return true
+  return errorMessage(error).includes(sessionAbsentPhrase(sessionId))
 }
 
 /** Resolve a real Node runtime even when Meridian itself is bundled under Bun. */
