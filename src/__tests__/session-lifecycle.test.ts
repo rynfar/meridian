@@ -549,6 +549,27 @@ describe("session transcript lifecycle", () => {
     expect(clipChildOutput("short child output")).toBe("short child output")
   })
 
+  it("keeps a verdict that the old tail-only clip would have lost (#1030)", () => {
+    // The reported failure, stated as a test. The child writes its verdict
+    // first and a Node crash report follows it. The previous
+    // `output.slice(-4_000)` kept only the crash report, so the parent's string
+    // match never fired, the resource stayed `retired` and was retried forever
+    // — 254 attempts on the reporting deployment — until `pending` reached
+    // `maxPending` and every NEW conversation failed with "ownership backlog is
+    // full".
+    //
+    // Worth pinning separately from the mechanics above: the end-to-end
+    // deletion test passes on the pre-fix tree too, because its fixture's
+    // output is short enough that the old tail match still found the verdict.
+    // Only an output larger than the budget distinguishes them.
+    const verdict = "Error: Session 0e0f7a11-0000-4000-8000-000000000000 not found"
+    const crashReport = "#".repeat(9_000)
+    const output = `${verdict}\n${crashReport}`
+
+    expect(output.slice(-4_000)).not.toContain(verdict)
+    expect(clipChildOutput(output)).toContain(verdict)
+  })
+
   it("defers retired deletion through the reader-drain grace period", async () => {
     const fork = locator("reader-grace")
     const graceOptions = { ...options, retiredGraceMs: 100 }
