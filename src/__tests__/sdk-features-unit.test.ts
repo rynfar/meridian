@@ -207,4 +207,10 @@ describe("settings UI adapter coverage", () => {
     const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
     expect(settingsPageHtml).toContain("ADAPTER_LABELS[adapter] || adapter")
   })
+
+  it("renders the harnesses as tabs over a single selected body", () => {
+    const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
+    expect(settingsPageHtml).toContain('id="adapterTabs"')
+    expect(settingsPageHtml).toContain("selectedAdapter")
+  })
 })
