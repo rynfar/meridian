@@ -107,11 +107,78 @@ export interface OAuthUsageSnapshot {
  */
 export type OAuthUsageError = "no_token" | "rate_limited" | "upstream_error"
 
-/** A usage fetch outcome: the snapshot, or why there isn't one. */
-export interface OAuthUsageResult {
+/** What a fetch produced, before provenance is attached. Internal: every
+ *  public exit goes through `withProvenance`. */
+interface RawUsageResult {
   snapshot: OAuthUsageSnapshot | null
   /** Set only when `snapshot` is null. */
   error: OAuthUsageError | null
+}
+
+/**
+ * The run of failed checks since the last successful one.
+ *
+ * `consecutiveFailures` counts checks that actually reached the credential
+ * store or upstream — not polls the 429 cooldown turned away before they got
+ * there. The quota page polls every 10s while a backoff runs for a minute or
+ * more, so counting suppressed polls would report six failures for one refusal,
+ * which says more about the poll interval than about the account.
+ */
+export interface OAuthUsageFailure {
+  reason: OAuthUsageError
+  /** Always >= 1 — a success clears the record rather than zeroing it. */
+  consecutiveFailures: number
+  lastFailureAt: number
+}
+
+/** A usage fetch outcome: the snapshot, or why there isn't one. */
+export interface OAuthUsageResult extends RawUsageResult {
+  /** The failing run in progress, or null when the last check succeeded.
+   *  Independent of `snapshot`/`error`: a stale snapshot served inside the
+   *  bound reports `error: null`, and a reader still needs to know the figures
+   *  are standing in for a check that didn't land. */
+  failure: OAuthUsageFailure | null
+  /** Last successful reading for this profile at any age — including past the
+   *  point `staleOr` stops serving it as `snapshot`. Lets a display keep the
+   *  last known numbers, labelled, instead of blanking. */
+  lastGood: OAuthUsageSnapshot | null
+}
+
+/** The per-profile usage shape the quota routes serve. */
+export interface UsageEntryFields {
+  windows: OAuthUsageWindow[]
+  extraUsage: OAuthExtraUsageInfo | null
+  fetchedAt: number | null
+  /** True when the figures are a previous reading rather than one taken by the
+   *  check that just ran. */
+  stale: boolean
+  error: OAuthUsageError | null
+  failure: OAuthUsageFailure | null
+}
+
+/**
+ * Shape a fetch result for a consumer that renders it to a human.
+ *
+ * Three states a caller must be able to tell apart, and which bare numbers
+ * cannot:
+ *   never read      — no figures at all: `fetchedAt` null, `stale` false.
+ *   read and fresh  — `stale` false, `failure` null.
+ *   read then stale — figures as of `fetchedAt`, `stale` true, `failure` saying
+ *                     why the newer check didn't land and how many in a row.
+ *
+ * A window sitting at 0% and a profile that has never been read flatten to the
+ * same numbers, so the distinction has to travel as its own field.
+ */
+export function toUsageEntry(result: OAuthUsageResult): UsageEntryFields {
+  const shown = result.snapshot ?? result.lastGood
+  return {
+    windows: shown?.windows ?? [],
+    extraUsage: shown?.extraUsage ?? null,
+    fetchedAt: shown?.fetchedAt ?? null,
+    stale: shown != null && (result.snapshot === null || result.snapshot.stale === true),
+    error: result.error,
+    failure: result.failure,
+  }
 }
 
 const CACHE_TTL_MS_DEFAULT = 30_000
@@ -123,9 +190,27 @@ const RATE_LIMIT_BACKOFF_MS_DEFAULT = 60_000
 
 /** Per-profile cache. Key = profileId (or DEFAULT_KEY for the unscoped default). */
 const cacheByProfile = new Map<string, OAuthUsageSnapshot>()
-const inflightByProfile = new Map<string, Promise<OAuthUsageResult>>()
+const inflightByProfile = new Map<string, Promise<RawUsageResult>>()
 const rateLimitedUntilByProfile = new Map<string, number>()
+const failureByProfile = new Map<string, OAuthUsageFailure>()
 const DEFAULT_KEY = "__default__"
+
+function recordFailure(cacheKey: string, reason: OAuthUsageError): void {
+  const prev = failureByProfile.get(cacheKey)
+  failureByProfile.set(cacheKey, {
+    reason,
+    consecutiveFailures: (prev?.consecutiveFailures ?? 0) + 1,
+    lastFailureAt: Date.now(),
+  })
+}
+
+function withProvenance(cacheKey: string, result: RawUsageResult): OAuthUsageResult {
+  return {
+    ...result,
+    failure: failureByProfile.get(cacheKey) ?? null,
+    lastGood: cacheByProfile.get(cacheKey) ?? null,
+  }
+}
 
 const WINDOW_TYPES: Array<keyof RawOAuthUsageResponse> = [
   "five_hour",
@@ -307,19 +392,25 @@ function missingReason(cacheKey: string): OAuthUsageError {
 export async function fetchOAuthUsageResult(opts?: FetchOAuthUsageOpts): Promise<OAuthUsageResult> {
   // If the caller injected real test deps, run the real impl. This keeps
   // oauth-usage unit tests isolated from any test-set _testOverride.
+  const cacheKey = opts?.profileId ?? DEFAULT_KEY
   if (_testOverride && !opts?.fetchImpl && !opts?.store) {
     const snapshot = await _testOverride(opts)
+    if (snapshot) {
+      failureByProfile.delete(cacheKey)
+      return withProvenance(cacheKey, { snapshot, error: null })
+    }
     // The override returns a bare snapshot-or-null, so the reason has to come
     // from the one piece of real state that outlives it: the 429 cooldown.
     // Defaulting to "no_token" here would make the override contradict the
     // cooldown the same process just recorded.
-    const error = snapshot ? null : missingReason(opts?.profileId ?? DEFAULT_KEY)
-    return { snapshot, error }
+    const error = missingReason(cacheKey)
+    recordFailure(cacheKey, error)
+    return withProvenance(cacheKey, { snapshot: null, error })
   }
-  return fetchOAuthUsageImpl(opts)
+  return withProvenance(cacheKey, await fetchOAuthUsageImpl(opts))
 }
 
-async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsageResult> {
+async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<RawUsageResult> {
   const ttl = opts?.ttlMs ?? CACHE_TTL_MS_DEFAULT
   const cacheKey = opts?.profileId ?? DEFAULT_KEY
   const fetchImpl = opts?.fetchImpl ?? globalThis.fetch
@@ -328,7 +419,12 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
   // On transient failure, serve the last-good snapshot (bounded) instead of
   // null — a credential-read blip or upstream 5xx should not blank the
   // consumer's usage display until the next successful fetch.
-  const staleOr = (reason: string, error: OAuthUsageError): OAuthUsageResult => {
+  //
+  // `attempted` marks a check that actually reached the credential store or
+  // upstream. The 429 cooldown turns polls away before either, and those must
+  // not advance the failure count — see OAuthUsageFailure.
+  const staleOr = (reason: string, error: OAuthUsageError, attempted = true): RawUsageResult => {
+    if (attempted) recordFailure(cacheKey, error)
     const last = cacheByProfile.get(cacheKey)
     if (last && Date.now() - last.fetchedAt < staleMaxMs) {
       claudeLog("oauth_usage.serving_stale", { profile: cacheKey, reason, ageMs: Date.now() - last.fetchedAt })
@@ -349,7 +445,7 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
   // private usage endpoint permanently rate-limited.
   const rateLimitedUntil = rateLimitedUntilByProfile.get(cacheKey)
   if (rateLimitedUntil !== undefined) {
-    if (Date.now() < rateLimitedUntil) return staleOr("rate_limited", "rate_limited")
+    if (Date.now() < rateLimitedUntil) return staleOr("rate_limited", "rate_limited", false)
     rateLimitedUntilByProfile.delete(cacheKey)
   }
 
@@ -408,6 +504,7 @@ async function fetchOAuthUsageImpl(opts?: FetchOAuthUsageOpts): Promise<OAuthUsa
       }
 
       rateLimitedUntilByProfile.delete(cacheKey)
+      failureByProfile.delete(cacheKey)
       const snapshot = buildSnapshot(result)
       cacheByProfile.set(cacheKey, snapshot)
       return { snapshot, error: null }
@@ -428,4 +525,5 @@ export function resetOAuthUsageCache(): void {
   cacheByProfile.clear()
   inflightByProfile.clear()
   rateLimitedUntilByProfile.clear()
+  failureByProfile.clear()
 }
