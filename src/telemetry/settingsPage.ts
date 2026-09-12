@@ -117,19 +117,7 @@ export const settingsPageHtml = `<!DOCTYPE html>
 <body>
 ${profileBarHtml}
 <div class="content">
-  <h1>SDK Features <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(210,153,34,0.15);color:var(--yellow);vertical-align:middle;margin-left:8px">Experimental</span></h1>
-  <p class="subtitle" style="max-width:720px;line-height:1.6">
-    Unlock Claude Code features for any connected agent. Capabilities like auto-memory, dreaming, and CLAUDE.md — normally
-    exclusive to Claude Code — become available to OpenCode, Crush, Droid, and any other harness routed through Meridian.
-    Each agent keeps its own toolchain while gaining access to these additional features.<br><br>
-    <strong style="color:var(--text)">System prompts:</strong> For these features to work correctly, both the Claude Code prompt and your client prompt
-    should be enabled. When both are active, they are appended together — Claude Code's base instructions come first,
-    followed by your agent's specific instructions.
-  </p>
-
-  <div id="adapters"></div>
-
-  <h1 style="margin-top:40px">Routing</h1>
+  <h1>Routing</h1>
   <p class="subtitle" style="max-width:720px;line-height:1.6">
     How unpinned requests choose an account. <strong style="color:var(--text)">Active</strong> uses the manually
     selected profile. <strong style="color:var(--text)">Sticky</strong> distributes sessions across profiles evenly
@@ -141,6 +129,18 @@ ${profileBarHtml}
   <div class="adapter-card" id="routing-card">
     <div id="routing-body">Loading…</div>
   </div>
+
+  <h1 style="margin-top:40px">SDK Features <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(210,153,34,0.15);color:var(--yellow);vertical-align:middle;margin-left:8px">Experimental</span></h1>
+  <p class="subtitle" style="max-width:720px;line-height:1.6">
+    Unlock Claude Code features for any connected agent. Capabilities like auto-memory, dreaming, and CLAUDE.md — normally
+    exclusive to Claude Code — become available to OpenCode, Crush, Droid, and any other harness routed through Meridian.
+    Each agent keeps its own toolchain while gaining access to these additional features.<br><br>
+    <strong style="color:var(--text)">System prompts:</strong> For these features to work correctly, both the Claude Code prompt and your client prompt
+    should be enabled. When both are active, they are appended together — Claude Code's base instructions come first,
+    followed by your agent's specific instructions.
+  </p>
+
+  <div id="adapters"></div>
 
   <h1 style="margin-top:40px">Model Pricing</h1>
   <p class="subtitle" style="max-width:720px;line-height:1.6">
