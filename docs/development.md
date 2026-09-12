@@ -82,7 +82,7 @@ Implement the `AgentAdapter` interface in `src/proxy/adapters/`. See [`adapters/
 ## Testing
 
 ```bash
-npm test       # unit + integration tests
+npm test       # typecheck, then unit + integration tests
 npm run build  # build with bun + tsc
 ```
 

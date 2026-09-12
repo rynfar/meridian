@@ -23,7 +23,7 @@ UI uses `DESIGN.md`, color tokens from `themeCss` in `src/telemetry/profileBar.t
 
 ## Validation
 
-`npm test` runs the full suite with process-global mocks isolated; bare all-files `bun test` does not. Targeted `bun test <file>` is useful while developing. `npm run typecheck` checks types independently of tests; `npm run build` bundles and checks Node entrypoints.
+`npm test` typechecks first (a `pretest` hook) and then runs the full suite with process-global mocks isolated; bare all-files `bun test` does neither. Targeted `bun test <file>` is useful while developing, but it does **not** typecheck — a test that references an unimported symbol passes there and throws at runtime, which is how one shipped. `npm run typecheck` checks types on their own; `npm run build` bundles and checks Node entrypoints.
 
 Choose focused checks during iteration and fix failures caused by the change. For code changes, the final local gates are `npm test`, typecheck and build. Documentation/instruction-only changes need content, link and diff validation, not model calls or an application rebuild. Required CI still applies before merge.
 
