@@ -7,3 +7,16 @@ Never run manual npm version, tag pushes or npm publish. Do not routinely use --
 
 
 Record the exact candidate and merge SHAs, test/E2E versions and logs, workflow URLs, registry integrity/provenance and final publication outcome in the handoff or linked review record. A stopped agent must be able to distinguish “PR merged,” “publication running,” and “published and installed-package validated.”
+
+### Troubleshooting releases
+
+- **Changelog shows entire history?** — Release Please can't find the previous release tag. Check that `meridian-v<version>` tags exist for recent releases: `git tag -l 'meridian-v*' | tail -5`
+- **Release PR not updating?** — Inspect the Release Please run and PR state. Changes still reach main through normal PRs; never push directly to main to trigger the bot.
+- **Publish failed with E403?** — Check the actual registry version, release commit and provenance before deciding an existing publication is correct; do not blindly ignore the error.
+- **`publish_only` workflow dispatch** — Emergency escape hatch to publish the current version without Release Please. Only use when the normal flow is broken.
+
+### Release config files
+
+- **`.release-please-manifest.json`** — tracks the current released version. Release Please updates this automatically when a release PR is merged. **Do not edit manually** unless resetting the version anchor.
+- **`release-please-config.json`** — defines the release type (`node`), component name, and changelog section mapping.
+- **`.github/workflows/release-please.yml`** — the workflow that runs on every push to `main`. It creates/updates the release PR and publishes to npm when merged.
