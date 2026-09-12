@@ -42,6 +42,22 @@ function getProfileDir(id: string): string {
   return join(PROFILES_DIR, id)
 }
 
+/**
+ * Pure: is this ID safe to use as a profile name?
+ *
+ * A profile ID becomes a directory name under PROFILES_DIR, so anything
+ * carrying a path separator or a `..` segment would escape that directory.
+ * Restricting to plain identifiers keeps IDs both safe and shell-friendly.
+ */
+export function isValidProfileId(id: string): boolean {
+  return Boolean(id) && !/[^a-zA-Z0-9_-]/.test(id)
+}
+
+/** Red text — plain when stdout is piped, where escape codes are noise. */
+function red(text: string): string {
+  return process.stdout.isTTY ? `\x1b[31m${text}\x1b[0m` : text
+}
+
 interface AuthLoginOptions {
   headless?: boolean
 }
@@ -227,7 +243,7 @@ async function completeManualOAuthLogin(configDir: string): Promise<boolean> {
 }
 
 export async function profileAdd(id: string, options: AuthLoginOptions = {}): Promise<void> {
-  if (!id || /[^a-zA-Z0-9_-]/.test(id)) {
+  if (!isValidProfileId(id)) {
     console.error("\x1b[31m✗ Invalid profile ID.\x1b[0m Use only letters, numbers, hyphens, underscores.")
     process.exit(1)
   }
@@ -333,7 +349,7 @@ export async function profileAdd(id: string, options: AuthLoginOptions = {}): Pr
 }
 
 export async function profileAddOauthToken(id: string, tokenArg: string | undefined): Promise<void> {
-  if (!id || /[^a-zA-Z0-9_-]/.test(id)) {
+  if (!isValidProfileId(id)) {
     console.error("\x1b[31m✗ Invalid profile ID.\x1b[0m Use only letters, numbers, hyphens, underscores.")
     process.exit(1)
   }
@@ -462,19 +478,51 @@ export async function profileSwitch(id: string): Promise<void> {
   }
 }
 
-export async function profileLogin(id: string, options: AuthLoginOptions = {}): Promise<void> {
-  const profiles = loadProfileConfig()
+export type ProfileLoginPlan =
+  | { action: "create" }
+  | { action: "reject-invalid-id" }
+  | { action: "reject-oauth-token" }
+  | { action: "login"; profile: ProfileConfig }
+
+/**
+ * Pure: decide what `meridian profile login <id>` should do.
+ *
+ * An unknown ID is a request to create that profile, not an error — the ID is
+ * validated first because only this branch turns it into a directory. A profile
+ * that already exists is never re-validated: it was written by an earlier `add`
+ * (or by hand), and login must keep working on it either way.
+ *
+ * Caller performs the login itself — this returns the decision only.
+ */
+export function planProfileLogin(id: string, profiles: ProfileConfig[]): ProfileLoginPlan {
   const profile = profiles.find(p => p.id === id)
-  if (!profile) {
-    console.error(`\x1b[31m✗ Profile "${id}" not found.\x1b[0m Run: meridian profile add ${id}`)
+  if (!profile) return isValidProfileId(id) ? { action: "create" } : { action: "reject-invalid-id" }
+  if (profile.oauthToken || profile.type === "oauth-token") return { action: "reject-oauth-token" }
+  return { action: "login", profile }
+}
+
+export async function profileLogin(id: string, options: AuthLoginOptions = {}): Promise<void> {
+  const plan = planProfileLogin(id, loadProfileConfig())
+
+  if (plan.action === "reject-invalid-id") {
+    console.error("\x1b[31m✗ Invalid profile ID.\x1b[0m Use only letters, numbers, hyphens, underscores.")
     process.exit(1)
   }
 
-  if (profile.oauthToken || profile.type === "oauth-token") {
+  if (plan.action === "reject-oauth-token") {
     console.error(`\x1b[31m✗ Profile "${id}" uses an OAuth token; \`claude auth login\` does not apply.\x1b[0m`)
     console.error(`  To replace the token: meridian profile remove ${id} && meridian profile add ${id} --oauth-token`)
     process.exit(1)
   }
+
+  if (plan.action === "create") {
+    console.log(red(`⚠ Profile "${id}" does not exist yet — adding it first.`))
+    console.log()
+    await profileAdd(id, options)
+    return
+  }
+
+  const profile = plan.profile
 
   console.log(`\x1b[36mRe-authenticating profile: ${id}\x1b[0m`)
   console.log()
@@ -590,7 +638,8 @@ Commands:
   meridian profile list                             List profiles and auth status
   meridian profile remove <name>                    Remove a profile
   meridian profile switch <name>                    Switch the active profile (requires running proxy)
-  meridian profile login <name> [--headless]        Re-authenticate an existing profile (claude-max only)
+  meridian profile login <name> [--headless]        Re-authenticate a profile, adding it first if it does not
+                                                    exist yet (claude-max only)
 
 Examples:
   meridian profile add personal                     # Add personal account (browser login)
