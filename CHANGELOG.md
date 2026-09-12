@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.71.2](https://github.com/rynfar/meridian/compare/meridian-v1.71.1...meridian-v1.71.2) (2026-09-12)
+
+
+### Bug Fixes
+
+* **session:** take the bookkeeping off the request path ([#1036](https://github.com/rynfar/meridian/issues/1036)) ([596a0d8](https://github.com/rynfar/meridian/commit/596a0d8363a88302e52f33841286e22d1c6177fc))
+
 ## [1.71.1](https://github.com/rynfar/meridian/compare/meridian-v1.71.0...meridian-v1.71.1) (2026-09-12)
 
 
