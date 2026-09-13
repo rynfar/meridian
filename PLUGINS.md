@@ -1,8 +1,17 @@
 # Meridian Plugin Authoring Guide
 
-Plugins let you customize Meridian's request/response behavior without modifying core code. Drop a compiled `.js` file in `~/.config/meridian/plugins/` and restart Meridian, or point `plugins.json` at a file anywhere on disk (useful for plugins installed as their own npm packages or cloned repos).
+Plugins let you customize Meridian's request behavior and observe lineage decisions without modifying core code. Drop a compiled `.js` file in `~/.config/meridian/plugins/` and restart Meridian, or point `plugins.json` at a file anywhere on disk (useful for plugins installed as their own npm packages or cloned repos).
 
 > **Runtime note.** The plugin loader uses dynamic `import()`. If you run meridian via `bun`, `.ts` plugin files work directly; if you run via `node` (the default for npm installs), plugins must be compiled to `.js`. When in doubt, ship `.js`.
+
+## Hook availability
+
+| Hook | Current HTTP request path |
+|------|---------------------------|
+| `onRequest` | Called; returned request context is used |
+| `onSession` | Called after lineage classification; returned changes do not affect routing |
+| `onResponse`, `onTelemetry` | Types/helpers exist, but the HTTP path does not call them |
+| `onToolUse`, `onToolResult`, `onError` | Reserved; not wired into the HTTP path |
 
 ## Quick Start
 
@@ -12,9 +21,11 @@ The fastest path: author the plugin in its own repo, compile to JavaScript, and 
    ```bash
    mkdir my-meridian-plugin && cd my-meridian-plugin
    npm init -y
+   npm pkg set type=module
    npm install --save-peer @rynfar/meridian
    npm install --save-dev typescript
-   npx tsc --init
+   mkdir src
+   npx tsc --init --rootDir src --outDir dist --module NodeNext --target ES2022
    ```
 
 2. Write your plugin (`src/index.ts`):
@@ -100,7 +111,7 @@ onRequest(ctx) {
 
 ### onResponse
 
-Called after the SDK responds. Modify response content before it's sent to the client.
+Defined in `Transform`, but the current proxy request path does **not invoke this hook**. The example illustrates its shape for direct pipeline tests; it does not filter live responses.
 
 ```ts
 onResponse(ctx) {
@@ -113,11 +124,22 @@ onResponse(ctx) {
 
 ### onTelemetry
 
-Observe-only hook for logging/metrics. Return value is ignored.
+Defined as an observe-only hook, but the current proxy request path does **not invoke it**. Use the telemetry HTTP endpoints for live metrics. Calling it through `runObserveHook` in your own code ignores its return value.
 
 ```ts
 onTelemetry(ctx) {
   console.log(`Request ${ctx.requestId}: ${ctx.inputTokens}in/${ctx.outputTokens}out`)
+}
+```
+
+### onSession
+
+The proxy calls this hook after a lineage decision. It exposes the session key, classification, and optional divergence details (digests and content shapes). Return the context, but do not expect modifications to alter core routing: the server ignores the returned value.
+
+```ts
+onSession(ctx) {
+  console.log(ctx.lineage, ctx.sessionKey, ctx.mismatch)
+  return ctx
 }
 ```
 
@@ -129,11 +151,11 @@ Restrict a plugin to specific adapters:
 export default {
   name: "opencode-only",
   adapters: ["opencode"],
-  onRequest(ctx) { /* only runs for OpenCode requests */ },
+  onRequest(ctx) { return ctx }, // only runs for OpenCode requests
 }
 ```
 
-Available adapters: `opencode`, `crush`, `droid`, `pi`, `forgecode`, `passthrough`
+Canonical adapter names: `opencode`, `crush`, `droid`, `pi`, `prime`, `forgecode`, `passthrough`, `cherry`, `claude-code`, `polytoken`, `openai`, `jcode`, `codex`. Instances inherit their base adapter's plugin scope.
 
 ## Plugin Configuration
 
@@ -160,6 +182,8 @@ Control which plugins load, their order, and enable/disable via `~/.config/merid
 
 ## The Metadata Bag
 
+The following illustrates shared context when hooks are called by a pipeline. The current HTTP path invokes `onRequest` and `onSession`, not `onResponse`.
+
 Pass state between hooks using the `metadata` field:
 
 ```ts
@@ -175,7 +199,7 @@ onResponse(ctx) {
 
 ## Error Handling
 
-If a plugin throws, it is skipped and the next plugin runs. The proxy never crashes due to a plugin error. Check the `/plugins` UI for error details.
+If a hook throws synchronously, the pipeline records the error and continues with the previous context. Import and validation failures are also reported in `/plugins`. Hooks are synchronous; do not return promises or assume the loader isolates arbitrary plugin side effects.
 
 ## Testing Plugins
 
@@ -183,7 +207,12 @@ Transforms are pure functions — hand them a context and assert on the return v
 
 ```ts
 import type { Transform, RequestContext } from "@rynfar/meridian"
-import plugin from "./src/index.js"
+const plugin: Transform = {
+  name: "uppercase-test",
+  onRequest(ctx) {
+    return { ...ctx, systemContext: ctx.systemContext?.toUpperCase() }
+  },
+}
 
 const baseCtx: RequestContext = {
   adapter: "opencode",
@@ -237,13 +266,11 @@ Visit `http://localhost:3456/plugins` to:
 ## Roadmap
 
 **Planned hooks:**
-- `onSession` — override session resume/undo/diverged decisions
 - `onToolUse` — intercept, block, or modify tool calls before SDK execution
 - `onToolResult` — observe or transform tool results after execution
 - `onError` — custom error handling, logging, retry decisions
 
 **Planned capabilities:**
-- Plugin npm packages — install via `npm install meridian-plugin-*`
 - Plugin templates — `meridian plugin init` scaffolding
-- Hot reload — pick up changes without restart
+- Automatic file watching — explicit `POST /plugins/reload` already reloads edited entry modules
 - Plugin marketplace — community-curated directory

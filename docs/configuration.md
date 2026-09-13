@@ -26,7 +26,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_FABLE_MODEL` | `CLAUDE_PROXY_FABLE_MODEL` | `fable[1m]` | Fable context tier opt-out: set to `fable` to disable the 1M extended context window and stay on the 200k base variant (also governs Mythos, which rides the Fable tier). `fable[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_FABLE_MODEL` below, which pins a concrete model id, not a context tier. |
 | `MERIDIAN_OPUS_MODEL` | `CLAUDE_PROXY_OPUS_MODEL` | `opus[1m]` | Opus context tier opt-out: set to `opus` to disable the 1M extended context window and stay on the 200k base variant. `opus[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_OPUS_MODEL` below, which pins a concrete model id, not a context tier. |
 | `MERIDIAN_1M_CONTEXT_SUPPORT` | `CLAUDE_PROXY_1M_CONTEXT_SUPPORT` | unset | Set to `0`/`false`/`no` to disable 1M context entirely — every model resolves to its 200k base variant, so Meridian never requests the extended window (avoids Extra Usage on 1M). To opt out a single tier instead, use `MERIDIAN_FABLE_MODEL` or `MERIDIAN_OPUS_MODEL` above. |
-| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `crush`, `droid`, `cherry`, `claudecode`, `passthrough`, `polytoken`. Re-read per request from the process environment — restart the proxy to pick up deployment-level env changes. |
+| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `prime`, `crush`, `droid`, `cherry`, `claude-code`, `passthrough`, `polytoken`, `openai`, `jcode`, `codex`. Aliases: `prime-agent`, `cherrystudio`, `claudecode`. Re-read per request from the process environment — restart the proxy to pick up deployment-level env changes. |
 | `MERIDIAN_ROUTING` | — | `active` | Session-to-profile routing: `active` (all traffic to the active profile), `sticky` ([sticky session routing](profiles.md#sticky-session-routing)), or `priority` ([priority failover](profiles.md#priority-failover-routing)) |
 | `MERIDIAN_PROFILE_ORDER` | — | *(config order)* | Priority-mode pool order, comma-separated, highest priority first (e.g. `work,personal`). Also editable at `/settings`. |
 | `MERIDIAN_PRIORITY_FAILBACK` | — | `new-conversation` | Priority failback policy: `new-conversation` (current behavior) or `next-user-turn`. Environment value overrides `priorityFailback` in the settings JSON. Applies only to priority routing and OpenCode turn metadata; other adapters retain `new-conversation` behavior. |
@@ -56,10 +56,14 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_BUILD_SHA`, `MERIDIAN_BUILD_BRANCH`, `MERIDIAN_BUILD_DIRTY` | — | unset | Optional commit stamps surfaced in `/health` `build`. Absent unless something sets them at launch. |
 | `MERIDIAN_DEBUG` | `CLAUDE_PROXY_DEBUG` | unset | Set to `1` for verbose request/session logging |
 | `MERIDIAN_SILENT` | `CLAUDE_PROXY_SILENT` | unset | Set to `1` to suppress startup output (used by embedding plugins) |
+| `MERIDIAN_ENFORCE_MAX_TOKENS` | `CLAUDE_PROXY_ENFORCE_MAX_TOKENS` | unset | Set to `1` to apply the client output budget; see [output limits](#known-limitations). |
+| `MERIDIAN_HOST_ID` | — | derived | Stable, unique container identity for session locks; see [deployment](deployment.md#persistence-and-host-identity). |
+| `MERIDIAN_QUIET` | `CLAUDE_PROXY_QUIET` | unset | Suppress informational telemetry startup output; warnings and errors still print. |
+| `MERIDIAN_AUTH_RENEWAL_WARN_DAYS` | — | `3` | Renewal warning horizon reported by health when credential renewal information is available. |
 | `MERIDIAN_PLUGIN_DIR` | — | `~/.config/meridian/plugins` | Plugin auto-discovery directory |
 | `MERIDIAN_PLUGIN_CONFIG` | — | `~/.config/meridian/plugins.json` | Plugin manifest path |
 
-†Sonnet 1M requires Extra Usage on all plans including Max ([docs](https://code.claude.com/docs/en/model-config#extended-context)). Opus 1M is included with Max/Team/Enterprise at no extra cost. Fable 1M is also included at no Extra Usage cost, verified live on both Max and Team.
+†These are Meridian context defaults, not a billing guarantee. Availability and extended-context charges depend on the model and account; consult [Anthropic model configuration](https://code.claude.com/docs/en/model-config#extended-context). Historical Max/Team tests do not establish entitlement for another account.
 
 ### Subprocess traffic
 
@@ -102,6 +106,7 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `POST /v1/chat/completions` | OpenAI-compatible chat completions |
 | `POST /v1/responses` | OpenAI Responses API (Codex CLI ≥ 0.96) |
 | `GET /v1/models` | OpenAI-compatible model list |
+| `POST /v1/sessions/:key/cancel` | Cancel live requests in a session subtree |
 | `GET/POST /v1/design/*` | Claude Design MCP proxy (see [Claude Design MCP](agents.md#claude-design-mcp)) |
 | `GET/POST /design-login` | OAuth flow for the design scopes |
 | `GET /health` | Auth status, mode, plugin status |
@@ -119,7 +124,7 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET /settings` | SDK feature toggles + model pricing UI |
 | `GET /plugins` | Plugin management page (`/plugins/list`, `POST /plugins/reload` for JSON/actions) |
 
-Health response example:
+Illustrative health response excerpt (versions and status vary by installation):
 
 ```json
 {
@@ -224,7 +229,7 @@ While draining:
   its own public entrypoint, so a request the proxy already accepted is never
   refused part-way through the internal translation hop:
 
-  ```json
+  ```http
   HTTP/1.1 503
   x-meridian-draining: 1
   Content-Type: application/json
@@ -274,7 +279,9 @@ rewrites the opening message.
 | `crush` | `x-session-id`, then `x-session-affinity` |
 | `jcode` | `x-jcode-session` |
 | `passthrough` (LiteLLM) | `x-litellm-session-id` |
-| `cherry`, `droid`, `forgecode`, `openai` | none — fingerprint only |
+| `cherry`, `openai` | Inherit OpenCode header handling; generic OpenAI history packing still differs from keyed native clients |
+| `polytoken` | Valid `x-polytoken-session` |
+| `droid`, `forgecode` | none — fingerprint fallback |
 
 ### Claude Code behind a gateway
 
@@ -405,7 +412,7 @@ Every request line carries `lineage=`, and every divergence also carries
 | `independent-request:subagent` | Declared a subagent flow |
 | `independent-request:no-cache-identity` | No header and no derivable fingerprint |
 
-A resumed turn prints no `diverged=` field at all. The three
+A resumed turn prints no `diverged=` field at all. The
 `independent-request:*` causes skip session lookup before it happens; the rest
 are the verdict of a lookup that ran.
 
@@ -427,7 +434,7 @@ new turn *in the same profile's session scope* — and the waiting request's
 message history is no longer a valid continuation or compaction of that new
 state — Meridian returns:
 
-```json
+```http
 HTTP/1.1 400
 Content-Type: application/json
 
@@ -458,8 +465,9 @@ signal, not as account exhaustion:
 
 This only fires for requests that share a reliable session identity —
 unrelated and headerless sessions are never strictly serialized against each
-other and never see this concurrency error. Three further exemptions:
+other and never see this concurrency error. Exceptions and lease behavior:
 
+- **Concurrent-client adapters.** Pi (including Oh My Pi) declares concurrent callers under one key. Conflicting complete histories are replayed rather than refused merely for advancing while queued. Passthrough `modified-history` conflicts also take fresh replay. A replay can lose cache reuse.
 - **Scoped per profile.** One session id backs an independent conversation
   per profile, each with its own resume cache. Turns under different profiles
   still serialize against each other (they share one id), but a commit under
@@ -608,14 +616,16 @@ The system prompt controls are independent — any combination works:
 The core question is **who executes the tools** — the SDK or the client?
 
 - **Passthrough mode** (default for OpenCode and Pi) — Claude generates tool calls, but Meridian captures them and sends them back to the client for execution. The client runs the tool using its own implementation, with its own sandboxing, file tracking, and UI, then sends the result in the next request. This is how OpenCode, oh-my-opencagent (OMO), and most coding agents work — they have their own read/write/bash tools and need to stay in control of what runs on the user's machine.
-- **Internal mode** — Claude Code handles everything. The SDK executes tools directly on the host, runs its full agent loop, and returns the final result. This is for clients that are purely chat interfaces (Open WebUI, simple API consumers) with no tool execution of their own.
+- **Internal mode** — Claude Code handles everything. The SDK executes tools directly on the host, runs its full agent loop, and returns the final result. The `cherry` adapter uses this for built-in web tools. Generic OpenAI endpoints default to passthrough; choosing a chat UI does not itself enable internal tools.
 
 Most users don't need to configure anything — the adapter sets the right mode automatically. To override:
 
 ```bash
 MERIDIAN_PASSTHROUGH=1 meridian   # force passthrough
-MERIDIAN_PASSTHROUGH=0 meridian   # force internal
+MERIDIAN_PASSTHROUGH=0 meridian   # request internal mode where the adapter permits it
 ```
+
+Codex and Polytoken require client-owned tools and cannot be switched to internal mode. Adapter instances can also override the global preference.
 
 ### How tool calling works in passthrough
 
@@ -673,7 +683,7 @@ Coverage: `E38` in [E2E.md](../E2E.md), with `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1
 
 ### Known limitations
 
-- **Single tool round-trip per request** — in passthrough mode, the SDK is configured with `maxTurns=3` (or 4 for deferred tools). Multi-step agentic loops where Claude needs several consecutive tool calls require the client to re-send after each round.
+- **Client-owned tool loops** — ordinary passthrough turns default to `maxTurns=1` to stop at the tool boundary. Deferred tools, advisors, structured output, and explicit turn budgets can lift that cap; see [digest-turn elimination](#how-tool-calling-works-in-passthrough). The client sends another request after executing the returned tools.
 - **Blocked tools** — 10 built-in SDK tools (Read, Write, Bash, etc.) are blocked to prevent conflicts with the client's own tools. 19 additional Claude Code-only tools (CronCreate, EnterWorktree, Agent, etc.) are blocked because they require capabilities that external clients don't support.
 - **Subagent extraction** — Meridian parses the client's Task tool description to extract subagent names and build SDK AgentDefinitions. If the client's agent framework uses a non-standard format, subagent routing may not work automatically.
 - **Scratchpad suppression (passthrough)** — the Claude CLI advertises a proxy-host scratchpad directory that clients can't use; OpenCode 1.18+ permission-blocks writes to it. Meridian suppresses it in passthrough mode (`CLAUDE_CODE_SESSION_KIND=bg` on the subprocess). Kill switch: `MERIDIAN_SUPPRESS_SCRATCHPAD=0`.

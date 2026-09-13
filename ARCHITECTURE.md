@@ -1,6 +1,6 @@
 # Architecture
 
-A transparent proxy that bridges OpenCode (Anthropic API format) to Claude Max (Agent SDK). This document defines the module structure, dependency rules, and design decisions.
+A local proxy that bridges Anthropic- and OpenAI-compatible clients to the Claude Agent SDK. This document defines the module structure, dependency rules, and design decisions.
 
 ## Request Flow
 
@@ -33,6 +33,8 @@ Agent (OpenCode) ◄── SSE Response ◄────────────�
 
 ## Module Map
 
+Selected modules are shown below; the [development guide](docs/development.md#architecture) provides source entry points for the other adapters and protocol routes.
+
 ```
 src/
 ├── proxy/
@@ -60,7 +62,10 @@ src/
 │   │   ├── lineage.ts         ← Pure functions: hashing, lineage verification
 │   │   ├── fingerprint.ts     ← Conversation fingerprinting, client CWD extraction
 │   │   ├── cache.ts           ← LRU session caches, lookup/store operations
-│   │   └── turnCoordinator.ts ← Process-wide strict serialization for reliable session IDs
+│   │   ├── turnCoordinator.ts ← Process-wide serialization for reliable session IDs
+│   │   ├── crossProcessTurnCoordinator.ts ← Durable coordination across proxy processes
+│   │   ├── processIncarnation.ts ← Process/host identity for lock ownership
+│   │   └── durableFileSystem.ts ← Durable file operations
 │   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
 │   ├── profiles.ts            ← Multi-profile support: resolve, list, switch auth contexts (leaf)
 │   ├── profileCli.ts          ← CLI commands for profile management (leaf, I/O)
@@ -84,8 +89,10 @@ src/
 │   ├── profileBar.ts          ← Shared profile switcher bar (injected into HTML pages)
 │   ├── profilePage.ts         ← Profile management page HTML
 │   └── types.ts               ← Telemetry types
-└── plugin/
-    └── claude-max-headers.ts  ← OpenCode plugin for session header injection
+
+plugin/                       ← Repository root, alongside src/
+├── meridian.ts               ← OpenCode V1 session header plugin
+└── meridian-v2.ts            ← OpenCode V2 plugin
 ```
 
 ## Dependency Rules

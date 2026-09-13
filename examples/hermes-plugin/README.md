@@ -57,8 +57,10 @@ bury the trigger. Details belong here in the README, not in the schema.
 ## Install
 
 ```bash
-mkdir -p $HERMES_HOME/plugins/meridian-affinity
-cp plugin.yaml __init__.py $HERMES_HOME/plugins/meridian-affinity/
+# From the Meridian repository root; set HERMES_HOME to the target profile first.
+mkdir -p "$HERMES_HOME/plugins/meridian-affinity"
+cp examples/hermes-plugin/plugin.yaml examples/hermes-plugin/__init__.py \
+  "$HERMES_HOME/plugins/meridian-affinity/"
 ```
 
 Enable it in `$HERMES_HOME/config.yaml`:
@@ -69,7 +71,7 @@ plugins:
     - meridian-affinity
 ```
 
-Point Hermes at Meridian (any key value works, Meridian handles auth):
+Point Hermes at Meridian. Set `ANTHROPIC_API_KEY` to a placeholder only when proxy authentication is disabled; otherwise use the proxy's configured key:
 
 ```yaml
 model:

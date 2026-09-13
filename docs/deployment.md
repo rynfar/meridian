@@ -105,7 +105,15 @@ xdg.configFile."opencode/opencode.json".text = builtins.toJSON {
 ```
 ## Docker
 
-Claude Code authentication requires a browser, which isn't available inside containers. Authenticate on your local machine first, then mount the credentials into Docker.
+Build the local image from the repository root first (the commands below use this image tag):
+
+```bash
+docker build -t meridian .
+```
+
+For browser-login credentials, authenticate on the host and mount the credential directory. For macOS or headless deployments, use an OAuth-token profile below. Browser authorization can also be completed on another machine using [headless profile login](profiles.md#headless--ssh-complete-claude-oauth-with-a-pasted-code).
+
+The image runs as UID 1000; mounted credential directories must be writable by that user for refresh. Publish on loopback for local clients. Network deployments also need [proxy authentication](configuration.md#api-key-authentication).
 
 ### Single account
 
@@ -114,10 +122,11 @@ Claude Code authentication requires a browser, which isn't available inside cont
 claude login
 
 # 2. Run with mounted credentials
-docker run -v ~/.claude:/home/claude/.claude -p 3456:3456 meridian
+docker run --name meridian -e MERIDIAN_HOST_ID=meridian-local \
+  -v ~/.claude:/home/claude/.claude -p 127.0.0.1:3456:3456 meridian
 ```
 
-Meridian refreshes OAuth tokens automatically — once the credentials are mounted, no further browser access is needed.
+Meridian attempts automatic refresh while the refresh credential remains valid. Expired or revoked login credentials still require another login.
 
 > **macOS hosts:** mounting `~/.claude` does **not** carry credentials into the container — on macOS the CLI stores OAuth tokens in the Keychain, not in files, so the container sees an empty credential store and requests fail with an authentication error. Use an [OAuth-token profile](#oauth-token-profiles-in-docker-no-volume-mount) instead (recommended), or run `claude login` once inside the container (`docker exec -it <name> claude login`).
 
@@ -131,25 +140,33 @@ meridian profile add personal
 meridian profile add work    # sign out of claude.ai first, sign into work account
 
 # 2. Run Docker with profile configs pointing to mounted credential directories
-docker run \
+docker run -e MERIDIAN_HOST_ID=meridian-local \
   -v ~/.config/meridian/profiles/personal:/profiles/personal \
   -v ~/.config/meridian/profiles/work:/profiles/work \
   -e 'MERIDIAN_PROFILES=[{"id":"personal","claudeConfigDir":"/profiles/personal"},{"id":"work","claudeConfigDir":"/profiles/work"}]' \
   -e MERIDIAN_DEFAULT_PROFILE=personal \
-  -p 3456:3456 meridian
+  -p 127.0.0.1:3456:3456 meridian
 ```
 
-Switch profiles at runtime via the `x-meridian-profile` header or `meridian profile switch` (see [Multi-Profile Support](profiles.md)).
+Use `x-meridian-profile` per request or switch the active profile through the web UI. CLI commands run on the host need the same endpoint/auth configuration. macOS browser-login profiles can also use Keychain storage; mounting their directories alone may not transfer credentials. Use token profiles when moving across hosts.
 
 ### OAuth-token profiles in Docker (no volume mount)
 
 If you'd rather not mount a credential directory, generate a long-lived OAuth token on the host with `claude setup-token` and pass it as a profile. There's nothing to mount — the token alone is the credential:
 
 ```bash
-docker run \
+docker run -e MERIDIAN_HOST_ID=meridian-local \
   -e 'MERIDIAN_PROFILES=[{"id":"ci","oauthToken":"sk-ant-oat01-..."}]' \
   -e MERIDIAN_DEFAULT_PROFILE=ci \
-  -p 3456:3456 meridian
+  -p 127.0.0.1:3456:3456 meridian
 ```
 
 This is the recommended path for CI runners, ephemeral containers, and cross-host deployments where browser-based login isn't reachable. Treat the token like any other secret — inject it via your platform's secret store rather than committing it to your image or compose file.
+
+### Persistence and host identity
+
+Set `MERIDIAN_HOST_ID` to a stable value unique to each container that shares a session directory. The examples use `meridian-local` for one local instance; use a different value for another instance. This keeps session-lock ownership stable across container restarts.
+
+Persist `/home/claude/.cache/meridian` for session mappings, and `/home/claude/.config/meridian` for settings, plugins, profiles, and optional SQLite telemetry. SDK transcript state also needs to survive: mount the default `.claude` directory or each profile's isolated config directory. Persisting Meridian's session map alone cannot preserve a missing SDK transcript.
+
+The supplied `docker-compose.yml` persists only the default Claude credential/state directory. Add the other volumes and a stable host identity for durable operation. Its published port binds all host interfaces by default; change it to `127.0.0.1:3456:3456` for local-only use. See [session-store constraints](configuration.md#known-limitations).
