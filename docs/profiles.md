@@ -59,14 +59,14 @@ You can also switch profiles from the web UI — click an account card on the ho
 
 ### Sticky session routing
 
-With multiple profiles (e.g. two Claude Max subscriptions), Meridian can distribute sessions across profiles automatically while preserving **session affinity** — Anthropic's prompt caching is per-account, so a session must stay on one account to keep its ~99% cache hit rate:
+With multiple profiles (e.g. two Claude Max subscriptions), Meridian can distribute sessions across profiles automatically while preserving **session affinity** — Anthropic's prompt caching is per-account, so keeping a session on one account helps preserve its cache:
 
 ```bash
 MERIDIAN_ROUTING=sticky meridian     # or set "routing": "sticky" in ~/.config/meridian/settings.json
 ```
 
 - Each session is assigned to a profile by rendezvous hashing of its session id — **deterministic and stateless**, so assignments survive proxy restarts with no state to lose
-- Adding/removing a profile only reassigns the sessions belonging to the changed arm — everything else keeps its warm cache
+- Removing a profile reassigns its sessions; adding one moves only sessions for which the new profile wins the hash. Other assignments stay unchanged
 - A session's subagent/fork requests share its assignment (same session id → same account)
 - The `x-meridian-profile` header still overrides everything, per request
 - Default is `active` (all traffic to the active profile — the pre-existing behavior); sticky is opt-in
@@ -133,7 +133,7 @@ Profile shapes:
 
 - `claudeConfigDir` — points at a `~/.claude`-style directory; uses Claude Max OAuth from that dir
 - `apiKey` (with optional `baseUrl`) — direct Anthropic API access; sets `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`
-- `oauthToken` — long-lived token from `claude setup-token`; sets `CLAUDE_CODE_OAUTH_TOKEN`, no config dir needed
+- `oauthToken` — long-lived token from `claude setup-token`; sets `CLAUDE_CODE_OAUTH_TOKEN`. Meridian creates an isolated SDK state directory automatically; no credential mount is needed
 
 When `MERIDIAN_PROFILES` is set, it takes precedence over disk-configured profiles. When unset, Meridian auto-discovers profiles from `~/.config/meridian/profiles.json` on each request.
 
