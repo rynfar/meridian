@@ -145,6 +145,32 @@ describe("session GC deletes retired transcripts on every platform", () => {
     expect(existsSync(fixture.deletionLog)).toBe(true)
   }, 60_000)
 
+  // The child counts its gate deadline from its own start, but the parent opens
+  // that gate only after capturing the child's incarnation — a PowerShell round
+  // trip on win32. When the deletion budget was passed to the child verbatim, a
+  // budget shorter than that probe killed the sweep for a reason that had
+  // nothing to do with the SDK: the child exits 75 at its gate deadline, and if
+  // it dies mid-probe the parent cannot even capture the executor
+  // ("cannot capture session deletion executor incarnation" — the observed
+  // failure here before the allowance). Either way a loaded Windows host failed
+  // every deletion. A budget far below the probe cost must still produce the
+  // parent's own kill verdict.
+  test("the child's gate outlives the incarnation probe on a short deletion budget", async () => {
+    const fixture = await makeFixture("windows-gc-timeout")
+    const options = { ...gcOptions(fixture), deletionTimeoutMs: 100 }
+    const key = getTranscriptResourceKey(fixture.locator)
+
+    const exact = await prepareFork(fixture.locator, options)
+    await abandonFork(exact, options)
+
+    const result = await runGc([], options)
+
+    expect(result.failed).toBe(1)
+    const lastError = readSidecar(fixture.storeDir).resources[key]?.lastError
+    expect(lastError).toContain("timed out and was killed")
+    expect(lastError).not.toContain("exited 75")
+  }, 60_000)
+
   test("the pending backlog drains instead of filling up", async () => {
     const fixture = await makeFixture("windows-gc-backlog")
     const options = { ...gcOptions(fixture), maxPending: 4 }

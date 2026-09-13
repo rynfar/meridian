@@ -33,6 +33,7 @@ import {
   captureProcessIncarnation,
   parseProcessIncarnation,
   processIncarnationIsDead,
+  processIncarnationProbeBudgetMs,
   type ProcessIncarnation,
 } from "./session/processIncarnation"
 
@@ -1022,7 +1023,13 @@ try {
       MERIDIAN_GC_ABSENT_PHRASE: sessionAbsentPhrase(locator.sessionId),
       MERIDIAN_GC_PROJECT_DIR: locator.projectDir ?? "",
       MERIDIAN_GC_GATE_PATH: gatePath,
-      MERIDIAN_GC_GATE_TIMEOUT_MS: String(timeoutMs),
+      // The child counts its gate deadline from its own start, but the parent
+      // only opens the gate after capturing the child's incarnation — a
+      // PowerShell round trip on win32 that may consume its entire probe
+      // budget. Without that allowance the child can exit 75 before the gate
+      // ever appears, turning every deletion into a retryable failure on a
+      // loaded Windows host.
+      MERIDIAN_GC_GATE_TIMEOUT_MS: String(timeoutMs + processIncarnationProbeBudgetMs()),
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,

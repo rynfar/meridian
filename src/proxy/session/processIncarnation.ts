@@ -48,6 +48,16 @@ const PROBE_TIMEOUT_MS = 2_000
 // durable writer identity instead of failing every first launch closed.
 const WINDOWS_PROBE_TIMEOUT_MS = 10_000
 
+/**
+ * How long a single capture may block before it gives up. Callers that gate a
+ * child on work they do *after* capturing its incarnation must add this to the
+ * child's own deadline: on win32 the capture shells out to PowerShell and can
+ * spend the whole budget before the caller reaches its next step.
+ */
+export function processIncarnationProbeBudgetMs(): number {
+  return process.platform === "win32" ? WINDOWS_PROBE_TIMEOUT_MS : PROBE_TIMEOUT_MS
+}
+
 let cachedLocalBootIdentity: LocalBootIdentity | undefined
 let cachedCurrentProcessIncarnation: ProcessIncarnation | undefined
 
