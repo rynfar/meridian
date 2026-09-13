@@ -14,6 +14,9 @@
  * one-shot.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -43,7 +46,7 @@ let missingMessage = false
 /** Per-attempt wordings, when the refusal is not the same one every time. */
 let refusalScript: Array<"unresumable" | "busy"> = []
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (opts: any) => {
     queryCallCount++
     const callIndex = queryCallCount
@@ -97,14 +100,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
   tool: () => ({}),
-}))
+}), "proxy-resume-refusal.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: { tool: () => {}, registerTool: () => ({}) } }),
 }))
 

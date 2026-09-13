@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
+import * as durableFileSystem from "../proxy/session/durableFileSystem"
 import {
   chmodSync,
   mkdirSync,
@@ -20,10 +21,12 @@ import {
   acquireActiveTranscriptLease,
   attachActiveTranscriptExecutor,
   attachPinnedTranscript,
+  clipChildOutput,
   commitFork,
   getSessionGcNodeExecutable,
   getTranscriptResourceKey,
   prepareFork,
+  prepareForkForPublication,
   publishPinnedTranscript,
   reconcile,
   registerLiveTranscript,
@@ -75,7 +78,9 @@ describe("session transcript lifecycle", () => {
       now: () => now,
       preparedGraceMs: 0,
       retiredGraceMs: 0,
-      lockWaitMs: 20,
+      // Positive recovery cases perform real fsyncs. Use the production wait
+      // budget; tests of contention and fail-closed deadlines override it.
+      lockWaitMs: 2_000,
       lockRetryMs: 1,
       lockStaleMs: 60_000,
     }
@@ -84,6 +89,26 @@ describe("session transcript lifecycle", () => {
   afterEach(() => {
     rmSync(storeDir, { recursive: true, force: true })
   })
+
+  async function withSlowRecoverySync(operation: () => Promise<void>): Promise<void> {
+    const sync = durableFileSystem.syncDirectoryDurably
+    let delayed = 0
+    const syncSpy = spyOn(durableFileSystem, "syncDirectoryDurably").mockImplementation(async path => {
+      if (path.startsWith(storeDir) && path.includes(".recover-")) {
+        // Successful recovery must tolerate storage latency greater than the
+        // former 20 ms test deadline, while still performing real fsyncs.
+        await new Promise(resolve => setTimeout(resolve, 30))
+        delayed++
+      }
+      await sync(path)
+    })
+    try {
+      await operation()
+      expect(delayed).toBeGreaterThan(0)
+    } finally {
+      syncSpy.mockRestore()
+    }
+  }
 
   it("keys ownership by config directory and session id", () => {
     const first = locator("same-id", "profile-a")
@@ -236,6 +261,76 @@ describe("session transcript lifecycle", () => {
     expect(readSidecar(bounded.storeDir).resources[getTranscriptResourceKey(stillLive)]?.state).toBe("live")
   })
 
+  it("leaves admission capacity while retiring live resources after a profile switch", async () => {
+    const bounded = { ...options, storeDir: join(storeDir, "retirement-headroom"), maxPending: 2 }
+    const firstStale = locator("first-stale-after-profile-switch")
+    const secondStale = locator("second-stale-after-profile-switch")
+    const fresh = locator("fresh-after-profile-switch")
+    await registerLiveTranscript(firstStale, bounded)
+    await registerLiveTranscript(secondStale, bounded)
+
+    expect((await reconcile([], bounded)).liveRetired).toBe(1)
+    await prepareFork(fresh, bounded)
+
+    const resources = readSidecar(bounded.storeDir).resources
+    expect(resources[getTranscriptResourceKey(fresh)]?.state).toBe("prepared")
+    expect(Object.values(resources).filter((resource) => resource.state === "retired")).toHaveLength(1)
+    expect(Object.values(resources).filter((resource) => resource.state === "live")).toHaveLength(1)
+  })
+
+  it.each([2, 4])("continues bounded passive cleanup with a reserved admission slot (limit=%s)", async maxPending => {
+    const deleted: string[] = []
+    const bounded = { ...options, maxPending, maxDeletesPerRun: 1,
+      deleter: async (resource: TranscriptLocator) => { deleted.push(resource.sessionId) } }
+    const stale = Array.from({ length: 5 }, (_, index) => locator(`passive-${index}`))
+    for (const resource of stale) await registerLiveTranscript(resource, bounded)
+    const active = await prepareForkForPublication(locator("active-publication"), bounded)
+    await reconcile([], bounded)
+    // At limit two an in-flight publication occupies the passive budget.
+    // Cleanup must resume after it publishes, while keeping its mapping pinned.
+    expect(readSidecar(storeDir).resources[getTranscriptResourceKey(active)]?.state).toBe("prepared")
+    await commitFork(active, bounded)
+    for (let iteration = 0; iteration < stale.length; iteration++) {
+      const result = await runGc([active], bounded)
+      expect(result.deleted).toBe(1)
+      const resources = Object.values(readSidecar(storeDir).resources)
+      expect(resources.filter(resource => ["prepared", "retired", "deleting"].includes(resource.state)).length)
+        .toBeLessThanOrEqual(maxPending)
+      expect(readSidecar(storeDir).resources[getTranscriptResourceKey(active)]?.state).toBe("live")
+    }
+    expect(new Set(deleted)).toEqual(new Set(stale.map(resource => resource.sessionId)))
+    expect(deleted).not.toContain(active.sessionId)
+  })
+
+  it("does not overbook reserved capacity when two publication requests race", async () => {
+    const bounded = { ...options, maxPending: 2 }
+    for (const id of ["stale-a", "stale-b"]) await registerLiveTranscript(locator(id), bounded)
+    await reconcile([], bounded)
+    const attempts = await Promise.allSettled([
+      prepareForkForPublication(locator("racing-a"), bounded),
+      prepareForkForPublication(locator("racing-b"), bounded),
+    ])
+    expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(1)
+    const failures = attempts.filter(result => result.status === "rejected")
+    expect(failures).toHaveLength(1)
+    expect(failures[0]?.reason).toBeInstanceOf(SessionLifecycleBacklogError)
+    const resources = Object.values(readSidecar(storeDir).resources)
+    expect(resources.filter(resource => ["prepared", "retired", "deleting"].includes(resource.state))).toHaveLength(2)
+  })
+
+  it("still enforces total ownership when passive retirement leaves pending capacity", async () => {
+    const bounded = { ...options, maxPending: 2, maxOwned: 3 }
+    for (const id of ["owned-a", "owned-b"]) await registerLiveTranscript(locator(id), bounded)
+    await reconcile([], bounded)
+    const active = await prepareForkForPublication(locator("owned-new"), bounded)
+    await commitFork(active, bounded)
+    await expect(prepareForkForPublication(locator("owned-overflow"), bounded))
+      .rejects.toBeInstanceOf(SessionLifecycleBacklogError)
+    const resources = Object.values(readSidecar(storeDir).resources)
+    expect(resources).toHaveLength(3)
+    expect(resources.filter(resource => resource.state === "retired")).toHaveLength(1)
+  })
+
   it("never lets a delayed publisher recreate a deleted locator after tombstone pruning", async () => {
     const bounded = { ...options, maxTombstones: 1, deleter: async () => undefined }
     const stale = locator("stale-publisher")
@@ -343,6 +438,40 @@ describe("session transcript lifecycle", () => {
     await releaseActiveTranscriptLease(second, options)
   })
 
+  it("expires an unarmed writer lease older than its TTL, independently of the prepared grace", async () => {
+    const graceOptions = { ...options, unarmedLeaseTtlMs: 100, preparedGraceMs: 10_000 }
+    const fork = locator("stale-unarmed-writer")
+    await prepareFork(fork, graceOptions)
+    const first = await acquireActiveTranscriptLease([fork], graceOptions)
+    await expect(acquireActiveTranscriptLease([fork], graceOptions)).rejects.toThrow("active SDK writer")
+
+    now += 101
+    const second = await acquireActiveTranscriptLease([fork], graceOptions)
+    expect(second.token).not.toBe(first.token)
+    await releaseActiveTranscriptLease(second, graceOptions)
+  })
+
+  it("keeps a fresh unarmed writer lease exclusive", async () => {
+    const graceOptions = { ...options, unarmedLeaseTtlMs: 100 }
+    const fork = locator("fresh-unarmed-writer")
+    await prepareFork(fork, graceOptions)
+    await acquireActiveTranscriptLease([fork], graceOptions)
+    now += 50
+    await expect(acquireActiveTranscriptLease([fork], graceOptions)).rejects.toThrow("active SDK writer")
+  })
+
+  it("retires an unpinned live resource once its stale publication lease expires", async () => {
+    const graceOptions = { ...options, unarmedLeaseTtlMs: 100 }
+    const fork = locator("stale-publication-lease")
+    await prepareForkForPublication(fork, graceOptions)
+    await commitFork(fork, graceOptions)
+    expect((await reconcile([], graceOptions)).liveRetired).toBe(0)
+
+    now += 101
+    expect((await reconcile([], graceOptions)).liveRetired).toBe(1)
+    expect(readSidecar(storeDir).resources[getTranscriptResourceKey(fork)]?.state).toBe("retired")
+  })
+
   it("keeps current and previous pins and deletes only retired forks", async () => {
     const current = locator("current")
     const previous = locator("previous")
@@ -407,6 +536,38 @@ describe("session transcript lifecycle", () => {
   it("uses a real Node executable when tests run under Bun", () => {
     expect(process.versions.bun).toBeDefined()
     expect(getSessionGcNodeExecutable()).toBe("node")
+  })
+
+  it("clips child output keeping both ends within the budget", () => {
+    const head = "h".repeat(2_000)
+    const tail = "t".repeat(2_000)
+    const clipped = clipChildOutput(`${head}${"m".repeat(3_000)}${tail}`)
+
+    expect(clipped.startsWith(head)).toBe(true)
+    expect(clipped.endsWith(tail)).toBe(true)
+    expect(clipped).toContain("3000 chars elided")
+    expect(clipChildOutput("short child output")).toBe("short child output")
+  })
+
+  it("keeps a verdict that the old tail-only clip would have lost (#1030)", () => {
+    // The reported failure, stated as a test. The child writes its verdict
+    // first and a Node crash report follows it. The previous
+    // `output.slice(-4_000)` kept only the crash report, so the parent's string
+    // match never fired, the resource stayed `retired` and was retried forever
+    // — 254 attempts on the reporting deployment — until `pending` reached
+    // `maxPending` and every NEW conversation failed with "ownership backlog is
+    // full".
+    //
+    // Worth pinning separately from the mechanics above: the end-to-end
+    // deletion test passes on the pre-fix tree too, because its fixture's
+    // output is short enough that the old tail match still found the verdict.
+    // Only an output larger than the budget distinguishes them.
+    const verdict = "Error: Session 0e0f7a11-0000-4000-8000-000000000000 not found"
+    const crashReport = "#".repeat(9_000)
+    const output = `${verdict}\n${crashReport}`
+
+    expect(output.slice(-4_000)).not.toContain(verdict)
+    expect(clipChildOutput(output)).toContain(verdict)
   })
 
   it("defers retired deletion through the reader-drain grace period", async () => {
@@ -530,10 +691,10 @@ describe("session transcript lifecycle", () => {
     const stale = (Date.now() - 1_000) / 1_000
     utimesSync(lock, stale, stale)
 
-    await prepareFork(locator("after-crash"), {
+    await withSlowRecoverySync(() => prepareFork(locator("after-crash"), {
       ...options,
       lockStaleMs: 10,
-    })
+    }).then(() => undefined))
 
     expect(readdirSync(storeDir)).toEqual(["session-gc.json"])
   })
@@ -556,10 +717,10 @@ describe("session transcript lifecycle", () => {
     )
     writeLifecycleRecoveryClaim(claim, contents, "second-dead-lifecycle-recoverer", 999_999_999)
 
-    await prepareFork(locator("after-orphaned-lifecycle-recovery"), {
+    await withSlowRecoverySync(() => prepareFork(locator("after-orphaned-lifecycle-recovery"), {
       ...options,
       lockStaleMs: 10,
-    })
+    }).then(() => undefined))
 
     expect(readSidecar(storeDir).resources).toBeDefined()
     expect(readdirSync(storeDir).some((name) => name.includes(".recover-"))).toBe(false)

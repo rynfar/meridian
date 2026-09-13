@@ -206,6 +206,23 @@ export interface TelemetrySummary {
   costEstimate: CostEstimate
 }
 
+/**
+ * Live parent→child cancellation counters, mirrored from
+ * `proxy/sessionTree.ts` onto `GET /telemetry/summary`.
+ *
+ * Gauges (`tracked`, `linked`) are instantaneous; counts (`propagations`,
+ * `cancelledDescendants`) are cumulative since proxy start, so they are NOT
+ * scoped to the summary's time window. Orphaned subagents were previously
+ * invisible — a nonzero `cancelledDescendants` is the proof teardown reached
+ * them.
+ */
+export interface SessionTreeSummary {
+  tracked: number
+  linked: number
+  propagations: number
+  cancelledDescendants: number
+}
+
 /** Storage backend for request metrics. */
 export interface ITelemetryStore {
   /** Record a completed request metric. */

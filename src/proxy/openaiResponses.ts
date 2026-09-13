@@ -23,8 +23,10 @@ import type {
   AnthropicMessage,
   AnthropicContentBlock,
   AnthropicTool,
+  AnthropicUsage,
 } from "./openai"
-import { parseDataUrlImage } from "./openai"
+import { mergeAnthropicUsage, parseDataUrlImage, totalAnthropicInputTokens } from "./openai"
+import { createHash } from "node:crypto"
 
 // ---------------------------------------------------------------------------
 // Responses request types (subset Codex actually sends)
@@ -46,11 +48,36 @@ interface ResponsesMessageItem {
 interface ResponsesFunctionCallItem {
   type: "function_call"
   name: string
+  /** Set when the tool lives in a `namespace` tool entry (an MCP server). */
+  namespace?: string
   arguments: string
   call_id: string
 }
+/**
+ * `function_call_output.output` is a plain string for shell-style tools and an
+ * array of content items for MCP tools (Codex's FunctionCallOutputBody is an
+ * untagged Text | ContentItems); custom tool outputs are always strings.
+ */
+interface ResponsesOutputContentItem {
+  type: "input_text" | "input_image" | "input_audio" | "encrypted_content" | string
+  text?: string
+  image_url?: string
+}
 interface ResponsesFunctionCallOutputItem {
   type: "function_call_output"
+  call_id: string
+  output: string | ResponsesOutputContentItem[]
+}
+/** A freeform (`type:"custom"`) tool call — Codex's `apply_patch`. */
+interface ResponsesCustomToolCallItem {
+  type: "custom_tool_call"
+  name: string
+  namespace?: string
+  input: string
+  call_id: string
+}
+interface ResponsesCustomToolCallOutputItem {
+  type: "custom_tool_call_output"
   call_id: string
   output: string
 }
@@ -62,14 +89,20 @@ type ResponsesInputItem =
   | ResponsesMessageItem
   | ResponsesFunctionCallItem
   | ResponsesFunctionCallOutputItem
+  | ResponsesCustomToolCallItem
+  | ResponsesCustomToolCallOutputItem
   | ResponsesReasoningItem
 
-interface ResponsesTool {
-  type: "function" | string
+export interface ResponsesTool {
+  type: "function" | "custom" | "namespace" | string
   name: string
   description?: string
   strict?: boolean
   parameters?: unknown
+  /** `custom` tools: the freeform grammar Codex expects the input to follow. */
+  format?: unknown
+  /** `namespace` tools: the nested function/custom tools of one MCP server. */
+  tools?: ResponsesTool[]
 }
 
 export interface ResponsesRequest {
@@ -87,6 +120,261 @@ export interface ResponsesRequest {
   [k: string]: unknown
 }
 
+// ---------------------------------------------------------------------------
+// Tool aliasing: namespaced and custom tools
+// ---------------------------------------------------------------------------
+
+/**
+ * Codex (0.15x) ships every MCP server as one `{type:"namespace", name,
+ * tools:[…]}` entry with the tool definitions nested inside, and its freeform
+ * `apply_patch` as `{type:"custom"}`. Claude sees one flat list of function
+ * tools, so each nested or custom tool is exposed under an alias, and the alias
+ * table maps Claude's call back onto the exact `{namespace, name}` pair Codex's
+ * router resolves (`ToolName::new(namespace, name)` — a flattened name without
+ * `namespace` never matches a namespaced tool).
+ */
+export interface ResponsesToolAlias {
+  namespace?: string
+  name: string
+  kind: "function" | "custom"
+}
+export type ResponsesToolAliases = Map<string, ResponsesToolAlias>
+
+/**
+ * Claude tool names are `[A-Za-z0-9_-]{1,64}`, and the passthrough MCP server
+ * prepends its own `mcp__oc__` (PASSTHROUGH_MCP_PREFIX in passthroughTools.ts;
+ * a test pins the two in sync), so an alias gets the remainder.
+ */
+const PASSTHROUGH_PREFIX_LENGTH = "mcp__oc__".length
+export const RESPONSES_TOOL_ALIAS_MAX = 64 - PASSTHROUGH_PREFIX_LENGTH
+
+/**
+ * The Claude-visible name of a tool. Deterministic on (namespace, name): the
+ * history Codex replays next turn carries the same pair and must land on the
+ * same alias, or the replayed `tool_use` names no longer match the tool set.
+ */
+export function responsesToolAlias(namespace: string | undefined, name: string): string {
+  const raw = namespace ? `${namespace}__${name}` : name
+  const safe = raw.replace(/[^A-Za-z0-9_-]/g, "_")
+  if (safe.length <= RESPONSES_TOOL_ALIAS_MAX) return safe
+  const digest = createHash("sha256").update(raw).digest("hex").slice(0, 8)
+  return `${safe.slice(0, RESPONSES_TOOL_ALIAS_MAX - digest.length - 1)}_${digest}`
+}
+
+/**
+ * Alias table for a request's tools. Pure and deterministic, so the route can
+ * rebuild it for the response side without threading state through the
+ * request translator. Top-level function tools keep their own names and are
+ * not listed.
+ */
+export function buildResponsesToolAliases(tools: ResponsesTool[] | undefined): ResponsesToolAliases {
+  const aliases: ResponsesToolAliases = new Map()
+  for (const tool of tools ?? []) {
+    if (tool.type === "custom") {
+      aliases.set(responsesToolAlias(undefined, tool.name), { name: tool.name, kind: "custom" })
+    } else if (tool.type === "namespace") {
+      for (const nested of tool.tools ?? []) {
+        if (nested.type !== "function" && nested.type !== "custom") continue
+        aliases.set(responsesToolAlias(tool.name, nested.name), {
+          namespace: tool.name,
+          name: nested.name,
+          kind: nested.type,
+        })
+      }
+    }
+  }
+  return aliases
+}
+
+/**
+ * A freeform tool has no JSON arguments: Claude gets a single `input` string
+ * and the whole payload is passed through verbatim as `custom_tool_call.input`.
+ */
+const CUSTOM_TOOL_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    input: { type: "string", description: "The complete freeform payload, exactly as the tool's format requires." },
+  },
+  required: ["input"],
+  additionalProperties: false,
+}
+
+function customToolDescription(tool: ResponsesTool): string {
+  const parts = [tool.description ?? "", "Freeform tool: put the entire payload in the `input` string; do not wrap it in JSON."]
+  const format = tool.format && typeof tool.format === "object" ? (tool.format as { syntax?: unknown; definition?: unknown }) : undefined
+  if (typeof format?.definition === "string") {
+    parts.push(`Input grammar${typeof format.syntax === "string" ? ` (${format.syntax})` : ""}:\n${format.definition}`)
+  }
+  return parts.filter((s) => s.length > 0).join("\n\n")
+}
+
+function translateResponsesTools(tools: ResponsesTool[]): AnthropicTool[] {
+  const out: AnthropicTool[] = []
+  const push = (namespace: string | undefined, tool: ResponsesTool) => {
+    if (tool.type === "function") {
+      out.push({
+        name: namespace ? responsesToolAlias(namespace, tool.name) : tool.name,
+        description: namespace ? `[${namespace}] ${tool.description ?? ""}`.trimEnd() : tool.description ?? "",
+        input_schema: tool.parameters ?? { type: "object", properties: {} },
+      })
+    } else if (tool.type === "custom") {
+      out.push({
+        name: responsesToolAlias(namespace, tool.name),
+        description: customToolDescription(tool),
+        input_schema: CUSTOM_TOOL_INPUT_SCHEMA,
+      })
+    }
+    // Server-side tool kinds (`web_search`, …) have no Claude counterpart here.
+  }
+  for (const tool of tools) {
+    if (tool.type === "namespace") {
+      for (const nested of tool.tools ?? []) push(tool.name, nested)
+    } else {
+      push(undefined, tool)
+    }
+  }
+  return out
+}
+
+/** The Responses item for a Claude `tool_use`, resolved through the alias table. */
+function toolCallItem(
+  ctx: ResponsesCtx,
+  id: string,
+  callId: string,
+  name: string,
+  argsJson: string,
+  status: "in_progress" | "completed"
+): Record<string, unknown> {
+  const alias = ctx.toolAliases?.get(name)
+  const namespace = alias?.namespace ? { namespace: alias.namespace } : {}
+  if (alias?.kind === "custom") {
+    let input = argsJson
+    try {
+      const parsed: unknown = JSON.parse(argsJson || "{}")
+      if (parsed && typeof parsed === "object" && typeof (parsed as { input?: unknown }).input === "string") {
+        input = (parsed as { input: string }).input
+      } else if (argsJson === "" || argsJson === "{}") {
+        input = ""
+      }
+    } catch {
+      // Not JSON: Claude may already have emitted the freeform payload itself.
+    }
+    return { type: "custom_tool_call", id, call_id: callId, name: alias.name, ...namespace, input, status }
+  }
+  return { type: "function_call", id, call_id: callId, name: alias?.name ?? name, ...namespace, arguments: argsJson, status }
+}
+
+// Codex thread identity
+// ---------------------------------------------------------------------------
+
+/** What one Codex turn says about the conversation it belongs to. */
+export interface CodexThreadIdentity {
+  /** Conversation key for session resume — the codex adapter's `x-codex-session`. */
+  sessionKey?: string
+  /** Concurrency declaration for a turn that is not the thread the user drives. */
+  requestSource?: string
+}
+
+/** The fields of Codex's turn metadata this route reads. */
+interface CodexTurnMetadata {
+  thread_id?: unknown
+  session_id?: unknown
+  thread_source?: unknown
+  request_kind?: unknown
+}
+
+/** Codex sends this both as a request header and inside `client_metadata`. */
+const CODEX_TURN_METADATA = "x-codex-turn-metadata"
+
+/** Longest `thread_source` / `request_kind` tag echoed into a key or source. */
+const CODEX_THREAD_SOURCE_MAX = 24
+
+/** The one `request_kind` that IS the conversation; every other kind rides beside it. */
+const CODEX_TURN_KIND = "turn"
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
+/** A Codex tag reduced to what a header and a session key may carry. */
+function codexTag(value: string): string | undefined {
+  const tag = value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, CODEX_THREAD_SOURCE_MAX)
+  return tag.replace(/-/g, "") ? tag : undefined
+}
+
+function parseCodexTurnMetadata(value: unknown): CodexTurnMetadata | undefined {
+  if (value && typeof value === "object") return value as CodexTurnMetadata
+  const raw = nonEmptyString(value)
+  if (!raw) return undefined
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return parsed && typeof parsed === "object" ? parsed as CodexTurnMetadata : undefined
+  } catch {
+    // A client that garbles its own metadata still gets the cache-key path.
+    return undefined
+  }
+}
+
+function codexTurnMetadataFromBody(body: ResponsesRequest): unknown {
+  const metadata = body.client_metadata
+  if (!metadata || typeof metadata !== "object") return undefined
+  return (metadata as Record<string, unknown>)[CODEX_TURN_METADATA]
+}
+
+/**
+ * Reads the conversation identity Codex attaches to a turn.
+ *
+ * `prompt_cache_key` was the only identity this route had (#655), and for the
+ * thread a user drives it is exactly that thread's id. A subagent is the case
+ * it cannot describe: Codex Desktop spawns one as its own thread, with its own
+ * instructions and its own tools, and hands it the *parent's*
+ * `prompt_cache_key`. Keyed on that alone two live conversations become one
+ * session — the subagent's first turn rebinds the key to its own SDK session,
+ * and the parent's next turn then reads as a rewrite of it: refused as a
+ * concurrent conflict when it loses the session-turn race, replayed from
+ * scratch when it wins.
+ *
+ * `x-codex-turn-metadata` names the thread itself, so the thread id is the
+ * honest key: identical to `prompt_cache_key` for a user thread — this
+ * re-anchors no existing session — and distinct for every spawned one.
+ * `thread_source` carries the same fact independently, so a turn from a
+ * spawned thread also declares a concurrent flow and is admitted rather than
+ * refused should a client ever reuse one id across flows. `fork-` and not
+ * `subagent-`: the tier a Codex subagent runs on is the client's choice, and
+ * a concurrency declaration must not silently rewrite it.
+ *
+ * `request_kind` is the third signal. Codex runs side requests against the
+ * same thread id — `compact` carries the whole history with no tools to
+ * summarise it, and the binary also names `title`, `summary`, `review`,
+ * `memory` — and none of them is the conversation: keyed on the thread alone
+ * a compaction lands on the conversation's session as a rewrite of it.
+ * Observed live: a 379-message `compact` under a live thread's key. Any kind
+ * other than `turn` therefore gets its own key beside the thread's and
+ * declares its own flow; a kind Codex has not sent yet is handled the same
+ * way, since the property that matters — not being the turn — is shared.
+ */
+export function resolveCodexThreadIdentity(
+  body: ResponsesRequest,
+  metadataHeader?: string,
+): CodexThreadIdentity {
+  const metadata = parseCodexTurnMetadata(metadataHeader)
+    ?? parseCodexTurnMetadata(codexTurnMetadataFromBody(body))
+  const identity: CodexThreadIdentity = {}
+
+  const threadKey = nonEmptyString(metadata?.thread_id) ?? nonEmptyString(body.prompt_cache_key)
+
+  const kind = nonEmptyString(metadata?.request_kind)
+  const kindTag = kind && kind !== CODEX_TURN_KIND ? codexTag(kind) : undefined
+
+  if (threadKey) identity.sessionKey = kindTag ? `${threadKey}:${kindTag}` : threadKey
+
+  const threadSource = nonEmptyString(metadata?.thread_source)
+  const sourceTag = threadSource && threadSource !== "user" ? codexTag(threadSource) : undefined
+  const flow = kindTag ?? sourceTag
+  if (flow) identity.requestSource = `fork-codex-${flow}`
+
+  return identity
+}
 // ---------------------------------------------------------------------------
 // Request translation: Responses → Anthropic
 // ---------------------------------------------------------------------------
@@ -148,6 +436,32 @@ function partsToBlocks(content: ResponsesContentPart[] | string | undefined): An
 }
 
 /**
+ * Anthropic `tool_result.content` for a Responses tool output. Content items
+ * are mapped part by part — `input_text` → text, data-URL `input_image` →
+ * image — and anything else becomes an omission note, so an MCP tool that
+ * answered with structured content never reaches the API as an unknown tag.
+ */
+function toolOutputToContent(output: string | ResponsesOutputContentItem[] | undefined): string | AnthropicContentBlock[] {
+  if (output === undefined || output === null) return ""
+  if (typeof output === "string") return output
+  if (!Array.isArray(output)) return typeof output === "object" ? JSON.stringify(output) : String(output)
+  const blocks: AnthropicContentBlock[] = []
+  for (const part of output) {
+    if (!part || typeof part !== "object") continue
+    if (typeof part.text === "string") {
+      blocks.push({ type: "text", text: part.text })
+    } else if (part.type === "input_image") {
+      const image = typeof part.image_url === "string" ? parseDataUrlImage(part.image_url) : null
+      blocks.push(image ?? { type: "text", text: "[Unsupported input_image omitted: only data URLs are currently supported]" })
+    } else {
+      blocks.push({ type: "text", text: `[Unsupported ${String(part.type)} tool output part omitted]` })
+    }
+  }
+  // Anthropic rejects an empty content array; an empty string is fine.
+  return blocks.length > 0 ? blocks : ""
+}
+
+/**
  * Map a Responses `tool_choice` to Anthropic's. Codex sends `"auto"`,
  * `"required"`, `"none"`, or `{type:"function", name}`. `"none"` maps to
  * undefined (Anthropic has no explicit none — omitting lets the model decide,
@@ -177,8 +491,10 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
       ? [{ type: "message", role: "user", content: [{ type: "input_text", text: body.input }] }]
       : body.input
 
-  // System: instructions + any developer/system-role messages folded in
-  // (Codex's harness rules arrive as developer turns).
+  // System: instructions + the developer/system-role messages that PRECEDE
+  // the conversation (Codex's harness rules arrive as leading developer
+  // turns). A developer message that arrives mid-history stays in the
+  // history — see the `message` case for why.
   const systemParts: string[] = []
   if (body.instructions) systemParts.push(body.instructions)
 
@@ -186,11 +502,25 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
   const pushBlock = (role: "user" | "assistant", block: AnthropicContentBlock) => {
     const last = messages[messages.length - 1]
     if (last && last.role === role && Array.isArray(last.content)) {
-      last.content.push(block)
+      // A tool_result must lead its user message. An inlined developer note
+      // can land between two tool outputs of one batch, so a result arriving
+      // after text is filed ahead of the text rather than behind it.
+      if (block.type === "tool_result") {
+        const firstText = last.content.findIndex(b => b.type !== "tool_result")
+        if (firstText === -1) last.content.push(block)
+        else last.content.splice(firstText, 0, block)
+      } else {
+        last.content.push(block)
+      }
     } else {
       messages.push({ role, content: [block] })
     }
   }
+
+  // Whether a conversation item (user, assistant, tool call or result) has
+  // been seen yet; developer/system items before that are the harness
+  // preamble, developer items after it are events inside the conversation.
+  let conversationStarted = false
 
   for (const item of items) {
     // NOTE: this switches on a COMPUTED discriminator, not on `item.type`, so
@@ -201,9 +531,28 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
         const msg = item as ResponsesMessageItem
         if (msg.role === "developer" || msg.role === "system") {
           const t = partsToText(msg.content)
-          if (t) systemParts.push(t)
+          if (!t) break
+          if (!conversationStarted) {
+            systemParts.push(t)
+            break
+          }
+          // Anthropic caches the prompt as one prefix in the order
+          // tools → system → messages. Folding a developer message that
+          // appeared mid-conversation into `system` rewrites the system
+          // block on the turn it first shows up, which invalidates every
+          // cached token past the tools — the entire history. Codex emits
+          // exactly such messages as ordinary events: `<image_resize_notice>`
+          // after every image, `<model_switch>` on a model change,
+          // `<app-context>` when the app refreshes. Observed live: every
+          // cache collapse in a long thread (14 of 14, 240k–584k tokens
+          // re-written each) followed one of these by one to three seconds,
+          // with the tools block the only part still hitting. Kept in the
+          // history at its own position, the note is just another message:
+          // the prefix before it stays cached and the turn costs its size.
+          pushBlock("user", { type: "text", text: t })
           break
         }
+        conversationStarted = true
         const role = msg.role === "assistant" ? "assistant" : "user"
         const imageBlocks = partsToBlocks(msg.content)
         if (imageBlocks) {
@@ -215,15 +564,29 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
         break
       }
       case "function_call": {
+        conversationStarted = true
         const fc = item as ResponsesFunctionCallItem
         let input: Record<string, unknown> = {}
         try { input = fc.arguments ? JSON.parse(fc.arguments) : {} } catch { input = {} }
-        pushBlock("assistant", { type: "tool_use", id: fc.call_id, name: fc.name, input })
+        const name = fc.namespace ? responsesToolAlias(fc.namespace, fc.name) : fc.name
+        pushBlock("assistant", { type: "tool_use", id: fc.call_id, name, input })
         break
       }
       case "function_call_output": {
+        conversationStarted = true
         const fo = item as ResponsesFunctionCallOutputItem
-        pushBlock("user", { type: "tool_result", tool_use_id: fo.call_id, content: fo.output })
+        pushBlock("user", { type: "tool_result", tool_use_id: fo.call_id, content: toolOutputToContent(fo.output) })
+        break
+      }
+      case "custom_tool_call": {
+        const ct = item as ResponsesCustomToolCallItem
+        const name = responsesToolAlias(ct.namespace, ct.name)
+        pushBlock("assistant", { type: "tool_use", id: ct.call_id, name, input: { input: ct.input ?? "" } })
+        break
+      }
+      case "custom_tool_call_output": {
+        const co = item as ResponsesCustomToolCallOutputItem
+        pushBlock("user", { type: "tool_result", tool_use_id: co.call_id, content: toolOutputToContent(co.output) })
         break
       }
       case "reasoning":
@@ -243,13 +606,7 @@ export function translateResponsesToAnthropic(body: ResponsesRequest): Anthropic
   }
   if (systemParts.length > 0) result.system = systemParts.join("\n\n")
   if (Array.isArray(body.tools) && body.tools.length > 0) {
-    result.tools = body.tools
-      .filter((t) => t.type === "function")
-      .map((t): AnthropicTool => ({
-        name: t.name,
-        description: t.description ?? "",
-        input_schema: t.parameters ?? { type: "object", properties: {} },
-      }))
+    result.tools = translateResponsesTools(body.tools)
   }
   const tc = mapToolChoice(body.tool_choice)
   if (tc) result.tool_choice = tc
@@ -276,6 +633,11 @@ export interface ResponsesCtx {
    * satisfy its state machine. Set from `reasoningRequested(body)`.
    */
   reasoningRequested?: boolean
+  /**
+   * Alias table from `buildResponsesToolAliases(request.tools)`: maps Claude's
+   * tool_use names back onto Codex's `{namespace, name}` and custom tools.
+   */
+  toolAliases?: ResponsesToolAliases
 }
 
 /** Did the Responses request ask for reasoning output? */
@@ -288,13 +650,23 @@ export function reasoningRequested(body: ResponsesRequest): boolean {
 interface AnthropicResponseLike {
   content?: Array<Record<string, unknown>>
   stop_reason?: string
-  usage?: { input_tokens?: number; output_tokens?: number }
+  usage?: AnthropicUsage
 }
 
-function mapUsage(usage: { input_tokens?: number; output_tokens?: number } | undefined) {
-  const input = usage?.input_tokens ?? 0
+function mapUsage(usage: AnthropicUsage | undefined) {
+  const input = totalAnthropicInputTokens(usage)
   const output = usage?.output_tokens ?? 0
-  return { input_tokens: input, output_tokens: output, total_tokens: input + output }
+  return {
+    input_tokens: input,
+    output_tokens: output,
+    total_tokens: input + output,
+    // `cached_tokens` is OpenAI's field; `cache_write_tokens` is a Meridian
+    // extension — see the note on OpenAiCompletion in ./openai.
+    input_tokens_details: {
+      cached_tokens: usage?.cache_read_input_tokens ?? 0,
+      cache_write_tokens: usage?.cache_creation_input_tokens ?? 0,
+    },
+  }
 }
 
 /**
@@ -318,14 +690,8 @@ export function translateAnthropicToResponses(res: AnthropicResponseLike, ctx: R
     if (block.type === "text" && typeof block.text === "string") {
       textParts.push({ type: "output_text", text: block.text, annotations: [] })
     } else if (block.type === "tool_use") {
-      output.push({
-        type: "function_call",
-        id: `fc_${block.id}`,
-        call_id: block.id,
-        name: block.name,
-        arguments: JSON.stringify(block.input ?? {}),
-        status: "completed",
-      })
+      const callId = String(block.id)
+      output.push(toolCallItem(ctx, `fc_${callId}`, callId, String(block.name), JSON.stringify(block.input ?? {}), "completed"))
     }
     // thinking: dropped (phase 1)
   }
@@ -377,10 +743,10 @@ export function translateAnthropicToResponses(res: AnthropicResponseLike, ctx: R
 export interface AnthropicSseEvent {
   type: string
   index?: number
-  message?: { id?: string; usage?: { input_tokens?: number } }
+  message?: { id?: string; usage?: AnthropicUsage }
   content_block?: { type?: string; id?: string; name?: string; input?: unknown }
   delta?: { type?: string; text?: string; partial_json?: string; thinking?: string; stop_reason?: string }
-  usage?: { output_tokens?: number }
+  usage?: AnthropicUsage
 }
 
 export interface ResponsesSseEmission {
@@ -395,8 +761,7 @@ export interface ResponsesSseEmission {
 export function createResponsesSseTranslator(ctx: ResponsesCtx) {
   let seq = 0
   let outputIndex = 0
-  let inputTokens = 0
-  let outputTokens = 0
+  let usage: AnthropicUsage | undefined
   let createdEmitted = false
   let stopReason: string | undefined
 
@@ -409,6 +774,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
     args: string          // accumulated JSON (tool blocks)
     callId?: string
     name?: string
+    custom?: boolean      // freeform tool: no argument deltas, one done item
   }
   const blocks = new Map<number, BlockState>()
   // Completed items collected for the terminal response.completed.
@@ -439,7 +805,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
 
     switch (event.type) {
       case "message_start": {
-        inputTokens = event.message?.usage?.input_tokens ?? 0
+        if (event.message?.usage) usage = mergeAnthropicUsage(usage, event.message.usage)
         if (!createdEmitted) {
           createdEmitted = true
           out.push(emit("response.created", { response: responseEnvelope("in_progress", { output: [] }) }))
@@ -479,10 +845,13 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
         } else if (cb.type === "tool_use") {
           const oi = outputIndex++
           const itemId = `fc_${cb.id}`
-          blocks.set(idx, { kind: "tool", outputIndex: oi, itemId, text: "", args: "", callId: cb.id, name: cb.name })
+          const callId = String(cb.id ?? "")
+          const name = String(cb.name ?? "")
+          const custom = ctx.toolAliases?.get(name)?.kind === "custom"
+          blocks.set(idx, { kind: "tool", outputIndex: oi, itemId, text: "", args: "", callId, name, custom })
           out.push(emit("response.output_item.added", {
             output_index: oi,
-            item: { type: "function_call", id: itemId, call_id: cb.id, name: cb.name, arguments: "", status: "in_progress" },
+            item: toolCallItem(ctx, itemId, callId, name, "", "in_progress"),
           }))
         } else {
           // thinking / unknown → skip, but track so deltas/stop are ignored.
@@ -502,9 +871,14 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
           }))
         } else if (st.kind === "tool" && event.delta?.type === "input_json_delta" && typeof event.delta.partial_json === "string") {
           st.args += event.delta.partial_json
-          out.push(emit("response.function_call_arguments.delta", {
-            item_id: st.itemId, output_index: st.outputIndex, delta: event.delta.partial_json,
-          }))
+          // A custom tool's payload is the `input` string inside Claude's JSON
+          // — it cannot be streamed as freeform deltas; Codex takes the whole
+          // item from response.output_item.done.
+          if (!st.custom) {
+            out.push(emit("response.function_call_arguments.delta", {
+              item_id: st.itemId, output_index: st.outputIndex, delta: event.delta.partial_json,
+            }))
+          }
         }
         break
       }
@@ -528,13 +902,12 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
           finalOutput.push(item)
           out.push(emit("response.output_item.done", { output_index: st.outputIndex, item }))
         } else if (st.kind === "tool") {
-          out.push(emit("response.function_call_arguments.done", {
-            item_id: st.itemId, output_index: st.outputIndex, arguments: st.args,
-          }))
-          const item = {
-            type: "function_call", id: st.itemId, call_id: st.callId, name: st.name,
-            arguments: st.args, status: "completed",
+          if (!st.custom) {
+            out.push(emit("response.function_call_arguments.done", {
+              item_id: st.itemId, output_index: st.outputIndex, arguments: st.args,
+            }))
           }
+          const item = toolCallItem(ctx, st.itemId, st.callId ?? "", st.name ?? "", st.args, "completed")
           finalOutput.push(item)
           out.push(emit("response.output_item.done", { output_index: st.outputIndex, item }))
         }
@@ -542,7 +915,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
       }
 
       case "message_delta": {
-        if (typeof event.usage?.output_tokens === "number") outputTokens = event.usage.output_tokens
+        if (event.usage) usage = mergeAnthropicUsage(usage, event.usage)
         if (typeof event.delta?.stop_reason === "string") stopReason = event.delta.stop_reason
         break
       }
@@ -552,7 +925,7 @@ export function createResponsesSseTranslator(ctx: ResponsesCtx) {
         out.push(emit(status === "incomplete" ? "response.incomplete" : "response.completed", {
           response: responseEnvelope(status, {
             output: finalOutput,
-            usage: { input_tokens: inputTokens, output_tokens: outputTokens, total_tokens: inputTokens + outputTokens },
+            usage: mapUsage(usage),
             parallel_tool_calls: true,
             tool_choice: "auto",
             tools: [],

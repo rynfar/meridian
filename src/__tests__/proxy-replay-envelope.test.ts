@@ -9,11 +9,14 @@
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 let capturedPrompts: any[] = []
 
 import { resolveMockSdkSessionId } from "./helpers"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (opts: any) => {
     capturedPrompts.push(opts.prompt)
     return (async function* () {
@@ -35,14 +38,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "proxy-replay-envelope.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

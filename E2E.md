@@ -21,6 +21,177 @@ curl -s http://127.0.0.1:3456/health | jq .status   # → "healthy"
 kill $(lsof -ti :3456)
 ```
 
+### Error telemetry and SDK billing refusals (#836 / #829)
+
+```bash
+bun scripts/e2e-error-telemetry.mjs
+```
+
+The real CLI and SDK call a local Anthropic API fixture that refuses billing.
+Its normalized `Credit balance is too low` error must classify as a billing
+refusal. Pinned requests fail with the correct account/model telemetry in both
+response modes. Unpinned priority requests must fail over to real Claude Max,
+return a visible recovery receipt, and record the refusing and serving accounts
+under the same request id, in both modes. No SDK query is mocked.
+
+Each case uses a fresh proxy instance so a preceding case's expected account
+cooldown cannot skip the refusal being tested. Configuration, session metadata
+and working directory are disposable; Claude Max retains its normal authentication.
+The local API uses a dummy key. `E2E_MERIDIAN_ROOT` selects source from another
+checkout for before/after comparisons; `--failover-only` selects one failure case.
+This verifies actual SDK refusal handling and live recovery, not two separate
+paid accounts. Run the full priority-routing suite and all four E41 modes to
+retain the barrier against failover after real content, tools or structured output.
+
+### Consecutive idle stalls (#868)
+
+```bash
+npm run build
+E2E_OPENCODE_BIN=/absolute/path/to/opencode bun scripts/e2e-idle-stall-clients.mjs --v1
+E2E_OPENCODE_BIN=/absolute/path/to/opencode2 bun scripts/e2e-idle-stall-clients.mjs
+```
+
+Use V1 1.18.11 or V2 beta18314/beta18866. The gate isolates client HOME,
+configuration and working directory while retaining the proxy's Claude Max
+authentication. It starts actual SDK queries, waits for their startup events,
+then withholds iterator output to exercise the real eight-second idle guard.
+This is explicit output-stall fault injection, not a naturally reproduced
+provider outage. Each timed-out query must close.
+
+Require three identical stalled SDK attempts. V2 beta18866 must stop on the third terminal
+SSE error; V1 must receive HTTP400 on its fourth request without another SDK
+query. V2 beta18314 already stops at the first upstream timeout; its separate
+compatibility control asserts that behavior, not the three-attempt ceiling.
+Remove the fault and send a changed prompt in the same client session:
+the real model must return the recovery receipt. An optional E2E_MERIDIAN_ROOT
+selects a separately built checkout for before/after comparisons.
+
+The terminal pause is one configured idle window, with a 60-second minimum.
+Rejected requests do not extend it; changed requests and completed turns reset
+the streak. Pure tests cover expiry without waiting, and HTTP integration tests
+cover both response modes, changed models, recovery and unrelated sessions.
+Run all four live E41 modes alongside this gate to check ordinary tool-result
+continuation and cache reuse.
+
+### Capped passthrough turns (#926)
+
+```bash
+for cap_case in partial empty thinking unhandled retry retry-resume pinned; do
+  bun scripts/e2e-capped-turns.mjs "--case=$cap_case" || exit 1
+  bun scripts/e2e-capped-turns.mjs "--case=$cap_case" --stream || exit 1
+done
+```
+
+These controls use the real SDK and CLI against a local Anthropic API fixture.
+An unknown synthetic tool makes the CLI return an actual `error_max_turns`
+without executing a tool. Explicit withholding of SDK events reproduces partial
+or silent delivery; this is fault injection, not a naturally reproduced live-model
+incident. Partial prose must truncate; empty output, thinking alone and unhandled
+calls must fail. A silent turn may retry once, except with an operator-pinned cap.
+
+Fresh and resumed retries must use distinct targets, retire the failed target,
+publish the successful target, and deliver exactly one tool call. Its real client
+result must reach a checkpoint follow-up. Supported SDK `getSessionMessages`
+inspection verifies source immutability and absence of the refused attempt in the
+successful history. The fixture identifies each CLI query separately because a
+hidden drain can overlap a follow-up; auxiliary CLI requests are excluded.
+Run all four live Claude Max E41 modes alongside these controls, plus the #925
+`--fixture --stream --drop-stop` control when changing stream recovery.
+
+### Passthrough argument repair (#925)
+
+```bash
+bun scripts/e2e-tool-input-repair.mjs --fixture
+bun scripts/e2e-tool-input-repair.mjs --fixture --stream
+bun scripts/e2e-tool-input-repair.mjs --fixture --stream --drop-stop
+bun scripts/e2e-tool-input-repair.mjs
+bun scripts/e2e-tool-input-repair.mjs --stream
+```
+
+The deterministic fixture runs the real CLI and SDK against a local Anthropic
+API response containing stringified tool arguments. It verifies repaired client
+arguments in both modes, a real client tool result reaching the resumed CLI,
+checkpoint forking, the exact follow-up receipt, and unchanged source history
+through supported SDK inspection. It uses a dummy local API key and does not
+contact a model service. The two runs without `--fixture` use Claude Max and
+validate compatibility with real model output. Their `repairExercised` flag
+distinguishes actual string repair from already-typed model calls.
+The `--drop-stop` fault injection withholds one SDK tool-block stop while the
+real CLI and hook continue, proving recovery flushes buffered arguments before
+closing the block and preserves the subsequent checkpoint continuation.
+
+Required/optional advertised MCP schemas and malformed numeric inputs have
+automated protocol/unit coverage. Streamed arguments with repairable declared
+types are buffered until their block completes; text and string-only tool
+arguments retain normal streaming. Run all four E41 modes after changes here.
+
+### Profile-switch retirement admission (#923)
+
+```bash
+bun scripts/e2e-retirement-admission.mjs
+bun scripts/e2e-retirement-admission.mjs --stream
+```
+
+With a two-slot pending budget and a long retirement quarantine, seed two real
+sessions, switch profiles through HTTP, sweep GC and require a fresh request and
+its follow-up to answer correctly. Supported SDK history inspection verifies both
+old histories remain unchanged and the new mapping contains the expected token.
+Both profile aliases use the existing authentication; this does not validate two
+distinct billing accounts. Meridian state and SDK working directory are isolated.
+The one-slot configuration retains its existing behavior; reserving its only slot
+would disable passive cleanup. At limit two, passive retirement can pause while a
+publication is in flight, then resume after it completes. Capacity and cleanup
+progress are covered by the lifecycle tests.
+
+### Fresh replay with completed tool calls (#888 / #858)
+
+```bash
+bun scripts/e2e-replay-tool-history.mjs
+bun scripts/e2e-replay-tool-history.mjs --stream
+bun scripts/e2e-replay-tool-history.mjs --image
+bun scripts/e2e-replay-tool-history.mjs --image --stream
+```
+
+This isolated real-SDK gate forces each round through a fresh replay. It expects
+exactly one price lookup, an answer containing the exact returned price and
+unique confirmation code, and (with `--image`) correct identification of the
+image color. Supported `getSessionMessages` inspection verifies that completed
+call identities and arguments, result payloads, and images survive, and no
+unpaired native `tool_result` blocks enter a fresh SDK session. Fresh SDK queries
+accept user input only, so completed assistant calls are explicit replay context;
+native result wrappers remain reserved for real SDK tool checkpoints. A fresh
+multimodal replay is delivered in one SDK input so generation cannot begin
+before the final result arrives.
+
+Run these four modes with both the default Haiku and `E2E_MODEL=sonnet`.
+Also run `E2E_MODEL=sonnet bun scripts/e2e-replay-tool-history.mjs --image --no-preset`
+to verify the Claude Code preset remains optional. Meridian
+state is isolated in a temporary directory while the existing SDK auth is kept.
+Also run all four E41 modes to validate normal checkpoint resumes after changes.
+
+### Pi concurrent callers (#870 / #922)
+
+```bash
+bun scripts/e2e-pi-concurrent-replay.mjs
+bun scripts/e2e-pi-concurrent-replay.mjs --stream
+# Install Oh My Pi in a disposable directory; point at the package directory.
+E2E_OMP_PACKAGE=/path/to/node_modules/@oh-my-pi/pi-coding-agent bun scripts/e2e-omp-concurrent-client.mjs
+E2E_OMP_PACKAGE=/path/to/node_modules/@oh-my-pi/pi-coding-agent bun scripts/e2e-omp-concurrent-client.mjs --main-first
+```
+
+The first fixture controls queue admission while using real SDK responses. Both
+main-first and side-first orders must answer from their own request bodies,
+preserve source histories through the supported SDK API, and keep the next main
+turn correct. The last completed branch owns the mapping; following a side call
+can require another fresh replay.
+
+The second fixture uses Oh My Pi's actual session and title-generation APIs
+(validated with 18.0.3), provider serialization and read/write tools. It forces
+the main/title overlap using their real shared session metadata, then verifies
+that the title parses and the client copies a random fixture value through its
+tool loop. It does not mock client or model responses or exercise the terminal
+UI. Both fixtures isolate Meridian state and work only in temporary directories.
+
 ## Test Index
 
 | ID | Section | What It Proves | Verified |
@@ -94,7 +265,21 @@ kill $(lsof -ti :3456)
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
-| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Manual**, pinned `@opencode-ai/cli@0.0.0-beta-18314`: hidden title/summary isolation, durable continuation and restart, passthrough tools, supported undo/fork/compaction, and concurrent general subagents. **Run after any V2 plugin/API change; another beta version is not a pass** | 2026-08-27 |
+| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction, overlapping general children and the model-discovery round trip with its Meridian-only effort variant. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
+| E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
+| E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
+| E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
+| E46 | [Codex namespace and MCP tools](#e46-codex-namespace-and-mcp-tools) | **Automated**: `bun scripts/e2e-codex-namespace-tools.mjs [--stream]` — real proxy + SDK. Codex 0.15x sends MCP servers as `{type:"namespace", tools:[...]}`, which the Responses translator dropped. Asserts namespaced tools reach Claude, calls come back carrying `namespace`, and a `function_call_output` whose output is a content-item ARRAY does not 400. **Run before releases touching the Responses translator or Codex tool handling** | 2026-09-08 |
+| E47 | [Codex thread identity](#e47-codex-thread-identity) | **Automated**: `bun scripts/e2e-codex-thread-identity.mjs` — real proxy + SDK. Codex hands a spawned subagent and its compaction the PARENT's `prompt_cache_key`. Asserts a user thread still resumes unchanged, siblings get their own sessions, and the parent still resumes after both. **Run before releases touching Responses session identity, the turn coordinator, or request-source admission** | 2026-09-08 |
+| E48 | [Responses developer-note cache](#e48-responses-developer-note-cache) | **Automated**: `bun scripts/e2e-responses-developer-cache.mjs` — real proxy + SDK, A/B. A `developer` item folded into `system` mid-conversation re-wrote the whole cached prefix. Asserts the note's turn re-writes no more than the control's (measured 7.8x pre-fix, 1.2x after). **Run before releases touching Responses prompt assembly or system-block construction** | 2026-09-08 |
+| E49 | [max_tokens enforcement](#e49-max_tokens-enforcement) | **Automated**: `bun scripts/e2e-max-tokens.mjs` — real proxy + SDK. Opt-in via `MERIDIAN_ENFORCE_MAX_TOKENS=1`: a tiny cap bounds output and reports `stop_reason: max_tokens` in both modes, a generous cap is untouched, and with the flag unset the cap is ignored exactly as before. **Run before releases touching the SDK call builder, env plumbing, or terminal stop reasons** | 2026-09-08 |
+| E50 | [Passthrough MCP namespace](#e50-passthrough-mcp-namespace) | **Automated**: `bun scripts/e2e-passthrough-mcp-namespace.mjs` — real proxy + SDK. Asks the model to state its own tool name, the only place the namespace is visible. A LiteLLM-pinned request must read `mcp__litellm__*`; an OpenCode request must still read `mcp__oc__*`. **Run before releases touching passthrough tool registration or adapter tool config** | 2026-09-08 |
+| E51 | [Boot identity](#e51-boot-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-boot-identity.mjs`. In an image with no `/etc/machine-id`, asserts startup refuses with an actionable cause and `/health` returns 503 `unhealthy`; with a valid machine-id the same image starts normally. **Run before releases touching startup validation, `/health`, or process incarnation** | 2026-09-08 |
+| E52 | [Host identity](#e52-host-identity) | **Automated, needs Docker** (skips cleanly without it, costs no tokens): `bun scripts/e2e-host-id.mjs`. Reproduces the derived `hostId` moving with the pid-namespace inode across `docker restart`, then asserts `MERIDIAN_HOST_ID` makes it stable across namespaces and distinct across hosts sharing a baked machine-id. **Run before releases touching process incarnation or store locking** | 2026-09-08 |
+| E53 | [Auto-defer pin](#e53-auto-defer-pin) | **Automated**: `bun scripts/e2e-defer-pin.mjs` — real proxy + SDK, A/B. Two three-turn conversations, one crossing the auto-defer threshold on its last turn. Asserts deferral (and so `maxTurns`) does not flip mid-session and that the suppressed flip is logged. **Run before releases touching auto-defer, tool registration, or prompt assembly** | 2026-09-09 |
+| E54 | [Lineage divergence reason](#e54-lineage-divergence-reason) | **Automated**: `bun scripts/e2e-lineage-divergence-reason.mjs` — real proxy + SDK, A/B. Drives a headerless pi tool loop and the same loop with `x-session-affinity`. Asserts no divergence is silent, that the headerless bypass names itself, that the advice is printed once per process, and that the named remedy actually restores resume and prompt-cache reuse. **Run before releases touching lineage classification, the independence guards, or the request log line** | 2026-09-09 |
+| E55 | [Gateway-fronted Claude Code](#e55-gateway-fronted-claude-code) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-passthrough-claude-code-session.mjs` — real proxy + SDK, and the REAL Claude Code CLI as the client. Asserts a gateway-fronted Claude Code session keeps the tool-loop exemption it has on a direct connection, that its following turn resumes, and that the CLI's auxiliary requests do not collide with the conversation. **Run before releases touching the independence guards, adapter detection, or passthrough session identity** | 2026-09-09 |
+| E56 | [Namespaced tool-round resume](#e56-namespaced-tool-round-resume) | **Automated**: `bun scripts/e2e-passthrough-namespace-resume.mjs` — real proxy + SDK, three adapters. Drives an identical keyed tool loop on `pi`, `passthrough` and `opencode` and asserts every keyed tool round resumes on all of them, so an adapter-specific client-tool namespace cannot silently take the resume checkpoint away. **Run before releases touching the passthrough namespace, the early-stop tracker, or checkpoint storage** | 2026-09-09 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -263,6 +448,19 @@ curl -s http://127.0.0.1:3456/v1/messages \
 ## E5: Undo with Rollback
 
 **Verifies:** When the message suffix changes (user edited/undid), proxy detects undo and emits rollback UUID.
+
+**Automated history-integrity gate (#817):** Run `bun scripts/e2e-undo-gap.mjs`
+and `bun scripts/e2e-undo-gap.mjs --stream`. The fixture creates a real SDK
+conversation with valid historical assistant UUIDs and publishes its matching
+Meridian mapping, representing a persisted session with available rollback
+points. Recent proxy forks invalidate older UUIDs, so simply growing a proxy
+conversation can mask this bug through the missing-UUID fresh-replay fallback.
+The gate proves ordinary undo uses a real fork, shortened history with edited
+intermediate turns reaches the SDK and the answer in full, and the source stays
+unchanged. A third case removes the adjacent UUID from the stored mapping and
+checks that fresh replay preserves facts after an older known checkpoint.
+It inspects history only through `getSessionMessages()` and isolates
+Meridian configuration/session storage in a temporary directory.
 
 **Prerequisite:** Run E4 first (builds a 3+ message session with `e2e-cont-001`).
 
@@ -3433,7 +3631,7 @@ printf 'alpha\nbeta\ngamma\n' > $BASE/proj/notes.txt
 cat > $BASE/cfg/opencode.json <<'JSON'
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["/absolute/path/to/meridian/plugin/meridian.ts"],
+  "plugin": ["/absolute/path/to/meridian/dist/meridian"],
   "provider": { "anthropic": { "options": { "apiKey": "dummy", "baseURL": "http://127.0.0.1:3499" } } },
   "model": "anthropic/claude-haiku-4-5",
   "small_model": "anthropic/claude-haiku-4-5"
@@ -3556,6 +3754,8 @@ PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs --stream
 - Every continuation, including the follow-up, reads at least 95% of the prior
   turn's `cache_read_input_tokens + cache_creation_input_tokens`.
 
+The fixture uses a disposable SDK working directory: edits to the checkout must not change the SDK's per-query git-status context during this cache benchmark. A git-status change can invalidate the prompt cache even when the session resumes correctly.
+
 The gate resolves Meridian's published session from its own durable store and
 uses the supported Agent SDK `getSessionMessages()` API for the history check.
 It does not inspect Claude's private persistence format.
@@ -3582,21 +3782,96 @@ hidden title/summary work, attached compaction, and child sessions without
 changing request bodies. It also proves that durable primary lineage survives
 real V2 tools, a Meridian restart, undo, fork, and parallel subagents.
 
-Use only the pinned beta. The beta CLI can update itself, so verify the version
-before and after the run and disable automatic updates:
+Validate both supported hosts, `0.0.0-beta-18314` and `0.0.0-beta-18866`.
+The beta CLI can update itself, so the automated gate verifies its exact version
+before and after each run and disables automatic updates. Use isolated installs:
 
 ```bash
-npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-18314
-export OPENCODE_DISABLE_AUTOUPDATE=1
-BIN=$HOME/.local/bin/opencode2
-$BIN --version                 # → opencode2 v0.0.0-beta-18314
+npm install --prefix /tmp/opencode-18314 @opencode-ai/cli@0.0.0-beta-18314
+npm install --prefix /tmp/opencode-18866 @opencode-ai/cli@0.0.0-beta-18866
 npm run build
-meridian setup --v2 --opencode-bin "$BIN"
+E2E_OPENCODE_BIN=/tmp/opencode-18314/node_modules/.bin/opencode2 bun scripts/e2e-opencode-v2-package.mjs --live --extended
+E2E_OPENCODE_BIN=/tmp/opencode-18866/node_modules/.bin/opencode2 bun scripts/e2e-opencode-v2-package.mjs --live --extended
 ```
+
+Without `--live`, this uses the actual client against a scripted local API. It
+requires successful file reading and the exact tool result reaching the API,
+continuation, detached title/summary requests, and independent fork/original
+histories. `--source` runs setup from TypeScript and loads the source package.
+
+### Model discovery (#1004)
+
+The gate asserts the discovery round trip, not merely that some request arrived.
+It requires a `GET` to exactly `/v1/models` — the first version of this feature
+asked for `/v1/v1/models`, because the Anthropic provider carries the API version
+in its base URL, and a silent 404 disabled discovery with nothing failing. It then
+requires the response to carry `claude-haiku-4-5` with a 200k window and a
+supported `xhigh` effort: the two values OpenCode's own models.dev entry gets
+wrong, and the reason the catalog must be overwritten rather than skipped.
+
+Discovery attempts the client abandons when a one-shot process exits are
+recorded and allowed; at least one must complete, and no attempt may fail for
+any other reason.
+
+In `--live --extended` the gate additionally selects
+`anthropic/claude-haiku-4-5#xhigh` and requires the run to succeed with
+`effort: "xhigh"` reaching the proxy. That variant is
+`provider.no-route — Variant unavailable` without discovery, so a pass can only
+come from the applied catalog. It needs the warm server that `--extended`
+starts: a one-shot client process outruns the catalog reload (#1008).
+
+`--no-discovery` is the negative control. The fixture answers the catalog request
+with 404 and the whole gate must still pass, proving discovery fails closed
+rather than breaking the session. With no cache present the catalog is left
+exactly as OpenCode built it.
+
+### Cold start and cache invalidation (#1008)
+
+After the main flow has discovered once, the gate spawns a **fresh
+`--standalone` process** — deliberately not the warm server — and requires
+`anthropic/claude-haiku-4-5#xhigh` to be accepted on its first request with the
+effort reaching the proxy. That only passes if the plugin seeded the catalog
+from `opencode-v2-catalog.json` before the first transform ran. On a pre-fix
+tree it reports `{"errors":["provider.no-route"],"efforts":[]}`.
+
+In non-live mode the gate then repoints the provider at a non-Meridian URL and
+runs cold twice. It requires the cache file to be deleted and the second run to
+reject the variant, which is the self-healing half of invalidation: the seed
+cannot be validated against the provider's URL inside a transform, because a
+draft `Provider.Info` exposes only `id`, `name`, `activation`, `package`,
+`integrationID` and `headers` — no URL at all, verified on beta-18866. The first
+repointed run is recorded but not asserted; whether it still offers the variant
+depends on how far model resolution gets before discovery lands.
+
+```bash
+E2E_OPENCODE_BIN=/tmp/opencode-18866/node_modules/.bin/opencode2 \
+  bun scripts/e2e-opencode-v2-package.mjs --no-discovery
+```
+
+The fixture answers non-`POST` requests without parsing a body, and forwards them
+upstream with their original method. Parsing unconditionally used to throw on the
+body-less catalog `GET`, which failed discovery closed **and** set the process
+exit code — the gate printed `PASS` and exited 1 (#1014).
+Set `E2E_MERIDIAN_ROOT` to an independently installed `npm pack` consumer to test
+the shipped package without development dependencies. Run both betas in source
+and consumer modes. `--v1` with the pinned V1 `opencode@1.18.11` executable is the
+V1 package compatibility control (install the `opencode-ai` npm package).
+
+`--live --extended` routes actual client traffic through a disposable Meridian
+subprocess and Claude Max. It additionally checks a true proxy process restart,
+supported undo and compaction APIs, and overlapping general child sessions.
+Ordinary and restart continuations must resume a distinct durable SDK fork and
+read at least 95% of the previous cached prefix. The local client API uses a
+fixture-only password; only its disposable directory receives extra file access.
+
+Run `scripts/e2e-opencode-package-integrity.mjs` and again with `--manifest`,
+using the same `E2E_OPENCODE_BIN`. They copy the build into a disposable install,
+remove the entry or manifest, and require setup to reject it without changing
+the existing configuration. This must fail against the original #924 proposal.
 
 Use an isolated `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`,
 `XDG_STATE_HOME`, project directory, and `MERIDIAN_SESSION_STORE_DIR`. The
-OpenCode config must load only `dist/meridian-v2.js` plus the Anthropic provider
+OpenCode config must load only `dist/meridian-v2` plus the Anthropic provider
 pointed at the test Meridian port. Do not use third-party plugins, MCP servers,
 custom agents, or unrelated credentials for this gate.
 
@@ -3607,8 +3882,9 @@ Run this real-client sequence:
    separately from `agent=primary`.
 2. Continue the same OpenCode session, drive a write/read tool loop, restart
    Meridian while preserving the isolated durable store, and continue again.
-3. Run `--agent summary` and require `source=subagent-summary` with no primary
-   mapping write.
+3. Run `--fork --agent summary` in a disposable client fork and require
+   `source=subagent-summary` with no affinity headers or primary mapping write.
+   Its probe message must not enter primary client history.
 4. Use V2's supported `/api/session/:id/revert/stage` and `revert/commit`
    endpoints, then continue. Meridian must log `lineage=undo` and the removed
    tool turn must not be visible.
@@ -3632,7 +3908,7 @@ Run this real-client sequence:
 - Ordinary continuation reads the cached prefix; restart continuation uses the
   same durable mapping; undo logs `lineage=undo`; fork and original histories
   remain isolated.
-- The packaged `dist/meridian-v2.js` is the plugin under test, not the TypeScript
+- The packaged `dist/meridian-v2` is the plugin under test, not the TypeScript
   source or a diagnostic plugin.
 
 **Verified:** 2026-08-27 on `0.0.0-beta-18314`. The exact pinned binary returned
@@ -3640,3 +3916,870 @@ Run this real-client sequence:
 `EXACTUNDO`, `EXACTFORK`, `EXACTORIGINAL`,
 `EXACTPARALLEL[ALPHA,BRAVO]`, and `EXACTAFTERCOMPACT`. The binary SHA-256 stayed
 unchanged through the matrix.
+
+## E43: Passthrough tools in a namespaced client
+
+**What it proves:** a client whose own tool names already carry an MCP
+namespace can still receive, execute, and answer a forwarded passthrough call.
+
+**Why it needs the real SDK:** Meridian nests client tools inside its own `oc`
+MCP server, so a client that aggregates MCP servers itself — a Claude Code CLI
+job with an `oc` server configured, for instance — declares tools like
+`mcp__oc__read` that collide with that namespace. The collision broke two
+things at once, and only one of them is visible to a mocked SDK:
+
+- **Registration.** The tool was advertised as `mcp__oc__mcp__oc__read`. On SDK
+  0.2.141 / CLI 2.1.263 the CLI lists that name but never dispatches it, so the
+  PreToolUse hook never fired and nothing was captured (`tools=0/1` in the
+  `sdk_termination` line). Non-streaming returned HTTP 500; streaming ended
+  `stop_reason: max_tokens` with an inline `error` event.
+- **Delivery.** The reverse translation was a blind prefix strip, so the leaked
+  tool_use reached the client renamed to `read` — a tool it never declared.
+
+Either half breaks the promise the forwarding hook makes to the model ("the
+result will be delivered in a future turn"): a client cannot answer a call it
+does not recognize, so that turn never comes, and a coordinator watching the
+stalled job re-dispatches it (#967).
+
+```bash
+bun scripts/e2e-passthrough-namespaced-tools.mjs
+bun scripts/e2e-passthrough-namespaced-tools.mjs --stream
+PROBE_MODEL=claude-opus-5 bun scripts/e2e-passthrough-namespaced-tools.mjs
+PROBE_MODEL=claude-opus-5 bun scripts/e2e-passthrough-namespaced-tools.mjs --stream
+```
+
+**Pass criteria** (asserted per tool shape and response mode, non-zero exit on any):
+
+- The call is dispatched and captured: `stop_reason: tool_use`, exactly one
+  tool_use block, no error event.
+- The delivered name is byte-identical to what the client declared, and its
+  arguments survive.
+- Replaying that call's real `tool_result` yields an answer quoting the
+  fixture's content, and the answer never claims the call went unanswered.
+- The ordinary (`read`) and foreign-namespace (`mcp__zed__read`) controls pass
+  in the same process, so a green run cannot come from a dead proxy.
+
+The fixture uses a deliberately short `/tmp` path. Under macOS `mkdtemp`, Opus
+truncates a `/private/var/folders/...`-length path in its own tool argument and
+says so in its reply — a model artifact that would fail the argument check for a
+reason unrelated to what this gate measures.
+
+**Verified:** 2026-09-08 on the fix branch, SDK 0.2.141 / bundled CLI 2.1.259 /
+system CLI 2.1.263. All four combinations passed: haiku and `claude-opus-5`,
+streaming and non-streaming, subject plus both controls. Against the same commit
+without the fix, the subject shape returned HTTP 500 non-streaming and delivered
+`read` with `stop_reason: max_tokens` streaming.
+
+## E44: Tier refusal failover
+
+**What it proves:** a credits-era per-tier refusal is classified as a rate limit
+and priority routing really moves the request to a healthy profile.
+
+**Why unit tests were not enough.** `classifyError` returned
+`rate_limit_error` for the banner as quoted in #962 while the live request still
+returned 500 and failed nothing over. The reason is that an API-key or gateway
+profile never delivers the banner bare — the SDK splices the upstream status in
+front of it:
+
+```
+Claude Code returned an error result: API Error: 400 You've reached your Fable limit. Switch to another model to continue.
+```
+
+That numeric status sat between the accepted wrappers and the banner and
+defeated the line anchor for *every* suffix, including the two that already
+worked. Only driving the real failover path surfaced it.
+
+```bash
+bun scripts/e2e-tier-refusal-failover.mjs
+bun scripts/e2e-tier-refusal-failover.mjs --stream
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A pre-flight check that the banner classifies as `rate_limit_error` and that
+  the type is a failover trigger, so a classifier regression is named as such
+  rather than surfacing as a confusing routing failure.
+- The real CLI reaches the refusal upstream on every case — a cooldown carried
+  over from the previous case cannot let a run skip straight to the fallback.
+- Exactly one refused attempt, recorded against the refusing profile with
+  status **429**, not 500.
+- HTTP 200 overall, exactly one served row, served by the healthy profile, and
+  the real Claude Max fallback answers with the run's receipt string.
+
+**What is stubbed, and why that is acceptable.** The refusal is a local fixture
+upstream: producing this banner for real means exhausting a real Fable tier on
+a real account, which a gate cannot do on demand. The **fallback leg is real** —
+a live Claude Max profile answering a live prompt — so what is stubbed is the
+condition we cannot cause, not the behavior under test.
+
+**Verified:** 2026-09-08. Both modes pass. Against the contributor's suffix fix
+alone the gate fails with the refused attempt recorded 500 and no failover,
+which is what identified the missing status allowance.
+
+## E45: Codex auto-defer
+
+**What it proves:** a Codex request past the auto-defer threshold keeps its
+tools loaded, and `exec_command` in particular does not have to be discovered
+before it can be used.
+
+**Why it needs the real SDK.** `codexTransforms` runs after the shared OpenCode
+transform and inherited its `coreToolNames`
+(`read, write, edit, bash, glob, grep`). Codex sends none of those names, so
+once a session crossed the threshold — trivial for Codex, which inlines every
+MCP namespace's tool definitions — the core set matched nothing and **every**
+tool was deferred, `exec_command` included. Live pre-fix diagnostic:
+
+```
+deferred=40/40 tools (core: read,write,edit,bash,glob,grep)
+discovered=1 (exec_command) session_total=1
+```
+
+Deferral also has a second cost: `computePassthroughMaxTurns` only returns the
+single-turn cap when `singleTurnHandoff` holds, and that requires
+`!hasDeferredTools` — so turning deferral on lifted the cap from 1 to 4 and let
+the SDK's discarded digest turn generate on the full context.
+
+```bash
+bun scripts/e2e-codex-auto-defer.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- No `deferred=` diagnostic. That line is the observable for
+  `hasDeferredTools`, which is what moves the turn cap.
+- No `discovered=` diagnostic — `exec_command` is loaded directly rather than
+  costing a ToolSearch round trip.
+- HTTP 200, at least one `function_call` returned, and one of them named
+  `exec_command`. These are regression guards, not discriminators: they pass
+  before and after, and exist so a "fix" that merely made the prompt cheaper
+  while breaking Codex would still fail.
+
+**What this gate does NOT prove.** The digest-turn cost is real but
+scale-dependent — #963 measured 2–3× cache reads per turn on a 680k-token
+session, and a 40-tool probe on a short prompt does not reliably provoke the
+extra turn. The model-call count is therefore reported, not asserted, so the
+gate does not carry a check that looks meaningful and discriminates nothing.
+
+**Verified:** 2026-09-08. Against pre-fix code the first two checks fail with
+the diagnostics quoted above; with the fix all five pass.
+
+## E46: Codex namespace and MCP tools
+
+**What it proves:** a Codex session's MCP tools reach Claude, its calls come
+back in a form Codex can route, and a turn replaying an MCP result succeeds.
+
+**The shapes were taken from a real capture, not from docs.** codex-cli 0.153.4
+was pointed at a recording endpoint with an actual stdio MCP server attached.
+It sent 13 top-level tool entries: 10 flat `function`, one `web_search`, and
+**2 `namespace` entries holding 7 nested tools**. Feeding that captured request
+through the pre-fix translator, 10 tools reached Claude and all 7 namespaced
+ones vanished — including Codex's own `multi_agent_v1` namespace
+(`spawn_agent`, `wait_agent`, …), so sub-agents were unavailable, not just the
+user's MCP server.
+
+```bash
+bun scripts/e2e-codex-namespace-tools.mjs
+bun scripts/e2e-codex-namespace-tools.mjs --stream
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- The flattened client tool count reaches Claude (`tools=4` for the fixture:
+  one flat plus three nested; `web_search` is correctly dropped, having no
+  client-side counterpart).
+- A `function_call` comes back named as Codex declared it and **carrying its
+  `namespace`**. Codex's router resolves `ToolName::new(namespace, name)`, so a
+  flattened name is silently unroutable — the call looks fine and never
+  dispatches.
+- A follow-up turn whose `function_call_output.output` is an **array of content
+  items** returns 200 and the model answers from it. MCP tools return arrays;
+  passed verbatim they reach Anthropic as `tool_result.content[0].type =
+  "input_text"` and 400, killing every turn after an MCP call.
+
+**Harness note.** In streaming, `function_call` arguments arrive as their own
+delta events and the completed item can carry an empty `arguments`. The gate
+accumulates them before replaying turn 2 — without that it replays an
+argument-less call, the model simply calls the tool again, and the run looks
+like a broken emitter when the emitter is fine.
+
+**Not covered.** Codex's freeform `apply_patch` (`{type:"custom", format:
+{grammar}}`) did not appear in a default-config capture, so the custom-tool
+path is covered by unit tests only and is **not** live-verified here.
+
+**Verified:** 2026-09-08, both modes. Against pre-fix code the same gate fails
+with `tools=1` and no call returned.
+
+## E47: Codex thread identity
+
+**What it proves:** a Codex conversation keeps its own SDK session when a
+sibling flow shares its `prompt_cache_key`.
+
+**The metadata was verified against a real capture**, not read from docs.
+codex-cli 0.153.4 sends, inside `client_metadata`:
+
+```
+"x-codex-turn-metadata": "{... \"thread_id\":\"<id>\", \"request_kind\":\"turn\",
+                           \"thread_source\":\"user\", \"agent_name\":\"/root\" ...}"
+```
+
+and for a user-driven thread **`thread_id` equals `prompt_cache_key`**. That
+equality is the safety property: keying on the thread cannot re-anchor a session
+any existing client already established.
+
+```bash
+bun scripts/e2e-codex-thread-identity.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A user thread completes two turns and the second is a `continuation` — the
+  no-regression property, and the one worth failing loudest.
+- A spawned thread (`thread_source: subagent`, own `thread_id`, parent's cache
+  key) is admitted and gets its own SDK session.
+- A `request_kind: compact` request on the same thread is admitted and does not
+  land on the conversation's session.
+- **After both siblings, the parent turn is still a `continuation`.**
+
+**Which check actually discriminates.** Only the last one. Pre-fix, each
+sibling's first turn also opened its own SDK session, so those two checks pass
+either way — they are guards against a worse shape, not evidence. Measured
+against pre-fix code the parent's third turn returns `lineage=undo`: the
+compaction landed on the conversation's session and the next real turn read as a
+rewrite of it. With the fix it is `continuation`.
+
+The gate also asserts the parent still recalls a word from turn 1. That check
+passes **both** ways — an `undo` replays the history, so correctness survives
+and only cost does not (fresh session, 0% cache). It exists to catch the worse
+failure where the parent answers out of a sibling's session.
+
+**Harness note.** `/v1/responses` is stateless; a real Codex client resends the
+whole thread as `input` every turn. A harness that sends one message per request
+makes every turn a fresh one-message conversation, nothing ever resumes, and it
+looks exactly like broken session identity.
+
+**Not covered.** A genuine `thread_source: subagent` request could not be
+produced locally — `codex exec` offers `multi_agent_v1.spawn_agent` but does not
+spawn, so that shape needs Codex Desktop's interactive flow. The subagent case
+here uses the verified metadata wire format rather than a captured subagent
+request.
+
+**Verified:** 2026-09-08. All nine checks pass with the fix; pre-fix the
+discriminating check fails with `lineage=undo`.
+
+## E48: Responses developer-note cache
+
+**What it proves:** a `developer` item that first appears mid-conversation does
+not invalidate the prompt cache for the whole history.
+
+Anthropic caches the prompt as one prefix ordered **tools → system →
+messages**. `/v1/responses` folded every `developer`/`system` input item into
+the Anthropic `system` block regardless of position, so a note arriving on turn
+N rewrote `system` and invalidated everything behind the tools block. Codex
+emits exactly these as ordinary conversation events —
+`<image_resize_notice>` after `view_image`, `<model_switch>` and
+`<collaboration_mode>` on a model change, `<app-context>` on app refresh.
+
+A real codex-cli 0.153.4 capture confirms the harness preamble arrives as a
+**leading** `developer` item (`input roles: ["developer","user",...]`). That case
+must keep folding into `system`; only a note arriving after the conversation
+starts is inlined.
+
+```bash
+bun scripts/e2e-responses-developer-cache.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Both conversations complete, and the control's second turn reads its prefix
+  from cache.
+- **The note's turn re-writes no more than 3x the control's `cache_write`.**
+
+**Why the assertion is a ratio, not a hit rate.** Hit percentage does not scale
+down to a probe. The reported collapse was on a ~700k-token thread where
+`system` sits behind a ~125k tools block, so losing everything behind it cost
+240k-584k tokens. In a ~6.5k probe the same bug only moves the rate from 98% to
+~86%, which any sensible percentage threshold waves through — an earlier draft
+of this gate passed both before and after for exactly that reason. Re-written
+tokens are the invariant:
+
+```
+pre-fix   A cache_write=99    B cache_write=769   ->  7.8x   FAIL
+with fix  A cache_write=117   B cache_write=141   ->  1.2x   PASS
+```
+
+The hit rate is still printed, as context rather than as a check.
+
+**Verified:** 2026-09-08. Discriminates as tabled above.
+
+## E49: max_tokens enforcement
+
+**What it proves:** when enabled, the client's `max_tokens` actually bounds
+output and a truncated turn says so.
+
+`max_tokens` is required on `/v1/messages` and the contract makes it a hard cap
+on thinking plus output, with a cut-off response reporting
+`stop_reason: "max_tokens"`. Nothing on that path read it — #874 measured 16 ->
+3900 output tokens (244x) and `end_turn` every time.
+
+**Why this needed the real SDK.** The Agent SDK's `Options` has no output cap;
+the only lever is the CLI's `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, and when it trips
+the CLI **throws** rather than returning a truncated turn. Wiring it up naively
+converts a satisfiable request into a hard error. Probed at 64 against CLI
+2.1.263, the turn produced genuine text (154 chars) and then threw — the API
+really stopped generating, only the shape coming back was wrong. The fix
+translates that refusal into the stop reason the wire defines.
+
+```bash
+MERIDIAN_ENFORCE_MAX_TOKENS=1   # opt-in; the gate sets this itself
+bun scripts/e2e-max-tokens.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A tiny cap does not fail the request, reports `stop_reason: max_tokens`, and
+  bounds output. The bound is asserted as a large multiple of the cap, not an
+  exact count: the cap covers thinking plus text, and the defect was a 244x
+  overshoot rather than an off-by-a-few.
+- Streaming delivers no error frame and closes as `max_tokens`, including when
+  thinking consumed the whole budget and no text was produced — an empty
+  response with that stop reason is what the wire defines for it.
+- A generous cap is unchanged in both modes.
+- **With the flag unset a tiny cap is ignored, exactly as before.** Asserted in
+  a second proxy, against the capped run rather than a fixed number.
+
+**Why it is opt-in.** The cap counts thinking plus text, and an agentic turn
+spends tokens on thinking the client never sized for. Measured: a 128-token cap
+could no longer complete a turn whose visible answer was ~15 tokens, and a
+16-token cap produced no text at all. Clients here send caps sized for a direct
+answer — OpenCode sends 32000 — so enforcing by default would change behaviour
+for every existing caller to close a conformance gap only some of them need.
+The capability is exact when asked for, and off otherwise.
+
+**Verified:** 2026-09-08. Ten checks pass. Enabling it turned the reported
+16 -> 3900 overshoot into 16 -> 64 with `stop_reason: max_tokens`.
+
+## E50: Passthrough MCP namespace
+
+**What it proves:** an adapter's declared passthrough namespace reaches the
+model, and OpenCode's does not move.
+
+In passthrough mode the client's tools are nested inside an SDK MCP server, so
+the model reads them as `mcp__<namespace>__<tool>`. That namespace was a module
+constant, `oc`, on every adapter — including the LiteLLM/`passthrough` adapter,
+whose own file has documented `mcp__litellm__*` since it was written and whose
+`getMcpServerName()` was computed and then discarded on exactly the path where
+client tools get registered (#893).
+
+**Why the model has to be asked.** `stripMcpPrefix` maps the name back before
+the client ever sees it, so nothing errors and no response differs — the effect
+exists only in what the model reads. @groundnuty found it by asking the model to
+state its own tool name, and that is the only method that proves it.
+
+```bash
+bun scripts/e2e-passthrough-mcp-namespace.mjs
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- A LiteLLM-pinned request (`x-meridian-agent: passthrough`) has the model read
+  `mcp__litellm__sparql_select`.
+- **An OpenCode request still has the model read `mcp__oc__sparql_select`**, and
+  explicitly not `mcp__opencode__sparql_select`.
+
+**Why the second check is the important one.** The obvious implementation —
+reuse `getMcpServerName()` — returns "opencode" for the OpenCode adapter. That
+would rename every client tool from `mcp__oc__read` to `mcp__opencode__read`,
+moving the model-visible prompt and therefore the prompt cache for the entire
+existing user base, and colliding with the `mcp__opencode__*` names
+`passthroughEarlyStop` excludes precisely because they are internal. The
+namespace is a separate, explicit adapter method defaulting to `oc` for that
+reason.
+
+**Verified:** 2026-09-08. Both namespaces confirmed from the model's own words.
+
+## E51: Boot identity
+
+**What it proves:** a host that cannot produce a boot identity refuses to serve,
+says so on `/health`, and an ordinary host is unaffected.
+
+Every session-store write takes a lock stamped with a process incarnation, and
+`captureProcessIncarnation` returns undefined without a boot identity — so
+`acquireLock` throws and every request that touches a session returns a 500.
+`/health` never probed it, so a container missing `/etc/machine-id` reported
+`healthy` to Docker's `HEALTHCHECK` and to any orchestrator while serving
+nothing, and traffic kept being routed to it. The original occurrence took three
+days to find for exactly that reason (#906, split from #903).
+
+**Why this needs a container.** The failure is a property of the HOST. On a
+developer machine and on ordinary CI, boot identity is always available, so no
+unit test can reach the branch that matters. `oven/bun:1-slim` ships without
+`/etc/machine-id`, which is the reported environment verbatim and the same shape
+as distroless, scratch, chroot and gVisor images.
+
+```bash
+bun scripts/e2e-boot-identity.mjs        # skips cleanly if Docker is absent
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- With no `/etc/machine-id`: `startProxyServer` refuses to start, and the error
+  names the missing file rather than repeating "cannot capture lock owner
+  process incarnation", which names nothing an operator can act on.
+- Under `MERIDIAN_ALLOW_MISSING_BOOT_IDENTITY=1` it starts, and `/health`
+  returns **503 `unhealthy`** carrying the verdict and the cause — the honest
+  combination when an operator has forced a start.
+- **With a valid machine-id the same image starts normally and `/health`
+  reports no boot-identity problem.** This is the regression guard: fail-fast
+  that false-positives on ordinary deployments would be worse than the bug.
+
+The gate copies the source into a staging directory rather than bind-mounting
+the checkout, because `bun install` inside the container would otherwise
+overwrite the host's platform-specific `node_modules` — a mounted macOS build
+cannot even load libsql on Linux.
+
+**Verified:** 2026-09-08. Eight checks pass across both environments:
+`refused=true namesCause=true` / `http=503 unhealthy` without machine-id, and
+`refused=false` / `http=200` with it.
+
+## E52: Host identity
+
+**What it proves:** `MERIDIAN_HOST_ID` makes `hostId` stable across a container
+restart and distinct across containers that share a baked machine-id.
+
+`linuxLocalBootIdentity` derives `hostId` from the machine-id **and** the
+pid-namespace inode, which is wrong twice over inside a container (#905):
+
+- **Not stable.** The inode changes on every `docker restart` while the session
+  store survives in the writable layer. A proxy SIGKILLed holding a store lock
+  returns with a different `hostId`, so the old lock probes `indeterminate`
+  rather than `dead`, is never retired, and every request fails with
+  `timed out waiting for lock` until the container is recreated — a permanent
+  hang rather than a visible error.
+- **Not unique.** Every container from an image tag shares a byte-identical
+  `/etc/machine-id`, so `hostId` reduces to that inode, allocated from a fixed
+  base at boot. Two freshly-booted hosts sharing a session directory can each
+  read the other's LIVE lock as `dead` and delete resources under a running
+  owner.
+
+```bash
+bun scripts/e2e-host-id.mjs        # skips cleanly if Docker is absent
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- The machine-id survives the restart, isolating the variable.
+- The **derived** `hostId` moves with the pid-namespace inode — the reported bug,
+  reproduced. Measured: `b16b50f5ed94f77c -> 1af99c215cd93186` across one
+  restart with an unchanged machine-id.
+- Two containers genuinely differ in pid namespace, and **the same pin yields
+  the same `hostId` across them** — the property that makes a restart safe.
+- **Distinct pins yield distinct `hostId`s despite a shared machine-id** — the
+  property that stops one host retiring another's live lock.
+
+**One conditional check.** Docker occasionally reuses a pid-namespace inode
+across a restart. When that happens the instability cannot be observed, so the
+gate says so and skips that one assertion rather than failing — the bug is still
+real, and a gate whose red is sometimes noise stops being read. The pinned
+checks are unconditional.
+
+**Verified:** 2026-09-08. Five checks pass, including reproducing the reported
+instability.
+
+## E53: Auto-defer pin
+
+**What it proves:** crossing the auto-defer threshold mid-session no longer
+flips deferral, and therefore no longer flips `maxTurns`.
+
+The decision was taken from the LIVE tool count, so one tool added or removed
+flipped deferral for every non-core tool at once. That moves the
+`anthropic/alwaysLoad` marker on every definition, flips `ENABLE_TOOL_SEARCH`,
+and — since #860 — flips `maxTurns`, silently re-enabling the billed digest turn
+for that request (#861). OpenCode switching agents, an MCP server connecting or
+dropping, or a plugin toggling a tool all trigger it, and none looks to a user
+like a cache-affecting change.
+
+```bash
+bun scripts/e2e-defer-pin.mjs
+```
+
+Two three-turn conversations with identical prompts; only one crosses:
+
+```
+A (control)   15 -> 15 -> 15 tools
+B (crossing)  15 -> 15 -> 16 tools
+```
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Both conversations complete.
+- **Deferral state is identical on turn 3**, so `maxTurns` did not change under
+  a live session. Measured pre-change: `control=false crossing=true`. With the
+  pin: both `false`.
+- The suppressed flip is logged (`defer_flip suppressed`) rather than hidden,
+  which is the observability the issue asked for regardless of which fix landed.
+
+**What this gate deliberately does not assert.** An earlier draft asserted a
+cache-write ratio and failed honestly. Adding a tool changes the tool block, and
+the tool block is prompt position 0, so the prompt cache is invalidated whatever
+the pin does — measured at `cache=0%` on turn 3 even *with* the pin. That cost
+is inherent to changing the tool set. The bug was the **amplification** on top
+of it, and that is what is asserted. The cache numbers are printed as context.
+
+**Verified:** 2026-09-09. Pre-change the crossing conversation flips to
+`deferred=true` on turn 3 and no `defer_flip` line appears; with the pin it
+stays `false` and the suppression is logged.
+
+## E54: Lineage divergence reason
+
+**What it proves:** every lineage divergence names why it diverged, and the
+remedy the log names for the expensive one actually works.
+
+`classifyLineage` logged four outcomes, and for `diverged` only
+`modified-history` and `undo-gap`. Everything else was silent, and the request
+line renders every divergence without a cached session as the same literal
+`lineage=new`. #820 is the cost of that: 6,514 `lineage=new` requests with zero
+explanatory lines, across which the four `classifyLineage` diagnostics all sat
+at exactly zero. The most expensive outcome — the headerless tool-result bypass
+— is assigned before `classifyLineage` runs, so it printed nothing at all and
+was identified only by reading `server.ts`. Two reporters drained a Max
+subscription window first, because every one of those requests returns 200.
+
+```bash
+bun scripts/e2e-lineage-divergence-reason.mjs
+```
+
+A four-round client-driven tool loop on the `pi` adapter in passthrough mode,
+run twice — once headerless, once with `x-session-affinity`. 22 filler tools
+give the prompt prefix enough mass to clear Anthropic's minimum cacheable
+length; without them every round of both loops reports `cache_read=0
+cache_write=0` and the cost claim is untestable.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- No round in either loop diverges without a `diverged=` reason.
+- A headerless tool round names `independent-request:headerless-tool-result`.
+- The one-time advice is printed **exactly once** across all rounds of both
+  loops, not once per round.
+- A first turn under a key that resolved to nothing reports `not-found`, which
+  used to be indistinguishable from the bypass.
+- The keyed loop resumes on every tool round and prints no `diverged=` at all.
+- **The field cache signature is reproduced.** A bypassed round reads the same
+  static prefix however far the conversation got, while a resumed round reads
+  more as it grows; and a bypassed round pays several times over per round to
+  re-write the prefix.
+
+**What this gate deliberately does not assert.** Not every headerless tool
+round takes the bypass. A headerless passthrough loop recovers through the
+durable checkpoint exactly once: the checkpoint upgrade rewrites the lineage
+result but leaves the request independent, so the end-of-turn store is still
+skipped and the checkpoint never advances past the first tool call. Every later
+round then finds a stale checkpoint and takes the bypass. That is the shape the
+field report shows — 6,019 `new` against 10 `continuation` at 1000+ messages —
+so the gate asserts that a bypassed round names itself, not that every round is
+one. It also does not assert the field's cost magnitude: ~280k cache-write
+tokens per turn against ~214 was measured on a 454-message conversation, and a
+four-round probe reproduces the direction and the signature, not the size.
+
+**Verified:** 2026-09-09, Haiku 4.5, two consecutive runs. Pre-change the same
+rounds print `lineage=new session=new` with no reason and no warning. After:
+
+```
+A headerless  round 3  msgs=5  lineage=new           diverged=independent-request:headerless-tool-result  cache_write=1286  cache_read=5789
+A headerless  round 4  msgs=7  lineage=new           diverged=independent-request:headerless-tool-result  cache_write=1497  cache_read=5789
+B keyed       round 3  msgs=5  lineage=continuation  diverged=—                                           cache_write= 167  cache_read=6752
+B keyed       round 4  msgs=7  lineage=continuation  diverged=—                                           cache_write= 166  cache_read=6919
+```
+
+`cache_read` pinned at 5789 while the conversation grows is the reporters' own
+signature at probe scale; they measured it pinned at 30629 across 12,781 to
+13,030 messages. Per-round cache-write ratio measured 7.2x, 7.1x and 6.5x
+across three runs.
+
+## E55: Gateway-fronted Claude Code
+
+**What it proves:** a Claude Code session behind an API gateway keeps the
+tool-loop exemption it already has on a direct connection — and the change
+that delivers it does not turn a silent inefficiency into a hard failure.
+
+The headerless tool-result bypass exempts `adapterBase === "claude-code"`,
+because Claude Code owns its tool loop but still expects Meridian to resume the
+backing SDK session. Behind LiteLLM the passthrough heuristic claims the
+request first, so that exemption was lost — and LiteLLM owns the
+`x-litellm-*` namespace for its own Langfuse session tracking and does not
+forward `x-litellm-session-id` upstream on the `anthropic/` provider route, so
+there was no session key either. Every tool round of the whole agentic loop
+took the bypass (#820): 35k-56k cache-write tokens per turn with `cache_read`
+pinned at 30629, against 46-53 tokens on a direct connection, and one 764-turn
+session accumulating 90M cache-creation tokens.
+
+**Why it needs the real CLI, and why it changed the fix.** The obvious change
+was to read `x-claude-code-session-id` as a session key. The header is real —
+verified against Claude Code 2.1.266 that it is the CLI session UUID, pinned
+exactly by `--session-id` and distinct across sessions. But driving the actual
+client showed the CLI reusing one session id across the auxiliary requests it
+makes alongside a conversation. Keyed that way, two unrelated first messages
+land under one key: classified `unrelated-history`, then refused with
+**HTTP 400 "This session advanced while the request was waiting."** A
+hand-written two-request probe would never have produced that second request.
+So the header identifies the client and nothing else; keying stays on the
+conversation fingerprint, exactly as a direct Claude Code request already does.
+
+```bash
+bun scripts/e2e-passthrough-claude-code-session.mjs
+```
+
+`MERIDIAN_DEFAULT_AGENT=passthrough` resolves the ambiguous `claude-cli/`
+User-Agent to the passthrough adapter, reproducing the reported topology
+without a LiteLLM instance: same adapter, same absent `x-litellm-session-id`,
+same real client. The client runs with its own `CLAUDE_CONFIG_DIR` and a dummy
+bearer token; the proxy keeps its real Claude Max authentication. The child
+environment is scrubbed of `CLAUDE*` variables so running the gate from inside
+Claude Code cannot hand the client a live messaging socket.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- All three client invocations exit 0 and answer correctly.
+- **No request takes the headerless tool-result bypass.**
+- The turn after the tool round reports `lineage=continuation`. Before the fix
+  the bypass skipped the end-of-turn store, so nothing was ever written under
+  the key and no later turn could resume either.
+- **No request classifies `unrelated-history`, and no invocation is refused
+  with a 4xx** — the guard against the session-id keying above.
+- A second conversation with the same prompt in its own directory does not
+  inherit the first: its opening turn resumes nothing, and no session id it
+  resumes belongs to the first conversation. Asserted by session id rather than
+  by the absence of `continuation` — since #998 a passthrough tool round can
+  resume its own session, so the lineage word alone cannot tell "resumed mine"
+  from "inherited yours". Whether conversation 2 resumes at all is **not**
+  asserted: the real client chooses how many tool rounds to take, so whether a
+  checkpoint is stored varies between runs (measured both ways on consecutive
+  runs). E56 owns the resume question, which it can assert deterministically
+  because it drives the loop itself.
+
+**What this gate deliberately does not assert.** The tool round *itself* still
+classifies `not-found`, which is a separate and larger defect tracked in #996:
+the passthrough adapter never resumes a tool round even with a session key it
+does read, while `pi` and `opencode` resume the identical shape. The entry
+stored at a passthrough early stop is a checkpoint boundary that lineage lookup
+reports as missing by design, and the recovery path that should upgrade it does
+not fire on this adapter. It predates this change and behaves identically with
+a forwarded `x-litellm-session-id`, so the gate prints the classification as a
+note rather than asserting it. It is also not a LiteLLM integration test — a real gateway would rewrite
+the User-Agent and relay the body, which this does not model.
+
+**Verified:** 2026-09-09, Claude Code 2.1.266 client, Haiku 4.5, 7 proxy
+requests across three invocations. Pre-change the tool round reports
+`diverged=independent-request:headerless-tool-result` and the `--resume`d turn
+cannot resume. After:
+
+```
+turn 1   tools=0   msgCount=1  lineage=new           diverged=not-found      (auxiliary CLI request)
+turn 1   tools=12  msgCount=1  lineage=new           diverged=not-found
+turn 1   tools=12  msgCount=3  lineage=new           diverged=not-found      (tool round, no longer bypassed)
+turn 2   tools=12  msgCount=5  lineage=continuation
+```
+
+Keyed on `x-claude-code-session-id` instead, the same run produced
+`diverged=unrelated-history` and `API Error: 400`.
+
+## E56: Namespaced tool-round resume
+
+**What it proves:** a client-driven tool round resumes on **every** adapter,
+whatever namespace its client tools sit in.
+
+#983 gave each adapter its own passthrough client-tool namespace, so the
+LiteLLM adapter registers client tools as `mcp__litellm__*`. The early-stop
+tracker is what freezes the resume checkpoint, and it arms by matching those
+names — but `noteAssistantMessage` called `noteAssistantContent` with the
+**default** prefix. On that adapter nothing was ever added to `expected`: no
+checkpoint UUID was frozen, no `passthroughToolCallIds` were stored, and every
+tool round started a fresh SDK session (#996).
+
+`isClientForwardedToolUse` is strict about foreign `mcp__*` names on purpose,
+which is exactly what made the missed prefix silent instead of noisy. It took a
+cross-adapter A/B and then a bisect to find:
+
+```
+15529b12 (pre-#983)  passthrough resumed 3/3 keyed tool rounds
+96dc5605 (main)      passthrough resumed 0/3
+with the fix         passthrough resumed 3/3
+```
+
+```bash
+bun scripts/e2e-passthrough-namespace-resume.mjs
+```
+
+An identical four-round keyed tool loop on the three adapters that read an
+explicit session key and run passthrough tool loops. `passthrough` is the one
+that regressed; `pi` and `opencode` are the controls that made the regression
+visible as an asymmetry rather than as an absolute.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Every loop completes and runs at least two real tool rounds.
+- **Every keyed tool round reports `lineage=continuation`, on every adapter.**
+- All three adapters agree on the tool-round shape. This is the assertion that
+  actually catches the class of bug: a single-adapter gate would have passed
+  throughout, because each adapter looks self-consistent on its own.
+
+**Verified:** 2026-09-09, Haiku 4.5. On main before the fix, `pi` and
+`opencode` report `continuation` on all three tool rounds and `passthrough`
+reports `new` on all three. After, all three agree.
+
+## Concurrent transcript publication
+
+Run `bun scripts/e2e-publication-lifetime.mjs` and again with `--stream` after lifecycle or publication changes. This gate uses real Claude Max queries and two concurrent HTTP conversations, each with a fresh and resumed turn. A timing hook pauses each request after its real SDK writer lease is released, promotes its request pin as the owning proxy would, and runs a separate collector process before publication. The collector uses zero grace periods and the supported SDK deleter, exercising the destructive race in an isolated session store and disposable project.
+
+Require four successful competing sweeps with no deletions, correct fixture identifiers in both answers, valid response envelopes, durable mappings, and unchanged source transcripts inspected through `getSessionMessages`. To verify rolling upgrades, set `E2E_COLLECTOR_MODULE` to the absolute `src/proxy/sessionLifecycle.ts` path in the previous checkout and repeat. The SDK itself is not mocked.
+
+## Lineage hash integrity and upgrade
+
+Run `bun scripts/e2e-lineage-hash-migration.mjs` and again with `--stream`; repeat with `E2E_MODEL=sonnet`. The gate establishes a real client tool loop whose result comes from a disposable fixture file, then changes only `is_error` in its supplied history. Require fresh replay with the revised metadata, a FAILED answer instead of the original SUCCEEDED answer, and unchanged source history.
+
+A second case installs a persisted mapping containing the legacy digest format for that real source. Require one complete replay with call identity/arguments and result data, then an ordinary continuation with the correct answer. All inspection uses supported SDK `getSessionMessages`. Run the E41 sequential/parallel and undo-gap controls too when changing the encoding.
+
+## Block appends and OpenCode hook removal
+
+Run `bun scripts/e2e-block-continuations.mjs` and again with `--stream`. Run both modes with `E2E_MODEL=sonnet` and `--image` to exercise appended media. The real SDK/HTTP gate executes a fixture-read tool, appends text (and optionally an image) to its completed result slot, and requires continuation with only the new content delivered, no repeated tool call, and the correct answer.
+
+It also removes a recognized OpenCode `{"continue":true}` hook envelope and requires continuation, then removes a meaningful fixture field and requires complete replay without that field in the SDK input or answer. Supported `getSessionMessages` inspection verifies input and source immutability. `--case=append`, `--case=hook` and `--case=drop` select individual cases for before/after comparisons. Run the existing E41, undo-gap and hash-migration controls alongside this gate when changing the classifier.
+
+For growing histories, add `--extended --delay-input-ms=4000`. This supplies appended context followed by the prior assistant reply and a new user question requesting one JSON object. A timing wrapper delays the second SDK input if one is emitted; it still calls the real SDK. The unsafe multi-input path can concatenate two model answers. Require one complete JSON answer with the original record, new suffix and image color, and zero delayed secondary inputs after coalescing.
+
+
+## Revised-history conflicts and checkpoint fidelity
+
+Run `bun scripts/e2e-modified-history-conflict.mjs` and again with `--stream`. Scheduling gates hold one real SDK turn while a revised, growing request queues under the same OpenCode session. Require complete fresh replay, the new result and supplied assistant decision in schema-validated JSON, an ordinary resumed follow-up, and unchanged source history through supported `getSessionMessages`. SDK/model responses are real.
+
+Run `bun scripts/e2e-duplicate-checkpoint.mjs` in both modes. The real model must emit two identical tool calls; otherwise the fixture precondition fails. Non-streaming currently delivers one call; streaming delivers both before hooks recognize duplication. The stored checkpoint must match the delivered IDs, all returned results must resume, and the source must remain unchanged. This gate does not claim streaming deduplication.
+
+Run `bun scripts/e2e-settlement-proof.mjs` in both modes to verify revised history following a completed real tool checkpoint. Require the supplied decision in the SDK input and answer, unchanged source history, and a resumed ordinary follow-up. Keeping old completed checkpoints must not force future turns to replay.
+
+
+## Claude Code trailing system reminders
+
+Run `bun scripts/e2e-claude-code-system-delta.mjs` in both modes (`--stream`); repeat with `E2E_MODEL=claude-sonnet-4-6` and the `--image` flag to validate a native image tool result followed by a reminder. Require the actual tool result, reminder identifier and optional image color in the answer, checkpoint resume, no reminder promoted into the SDK system prompt, and unchanged source history through supported `getSessionMessages`.
+
+Repeat the direct gate with `--revise-history` and separately with `--insert-history` in text/image and streaming/non-streaming modes. Edited or inserted user history must replay fresh and deliver its revised or inserted identifier, with no removed identifier, no assistant attribution on the reminder, and the replay history boundary preserved. Matching pending tool IDs alone must never discard earlier edits.
+
+Run the direct gate with `--blank-reminder` in both response modes, with and without `--image`. Whitespace-only text does not qualify for the narrow reminder exception: require fresh replay, the correct tool value/context and optional image color, and unchanged source history.
+
+Run `bun scripts/e2e-claude-code-client.mjs` for the full installed Claude Code 2.1.259 → Meridian → real SDK loop. `E2E_CLAUDE_CLIENT` can name that exact client binary. The fixture isolates the outer client's settings and enables its `CLAUDE_CODE_FORCE_MID_CONVERSATION_SYSTEM` flag; `--bare` suppresses the shape and is unsuitable. The real CLI reads a disposable fixture, sends its native `<total_tokens>` system reminder, then resumes for an ordinary follow-up. Require both proxy continuations to resume, delivery of both reminders to SDK user history, correct answers, and unchanged source history.
+
+`--capture` runs only the real client's wire-format probe against a scripted local endpoint. It does not contact the SDK and is not a substitute for the full E2E gate. The fixture checks the exact client version; newer versions are separate compatibility targets. This case does not validate OpenCode/Orca cross-tool session ownership (#946).
+
+## CLI model-version rejection
+
+Run `E2E_CLAUDE_PATH=/path/to/old/claude bun scripts/e2e-cli-model-version.mjs --expect-rejection` and again with `--stream`. Use an old CLI that actually rejects the default `fable` model (2.1.177 was validated). Require HTTP 400/invalid_request_error or a single actionable SSE invalid_request_error without message_stop, the installed/required versions and override remedy, and exactly one proxy SDK query.
+
+Run the same old binary with `E2E_MODEL=claude-haiku-4-5-20251001`, omitting `--expect-rejection`, in both modes. Then omit both overrides to validate the bundled CLI with `fable` in both modes. Supported requests must return exactly READY. Each run isolates Meridian config, sessions and working directory; it does not change the installed CLI or subscription credentials.
+
+
+## Client and proxy working-directory boundaries
+
+Build first, then run `bun scripts/e2e-client-cwd.mjs` on macOS or Linux with Claude Max authentication. This uses real HTTP and SDK/model queries, isolated Meridian config, and a query observer that delegates every SDK call. Client instructions are disabled; a marker assertion proves they are absent while the independent CWD note remains.
+
+Both response modes must preserve OpenCode-shaped Windows client paths, execute client read/result loops, and execute proxy-managed reads in the proxy directory. Pi cases use actual POSIX directories with a literal trailing backslash and a symlink followed by `..`; the latter must have a different inode from the proxy directory. Client receipts differ from the proxy decoy. The fixture explicitly specifies literal path joining: this validates context delivery and tool execution under that instruction, not arbitrary model interpretation of unusual filenames. `--pi-only` and `--parent-only` isolate the two path regressions; `E2E_MERIDIAN_ROOT` selects a separately built before/after checkout.
+
+Also run the E42 actual OpenCode gate with `--live --extended --separate-proxy-cwd` and the pinned `E2E_OPENCODE_BIN`. The harness isolates the client HOME/PWD as well as XDG state, while the proxy retains its normal Claude authentication. It asserts the client directory from actual request bodies and stable client system prompts before comparing cache reuse. The manually invoked hidden-summary probe runs in a disposable client fork: this checks stripped headers without switching the primary client agent or injecting its tool-catalog update into primary history. A marker assertion rejects any leak into primary requests. This keeps the client project and configured SDK workdir distinct through tool use, restart, undo, fork, compaction and concurrent children. Run all four E41 modes after CWD/session-identity changes.
+
+## Polytoken native client loop
+
+**What it proves:** a real Polytoken binary is detected as `polytoken`, keeps its
+own tool loop, and resumes by its native session header.
+
+Two gates. The first costs no tokens and belongs in the detection sweep; the
+second is the live loop.
+
+### Detection drift
+
+`scripts/e2e-client-detection.mjs` drives an installed Polytoken against a local
+stub and diffs its real headers against
+`src/__tests__/fixtures/client-headers.json`. Polytoken ships as a single static
+binary that is usually outside `PATH`, so point the harness at it:
+
+```bash
+E2E_POLYTOKEN_BIN=/path/to/polytoken bun scripts/e2e-client-detection.mjs
+```
+
+`client-detection-fixtures.test.ts` pins the recorded set to the `polytoken`
+adapter, so a change to detection ORDERING fails in CI; the script catches a
+change on the CLIENT side. Re-run with `--update` after a Polytoken upgrade and
+commit the diff. The session header is redacted at capture time, so a re-capture
+that only changes the session id produces no diff.
+
+Captured from 0.8.6: `user-agent: Polytoken v0.8.6`, `x-polytoken-session`,
+`accept: text/event-stream`.
+
+### Live client-owned tool loop
+
+Costs tokens. Uses a disposable Meridian on an isolated port and a temporary
+Polytoken config directory — never the operator's own config.
+
+```bash
+BASE=/tmp/e2e-polytoken; rm -rf $BASE; mkdir -p $BASE/cfg $BASE/proj
+printf 'alpha\nbeta\ngamma\ndelta\n' > $BASE/proj/notes.txt
+cat > $BASE/cfg/config.yaml <<'YAML'
+version: 1
+providers:
+  meridian:
+    kind:
+      type: custom_anthropic_compatible
+    url: http://127.0.0.1:3468
+    protocol: anthropic_messages
+    auth:
+      type: static_key
+      key: local-fixture-key
+      format: anthropic_x_api_key
+models:
+  claude-haiku-4-5:
+    provider: meridian
+    provider_name: claude-haiku-4-5
+    class: full
+    context_window: 200000
+YAML
+
+MERIDIAN_PORT=3468 MERIDIAN_SESSION_STORE_DIR=$BASE/store bun bin/cli.ts > $BASE/proxy.log 2>&1 &
+
+polytoken --config-dir $BASE/cfg config validate            # exit 0
+polytoken --config-dir $BASE/cfg models                     # lists claude-haiku-4-5
+cd $BASE/proj && polytoken --config-dir $BASE/cfg --working-dir $BASE/proj \
+  exec --model claude-haiku-4-5 \
+  'Read the file notes.txt in the current directory using your read tool, then reply with exactly: LINES=<number of lines>'
+```
+
+**Pass criteria:**
+
+- The answer is `LINES=4`. The read executed on the Polytoken side; Meridian's
+  own working directory does not contain the fixture, so a proxy-executed read
+  could not produce it.
+- Every proxy line shows `adapter=polytoken`, with client tools forwarded
+  (`tools=N`, N>0).
+- `lineage=new` on the first turn and `lineage=continuation` on each later turn
+  of the same `x-polytoken-session`. The SDK session id differs per turn: the
+  per-turn managed fork is the durable publication design, and lineage
+  continuation is the resume proof.
+- More than one client request reaches the proxy for a single `exec`. One
+  request would mean Meridian ran the loop itself.
+
+**Mandatory-passthrough control.** Restart the proxy with `MERIDIAN_PASSTHROUGH=0`
+and repeat. The result must be identical: Polytoken owns tool execution, so
+neither the global setting nor a configured instance may hand the loop to the
+SDK.
+
+**Detection controls**, cheap and worth running with the loop:
+
+```bash
+# rejected -> adapter=opencode
+curl -s -XPOST localhost:3468/v1/messages -H 'content-type: application/json' \
+  -H 'user-agent: PolytokenImpostor/1.0' -d '{...}'
+# blank header is not a match -> adapter=opencode
+curl ... -H 'x-polytoken-session:   '
+# valid header, or the Polytoken UA alone -> adapter=polytoken
+```
+
+**Verified:** 2026-09-10 against Polytoken 0.8.6 (macos-arm64, sha256
+`71353a6d…0793e7`) and real Claude Max on `claude-haiku-4-5`. The tool loop
+returned `LINES=4` in four client round-trips with `adapter=polytoken` and
+`lineage=continuation` from turn 2, unchanged with `MERIDIAN_PASSTHROUGH=0`. All
+four detection controls behaved as recorded above.

@@ -41,7 +41,8 @@ telemetry/
 ├── profileBar.ts          ← Shared site header (brand, nav, status, active profile)
 └── profilePage.ts         ← Profile management page
 plugin/
-└── meridian.ts            ← OpenCode plugin (session headers + agent mode)
+├── meridian.ts            ← OpenCode V1 plugin (session headers + agent mode)
+└── meridian/              ← V1 plugin package; compiled to dist/meridian for installs
 ```
 
 ### Session Management
@@ -64,11 +65,13 @@ Agents are identified from request headers automatically:
 | Signal | Adapter |
 |---|---|
 | `x-meridian-agent` header | Explicit override (any adapter) |
+| `x-polytoken-session` header (valid) | Polytoken (native session identity) |
 | `x-opencode-session` or `x-session-affinity` header | OpenCode |
 | `opencode/` User-Agent | OpenCode |
 | `factory-cli/` User-Agent | Droid |
 | `Charm-Crush/` User-Agent | Crush |
 | `claude-cli/` User-Agent | Claude Code (unless `MERIDIAN_DEFAULT_AGENT` overrides — Pi mimics this UA) |
+| `Polytoken <v>` / `Polytoken/<v>` User-Agent | Polytoken (UA only — no session identity manufactured) |
 | `litellm/` UA or `x-litellm-*` headers | LiteLLM passthrough |
 | *(anything else)* | `MERIDIAN_DEFAULT_AGENT` env var, or OpenCode |
 
@@ -79,7 +82,7 @@ Implement the `AgentAdapter` interface in `src/proxy/adapters/`. See [`adapters/
 ## Testing
 
 ```bash
-npm test       # unit + integration tests
+npm test       # typecheck, then unit + integration tests
 npm run build  # build with bun + tsc
 ```
 

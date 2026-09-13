@@ -13,43 +13,185 @@
 import { createSdkMcpServer, type SdkMcpToolDefinition } from "@anthropic-ai/claude-agent-sdk"
 import { z } from "zod"
 
+/** The namespace client tools are nested under unless an adapter overrides it.
+ *  Every adapter used this before `getPassthroughMcpName` existed, so it stays
+ *  the default: changing it would move the model-visible prompt for everyone. */
 export const PASSTHROUGH_MCP_NAME = "oc"
 export const PASSTHROUGH_MCP_PREFIX = `mcp__${PASSTHROUGH_MCP_NAME}__`
 
+/** The model-visible prefix for a given passthrough namespace. */
+export function passthroughMcpPrefix(serverName: string = PASSTHROUGH_MCP_NAME): string {
+  return `mcp__${serverName}__`
+}
+
 /**
- * Convert a JSON Schema object to a Zod schema (simplified).
+ * The JSON Schema subset a client's tool definitions actually use. Anything
+ * richer (`anyOf`, `$ref`, tuple `items`, …) falls through to `z.any()` below,
+ * exactly as before.
+ */
+interface JsonSchemaNode {
+  type?: string
+  description?: string
+  enum?: string[]
+  items?: JsonSchemaNode
+  properties?: Record<string, JsonSchemaNode>
+  required?: string[]
+}
+
+/**
+ * Repair the one tool-input slip the model makes often enough to matter: it
+ * emits every argument as a string, so a declared `number` arrives as `"60"`
+ * and a declared object as `'{"cdp_url":"..."}'`.
+ *
+ * Use this at MCP validation and client capture. Current Claude Code repairs
+ * some top-level fields before PreToolUse, but nested values can remain strings.
+ * The hook precedes the MCP handler, and streamed arguments precede the hook:
+ * repairing only the handler cannot correct what the client receives.
+ *
+ * Only slips whose declared type makes the intent unambiguous are repaired,
+ * and only from a string. A declared `string` is never JSON-parsed: that would
+ * corrupt legitimate input which merely looks like JSON.
+ */
+function repairTypeSlip(schema: JsonSchemaNode, value: unknown): unknown {
+  if (typeof value !== "string") return value
+
+  if (schema.type === "number" || schema.type === "integer") {
+    const match = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(value.trim())
+    if (!match) return value
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) return value
+    if (schema.type === "integer") {
+      if (!Number.isSafeInteger(parsed)) return value
+      // Number() can round a non-integral decimal such as 1.0000000000000001
+      // to an integer. Check the decimal's fractional digits before accepting.
+      const fraction = match[3] ?? ""
+      const digits = `${match[2]}${fraction}`.replace(/^0+/, "")
+      const scale = Number(match[4] ?? 0) - fraction.length
+      if (digits && scale < 0 && (-scale > digits.length || /[1-9]/.test(digits.slice(scale)))) return value
+    }
+    return parsed
+  }
+
+  if (schema.type === "boolean") {
+    if (value === "true") return true
+    if (value === "false") return false
+    return value
+  }
+
+  if (schema.type === "object" || schema.type === "array") {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      return value
+    }
+    if (schema.type === "array") return Array.isArray(parsed) ? parsed : value
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : value
+  }
+
+  return value
+}
+
+/** Repair capture input too: CLI PreToolUse precedes the MCP handler parser. */
+function repairCapturedValue(schema: unknown, value: unknown): unknown {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return value
+  const node = schema as JsonSchemaNode
+  const repaired = repairTypeSlip(node, value)
+  if (node.type === "array" && Array.isArray(repaired)) {
+    return repaired.map(item => repairCapturedValue(node.items, item))
+  }
+  if (node.type === "object" && repaired && typeof repaired === "object" && !Array.isArray(repaired) && node.properties) {
+    return repairCapturedObject(repaired as Record<string, unknown>, node.properties)
+  }
+  return repaired
+}
+
+function repairCapturedObject(input: Record<string, unknown>, properties: Record<string, unknown>): Record<string, unknown> {
+  // Preserve every key, including fields outside the simplified schema subset.
+  // Parsing through a ZodObject here would strip unknown client arguments.
+  return Object.fromEntries(Object.entries(input).map(([key, value]) => [key,
+    repairCapturedValue(Object.hasOwn(properties, key) ? properties[key] : undefined, value),
+  ]))
+}
+
+/** Only buffer streamed arguments whose declared fields can need type repair. */
+export function hasRepairableToolInput(schema: { properties?: Record<string, unknown> } | undefined): boolean {
+  return Object.values(schema?.properties ?? {}).some(property => {
+    if (!property || typeof property !== "object" || Array.isArray(property)) return false
+    const type = (property as { type?: unknown }).type
+    return type === "number" || type === "integer" || type === "boolean" || type === "object" || type === "array"
+  })
+}
+
+/**
+ * The MCP schema converter reads `description` from the OUTERMOST node only —
+ * an inner `.describe()` under `.optional()` or a `preprocess` pipe is dropped
+ * from the advertised schema. Apply it last so the model keeps seeing what the
+ * client wrote, optional parameters included.
+ */
+function withDescription(node: z.ZodTypeAny, schema: JsonSchemaNode): z.ZodTypeAny {
+  return typeof schema.description === "string" && schema.description
+    ? node.describe(schema.description)
+    : node
+}
+
+/** Wrap a validating node so a repairable slip is fixed instead of rejected. */
+function repairing(schema: JsonSchemaNode, node: z.ZodTypeAny): z.ZodTypeAny {
+  // A preprocess pipe accepts unknown input at the type level. MCP's input
+  // schema converter otherwise drops required fields, despite runtime rejection
+  // of undefined. Optional properties are wrapped explicitly by the caller.
+  return z.preprocess(value => repairTypeSlip(schema, value), node).nonoptional()
+}
+
+/**
+ * Convert a JSON Schema node to a Zod schema (simplified).
  * Handles the common types OpenCode sends. Falls back to z.any() for complex types.
  */
-function jsonSchemaToZod(schema: any): z.ZodTypeAny {
+function jsonSchemaToZod(schema: unknown): z.ZodTypeAny {
   if (!schema || typeof schema !== "object") return z.any()
+  const node = schema as JsonSchemaNode
+  return withDescription(buildZodNode(node), node)
+}
+
+function buildZodNode(schema: JsonSchemaNode): z.ZodTypeAny {
 
   if (schema.type === "string") {
-    let s = z.string()
-    if (schema.description) s = s.describe(schema.description)
     if (schema.enum) return z.enum(schema.enum as [string, ...string[]])
-    return s
+    return z.string()
   }
-  if (schema.type === "number" || schema.type === "integer") {
-    let n = z.number()
-    if (schema.description) n = n.describe(schema.description)
-    return n
+  if (schema.type === "integer") {
+    return repairing(schema, z.number().int())
   }
-  if (schema.type === "boolean") return z.boolean()
+  if (schema.type === "number") {
+    return repairing(schema, z.number())
+  }
+  if (schema.type === "boolean") return repairing(schema, z.boolean())
   if (schema.type === "array") {
     const items = schema.items ? jsonSchemaToZod(schema.items) : z.any()
-    return z.array(items)
+    return repairing(schema, z.array(items))
   }
   if (schema.type === "object" && schema.properties) {
-    const shape: Record<string, z.ZodTypeAny> = {}
-    const required = new Set(schema.required || [])
-    for (const [key, propSchema] of Object.entries(schema.properties)) {
-      const zodProp = jsonSchemaToZod(propSchema as any)
-      shape[key] = required.has(key) ? zodProp : zodProp.optional()
-    }
-    return z.object(shape)
+    return repairing(schema, z.object(objectShapeFromJsonSchema(schema)))
   }
 
   return z.any()
+}
+
+/**
+ * The property shape of a JSON Schema object, with optionality applied.
+ *
+ * Kept separate from `jsonSchemaToZod` because the MCP registration needs the
+ * root as a raw shape, and the root arguments object is never a slip candidate
+ * — the protocol always delivers it as an object.
+ */
+function objectShapeFromJsonSchema(schema: JsonSchemaNode): Record<string, z.ZodType> {
+  const shape: Record<string, z.ZodType> = {}
+  const required = new Set<string>(schema.required ?? [])
+  for (const [key, propSchema] of Object.entries(schema.properties ?? {})) {
+    const prop = jsonSchemaToZod(propSchema)
+    shape[key] = required.has(key) ? prop : withDescription(prop.optional(), propSchema)
+  }
+  return shape
 }
 
 /** Default threshold: auto-defer when tool count exceeds this.
@@ -65,6 +207,27 @@ export function getAutoDeferThreshold(): number {
 }
 
 /**
+ * Whether auto-defer applies to a tool set of this size.
+ *
+ * Pure, and exported so the caller can pin the answer for a session.
+ *
+ * The decision was taken from the LIVE tool count, so a client crossing the
+ * threshold mid-conversation — one tool added or removed — flipped deferral for
+ * every non-core tool at once. That moves the `anthropic/alwaysLoad` marker on
+ * each definition, and tools render at position 0 of the prompt, so it
+ * invalidates the tools, system AND message cache tiers. It also flips
+ * `ENABLE_TOOL_SEARCH` and, since #860, `maxTurns` — silently re-enabling the
+ * billed digest turn for that request (#861).
+ */
+export function autoDeferDecision(
+  threshold: number,
+  coreToolNames: readonly string[] | undefined,
+  toolCount: number,
+): boolean {
+  return !!(threshold > 0 && coreToolNames && coreToolNames.length > 0 && toolCount > threshold)
+}
+
+/**
  * Create an MCP server with tool definitions matching OpenCode's request.
  *
  * Auto-defer: when the tool count exceeds the threshold and coreToolNames
@@ -73,13 +236,16 @@ export function getAutoDeferThreshold(): number {
  * Client-provided defer_loading: true also triggers deferral for specific tools.
  */
 export function createPassthroughMcpServer(
-  tools: Array<{ name: string; description?: string; input_schema?: any; defer_loading?: boolean }>,
-  coreToolNames?: readonly string[]
+  tools: Array<{ name: string; description?: string; input_schema?: JsonSchemaNode; defer_loading?: boolean }>,
+  coreToolNames?: readonly string[],
+  serverName: string = PASSTHROUGH_MCP_NAME,
+  /** Pinned auto-defer decision for this session, when one has been made (#861). */
+  pinnedAutoDefer?: boolean,
 ) {
   // Auto-defer: if tool count exceeds threshold and adapter provides core tools
   const threshold = getAutoDeferThreshold()
-  const autoDefer = !!(threshold > 0 && coreToolNames && coreToolNames.length > 0 && tools.length > threshold)
-  const coreSet = autoDefer ? new Set(coreToolNames.map(n => n.toLowerCase())) : undefined
+  const autoDefer = pinnedAutoDefer ?? autoDeferDecision(threshold, coreToolNames, tools.length)
+  const coreSet = autoDefer && coreToolNames ? new Set(coreToolNames.map(n => n.toLowerCase())) : undefined
 
   // hasDeferredTools is true when: client explicitly defers any tool, OR auto-defer kicks in
   const hasDeferredTools = tools.some(t => t.defer_loading === true) || autoDefer
@@ -88,10 +254,13 @@ export function createPassthroughMcpServer(
   // order. Non-deterministic ordering changes the SDK system prompt between
   // requests, invalidating prompt cache and causing full context re-reads.
   const sortedTools = [...tools].sort((a, b) => a.name.localeCompare(b.name))
+  // Register under collision-free aliases; alwaysLoad and the deferral decision
+  // still key off the CLIENT's name, which is what coreToolNames describes.
+  const aliases = buildPassthroughToolAliases(sortedTools.map(tool => tool.name), serverName)
   const definitions = sortedTools.map((passthroughTool) => {
     const alwaysLoad = hasDeferredTools && shouldAlwaysLoad(passthroughTool, coreSet)
     const defineTool = (shape: Record<string, z.ZodType>): SdkMcpToolDefinition<Record<string, z.ZodType>> => ({
-      name: passthroughTool.name,
+      name: aliases.aliasByClientName.get(passthroughTool.name) ?? passthroughTool.name,
       description: passthroughTool.description || passthroughTool.name,
       inputSchema: shape,
       handler: async () => ({ content: [{ type: "text" as const, text: "passthrough" }] }),
@@ -101,12 +270,13 @@ export function createPassthroughMcpServer(
       // Register through the Agent SDK helper so its Zod 4 peer owns the MCP
       // compatibility boundary. Registering through the nested MCP instance
       // instead couples this module to that package's separate Zod version.
-      const zodSchema = passthroughTool.input_schema?.properties
-        ? jsonSchemaToZod(passthroughTool.input_schema)
-        : z.object({})
-      const shape: Record<string, z.ZodType> = zodSchema instanceof z.ZodObject
-        ? zodSchema.shape
-        : { input: z.any() }
+      //
+      // The root is built as a raw shape rather than a converted object: the
+      // arguments object always arrives as an object over the protocol, so it
+      // is never a repair candidate, and the SDK wants the shape anyway.
+      const shape = passthroughTool.input_schema?.properties
+        ? objectShapeFromJsonSchema(passthroughTool.input_schema)
+        : {}
       return defineTool(shape)
     } catch {
       const fallbackShape: Record<string, z.ZodType> = { input: z.string().optional() }
@@ -114,11 +284,15 @@ export function createPassthroughMcpServer(
     }
   })
 
-  const server = createSdkMcpServer({ name: PASSTHROUGH_MCP_NAME, tools: definitions })
+  const server = createSdkMcpServer({ name: serverName, tools: definitions })
+  const prefix = passthroughMcpPrefix(serverName)
   return {
     server,
-    toolNames: sortedTools.map(tool => `${PASSTHROUGH_MCP_PREFIX}${tool.name}`),
+    serverName,
+    prefix,
+    toolNames: definitions.map(definition => `${prefix}${definition.name}`),
     hasDeferredTools,
+    clientNameByAlias: aliases.clientNameByAlias,
   }
 }
 
@@ -186,11 +360,89 @@ export function toolUseSignature(name: string, input: unknown): string {
  * Strip the MCP prefix from a tool name to get the OpenCode tool name.
  * e.g., "mcp__oc__todowrite" → "todowrite"
  */
-export function stripMcpPrefix(toolName: string): string {
-  if (toolName.startsWith(PASSTHROUGH_MCP_PREFIX)) {
-    return toolName.slice(PASSTHROUGH_MCP_PREFIX.length)
+export function stripMcpPrefix(toolName: string, serverName: string = PASSTHROUGH_MCP_NAME): string {
+  const prefix = passthroughMcpPrefix(serverName)
+  if (toolName.startsWith(prefix)) {
+    return toolName.slice(prefix.length)
   }
   return toolName
+}
+
+export interface PassthroughToolAliases {
+  /** SDK-side name to register a tool under, by the client's declared name. */
+  aliasByClientName: ReadonlyMap<string, string>
+  /** The client's declared name, by the SDK-side registered name. */
+  clientNameByAlias: ReadonlyMap<string, string>
+}
+
+/**
+ * Choose the SDK-side name to register each client tool under.
+ *
+ * Client tools are nested inside our own MCP server, so a tool whose declared
+ * name ALREADY starts with `mcp__oc__` would be advertised to the model as
+ * `mcp__oc__mcp__oc__read`. Verified against SDK 0.2.141 / CLI 2.1.263: the CLI
+ * lists that doubled name but never dispatches it, so the PreToolUse hook never
+ * fires, nothing is captured, and the turn dies at the maxTurns cap — HTTP 500
+ * non-streaming, and streaming leaks a tool_use whose name the blind reverse
+ * strip has reduced to `read`, a tool the client never declared. Either way the
+ * client cannot answer a call it does not recognize, so the result the proxy
+ * promised the model "in a future turn" can never arrive (#967).
+ *
+ * Dropping the redundant prefix makes the canonical SDK name identical to the
+ * name the client already declared, which both dispatches and round-trips.
+ * Tools that need no alias claim their identity first, so an escaped name can
+ * never steal a name a plain tool declared; a genuine clash falls back to a
+ * numbered suffix, which the reverse map still resolves exactly.
+ *
+ * Ordinary tool sets alias to themselves, leaving model-visible names — and so
+ * the prompt cache — byte-identical.
+ */
+export function buildPassthroughToolAliases(
+  names: readonly string[],
+  serverName: string = PASSTHROUGH_MCP_NAME,
+): PassthroughToolAliases {
+  const PREFIX = passthroughMcpPrefix(serverName)
+  const aliasByClientName = new Map<string, string>()
+  const clientNameByAlias = new Map<string, string>()
+  const ordered = [...names].sort((a, b) => a.localeCompare(b))
+  for (const name of ordered) {
+    if (name.startsWith(PREFIX)) continue
+    aliasByClientName.set(name, name)
+    clientNameByAlias.set(name, name)
+  }
+  for (const name of ordered) {
+    if (!name.startsWith(PREFIX)) continue
+    if (aliasByClientName.has(name)) continue
+    // Strip EVERY leading copy, not just one: a name that is already doubled
+    // would otherwise alias straight back to the undispatchable form.
+    let base = name
+    while (base.startsWith(PREFIX)) {
+      base = base.slice(PREFIX.length)
+    }
+    if (!base) base = "tool"
+    let alias = base
+    let attempt = 2
+    while (clientNameByAlias.has(alias)) alias = `${base}_${attempt++}`
+    aliasByClientName.set(name, alias)
+    clientNameByAlias.set(alias, name)
+  }
+  return { aliasByClientName, clientNameByAlias }
+}
+
+/**
+ * Map an SDK-side tool name back to the name the client declared.
+ *
+ * Strips our MCP prefix as before, then resolves the alias. Falls back to the
+ * stripped name so internal SDK tools and legacy callers without a map keep
+ * today's behavior.
+ */
+export function resolveClientToolName(
+  sdkToolName: string,
+  clientNameByAlias?: ReadonlyMap<string, string>,
+  serverName: string = PASSTHROUGH_MCP_NAME,
+): string {
+  const alias = stripMcpPrefix(sdkToolName, serverName)
+  return clientNameByAlias?.get(alias) ?? alias
 }
 
 function toCamelCase(s: string): string {
@@ -219,14 +471,15 @@ export function normalizeToolInput(
   input: Record<string, unknown> | undefined,
   clientSchema: { properties?: Record<string, unknown>; required?: string[] } | undefined,
 ): Record<string, unknown> | undefined {
-  if (!input || !clientSchema?.properties) return input
+  if (!input || typeof input !== "object" || Array.isArray(input) || !clientSchema?.properties) return input
 
   const schemaKeys = new Set(Object.keys(clientSchema.properties))
   const required = new Set(clientSchema.required ?? [])
 
-  // Fast path: all required fields are present, no normalization needed
+  // Name normalization is only needed for missing required fields. Type repair
+  // also applies when every field is present, including optional/nested fields.
   const missingRequired = [...required].filter(k => input[k] === undefined)
-  if (missingRequired.length === 0) return input
+  if (missingRequired.length === 0) return repairCapturedObject(input, clientSchema.properties)
 
   const normalized = { ...input }
 
@@ -249,5 +502,5 @@ export function normalizeToolInput(
     }
   }
 
-  return normalized
+  return repairCapturedObject(normalized, clientSchema.properties)
 }

@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, rmSync } from "node:fs"
 import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
@@ -31,7 +34,7 @@ function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted:
   return { release, started, wait, markStarted }
 }
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     queryCalls++
     const control = deferredAttempt()
@@ -52,14 +55,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "graceful-shutdown.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

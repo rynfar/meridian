@@ -6,8 +6,9 @@
  */
 
 import type { Context } from "hono"
-import type { AgentAdapter } from "../adapter"
+import type { AgentAdapter, RoutingTurnIdentity } from "../adapter"
 import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
+import { PRIORITY_ATTESTATION_HEADER, verifyPriorityAttestation } from "../priorityAttestation"
 import { normalizeContent } from "../messages"
 import { extractClientCwd } from "../session/fingerprint"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../tools"
@@ -38,9 +39,26 @@ function isTransientUserPromptHook(block: unknown): boolean {
   } catch {
     return false
   }
-  if (!isRecord(parsed) || !isRecord(parsed.hookSpecificOutput)) return false
-  return parsed.hookSpecificOutput.hookEventName === "UserPromptSubmit"
-    && typeof parsed.hookSpecificOutput.additionalContext === "string"
+  if (!isRecord(parsed)) return false
+  if (isRecord(parsed.hookSpecificOutput)) {
+    return parsed.hookSpecificOutput.hookEventName === "UserPromptSubmit"
+      && typeof parsed.hookSpecificOutput.additionalContext === "string"
+  }
+  // NOTE: OpenCode's hook bridge also wraps common SyncHookJSONOutput fields,
+  // e.g. {"continue":true}, without hookSpecificOutput (#872). Recognize the
+  // documented control envelope, not arbitrary JSON or arbitrary removed text.
+  const fields = Object.entries(parsed)
+  return fields.length > 0 && fields.every(([key, value]) => {
+    switch (key) {
+      case "continue":
+      case "suppressOutput": return typeof value === "boolean"
+      case "stopReason":
+      case "systemMessage":
+      case "reason": return typeof value === "string"
+      case "decision": return value === "approve" || value === "block"
+      default: return false
+    }
+  })
 }
 
 export function canonicalizeOpenCodeMessagesForLineage(
@@ -59,6 +77,12 @@ export function canonicalizeOpenCodeMessagesForLineage(
 
 export const openCodeAdapter: AgentAdapter = {
   name: "opencode",
+
+  /**
+   * NOTE: OpenCode-specific. OpenCode can call a network-hosted Meridian while
+   * its tools and environment block remain local to the OpenCode process.
+   */
+  clientEnvironmentMayDifferFromProxy: true,
 
   /**
    * NOTE: OpenCode-specific. OpenCode runs its internal one-shot agents —
@@ -106,7 +130,46 @@ export const openCodeAdapter: AgentAdapter = {
     return c.req.header("x-opencode-agent-mode")
   },
 
+  /**
+   * NOTE: OpenCode-specific. Only a final-hook HMAC assertion can authorize a
+   * user-turn routing change. Raw request-kind/request-ID headers are not a
+   * trust boundary: OpenCode is the default adapter and any HTTP client can
+   * copy them.
+   */
+  getRoutingTurnIdentity(c: Context): RoutingTurnIdentity | undefined {
+    // Explicit pins never participate in priority failback. Check presence,
+    // not truthiness, so an empty malformed pin also fails closed.
+    if (c.req.header("x-meridian-profile") !== undefined) return undefined
+    const sessionId = c.req.header("x-opencode-session")
+    const agentId = c.req.header("x-opencode-agent-name")
+    if (!sessionId || !agentId || c.req.header("x-opencode-agent-mode") !== "primary") {
+      return undefined
+    }
+    const attestation = verifyPriorityAttestation(c.req.header(PRIORITY_ATTESTATION_HEADER))
+    if (!attestation || attestation.sessionId !== sessionId || attestation.agentId !== agentId) {
+      return undefined
+    }
+    return {
+      kind: "human",
+      turnId: attestation.turnId,
+      issuedAt: attestation.issuedAt,
+      generation: attestation.generation === "oc1"
+        ? "opencode-v1"
+        : "opencode-v2-beta-18314",
+    }
+  },
+
   extractWorkingDirectory(body: any): string | undefined {
+    return extractClientCwd(body)
+  },
+
+  /**
+   * NOTE: OpenCode-specific. Expose the same request parse independently from
+   * `extractWorkingDirectory`: operator overrides may replace the SDK cwd, but
+   * must not replace the path used for project fingerprinting or the client
+   * environment note.
+   */
+  extractClientWorkingDirectory(body: any): string | undefined {
     return extractClientCwd(body)
   },
 

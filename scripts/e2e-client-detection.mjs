@@ -46,7 +46,7 @@ const VOLATILE = new Set([
   "x-api-key", "x-stainless-retry-count", "x-stainless-timeout", "cookie",
 ])
 /** Header values that change every run; keep the KEY, normalize the value. */
-const VOLATILE_VALUES = new Set(["x-session-affinity", "x-session-id", "x-opencode-session"])
+const VOLATILE_VALUES = new Set(["x-session-affinity", "x-session-id", "x-opencode-session", "x-polytoken-session"])
 
 /**
  * How to drive each client headlessly. `configFor` writes a project-local
@@ -85,6 +85,39 @@ const CLIENTS = [
       },
     }, null, 2)]],
     argv: () => ["run", "hi"],
+  },
+  {
+    // Polytoken is a single static binary, usually outside PATH when installed
+    // from a release archive, so allow an explicit override the way the
+    // OpenCode gates take E2E_OPENCODE_BIN.
+    name: "polytoken",
+    bin: process.env.E2E_POLYTOKEN_BIN || "polytoken",
+    versionArgs: ["--version"],
+    configFor: (dir, url) => [["config.yaml", [
+      "version: 1",
+      "providers:",
+      "  capture:",
+      "    kind:",
+      "      type: custom_anthropic_compatible",
+      `    url: ${url}`,
+      "    protocol: anthropic_messages",
+      "    auth:",
+      "      type: static_key",
+      "      key: dummy",
+      "      format: anthropic_x_api_key",
+      "models:",
+      "  claude-sonnet-4-6:",
+      "    provider: capture",
+      "    provider_name: claude-sonnet-4-6",
+      "    class: full",
+      "    context_window: 200000",
+      "",
+    ].join("\n")]],
+    // --config-dir keeps the capture off the operator's own Polytoken config.
+    argv: (dir) => [
+      "--config-dir", dir, "--working-dir", dir,
+      "exec", "--model", "claude-sonnet-4-6", "--max-tool-turns", "0", "hi",
+    ],
   },
 ]
 

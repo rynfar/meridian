@@ -8,11 +8,14 @@
  * request unfindable by the id the client sent.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 let failingDirs = new Set<string>()
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     const dir = params.options?.env?.CLAUDE_CONFIG_DIR ?? "default"
     return (async function* () {
@@ -25,14 +28,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "failover-request-id.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
@@ -111,5 +114,12 @@ describe("request id stability across priority failover", () => {
     expect(served).toHaveLength(1)
     expect(served[0]!.profileId).toBe("personal")
     expect(mine.filter(m => m.status === 429)).toHaveLength(1)
-  })
+  // Measured at 4.05s locally against bun's 5s default — under a second of
+  // margin, which a contended CI runner eats. It failed twice in one day at
+  // exactly 5002.97ms, on diffs that could not have affected it, and
+  // @justprosh hit the same thing and pushed an empty commit to retrigger
+  // (#917/#933). The work is a full priority-failover round trip through the
+  // HTTP layer with a mocked SDK; it is legitimately slow, not stuck, so the
+  // budget is the thing that was wrong.
+  }, 30_000)
 })

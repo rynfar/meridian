@@ -80,7 +80,7 @@ if (args[0] === "setup") {
     MissingV2PluginError,
     pluginPathForGeneration,
     runSetup,
-    SUPPORTED_OPENCODE_V2_VERSION,
+    SUPPORTED_OPENCODE_V2_VERSIONS,
     UnparseableConfigError,
   } = await import("../src/proxy/setup")
 
@@ -115,9 +115,9 @@ if (args[0] === "setup") {
     console.error("Could not find an OpenCode V2 beta. Install the pinned beta or pass --opencode-bin <path>.")
     process.exit(1)
   }
-  if (detected.generation === "v2" && detected.version !== SUPPORTED_OPENCODE_V2_VERSION) {
+  if (detected.generation === "v2" && !SUPPORTED_OPENCODE_V2_VERSIONS.has(detected.version ?? "")) {
     console.error(`OpenCode V2 ${detected.version ?? "unknown"} is not supported by this Meridian build.`)
-    console.error(`Install @opencode-ai/cli@${SUPPORTED_OPENCODE_V2_VERSION}, then re-run meridian setup --v2.`)
+    console.error(`Install a supported OpenCode beta (${[...SUPPORTED_OPENCODE_V2_VERSIONS].join(", ")}), then re-run meridian setup --v2.`)
     process.exit(1)
   }
 

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 type QueryMode = "complete" | "wait-for-abort"
 
 let mode: QueryMode = "complete"
@@ -26,7 +29,7 @@ function assistantMessage() {
 
 import { withMockSdkSessionId } from "./helpers"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: { options?: { abortController?: AbortController; sessionId?: string } }) => {
     capturedController = params.options?.abortController
     notifyQueryStarted?.()
@@ -47,14 +50,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
   tool: () => ({}),
-}))
+}), "proxy-request-cancellation.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

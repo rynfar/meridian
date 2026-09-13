@@ -5,15 +5,20 @@
  */
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, makeRequest, READ_TOOL, withMockSdkSessionId } from "./helpers"
 
 let capturedQueryParams: any = null
 let mockMessages: any[] = []
+let mockQueryError: Error | undefined
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     capturedQueryParams = params
     return (async function* () {
+      if (mockQueryError) throw mockQueryError
       for (const msg of mockMessages) {
         yield withMockSdkSessionId(msg, params.options)
       }
@@ -25,14 +30,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     instance: { tool: () => {}, registerTool: () => ({}) },
   }),
   tool: () => ({}),
-}))
+}), "proxy-tool-cache.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
@@ -72,6 +77,7 @@ describe("Session tool cache", () => {
   beforeEach(() => {
     clearSessionCache()
     capturedQueryParams = null
+    mockQueryError = undefined
     mockMessages = [
       assistantMessage([{ type: "text", text: "Done." }]),
     ]
@@ -106,6 +112,46 @@ describe("Session tool cache", () => {
 
     const opts2 = capturedQueryParams?.options
     expect(opts2?.mcpServers).toBeDefined()
+  })
+
+  for (const stream of [false, true]) {
+    it(`keeps a fresh side conversation and its continuation free of the main tools, stream=${stream}`, async () => {
+      const app = createTestApp()
+      expect((await post(app, makeRequest({ stream: false, tools: [TOOL_A],
+        messages: [{ role: "user", content: "main task with file access" }],
+      }))).status).toBe(200)
+      expect(capturedQueryParams?.options?.mcpServers?.oc).toBeDefined()
+      const side = [{ role: "user", content: "Give this conversation a title. No tools." }]
+      const response = await post(app, makeRequest({ stream, tools: [], messages: side }))
+      expect(response.status).toBe(200)
+      await response.text()
+      expect(capturedQueryParams?.options?.resume).toBeUndefined()
+      expect(capturedQueryParams?.options?.mcpServers?.oc).toBeUndefined()
+      const followup = await post(app, makeRequest({ stream, tools: [], messages: [...side,
+        { role: "assistant", content: "Done." }, { role: "user", content: "Shorten that title." }],
+      }))
+      expect(followup.status).toBe(200)
+      await followup.text()
+      expect(capturedQueryParams?.options?.resume).toBeDefined()
+      expect(capturedQueryParams?.options?.mcpServers?.oc).toBeUndefined()
+    })
+  }
+
+  it("keeps the committed main tool set when a fresh side request fails", async () => {
+    const app = createTestApp()
+    const main = [{ role: "user", content: "main task with read access" }]
+    expect((await post(app, makeRequest({ stream: false, tools: [TOOL_A], messages: main }))).status).toBe(200)
+    mockQueryError = new Error("side request failed before publication")
+    expect((await post(app, makeRequest({ stream: false, tools: [TOOL_B],
+      messages: [{ role: "user", content: "independent side task" }],
+    }))).status).toBe(500)
+    mockQueryError = undefined
+    expect((await post(app, makeRequest({ stream: false, tools: [], messages: [...main,
+      { role: "assistant", content: "Done." }, { role: "user", content: "continue reading" }],
+    }))).status).toBe(200)
+    expect(capturedQueryParams?.options?.resume).toBeDefined()
+    expect(capturedQueryParams?.options?.allowedTools).toContain("mcp__oc__read_file")
+    expect(capturedQueryParams?.options?.allowedTools).not.toContain("mcp__oc__write_file")
   })
 
   it("does not reuse tools for a different session", async () => {

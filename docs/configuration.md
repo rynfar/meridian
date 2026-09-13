@@ -26,13 +26,17 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_FABLE_MODEL` | `CLAUDE_PROXY_FABLE_MODEL` | `fable[1m]` | Fable context tier opt-out: set to `fable` to disable the 1M extended context window and stay on the 200k base variant (also governs Mythos, which rides the Fable tier). `fable[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_FABLE_MODEL` below, which pins a concrete model id, not a context tier. |
 | `MERIDIAN_OPUS_MODEL` | `CLAUDE_PROXY_OPUS_MODEL` | `opus[1m]` | Opus context tier opt-out: set to `opus` to disable the 1M extended context window and stay on the 200k base variant. `opus[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_OPUS_MODEL` below, which pins a concrete model id, not a context tier. |
 | `MERIDIAN_1M_CONTEXT_SUPPORT` | `CLAUDE_PROXY_1M_CONTEXT_SUPPORT` | unset | Set to `0`/`false`/`no` to disable 1M context entirely — every model resolves to its 200k base variant, so Meridian never requests the extended window (avoids Extra Usage on 1M). To opt out a single tier instead, use `MERIDIAN_FABLE_MODEL` or `MERIDIAN_OPUS_MODEL` above. |
-| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `crush`, `droid`, `cherry`, `claudecode`, `passthrough`. Requires restart. |
+| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `crush`, `droid`, `cherry`, `claudecode`, `passthrough`, `polytoken`. Re-read per request from the process environment — restart the proxy to pick up deployment-level env changes. |
 | `MERIDIAN_ROUTING` | — | `active` | Session-to-profile routing: `active` (all traffic to the active profile), `sticky` ([sticky session routing](profiles.md#sticky-session-routing)), or `priority` ([priority failover](profiles.md#priority-failover-routing)) |
 | `MERIDIAN_PROFILE_ORDER` | — | *(config order)* | Priority-mode pool order, comma-separated, highest priority first (e.g. `work,personal`). Also editable at `/settings`. |
+| `MERIDIAN_PRIORITY_FAILBACK` | — | `new-conversation` | Priority failback policy: `new-conversation` (current behavior) or `next-user-turn`. Environment value overrides `priorityFailback` in the settings JSON. Applies only to priority routing and OpenCode turn metadata; other adapters retain `new-conversation` behavior. |
 | `MERIDIAN_PASSTHROUGH_EARLY_STOP` | — | `1` | Set to `0` to disable [digest-turn elimination](#how-tool-calling-works-in-passthrough) and restore the old end-of-turn behavior |
 | `MERIDIAN_PASSTHROUGH_MAX_TURNS` | `CLAUDE_PROXY_PASSTHROUGH_MAX_TURNS` | *(unset — capped at 1)* | Pin the passthrough SDK turn budget. **Setting this opts out of [digest-turn elimination](#how-tool-calling-works-in-passthrough)** — an explicit value always wins over the cap, so a turn budget set to work around an older issue keeps paying for the discarded digest turn. Unset it unless you still need it. |
+| `MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY` | — | *(unset — off)* | Set to `1` to recover a capped passthrough turn whose `tool_use` blocks fully streamed but were never captured, because an abort landed between stream completion and tool dispatch. **Experimental and streaming-only**: non-streaming responses are unaffected, and the positive path has integration coverage but no live abort-window gate yet. Recovery is refused unless the turn had `maxTurns=1`, an open envelope, no cancellation of any kind, and every streamed block completed naturally with a client-declared tool name. |
+| `MERIDIAN_SESSION_GC_LOCK_WAIT_MS` | `CLAUDE_PROXY_SESSION_GC_LOCK_WAIT_MS` | `2000` | How long session bookkeeping waits for its lifecycle lock before giving up. A wait that expires now answers **503 `overloaded_error`** naming the reason, not a 504 that blames the request. Raise it on a busy proxy that would rather wait than fail; minimum 100 ms. |
 | `MERIDIAN_SILENT_TURN_RECOVERY` | `CLAUDE_PROXY_SILENT_TURN_RECOVERY` | `1` | Set to `0` to stop spending a recovery turn on a [silent turn](#silent-turns). Detection and telemetry stay on either way |
 | `MERIDIAN_UPSTREAM_IDLE_MS` | `CLAUDE_PROXY_UPSTREAM_IDLE_MS` | `90000` | Milliseconds the upstream stream may go quiet before the turn is treated as stalled. Raise it for long-thinking turns that were being killed mid-flight; `0` disables the guard entirely. Applies to the recovery turn too. |
+| `MERIDIAN_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `CLAUDE_PROXY_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `3` | Consecutive idle stalls for the same request and session before returning a terminal error. Identical retries are then rejected before another SDK query for one idle window (at least 60 seconds). A changed request or completed turn resets the streak; rejected retries do not extend the pause. `0` disables this ceiling. Tracking is bounded and local to the proxy instance; requests without a correlatable session are not pooled. |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to let the SDK advertise its proxy-host scratchpad directory in passthrough mode |
 | `MERIDIAN_PRICING_CONFIG` | `CLAUDE_PROXY_PRICING_CONFIG` | `~/.config/meridian/model-pricing.json` | Path to the model pricing overrides file used by cost estimation |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](profiles.md). |
@@ -243,6 +247,171 @@ While draining:
   port only closes once they're all done or the grace period elapses,
   whichever comes first. If the grace period elapses first, a warning is
   logged and any remaining HTTP connections are forcibly closed.
+
+## Session identity
+
+Meridian resumes the backing Claude SDK session between turns. Resuming is
+what keeps the model's own earlier turns in context and what keeps the prompt
+cache warm; a turn that cannot resume is sent as a fresh session and pays to
+re-write its prompt prefix.
+
+Identity is resolved in this order:
+
+1. **The adapter's session header**, if the client sends one.
+2. **A conversation fingerprint** — a hash of the opening user message plus the
+   client working directory — when there is no header.
+
+The fingerprint is a fallback, not an equivalent. It cannot distinguish two
+concurrent conversations that open with the same text, and it moves if anything
+rewrites the opening message.
+
+| Adapter | Session identity it reads |
+|---|---|
+| `opencode` | `x-opencode-session`, then `x-session-affinity` |
+| `pi`, `prime` | `x-session-affinity`, then `metadata.user_id` `{"session_id": …}` |
+| `claudecode` | `metadata.user_id` `{"session_id": …}` |
+| `codex` | `x-codex-session` |
+| `crush` | `x-session-id`, then `x-session-affinity` |
+| `jcode` | `x-jcode-session` |
+| `passthrough` (LiteLLM) | `x-litellm-session-id` |
+| `cherry`, `droid`, `forgecode`, `openai` | none — fingerprint only |
+
+### Claude Code behind a gateway
+
+The bypass described below exempts Claude Code, because Claude Code owns its
+tool loop but still expects Meridian to resume the backing SDK session. That
+exemption follows the **client**, identified by the `x-claude-code-session-id`
+header the CLI sends on every request — not the adapter that happens to be
+handling it.
+
+This matters behind an API gateway. LiteLLM traffic resolves to the
+`passthrough` adapter, so a Claude Code session used to lose the exemption; and
+LiteLLM owns the `x-litellm-*` namespace for its own Langfuse session tracking
+and does not forward `x-litellm-session-id` upstream on the `anthropic/`
+provider route, so it had no session key either. Every tool round of the whole
+agentic loop then took the bypass, measured in
+[#820](https://github.com/rynfar/meridian/issues/820) at 35k-56k cache-write
+tokens per turn with `cache_read` pinned at 30629, against 46-53 tokens on a
+direct connection — one 764-turn session accumulated 90M cache-creation tokens.
+
+Two things the header is deliberately **not** used for:
+
+- **Adapter selection.** Routing gateway traffic to the `claudecode` adapter on
+  this signal would swap tool handling, MCP naming and prompt shape for every
+  existing LiteLLM user and move their prompt-cache prefix.
+- **A session key.** The CLI reuses one session id across the auxiliary
+  requests it makes alongside a conversation, so keying on it puts two
+  unrelated histories under one key. Measured live, that produced
+  `diverged=unrelated-history` and then `HTTP 400 This session advanced while
+  the request was waiting` — a hard client failure where there had only been a
+  silent inefficiency. Keying stays on the conversation fingerprint, exactly as
+  a direct Claude Code request already does.
+
+If you run LiteLLM and would rather it forward its own session header, an
+explicit pass-through route restores it, and an explicit key always wins over
+the fingerprint:
+
+```yaml
+general_settings:
+  pass_through_endpoints:
+    - path: "/meridian/v1/messages"
+      target: "http://<meridian>/v1/messages"
+      forward_headers: true
+```
+
+### Client-driven tool loops need a session header
+
+A request whose last message is a `tool_result` is a round of the client's own
+tool loop. When such a request carries **no** session identity, Meridian skips
+session lookup entirely and runs it as a fresh session.
+
+That is deliberate. Headerless rounds all collapse onto the same
+`(first user message, working directory)` fingerprint, so a workflow engine
+running several loops concurrently would have one run resume another run's
+Claude session and corrupt it — premature `end_turn`, dropped tool calls. A
+conversation fingerprint is not proof that two requests are the same chat, and
+an explicit key is.
+
+For an **interactive** client the same rule is expensive, because every
+agentic turn ends in a `tool_result`:
+
+- the model receives none of its own previous turns and re-derives the same
+  intent each round, re-issuing the same read-only tool calls;
+- the prompt cache decays to the static-prefix floor — `cache_read` stops
+  moving while the conversation grows, and `cache_write` is paid again every
+  round.
+
+None of this fails a request. Every one returns 200, so it is invisible in
+success metrics and shows up only as burn rate and a model that behaves as
+though it has amnesia.
+
+Send a session header and the loop resumes. If the client has no native
+header, `x-session-affinity` is honoured by the `opencode`, `pi`, `prime` and
+`crush` adapters.
+
+Pi has no native header, but it exposes a `before_provider_headers`
+extension hook. Save this as `~/.pi/agent/extensions/session-affinity.ts`:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent"
+
+const PROVIDER = "anthropic"
+
+export default function (pi: ExtensionAPI) {
+  pi.on("before_provider_headers", (event, ctx) => {
+    if (ctx.model?.provider !== PROVIDER) return
+    // Without this, adapter detection does not resolve to `pi` and the
+    // affinity key is not read the way the pi adapter reads it.
+    event.headers["x-meridian-agent"] = "pi"
+    const sessionId = ctx.sessionManager.getSessionId()
+    if (sessionId) event.headers["x-session-affinity"] = sessionId
+  })
+}
+```
+
+Contributed by @odfalik and @RobertoNegro in
+[#820](https://github.com/rynfar/meridian/issues/820) and verified there
+against pi 0.84.1 with a full 27-tool configuration: turns 3 onward moved from
+`lineage=new` to `lineage=continuation` at 99% cache hit rate and
+`cache_write` around 214 tokens, against ~280k per turn on a control session
+started before the extension existed.
+
+The `provider` check is broad — it also sets both headers when the `anthropic`
+provider points straight at `api.anthropic.com`, which is harmless since
+unknown headers are ignored upstream. Gate on the resolved base URL being a
+local Meridian endpoint instead if your pi version exposes it on the hook
+context.
+
+Extensions load at startup, so a pi session started before the file existed
+keeps the old behaviour until pi is restarted.
+
+### Reading the log
+
+Every request line carries `lineage=`, and every divergence also carries
+`diverged=` naming why the turn did not resume:
+
+| `diverged=` | Meaning |
+|---|---|
+| `not-found` | The key resolved to nothing — a first turn, or an evicted entry |
+| `unverifiable` | An entry exists but cannot prove which history its session holds |
+| `replayed-request` | The same history arrived again; a retry, not a continuation |
+| `modified-history` | The stored prefix changed, so resume would skip history |
+| `undo-gap` | An undo whose rollback point would omit supplied history |
+| `unrelated-history` | The key resolved to a different conversation |
+| `missing-session-header` | An OpenCode request arrived without its session header |
+| `concurrent-race`, `priority-failback` | Lost a commit race; routed to another profile |
+| `independent-request:headerless-tool-result` | The client-driven tool loop above |
+| `independent-request:fork-source` | Declared `x-meridian-source: fork-*` |
+| `independent-request:subagent` | Declared a subagent flow |
+| `independent-request:no-cache-identity` | No header and no derivable fingerprint |
+
+A resumed turn prints no `diverged=` field at all. The three
+`independent-request:*` causes skip session lookup before it happens; the rest
+are the verdict of a lookup that ran.
+
+`headerless-tool-result` also prints a one-time warning at the first
+occurrence, because it is a property of how the client is wired rather than of
+a single turn.
 
 ## Concurrent requests to the same session
 
@@ -478,8 +647,17 @@ The cap is lifted for the cases that genuinely need the SDK to keep going — de
 > turn now ends on the SDK's `max_turns` result rather than a clean `success` —
 > that is the normal, expected shape, and `passthrough.checkpoint_persisted` in
 > `/telemetry/logs` is what confirms the session was preserved. And a turn that
-> hits the cap having produced content but no forwardable tool call is reported
+> hits the cap having produced visible text but no forwardable tool call is reported
 > as `stop_reason: "max_tokens"` (truncated) instead of failing the request.
+> Empty text, thinking alone, or an uncaptured tool call do not qualify.
+>
+> A capped turn that produced *nothing* — no wire event, no captured tool call —
+> never reached the tool boundary the cap exists to stop at, so the single turn
+> bought nothing and cost the whole request. Meridian reissues that turn once
+> with the cap lifted (`single_turn_cap_lifted` in `/telemetry/logs`), which is
+> safe precisely because nothing had reached the client yet. An explicit
+> `MERIDIAN_PASSTHROUGH_MAX_TURNS` suppresses the reissue too: the budget is
+> then the operator's, and a second identical attempt would only spend a turn.
 
 ### Silent turns
 
@@ -499,6 +677,20 @@ Coverage: `E38` in [E2E.md](../E2E.md), with `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1
 - **Blocked tools** — 10 built-in SDK tools (Read, Write, Bash, etc.) are blocked to prevent conflicts with the client's own tools. 19 additional Claude Code-only tools (CronCreate, EnterWorktree, Agent, etc.) are blocked because they require capabilities that external clients don't support.
 - **Subagent extraction** — Meridian parses the client's Task tool description to extract subagent names and build SDK AgentDefinitions. If the client's agent framework uses a non-standard format, subagent routing may not work automatically.
 - **Scratchpad suppression (passthrough)** — the Claude CLI advertises a proxy-host scratchpad directory that clients can't use; OpenCode 1.18+ permission-blocks writes to it. Meridian suppresses it in passthrough mode (`CLAUDE_CODE_SESSION_KIND=bg` on the subprocess). Kill switch: `MERIDIAN_SUPPRESS_SCRATCHPAD=0`.
+- **`max_tokens` is not enforced by default** — the Anthropic contract makes `max_tokens` a hard cap on total output (thinking and response text combined), with a truncated response reporting `stop_reason: "max_tokens"`. Meridian ignores it unless you opt in, so a small value does not bound the answer and a long answer still reports `end_turn`.
+
+  The reason is that the Agent SDK exposes no output cap at all: its options carry `maxBudgetUsd`, `maxThinkingTokens`, `maxTurns` and `taskBudget`, and nothing for output tokens. The only lever is the CLI's own cap, which counts thinking *plus* text — so applying a client's answer-sized budget to a whole agentic turn can leave no room for an answer. Measured: a 128-token cap could not complete a turn whose visible answer was ~15 tokens, and a 16-token cap produced no text at all.
+
+  Set **`MERIDIAN_ENFORCE_MAX_TOKENS=1`** to honour it exactly. With it on, a capped turn stops generating and reports `stop_reason: "max_tokens"` (empty content included, which is what the wire defines when thinking spent the budget) instead of overrunning. A cap that lands mid tool call still fails the request rather than delivering a half-built call. Verified by the E49 gate in [`E2E.md`](../E2E.md): `max_tokens=16` goes from 3900 output tokens with `end_turn` to 64 with `max_tokens`.
+- **Container host identity needs pinning** — `hostId` is derived from the machine-id *and* the pid-namespace inode. Inside a container that inode changes on every `docker restart`, while the session store survives in the writable layer; a proxy killed while holding a store lock therefore returns with a different `hostId`, cannot retire its own stale lock, and every request fails with `timed out waiting for lock` until the container is recreated. Separately, containers from one image tag share a baked `/etc/machine-id`, so two hosts sharing a session directory can read each other's live locks as dead.
+
+  Set **`MERIDIAN_HOST_ID`** to something stable across restarts and unique per container — the container ID works — and both go away. Unset outside containers, where the derived value is genuinely stable and unique. The value is hashed, so a pinned hostname does not travel in a lock file.
+- **`MERIDIAN_QUIET=1` suppresses informational startup banners** — currently the `[telemetry] SQLite persistence enabled: ...` line. It does **not** change behaviour: persistence stays on, and warnings and errors still print. Intended for Meridian spawned by a wrapper or plugin, where stderr surfaces in the agent's UI and a per-session confirmation is noise. The `silent` config option cannot gate this line: the telemetry stores are created at module load, before any config exists.
+- **Boot identity is required to serve** — every session-store write takes a lock stamped with a process incarnation, which needs a host boot identity (`/etc/machine-id` or `/var/lib/dbus/machine-id` on Linux, the hardware UUID on macOS, the machine GUID on Windows). Without one, every request that touches a session fails with `500 cannot capture lock owner process incarnation`.
+
+  Meridian **refuses to start** in that state rather than binding a port it cannot serve from, and names the missing artefact. Distroless, scratch, chroot and gVisor images commonly lack `machine-id`: generate one (`dbus-uuidgen > /etc/machine-id`) or bind-mount the host's. `/health` also probes it and returns `503 unhealthy` with the cause, so Docker's `HEALTHCHECK` and orchestrators see the failure instead of routing traffic to a process serving nothing.
+
+  Escape hatch: **`MERIDIAN_ALLOW_MISSING_BOOT_IDENTITY=1`** starts anyway — requests will still fail, and `/health` still reports unhealthy. It exists so a false negative in the probe cannot brick an install, not as a supported configuration.
 - **Anthropic server tools not supported** — native server-side tools (`web_search_*`, `web_fetch_*`) are a raw Anthropic API feature (billed to an API key) that emits `server_tool_use` / `web_search_tool_result` blocks the Claude Max / Agent SDK path cannot produce. A request carrying one is rejected with a `400` explaining the fix. If a plugin needs server-side web search (e.g. [`opencode-websearch`](https://github.com/emilsvennesson/opencode-websearch)), give it its **own** provider pointed at `https://api.anthropic.com` with your `ANTHROPIC_API_KEY` — don't route that call through Meridian.
 
 ### Troubleshooting: "aborted" tool calls

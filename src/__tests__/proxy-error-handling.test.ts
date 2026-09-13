@@ -7,12 +7,15 @@
 
 import { describe, it, expect, mock, beforeEach } from "bun:test"
 
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 // Make the SDK throw specific errors
 let mockError: Error | null = null
 
 import { resolveMockSdkSessionId } from "./helpers"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     if (mockError) {
       return (async function* () {
@@ -37,14 +40,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "proxy-error-handling.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
@@ -75,6 +78,36 @@ describe("Error classification", () => {
     mockError = null
     clearSessionCache()
   })
+
+  for (const stream of [false, true]) {
+    for (const quoted of [false, true]) {
+      it(`keeps model rejection distinct from quoted overload text (stream=${stream}, quoted=${quoted})`, async () => {
+        const rejection = "Claude Code 2.1.177 does not support this model; version 2.1.251 or newer is required."
+        mockError = new Error(quoted
+          ? `API Error: 503 Upstream overloaded; documentation mentions ${rejection}`
+          : `Claude Code returned an error result: API Error: 400 ${rejection}`)
+        const response: Response = await post(createTestApp(), { ...BASIC_REQUEST, stream })
+        const raw = await response.text()
+        const expectedType = quoted ? "overloaded_error" : "invalid_request_error"
+        if (stream) {
+          expect(response.status).toBe(200)
+          const events = raw.split("\n").filter(line => line.startsWith("data:"))
+            .map(line => JSON.parse(line.slice(5)))
+          expect(events.find(event => event.type === "error")?.error.type).toBe(expectedType)
+          expect(events.some(event => event.type === "message_stop")).toBe(false)
+        } else {
+          expect(response.status).toBe(quoted ? 503 : 400)
+          expect(JSON.parse(raw).error.type).toBe(expectedType)
+          expect(response.headers.get("Retry-After")).toBe(quoted ? "5" : null)
+        }
+        if (!quoted) {
+          expect(raw).toContain("2.1.177")
+          expect(raw).toContain("2.1.251")
+          expect(raw).toContain("MERIDIAN_CLAUDE_PATH")
+        }
+      }, 15000)
+    }
+  }
 
   it("should return 401 for authentication errors", async () => {
     mockError = new Error("API Error: 401 authentication_error - Invalid authentication credentials")
@@ -155,6 +188,73 @@ describe("Error classification", () => {
     const app = createTestApp()
     const res = await post(app, BASIC_REQUEST)
     expect(res.status).toBe(200)
+  })
+
+  describe("Retry-After (#901)", () => {
+    it("puts a conservative hint on a 429 with no known reset", async () => {
+      // A bare 429 gives a concurrent harness nothing to coordinate against:
+      // every child backs off on its own schedule and they all wake together.
+      mockError = new Error("429 Too Many Requests - rate limit exceeded")
+      const app = createTestApp()
+      const res = await post(app, BASIC_REQUEST)
+
+      expect(res.status).toBe(429)
+      expect(res.headers.get("Retry-After")).toBe("60")
+      const body = await res.json()
+      expect(body.error.retry_after).toBe(60)
+    })
+
+    it("propagates the wait upstream named instead of guessing", async () => {
+      mockError = new Error('API Error: 429 {"type":"rate_limit_error","retry-after":17}')
+      const app = createTestApp()
+      const res = await post(app, BASIC_REQUEST)
+
+      expect(res.status).toBe(429)
+      expect(res.headers.get("Retry-After")).toBe("17")
+    })
+
+    it("puts a short hint on a 503 — overload is transient, not a spent window", async () => {
+      mockError = new Error("503 overloaded")
+      const app = createTestApp()
+      const res = await post(app, BASIC_REQUEST)
+
+      expect(res.status).toBe(503)
+      expect(res.headers.get("Retry-After")).toBe("5")
+    })
+
+    it("stays silent on failures that waiting cannot fix", async () => {
+      for (const [message, status] of [
+        ["402 billing_error - subscription expired", 402],
+        ["Request timed out after 120s", 504],
+        ["Something weird happened", 500],
+      ] as const) {
+        mockError = new Error(message)
+        const app = createTestApp()
+        const res = await post(app, BASIC_REQUEST)
+        expect(res.status).toBe(status)
+        expect(res.headers.get("Retry-After")).toBeNull()
+        const body = await res.json()
+        expect(body.error.retry_after).toBeUndefined()
+      }
+    })
+
+    it("carries the hint in the SSE error frame, where headers cannot reach", async () => {
+      // A streaming turn's response headers went out with message_start, long
+      // before the rate limit that killed it existed.
+      mockError = new Error("429 Too Many Requests - rate limit exceeded")
+      const app = createTestApp()
+      const res = await post(app, { ...BASIC_REQUEST, stream: true })
+
+      expect(res.status).toBe(200)
+      const text: string = await res.text()
+      const frame = text
+        .split("\n")
+        .find((line) => line.startsWith("data:") && line.includes("rate_limit_error"))
+      expect(frame).toBeDefined()
+      const payload = JSON.parse(frame!.slice("data:".length))
+      expect(payload.error.type).toBe("rate_limit_error")
+      expect(payload.error.retry_after).toBe(60)
+    })
   })
 
   it("should return 400 for missing messages field", async () => {

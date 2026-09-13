@@ -732,6 +732,99 @@ describe("translateOpenAiToAnthropic", () => {
     expect(result!.tools).toHaveLength(1)
     expect(result!.tools![0]!.description).toBe("")
   })
+
+  // --- structured output ---
+
+  const personSchema = {
+    type: "object",
+    properties: { name: { type: "string" } },
+    required: ["name"],
+  }
+
+  it("maps response_format json_schema to output_config.format", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "person", schema: personSchema, strict: true },
+      },
+    })
+    // `name` and `strict` have no Anthropic equivalent and are dropped: the
+    // SDK always validates, which is never weaker than strict asked for.
+    expect(result!.output_config).toEqual({
+      format: { type: "json_schema", schema: personSchema },
+    })
+  })
+
+  it("keeps response_format alongside output_config.effort", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      output_config: { effort: "high" },
+      response_format: { type: "json_schema", json_schema: { schema: personSchema } },
+    })
+    expect(result!.output_config).toEqual({
+      effort: "high",
+      format: { type: "json_schema", schema: personSchema },
+    })
+  })
+
+  it("passes through an Anthropic-shaped output_config.format unchanged", () => {
+    const format = { type: "json_schema", schema: personSchema }
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      output_config: { format },
+    })
+    expect(result!.output_config).toEqual({ format })
+  })
+
+  it("forwards json_object intact so the boundary can reject it", () => {
+    // Not widened into a permissive schema: Anthropic has no schema-less JSON
+    // mode, and accepting it here would promise an enforcement never applied.
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: { type: "json_object" },
+    })
+    expect(result!.output_config).toEqual({ format: { type: "json_object" } })
+  })
+
+  it("treats response_format text as no constraint", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: { type: "text" },
+    })
+    expect(result!.output_config).toBeUndefined()
+  })
+
+  // Clients that serialize an unset optional as JSON null rather than omitting
+  // the key must behave as if it were absent. This threw a TypeError out of the
+  // /v1/chat/completions handler, which has no try/catch — a 500 on a request
+  // that worked fine before structured output landed.
+  it("treats an explicit null response_format as omission", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: null,
+    } as unknown as Parameters<typeof translateOpenAiToAnthropic>[0])
+    expect(result!.output_config).toBeUndefined()
+  })
+
+  it("keeps output_config.effort when response_format is null", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: null,
+      output_config: { effort: "high" },
+    } as unknown as Parameters<typeof translateOpenAiToAnthropic>[0])
+    expect(result!.output_config).toEqual({ effort: "high" })
+  })
+
+  // Forwarded rather than dropped, so the boundary check rejects it with a 400
+  // naming the client's own field instead of silently ignoring the request.
+  it("forwards a non-object response_format for rejection downstream", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [{ role: "user", content: "hi" }],
+      response_format: "json_schema",
+    } as unknown as Parameters<typeof translateOpenAiToAnthropic>[0])
+    expect(result!.output_config?.format).toBe("json_schema")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -758,6 +851,30 @@ describe("translateAnthropicToOpenAi", () => {
     expect(result.usage.prompt_tokens).toBe(10)
     expect(result.usage.completion_tokens).toBe(5)
     expect(result.usage.total_tokens).toBe(15)
+    expect(result.usage.prompt_tokens_details).toEqual({ cached_tokens: 0, cache_write_tokens: 0 })
+  })
+
+  it("includes cache reads and writes in prompt usage", () => {
+    const result = translateAnthropicToOpenAi(
+      {
+        content: [{ type: "text", text: "Cached answer" }],
+        stop_reason: "end_turn",
+        usage: {
+          input_tokens: 23,
+          output_tokens: 41,
+          cache_read_input_tokens: 900,
+          cache_creation_input_tokens: 77,
+        },
+      },
+      ID, MODEL, CREATED,
+    )
+
+    expect(result.usage).toEqual({
+      prompt_tokens: 1000,
+      completion_tokens: 41,
+      total_tokens: 1041,
+      prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
   })
 
   it("maps max_tokens stop_reason to length finish_reason", () => {
@@ -1224,14 +1341,70 @@ describe("createSseTranslator", () => {
     const chunk = translate.buildUsageChunk()
     expect(chunk).not.toBeNull()
     expect(chunk!.choices).toEqual([])
-    expect(chunk!.usage).toEqual({ prompt_tokens: 132, completion_tokens: 37, total_tokens: 169 })
+    expect(chunk!.usage).toEqual({
+      prompt_tokens: 132,
+      completion_tokens: 37,
+      total_tokens: 169,
+      prompt_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+    })
   })
 
-  it("buildUsageChunk uses the latest message_delta.usage if multiple arrive", () => {
+  it("buildUsageChunk uses message_start usage when message_delta omits usage", () => {
     const translate = createSseTranslator({ ...CTX, includeUsage: true })
-    translate({ type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { input_tokens: 100, output_tokens: 10 } })
-    translate({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { input_tokens: 100, output_tokens: 42 } })
-    expect(translate.buildUsageChunk()!.usage).toEqual({ prompt_tokens: 100, completion_tokens: 42, total_tokens: 142 })
+    translate({
+      type: "message_start",
+      message: {
+        id: "msg_1",
+        usage: {
+          input_tokens: 23,
+          output_tokens: 3,
+          cache_read_input_tokens: 900,
+          cache_creation_input_tokens: 77,
+        },
+      },
+    })
+    translate({ type: "message_delta", delta: { stop_reason: "end_turn" } })
+
+    expect(translate.buildUsageChunk()!.usage).toEqual({
+      prompt_tokens: 1000,
+      completion_tokens: 3,
+      total_tokens: 1003,
+      prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
+  })
+
+  it("buildUsageChunk preserves start fields and applies cumulative delta overrides", () => {
+    const translate = createSseTranslator({ ...CTX, includeUsage: true })
+    translate({
+      type: "message_start",
+      message: {
+        id: "msg_1",
+        usage: {
+          input_tokens: 23,
+          output_tokens: 0,
+          cache_read_input_tokens: 900,
+          cache_creation_input_tokens: 77,
+        },
+      },
+    })
+    translate({ type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 17 } })
+    expect(translate.buildUsageChunk()!.usage).toEqual({
+      prompt_tokens: 1000,
+      completion_tokens: 17,
+      total_tokens: 1017,
+      prompt_tokens_details: { cached_tokens: 900, cache_write_tokens: 77 },
+    })
+    translate({
+      type: "message_delta",
+      delta: { stop_reason: "end_turn" },
+      usage: { input_tokens: 25, output_tokens: 41, cache_read_input_tokens: 910 },
+    })
+    expect(translate.buildUsageChunk()!.usage).toEqual({
+      prompt_tokens: 1012,
+      completion_tokens: 41,
+      total_tokens: 1053,
+      prompt_tokens_details: { cached_tokens: 910, cache_write_tokens: 77 },
+    })
   })
 })
 
@@ -1240,14 +1413,15 @@ describe("createSseTranslator", () => {
 // ---------------------------------------------------------------------------
 
 describe("buildModelList", () => {
-  it("returns 8 models", () => {
-    expect(buildModelList(true).length).toBe(8)
-    expect(buildModelList(false).length).toBe(8)
+  it("returns 9 models", () => {
+    expect(buildModelList(true).length).toBe(9)
+    expect(buildModelList(false).length).toBe(9)
   })
 
-  it("includes sonnet-5, fable-5, opus-5, opus-4-6, opus-4-7, and opus-4-8 for UI pickers", () => {
+  it("includes current and legacy Fable plus the supported Sonnet and Opus models for UI pickers", () => {
     const ids = buildModelList(true).map(m => m.id)
     expect(ids).toContain("claude-sonnet-5")
+    expect(ids).toContain("claude-fable-5-1")
     expect(ids).toContain("claude-fable-5")
     expect(ids).toContain("claude-opus-5")
     expect(ids).toContain("claude-opus-4-6")
@@ -1255,11 +1429,13 @@ describe("buildModelList", () => {
     expect(ids).toContain("claude-opus-4-8")
   })
 
-  it("Max subscription gets 1M context for fable, 200k otherwise", () => {
-    const fableMax = buildModelList(true).find(m => m.id === "claude-fable-5")!
-    const fableFree = buildModelList(false).find(m => m.id === "claude-fable-5")!
-    expect(fableMax.context_window).toBe(1_000_000)
-    expect(fableFree.context_window).toBe(200_000)
+  it("Max subscription gets 1M context for every Fable version, 200k otherwise", () => {
+    for (const id of ["claude-fable-5-1", "claude-fable-5"]) {
+      const fableMax = buildModelList(true).find(m => m.id === id)!
+      const fableFree = buildModelList(false).find(m => m.id === id)!
+      expect(fableMax.context_window).toBe(1_000_000)
+      expect(fableFree.context_window).toBe(200_000)
+    }
   })
 
   it("Max subscription gets 1M context for all opus variants, 200k for sonnet", () => {

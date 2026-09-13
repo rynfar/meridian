@@ -14,9 +14,13 @@
  * COORDINATION CONTRACT (Pylon Orchestrator): this guard owns *model-stream*
  * liveness. Pylon's runtime stall watchdog is only a BACKSTOP for the
  * model-wait gap with no tool in flight, and keeps its abort threshold above
- * this guard's idle limit (default MERIDIAN_IDLE_TIMEOUT_SECONDS = 120s) so the
- * two layers never race to abort the same hung model. If this default rises,
- * re-check Pylon's STALL_ABORT_MS. See
+ * this guard's idle limit so the two layers never race to abort the same hung
+ * model. The limit is `MERIDIAN_UPSTREAM_IDLE_MS` (default 90s, set in
+ * server.ts); Pylon warns at 120s and aborts at 180s. Any override must stay
+ * BELOW Pylon's STALL_ABORT_MS; raising it past 180s requires changing Pylon
+ * first.
+ * Note `MERIDIAN_IDLE_TIMEOUT_SECONDS` is a different knob — the HTTP
+ * keep-alive timeout — and has no bearing on this contract. See
  * pylon-orchestrator/docs/circuit/specs/stall-watchdog-tool-exempt.md.
  */
 export class UpstreamIdleError extends Error {

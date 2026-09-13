@@ -216,6 +216,13 @@ function render(s, reqs, logs) {
     + card('Median TTFB', ms(s.ttfb.p50), 'p95: ' + ms(s.ttfb.p95))
     + card('Proxy Overhead', ms(s.proxyOverhead.p50), 'p95: ' + ms(s.proxyOverhead.p95))
     + card('Queue Wait', ms(s.queueWait.p50), 'p95: ' + ms(s.queueWait.p95))
+    // Only rendered when a subagent tree has actually been seen: for a
+    // single-agent client these numbers are permanently zero and would just be
+    // a dead tile. Counts are cumulative, not windowed.
+    + ((s.sessionTree && (s.sessionTree.linked > 0 || s.sessionTree.cancelledDescendants > 0))
+        ? card('Subtree Cancels', s.sessionTree.cancelledDescendants,
+            s.sessionTree.linked + ' linked live / ' + s.sessionTree.propagations + ' propagations')
+        : '')
     + '</div>';
 
   // Token usage cards

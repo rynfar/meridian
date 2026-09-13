@@ -21,6 +21,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 let capturedOptions: Record<string, unknown> = {}
 let hookDeniedStructuredOutput: boolean | undefined
 
@@ -78,7 +81,7 @@ function resultMessage(withStructuredOutput: boolean) {
 
 import { withMockSdkSessionId } from "./helpers"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (opts: { options?: Record<string, unknown> }) => {
     capturedOptions = opts.options ?? {}
     return (async function* () {
@@ -101,14 +104,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
   tool: () => ({}),
-}))
+}), "proxy-structured-output-hook.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

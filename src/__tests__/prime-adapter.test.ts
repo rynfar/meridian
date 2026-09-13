@@ -219,6 +219,58 @@ describe("primeAdapter.getSessionId", () => {
   })
 })
 
+describe("primeAdapter.getParentSessionId", () => {
+  it("reads the immediate parent out of the same metadata envelope", () => {
+    // The extension stamps ctx.sessionManager.getParentSessionId() alongside
+    // the child's own id; the proxy uses it to cancel a live subtree (#902).
+    const body = {
+      metadata: {
+        user_id: JSON.stringify({
+          session_id: "019ff7d8-ace2-7060-91dd-0212014a849e",
+          parent_session_id: "019ff7d8-a616-745d-8cb2-97544a6accac",
+        }),
+      },
+    }
+    expect(primeAdapter.getParentSessionId!(ctxWith(), body))
+      .toBe("019ff7d8-a616-745d-8cb2-97544a6accac")
+    // Key derivation is untouched: the child's key is still its own session_id.
+    expect(primeAdapter.getSessionId(ctxWith(), body))
+      .toBe("019ff7d8-ace2-7060-91dd-0212014a849e")
+  })
+
+  it("returns undefined for a root session, which carries only session_id", () => {
+    const body = { metadata: { user_id: JSON.stringify({ session_id: "root-session" }) } }
+    expect(primeAdapter.getParentSessionId!(ctxWith(), body)).toBeUndefined()
+  })
+
+  it("ignores body linkage when an orchestrator owns identity via header", () => {
+    // x-session-affinity names keys under a different scheme, so a parent id
+    // read out of the body would point at a key that scheme never produced.
+    const c = ctxWith({ "x-session-affinity": "orchestrator-key" })
+    const body = {
+      metadata: { user_id: JSON.stringify({ session_id: "child", parent_session_id: "parent" }) },
+    }
+    expect(primeAdapter.getParentSessionId!(c, body)).toBeUndefined()
+  })
+
+  it("ignores a self-referential parent", () => {
+    const body = {
+      metadata: { user_id: JSON.stringify({ session_id: "same", parent_session_id: "same" }) },
+    }
+    expect(primeAdapter.getParentSessionId!(ctxWith(), body)).toBeUndefined()
+  })
+
+  it("ignores malformed linkage without losing the session key", () => {
+    for (const parent of [null, 42, "", {}, []]) {
+      const body = {
+        metadata: { user_id: JSON.stringify({ session_id: "child", parent_session_id: parent }) },
+      }
+      expect(primeAdapter.getParentSessionId!(ctxWith(), body)).toBeUndefined()
+      expect(primeAdapter.getSessionId(ctxWith(), body)).toBe("child")
+    }
+  })
+})
+
 describe("prime adapter configuration", () => {
   it("uses its own MCP server name", () => {
     expect(primeAdapter.getMcpServerName()).toBe("prime")

@@ -11,12 +11,13 @@
  */
 
 import spawn from "cross-spawn"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs"
 import { homedir, platform } from "os"
 import { basename, dirname, join } from "path"
 import { fileURLToPath } from "url"
 import { applyEdits, modify, parse as parseJsonc, type ParseError } from "jsonc-parser"
 import { LRUMap } from "../utils/lruMap"
+import { ensurePriorityAttestationKey } from "./priorityAttestation"
 
 /**
  * Thrown when an existing OpenCode config can't be parsed (even tolerantly).
@@ -27,6 +28,13 @@ export class UnparseableConfigError extends Error {
   constructor(public readonly configPath: string) {
     super(`Could not parse ${configPath} — it may contain a syntax error.`)
     this.name = "UnparseableConfigError"
+  }
+}
+
+export class MissingV1PluginError extends Error {
+  constructor(public readonly expectedPath: string) {
+    super(`OpenCode V1 plugin bundle not found at ${expectedPath}`)
+    this.name = "MissingV1PluginError"
   }
 }
 
@@ -91,12 +99,31 @@ function siblingOpencodeConfigPath(configPath: string): string | undefined {
 }
 
 /**
- * Resolve the absolute path to plugin/meridian.ts from any entry point.
- * Works whether called from bin/cli.ts (dev) or dist/cli.js (installed).
+ * Resolve the V1 plugin package from any entry point. Works whether called from
+ * bin/cli.ts (dev) or dist/cli.js (installed).
+ *
+ * NOTE: an installed CLI must select the compiled package, not TypeScript.
+ * OpenCode Desktop runs its server inside Electron's Node rather than Bun, and
+ * Node refuses to strip types for files under node_modules
+ * (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING), so a published install that
+ * points at plugin/meridian.ts cannot load the plugin at all.
  */
 export function findPluginPath(fromUrl: string): string {
-  const dir = dirname(fileURLToPath(fromUrl))
-  return join(dir, "..", "plugin", "meridian.ts")
+  const entryPath = fileURLToPath(fromUrl)
+  const dir = dirname(entryPath)
+
+  // A source CLI must use the source plugin even when an old dist/ exists.
+  if (entryPath.endsWith(".ts")) {
+    const sourcePlugin = join(dir, "..", "plugin", "meridian")
+    if (hasPluginPackageEntry(sourcePlugin)) return sourcePlugin
+    throw new MissingV1PluginError(sourcePlugin)
+  }
+
+  // Published and Docker CLIs use the package beside dist/cli.js. Do not fall
+  // back to TypeScript: Node cannot load it from an installed package.
+  const bundledPlugin = join(dir, "meridian")
+  if (hasPluginPackageEntry(bundledPlugin)) return bundledPlugin
+  throw new MissingV1PluginError(bundledPlugin)
 }
 
 export type OpenCodeGeneration = "v1" | "v2"
@@ -107,24 +134,40 @@ export interface OpenCodeDetection {
   command?: string
 }
 
-export const SUPPORTED_OPENCODE_V2_VERSION = "0.0.0-beta-18314"
+export const SUPPORTED_OPENCODE_V2_VERSIONS = new Set([
+  "0.0.0-beta-18314",
+  "0.0.0-beta-18866",
+])
 
-/** Resolve the V2 plugin without selecting stale or incomplete artifacts. */
+/** Check our package manifest and entry without executing plugin code during setup. */
+function hasPluginPackageEntry(path: string): boolean {
+  try {
+    if (!statSync(join(path, "index.js"), { throwIfNoEntry: false })?.isFile()) return false
+    const manifest: unknown = JSON.parse(readFileSync(join(path, "package.json"), "utf8"))
+    if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) return false
+    const fields = manifest as Record<string, unknown>
+    return fields.type === "module" && fields.main === "./index.js"
+  } catch {
+    return false
+  }
+}
+
+/** Resolve the V2 plugin package without selecting stale or missing entries. */
 export function findV2PluginPath(fromUrl: string): string {
   const entryPath = fileURLToPath(fromUrl)
   const dir = dirname(entryPath)
 
   // A source CLI must use the source plugin even when an old dist/ exists.
   if (entryPath.endsWith(".ts")) {
-    const sourcePlugin = join(dir, "..", "plugin", "meridian-v2.ts")
-    if (existsSync(sourcePlugin)) return sourcePlugin
+    const sourcePlugin = join(dir, "..", "plugin", "meridian-v2")
+    if (hasPluginPackageEntry(sourcePlugin)) return sourcePlugin
     throw new MissingV2PluginError(sourcePlugin)
   }
 
-  // Published and Docker CLIs use the bundle beside dist/cli.js. Do not fall
+  // Published and Docker CLIs use the package beside dist/cli.js. Do not fall
   // back to TypeScript: production installs omit the V2 SDK dev dependency.
-  const bundledPlugin = join(dir, "meridian-v2.js")
-  if (existsSync(bundledPlugin)) return bundledPlugin
+  const bundledPlugin = join(dir, "meridian-v2")
+  if (hasPluginPackageEntry(bundledPlugin)) return bundledPlugin
   throw new MissingV2PluginError(bundledPlugin)
 }
 
@@ -199,8 +242,12 @@ function isMeridianEntry(entry: unknown): boolean {
   const packageName = pluginEntryPackage(entry)
   if (!packageName) return false
   return STALE_PATTERNS.some(pattern => packageName.includes(pattern)) ||
+    // Configured by an earlier release. Still valid under the Bun CLI, so it
+    // must keep reporting as configured rather than warning on every request.
     packageName.includes("meridian.ts") ||
     packageName.includes("meridian-v2.") ||
+    packageName.endsWith("/meridian-v2") ||
+    /[\\/]meridian$/.test(packageName) ||
     packageName.includes("@rynfar/meridian")
 }
 
@@ -275,6 +322,25 @@ export function clearPluginlessWarnings(): void {
  * Returns the message to log, or undefined when there is nothing to say.
  * Stateful but I/O-free — the caller owns the logging.
  */
+/**
+ * Is this an OpenCode request that carries no Meridian plugin signal?
+ *
+ * Such a client cannot tell Meridian which of its concurrent streams is the
+ * hidden title/summary agent, so the proxy must not hold it to the strict
+ * one-turn-per-session-key rule — see the concurrent-flow declaration in
+ * server.ts. Pure so both the warning and that decision read the same fact.
+ */
+export function isPluginlessOpenCodeRequest(input: {
+  userAgent: string | undefined
+  /** The plugin's `x-opencode-agent-mode` header, if it sent one. */
+  agentModeHeader: string | undefined
+}): boolean {
+  if (!input.userAgent?.toLowerCase().startsWith("opencode/")) return false
+  // A plugin old enough to omit the agent headers is equally unable to prevent
+  // the collision, so it counts the same.
+  return !input.agentModeHeader
+}
+
 export function notePluginlessOpenCodeRequest(input: {
   userAgent: string | undefined
   /** The plugin's `x-opencode-agent-mode` header, if it sent one. */
@@ -282,10 +348,7 @@ export function notePluginlessOpenCodeRequest(input: {
   /** Client session id — used only to warn once per conversation. */
   sessionId: string | undefined
 }): string | undefined {
-  if (!input.userAgent?.toLowerCase().startsWith("opencode/")) return undefined
-  // A plugin old enough to omit the agent headers is equally unable to prevent
-  // the collision, so it gets the same warning.
-  if (input.agentModeHeader) return undefined
+  if (!isPluginlessOpenCodeRequest(input)) return undefined
 
   const key = input.sessionId || "(keyless)"
   if (pluginlessWarned.get(key)) return undefined
@@ -296,8 +359,9 @@ export function notePluginlessOpenCodeRequest(input: {
   return (
     `OpenCode request without the Meridian plugin's agent headers (session ${shortId}). ` +
     `OpenCode runs its internal title/summary agents under your session id, so Meridian ` +
-    `cannot tell them apart from your conversation: the first turn of each session can fail ` +
-    `with a 400 or replay against a cold cache. Fix: meridian setup (or update the plugin).`
+    `cannot tell them apart from your conversation: concurrent turns are admitted rather ` +
+    `than refused, but the one that loses the race replays against a cold prompt cache — ` +
+    `slower and billed as uncached input. Fix: meridian setup (or update the plugin).`
   )
 }
 
@@ -349,6 +413,9 @@ export function runSetup(
 
   // New file — write a minimal config using the generation's canonical field.
   if (!existsSync(path)) {
+    // Provision before touching the OpenCode config. A malformed existing key
+    // fails closed and leaves the user's config untouched.
+    ensurePriorityAttestationKey()
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     writeFileSync(path, `${JSON.stringify({ [targetField]: [pluginPath] }, null, 2)}\n`, "utf-8")
     return { configPath: path, pluginPath, alreadyConfigured: false, removedStale: [], created: true }
@@ -397,6 +464,9 @@ export function runSetup(
   if (Array.isArray(config[otherField]) && otherMeridian.length > 0) {
     updated = applyEdits(updated, modify(updated, [otherField], otherPlugins, { formattingOptions }))
   }
+  // Keep one durable key across idempotent setup and V1/V2 switches. Validate
+  // it before changing the OpenCode config; never rotate a malformed key.
+  ensurePriorityAttestationKey()
   writeFileSync(path, updated, "utf-8")
 
   return { configPath: path, pluginPath, alreadyConfigured, removedStale, created: false }

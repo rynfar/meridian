@@ -12,8 +12,14 @@ import {
   lookupSharedSessionResult,
   lookupSharedSessionByClaudeIdResult,
   storeSharedSession,
+  storeSharedSessionAndPriorityAssignment,
+  rollbackSharedSessionAndPriorityAssignment,
+  finalizeSharedSessionAndPriorityAssignment,
   clearSharedSessions,
   evictSharedSession,
+  type DurablePriorityAssignment,
+  type PriorityAssignmentGeneration,
+  type StoredSession,
   type StoredSessionGeneration,
 } from "../sessionStore"
 import { getConversationFingerprint } from "./fingerprint"
@@ -27,6 +33,23 @@ import {
   type TokenUsage,
   type LineageResult,
 } from "./lineage"
+
+export interface PrioritySessionPublication {
+  readonly routeKey: string
+  readonly profileId: string
+  readonly lastHumanTurnDigest: string
+  readonly lastHumanTurnIssuedAt: number
+  /** Exact durable pre-SDK attempt claim. */
+  readonly attemptOwnerToken: string
+  expectedAssignmentGeneration: PriorityAssignmentGeneration
+  rollback?: {
+    readonly key: string
+    readonly previousMapping: StoredSession | null
+    readonly previousAssignment: DurablePriorityAssignment | null
+    publishedMappingGeneration: StoredSessionGeneration
+    publishedAssignmentGeneration: PriorityAssignmentGeneration
+  }
+}
 
 // --- Cache setup ---
 
@@ -158,6 +181,62 @@ function stateFromSharedSession(
   }
 }
 
+/** Drop rollback authority only after the response terminal is irrevocable. */
+export function finalizePrioritySessionPublication(
+  publication: PrioritySessionPublication,
+): boolean {
+  const rollback = publication.rollback
+  if (!rollback) return true
+  const finalized = finalizeSharedSessionAndPriorityAssignment({
+    key: rollback.key,
+    routeKey: publication.routeKey,
+    expectedMappingGeneration: rollback.publishedMappingGeneration,
+    expectedAssignmentGeneration: rollback.publishedAssignmentGeneration,
+    rollbackMappingKey: rollback.previousAssignment?.mappingKey === rollback.key
+      ? undefined
+      : rollback.previousAssignment?.mappingKey,
+    attemptOwnerToken: publication.attemptOwnerToken,
+  })
+  if (!finalized) return false
+  publication.rollback = undefined
+  return true
+}
+
+/** Revoke a late atomic route+mapping publication and restore pre-request authority. */
+export function rollbackPrioritySessionPublication(
+  sessionId: string | undefined,
+  messages: Array<{ role: string; content: unknown }>,
+  workingDirectory: string | undefined,
+  publication: PrioritySessionPublication,
+): StoredSessionGeneration | false {
+  const rollback = publication.rollback
+  if (!rollback) return false
+  const restored = rollbackSharedSessionAndPriorityAssignment({
+    key: rollback.key,
+    routeKey: publication.routeKey,
+    expectedMappingGeneration: rollback.publishedMappingGeneration,
+    expectedAssignmentGeneration: rollback.publishedAssignmentGeneration,
+    previousMapping: rollback.previousMapping,
+    previousAssignment: rollback.previousAssignment,
+    attemptOwnerToken: publication.attemptOwnerToken,
+  })
+  if (!restored) return false
+
+  publication.expectedAssignmentGeneration = restored.assignmentGeneration
+  publication.rollback = undefined
+  if (sessionId) {
+    if (restored.restoredMapping) sessionCache.set(sessionId, stateFromSharedSession(restored.restoredMapping))
+    else sessionCache.delete(sessionId)
+  } else {
+    const fingerprint = getConversationFingerprint(messages, workingDirectory)
+    if (fingerprint) {
+      if (restored.restoredMapping) fingerprintCache.set(fingerprint, stateFromSharedSession(restored.restoredMapping))
+      else fingerprintCache.delete(fingerprint)
+    }
+  }
+  return restored.mappingGeneration
+}
+
 function classifyLineage(
   state: SessionState,
   messages: Array<{ role: string; content: any }>,
@@ -177,12 +256,27 @@ function classifyLineage(
     const msg = `Undo detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap}/${state.messageCount}, rollback UUID: ${result.rollbackUuid || "none (legacy session)"}.`
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
-  } else if (result.type === "diverged" && result.reason === "modified-history") {
+  } else if (result.type === "diverged" && (result.reason === "modified-history" || result.reason === "undo-gap")) {
     // The overlap count alone is not actionable — name the message that broke,
     // which verifyLineage already worked out to reach this branch.
     const detail = result.mismatch ? formatLineageMismatch(result.mismatch) : undefined
     const msg = `Stale session detected (key=${cacheKey.slice(0, 8)}…): prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. Starting fresh replay.`
+      + (result.reason === "undo-gap" ? " reason=undo-gap (rollback would omit supplied history)." : "")
       + (detail ? `\n  ${detail}` : "")
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  } else if (result.type === "diverged") {
+    // Every remaining rejection was silent. A stored session existed under
+    // this key and was refused, but the request line renders all of them as
+    // the same `lineage=new`, so `unverifiable`, `replayed-request` and
+    // `unrelated-history` were indistinguishable from a key that never
+    // resolved (#820).
+    //
+    // `not-found` never reaches here: `lookupSession` returns it before
+    // classifying, which is right — it is the first turn of every
+    // conversation, so it belongs on the request line that is printed anyway
+    // rather than on a diagnostic line of its own.
+    const msg = `Session not resumable (key=${cacheKey.slice(0, 8)}…): reason=${result.reason}, prefix overlap ${result.prefixOverlap || 0}/${state.messageCount}, incoming ${messages.length} msgs. Starting fresh replay.`
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
   }
@@ -193,6 +287,63 @@ function classifyLineage(
 /** Look up a cached session by header or fingerprint.
  *  Returns a LineageResult that classifies the mutation and includes the
  *  session state needed for the correct SDK action. */
+let warnedDegradedFingerprint = false
+
+/** Reset between tests; the warning is one-shot per process by design. */
+export function resetDegradedFingerprintWarningForTests(): void {
+  warnedDegradedFingerprint = false
+}
+
+function warnDegradedFingerprintOnce(): void {
+  if (warnedDegradedFingerprint) return
+  warnedDegradedFingerprint = true
+  const msg =
+    "[PROXY] Session fingerprint has no working directory, so it hashes only the opening "
+    + "user message — two conversations in different directories that start with the same text "
+    + "will share a session. The directory is read from the <env> block of the system prompt; a "
+    + "plugin implementing experimental.chat.system.transform (for example opencode-scrub) may "
+    + "have removed it. Send a session header (meridian setup) to key conversations explicitly."
+  console.warn(msg)
+  diagnosticLog.lineage(msg)
+}
+
+let warnedHeaderlessToolLoop = false
+
+/** Reset between tests; the warning is one-shot per process by design. */
+export function resetHeaderlessToolLoopWarningForTests(): void {
+  warnedHeaderlessToolLoop = false
+}
+
+/**
+ * Say once that a client's tool loop is not resuming.
+ *
+ * The headerless tool-result bypass is the most expensive lineage outcome in
+ * the field and the only one that printed nothing at all: #820 measured 99.8%
+ * of 1000+-message pi requests skipping resume, and two reporters
+ * independently drained a Max window before finding it — one measured ~280k
+ * cache-write tokens per turn against ~214 with a session key. Every request
+ * still returns 200, so nothing in the proxy's own success metrics moves.
+ *
+ * Warned once per process, matching the degraded-fingerprint warning above:
+ * it is a property of how the client is wired, not of a turn, and one line per
+ * tool round would bury it. The per-request detail rides on the request line
+ * as `diverged=independent-request:headerless-tool-result`.
+ */
+export function warnHeaderlessToolLoopOnce(adapterName: string): void {
+  if (warnedHeaderlessToolLoop) return
+  warnedHeaderlessToolLoop = true
+  const msg =
+    `[PROXY] Client-driven tool loop with no session identity (adapter=${adapterName}): `
+    + "the request ends in a tool_result and carries no session key, so this and every "
+    + "following tool round starts a fresh SDK session. The conversation does not resume, "
+    + "and the model sees none of its own earlier turns. This is correct for concurrent "
+    + "headless workflow loops, which must not share one conversation fingerprint; an "
+    + "interactive client should send a session header instead — see \"Session identity\" "
+    + "in docs/configuration.md."
+  console.warn(msg)
+  diagnosticLog.lineage(msg)
+}
+
 export function lookupSession(
   sessionId: string | undefined,
   messages: Array<{ role: string; content: any }>,
@@ -222,6 +373,20 @@ export function lookupSession(
     return result
   }
 
+  // A fingerprint keyed WITHOUT a working directory is a degraded key: it is a
+  // hash of the opening user message alone, so two conversations in different
+  // repositories that begin with the same text collide onto one session (#889).
+  //
+  // The directory is regexed out of the `<env>` block in the system prompt, and
+  // any plugin implementing `experimental.chat.system.transform` may legally
+  // remove that block — `opencode-scrub` deletes it deliberately, and #769
+  // tracks an official equivalent. Nothing said so, which is the actual
+  // problem: the reporter observed no misbehaviour precisely because the
+  // opencode adapter's session header keeps this path unreached.
+  //
+  // Warned once per process rather than per request: it is a property of the
+  // deployment, not of a turn, and per-request would bury it.
+  if (!workingDirectory) warnDegradedFingerprintOnce()
   const fp = getConversationFingerprint(messages, workingDirectory)
   if (fp) {
     const shared = lookupSharedSessionResult(fp)
@@ -278,6 +443,7 @@ export function storeSession(
   currentTranscript?: { sessionId: string; configDir: string; projectDir?: string },
   sourceTranscript?: { sessionId: string; configDir: string; projectDir?: string },
   expectedGeneration?: StoredSessionGeneration | null,
+  priorityPublication?: PrioritySessionPublication,
 ): StoredSessionGeneration | false {
   if (!claudeSessionId) return false
   const lineageHash = computeLineageHash(messages)
@@ -300,22 +466,67 @@ export function storeSession(
   const fp = getConversationFingerprint(messages, workingDirectory)
   const key = sessionId || fp
   if (!key) return false
-  const storedGeneration = storeSharedSession(
-    key,
-    claudeSessionId,
-    state.messageCount,
-    lineageHash,
-    messageHashes,
-    sdkMessageUuids,
-    contextUsage,
-    messageBlockHashes,
-    // undefined would preserve the stored checkpoint; a full store must rewrite it.
-    passthroughToolCallAssistantUuid ?? null,
-    passthroughToolCallIds ?? null,
-    currentTranscript,
-    sourceTranscript,
-    expectedGeneration,
-  )
+  let storedGeneration: StoredSessionGeneration | false
+  if (priorityPublication) {
+    if (expectedGeneration === undefined || expectedGeneration === null) {
+      throw new Error("priority publication requires an exact mapping generation")
+    }
+    const rollback = priorityPublication.rollback
+    if (rollback && rollback.key !== key) {
+      throw new Error("priority publication changed mapping keys within one request")
+    }
+    const published = storeSharedSessionAndPriorityAssignment({
+      key,
+      claudeSessionId,
+      messageCount: state.messageCount,
+      lineageHash,
+      messageHashes,
+      sdkMessageUuids,
+      contextUsage,
+      messageBlockHashes,
+      passthroughToolCallAssistantUuid: passthroughToolCallAssistantUuid ?? null,
+      passthroughToolCallIds: passthroughToolCallIds ?? null,
+      currentTranscript,
+      sourceTranscript,
+      expectedMappingGeneration: expectedGeneration,
+      rollbackMappingKey: rollback?.previousAssignment?.mappingKey,
+      attemptOwnerToken: priorityPublication.attemptOwnerToken,
+      priority: {
+        routeKey: priorityPublication.routeKey,
+        profileId: priorityPublication.profileId,
+        lastHumanTurnDigest: priorityPublication.lastHumanTurnDigest,
+        lastHumanTurnIssuedAt: priorityPublication.lastHumanTurnIssuedAt,
+        expectedAssignmentGeneration: priorityPublication.expectedAssignmentGeneration,
+      },
+    })
+    if (!published) return false
+    priorityPublication.rollback = {
+      key,
+      previousMapping: rollback?.previousMapping ?? published.previousMapping,
+      previousAssignment: rollback?.previousAssignment ?? published.previousAssignment,
+      publishedMappingGeneration: published.mappingGeneration,
+      publishedAssignmentGeneration: published.assignmentGeneration,
+    }
+    priorityPublication.expectedAssignmentGeneration = published.assignmentGeneration
+    storedGeneration = published.mappingGeneration
+  } else {
+    storedGeneration = storeSharedSession(
+      key,
+      claudeSessionId,
+      state.messageCount,
+      lineageHash,
+      messageHashes,
+      sdkMessageUuids,
+      contextUsage,
+      messageBlockHashes,
+      // undefined would preserve the stored checkpoint; a full store must rewrite it.
+      passthroughToolCallAssistantUuid ?? null,
+      passthroughToolCallIds ?? null,
+      currentTranscript,
+      sourceTranscript,
+      expectedGeneration,
+    )
+  }
   if (!storedGeneration) return false
 
   // Publish to memory only after the durable CAS succeeds.

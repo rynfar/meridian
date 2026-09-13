@@ -76,6 +76,18 @@ export function classifyTurnOutcome(input: {
   }
 }
 
+/** A capped response can retain prose, but cannot authorize an uncaptured call. */
+export function hasTruncatableText(blocks: readonly unknown[]): boolean {
+  let hasText = false
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue
+    const content = block as { type?: unknown; text?: unknown }
+    if (content.type === "tool_use") return false
+    if (content.type === "text" && typeof content.text === "string" && content.text.length > 0) hasText = true
+  }
+  return hasText
+}
+
 /**
  * The nudge sent to recover a silent turn, in the same SDK session.
  *

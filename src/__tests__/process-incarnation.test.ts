@@ -119,7 +119,19 @@ describe("process incarnation protocol", () => {
 
   it("captures and conservatively probes the current process on every supported platform", () => {
     if (!(["darwin", "linux", "win32"] as string[]).includes(process.platform)) return
-    const current = captureProcessIncarnation()
+    // Retried, mirroring what startProxyServer now does. On Linux the identity
+    // is read from files and is deterministic, but darwin and win32 derive it
+    // from a subprocess with a 10s budget. This test failed on Windows CI at
+    // 10265ms — the probe expired and the module correctly FAILED CLOSED,
+    // returning undefined, while this assertion demanded success (#917/#933).
+    //
+    // The strict assertion is kept deliberately: a capture that never succeeds
+    // across three attempts is a real defect, and loosening this to "defined or
+    // undefined" would assert nothing at all.
+    let current = captureProcessIncarnation()
+    for (let attempt = 0; current === undefined && attempt < 2; attempt++) {
+      current = captureProcessIncarnation()
+    }
     expect(current).toBeDefined()
     expect(parseProcessIncarnation(current)).toEqual(current)
     expect(probeProcessIncarnation(current!))

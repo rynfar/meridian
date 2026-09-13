@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -22,7 +25,7 @@ let activeQueries = 0
 let maxActiveQueries = 0
 let queryCalls = 0
 let controls: AttemptControl[] = []
-let capturedParams: Array<{ options?: { resume?: string; sessionId?: string; env?: Record<string, string> } }> = []
+let capturedParams: Array<{ options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; env?: Record<string, string> } }> = []
 let rateLimitWorkQueries = false
 
 function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted: () => void } {
@@ -33,7 +36,7 @@ function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted:
   return { release, started, wait, markStarted }
 }
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: { options?: { resume?: string; sessionId?: string; env?: Record<string, string> } }) => {
     capturedParams.push(params)
     queryCalls++
@@ -64,22 +67,23 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "proxy-concurrency-coordination.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetProcessSdkSemaphoreForTests } = await import("../proxy/concurrency")
 const { telemetryStore } = await import("../telemetry")
-const { setSessionStoreDir, storeSharedSession } = await import("../proxy/sessionStore")
+const { setSessionStoreDir, storeSharedSession, readSessionStoreSnapshot } = await import("../proxy/sessionStore")
 const { processSessionTurns } = await import("../proxy/session/turnCoordinator")
+const { computeLineageHash, computeMessageHashes, verifyLineage } = await import("../proxy/session/lineage")
 
 function request(
   messages: Array<{ role: string; content: unknown }>,
@@ -98,6 +102,44 @@ function request(
     body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream, messages }),
     signal,
   })
+}
+
+/**
+ * Oh My Pi has no per-flow header: every caller in one conversation, main turn
+ * and side calls alike, stamps the same id in `metadata.user_id`.
+ */
+function piRequest(
+  messages: Array<{ role: string; content: unknown }>,
+  sessionId: string,
+  extraHeaders: Record<string, string> = {},
+): Request {
+  return new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-meridian-agent": "pi",
+      ...extraHeaders,
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 128,
+      stream: false,
+      messages,
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    }),
+  })
+}
+
+function observeTurnArrival(sessionId: string) {
+  let markArrived = () => {}
+  const arrived = new Promise<void>(resolve => { markArrived = resolve })
+  const acquire = processSessionTurns.acquire.bind(processSessionTurns)
+  const observer = spyOn(processSessionTurns, "acquire").mockImplementation((key, signal) => {
+    const pending = acquire(key, signal)
+    if (key === `session:${sessionId}`) markArrived()
+    return pending
+  })
+  return { arrived, restore: () => observer.mockRestore() }
 }
 
 async function waitForControl(index: number, timeoutMs = 3000): Promise<AttemptControl> {
@@ -236,6 +278,187 @@ describe("SDK and Session concurrency coordination", () => {
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0]!.status).toBe(400)
     expect(conflicts[0]!.upstreamDurationMs).toBe(0)
+  })
+
+  it("answers, instead of refusing, the loser of a race an adapter declares (#870)", async () => {
+    // Reproduces the omp report: a side question asked mid-turn and the main
+    // tool loop reach the proxy under one session id, holding branches that
+    // share a prefix and differ at the last message. Serializing them is
+    // right; refusing the loser is not, because the 400 is a hard error that
+    // pushes the client onto a fallback model for a turn it could have run.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const shared = [
+      { role: "user", content: "start the task" },
+      { role: "assistant", content: "ok" },
+    ]
+    const sideQuestion = [...shared, { role: "user", content: "by the way, which branch is this?" }]
+    const mainLoop = [...shared, { role: "user", content: "tool result for step 12" }]
+
+    const sideP = app.fetch(piRequest(sideQuestion, "omp-session"))
+    const sideControl = await waitForControl(0)
+    const mainP = app.fetch(piRequest(mainLoop, "omp-session"))
+
+    sideControl.release()
+    expect((await sideP).status).toBe(200)
+    const mainControl = await waitForControl(1)
+    mainControl.release()
+    expect((await mainP).status).toBe(200)
+    // One session id still means one turn at a time: the second SDK query only
+    // started once the first had finished.
+    expect(maxActiveQueries).toBe(1)
+    expect(queryCalls).toBe(2)
+
+    // The loser carries a branch the winner never had, so it runs fresh rather
+    // than resuming the winner's session and merging two histories.
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+
+    // The mapping follows the turn that ran last, so the next main-loop request
+    // resumes instead of paying a second fresh replay.
+    const loserSessionId = capturedParams[1]?.options?.sessionId
+    expect(loserSessionId).toMatch(/^[0-9a-f-]{36}$/)
+    const stored = Object.values(readSessionStoreSnapshot()).map(s => s.claudeSessionId)
+    expect(stored).toContain(loserSessionId!)
+  })
+
+  it("answers, instead of refusing, a plugin-less OpenCode client's concurrent turn (#1024)", async () => {
+    // OpenCode fires a Haiku `agent=title` stream and the primary turn about a
+    // second apart on ONE session id. With Meridian's plugin the title says so
+    // in a header and is detached; a client running some other plugin sends no
+    // such header, so both look like the same conversation and the loser used
+    // to take a hard 400 on the FIRST turn of every new session.
+    //
+    // It is exactly pi's situation — one session id for the main turn and its
+    // side calls, no per-flow signal available — so it gets pi's treatment.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const ua = { "user-agent": "opencode/1.18.30 ai-sdk/provider-utils/4.0.46 runtime/bun/1.3.14" }
+    const messages = [{ role: "user", content: "same request" }]
+    const firstP = app.fetch(request(messages, "pluginless", false, ua))
+    const firstControl = await waitForControl(0)
+    const secondP = app.fetch(request(messages, "pluginless", false, ua))
+
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+    const secondControl = await waitForControl(1)
+    secondControl.release()
+    expect((await secondP).status).toBe(200)
+
+    // Degraded, not waved through: still one turn at a time, and the loser runs
+    // fresh rather than resuming the winner and merging two conversations.
+    expect(maxActiveQueries).toBe(1)
+    expect(queryCalls).toBe(2)
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+  })
+
+  it("still refuses the loser when the OpenCode plugin's signal is present", async () => {
+    // The control for #1024: relaxing the rule must reach ONLY clients that
+    // cannot send the signal. A plugin-equipped client that genuinely races
+    // itself keeps the loud failure, because for it a collision is a defect
+    // rather than an unavoidable protocol shape.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const headers = {
+      "user-agent": "opencode/1.18.30 ai-sdk/provider-utils/4.0.46 runtime/bun/1.3.14",
+      "x-opencode-agent-mode": "primary",
+    }
+    const messages = [{ role: "user", content: "same request" }]
+    const firstP = app.fetch(request(messages, "plugged", false, headers))
+    const firstControl = await waitForControl(0)
+    const secondP = app.fetch(request(messages, "plugged", false, headers))
+
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+    const second = await secondP
+    expect(second.status).toBe(400)
+    expect((await second.json() as { error: { message: string } }).error.message)
+      .toContain("advanced while the request was waiting")
+    expect(queryCalls).toBe(1)
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(1)
+  })
+
+  it("replays a declared-flow loser instead of rewinding the turn it lost to (#870)", async () => {
+    // A side call carries a prefix of the main history, so once the main turn
+    // commits the loser reads as an undo against it. Honouring that would roll
+    // the winner's SDK session back to serve a turn that merely arrived late,
+    // so a declared flow is admitted on its own body, never on that lineage.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `omp-undo-${crypto.randomUUID()}`
+    const committed = [
+      { role: "user", content: "start the task" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "tool result for step 12" },
+    ]
+    const lease = await processSessionTurns.acquire(`session:${sessionId}`)
+    const incoming = [...committed.slice(0, 2), { role: "user", content: "side question from the earlier turn" }]
+    const arrival = observeTurnArrival(sessionId)
+    const sideP = app.fetch(piRequest(incoming, sessionId))
+    try { await arrival.arrived } finally { arrival.restore() }
+
+    // The request has taken its coherent snapshot and joined the real queue.
+    storeSharedSession(
+      sessionId,
+      "winner-sdk",
+      committed.length,
+      computeLineageHash(committed),
+      computeMessageHashes(committed),
+      ["winner-uuid-1", "winner-uuid-2", "winner-uuid-3"],
+    )
+    // Ensure this fixture actually reaches the undo path under current proofs.
+    const winner = readSessionStoreSnapshot()[sessionId]
+    if (!winner?.lineageHash) throw new Error("Expected a verifiable winner mapping")
+    expect(verifyLineage({ ...winner, lineageHash: winner.lineageHash, lastAccess: 0 }, incoming).type).toBe("undo")
+    lease.markCommitted(sessionId)
+    lease.release()
+
+    const sideControl = await waitForControl(0)
+    sideControl.release()
+    expect((await sideP).status).toBe(200)
+    // Neither resumed nor rolled back: the committed session is left alone.
+    expect(capturedParams[0]?.options?.resume).toBeUndefined()
+    expect(capturedParams[0]?.options?.resumeSessionAt).toBeUndefined()
+  })
+
+  it("keeps a per-request fork signal's undo when it loses the same race (#870)", async () => {
+    // The protocol-level declaration exists because pi cannot mark its own side
+    // calls, so an undo shape there is an accident of arrival order. A fork
+    // source is the opposite: that caller named the boundary itself, so its
+    // rollback is deliberate and must still be honoured after losing a race.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `omp-fork-${crypto.randomUUID()}`
+    const committed = [
+      { role: "user", content: "start the task" },
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "tool result for step 12" },
+    ]
+    const lease = await processSessionTurns.acquire(`session:${sessionId}`)
+    const incoming = [...committed.slice(0, 2), { role: "user", content: "extract memory at this fork boundary" }]
+    const arrival = observeTurnArrival(sessionId)
+    const forkP = app.fetch(piRequest(incoming, sessionId, {
+      "x-meridian-source": "fork-memory-extract",
+    }))
+    try { await arrival.arrived } finally { arrival.restore() }
+
+    // Same admission boundary as the unmarked side call; no timing sleep.
+    storeSharedSession(
+      sessionId,
+      "winner-sdk",
+      committed.length,
+      computeLineageHash(committed),
+      computeMessageHashes(committed),
+      ["winner-uuid-1", "winner-uuid-2", "winner-uuid-3"],
+    )
+    // Ensure this fixture actually reaches the undo path under current proofs.
+    const winner = readSessionStoreSnapshot()[sessionId]
+    if (!winner?.lineageHash) throw new Error("Expected a verifiable winner mapping")
+    expect(verifyLineage({ ...winner, lineageHash: winner.lineageHash, lastAccess: 0 }, incoming).type).toBe("undo")
+    lease.markCommitted(sessionId)
+    lease.release()
+
+    const forkControl = await waitForControl(0)
+    forkControl.release()
+    expect((await forkP).status).toBe(200)
+    expect(capturedParams[0]?.options?.resume).toBe("winner-sdk")
+    expect(capturedParams[0]?.options?.resumeSessionAt).toBe("winner-uuid-2")
   })
 
   it("does not refuse a turn because a DIFFERENT profile advanced the same session id", async () => {

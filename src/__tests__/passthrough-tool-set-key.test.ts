@@ -36,6 +36,16 @@ describe("computeToolSetKey", () => {
     expect(a).not.toBe(b)
   })
 
+  it("currently ignores description-only changes", () => {
+    const first = [{ name: "read", description: "Read a file", input_schema: { type: "object" } }]
+    const second = [{ name: "read", description: "Read a file from disk", input_schema: { type: "object" } }]
+    const a = computeToolSetKey(first)
+    const b = computeToolSetKey(second)
+    // Characterization: descriptions are intentionally outside the current key.
+    // A production follow-up must decide whether that should invalidate the MCP cache.
+    expect(a).toBe(b)
+  })
+
   it("changes when a tool is added", () => {
     const a = computeToolSetKey([{ name: "read" }])
     const b = computeToolSetKey([{ name: "read" }, { name: "write" }])

@@ -4,11 +4,12 @@
  * HTTP contract: shapes, validation status codes, and the malformed-JSON 400.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installLoggerMock } from "./loggerMock"
 import { mkdtempSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))

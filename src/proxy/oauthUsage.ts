@@ -21,6 +21,7 @@
  */
 
 import { claudeLog } from "../logger"
+import { parseRetryAfterMs } from "./retryAfter"
 import { createPlatformCredentialStore, refreshOAuthToken, type CredentialStore } from "./tokenRefresh"
 
 const OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
@@ -146,14 +147,6 @@ function normalizeUtilization(raw: number | null | undefined): number | null {
   if (typeof raw !== "number" || !Number.isFinite(raw)) return null
   // OAuth returns 0..100. Normalize to 0..1 to match SDK rate_limit_event.
   return Math.max(0, raw / 100)
-}
-
-function parseRetryAfterMs(raw: string | null): number | null {
-  if (!raw) return null
-  const seconds = Number(raw)
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000)
-  const retryAt = Date.parse(raw)
-  return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : null
 }
 
 function modelScopedWindowType(limit: RawOAuthLimit): string | null {

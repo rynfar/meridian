@@ -9,11 +9,33 @@
 import { describe, it, expect } from "bun:test"
 import {
   classifyTurnOutcome,
+  hasTruncatableText,
   createRecoveryLifter,
   shouldAttemptRecovery,
   SILENT_TURN_NUDGE,
   type TurnOutcome,
 } from "../proxy/turnOutcome"
+
+describe("hasTruncatableText", () => {
+  it("retains nonempty prose, including alongside thinking", () => {
+    expect(hasTruncatableText([{ type: "text", text: "partial" }])).toBe(true)
+    expect(hasTruncatableText([{ type: "thinking", thinking: "private" }, { type: "text", text: "partial" }])).toBe(true)
+  })
+
+  it("rejects empty, malformed, and thinking-only content", () => {
+    expect(hasTruncatableText([])).toBe(false)
+    expect(hasTruncatableText([null, false, "text", { type: "text", text: 1 }, { type: "text", text: "" }])).toBe(false)
+    expect(hasTruncatableText([{ type: "thinking", thinking: "private" }])).toBe(false)
+  })
+
+  it("does not legitimize an uncaptured tool call even alongside prose", () => {
+    const text = { type: "text", text: "partial" }
+    const call = { type: "tool_use", id: "unhandled", name: "write", input: {} }
+    expect(hasTruncatableText([call])).toBe(false)
+    expect(hasTruncatableText([text, call])).toBe(false)
+    expect(hasTruncatableText([call, text])).toBe(false)
+  })
+})
 
 describe("classifyTurnOutcome", () => {
   it("counts prose as productive", () => {

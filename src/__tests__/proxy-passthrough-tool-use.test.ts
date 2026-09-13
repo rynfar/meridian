@@ -15,6 +15,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import {
   messageStart,
   textBlockStart,
@@ -34,7 +37,7 @@ import {
 // --- Mock the Claude SDK ---
 let mockMessages: any[] = []
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) =>
     (async function* () {
       for (const msg of mockMessages) {
@@ -47,14 +50,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     // Provide a minimal instance that supports tool() registration
     instance: { tool: () => {}, registerTool: () => ({}) },
   }),
-}))
+}), "proxy-passthrough-tool-use.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
@@ -126,6 +129,34 @@ describe("Passthrough streaming: early termination on tool_use stop", () => {
       process.env.MERIDIAN_PASSTHROUGH = origEnv
     } else {
       delete process.env.MERIDIAN_PASSTHROUGH
+    }
+  })
+
+  it("repairs complete split JSON arguments independently for parallel streamed calls", async () => {
+    const tool = { name: "measure", input_schema: { type: "object", properties: {
+      timeout: { type: "number" },
+      app: { type: "object", properties: { relay: { type: "boolean" } } },
+      label: { type: "string" },
+    }, required: ["timeout"] } }
+    const expected = [
+      { timeout: 60, app: { relay: true, extra: "kept" }, label: '{"keep":"string"}' },
+      { timeout: 30, app: { relay: false }, label: "second" },
+    ]
+    mockMessages = [messageStart()]
+    for (const [index, value] of expected.entries()) {
+      const raw = JSON.stringify({ ...value, timeout: String(value.timeout), app: JSON.stringify({ ...value.app, relay: String(value.app.relay) }) })
+      mockMessages.push(toolUseBlockStart(index, `${PASSTHROUGH_PREFIX}measure`, `toolu_measure_${index}`),
+        inputJsonDelta(index, raw.slice(0, 19)), inputJsonDelta(index, raw.slice(19)), blockStop(index))
+    }
+    mockMessages.push(messageDelta("tool_use"), messageStop())
+    const events = parseSSE(await postStream(createTestApp(), [tool]))
+    expect(events.filter(event => event.event === "error")).toHaveLength(0)
+    expect(events.filter(event => event.event === "message_stop")).toHaveLength(1)
+    for (const [index, value] of expected.entries()) {
+      const json = events.filter(event => event.event === "content_block_delta" && event.data.index === index)
+        .map(event => (event.data.delta as { partial_json: string }).partial_json).join("")
+      expect(JSON.parse(json)).toEqual(value)
+      expect(events.filter(event => event.event === "content_block_stop" && event.data.index === index)).toHaveLength(1)
     }
   })
 

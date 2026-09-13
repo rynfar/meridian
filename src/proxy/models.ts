@@ -40,7 +40,7 @@ export type ClaudeModel = "sonnet" | "sonnet[1m]" | "opus" | "opus[1m]" | "haiku
  * override via MERIDIAN_DEFAULT_{TYPE}_MODEL (proxy-side) or
  * ANTHROPIC_DEFAULT_{TYPE}_MODEL (shell env, wins over Meridian's pin).
  */
-export const CANONICAL_FABLE_MODEL = "claude-fable-5"
+export const CANONICAL_FABLE_MODEL = "claude-fable-5-1"
 export const CANONICAL_OPUS_MODEL = "claude-opus-5"
 export const CANONICAL_SONNET_MODEL = "claude-sonnet-5"
 export const CANONICAL_HAIKU_MODEL = "claude-haiku-4-5"
@@ -76,8 +76,8 @@ export function resolveSdkModelDefaults(
  *
  * Bare aliases ("sonnet", "opus[1m]") and unversioned family names return
  * undefined and keep the canonical pins. Mythos rides the fable tier
- * (claude-mythos-5 shares it — see mapModelToClaudeModel). A trailing [1m]
- * suffix is stripped; extended context stays alias-level.
+ * (claude-mythos-5/-5-1 share it — see mapModelToClaudeModel). A trailing
+ * [1m] suffix is stripped; extended context stays alias-level.
  */
 export function explicitModelPin(requestedModel: string): Record<string, string> | undefined {
   const base = requestedModel.trim().toLowerCase().replace(/\[1m\]$/, "")
@@ -150,7 +150,14 @@ function supports1mContext(model: string): boolean {
   return true
 }
 
-export function mapModelToClaudeModel(model: string, subscriptionType?: string | null, agentMode?: string | null, profileId?: string): ClaudeModel {
+/**
+ * `sessionKey` scopes the extended-context bench to one conversation. See
+ * `recordExtendedContextRateLimited` — a rate limit on one session must not
+ * downgrade its concurrent siblings, while an Extra Usage refusal still does
+ * (#901). Optional: clients without a session identity fall back to the
+ * profile-wide bench.
+ */
+export function mapModelToClaudeModel(model: string, subscriptionType?: string | null, agentMode?: string | null, profileId?: string, sessionKey?: string): ClaudeModel {
   if (model.includes("haiku")) return "haiku"
 
   const use1m = supports1mContext(model)
@@ -158,18 +165,21 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // Using the base model preserves rate limit budget for the primary agent.
   const isSubagent = agentMode === "subagent"
 
-  // Fable [1m]: Fable 5 supports the 1M extended context window and, like Opus,
-  // is included on Max with no Extra Usage charge (verified on Max — a
-  // fable[1m] request returns normally, no Extra Usage error). Mirrors the opus
-  // handling: [1m] for primary agents, base model for subagents, honoring the
-  // shared Extra Usage cooldown so a future billing change auto-downgrades.
+  // Fable [1m]: the fable tier supports the 1M extended context window and,
+  // like Opus, is included on Max with no Extra Usage charge (verified on Max —
+  // a fable[1m] request returns normally, no Extra Usage error). Mirrors the
+  // opus handling: [1m] for primary agents, base model for subagents, honoring
+  // the shared Extra Usage cooldown so a future billing change auto-downgrades.
+  // Every fable generation rides the one alias, so this covers Fable 5.1
+  // (the canonical pin) and Fable 5 alike.
   //
-  // Mythos rides the fable tier: Claude Mythos 5 (claude-mythos-5, Project
-  // Glasswing) shares Fable 5's underlying model, context window, and API
-  // surface, and the Claude Agent SDK has no separate "mythos" alias. Routing
-  // it here (instead of the sonnet fallthrough) keeps explicit mythos requests
-  // on the right tier; server.ts pins ANTHROPIC_DEFAULT_FABLE_MODEL to the
-  // requested claude-mythos-* id so the concrete model passes through verbatim.
+  // Mythos rides the fable tier: Claude Mythos 5 / 5.1 (claude-mythos-5,
+  // claude-mythos-5-1, Project Glasswing) share the matching Fable model's
+  // context window and API surface, and the Claude Agent SDK has no separate
+  // "mythos" alias. Routing it here (instead of the sonnet fallthrough) keeps
+  // explicit mythos requests on the right tier; server.ts pins
+  // ANTHROPIC_DEFAULT_FABLE_MODEL to the requested claude-mythos-* id so the
+  // concrete model passes through verbatim.
   //
   // Per-tier opt-out (#702). Fable 1M is included at no Extra Usage cost on
   // Max and Team (verified live), so [1m] stays the default — but on plans
@@ -186,7 +196,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
     if (fableOverrideRaw && fableOverride !== "fable[1m]") {
       warnUnrecognizedTierOverride("FABLE_MODEL", fableOverrideRaw, "fable")
     }
-    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable(profileId)) return "fable[1m]"
+    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable(profileId, sessionKey)) return "fable[1m]"
     return "fable"
   }
 
@@ -209,7 +219,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
     if (opusOverrideRaw && opusOverride !== "opus[1m]") {
       warnUnrecognizedTierOverride("OPUS_MODEL", opusOverrideRaw, "opus")
     }
-    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable(profileId)) return "opus[1m]"
+    if (use1m && !isSubagent && !isExtendedContextKnownUnavailable(profileId, sessionKey)) return "opus[1m]"
     return "opus"
   }
 
@@ -219,7 +229,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // avoid unexpected charges. Users opt in via MERIDIAN_SONNET_MODEL=sonnet[1m].
   const sonnetOverride = process.env.MERIDIAN_SONNET_MODEL ?? process.env.CLAUDE_PROXY_SONNET_MODEL
   if (sonnetOverride === "sonnet[1m]") {
-    if (!use1m || isSubagent || isExtendedContextKnownUnavailable(profileId)) return "sonnet"
+    if (!use1m || isSubagent || isExtendedContextKnownUnavailable(profileId, sessionKey)) return "sonnet"
     return "sonnet[1m]"
   }
 
@@ -234,34 +244,94 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
 const EXTRA_USAGE_RETRY_MS = 60 * 60 * 1000 // 1 hour
 
 /**
- * Per-profile "[1m] is benched until" timestamps.
+ * "[1m] is benched until" timestamps, keyed by scope.
  *
- * Keyed by profile because both reasons to bench are account-scoped: Extra
- * Usage is a subscription setting, and a rate limit is charged against one
- * account's window. This was a single process-global timestamp, which benched
- * [1m] for EVERY profile the moment any one of them failed — so an account
- * whose plan includes the 1M window lost it for an hour because an unrelated
- * account ran out of Extra Usage (#862).
+ * Two scopes share this map, because the two reasons to bench have genuinely
+ * different blast radii:
  *
- * Requests carrying no profile share one default bucket, which leaves the
- * single-profile case behaving exactly as it did.
+ *  - **Profile scope** (`recordExtendedContextUnavailable`) — Extra Usage is a
+ *    subscription setting. When an account does not have it, no session on that
+ *    account can use [1m], so the whole profile is benched. This was once a
+ *    single process-global timestamp, which benched [1m] for EVERY profile the
+ *    moment any one of them failed — an account whose plan includes the 1M
+ *    window lost it for an hour because an unrelated account ran out of Extra
+ *    Usage (#862).
+ *
+ *  - **Session scope** (`recordExtendedContextRateLimited`) — a plain rate
+ *    limit. Benching the whole profile here is what let one child of a
+ *    concurrent harness downgrade every sibling to the 200k model at the same
+ *    instant, and the model switch cold-caches each of them: their cached
+ *    prefixes were built on the 1M model, so the "cheap" fallback costs a full
+ *    re-read of every sibling's context (#901). Each session now learns from
+ *    its own refusal. If the account's window really is spent, every session
+ *    still discovers that — one extra refused attempt each, once, instead of N
+ *    simultaneous cache misses.
+ *
+ * Requests carrying no profile share one default bucket, and requests carrying
+ * no session key fall back to profile scope, which leaves the single-session
+ * case behaving exactly as it did.
  */
 const DEFAULT_BENCH_KEY = "__default__"
+/** Bound on session-scoped entries so a long-lived proxy cannot accumulate one
+ *  per conversation forever. Entries are all self-expiring, so the sweep below
+ *  reclaims normally and the eviction is a backstop. */
+const BENCH_MAX_ENTRIES = 5000
 const extendedContextBenchedUntil = new Map<string, number>()
 
+function profileBenchKey(profileId: string | undefined): string {
+  return profileId || DEFAULT_BENCH_KEY
+}
+
+/** Session keys are namespaced under their profile so the same client session
+ *  id on two accounts cannot share a bench. The separator is NUL because a
+ *  profile id and a client session id are both arbitrary strings: any printable
+ *  delimiter is a value one of them could legitimately contain, and a collision
+ *  here would silently bench the wrong conversation. */
+function sessionBenchKey(profileId: string | undefined, sessionKey: string): string {
+  return `${profileBenchKey(profileId)}\u0000session:${sessionKey}`
+}
+
+function pruneBenchEntries(now: number): void {
+  if (extendedContextBenchedUntil.size < BENCH_MAX_ENTRIES) return
+  for (const [key, until] of extendedContextBenchedUntil) {
+    if (until <= now) extendedContextBenchedUntil.delete(key)
+  }
+  while (extendedContextBenchedUntil.size >= BENCH_MAX_ENTRIES) {
+    // Everything left is live; drop whichever frees up soonest.
+    let soonestKey: string | undefined
+    let soonest = Infinity
+    for (const [key, until] of extendedContextBenchedUntil) {
+      if (until < soonest) { soonest = until; soonestKey = key }
+    }
+    if (soonestKey === undefined) return
+    extendedContextBenchedUntil.delete(soonestKey)
+  }
+}
+
 /**
- * Bench a profile's [1m] access until `until`.
+ * Bench one scope's [1m] access until `until`.
  *
  * A later mark extends an earlier one; an earlier mark never shortens a longer
  * bench. Two concurrent failures must not un-learn the longer reset — the same
  * rule `ProfileExhaustion.mark` follows, and for the same reason.
  */
-function benchExtendedContext(profileId: string | undefined, until: number): void {
-  if (until <= Date.now()) return
-  const key = profileId || DEFAULT_BENCH_KEY
+function benchExtendedContext(key: string, until: number): void {
+  const now = Date.now()
+  if (until <= now) return
   const existing = extendedContextBenchedUntil.get(key)
   if (existing !== undefined && existing >= until) return
+  pruneBenchEntries(now)
   extendedContextBenchedUntil.set(key, until)
+}
+
+function benchActive(key: string, now: number): boolean {
+  const until = extendedContextBenchedUntil.get(key)
+  if (until === undefined) return false
+  if (until <= now) {
+    extendedContextBenchedUntil.delete(key)
+    return false
+  }
+  return true
 }
 
 /**
@@ -270,9 +340,14 @@ function benchExtendedContext(profileId: string | undefined, until: number): voi
  * directly — no failed [1m] attempt per request. After the cooldown
  * the next request probes [1m] once; if Extra Usage was enabled in the
  * meantime it succeeds and the flag is never set again.
+ *
+ * Profile-wide on purpose: entitlement is a property of the account, not of
+ * the conversation that happened to discover it. Every session on this profile
+ * would fail identically, so making each one prove that costs N failed
+ * requests and buys nothing.
  */
 export function recordExtendedContextUnavailable(profileId?: string): void {
-  benchExtendedContext(profileId, Date.now() + EXTRA_USAGE_RETRY_MS)
+  benchExtendedContext(profileBenchKey(profileId), Date.now() + EXTRA_USAGE_RETRY_MS)
 }
 
 /**
@@ -283,32 +358,47 @@ export function recordExtendedContextUnavailable(profileId?: string): void {
  * makes the next request map straight back to [1m]: the conversation then
  * flaps between two models and pays a cold prompt cache in BOTH directions,
  * which routinely costs more than the rate limit it was routing around (#862).
+ *
+ * Scoped to `sessionKey` when the client has a session identity, so a harness
+ * running N children through one account no longer downgrades — and cold-caches
+ * — every sibling because one child hit the limit (#901). Without a session
+ * key there is nothing narrower to scope to, so the bench stays profile-wide.
  */
-export function recordExtendedContextRateLimited(profileId: string | undefined, until: number): void {
-  benchExtendedContext(profileId, until)
+export function recordExtendedContextRateLimited(
+  profileId: string | undefined,
+  until: number,
+  sessionKey?: string,
+): void {
+  benchExtendedContext(
+    sessionKey ? sessionBenchKey(profileId, sessionKey) : profileBenchKey(profileId),
+    until,
+  )
 }
 
 /**
- * Returns true while this profile's [1m] access is benched. Expired marks are
- * dropped on read, so the next request probes [1m] once — and if the window
- * has genuinely reset, it simply succeeds.
+ * Returns true while [1m] is benched for this profile, or for this session on
+ * it. Expired marks are dropped on read, so the next request probes [1m] once —
+ * and if the window has genuinely reset, it simply succeeds.
  */
-export function isExtendedContextKnownUnavailable(profileId?: string): boolean {
-  const key = profileId || DEFAULT_BENCH_KEY
-  const until = extendedContextBenchedUntil.get(key)
-  if (until === undefined) return false
-  if (until <= Date.now()) {
-    extendedContextBenchedUntil.delete(key)
-    return false
-  }
-  return true
+export function isExtendedContextKnownUnavailable(profileId?: string, sessionKey?: string): boolean {
+  const now = Date.now()
+  if (benchActive(profileBenchKey(profileId), now)) return true
+  return sessionKey ? benchActive(sessionBenchKey(profileId, sessionKey), now) : false
 }
 
-/** Clear extended-context benches — for testing only. Clears every profile
- *  when no id is given. */
+/** Clear extended-context benches — for testing only. Clearing a profile also
+ *  clears every session benched under it. Clears everything when no id is
+ *  given. */
 export function resetExtendedContextUnavailable(profileId?: string): void {
-  if (profileId) extendedContextBenchedUntil.delete(profileId)
-  else extendedContextBenchedUntil.clear()
+  if (!profileId) {
+    extendedContextBenchedUntil.clear()
+    return
+  }
+  const prefix = `${profileBenchKey(profileId)}\u0000`
+  extendedContextBenchedUntil.delete(profileBenchKey(profileId))
+  for (const key of extendedContextBenchedUntil.keys()) {
+    if (key.startsWith(prefix)) extendedContextBenchedUntil.delete(key)
+  }
 }
 
 /**

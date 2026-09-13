@@ -37,8 +37,15 @@ context.md
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/target/
 
-# Local agent tooling (per-developer; never commit)
-.claude/
+# Share only the repository skill entrypoint; keep local agent state private.
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/meridian-upstream-review/
+.claude/skills/meridian-upstream-review/*
+!.claude/skills/meridian-upstream-review/SKILL.md
+
+# Other local agent tooling (per-developer; never commit)
 .pylon/
 .junie/
 

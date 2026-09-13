@@ -10,6 +10,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach, spyOn } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import {
   messageStart,
   textBlockStart,
@@ -26,7 +29,7 @@ import {
 let capturedOptions: Record<string, unknown> = {}
 let mockMessages: unknown[] = []
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: { prompt: unknown; options: Record<string, unknown> }) => {
     capturedOptions = params.options ?? {}
     const sessionId = resolveMockSdkSessionId(params.options)
@@ -42,14 +45,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "proxy-sdk-params.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 

@@ -126,6 +126,14 @@ describe("mapModelToClaudeModel", () => {
       expect(mapModelToClaudeModel("fable", "max", "subagent")).toBe("fable")
     })
 
+    // Every fable generation rides the one SDK alias, so a newer id must route
+    // identically — the version only reaches the SDK via the explicit pin.
+    it("routes claude-fable-5-1 through the same tier as claude-fable-5", () => {
+      expect(mapModelToClaudeModel("claude-fable-5-1")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-1", "max", "primary")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-fable-5-1", "max", "subagent")).toBe("fable")
+    })
+
     it("downgrades fable[1m] to fable during the Extra Usage cooldown", () => {
       recordExtendedContextUnavailable()
       expect(mapModelToClaudeModel("claude-fable-5", "max")).toBe("fable")
@@ -167,6 +175,11 @@ describe("mapModelToClaudeModel", () => {
     it("downgrades to base fable when MERIDIAN_1M_CONTEXT_SUPPORT=0", () => {
       process.env.MERIDIAN_1M_CONTEXT_SUPPORT = "0"
       expect(mapModelToClaudeModel("claude-mythos-5", "max")).toBe("fable")
+    })
+
+    it("routes claude-mythos-5-1 through the fable tier too", () => {
+      expect(mapModelToClaudeModel("claude-mythos-5-1")).toBe("fable[1m]")
+      expect(mapModelToClaudeModel("claude-mythos-5-1", "max", "subagent")).toBe("fable")
     })
   })
 
@@ -606,5 +619,81 @@ describe("extended-context bench is per profile (#862)", () => {
     recordExtendedContextUnavailable("work")
     expect(isExtendedContextKnownUnavailable("work")).toBe(true)
     expect(isExtendedContextKnownUnavailable("personal")).toBe(false)
+  })
+})
+
+describe("rate-limit bench is scoped to the session that earned it (#901)", () => {
+  afterEach(() => {
+    resetExtendedContextUnavailable()
+  })
+
+  it("leaves a concurrent sibling on [1m] when one session is rate-limited", () => {
+    // The RLM case: N children of one harness share an account. Benching the
+    // profile downgrades every sibling at once, and the model switch cold-caches
+    // each of them, because their cached prefixes were built on the 1M model.
+    recordExtendedContextRateLimited("work", Date.now() + 60_000, "child-1")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-1")).toBe("opus")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-2")).toBe("opus[1m]")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-3")).toBe("opus[1m]")
+  })
+
+  it("does not leak a session bench to the same session id on another profile", () => {
+    recordExtendedContextRateLimited("work", Date.now() + 60_000, "child-1")
+    expect(isExtendedContextKnownUnavailable("personal", "child-1")).toBe(false)
+  })
+
+  it("keeps a session bench invisible to the profile-wide check", () => {
+    recordExtendedContextRateLimited("work", Date.now() + 60_000, "child-1")
+    expect(isExtendedContextKnownUnavailable("work")).toBe(false)
+    expect(isExtendedContextKnownUnavailable("work", "child-1")).toBe(true)
+  })
+
+  it("stays profile-wide for a client with no session identity", () => {
+    // Nothing narrower exists to scope to, so the pre-#901 behavior stands.
+    recordExtendedContextRateLimited("work", Date.now() + 60_000)
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work")).toBe("opus")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-1")).toBe("opus")
+  })
+
+  it("keeps Extra Usage exhaustion profile-wide — that one really is account-scoped", () => {
+    // Entitlement is a property of the subscription. Every session on the
+    // account would fail identically, so making each prove it buys nothing.
+    recordExtendedContextUnavailable("work")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-1")).toBe("opus")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-2")).toBe("opus")
+    expect(isExtendedContextKnownUnavailable("work")).toBe(true)
+  })
+
+  it("does not bench a session when the supplied reset has already passed", () => {
+    recordExtendedContextRateLimited("work", Date.now() - 1_000, "child-1")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-1")).toBe("opus[1m]")
+  })
+
+  it("lets a later session bench extend an earlier one, never shorten it", () => {
+    recordExtendedContextRateLimited("work", Date.now() + 60_000, "child-1")
+    recordExtendedContextRateLimited("work", Date.now() + 1, "child-1")
+    expect(mapModelToClaudeModel("opus", "max", undefined, "work", "child-1")).toBe("opus")
+  })
+
+  it("clears session benches along with their profile on reset", () => {
+    recordExtendedContextRateLimited("work", Date.now() + 60_000, "child-1")
+    resetExtendedContextUnavailable("work")
+    expect(isExtendedContextKnownUnavailable("work", "child-1")).toBe(false)
+  })
+
+  it("applies the same scoping to the fable and sonnet[1m] tiers", () => {
+    recordExtendedContextRateLimited("work", Date.now() + 60_000, "child-1")
+    expect(mapModelToClaudeModel("fable", "max", undefined, "work", "child-1")).toBe("fable")
+    expect(mapModelToClaudeModel("fable", "max", undefined, "work", "child-2")).toBe("fable[1m]")
+
+    const previous = process.env.MERIDIAN_SONNET_MODEL
+    process.env.MERIDIAN_SONNET_MODEL = "sonnet[1m]"
+    try {
+      expect(mapModelToClaudeModel("sonnet", "max", undefined, "work", "child-1")).toBe("sonnet")
+      expect(mapModelToClaudeModel("sonnet", "max", undefined, "work", "child-2")).toBe("sonnet[1m]")
+    } finally {
+      if (previous === undefined) delete process.env.MERIDIAN_SONNET_MODEL
+      else process.env.MERIDIAN_SONNET_MODEL = previous
+    }
   })
 })

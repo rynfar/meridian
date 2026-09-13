@@ -10,6 +10,9 @@
  * recovery turn.
  */
 import { describe, it, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -34,7 +37,7 @@ const initialManagedSessionId = () => queryCalls[0]?.options?.sessionId ?? mockB
 
 import { resolveMockSdkSessionId } from "./helpers"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     queryCalls.push(params)
     queryMutation?.(params)
@@ -66,14 +69,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
     instance: { tool: () => {}, registerTool: () => ({}) },
   }),
   tool: () => ({}),
-}))
+}), "silent-turn-recovery.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({
     type: "sdk", name: "opencode",
     instance: { tool: () => {}, registerTool: () => ({}) },
@@ -81,6 +84,7 @@ mock.module("../mcpTools", () => ({
 }))
 
 const { createProxyServer } = await import("../proxy/server")
+const { diagnosticLog, telemetryStore } = await import("../telemetry")
 
 const ev = (event: any) => ({
   type: "stream_event", event, parent_tool_use_id: null,
@@ -152,7 +156,7 @@ const msgEnd = () => [
   ev({ type: "message_stop" }),
 ]
 
-async function post(app: any, body: any, session = "silent-session") {
+async function post(app: any, body: any, session = "silent-session", extraHeaders: Record<string, string> = {}) {
   return app.fetch(new Request("http://localhost/v1/messages", {
     method: "POST",
     headers: {
@@ -160,6 +164,7 @@ async function post(app: any, body: any, session = "silent-session") {
       "x-api-key": "dummy",
       "x-opencode-session": session,
       "user-agent": "opencode/1.0.0",
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   }))
@@ -381,6 +386,28 @@ describe("silent-turn recovery", () => {
     expect(queryCalls[1].options.forkSession).toBe(true)
     // ...and the NEXT turn resumes the fork, which is where the answer lives.
     expect(queryCalls[2].options.resume).toBe(queryCalls[1].options.sessionId)
+  })
+
+  it("classifies a message envelope without content blocks as no_blocks", async () => {
+    process.env.MERIDIAN_SILENT_TURN_RECOVERY = "0"
+    scripted = [[msgStart()]]
+    const requestId = `silent-no-blocks-${crypto.randomUUID()}`
+
+    const response = await post(app, REQUEST, "silent-no-blocks", { "x-request-id": requestId })
+    const body = await read(response)
+    expect(response.status).toBe(200)
+    expect(body).toContain("message_start")
+    expect(body).toContain("message_stop")
+
+    const log = diagnosticLog.getRecent({ limit: 200 })
+      .find((entry: any) => entry.requestId === requestId && entry.message.includes("silent_turn"))
+    expect(log).toBeDefined()
+    expect(log!.message).toContain("reason=no_blocks")
+
+    const row = telemetryStore.getRecent({ limit: 200 })
+      .find((entry: any) => entry.requestId === requestId)
+    expect(row).toBeDefined()
+    expect(row!.contentBlocks).toBe(0)
   })
 
   it("kill switch keeps detection but skips the extra turn", async () => {

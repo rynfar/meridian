@@ -26,14 +26,14 @@ environment.systemPackages = [ pkgs.meridian ];
 environment.systemPackages = [ meridian.packages.${system}.meridian ];
 ```
 
-**OpenCode plugin** -- the plugin file is included at `${pkgs.meridian}/lib/meridian/plugin/meridian.ts`. Since this path lives in the Nix store, you need to make it available to OpenCode:
+**OpenCode plugin** -- the compiled plugin package is included at `${pkgs.meridian}/lib/meridian/dist/meridian`. Since this path lives in the Nix store, you need to make it available to OpenCode:
 
 If you generate your OpenCode config from Nix (e.g. via Home Manager), interpolate the path directly:
 
 ```nix
 # home-manager example
 xdg.configFile."opencode/opencode.json".text = builtins.toJSON {
-  plugin = [ "${pkgs.meridian}/lib/meridian/plugin/meridian.ts" ];
+  plugin = [ "${pkgs.meridian}/lib/meridian/dist/meridian" ];
 };
 ```
 
@@ -41,14 +41,14 @@ If you don't manage your OpenCode config through Nix, symlink the plugin to a st
 
 ```nix
 # configuration.nix or home-manager
-environment.etc."meridian/plugin/meridian.ts".source =
-  "${pkgs.meridian}/lib/meridian/plugin/meridian.ts";
+environment.etc."meridian/plugin/meridian".source =
+  "${pkgs.meridian}/lib/meridian/dist/meridian";
 ```
 
 Then in `~/.config/opencode/opencode.json`:
 
 ```json
-{ "plugin": ["/etc/meridian/plugin/meridian.ts"] }
+{ "plugin": ["/etc/meridian/plugin/meridian"] }
 ```
 
 > **Important:** Do not use `meridian setup` on NixOS. It writes an absolute Nix store path (e.g. `/nix/store/...-meridian-1.x.x/lib/...`) into your OpenCode config, which will break on the next `nixos-rebuild switch` or `home-manager switch` when the store path changes. Use one of the approaches above instead.

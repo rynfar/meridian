@@ -51,8 +51,34 @@ function extractClaudeCodeClientCwd(body: any): string | undefined {
   return match?.[1]?.trim() || undefined
 }
 
-/** Extract the stable conversation ID embedded by Claude Code in metadata.user_id. */
-export function extractClaudeCodeSessionId(body: unknown): string | undefined {
+/**
+ * Session identity declared in `metadata.user_id`.
+ *
+ * `sessionId` is the whole of the session key — nothing is appended, prefixed,
+ * or normalized — because it is what every cached mapping is already stored
+ * under. `parentSessionId` is additive: a client that does not stamp it gets
+ * exactly the identity it got before the field existed.
+ */
+export interface ClaudeCodeSessionIdentity {
+  readonly sessionId: string
+  /**
+   * The IMMEDIATE parent's session id, when the client declares subagent
+   * lineage. Deeper trees are expressed by each level naming its own parent, so
+   * consumers walk the chain rather than expecting a root here.
+   */
+  readonly parentSessionId?: string
+}
+
+/**
+ * Parse the identity envelope Claude Code (and Prime Agent's extension) embeds
+ * in `metadata.user_id`.
+ *
+ * Strict by design: `user_id` must be, or parse to, an object carrying a
+ * non-empty string `session_id`. Anything else yields undefined and the caller
+ * falls back to fingerprint resume, so unrelated Anthropic-API clients that put
+ * their own value in `user_id` are never mistaken for a keyed session.
+ */
+export function extractClaudeCodeSessionIdentity(body: unknown): ClaudeCodeSessionIdentity | undefined {
   if (!body || typeof body !== "object") return undefined
 
   const metadata = (body as { metadata?: unknown }).metadata
@@ -71,11 +97,60 @@ export function extractClaudeCodeSessionId(body: unknown): string | undefined {
 
   if (!userMetadata || typeof userMetadata !== "object") return undefined
   const sessionId = (userMetadata as { session_id?: unknown }).session_id
-  return typeof sessionId === "string" && sessionId.length > 0 ? sessionId : undefined
+  if (typeof sessionId !== "string" || sessionId.length === 0) return undefined
+
+  const parentSessionId = (userMetadata as { parent_session_id?: unknown }).parent_session_id
+  // A node that names itself as its own parent is not a tree edge, and treating
+  // it as one would make a request its own cancellation target.
+  const parent = typeof parentSessionId === "string"
+    && parentSessionId.length > 0
+    && parentSessionId !== sessionId
+    ? parentSessionId
+    : undefined
+
+  return parent ? { sessionId, parentSessionId: parent } : { sessionId }
+}
+
+/** Extract the stable conversation ID embedded by Claude Code in metadata.user_id. */
+export function extractClaudeCodeSessionId(body: unknown): string | undefined {
+  return extractClaudeCodeSessionIdentity(body)?.sessionId
+}
+
+/** Extract the immediate parent session key, when the client declares lineage. */
+export function extractClaudeCodeParentSessionId(body: unknown): string | undefined {
+  return extractClaudeCodeSessionIdentity(body)?.parentSessionId
+}
+
+/**
+ * Is this request from the Claude Code CLI, whatever adapter is handling it?
+ *
+ * Claude Code sends `x-claude-code-session-id` on every request — verified
+ * against 2.1.266 that it is the CLI session UUID, pinned exactly by
+ * `--session-id`. No other client sends it, so it identifies the client even
+ * when a gateway has rewritten the User-Agent and the LiteLLM heuristic has
+ * already claimed the request.
+ *
+ * This answers "who owns the tool loop", not "which adapter should run". The
+ * header is deliberately NOT used for adapter selection: routing gateway
+ * traffic to the claude-code adapter would swap tool handling, MCP naming and
+ * prompt shape for every existing LiteLLM user and move their cache prefix.
+ *
+ * It is also NOT a session key. The CLI reuses one session id across the
+ * auxiliary requests it makes alongside a conversation, so keying on it puts
+ * two unrelated histories under one key — measured live as
+ * `unrelated-history` and an HTTP 400 concurrent conflict, i.e. a hard failure
+ * where there had only been a silent inefficiency. See
+ * `scripts/e2e-passthrough-claude-code-session.mjs`, which guards that.
+ */
+export function isClaudeCodeClient(c: Context): boolean {
+  return Boolean(c.req.header("x-claude-code-session-id"))
 }
 
 export const claudeCodeAdapter: AgentAdapter = {
   name: "claude-code",
+
+  /** NOTE: Claude Code-specific. Its environment belongs to the remote client. */
+  clientEnvironmentMayDifferFromProxy: true,
 
   /**
    * Claude Code embeds its conversation ID in metadata.user_id rather than a
@@ -83,6 +158,14 @@ export const claudeCodeAdapter: AgentAdapter = {
    */
   getSessionId(_c: Context, body?: unknown): string | undefined {
     return extractClaudeCodeSessionId(body)
+  },
+
+  /**
+   * Subagent lineage from the same envelope that supplied the session key, so
+   * a declared parent always names a key derived the same way this one was.
+   */
+  getParentSessionId(_c: Context, body?: unknown): string | undefined {
+    return extractClaudeCodeParentSessionId(body)
   },
 
   /**

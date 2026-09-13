@@ -1,0 +1,52 @@
+{
+  "capture": {
+    "client": "@opencode-ai/cli",
+    "version": "0.0.0-beta-18314",
+    "userAgent": "opencode/beta/0.0.0-beta-18314/cli",
+    "requestUrl": "/messages?beta=true",
+    "redactions": [
+      "session id",
+      "working directory",
+      "temporary directory"
+    ],
+    "omissions": [
+      "tools",
+      "system text outside the environment block"
+    ]
+  },
+  "body": {
+    "model": "claude-haiku-4-5",
+    "system": [
+      {
+        "type": "text",
+        "text": "[captured OpenCode V2 system instructions omitted]",
+        "cache_control": {
+          "type": "ephemeral"
+        }
+      },
+      {
+        "type": "text",
+        "text": "Here is some useful information about the environment you are running in:\n<env>\n  Current conversation session ID: ses_v2fixture\n  Working directory: C:\\projects\\example-v2-app\n  Workspace root folder: C:\\projects\\example-v2-app\n  Is directory a git repo: no\n  Platform: win32\n  Prefer C:\\Temp\\opencode over generic system temporary directories such as /tmp; it is pre-created and approved for external access.\n</env>",
+        "cache_control": {
+          "type": "ephemeral"
+        }
+      }
+    ],
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "\"Say OK.\"",
+            "cache_control": {
+              "type": "ephemeral"
+            }
+          }
+        ]
+      }
+    ],
+    "stream": true,
+    "max_tokens": 32000
+  }
+}

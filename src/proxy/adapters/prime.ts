@@ -33,7 +33,7 @@ import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS } from "../tools"
 import { resolvePassthrough } from "../../env"
-import { extractClaudeCodeSessionId } from "./claudecode"
+import { extractClaudeCodeParentSessionId, extractClaudeCodeSessionId } from "./claudecode"
 
 const PRIME_MCP_SERVER_NAME = "prime"
 
@@ -222,6 +222,23 @@ export const primeAdapter: AgentAdapter = {
    */
   getSessionId(c: Context, body?: unknown): string | undefined {
     return c.req.header("x-session-affinity") ?? extractClaudeCodeSessionId(body)
+  },
+
+  /**
+   * RLM subagent lineage: `metadata.user_id` carries
+   * `{ session_id, parent_session_id }`, where the parent is the IMMEDIATE one
+   * (`ctx.sessionManager.getParentSessionId()` in the Prime Agent extension).
+   * The proxy uses it to cancel a whole live subtree when the parent's request
+   * is aborted — see `sessionTree.ts`.
+   *
+   * Reported only when the session key itself came from this envelope. An
+   * orchestrator that overrides identity with `x-session-affinity` is naming
+   * keys under a different scheme, so a parent id read out of the body would
+   * point at a key that scheme never produced.
+   */
+  getParentSessionId(c: Context, body?: unknown): string | undefined {
+    if (c.req.header("x-session-affinity")) return undefined
+    return extractClaudeCodeParentSessionId(body)
   },
 
   extractWorkingDirectory(body: any): string | undefined {

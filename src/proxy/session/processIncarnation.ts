@@ -228,6 +228,40 @@ Write-Output $boot.ToUniversalTime().Ticks
   }
 }
 
+/**
+ * Operator-pinned host identity (#905).
+ *
+ * The derived `hostId` is wrong in both directions inside a container:
+ *
+ *   - NOT STABLE. It mixes in the pid-namespace inode, which changes on every
+ *     `docker restart`. The session store lives in the writable layer and
+ *     survives that restart, so a proxy SIGKILLed while holding a store lock
+ *     comes back with a different `hostId`; `probeProcessIncarnation` then
+ *     returns `indeterminate` rather than `dead`, `retireStaleLock` refuses to
+ *     retire it, and every request fails with `timed out waiting for lock`
+ *     until the container is recreated. It fails toward a permanent hang.
+ *   - NOT UNIQUE. Every container from a given image tag has a byte-identical
+ *     `/etc/machine-id`, so `hostId` reduces to that pid-namespace inode, which
+ *     is allocated from a fixed base at boot. Two freshly-booted hosts sharing
+ *     a session directory can each read the other's LIVE lock as `dead` and
+ *     retire it, deleting session resources under a running owner.
+ *
+ * Pinning it — the container ID works — fixes both. Unset outside containers,
+ * where the derived value is genuinely stable and unique, so nothing changes.
+ *
+ * Hashed like the derived value rather than used raw: `hostId` is compared for
+ * equality only, and hashing keeps a pinned value from leaking an operator's
+ * hostname into a lock file that is read cross-host.
+ */
+export function pinnedHostIdFor(pin: string | undefined): string | undefined {
+  const trimmed = pin?.trim()
+  return trimmed ? hashIdentity(`pinned:${trimmed}`) : undefined
+}
+
+function pinnedHostId(): string | undefined {
+  return pinnedHostIdFor(process.env.MERIDIAN_HOST_ID)
+}
+
 function getLocalBootIdentity(): LocalBootIdentity | undefined {
   if (cachedLocalBootIdentity) return cachedLocalBootIdentity
   try {
@@ -238,11 +272,64 @@ function getLocalBootIdentity(): LocalBootIdentity | undefined {
         : process.platform === "win32"
           ? windowsLocalBootIdentity()
           : undefined
-    if (identity) cachedLocalBootIdentity = identity
-    return identity
+    // The pin replaces only hostId. bootId still comes from the platform, so a
+    // reboot is still detected — pinning must not make a dead owner look alive.
+    const pinned = pinnedHostId()
+    const resolved = identity && pinned ? { ...identity, hostId: pinned } : identity
+    if (resolved) cachedLocalBootIdentity = resolved
+    return resolved
   } catch {
     return undefined
   }
+}
+
+/**
+ * Whether this host can produce a boot identity, and what to do if it cannot.
+ *
+ * Every session-store write takes a lock stamped with a process incarnation,
+ * and `captureProcessIncarnation` returns undefined without a boot identity —
+ * so `acquireLock` throws and EVERY request that touches a session fails with a
+ * 500. `/health` never probed this, so a container missing `/etc/machine-id`
+ * reported healthy to Docker and to any orchestrator while serving nothing,
+ * which is why the original occurrence took three days to find (#906, split
+ * from #903).
+ *
+ * Exported so both the startup check and `/health` read the same source rather
+ * than each inferring it.
+ */
+export interface BootIdentityStatus {
+  available: boolean
+  platform: string
+  /** Actionable next step, present only when unavailable. */
+  hint?: string
+}
+
+/**
+ * What to tell an operator when this platform produced no boot identity.
+ *
+ * Pure and exported separately so every branch is testable without breaking the
+ * host it runs on. "cannot capture lock owner process incarnation" is what the
+ * original failure said, and it names nothing an operator can act on.
+ */
+export function bootIdentityHint(platform: string): string {
+  if (platform === "linux") {
+    return "no readable /etc/machine-id or /var/lib/dbus/machine-id, or /proc is not mounted. "
+      + "Distroless, scratch, chroot and gVisor images commonly lack machine-id: "
+      + "generate one (`dbus-uuidgen > /etc/machine-id`) or bind-mount the host's."
+  }
+  if (platform === "darwin") {
+    return "could not read the hardware UUID or boot time from the system profiler."
+  }
+  if (platform === "win32") {
+    return "could not read the machine GUID or boot time from the registry."
+  }
+  return `unsupported platform "${platform}" — boot identity is implemented for linux, darwin and win32 only.`
+}
+
+export function describeLocalBootIdentity(): BootIdentityStatus {
+  const platform = process.platform
+  if (getLocalBootIdentity()) return { available: true, platform }
+  return { available: false, platform, hint: bootIdentityHint(platform) }
 }
 
 function pidPresence(pid: number): "present" | "missing" | "indeterminate" {

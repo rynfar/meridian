@@ -14,6 +14,7 @@
 
 import { describe, it, expect, mock } from "bun:test"
 import { passthroughAdapter } from "../proxy/adapters/passthrough"
+import { isClaudeCodeClient } from "../proxy/adapters/claudecode"
 import { detectAdapter } from "../proxy/adapters/detect"
 
 // ============================================================
@@ -58,6 +59,70 @@ describe("passthroughAdapter.getSessionId", () => {
       },
     }
     expect(passthroughAdapter.getSessionId(c as any)).toBeUndefined()
+  })
+})
+
+/**
+ * The gateway-fronted Claude Code case (#820).
+ *
+ * Behind LiteLLM the passthrough heuristic claims the request first, so a
+ * Claude Code session lands on this adapter and loses the
+ * `adapterBase === "claude-code"` exemption from the headerless tool-result
+ * bypass. LiteLLM also owns the `x-litellm-*` namespace for its own Langfuse
+ * session tracking and does not forward `x-litellm-session-id` upstream on the
+ * `anthropic/` provider route, so there is no session key either — and every
+ * tool round of the whole agentic loop took the bypass.
+ *
+ * `isClaudeCodeClient` answers "who owns the tool loop" from a header only the
+ * CLI sends. It deliberately does not answer "which adapter should run", and
+ * it is deliberately not a session key.
+ */
+describe("isClaudeCodeClient", () => {
+  const ctx = (headers: Record<string, string>) => ({
+    req: { header: (name: string) => headers[name] },
+  })
+
+  it("recognises the Claude Code CLI by its session-id header", () => {
+    expect(isClaudeCodeClient(ctx({
+      "x-claude-code-session-id": "b2004dfc-6042-48d9-9c23-b4475f64b6f5",
+    }) as any)).toBe(true)
+  })
+
+  it("does not recognise a client that only claims to be a CLI", () => {
+    expect(isClaudeCodeClient(ctx({ "x-app": "cli", "user-agent": "litellm/1.0.0" }) as any)).toBe(false)
+  })
+
+  it("does not recognise another agent's session header", () => {
+    expect(isClaudeCodeClient(ctx({ "x-litellm-session-id": "litellm-abc123" }) as any)).toBe(false)
+    expect(isClaudeCodeClient(ctx({ "x-opencode-session": "ses_1" }) as any)).toBe(false)
+  })
+
+  // The header must not move adapter selection. Routing gateway traffic to the
+  // claude-code adapter on this signal would swap tool handling, MCP naming
+  // and prompt shape for every existing LiteLLM user and move their cache
+  // prefix.
+  it("leaves the request on the passthrough adapter", () => {
+    const c = {
+      req: {
+        header: (name: string) => ({
+          "x-claude-code-session-id": "b2004dfc-6042-48d9-9c23-b4475f64b6f5",
+          "x-app": "cli",
+          "user-agent": "litellm/1.0.0",
+        })[name],
+      },
+    }
+    expect(detectAdapter(c as any).name).toBe("passthrough")
+  })
+
+  // The header is NOT a session key. The CLI reuses one session id across the
+  // auxiliary requests it makes alongside a conversation; keying on it put two
+  // unrelated histories under one key, which was measured live as
+  // `unrelated-history` and an HTTP 400 concurrent conflict — a hard failure
+  // where there had only been a silent inefficiency.
+  it("is not adopted as a session key", () => {
+    expect(passthroughAdapter.getSessionId(ctx({
+      "x-claude-code-session-id": "b2004dfc-6042-48d9-9c23-b4475f64b6f5",
+    }) as any)).toBeUndefined()
   })
 })
 

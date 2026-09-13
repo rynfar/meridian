@@ -12,6 +12,9 @@
  */
 
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import {
   messageStart,
   textBlockStart,
@@ -29,7 +32,7 @@ import {
 
 let mockMessages: any[] = []
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     return (async function* () {
       for (const msg of mockMessages) {
@@ -39,14 +42,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "proxy-streaming-message.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
@@ -369,5 +372,18 @@ describe("Default streaming behavior", () => {
     const contentType = response.headers.get("content-type") || ""
 
     expect(contentType).toContain("text/event-stream")
+    // Drain the body and pin the terminal envelope. Returning without
+    // consuming the response leaves the streaming producer (SDK query,
+    // semaphore, session bookkeeping) running past this file's teardown;
+    // sdkMock resolves implementations at call time, so the orphaned
+    // producer then invokes a LATER file's mock and pollutes that file's
+    // captured query list (observed as proxy-block-continuations' first
+    // captured query carrying resume=undefined). Fully settling the
+    // stream while this file's mock is active removes the leak.
+    const body = await response.text()
+    const events = parseSSE(body)
+    expect(events.filter((event) => event.event === "message_start")).toHaveLength(1)
+    expect(events.filter((event) => event.event === "message_stop")).toHaveLength(1)
+    expect(events.filter((event) => event.event === "error")).toHaveLength(0)
   })
 })

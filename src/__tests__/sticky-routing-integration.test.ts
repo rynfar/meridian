@@ -4,12 +4,15 @@
  * SDK subprocess env (CLAUDE_CONFIG_DIR carries the profile's config dir).
  */
 import { describe, it, expect, mock, beforeAll, beforeEach, afterEach } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, withMockSdkSessionId } from "./helpers"
 
 let mockMessages: any[] = []
 let capturedEnvs: Array<Record<string, string | undefined>> = []
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: (params: any) => {
     capturedEnvs.push(params.options?.env ?? {})
     return (async function* () {
@@ -20,14 +23,14 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   },
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
   tool: () => ({}),
-}))
+}), "sticky-routing-integration.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: { tool: () => {}, registerTool: () => ({}) } }),
 }))
 

@@ -53,6 +53,11 @@ describe("isClientForwardedToolUse", () => {
     expect(isClientForwardedToolUse(toolUse("t2", "Bash"))).toBe(true)
   })
 
+  it("excludes SDK StructuredOutput but preserves a client MCP tool with that name", () => {
+    expect(isClientForwardedToolUse(toolUse("internal", "StructuredOutput"))).toBe(false)
+    expect(isClientForwardedToolUse(toolUse("client", "mcp__oc__StructuredOutput"))).toBe(true)
+  })
+
   it("excludes ToolSearch (internal, SDK-executed for deferred loading)", () => {
     expect(isClientForwardedToolUse(toolUse("t1", "ToolSearch"))).toBe(false)
   })
@@ -385,5 +390,177 @@ describe("findCompleteToolResultCheckpoint", () => {
     expect(findCompleteToolResultCheckpoint([assistant, { role: "user", content: [result("a"), result("b"), result("extra")] }], ["a", "b"])).toBeUndefined()
     expect(findCompleteToolResultCheckpoint([assistant, { role: "user", content: [result("a")] }], ["a", "b"])).toBeUndefined()
     expect(findCompleteToolResultCheckpoint([assistant, { role: "assistant", content: [result("a"), result("b")] }], ["a", "b"])).toBeUndefined()
+  })
+})
+
+describe("claude-code trailing system delta", () => {
+  const result = (id: string, content: unknown = "ok") => ({ type: "tool_result", tool_use_id: id, content })
+  const echo = (ids: string[]) => ({
+    role: "assistant",
+    content: ids.map((id) => ({ type: "tool_use", id, name: "read", input: {} })),
+  })
+  const reminder = (text: string, cacheControl = false) => ({
+    role: "system",
+    content: [{ type: "text", text, ...(cacheControl ? { cache_control: { type: "ephemeral" } } : {}) }],
+  })
+  const opts = { allowTrailingSystemReminder: true }
+
+  it("accepts the captured delta: complete expected-ID echo, results, trailing reminder", () => {
+    const results = [result("t1"), result("t2")]
+    // cache_control is kept here; the caller strips it before the SDK.
+    const cases: Array<[{ role: string; content: unknown }, unknown]> = [
+      [{ role: "system", content: "<total_tokens> 4151" }, { type: "text", text: "<total_tokens> 4151" }],
+      [reminder("<total_tokens> 4151", true), { type: "text", text: "<total_tokens> 4151", cache_control: { type: "ephemeral" } }],
+    ]
+    for (const [tail, expectedBlock] of cases) {
+      expect(coalesceCompleteToolResultContinuation(
+        [echo(["t1", "t2"]), { role: "user", content: results }, tail],
+        ["t1", "t2"],
+        opts,
+      )).toEqual([{ role: "user", content: [...results, expectedBlock] }])
+    }
+  })
+
+  it("delivers the reminder after results and queued user content, in wire order", () => {
+    const queuedText = { type: "text", text: "continue" }
+    const queuedImage = { type: "image", source: { type: "base64", data: "abc" } }
+    expect(coalesceCompleteToolResultContinuation(
+      [echo(["t1"]), { role: "user", content: [result("t1")] }, { role: "user", content: [queuedText, queuedImage] }, reminder("reminder")],
+      ["t1"],
+      opts,
+    )).toEqual([{ role: "user", content: [result("t1"), queuedText, queuedImage, { type: "text", text: "reminder" }] }])
+  })
+
+  it("rejects the reminder-bearing delta without the opt-in (generic default)", () => {
+    expect(coalesceCompleteToolResultContinuation(
+      [echo(["t1"]), { role: "user", content: [result("t1")], }, reminder("reminder")],
+      ["t1"],
+    )).toBeUndefined()
+  })
+
+  it("rejects leading, non-final, repeated, non-text, and empty reminders", () => {
+    const delta = [echo(["t1"]), { role: "user", content: [result("t1")] }]
+    for (const body of [
+      [reminder("leading"), ...delta], // leading (undemonstrated form)
+      [echo(["t1"]), reminder("non-final"), { role: "user", content: [result("t1")] }], // before results
+      [...delta, reminder("one"), reminder("two")], // repeated
+      [...delta, reminder("final"), { role: "user", content: "after" }], // message after reminder
+      [...delta, { role: "system", content: [{ type: "image", source: { type: "base64", data: "x" } }] }], // non-text block
+      [...delta, { role: "system", content: [{ type: "tool_result", tool_use_id: "t1", content: "x" }] }], // tool_result block
+      [...delta, { role: "system", content: [] }], // empty array
+      [...delta, { role: "system", content: [{ type: "text", text: "" }] }], // empty text
+      [...delta, { role: "system", content: "" }], // empty string
+    ]) {
+      expect(coalesceCompleteToolResultContinuation(body, ["t1"], opts)).toBeUndefined()
+    }
+  })
+
+  it("fails on incomplete or split echoes even with a trailing reminder", () => {
+    const cases: Array<[Array<{ role?: unknown; content?: unknown }>, string[]]> = [
+      [[{ role: "user", content: [result("t1")], }, reminder("r")], ["t1"]], // missing echo
+      [[echo(["t1", "t2"]), { role: "user", content: [result("t1")] }, reminder("r")], ["t1", "t2"]], // partial results
+      // split echo: coalesce must reject it even though find never binds it
+      [[echo(["t1"]), echo(["t2"]), { role: "user", content: [result("t1"), result("t2")] }, reminder("r")], ["t1", "t2"]],
+    ]
+    for (const [messages, ids] of cases) {
+      expect(coalesceCompleteToolResultContinuation(messages, ids, opts)).toBeUndefined()
+    }
+  })
+
+  it("find accepts the actual suffix under the opt-in; default stays rejected", () => {
+    const body = [
+      { role: "user", content: "history" },
+      echo(["a"]),
+      { role: "user", content: [result("a")] },
+      reminder("reminder", true),
+    ]
+    expect(findCompleteToolResultCheckpoint(body, ["a"], opts))
+      .toEqual([{ role: "user", content: [result("a"), { type: "text", text: "reminder", cache_control: { type: "ephemeral" } }] }])
+    expect(findCompleteToolResultCheckpoint(body, ["a"])).toBeUndefined()
+  })
+
+  it("rejects a system message between two result turns", () => {
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        echo(["t1", "t2"]),
+        { role: "user", content: [result("t1")] },
+        reminder("mid-conversation"),
+        { role: "user", content: [result("t2")] },
+      ],
+      ["t1", "t2"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("rejects whitespace-only reminders in string and text-block form", () => {
+    const delta = [echo(["t1"]), { role: "user", content: [result("t1")] }]
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: "   " }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: [{ type: "text", text: "   " }] }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("accepts one reminder carrying two text blocks, both delivered in order", () => {
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        echo(["t1"]),
+        { role: "user", content: [result("t1")] },
+        { role: "system", content: [{ type: "text", text: "first" }, { type: "text", text: "second" }] },
+      ],
+      ["t1"],
+      opts,
+    )).toEqual([{ role: "user", content: [result("t1"), { type: "text", text: "first" }, { type: "text", text: "second" }] }])
+  })
+
+  it("rejects object and number reminder content", () => {
+    const delta = [echo(["t1"]), { role: "user", content: [result("t1")] }]
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: { text: "shaped" } }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+    expect(coalesceCompleteToolResultContinuation(
+      [...delta, { role: "system", content: 42 }],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("rejects an echo carrying an extra unknown tool_use id alongside a valid reminder", () => {
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        { role: "assistant", content: [
+          { type: "tool_use", id: "t1", name: "read", input: {} },
+          { type: "tool_use", id: "unknown-x", name: "read", input: {} },
+        ] },
+        { role: "user", content: [result("t1")] },
+        reminder("valid reminder"),
+      ],
+      ["t1"],
+      opts,
+    )).toBeUndefined()
+  })
+
+  it("tolerates adjacent thinking/text blocks in the echoing assistant message", () => {
+    // only tool_use blocks bind the echo; thinking/text neither reject nor reach the output
+    expect(coalesceCompleteToolResultContinuation(
+      [
+        { role: "assistant", content: [
+          { type: "thinking", thinking: "hmm", signature: "sig" },
+          { type: "tool_use", id: "t1", name: "read", input: {} },
+          { type: "text", text: "Reading the file." },
+        ] },
+        { role: "user", content: [result("t1")] },
+        reminder("r"),
+      ],
+      ["t1"],
+      opts,
+    )).toEqual([{ role: "user", content: [result("t1"), { type: "text", text: "r" }] }])
   })
 })

@@ -75,12 +75,13 @@ export const HASH_SERIALIZED_BLOCK_TYPES = new Set([
 ])
 
 /**
- * Normalize message content to a string for hashing and comparison.
+ * Legacy content rendering used for adapter compatibility and diagnostics.
  * Handles both string content and array content (Anthropic content blocks).
- * Strips cache_control metadata to ensure hash stability across requests.
+ * Omits cache_control metadata and opaque thinking blocks.
  *
- * Used only for lineage hashing — see {@link HASH_IGNORED_BLOCK_TYPES}, which
- * drops content a display-oriented normalizer would need to keep.
+ * This representation is ambiguous across block types and boundaries. Never
+ * use it to prove lineage: session/lineage.ts uses structured domain-separated
+ * hashes instead.
  *
  * NOTE: OpenCode sends content as a string on the first request but as
  * an array on subsequent ones. This normalizer handles both formats.
@@ -162,6 +163,13 @@ export function getLastUserMessage(messages: Array<{ role: string; content: any 
  * and histories that don't end with a user turn are returned as a plain
  * join (nothing to separate).
  */
+export const REPLAY_CONTEXT_OPEN = `<conversation_history>\n`
+export const REPLAY_CONTEXT_CLOSE = `\n</conversation_history>\n\n` +
+  `The above is a replay of your prior conversation with this user — the original session could not be resumed. ` +
+  `It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, ` +
+  `and never invent tool output — use your actual tools when action is needed. ` +
+  `Respond only as the assistant to the user's message below.\n\n`
+
 export function frameReplayTurns(turns: Array<{ role: string; text: string }>): string {
   const nonEmpty = turns.filter((t) => t.text)
   const joined = nonEmpty.map((t) => t.text).join("\n\n")
@@ -169,14 +177,7 @@ export function frameReplayTurns(turns: Array<{ role: string; text: string }>): 
   const last = nonEmpty[nonEmpty.length - 1]!
   if (last.role !== "user") return joined
   const history = nonEmpty.slice(0, -1).map((t) => t.text).join("\n\n")
-  return (
-    `<conversation_history>\n${history}\n</conversation_history>\n\n` +
-    `The above is a replay of your prior conversation with this user — the original session could not be resumed. ` +
-    `It is context only: do not continue or imitate its transcript format, do not write "[Assistant: ...]" markers, ` +
-    `and never invent tool output — use your actual tools when action is needed. ` +
-    `Respond only as the assistant to the user's message below.\n\n` +
-    last.text
-  )
+  return REPLAY_CONTEXT_OPEN + history + REPLAY_CONTEXT_CLOSE + last.text
 }
 
 /**

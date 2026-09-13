@@ -3,6 +3,8 @@
  * Maps raw error messages to structured HTTP error responses.
  */
 
+import type { AbortCauseSnapshot } from "./requestAbort"
+
 export interface ClassifiedError {
   status: number
   type: string
@@ -55,12 +57,159 @@ const BILLING_SIGNALS: readonly RegExp[] = [
   /update your payment/,
   /(?:out of|draw from|draws from) extra usage/,
   /insufficient (?:credit|funds|balance)/,
+  // The real CLI shortens an API billing refusal to this exact sentence.
+  // Anchor the whole line so incidental tool output does not exhaust a profile.
+  /^\s*(?:(?:error|api error|claude code returned an error result):\s*)*credit balance is too low[.!]?\s*$/m,
+  // The credits-era entitlement cap: "Your group's usage limit is set to $0 ·
+  // run /usage-credits to ask your admin for a higher limit" (#909, verbatim in
+  // the CLI). billing_error rather than rate_limit_error: a provisioned cap is
+  // not a spent window, so isQuotaRefusal must not send the cooldown looking up
+  // a five-hour reset that will never arrive.
+  //
+  // This only disambiguates the wordings that name the cap. The CLI's refusal
+  // builder returns the identical "You've reached your <tier> limit." text for
+  // group/member/seat_tier zero-credit caps as for a genuinely spent window, so
+  // those still classify 429 and still take the five-hour cooldown. Telling
+  // them apart needs a signal the message does not carry.
+  //
+  // Line-anchored for the reason given above: this branch can mark every
+  // profile in a pool exhausted (#796), so an MCP server or an assistant turn
+  // echoing the sentence mid-line must not trigger it.
+  /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*your (?:group|organization|org)(?:'|’)s usage limit is set to \$\d/m,
 ]
+
+/** The org-admin entitlement switch: "Your organization has disabled Claude
+ *  subscription access for Claude Code · Use an Anthropic API key instead, or
+ *  ask your admin to enable access". Observed live on a Max profile that
+ *  returned 500 on every request while a Pro profile in the same priority pool
+ *  served the identical request from the same container.
+ *
+ *  It names no limit and no payment method, so nothing above matched it: the
+ *  refusal fell through to a generic api_error, isAccountFailoverError said no,
+ *  and priority routing kept handing requests to an account that could not
+ *  serve any of them. In the stderr shape it was worse than a missed failover —
+ *  a bare code-1 exit reads as an auth failure, so the operator was told to run
+ *  `claude login` for an entitlement an admin has to restore.
+ *
+ *  Line-anchored after the known SDK wrappers, like the banners above and for
+ *  the same reason: this classification can pull a profile out of a pool, so a
+ *  runbook or an MCP server quoting the sentence mid-line must not trigger it.
+ *  An optional three-digit status covers the API-key/gateway shape, where the
+ *  SDK prefixes the upstream status ("API Error: 403 Your organization ...").
+ *
+ *  On that gateway path the CLI also interposes a bare "Failed to authenticate."
+ *  between its own wrapper and the upstream status, so the real string is
+ *  "Claude Code returned an error result: Failed to authenticate. API Error: 403
+ *  Your organization has disabled ...". That clause ends in a period rather than
+ *  a colon, so it is alternated into the wrapper group instead of being a
+ *  wrapper itself. Without it the API-key shape still fell through to api_error
+ *  and did not fail over — caught by driving a real refusal through the
+ *  error-telemetry failover harness, not by the string in the bug report. */
+const SUBSCRIPTION_ACCESS_DISABLED = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*|failed to authenticate\.\s*)*(?:\d{3} )?your (?:organization|org) has disabled claude subscription access/m
 
 /** "hit your limit", "hit your session limit", "hit your weekly limit", and any
  *  future single-word qualifier the CLI adopts. Anchored on both sides so it
  *  can't drift into unrelated text that happens to contain "limit". */
 const HIT_YOUR_LIMIT = /hit your (?:[\w-]+ )?limit/
+
+/** The multi-word spend/usage variants: "You've hit your org's monthly spend
+ *  limit · ask your admin to raise it at claude.ai/settings/usage" was observed
+ *  live and matched none of the single-word shapes above, so the profile was
+ *  never marked exhausted and priority routing never failed over — the pool
+ *  sat on a dead account while a healthy one waited behind it.
+ *
+ *  Widening HIT_YOUR_LIMIT to a multi-word wildcard is not safe: it would also
+ *  swallow "you have hit your configured tool call depth limit", which is not a
+ *  quota refusal. Anchor on the limit's *kind* instead — "spend" or "usage" —
+ *  so any number of qualifier words is allowed without matching unrelated
+ *  limits. Apostrophes are included for the possessive ("org's").
+ *
+ *  Anchored to the start of the message, like OUT_OF_USAGE_CREDITS below and
+ *  for the same reason. Allowing four qualifier words is a much wider net than
+ *  HIT_YOUR_LIMIT's single word, and unanchored it matched negated and quoted
+ *  prose — "you have not hit your monthly spend limit yet", or the phrase
+ *  merely quoted inside MCP stderr. Each of those would mark a healthy profile
+ *  exhausted and pull it out of a priority pool: the exact failure this fix
+ *  exists to prevent, in the opposite direction. Requiring the possessive
+ *  "you've hit your" at the start of the message (after the known SDK error
+ *  wrappers) keeps every live wording while rejecting all of them.
+ *
+ *  `subprocess stderr` is in the wrapper list and the anchor is per-line (`m`)
+ *  because the CLI often surfaces a limit banner by exiting and appending it to
+ *  stderr. Anchoring to the start of the whole message missed that shape, and
+ *  the fall-through was not merely a missed failover: a bare code-1 exit reads
+ *  as an auth failure, so the operator was told to run `claude login` for a
+ *  quota refusal. The unanchored HIT_YOUR_LIMIT still matched there, so the
+ *  session-limit banner classified correctly while the spend-limit banner in
+ *  the identical shape returned 401.
+ *
+ *  Known boundary: a message that genuinely *begins* "you've hit your <...>
+ *  spend limit" from some unrelated billing tool would still match. Tightening
+ *  further means enumerating qualifiers, which is what missed the org wording
+ *  in the first place. */
+const HIT_YOUR_SPEND_LIMIT = /^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*you(?:'|’)ve hit your (?:[\w'’-]+ ){0,4}(?:spend|usage) limit/m
+
+/** Credits-era per-tier banner uses "reached", not the "hit" wording from
+ * #764 and #787. Enumerate tiers rather than wildcarding the qualifier: the
+ * CLI also emits "reached your specified/configured ..." prose that is not
+ * account quota exhaustion (#909). A numeric version suffix accepts real tier
+ * versions without arbitrary words, and only known CLI suffixes are
+ * accepted: a false positive exhausts a healthy profile pool-wide, so the
+ * banner must occupy its whole line rather than merely open one. New tier
+ * names must be added to the enumeration.
+ *
+ * An API-key or gateway profile does not deliver the banner bare: the SDK
+ * prefixes the upstream status, so the line arrives as "... error result: API
+ * Error: 400 You've reached your Fable limit. ...". That numeric status sat
+ * between the accepted wrappers and the banner and defeated the anchor for
+ * EVERY suffix, including the two that were already supported — found by
+ * driving the real failover path rather than by reading the pattern. Exactly
+ * three digits are allowed, immediately before the banner, so a 4-digit
+ * lookalike or a "Retried 3 times:" preamble still falls through.
+ *
+ * Not every accepted suffix is a slash command. The credits-era banner also
+ * ends in plain prose — "Switch to another model to continue." — which is the
+ * shape a Claude Max pool receives today, observed live through a gateway on
+ * 1.66.0 and still unmatched by this pattern as released in 1.68.0. It is
+ * enumerated like the others rather than admitted as a wildcard tail, because
+ * the negative cases below turn on exactly that distinction: a documentation
+ * sentence continuing past the banner must not exhaust a healthy profile.
+ *
+ * The bound is the LINE, not the message — `/m`, like HIT_YOUR_SPEND_LIMIT
+ * above and CONTEXT_OVERFLOW_SIGNALS below. `server.ts` appends captured
+ * stderr to `Error.message` before classification, so a message-final anchor
+ * is unreachable in production; and because `stderrLines.join("\n")` labels
+ * only its FIRST line with `Subprocess stderr:`, requiring a labelled line
+ * missed the banner whenever anything preceded it — which on Team plans is
+ * always, the harmless "custom betas" warning being emitted first. Both shapes
+ * then fell through to the code-1 branch, which tells the operator to run
+ * `claude login` for what is actually a quota refusal. */
+const REACHED_YOUR_TIER_LIMIT = /^[ \t]*(?:(?:error|api error|claude code returned an error result|subprocess stderr):[ \t]*)*(?:\d{3}[ \t]+)?you(?:'|’)ve reached your (?:claude )?(?:fable|mythos|opus|sonnet|haiku)(?: \d+(?:\.\d+)*)? limit(?:(?:[.!][ \t]+|[ \t]+)(?:(?:run[ \t]+)?\/usage-credits(?:[ \t]+to[ \t]+continue)?(?:[ \t]+or[ \t]+switch[ \t]+models[ \t]+with[ \t]+\/model)?|\/model[ \t]+to[ \t]+switch[ \t]+models|switch[ \t]+to[ \t]+another[ \t]+model(?:[ \t]+to[ \t]+continue)?)\.?|[.!]?)[ \t\r]*$/m
+
+/**
+ * The CLI's refusal when a turn hit the output-token maximum.
+ *
+ * `max_tokens` on `/v1/messages` is a hard cap on output, and a response cut
+ * short is supposed to report `stop_reason: "max_tokens"` (#874). The Agent
+ * SDK's `Options` has no output cap at all — the only lever is the CLI's
+ * `CLAUDE_CODE_MAX_OUTPUT_TOKENS`, and when that trips the CLI does NOT return
+ * a truncated turn: it throws this. Verified against CLI 2.1.263 with a cap of
+ * 64, which produced real assistant text and then this error.
+ *
+ * So the cap works — the API genuinely stops generating — and the only thing
+ * wrong is the shape it comes back in. Recognising it lets the recovery paths
+ * deliver the content that did arrive under the stop reason the wire expects,
+ * instead of a 500.
+ *
+ * Anchored on the distinctive phrase and a digit count so it cannot collide
+ * with the context-window refusal above, which is about INPUT length.
+ */
+const OUTPUT_TOKEN_MAXIMUM = /response exceeded the \d+ output token maximum/i
+
+/** True when a turn failed only because it hit the client's output cap. */
+export function isOutputTokenCapExceeded(message: string | undefined | null): boolean {
+  return typeof message === "string" && OUTPUT_TOKEN_MAXIMUM.test(message)
+}
 
 /** Canonical Claude Code usage-credit banner. Anchor on the raw message or the
  * known SDK wrappers so quoted docs, MCP stderr, and negated/incidental prose
@@ -77,6 +226,73 @@ const HTTP_401 = /(?:^|[^0-9a-f])401(?![0-9a-f]|:\d)/
 const HTTP_429 = /(?:^|[^0-9a-f])429(?![0-9a-f]|:\d)/
 const HTTP_500 = /(?:^|[^0-9a-f])500(?![0-9a-f]|:\d)/
 const HTTP_503 = /(?:^|[^0-9a-f])503(?![0-9a-f]|:\d)/
+/** A request whose input exceeds the model's context window.
+ *
+ *  Distinct from a rate limit in the one way that matters to a caller: waiting
+ *  does not fix it. An identical retry burns a whole upstream turn to fail
+ *  identically, so this must not classify as a 5xx — see the branch in
+ *  classifyError for why the status code is the actual fix.
+ *
+ *  Wordings: the CLI's bare "Prompt is too long", the API's fuller
+ *  "prompt is too long: N tokens > M maximum" (same prefix), its max_tokens
+ *  phrasing (backtick-quoted upstream, matched loosely here), and the
+ *  OpenAI-compatible code the openai adapter can surface.
+ *
+ *  Anchored per-line, tolerating the wrapper prefixes the CLI and SDK prepend —
+ *  the same shape as HIT_YOUR_SPEND_LIMIT above, for the same reason. Unanchored
+ *  these matched their own strings quoted inside arbitrary text: an assistant
+ *  turn discussing the error, a tool_result echoing a grep hit, and a plainly
+ *  negated sentence all classified as 400 before the anchor was added.
+ *
+ *  The asymmetry matters here more than it does for a quota refusal. A false 400
+ *  tells the client the request itself is unfixable, so the retry is abandoned
+ *  and legitimate work is silently dropped; a false 5xx only costs a retry.
+ *
+ *  `subprocess stderr` is in the wrapper list because the CLI surfaces an
+ *  oversized prompt by exiting and appending it to stderr — and without this
+ *  branch that shape reads as a bare code-1 exit, which the process-crash branch
+ *  below reports as an auth failure telling the operator to run `claude login`. */
+const OVERFLOW_PHRASES = [
+  String.raw`prompt is too long`,
+  String.raw`input length and .?max_tokens.? exceed context limit`,
+  String.raw`context[_ ]length[_ ]exceeded`,
+]
+
+/** The resolved CLI is older than the model that was asked for. Observed
+ *  verbatim from claude-code 2.1.198 asked for `claude-fable-5-1`:
+ *  `API Error: 400 Claude Code 2.1.198 does not support this model; version
+ *  2.1.251 or newer is required. Run 'claude update', ...`
+ *
+ *  Version-agnostic by design — pinning the observed pair would stop matching
+ *  at the next floor bump, which is the same trap #764/#787 sprang on the
+ *  rate-limit literals. `Claude Code` must sit adjacent to the phrase so that
+ *  an unsupported *tool* or *flag* ("this tool does not support streaming
+ *  input") cannot take the branch: that is a different failure with a
+ *  different remedy. */
+// Require an error-message opening, after only known SDK/CLI wrappers. A
+// quoted phrase in a tool error or overload diagnostic is not this rejection:
+// falsely returning 400 would prevent a legitimate retry. Only the observed
+// 400 wrapper is admitted. A bare phrase on a later diagnostic line is not
+// an error opening; only the server's explicit stderr marker reopens one.
+const CLI_MODEL_UNSUPPORTED = new RegExp(
+  String.raw`(?:^\s*|\r?\n[ \t]*subprocess stderr:\s*)`
+  + String.raw`(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*(?:400\s+)?)*`
+  + String.raw`claude code(?: \d[\w.+-]*)? does not support this model\b`,
+)
+
+/** Either the phrase opens a line (after the known SDK/CLI wrappers), or it
+ *  opens the `message` value of an API error envelope — `API Error: 400
+ *  {"type":"invalid_request_error","message":"prompt is too long: ..."}`, which
+ *  is a real upstream shape and not line-anchored. Requiring the phrase to start
+ *  the message value is what separates it from the same words merely quoted
+ *  somewhere inside arbitrary prose. */
+const CONTEXT_OVERFLOW_SIGNALS: readonly RegExp[] = OVERFLOW_PHRASES.map(
+  phrase => new RegExp(
+    String.raw`(?:^\s*(?:(?:error|api error|claude code returned an error result|subprocess stderr):\s*)*|"message"\s*:\s*")`
+    + phrase,
+    "m",
+  ),
+)
 
 /**
  * Detect specific SDK errors and return helpful messages to the client.
@@ -94,6 +310,21 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
       status: 401,
       type: "authentication_error",
       message: "Claude OAuth token has expired and could not be refreshed automatically. Run 'claude login' in your terminal to re-authenticate."
+    }
+  }
+
+  // Org-level entitlement, checked before the auth branches below: the stderr
+  // shape of this refusal ends in a code-1 exit, which those branches read as
+  // an expired login. billing_error rather than rate_limit_error — an access
+  // switch an admin has to flip is not a spent window, so isQuotaRefusal must
+  // not send the cooldown looking up a five-hour reset that never arrives —
+  // and failover-eligible, because another profile in the pool may well be on
+  // an organization that still allows it.
+  if (SUBSCRIPTION_ACCESS_DISABLED.test(lower)) {
+    return {
+      status: 402,
+      type: "billing_error",
+      message: "This account's organization has disabled Claude subscription access for Claude Code. Ask the organization admin to re-enable it, or serve this request from an API-key profile — an identical retry on this account fails the same way."
     }
   }
 
@@ -119,7 +350,8 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // variants seen so far and the daily/monthly/5-hour ones that would
   // otherwise be the next report.
   if (HTTP_429.test(lower) || lower.includes("rate limit") || lower.includes("too many requests")
-    || HIT_YOUR_LIMIT.test(lower) || lower.includes("usage limit reached")
+    || HIT_YOUR_LIMIT.test(lower) || HIT_YOUR_SPEND_LIMIT.test(lower) || REACHED_YOUR_TIER_LIMIT.test(lower)
+    || lower.includes("usage limit reached")
     || OUT_OF_USAGE_CREDITS.test(lower)) {
     const hint = lower.includes("1m") || lower.includes("context")
       ? extendedContextHint(model)
@@ -143,6 +375,46 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
       status: 402,
       type: "billing_error",
       message: "Claude Max subscription issue. Check your subscription status at https://claude.ai/settings/subscription"
+    }
+  }
+
+  // Context overflow. Ordered before the process-crash branch deliberately:
+  // when the CLI surfaces an oversized prompt by exiting rather than returning
+  // a result, that branch reads a bare code-1 exit as an auth failure and tells
+  // the operator to run `claude login` — advice that cannot work and that hides
+  // the real cause.
+  //
+  // The status code is the fix, not the wording. The default 500 reads as
+  // "transient, try again" to every client retry policy, so an overflow that
+  // can only ever fail identically gets replayed at full upstream cost. 400
+  // says the request itself is the problem.
+  if (CONTEXT_OVERFLOW_SIGNALS.some(rx => rx.test(lower))) {
+    return {
+      status: 400,
+      type: "invalid_request_error",
+      message: "Prompt exceeds the model's context window. Compact or trim the conversation before retrying — an identical retry fails the same way."
+    }
+  }
+
+  // The resolved CLI predates the requested model. A correct package.json floor
+  // does not prevent this: MERIDIAN_CLAUDE_PATH is step 0 of
+  // resolveClaudeExecutableWithSource, so an env-pointed CLI outranks the
+  // bundled binary the floor governs (#932).
+  //
+  // 400 for the same reason as context overflow above — upgrading the CLI is
+  // the only fix, so every retry fails identically, and the default 500 reads
+  // as "transient" to every client retry policy. Placed before the crash
+  // branch so the same error arriving as a code-1 exit with stderr attached
+  // does not get answered with `claude login`, which cannot help here.
+  //
+  // The CLI names both the installed and the required version; that is the
+  // only actionable part of the message, so it is carried through rather than
+  // replaced with generic prose.
+  if (CLI_MODEL_UNSUPPORTED.test(lower)) {
+    return {
+      status: 400,
+      type: "invalid_request_error",
+      message: `${errMsg.trim()} (Meridian: the Claude Code CLI it resolved is older than the requested model. If MERIDIAN_CLAUDE_PATH is set it overrides the bundled CLI, so update that binary or unset the variable.)`
     }
   }
 
@@ -179,6 +451,27 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
       status: 502,
       type: "api_error",
       message: `Claude Code process exited unexpectedly (code ${code}). Check proxy logs for details. If this persists, try 'claude login' to refresh authentication.`
+    }
+  }
+
+  // The proxy's own bookkeeping locks and limits. They carry "timed out", so
+  // the generic timeout branch below would answer them as a request timeout and
+  // send the operator to shrink a context that has nothing to do with it. The
+  // raw text names absolute host paths, so only the reason reaches the client.
+  if (
+    (lower.includes("timed out waiting for") && lower.includes(".lock"))
+    || lower.includes("ownership backlog is full")
+    || lower.includes("ownership capacity is full")
+  ) {
+    const reason = lower.includes("ownership backlog is full")
+      ? "the retirement backlog is full"
+      : lower.includes("ownership capacity is full")
+        ? "the ownership capacity is full"
+        : "a bookkeeping lock is busy"
+    return {
+      status: 503,
+      type: "overloaded_error",
+      message: `Meridian's session bookkeeping is saturated: ${reason}. This is proxy load, not the request; retry shortly.`
     }
   }
 
@@ -365,7 +658,7 @@ export function isExtraUsageRequiredError(errMsg: string): boolean {
  * collapses into a generic api_error.
  */
 export interface SdkTermination {
-  reason: "max_turns" | "process_exit" | "aborted" | "upstream_idle" | "unknown"
+  reason: "max_turns" | "process_exit" | "aborted" | "upstream_idle" | "context_overflow" | "unknown"
   /** Turn count when reason=max_turns and parseable. */
   turns?: number
   /** Exit code when reason=process_exit and parseable. */
@@ -446,6 +739,91 @@ export function canRecoverCapturedToolUses(input: {
   }
 }
 
+/**
+ * Per-block completeness record for a tool_use the client received on the
+ * wire (uncaptured-recovery tracker). Populated only by real forwarding;
+ * `naturalStop` is set exclusively when the block's own content_block_stop
+ * was enqueued — a synthetic flush closure never counts, because a dangling
+ * block's arguments may be incomplete.
+ */
+export interface StreamedToolBlockRecord {
+  id: string
+  name: string
+  /** Accumulated input_json_delta partials (plus any inline start input). */
+  json: string
+  /** True when the block carried an inline input object at start (no deltas). */
+  startedInputObject: boolean
+  forwardedStart: boolean
+  naturalStop: boolean
+}
+
+/**
+ * Is a streamed-but-uncaptured tool call complete and executable?
+ * Pure function — no I/O.
+ */
+export function isStreamedToolBlockComplete(
+  record: StreamedToolBlockRecord,
+): boolean {
+  if (!record.forwardedStart) return false
+  if (!record.naturalStop) return false
+  if (record.startedInputObject) return true
+  // Zero-argument calls stream as `{}` deltas; anything must parse as an
+  // object. A truncated JSON string is not executable.
+  if (!record.json.trim()) return false
+  try {
+    const parsed = JSON.parse(record.json)
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Can a failed passthrough turn whose tool_use blocks fully streamed but
+ * were NEVER captured by the PreToolUse hook still be delivered as a
+ * tool-use response?
+ *
+ * This is the 2026-09-10 0a95wd-tusk incident shape: an abort landing
+ * between stream completion and tool dispatch makes the CLI yield
+ * `max_turns_reached` WITHOUT running the hook, so captures are empty even
+ * though every streamed block is complete and names a declared client tool.
+ * This is a materially different trust basis from
+ * `canRecoverCapturedToolUses` (which requires the hook to have seen the
+ * calls) and is therefore a separate predicate, not a relaxed count.
+ *
+ * Callers must further verify: the attempted maxTurns was 1, the kill switch
+ * is enabled, no cancellation of any kind fired, no forced-single/duplicate/
+ * early-stop state exists, and the envelope is still open. Every streamed
+ * block must pass `isStreamedToolBlockComplete`.
+ */
+export function canRecoverUncapturedToolUses(input: {
+  reason: SdkTermination["reason"]
+  passthrough: boolean
+  capturedToolUses: number
+  streamedToolUses: number
+  droppedToolUseIds: number
+  sawDuplicateToolUse: boolean
+  forceSingleToolUse: boolean
+  earlyStopFired: boolean
+  uncapturedRecoveryEnabled: boolean
+  attemptedMaxTurns: number | undefined
+}): boolean {
+  if (!input.uncapturedRecoveryEnabled) return false
+  if (!input.passthrough) return false
+  if (input.reason !== "max_turns") return false
+  // Only a turn this proxy capped at 1 qualifies; an uncapped budget that
+  // ran out is a different failure, and a cap-lifted reissue is already a
+  // second attempt at recovery.
+  if (input.attemptedMaxTurns !== 1) return false
+  if (input.capturedToolUses > 0) return false
+  if (input.streamedToolUses <= 0) return false
+  if (input.droppedToolUseIds > 0) return false
+  if (input.sawDuplicateToolUse) return false
+  if (input.forceSingleToolUse) return false
+  if (input.earlyStopFired) return false
+  return true
+}
+
 export function extractSdkTermination(errMsg: string): SdkTermination {
   const stderrTail = extractStderrTail(errMsg)
 
@@ -475,6 +853,16 @@ export function extractSdkTermination(errMsg: string): SdkTermination {
     return {
       reason: "max_turns",
       ...(m ? { turns: Number(m[1]) } : {}),
+      ...(stderrTail ? { stderrTail } : {}),
+    }
+  }
+
+  // Same ordering rationale as classifyError: an oversized prompt that arrives
+  // as a process exit must name the overflow, not the exit, or the diagnostic
+  // log points at the wrong thing.
+  if (CONTEXT_OVERFLOW_SIGNALS.some(rx => rx.test(lower))) {
+    return {
+      reason: "context_overflow",
       ...(stderrTail ? { stderrTail } : {}),
     }
   }
@@ -519,6 +907,8 @@ export function formatSdkTermination(
     isResume?: boolean
     hasDeferredTools?: boolean
     sdkSessionId?: string
+    /** Abort-cause snapshot: which Meridian-linked producer fired, if any. */
+    abort?: AbortCauseSnapshot
   },
 ): string {
   const parts: string[] = [`reason=${t.reason}`]
@@ -529,6 +919,12 @@ export function formatSdkTermination(
   if (ctx.isResume !== undefined) parts.push(`resume=${ctx.isResume}`)
   if (ctx.hasDeferredTools !== undefined) parts.push(`deferred=${ctx.hasDeferredTools}`)
   if (ctx.sdkSessionId) parts.push(`session=${ctx.sdkSessionId.slice(0, 8)}`)
+  if (ctx.abort) {
+    // `none` means no Meridian-linked abort fired — the marker that
+    // discriminates the uncaptured-tool-turn incident from a genuine client
+    // or watchdog cancellation. It is NOT proof the CLI never aborted.
+    parts.push(`abort=${ctx.abort.cause}`)
+  }
   if (t.rawTail) parts.push(`raw=${JSON.stringify(t.rawTail)}`)
   if (t.stderrTail) parts.push(`stderr=${JSON.stringify(t.stderrTail)}`)
   return `sdk_termination ${parts.join(" ")}`

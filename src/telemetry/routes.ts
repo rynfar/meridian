@@ -13,12 +13,22 @@ import { fileURLToPath } from "node:url"
 import { Hono } from "hono"
 import { telemetryStore, diagnosticLog } from "./index"
 import { dashboardHtml } from "./dashboard"
+import type { SessionTreeSummary } from "./types"
 
 // Read once at module load — src/telemetry/ is two levels below the package root
 const _iconPath = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "assets", "icon.svg")
 const _iconSvg = existsSync(_iconPath) ? readFileSync(_iconPath, "utf-8") : null
 
-export function createTelemetryRoutes() {
+export interface TelemetryRouteDeps {
+  /**
+   * Live session-tree cancellation counters, injected by the proxy so this
+   * module keeps depending only on the telemetry store. Optional: embedders and
+   * unit tests mount the routes standalone and simply get no `sessionTree`.
+   */
+  getSessionTree?: () => SessionTreeSummary
+}
+
+export function createTelemetryRoutes(deps: TelemetryRouteDeps = {}) {
   const routes = new Hono()
 
   // Dashboard
@@ -55,7 +65,8 @@ export function createTelemetryRoutes() {
     const windowMs = Number.parseInt(c.req.query("window") || "3600000", 10) // default 1 hour
 
     const summary = telemetryStore.summarize(windowMs)
-    return c.json(summary)
+    const sessionTree = deps.getSessionTree?.()
+    return c.json(sessionTree ? { ...summary, sessionTree } : summary)
   })
 
   // Diagnostic logs

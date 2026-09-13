@@ -45,7 +45,9 @@ describe("resolveModelPricing", () => {
   it("resolves concrete API model IDs", () => {
     expect(resolveModelPricing("claude-opus-4-8")).toMatchObject({ inputPerMTok: 5, outputPerMTok: 25 })
     expect(resolveModelPricing("claude-sonnet-4-6")).toMatchObject({ inputPerMTok: 3 })
+    expect(resolveModelPricing("claude-fable-5-1")).toMatchObject({ inputPerMTok: 10 })
     expect(resolveModelPricing("claude-fable-5")).toMatchObject({ inputPerMTok: 10 })
+    expect(resolveModelPricing("claude-mythos-5-1")).toMatchObject({ inputPerMTok: 10 })
   })
 
   it("falls back to family pricing for dated snapshot IDs", () => {

@@ -19,6 +19,7 @@ import { openAiAdapter } from "./openai"
 import { jcodeAdapter, normalizeJcodeSessionId } from "./jcode"
 import { codexAdapter } from "./codex"
 import { cherryAdapter } from "./cherry"
+import { polytokenAdapter, normalizePolytokenSessionId } from "./polytoken"
 import { loadAdapterInstances, matchesInstance, type AdapterInstanceDef } from "../adapterInstances"
 
 const ADAPTER_MAP: Record<string, AgentAdapter> = {
@@ -40,6 +41,11 @@ const ADAPTER_MAP: Record<string, AgentAdapter> = {
   // Cherry Studio chat client — unblocks the SDK's built-in web search (#481).
   cherry: cherryAdapter,
   cherrystudio: cherryAdapter,
+  // Polytoken — native Anthropic Messages client with a stable
+  // X-Polytoken-Session header and client-owned tool execution (mandatory
+  // passthrough). Selected via the native header, a Polytoken UA, the
+  // x-meridian-agent tag, or MERIDIAN_DEFAULT_AGENT.
+  polytoken: polytokenAdapter,
   // Generic OpenAI-compatible endpoint (/v1/chat/completions). Selected via
   // the x-meridian-agent: openai tag the handler sets on the internal hop.
   openai: openAiAdapter,
@@ -76,7 +82,13 @@ if (envDefault && !ADAPTER_MAP[envDefault]) {
     `Valid values: ${Object.keys(ADAPTER_MAP).join(", ")}. Falling back to opencode.`
   )
 }
-const defaultAdapter: AgentAdapter = ADAPTER_MAP[envDefault] ?? openCodeAdapter
+// NOTE: read at call time, not module load, so tests (and runtime env changes)
+// can toggle the env between requests — same precedent as the claude-cli
+// tiebreaker below. The startup warning above stays load-time advisory.
+function resolveDefaultAdapter(): AgentAdapter {
+  const current = (process.env.MERIDIAN_DEFAULT_AGENT || "").toLowerCase()
+  return ADAPTER_MAP[current] ?? openCodeAdapter
+}
 
 /**
  * Detect LiteLLM requests via User-Agent or x-litellm-* headers.
@@ -96,13 +108,17 @@ function isLiteLLMRequest(c: Context): boolean {
  *
  * Detection rules (evaluated in order):
  * 1. x-meridian-agent header               → explicit adapter override
- * 2. x-opencode-session or x-session-affinity header → OpenCode adapter
- * 3. User-Agent starts with "opencode/"     → OpenCode adapter
- * 4. User-Agent starts with "factory-cli/"  → Droid adapter
- * 5. User-Agent starts with "Charm-Crush/"  → Crush adapter
- * 6. User-Agent starts with "claude-cli/"  → Claude Code adapter
- * 7. litellm/* UA or x-litellm-* headers   → LiteLLM passthrough adapter
- * 8. Default                                → MERIDIAN_DEFAULT_AGENT env var, or OpenCode
+ * 2. x-meridian-agent naming an instance   → explicit instance selection
+ * 3. x-polytoken-session (valid)           → Polytoken adapter (native header)
+ * 4. instance match rules                  → automatic instance selection
+ * 5. x-opencode-session or x-session-affinity header → OpenCode adapter
+ * 6. User-Agent starts with "opencode/"     → OpenCode adapter
+ * 7. User-Agent starts with "factory-cli/"  → Droid adapter
+ * 8. User-Agent starts with "Charm-Crush/"  → Crush adapter
+ * 9. User-Agent starts with "claude-cli/"  → Claude Code adapter
+ * 10. Polytoken UA ("Polytoken <v>" / "Polytoken/<v>") → Polytoken adapter
+ * 11. litellm/* UA or x-litellm-* headers   → LiteLLM passthrough adapter
+ * 12. Default                                → MERIDIAN_DEFAULT_AGENT env var, or OpenCode
  */
 /**
  * Materialize an adapter INSTANCE (#476): the base adapter's behavior under
@@ -135,22 +151,31 @@ export function detectAdapter(c: Context): AgentAdapter {
   // Adapter instances (#476). Loaded per request (env / TTL-cached file);
   // {} when unconfigured — the common case, adding zero behavior change.
   // Precedence: explicit x-meridian-agent (built-in names reserved, checked
-  // above) > instance selected by name > instance match rules > the
-  // built-in heuristic chain below. Match rules outrank built-in User-Agent
-  // heuristics on purpose — redirecting a known client to a custom
-  // configuration is exactly what they exist for.
+  // above) > explicit instance by name > a VALID native Polytoken session
+  // header > automatic instance match rules > the built-in heuristic chain
+  // below. Match rules outrank built-in User-Agent heuristics on purpose —
+  // redirecting a known client to a custom configuration is exactly what they
+  // exist for. The native Polytoken header outranks them in turn because the
+  // client that sends it is naming its session protocol explicitly; a
+  // whitespace-only header is NOT a match and falls through.
   const instances = loadAdapterInstances()
   const instanceNames = Object.keys(instances)
-  if (instanceNames.length > 0) {
-    if (agentOverride && instances[agentOverride]) {
-      const inst = makeInstanceAdapter(agentOverride, instances[agentOverride]!)
+  if (instanceNames.length > 0 && agentOverride && instances[agentOverride]) {
+    const inst = makeInstanceAdapter(agentOverride, instances[agentOverride]!)
+    if (inst) return inst
+  }
+
+  // Polytoken's native session header is unambiguous — no other client sends
+  // it — and it beats every UA/affinity heuristic below. Identity is produced
+  // only by the adapter itself; a UA-only match never manufactures one.
+  if (normalizePolytokenSessionId(c.req.header("x-polytoken-session"))) {
+    return polytokenAdapter
+  }
+
+  for (const name of instanceNames) {
+    if (matchesInstance(instances[name]!, (h) => c.req.header(h))) {
+      const inst = makeInstanceAdapter(name, instances[name]!)
       if (inst) return inst
-    }
-    for (const name of instanceNames) {
-      if (matchesInstance(instances[name]!, (h) => c.req.header(h))) {
-        const inst = makeInstanceAdapter(name, instances[name]!)
-        if (inst) return inst
-      }
     }
   }
 
@@ -182,6 +207,20 @@ export function detectAdapter(c: Context): AgentAdapter {
 
   if (userAgent.startsWith("Charm-Crush/")) {
     return crushAdapter
+  }
+
+  // Polytoken's own User-Agent, without a session header. Token-boundary
+  // match: "Polytoken" followed by whitespace, "/", or end-of-string — so
+  // "Polytoken v0.8.3" and "Polytoken/0.8.3" match while "PolytokenImpostor"
+  // does not. UA-only selection is identification only: the adapter's
+  // getSessionId still returns undefined. This must precede the generic
+  // affinity fallback below — that fallback exists for OpenCode-family
+  // clients, and an affinity header on a Polytoken UA is exactly the
+  // "unrelated identity adoption" the affinity demotion (#546 family) was
+  // meant to prevent. Stronger explicit signals (native header, overrides)
+  // were all handled above.
+  if (/^Polytoken(?:[\s/]|$)/.test(userAgent)) {
+    return polytokenAdapter
   }
 
   // x-session-affinity is a generic session-stickiness header, NOT an OpenCode
@@ -216,5 +255,5 @@ export function detectAdapter(c: Context): AgentAdapter {
     return passthroughAdapter
   }
 
-  return defaultAdapter
+  return resolveDefaultAdapter()
 }

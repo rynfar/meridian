@@ -12,7 +12,7 @@
  *
  *   bun scripts/e2e-passthrough-turns.mjs [--stream]
  */
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs"
+import { mkdtempSync, realpathSync, writeFileSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { getSessionMessages } from "@anthropic-ai/claude-agent-sdk"
@@ -28,7 +28,10 @@ const PORT = Number(process.env.PROBE_PORT ?? 3522)
 const MODEL = process.env.PROBE_MODEL ?? "claude-sonnet-5"
 const MAX_TURNS = Number(process.env.PROBE_TURNS ?? 6)
 
-const WORKDIR = mkdtempSync(join(tmpdir(), "meridian-probe-proxy-"))
+const WORKDIR = realpathSync(mkdtempSync(join(tmpdir(), "meridian-probe-proxy-")))
+// The SDK recomputes git status each query. Keep this cache-continuity
+// fixture outside the checkout so concurrent review edits cannot change it.
+process.env.MERIDIAN_WORKDIR = WORKDIR
 setSessionStoreDir(join(WORKDIR, "meridian-store"))
 const CONTENT = { "a.txt": "alpha", "b.txt": "bravo", "c.txt": "charlie" }
 const FILES = Object.keys(CONTENT).map(f => join(WORKDIR, f))
@@ -190,7 +193,7 @@ const activeStoredSession = Object.entries(storedSessions).find(([key]) =>
 )?.[1]
 const activeSessionId = activeStoredSession?.claudeSessionId
 const activeMessages = activeSessionId
-  ? await getSessionMessages(activeSessionId)
+  ? await getSessionMessages(activeSessionId, { dir: WORKDIR })
   : []
 
 say(`\n=== verdict (stream=${STREAM}, parallel=${PARALLEL}) ===`)
@@ -240,7 +243,7 @@ const pass = quotes.length === 3 &&
   activeMessages.length > 0 &&
   activeAnswerProblems.length === 0 &&
   cacheMisses.length === 0
-say(`  ${pass ? "PASS" : "FAIL"}: active history has one real answer per delivered call`)
+say(`  ${pass ? "PASS" : "FAIL"}: tool batching, active history, and prompt-cache continuity`)
 if (!pass) {
   say("\n  recent proxy diagnostics:")
   for (const line of proxyLog.slice(-30)) say(`    ${line}`)

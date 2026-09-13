@@ -8,22 +8,25 @@
  * exchanges a code and persists the token file. From #543 by @sittitep.
  */
 import { describe, it, expect, mock, beforeEach, afterAll } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
+import { installMcpToolsMock } from "./mcpToolsMock"
 import { mkdtempSync, rmSync, readFileSync, statSync, existsSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: () => (async function* () {})(),
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: { tool: () => {}, registerTool: () => ({}) } }),
   tool: () => ({}),
-}))
+}), "design-endpoint.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
-mock.module("../mcpTools", () => ({
+installMcpToolsMock(() => ({
   createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }),
 }))
 
