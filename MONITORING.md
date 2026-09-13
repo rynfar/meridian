@@ -86,6 +86,10 @@ MERIDIAN_TELEMETRY_PERSIST=1 meridian
 
 The default database is `~/.config/meridian/telemetry.db`, with seven-day retention. Override these with `MERIDIAN_TELEMETRY_DB` and `MERIDIAN_TELEMETRY_RETENTION_DAYS`. Check startup output: initialization failure falls back to memory. Containers must persist the database directory to retain history across recreation.
 
+## Prometheus Scope
+
+`/metrics` renders counters and histograms from retained request records (up to 10,000), rather than independent lifetime accumulators. Values can fall as records leave the in-memory buffer or retention window. Treat them as a view of retained traffic; do not assume monotonic lifetime counters for alerting or `rate()` calculations.
+
 ## Estimated Cost
 
 The dashboard and `/telemetry/summary` expose `costEstimate`: an **API-equivalent estimate**, not an invoice or remaining subscription budget. Actual billing depends on the configured authentication profile, plan, and upstream rules.
