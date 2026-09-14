@@ -85,10 +85,49 @@ describe("droidAdapter.getSessionId", () => {
   })
 })
 
+// Current Droid CLI builds (verified live, September 2026) emit a structured
+// environment block instead of the shell-transcript style above.
+const DROID_STRUCTURED_ENV_REMINDER = `<system-reminder>
+# Environment
+You have been invoked in the following environment: 
+ - Primary working directory: /Users/rynfar/repos/my-project
+ - Is a git repository: true
+ - Platform: darwin
+ - Shell: zsh
+ - OS Version: Darwin 25.0.0
+</system-reminder>`
+
+function makeStructuredEnvDroidBody(cwd: string = "/Users/rynfar/repos/my-project"): any {
+  return {
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: DROID_STRUCTURED_ENV_REMINDER.replace("/Users/rynfar/repos/my-project", cwd),
+          },
+          { type: "text", text: "Do something useful" },
+        ],
+      },
+    ],
+  }
+}
+
 describe("droidAdapter.extractWorkingDirectory", () => {
   it("extracts CWD from system-reminder in first user message", () => {
     const body = makeDroidBody("/Users/rynfar/repos/my-project")
     expect(droidAdapter.extractWorkingDirectory(body)).toBe("/Users/rynfar/repos/my-project")
+  })
+
+  it("extracts CWD from the current structured '# Environment' block (no '% pwd')", () => {
+    const body = makeStructuredEnvDroidBody("/Users/rynfar/repos/my-project")
+    expect(droidAdapter.extractWorkingDirectory(body)).toBe("/Users/rynfar/repos/my-project")
+  })
+
+  it("extracts different CWD paths from the structured block", () => {
+    expect(droidAdapter.extractWorkingDirectory(makeStructuredEnvDroidBody("/home/user/code"))).toBe("/home/user/code")
+    expect(droidAdapter.extractWorkingDirectory(makeStructuredEnvDroidBody("/opt/myapp"))).toBe("/opt/myapp")
   })
 
   it("extracts different CWD paths correctly", () => {

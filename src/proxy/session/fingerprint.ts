@@ -41,18 +41,50 @@ export function extractClientCwd(body: any): string | undefined {
  * contains dynamic file trees/diagnostics that change every request).
  * This prevents cross-project collisions when different projects start
  * with the same first message.
+ * <system-reminder> blocks injected into user messages are stripped
+ * before hashing: they are per-machine environment noise, not conversation
+ * identity, and can otherwise dominate the hash window. When a client
+ * opens with a reminder-only message (Droid), the seed comes from the
+ * first user message that carries actual task text.
  */
 export function getConversationFingerprint(messages: Array<{ role: string; content: any }>, workingDirectory?: string): string {
-  const firstUser = messages?.find((m) => m.role === "user")
-  if (!firstUser) return ""
-  const text = typeof firstUser.content === "string"
-    ? firstUser.content
-    : Array.isArray(firstUser.content)
-      ? firstUser.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("")
-      : ""
-  if (!text) return ""
-  const seed = workingDirectory ? `${workingDirectory}\n${text.slice(0, 2000)}` : text.slice(0, 2000)
+  const users = messages?.filter((m) => m.role === "user") ?? []
+  const firstUserText = userText(users[0])
+  if (!firstUserText) return ""
+  // Client-injected <system-reminder> blocks (environment capture, tool
+  // manifests, dynamic context) are identical across conversations in the
+  // same project and can exceed the slice window, so distinct conversations
+  // collided on one key and diverged as unrelated-history. Hash the user's
+  // actual request instead; reminders are replayed verbatim each turn, so
+  // stripping preserves within-conversation stability.
+  //
+  // Clients like Droid open with a reminder-only environment message and
+  // deliver the actual request in a LATER user message; that reminder
+  // payload is machine-global, so seeding from it would conflate every
+  // conversation in the project. Walk the user messages and seed from the
+  // first one that carries real task text. A history where every user
+  // message is reminder-only keeps the raw first-message window, so that
+  // degenerate path is unchanged.
+  let seedText = ""
+  for (const message of users) {
+    const stripped = userText(message).replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim()
+    if (stripped) {
+      seedText = stripped
+      break
+    }
+  }
+  seedText = seedText || firstUserText
+  const seed = workingDirectory ? `${workingDirectory}\n${seedText.slice(0, 2000)}` : seedText.slice(0, 2000)
   return createHash("sha256").update(seed).digest("hex").slice(0, 16)
+}
+
+function userText(message: { role: string; content: any } | undefined): string {
+  if (!message) return ""
+  return typeof message.content === "string"
+    ? message.content
+    : Array.isArray(message.content)
+      ? message.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("")
+      : ""
 }
 
 /**

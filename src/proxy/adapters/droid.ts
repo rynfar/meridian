@@ -36,9 +36,21 @@ const DROID_ALLOWED_MCP_TOOLS: readonly string[] = [
  * Extract the client's working directory from Droid's system-reminder block.
  *
  * Droid embeds environment context inside <system-reminder> tags in user
- * message content blocks. The CWD appears as:
+ * message content blocks. Older Droid CLI builds ran a literal shell
+ * transcript and the CWD appeared as:
  *   % pwd
  *   /path/to/project
+ *
+ * Current Droid CLI builds instead emit a structured environment block:
+ *   # Environment
+ *   You have been invoked in the following environment:
+ *    - Primary working directory: /path/to/project
+ *
+ * Both forms are matched — older sessions replaying stored history and
+ * clients pinned to an older CLI build must keep resolving correctly. A miss
+ * here silently degrades session fingerprinting to hashing only the opening
+ * message (see getConversationFingerprint), which is far more prone to
+ * cross-turn mismatches and forces needless full-history replays.
  */
 function extractDroidCwd(body: any): string | undefined {
   const messages = body.messages
@@ -49,8 +61,13 @@ function extractDroidCwd(body: any): string | undefined {
     const content = Array.isArray(msg.content) ? msg.content : []
     for (const block of content) {
       if (block.type !== "text" || !block.text) continue
-      const match = (block.text as string).match(/<system-reminder>[\s\S]*?% pwd\n([^\n]+)/i)
-      if (match?.[1]) return match[1].trim()
+      const text = block.text as string
+      const reminderMatch = text.match(/<system-reminder>[\s\S]*?<\/system-reminder>/i)
+      const reminder = reminderMatch?.[0] ?? text
+      const structuredMatch = reminder.match(/Primary working directory:\s*([^\n<]+)/i)
+      if (structuredMatch?.[1]) return structuredMatch[1].trim()
+      const shellMatch = reminder.match(/% pwd\n([^\n]+)/i)
+      if (shellMatch?.[1]) return shellMatch[1].trim()
     }
   }
 
