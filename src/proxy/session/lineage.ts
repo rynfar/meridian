@@ -146,11 +146,36 @@ function canonicalJson(value: unknown): unknown {
   return value
 }
 
+/**
+ * Strip client-injected <system-reminder> blocks before they enter the
+ * lineage hash.
+ *
+ * Droid (and other clients) embed environment context — file diagnostics,
+ * git status, tool manifests — inside <system-reminder> tags directly in a
+ * text block, and that payload is regenerated per request, not per
+ * conversation: it can differ between two consecutive turns of the SAME
+ * conversation with nothing else changed. getConversationFingerprint
+ * (fingerprint.ts) already strips this noise when deciding which cached
+ * session a conversation buckets to; this hash decides whether that bucket's
+ * history can actually be resumed, and had the same blind spot. Since
+ * measurePrefixOverlap breaks at the first mismatching message, and message 0
+ * of a Droid conversation is typically reminder-only, an unstripped reminder
+ * hash made that first message re-hash differently every turn — collapsing
+ * prefix overlap to 0 forever and forcing a full-history replay on every
+ * single turn, even though the fingerprint fix had already bucketed the
+ * conversation correctly (observed live: key stable across 29+ consecutive
+ * turns, prefix overlap 0 on every one).
+ */
+function stripSystemReminders(text: unknown): unknown {
+  if (typeof text !== "string") return text
+  return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
+}
+
 function semanticBlock(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return ["value", typeof value, value]
   const block = value as Record<string, unknown>
   switch (block.type) {
-    case "text": return ["text", block.text]
+    case "text": return ["text", stripSystemReminders(block.text)]
     case "tool_use": return ["tool_use", block.id, block.name, canonicalJson(block.input)]
     case "tool_result": return ["tool_result", block.tool_use_id, block.is_error ?? false, semanticContent(block.content)]
     default: {
@@ -162,7 +187,7 @@ function semanticBlock(value: unknown): unknown {
 
 function semanticContent(content: unknown): unknown[] {
   // NOTE: OpenCode changes plain strings to text blocks between requests.
-  if (typeof content === "string") return [["text", content]]
+  if (typeof content === "string") return [["text", stripSystemReminders(content)]]
   if (!Array.isArray(content)) return [["value", typeof content, content]]
   return hashableContentBlocks(content).map(semanticBlock)
 }
