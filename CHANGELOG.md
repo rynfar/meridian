@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.71.2](https://github.com/rynfar/meridian/compare/meridian-v1.71.1...meridian-v1.71.2) (2026-09-15)
+
+
+### Bug Fixes
+
+* collect Windows sessions with the actual Node executor ([#1044](https://github.com/rynfar/meridian/issues/1044)) ([4c9ebbb](https://github.com/rynfar/meridian/commit/4c9ebbb672cb378339c5f7e888d68dd425034fdb))
+* **session:** take the bookkeeping off the request path ([#1036](https://github.com/rynfar/meridian/issues/1036)) ([596a0d8](https://github.com/rynfar/meridian/commit/596a0d8363a88302e52f33841286e22d1c6177fc))
+
 ## [1.71.1](https://github.com/rynfar/meridian/compare/meridian-v1.71.0...meridian-v1.71.1) (2026-09-12)
 
 
