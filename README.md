@@ -10,187 +10,111 @@
   <a href="https://discord.gg/jP2a2Z92NZ"><img src="https://img.shields.io/badge/discord-join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
 </p>
 
----
 
-Meridian bridges the Claude Agent SDK (formerly the Claude Code SDK) to the standard Anthropic API. No OAuth interception. No binary patches. No hacks. Just pure, documented SDK calls. Any tool that speaks the Anthropic or OpenAI protocol — OpenCode, ForgeCode, Crush, Cline, Aider, Pi, Prime Agent, Droid, Jcode, Open WebUI, Claude Code — connects to Meridian and gets Claude, with session management, streaming, and prompt caching handled natively by the SDK.
+Meridian runs a local API for Claude-powered coding agents and chat clients. It translates Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses requests into Claude Agent SDK calls, with session routing, tool forwarding, and usage diagnostics.
 
-> [!NOTE]
-> ### How Meridian works with Anthropic
->
-> Meridian is built entirely on the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk). Every request flows through `query()` — the same documented function Anthropic provides for programmatic access. No OAuth tokens are extracted, no binaries are patched, nothing is reverse-engineered.
->
-> Because we use the SDK, Anthropic remains in full control of prompt caching, context window management, compaction, rate limiting, and authentication. Meridian doesn't bypass these mechanisms — it depends on them. Max subscription tokens flow through the correct channel, governed by the same guardrails Anthropic built into Claude Code.
->
-> What Meridian adds is a **presentation and interoperability layer**. We translate Claude Code's output into the standard Anthropic API format so developers can connect the editors, terminals, and workflows they prefer. The SDK does the work; Meridian formats the result.
->
-> **Our philosophy is simple: work within the SDK's constraints, not around them.** The generous limits on Claude Max exist because Anthropic can optimize and manage usage through Claude Code. Meridian respects that by building only on the tools Anthropic provides — no shortcuts, no workarounds that create friction. We believe this is how developers keep the freedom to choose their own frontends while keeping the platform sustainable for everyone.
+Use your existing Claude login or configure a separate [authentication profile](docs/profiles.md). Model access, usage limits, and billing remain controlled by Anthropic. See its [Agent SDK plan guidance](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) for current subscription rules.
 
 ## Quick Start
 
+Requires **Node.js 22 or newer** and an authenticated Claude Code installation (`claude` on your PATH). Bun is needed for development, not to run the published npm package.
+
 ```bash
-# 1. Install
 npm install -g @rynfar/meridian
-
-# 2. Authenticate (one time)
 claude login
-
-# 3. Configure OpenCode plugin (one time — OpenCode users only)
-meridian setup                # OpenCode V1
-# meridian setup --v2 --opencode-bin ~/.local/bin/opencode2  # pinned V2 beta
-
-# 4. Start
 meridian
 ```
 
-Meridian runs on `http://127.0.0.1:3456`. Point any Anthropic-compatible tool at it:
+Meridian listens at `http://127.0.0.1:3456`. Open that address for account status and usage, or `/telemetry` for requests, logs, and cache health.
+
+For **OpenCode V1**, run setup once, then launch OpenCode in another terminal:
 
 ```bash
+meridian setup
 ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 opencode
 ```
 
-The API key value is a placeholder — Meridian authenticates through the Claude Code SDK, not API keys. Most Anthropic-compatible tools require this field to be set, but any value works.
+OpenCode V2 requires a [supported pinned beta and V2 setup](docs/agents.md#opencode-v2-beta). Other clients have their own [setup instructions](docs/agents.md).
 
-Using a different agent, NixOS, or Docker? See the [documentation](#documentation) below.
+`x` is a placeholder only when proxy authentication is disabled. If you set `MERIDIAN_API_KEY`, use that secret in your clients. Keep the default loopback binding for local use; see [authentication](docs/configuration.md#api-key-authentication) before exposing the proxy to a network.
 
-## Why Meridian?
+## What Meridian Provides
 
-The Claude Agent SDK provides programmatic access to Claude. But your favorite coding tools expect an Anthropic API endpoint. Meridian bridges that gap — it runs locally, accepts standard API requests, and routes them through the SDK. Claude Code does the heavy lifting; Meridian translates the output.
+- **Three API formats:** Anthropic `/v1/messages`, OpenAI `/v1/chat/completions`, and `/v1/responses`, plus model discovery at `/v1/models`.
+- **Conversation continuity:** SDK session resume, compaction and undo handling, restart persistence, and concurrent request coordination for clients with stable session identities.
+- **Client-owned tools:** passthrough adapters return tool calls for the connecting agent to execute. Internal-mode adapters can use SDK tools on the proxy host.
+- **Multiple accounts:** active-profile selection, sticky routing, and optional priority failover.
+- **Observability:** request metrics, diagnostic logs, cache anomaly detection, envelope audits, API-equivalent cost estimates, and Prometheus metrics. SQLite history is opt-in.
+- **Configuration:** per-adapter prompts and thinking, adapter instances, and composable plugins.
 
 <p align="center">
-  <img src="assets/how-it-works.svg" alt="How Meridian works" width="920"/>
+  <img src="assets/how-it-works.svg" alt="Clients send API requests to Meridian, which calls the Claude Agent SDK" width="920"/>
 </p>
 
 ## Documentation
 
-| Guide | What's in it |
-|-------|--------------|
-| [Agent Setup](docs/agents.md) | Per-agent config: OpenCode, Crush, Droid, Cline, Aider, Codex CLI, Open WebUI, Cherry Studio, ForgeCode, Pi, Claude Code, Claude Design MCP, adapter instances |
-| [Configuration](docs/configuration.md) | Environment variables, endpoints, API key auth, SDK feature toggles, passthrough mode, CLI commands |
-| [Multi-Profile Support](docs/profiles.md) | Multiple Claude accounts, headless login, sticky session routing |
-| [Deployment](docs/deployment.md) | NixOS / Nix flake, Home Manager service, Docker |
-| [Plugins](docs/plugins.md) | Plugin system and the official scrub plugins |
-| [Development](docs/development.md) | Architecture overview, testing, programmatic API |
-| [`MONITORING.md`](MONITORING.md) | Telemetry, token usage, and prompt cache health |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Module map and dependency rules |
+| Guide | What you can do |
+|-------|-----------------|
+| [Agent setup](docs/agents.md) | Connect OpenCode, Crush, Droid, Cline, Aider, Codex, Open WebUI, Continue, Cherry Studio, ForgeCode, Pi, Prime Agent, Claude Code, Jcode, Polytoken, and Hermes |
+| [Configuration](docs/configuration.md) | Set environment variables, authenticate clients, inspect endpoints, tune SDK features, and troubleshoot tool calls |
+| [Profiles](docs/profiles.md) | Add accounts, log in headlessly, and configure sticky or priority routing |
+| [Deployment](docs/deployment.md) | Install with Nix, run a Home Manager service, or build and run Docker |
+| [Plugins](docs/plugins.md) | Install and manage plugins; follow the linked authoring guide to write one |
+| [Monitoring](MONITORING.md) | Find usage limits, read token and cache metrics, and investigate failures |
+| [Development](docs/development.md) | Work from source, validate changes, and embed the proxy |
+| [Architecture](ARCHITECTURE.md) | Understand module boundaries and session design |
 
-## Features
+## Client Compatibility
 
-- **Standard Anthropic API** — drop-in compatible with any tool that supports a custom `base_url`
-- **OpenAI-compatible API** — `/v1/chat/completions` and `/v1/models` for tools that only speak the OpenAI protocol (Open WebUI, Continue, etc.) — no LiteLLM needed, including `image_url` support for data URLs
-- **Session management** — conversations persist across requests, survive compaction and undo, resume after proxy restarts
-- **Streaming** — full SSE streaming with MCP tool filtering
-- **Concurrent sessions** — run parent and subagent requests in parallel
-- **Subagent model selection** — primary agents get 1M context; subagents get 200k, preserving rate-limit budget
-- **Auto token refresh** — expired OAuth tokens are refreshed automatically; requests continue without interruption
-- **Passthrough mode** — forward tool calls to the client instead of executing internally
-- **Multimodal** — images, documents, file attachments, and multimodal tool results pass through to Claude
-- **Multi-profile** — switch between Claude accounts instantly, no restart needed; opt-in [sticky session routing](docs/profiles.md#sticky-session-routing) distributes sessions across accounts while keeping per-account prompt caches warm
-- **Adapter instances** — run several configurations of the same adapter side by side (per-instance thinking, system prompt, passthrough) selected by header or match rules — see [Adapter instances](docs/agents.md#adapter-instances)
-- **Telemetry dashboard** — real-time performance metrics at `/telemetry`, including token usage and prompt cache efficiency ([`MONITORING.md`](MONITORING.md))
-- **Cost estimation** — estimated API-equivalent value of your traffic, per model and per profile, using current list prices with configurable overrides (`~/.config/meridian/model-pricing.json`, editable at `/settings`)
-- **Envelope integrity auditing** — Meridian validates its own wire output on every response (no dangling blocks, no undelivered or empty tool calls) and surfaces violations on the dashboard
-- **Telemetry persistence** — opt-in SQLite storage for telemetry data that survives proxy restarts, with configurable retention
-- **Prometheus metrics** — `GET /metrics` endpoint for scraping request counters and duration histograms
-- **SDK feature toggles** *(experimental)* — unlock Claude Code features (memory, dreaming, CLAUDE.md) for any connected agent
-
-## Tested Agents
+The table records existing verification, **not a fresh certification of every current client release or platform**. Version-specific evidence and limitations are in the [agent guide](docs/agents.md) and [E2E procedures](E2E.md). Updating these docs does not rerun live model tests.
 
 | Agent | Status | Notes |
 |-------|--------|-------|
-| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1 and pinned V2 beta support; requires the matching `meridian setup` mode ([setup](docs/agents.md#opencode)) — tools, durable resume, restart, undo, compaction, parallel subagents |
-| [ForgeCode](https://forgecode.dev) | ✅ Verified | Provider config (see [Agent Setup](docs/agents.md)) — passthrough tool execution, session resume, streaming |
-| [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see [Agent Setup](docs/agents.md)) — full tool support, session resume, streaming |
-| [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see [Agent Setup](docs/agents.md)) — full tool support, session resume, headless `crush run` |
-| [Cline](https://github.com/cline/cline) | ✅ Verified | Config (see [Agent Setup](docs/agents.md)) — full tool support, file read/write/edit, bash, session resume |
-| [Aider](https://github.com/paul-gauthier/aider) | ✅ Verified | Env vars — file editing, streaming; `--no-stream` broken (litellm bug) |
-| [Open WebUI](https://github.com/open-webui/open-webui) | ✅ Verified | OpenAI-compatible endpoints — set base URL to `http://127.0.0.1:3456` |
-| [Pi](https://github.com/mariozechner/pi-coding-agent) | ✅ Verified | models.json config (see [Agent Setup](docs/agents.md)) — full tool support via passthrough; detected via `x-meridian-agent: pi` header |
-| [Prime Agent](https://www.npmjs.com/package/prime-agent) | ⚠️ Single-agent verified | Extension config (see [Agent Setup](docs/agents.md)) — reliable with one active agent. Concurrent RLM subagents receive distinct session keys, but are not yet production-safe; see [Prime Agent subagents](#prime-agent-subagents). The extension's `metadata.user_id` stamp is **required**, not optional. |
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | ✅ Verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
-| [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see [Agent Setup](docs/agents.md)) — chat client with Claude's built-in web search via internal mode |
-| [Polytoken](https://polytoken.dev/) | ✅ Verified | Provider config (see [Agent Setup](docs/agents.md#Polytoken)) — `X-Polytoken-Session` identity, mandatory client-owned tools (passthrough cannot be disabled), signed-thinking passthrough |
-| Jcode | ✅ Verified | `/v1/chat/completions` + `x-jcode-session` header — dedicated `jcode` adapter keeps append-only history intact, so retained sessions resume on one SDK session (90.9% cache hit on turn 2 of a two-turn Opus session) |
-| [Codex CLI](https://github.com/openai/codex) | ✅ Verified | `/v1/responses` (see [Agent Setup](docs/agents.md)) — Responses-API provider, passthrough tool execution; verified on 0.144 (plain + tool-driving turns) |
-| [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
+| [OpenCode](https://github.com/anomalyco/opencode) | Previously verified | V1 and pinned V2 beta support; requires the matching `meridian setup` mode ([setup](docs/agents.md#opencode)) — tools, durable resume, restart, undo, compaction, parallel subagents |
+| [ForgeCode](https://forgecode.dev) | Previously verified | Provider config (see [Agent Setup](docs/agents.md)) — passthrough tool execution, session resume, streaming |
+| [Droid (Factory AI)](https://factory.ai/product/ide) | Previously verified | BYOK config (see [Agent Setup](docs/agents.md)) — full tool support, session resume, streaming |
+| [Crush](https://github.com/charmbracelet/crush) | Previously verified | Provider config (see [Agent Setup](docs/agents.md)) — full tool support, session resume, headless `crush run` |
+| [Cline](https://github.com/cline/cline) | Previously verified | Config (see [Agent Setup](docs/agents.md)) — full tool support, file read/write/edit, bash, session resume |
+| [Aider](https://github.com/paul-gauthier/aider) | Previously verified | Env vars — file editing, streaming; historical `--no-stream` limitation; see setup guide |
+| [Open WebUI](https://github.com/open-webui/open-webui) | Previously verified | OpenAI-compatible endpoints — set base URL to `http://127.0.0.1:3456/v1` |
+| [Pi](https://github.com/mariozechner/pi-coding-agent) | Previously verified | models.json config (see [Agent Setup](docs/agents.md)) — full tool support via passthrough; detected via `x-meridian-agent: pi` header |
+| [Prime Agent](https://www.npmjs.com/package/prime-agent) | Limited verification | Extension config (see [Agent Setup](docs/agents.md)) — reliable with one active agent. Concurrent RLM subagents receive distinct session keys, but are not yet production-safe; see [Prime Agent limitations](docs/agents.md#prime-agent). The extension's `metadata.user_id` stamp is **required**, not optional. |
+| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Previously verified | `ANTHROPIC_BASE_URL` — remote clients share a Max subscription over the network; client CWD preserved in system prompt |
+| [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | Previously verified | `cherry` adapter (see [Agent Setup](docs/agents.md)) — chat client with Claude's built-in web search via internal mode |
+| [Polytoken](https://polytoken.dev/) | Previously verified | Provider config (see [Agent Setup](docs/agents.md#polytoken)) — `X-Polytoken-Session` identity, mandatory client-owned tools (passthrough cannot be disabled), signed-thinking passthrough |
+| Jcode | Previously verified | `/v1/chat/completions` + `x-jcode-session` header — dedicated `jcode` adapter keeps append-only history intact, so retained sessions resume on one SDK session (historical two-turn Opus cache test) |
+| [Codex CLI](https://github.com/openai/codex) | Previously verified | `/v1/responses` (see [Agent Setup](docs/agents.md)) — Responses-API provider, passthrough tool execution; verified on 0.144 (plain + tool-driving turns) |
+| [Continue](https://github.com/continuedev/continue) | Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456/v1` |
 
-### Prime Agent subagents
 
-Prime Agent is reliable through Meridian with one active agent. RLM children have
-separate session identities and can execute successfully, but concurrent subagent
-orchestration is not yet production-safe. Observed failure modes include overload
-amplification, expensive cache churn after fresh-session replay, loss of child-task
-context during recovery, and undelivered tool envelopes. Use a single active Prime
-Agent for unattended or usage-sensitive work until coordinated fixes land in Prime
-Agent and Meridian.
+## Important Limits
 
-Parent-to-child cancellation is handled on the Meridian side: when the extension
-stamps `parent_session_id` alongside the child's session id, aborting a parent's
-in-flight request aborts every live request in the subtree below it and evicts
-each one's session mapping. See
-[Subagent cancellation](docs/agents.md#prime-agent).
-
-Prime Agent can keep Opus on the root session while selecting Sol for an individual
-child. A child inherits its parent's model unless the `rlm` call supplies an exact
-`provider/model` selector returned by `rlm.find_models()`:
-
-```python
-sol_models = await rlm.find_models("sol")
-print(sol_models)  # choose an available exact selector for your authenticated providers
-
-child = await rlm(
-    "Review this change and report your findings to the parent.",
-    name="sol-reviewer",
-    model="openai-codex/gpt-5.6-sol",
-)
-```
-
-The selector above requires an authenticated OpenAI Codex provider in Prime Agent;
-Prime Inference may expose a different Sol selector. Explicit child model selection
-reduces Claude Max pressure, but does not by itself fix the orchestration and
-cancellation limitations above.
-
-Tested an agent or built a plugin? [Open an issue](https://github.com/rynfar/meridian/issues) and we'll add it.
+- API compatibility is a supported subset. Native Anthropic server tools such as `web_search_*` are rejected; use an API provider for those calls. OpenAI images require data URLs.
+- `max_tokens` is ignored by default. Opt in with `MERIDIAN_ENFORCE_MAX_TOKENS=1`; see [output limits and other constraints](docs/configuration.md#known-limitations).
+- Prompt cache hits and session reuse depend on stable client identity, history, model, account, and upstream cache availability. They are not guaranteed.
+- Prime Agent concurrent RLM orchestration is not production-safe. Use one active agent for unattended or usage-sensitive work; see [evidence and limitations](docs/agents.md#prime-agent).
+- Meridian's context defaults are model-specific. Check [model configuration](docs/configuration.md#configuration) and your account's entitlement rather than assuming every primary request receives 1M context.
 
 ## FAQ
 
-**Is this allowed by Anthropic's terms?**
-Meridian uses the official Claude Agent SDK — the same SDK Anthropic publishes and documents for programmatic access. It does not intercept credentials, modify binaries, or bypass any authentication. All requests flow through the SDK's own authentication and rate-limiting mechanisms.
+**Does using the SDK guarantee subscription access?**
+No. Meridian uses the SDK for model calls, but that does not guarantee eligibility, uninterrupted access, or a particular billing treatment. Anthropic's [current plan guidance](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) governs subscription use. API-key profiles use their configured API billing.
 
-**How is this different from using an API key?**
-API keys provide direct API access billed per token. Claude Max includes programmatic access through the Claude Agent SDK. Meridian translates SDK responses into the standard Anthropic API format, allowing compatible tools to connect through Claude Code.
+**Where are my usage limits and logs?**
+Start at `/` for account usage and `/telemetry` for request metrics and diagnostic logs. [Monitoring](MONITORING.md) explains quota windows, cache alerts, persistence, and estimated cost.
 
-**What happens if my OAuth token expires?**
-Tokens expire roughly every 8 hours. Meridian detects the expiry, refreshes the token automatically, and retries the request — so requests continue transparently. If the refresh fails (e.g. the refresh token has expired after weeks of inactivity), Meridian returns a clear error telling you to run `claude login`.
+**What if authentication expires?**
+Meridian attempts refresh for refreshable OAuth credentials. Run `meridian refresh-token` to request a refresh, or log in again with `claude login` / `meridian profile login <name>`. Long-lived token profiles need a replacement token when they expire.
 
-**Can I trigger a token refresh manually?**
+**What if I get “You're out of extra usage”?**
+Check account quota and billing first, then the [context settings](docs/configuration.md#configuration). Historical prompt-specific workarounds are documented under [plugins](docs/plugins.md#official-plugins); they are not a guarantee of billing eligibility.
 
-```bash
-# CLI — works whether the proxy is running or not
-meridian refresh-token
-
-# HTTP — while the proxy is running
-curl -X POST http://127.0.0.1:3456/auth/refresh
-```
-
-**I'm getting `400 You're out of extra usage` on tool-bearing requests. What do I do?**
-This error class ([#516](https://github.com/rynfar/meridian/issues/516), historical) came from Anthropic's server-side classifier gating certain requests behind Extra Usage. It had two distinct triggers, both now addressed:
-
-- **Harness fingerprints** — identity lines in a client's system prompt (e.g. pi's "coding agent harness" line) were metered as Extra Usage. The [official scrub plugins](docs/plugins.md#official-plugins) strip these and remain recommended for the affected harnesses.
-- **Tool-definition presence** — reported in mid-2026 as triggering independently of prompt content; as of July 2026 this no longer reproduces on Max accounts (verified with Extra Usage disabled, tools present, and an unscrubbed fingerprint prompt). It appears to have been resolved upstream in Anthropic's billing policy.
-
-If you still hit the error on a current release, first check `GET /v1/usage/quota` to rule out genuinely exhausted quota, then try disabling the connecting client's system prompt for the affected adapter while keeping the Claude Code prompt enabled (in the `/settings` UI under **SDK Feature Toggles**, or `PATCH /settings/api/features/<adapter>` with `{"clientSystemPrompt":false,"codeSystemPrompt":true}`) — and please report it on [#516](https://github.com/rynfar/meridian/issues/516) with your plan type, since remaining occurrences are likely account-cohort specific (Team plans are treated differently by the API).
-
-**I'm hitting rate limits on 1M context. What do I do?**
-Meridian defaults Sonnet to 200k context because Sonnet 1M is always billed as Extra Usage on Max plans — even when regular usage isn't exhausted. This is [Anthropic's intended billing model](https://code.claude.com/docs/en/model-config#extended-context), not a bug. Set `MERIDIAN_SONNET_MODEL=sonnet[1m]` to opt in if you have Extra Usage enabled and understand the billing implications. Opus defaults to 1M context, which is included with Max/Team/Enterprise subscriptions at no extra cost. Fable defaults to 1M too — verified as included on Max and Team accounts at no Extra Usage cost — and Mythos, which rides the Fable tier, inherits the same default. Note: there is a [known upstream bug](https://github.com/anthropics/claude-code/issues/39841) where Claude Code incorrectly gates Opus 1M behind Extra Usage on Max — this is Anthropic's to fix.
-
-To turn off 1M context entirely for **every** model (so Meridian never requests the extended window), set `MERIDIAN_1M_CONTEXT_SUPPORT=0`. To back off a single tier instead — without giving up the other tier's included 1M context — set `MERIDIAN_FABLE_MODEL=fable` or `MERIDIAN_OPUS_MODEL=opus` (both also accept the `CLAUDE_PROXY_` prefix). Meridian also auto-detects the "out of extra usage" error, falls back to the 200k model, and skips 1M for an hour — so it self-heals after the first occurrence even without the env var.
-
-**Why does the health endpoint show `"plugin": "not-configured"`?**
-You haven't run `meridian setup`. Without the plugin, OpenCode requests won't have session tracking or subagent model selection. Run `meridian setup` and restart OpenCode.
+**Why does health say the OpenCode plugin is not configured?**
+Run the matching `meridian setup` command and restart OpenCode. This status concerns the OpenCode integration; other clients do not need that plugin.
 
 ## Contributing
 
-Issues and PRs welcome. Join the [Discord](https://discord.gg/jP2a2Z92NZ) to discuss ideas before opening issues. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for module structure and dependency rules, [`CLAUDE.md`](CLAUDE.md) for coding guidelines, [`E2E.md`](E2E.md) for end-to-end test procedures, and [`MONITORING.md`](MONITORING.md) for understanding token usage and prompt cache health.
+Issues and PRs are welcome. See [development](docs/development.md), [coding guidelines](AGENTS.md), [design](DESIGN.md), and [E2E verification](E2E.md). Join the [Discord](https://discord.gg/jP2a2Z92NZ) to discuss ideas.
 
 ## License
 
