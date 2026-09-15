@@ -198,3 +198,16 @@ account card on the home page (or the Profiles page). The header chip only
 - [ ] Nav link added to `profileBarHtml` (and its active-state id)
 - [ ] Blue = interactive/active · violet = code/meta · semantic colors earned
 - [ ] Layout contract covered in `src/__tests__/site-header.test.ts`
+
+## Native desktop preview
+
+The optional `apps/desktop` shell uses native window controls and sidebar
+navigation instead of the web `profileBar` header. Its system light/dark tokens
+live alongside `themeCss` in `desktopThemeCss` in `profileBar.ts`; this explicit
+native-shell exception does not change the shared header contract for web pages.
+The build extracts those tokens into the desktop stylesheet. Native Liquid
+Glass is confined visually to the sidebar, with nearly opaque content surfaces
+for telemetry legibility. Blue remains interactive and violet remains metadata.
+
+The interface labels itself as a preview. Unsupported lifecycle controls are
+not presented as working actions; external service ownership stays visible.

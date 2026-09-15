@@ -67,6 +67,7 @@ The Claude Agent SDK provides programmatic access to Claude. But your favorite c
 | [Agent Setup](docs/agents.md) | Per-agent config: OpenCode, Crush, Droid, Cline, Aider, Codex CLI, Open WebUI, Cherry Studio, ForgeCode, Pi, Claude Code, Claude Design MCP, adapter instances |
 | [Configuration](docs/configuration.md) | Environment variables, endpoints, API key auth, SDK feature toggles, passthrough mode, CLI commands |
 | [Multi-Profile Support](docs/profiles.md) | Multiple Claude accounts, headless login, sticky session routing |
+| [Desktop app (development preview)](apps/desktop/README.md) | Optional macOS Electron app: monitoring, managed versions and service controls |
 | [Deployment](docs/deployment.md) | NixOS / Nix flake, Home Manager service, Docker |
 | [Plugins](docs/plugins.md) | Plugin system and the official scrub plugins |
 | [Development](docs/development.md) | Architecture overview, testing, programmatic API |

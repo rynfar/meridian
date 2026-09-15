@@ -56,3 +56,6 @@ spike/
 # committed .pyc shipped in #741 because nothing here ignored it.
 __pycache__/
 *.py[cod]
+
+# Desktop installer output
+apps/desktop/release/

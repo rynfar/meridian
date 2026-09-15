@@ -339,3 +339,29 @@ A trailing user tool-result slot may gain new content while every stored block r
 The OpenCode adapter separately recognizes complete `user-prompt-submit-hook` JSON envelopes for UserPromptSubmit additional context and common SDK hook-control fields, including `continue`. These per-turn blocks remain in the original SDK request but are excluded from durable lineage comparisons when a durable block remains. Unknown/malformed envelopes, surrounding prose, hook-only messages and assistant-authored lookalikes remain significant. Other adapters do not inherit this rule. A subset of arbitrary user blocks is never sufficient proof of a continuation.
 
 Structured resume deltas are delivered in one SDK user input, matching text-delta delivery. SDK streamed inputs are independently answered live turns; splitting a growing request's appended context from its final question can yield concatenated answers. The shared pure coalescer preserves result wrappers and media order, and also backs fresh replay framing.
+
+## Optional desktop application (preview)
+
+`apps/desktop` is an independent Electron package; headless installations do not
+install or import it. The sandboxed renderer calls a narrow preload interface.
+The main process validates the sender and performs local HTTP requests against
+existing Meridian endpoints. No server API or plugin contract changes are
+required. Native Liquid Glass loads only on supported macOS systems.
+
+The renderer keeps page navigation and unsaved forms local. `uiData.ts` filters
+request metadata without inspecting arbitrary nested content; direct tests cover
+combined searches and the continuation-only low-cache filter.
+
+The app can connect to an external service or own a separate installation.
+Managed versions are installed atomically under Electron's user-data directory,
+and run through the published CLI under bundled stock Node (avoiding Electron's
+native-module ABI). A Node preload watches the parent IPC channel; the CLI owns
+its normal signal drain. Startup checks the selected HTTP version and, on macOS,
+the listener PID. Failed activations restore the previous selected version.
+The tray keeps the app alive when its window closes; explicit quit drains only
+its owned child. Crash recovery is bounded to three attempts.
+
+Docker/Nix/other external supervisors retain ownership when the UI connects.
+The launchd handoff journal is still under verification and its mutations are
+not exposed through IPC. See [the desktop README](apps/desktop/README.md) for
+implemented scope and remaining live verification.

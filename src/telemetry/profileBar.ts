@@ -255,3 +255,29 @@ export const profileBarJs = `
   window.meridianHeaderRefresh = loadHeader;
 })();
 `
+
+/** Native desktop chrome: system appearance with the canonical Meridian hues.
+ * Web pages continue using themeCss and the shared profile header above. */
+export const desktopThemeCss = `
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5f7; --surface: #ffffff; --surface2: #edeff2;
+    --border: #dde0e5; --text: #23272e; --muted: #69717e;
+    --accent: #176bce; --accent2: #8250b5;
+    --green: #237c40; --yellow: #976400; --red: #ca3b36;
+    --sidebar: #e9edf1; --control: #ffffff; --control-border: #d0d5dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --surface: #161b22; --surface2: #1c2128;
+      --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+      --accent: #58a6ff; --accent2: #bc8cff;
+      --green: #3fb950; --yellow: #d29922; --red: #f85149;
+      --sidebar: #161b22; --control: #242b35; --control-border: #39424e;
+    }
+  }
+  body { background: var(--bg); }
+  html.native-glass body { background: transparent; }
+`
+
+export const desktopWindowColors = { transparent: '#00000000', dark: '#0d1117', light: '#f4f5f7' } as const

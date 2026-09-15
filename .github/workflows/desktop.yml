@@ -1,0 +1,27 @@
+name: desktop
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  desktop-build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+      - run: npm ci
+        working-directory: apps/desktop
+      - run: npm run build
+        working-directory: apps/desktop
+      - run: bun test src/__tests__/desktop-manager.test.ts src/__tests__/desktop-incidents.test.ts
+      - if: runner.os == 'macOS'
+        run: npm run package:mac
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'

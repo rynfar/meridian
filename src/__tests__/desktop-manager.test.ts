@@ -1,0 +1,119 @@
+import { describe, test, expect, afterEach } from 'bun:test'
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { createServer } from 'node:net'
+import { Manager } from '../../apps/desktop/src/manager'
+
+const fixtures: { manager: Manager; directory: string }[] = []
+afterEach(async () => {
+  for (const fixture of fixtures.splice(0)) {
+    await fixture.manager.shutdown()
+    await rm(fixture.directory, { recursive: true, force: true })
+  }
+})
+async function freePort() {
+  const server = createServer()
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing address')
+  await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+  return address.port
+}
+async function fixture() {
+  const directory = await mkdtemp(join(tmpdir(), 'meridian-desktop-test-'))
+  const runner = join(directory, 'runner.mjs')
+  await writeFile(runner, await readFile(join(import.meta.dir, '../../apps/desktop/src/runner.ts'), 'utf8'))
+  const manager = new Manager({ directory, runner, node: 'node', npm: 'unused', desktopVersion: 'test', encrypt: value => Buffer.from(value).toString('base64'), decrypt: value => Buffer.from(value, 'base64').toString(), changed: () => {}, notify: () => {} })
+  fixtures.push({ manager, directory })
+  await manager.init()
+  await manager.configure({ mode: 'managed', port: await freePort() })
+  return { manager, directory }
+}
+async function installed(directory: string, release: string, broken = false) {
+  const root = join(directory, 'versions', release, 'node_modules/@rynfar/meridian')
+  await mkdir(join(root, 'dist'), { recursive: true })
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: '@rynfar/meridian', version: release, type: 'module' }))
+  await writeFile(join(root, 'dist/cli.js'), broken ? 'throw new Error("Deliberate bad release")' : `
+    import { createServer } from 'node:http';
+    export async function runCli() {
+      const server = createServer((req, res) => {
+        res.setHeader('content-type', 'application/json');
+        if (req.url === '/health') return res.end(JSON.stringify({ pid:process.pid, status:'healthy', version:${JSON.stringify(release)}, plugin:{ opencode:'configured' } }));
+        if (req.url === '/crash') return process.exit(19);
+        if (req.url === '/slow') return setTimeout(() => res.end(JSON.stringify({ done:true })), 250);
+        res.end(JSON.stringify({}));
+      });
+      await new Promise(resolve => server.listen(Number(process.env.MERIDIAN_PORT), '127.0.0.1', resolve));
+      process.on('SIGTERM', () => server.close(() => process.exit(0)));
+    }
+    await runCli();
+  `)
+}
+describe('desktop manager real child lifecycle', () => {
+  test('starts the CLI, preserves a request during drain, and keeps the selected version after restart', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await manager.inventory(); await manager.activate('1.0.0')
+    await manager.start()
+    expect(manager.snapshot().owned).toBe(true)
+    expect(manager.state.running).toBe('1.0.0')
+    const response = fetch(manager.baseUrl() + '/slow')
+    await new Promise(resolve => setTimeout(resolve, 75))
+    await manager.stop()
+    expect(await (await response).json()).toEqual({ done: true })
+    expect(manager.snapshot().owned).toBe(false)
+    await manager.start()
+    expect(manager.state.running).toBe('1.0.0')
+  }, 20000)
+  test('a failed activation restarts the previous CLI and restores its saved selection', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await installed(directory, '2.0.0', true); await manager.inventory()
+    await manager.activate('1.0.0'); await manager.start()
+    await expect(manager.activate('2.0.0')).rejects.toThrow('restored 1.0.0')
+    expect(manager.preferences.selected).toBe('1.0.0')
+    expect(manager.state.running).toBe('1.0.0')
+    expect(manager.snapshot().owned).toBe(true)
+    const saved = JSON.parse(await readFile(join(directory, 'desktop.json'), 'utf8'))
+    expect(saved.selected).toBe('1.0.0')
+  }, 20000)
+  test('an unexpected process exit triggers bounded automatic recovery', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await manager.inventory(); await manager.activate('1.0.0'); await manager.start()
+    const firstPid = (manager.state.health as { pid: number }).pid
+    await fetch(manager.baseUrl() + '/crash').catch(() => undefined)
+    const deadline = Date.now() + 12000
+    while (Date.now() < deadline) {
+      if (manager.snapshot().owned && (manager.state.health as { pid: number } | null)?.pid !== firstPid && manager.state.running === '1.0.0') break
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    expect(manager.snapshot().owned).toBe(true)
+    expect((manager.state.health as { pid: number }).pid).not.toBe(firstPid)
+    expect(manager.state.incidents.some(incident => incident.title === 'Meridian stopped unexpectedly')).toBe(true)
+  }, 20000)
+  test('an occupied port is never adopted or stopped by managed startup', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await manager.inventory(); await manager.activate('1.0.0')
+    const external = createServer()
+    await new Promise<void>(resolve => external.listen(manager.preferences.port, '127.0.0.1', resolve))
+    try {
+      await expect(manager.start()).rejects.toThrow('already occupied')
+      expect(external.listening).toBe(true)
+      expect(manager.snapshot().owned).toBe(false)
+    } finally { await new Promise<void>(resolve => external.close(() => resolve())) }
+  })
+  test('credentials and connection cannot change under a running child', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await manager.inventory(); await manager.activate('1.0.0'); await manager.start()
+    await expect(manager.configure({ apiKey: 'replacement' })).rejects.toThrow('Stop the managed service')
+    await expect(manager.configure({ mode: 'attached' })).rejects.toThrow('Stop the managed service')
+    expect(manager.preferences.apiKey).toBeUndefined()
+    expect(manager.snapshot().owned).toBe(true)
+  }, 15000)
+  test('non-Meridian HTTP data does not masquerade as a connected service', async () => {
+    const { manager } = await fixture()
+    await manager.configure({ mode: 'attached', endpoint: 'http://127.0.0.1:1' })
+    expect(manager.state.running).toBeUndefined()
+    expect(manager.state.lastChecked).toBeUndefined()
+    await expect(manager.start()).rejects.toThrow('External instances')
+  })
+})
