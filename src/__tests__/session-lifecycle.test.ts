@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { hostname, tmpdir } from "node:os"
-import { join } from "node:path"
+import { isAbsolute, join } from "node:path"
 import {
   SessionLifecycleBacklogError,
   SessionLifecycleCorruptError,
@@ -535,7 +535,7 @@ describe("session transcript lifecycle", () => {
 
   it("uses a real Node executable when tests run under Bun", () => {
     expect(process.versions.bun).toBeDefined()
-    expect(getSessionGcNodeExecutable()).toBe("node")
+    expect(isAbsolute(getSessionGcNodeExecutable())).toBe(true)
   })
 
   it("clips child output keeping both ends within the budget", () => {

@@ -4783,3 +4783,29 @@ curl ... -H 'x-polytoken-session:   '
 returned `LINES=4` in four client round-trips with `adapter=polytoken` and
 `lineage=continuation` from turn 2, unchanged with `MERIDIAN_PASSTHROUGH=0`. All
 four detection controls behaved as recorded above.
+
+## Windows session garbage collection (#895 / #896)
+
+```powershell
+# Use the direct Claude Max endpoint for this test process if the shell normally
+# routes ANTHROPIC_BASE_URL to another local proxy. No persistent setting changes.
+Remove-Item Env:ANTHROPIC_BASE_URL -ErrorAction SilentlyContinue
+bun scripts/e2e-windows-session-gc.mjs
+
+# Also drive the actual installed Pi client through an isolated Meridian proxy.
+$env:PI_CLI_PATH = Join-Path $env:APPDATA 'npm\node_modules\@mariozechner\pi-coding-agent\dist\cli.js'
+bun scripts/e2e-windows-session-gc.mjs
+```
+
+Requires native Windows Bun, Node, Claude Max authentication, and Pi for the
+second command. `E2E_MODEL` overrides the default `claude-haiku-4-5`. The gate
+creates a real transcript in a disposable project, proves a pin preserves its
+exact SDK-visible history, retires it, and requires the production fenced SDK
+child to delete it. It checks absence through supported SDK APIs, without
+reading private transcript files. Pi configuration and Meridian state are
+isolated; the test uses the normal PATH, including Volta if installed.
+
+The unit counterpart is `session-lifecycle-windows-gc.test.ts`. In addition to
+backlog progress and timeout/recovery behavior, it checks that a multiline
+script runs in the exact process identified by the child's PID. A version
+manager's wrapper PID is insufficient for deletion fencing.

@@ -1,5 +1,56 @@
 # Upstream review handoff
 
+## Current bounded work: Windows GC #896 (2026-09-14)
+
+This entry supersedes the historical "nothing is in progress" statements below
+for **#896 only**. The owner requested native Windows review, then authorized
+fixing the Bun/Volta failure found in that review. Disposition: accept with the
+correction implemented; hold integration pending the Pi live gate and final CI.
+No release, community comment, original-PR closure, or unrelated backlog work
+is authorized by this task.
+
+- Base: `1d7544b6`; source PR head: `7fe1acaf9a9ab34f7d76ee4d9360a9f69ce24eb6`.
+- Worktree: `/tmp/meridian-windows-gc-fix`, branch `codex/windows-session-gc`.
+- Author-preserving cherry-picks (Aaron Masover, `amasover@gmail.com`):
+  `4b712fd` → `0b7b985`, `defdad3` → `8d58432`, `7fe1aca` → `acd19f4`.
+  The CI conflict preserved both the existing CWD checks and the added GC job;
+  the resulting contributor tree exactly matched the reviewed PR head.
+- Maintainer correction resolves the actual Node executable under Bun with a
+  bounded single-line probe, caches successful resolution, and launches that
+  binary directly. This avoids Volta's multiline eval corruption and fences
+  the actual executor PID. The new regression asserts both multiline execution
+  and exact child/executor PID equality.
+- Native Windows 11 26200.8037, Bun 1.3.11, Node 24.18.0, SDK 0.2.141,
+  Claude Code 2.1.259. Original main reproduces backlog-full; uncorrected PR
+  with normal Volta PATH fails 4/5 GC tests; corrected normal PATH passes 6/6.
+  Windows typecheck and build pass. Linux `npm test` (with pretest typecheck)
+  passes 3950 tests, 0 failures, 1 skip; build passes.
+- Real SDK creation/pin/deletion gate passes on Windows with the corrected
+  code, including `result.is_error === false`. The temporary before/after
+  probe also observed main defer a real transcript and corrected GC delete it.
+  Directory-less exact-ID SDK inspection is intentional: project-scoped reads
+  failed to find the Windows transcript while supported exact-ID lookup found
+  it. No private transcript files were inspected.
+- The initial live request failures were due to Windows' inherited
+  `ANTHROPIC_BASE_URL`; it was removed only in disposable test processes.
+  Actual Pi 0.73.1 through the isolated proxy reaches the Pi adapter but the
+  upstream returns HTTP 400, "You're out of extra usage." This is a failed
+  acceptance gate, not a GC success or a demonstrated GC defect. No quota or
+  billing settings were changed.
+- An initial diagnostic accepted SDK subtype `success` alone. That can mask
+  `is_error:true`; the committed gate now rejects it. The stricter direct-SDK
+  gate passed; the Pi gate remains blocked by the explicit API refusal.
+- Reproducible live gate: `scripts/e2e-windows-session-gc.mjs`, documented in
+  `E2E.md`, optionally with `PI_CLI_PATH` for the actual client. Raw logs:
+  `/home/trevorwalker/.local/share/meridian-reviews/pr-896/` and Windows temp
+  `meridian-pr896-fix`. A separate broader Windows suite hit preexisting POSIX
+  mode expectations and a Bun crash; it is not counted as a pass (see prior
+  review record).
+
+Next: consult the integration PR linked to #896 for final-head CI, rerun the
+actual Pi gate when the upstream account accepts requests, then assess merge.
+Do not infer permission to release. The original contributor PR remains open.
+
 Checkpoint: 2026-09-11, after publishing Meridian 1.70.0 and then 1.71.0,
 repairing the E42 gate (#1014), closing the V2 cold-start gap (#1008), landing
 two of the three #980 splits (#1011, #1009), and triaging #1024 to
