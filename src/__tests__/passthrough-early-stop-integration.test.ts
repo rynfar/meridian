@@ -2749,4 +2749,161 @@ describe("Integration: passthrough early stop", () => {
     // forcing the client's next tool-result request to replay in full.
     expect(lookupSharedSession(`${sessionHeader}-${TEST_RUN_ID}`)).toBeUndefined()
   })
+
+  it("non-stream: a session-keyed chat completions tool loop stores the checkpoint and resumes it", async () => {
+    const sessionKey = `es-openai-keyed-tools-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = {
+      "Content-Type": "application/json",
+      "x-api-key": "dummy",
+      "x-session-affinity": sessionKey,
+    }
+    const readFunction = {
+      type: "function",
+      function: { name: READ_TOOL.name, description: READ_TOOL.description, parameters: READ_TOOL.input_schema },
+    }
+    const postChat = (body: Record<string, unknown>) => app.fetch(new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 400, stream: false, tools: [readFunction], ...body }),
+    }))
+
+    const assistantToolTurn = assistantMessage([{ type: "tool_use", id: "tu1", name: "read", input: { file_path: "x" } }])
+    mockMessages = [assistantToolTurn, userDenyMessage("tu1")]
+    const first = await postChat({ messages: [{ role: "user", content: "read x" }] })
+    expect(first.status).toBe(200)
+    const firstBody = await first.json() as any
+    expect(firstBody.choices[0].finish_reason).toBe("tool_calls")
+    expect(firstBody.choices[0].message.tool_calls[0].function.name).toBe("read")
+    // The checkpoint was stored: the turn drained to its canonical result.
+    expect(lookupSharedSession(sessionKey)?.claudeSessionId).toBe(initialManagedSessionId())
+
+    // Client executed the tool; the OpenAI-shaped extended conversation comes back.
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says hi" }])]
+    const second = await postChat({
+      messages: [
+        { role: "user", content: "read x" },
+        { role: "assistant", content: "", tool_calls: [{ id: "tu1", type: "function", function: { name: "read", arguments: "{\"file_path\":\"x\"}" } }] },
+        { role: "tool", tool_call_id: "tu1", content: "hi" },
+      ],
+    })
+    expect(second.status).toBe(200)
+    // Resume proof: the SDK was invoked with the stored session id.
+    expect(capturedQueryParams.options.resume).toBe(initialManagedSessionId())
+    expect(capturedQueryParams.options.resumeSessionAt).toBe(assistantToolTurn.uuid)
+    const promptMessages: any[] = []
+    for await (const message of capturedQueryParams.prompt) promptMessages.push(message)
+    expect(promptMessages).toHaveLength(1)
+    expect(promptMessages[0].type).toBe("user")
+    expect(promptMessages[0].message.content.map((b: any) => [b.type, b.tool_use_id])).toEqual([["tool_result", "tu1"]])
+  })
+
+  it("non-stream: a session-keyed chat completions turn answering two parallel tool calls resumes at the checkpoint", async () => {
+    const sessionKey = `es-openai-keyed-parallel-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = {
+      "Content-Type": "application/json",
+      "x-api-key": "dummy",
+      "x-session-affinity": sessionKey,
+    }
+    const readFunction = {
+      type: "function",
+      function: { name: READ_TOOL.name, description: READ_TOOL.description, parameters: READ_TOOL.input_schema },
+    }
+    const postChat = (body: Record<string, unknown>) => app.fetch(new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 400, stream: false, tools: [readFunction], ...body }),
+    }))
+
+    const assistantToolTurn = assistantMessage([
+      { type: "tool_use", id: "tu1", name: "read", input: { file_path: "x" } },
+      { type: "tool_use", id: "tu2", name: "read", input: { file_path: "y" } },
+    ])
+    mockMessages = [assistantToolTurn, userDenyMessage("tu1"), userDenyMessage("tu2")]
+    const first = await postChat({ messages: [{ role: "user", content: "read x and y" }] })
+    expect(first.status).toBe(200)
+    const firstBody = await first.json() as any
+    expect(firstBody.choices[0].finish_reason).toBe("tool_calls")
+    expect(firstBody.choices[0].message.tool_calls).toHaveLength(2)
+    expect(lookupSharedSession(sessionKey)?.claudeSessionId).toBe(initialManagedSessionId())
+
+    // OpenAI carries one `tool` message per call; both must land in one
+    // user turn or the checkpoint continuation refuses the split batch.
+    mockMessages = [assistantMessage([{ type: "text", text: "x says hi, y says ho" }])]
+    const second = await postChat({
+      messages: [
+        { role: "user", content: "read x and y" },
+        { role: "assistant", content: "", tool_calls: [
+          { id: "tu1", type: "function", function: { name: "read", arguments: "{\"file_path\":\"x\"}" } },
+          { id: "tu2", type: "function", function: { name: "read", arguments: "{\"file_path\":\"y\"}" } },
+        ] },
+        { role: "tool", tool_call_id: "tu1", content: "hi" },
+        { role: "tool", tool_call_id: "tu2", content: "ho" },
+      ],
+    })
+    expect(second.status).toBe(200)
+    expect(capturedQueryParams.options.resume).toBe(initialManagedSessionId())
+    expect(capturedQueryParams.options.resumeSessionAt).toBe(assistantToolTurn.uuid)
+    const promptMessages: any[] = []
+    for await (const message of capturedQueryParams.prompt) promptMessages.push(message)
+    expect(promptMessages).toHaveLength(1)
+    expect(promptMessages[0].type).toBe("user")
+    expect(promptMessages[0].message.content.map((b: any) => [b.type, b.tool_use_id]))
+      .toEqual([["tool_result", "tu1"], ["tool_result", "tu2"]])
+  })
+
+  it("stream: a session-keyed chat completions tool turn stores the checkpoint and the next turn resumes it", async () => {
+    const sessionKey = `es-openai-keyed-stream-${TEST_RUN_ID}`
+    usedSessionKeys.add(sessionKey)
+    const headers = {
+      "Content-Type": "application/json",
+      "x-api-key": "dummy",
+      "x-session-affinity": sessionKey,
+    }
+    const readFunction = {
+      type: "function",
+      function: { name: READ_TOOL.name, description: READ_TOOL.description, parameters: READ_TOOL.input_schema },
+    }
+    const postChat = (body: Record<string, unknown>) => app.fetch(new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: "claude-sonnet-4-5", max_tokens: 400, tools: [readFunction], ...body }),
+    }))
+
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "stream-keyed-tool", name: "read", input: { file_path: "x" } },
+    ])
+    mockMessages = [
+      messageStart("msg_openai_keyed_stream"),
+      toolUseBlockStart(0, "read", "stream-keyed-tool"),
+      inputJsonDelta(0, '{"file_path":"x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      toolTurn,
+      userDenyMessage("stream-keyed-tool"),
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const first = await postChat({ stream: true, messages: [{ role: "user", content: "read x once" }] })
+    expect(first.status).toBe(200)
+    const firstBody = await first.text()
+    expect(firstBody).toContain("tool_calls")
+    expect(firstBody).toContain("read")
+    expect(lookupSharedSession(sessionKey)?.claudeSessionId).toBe(initialManagedSessionId())
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says X" }])]
+    const second = await postChat({
+      stream: false,
+      messages: [
+        { role: "user", content: "read x once" },
+        { role: "assistant", content: "", tool_calls: [{ id: "stream-keyed-tool", type: "function", function: { name: "read", arguments: "{\"file_path\":\"x\"}" } }] },
+        { role: "tool", tool_call_id: "stream-keyed-tool", content: "X" },
+      ],
+    })
+    expect(second.status).toBe(200)
+    expect(capturedQueryParamsAll[1].options.resume).toBe(initialManagedSessionId())
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
 })

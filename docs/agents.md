@@ -282,7 +282,12 @@ Point any OpenAI-compatible tool at `http://127.0.0.1:3456` with any API key val
 # Any OpenAI SDK: set base_url="http://127.0.0.1:3456", api_key="dummy"
 ```
 
-> **Note:** Multi-turn conversations work by packing prior turns into the system prompt. Each request is a fresh SDK session — OpenAI clients replay full history themselves and don't use Meridian's session resumption.
+> **Note:** A request without a session key has its prior turns packed into the system prompt and runs on a fresh SDK session — the client replays the full history itself. A request keyed by `x-opencode-session` or `x-session-affinity` (Jcode: `x-jcode-session`) keeps its real messages and resumes one SDK session per key, under the contract every keyed client has:
+>
+> - turns under one key are serialized; a turn that lost the race and no longer holds the committed history is refused with HTTP 400 (`This session advanced while the request was waiting`) — retry it with the latest history;
+> - the history per key must be append-only: an edited turn forks at the edit as an undo, a rewritten middle replays fresh;
+> - a retry of an identical body is classified `replayed-request` and replays fresh — a second, billed answer;
+> - at this endpoint `x-session-affinity` is read as conversation identity, not a stickiness hint — send a distinct value per conversation, or omit it.
 
 ### Cherry Studio
 

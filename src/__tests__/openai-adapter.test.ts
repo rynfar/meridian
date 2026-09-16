@@ -39,4 +39,12 @@ describe("openAiAdapter", () => {
     expect(openAiAdapter.getBlockedBuiltinTools()).toEqual(openCodeAdapter.getBlockedBuiltinTools())
     expect(openAiAdapter.getAllowedMcpTools()).toEqual(openCodeAdapter.getAllowedMcpTools())
   })
+
+  it("reads x-session-affinity and x-opencode-session as session identity", () => {
+    expect(openAiAdapter.getSessionId(makeContext({ "x-session-affinity": "affinity-key" })))
+      .toBe("affinity-key")
+    expect(openAiAdapter.getSessionId(makeContext({ "x-opencode-session": "opencode-key" })))
+      .toBe("opencode-key")
+    expect(openAiAdapter.getSessionId(makeContext())).toBeUndefined()
+  })
 })

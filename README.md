@@ -110,6 +110,7 @@ The Claude Agent SDK provides programmatic access to Claude. But your favorite c
 | [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see [Agent Setup](docs/agents.md)) — chat client with Claude's built-in web search via internal mode |
 | [Polytoken](https://polytoken.dev/) | ✅ Verified | Provider config (see [Agent Setup](docs/agents.md#Polytoken)) — `X-Polytoken-Session` identity, mandatory client-owned tools (passthrough cannot be disabled), signed-thinking passthrough |
 | Jcode | ✅ Verified | `/v1/chat/completions` + `x-jcode-session` header — dedicated `jcode` adapter keeps append-only history intact, so retained sessions resume on one SDK session (90.9% cache hit on turn 2 of a two-turn Opus session) |
+| Any OpenAI-compatible client with a session header | 🔲 Untested live | `/v1/chat/completions` + `x-opencode-session` or `x-session-affinity` — the generic `openai` adapter keeps the real messages and resumes one SDK session per key, same contract as Jcode (sequential turns per key, append-only history); covered by the proxy-openai-compat suite |
 | [Codex CLI](https://github.com/openai/codex) | ✅ Verified | `/v1/responses` (see [Agent Setup](docs/agents.md)) — Responses-API provider, passthrough tool execution; verified on 0.144 (plain + tool-driving turns) |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
 

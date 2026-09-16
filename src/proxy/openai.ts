@@ -12,8 +12,10 @@
  *   2. Prior turns are packed into a <conversation_history> block in the
  *      system prompt so Claude has context
  *   3. Each chat completions request gets a fresh SDK session
- * This is intentional — OpenAI-format clients replay full history themselves
- * and don't benefit from Meridian's session resumption.
+ * A request that carries a session key the adapter recognizes (Jcode's
+ * x-jcode-session, or the OpenCode-family x-opencode-session /
+ * x-session-affinity) is exempt: it keeps its real messages and resumes like
+ * any keyed client. An unkeyed request keeps the packing above.
  */
 
 // ---------------------------------------------------------------------------
@@ -530,14 +532,26 @@ export function translateOpenAiToAnthropic(
     if (msg.role === "system") {
       if (text) systemParts.push(text)
     } else if (msg.role === "tool") {
-      turns.push({
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: msg.tool_call_id ?? "",
-          content: translateOpenAiContentToAnthropic(msg.content ?? "")
-        }]
-      })
+      // OpenAI carries one `tool` message per tool_call_id; Anthropic wants
+      // every tool_result of one assistant turn in the single user message
+      // that follows it, and a passthrough checkpoint resume refuses a batch
+      // split across user turns. Consecutive results coalesce into one turn.
+      const block: AnthropicContentBlock = {
+        type: "tool_result",
+        tool_use_id: msg.tool_call_id ?? "",
+        content: translateOpenAiContentToAnthropic(msg.content ?? "")
+      }
+      const previous = turns[turns.length - 1]
+      if (
+        previous?.role === "user" &&
+        Array.isArray(previous.content) &&
+        previous.content.length > 0 &&
+        previous.content.every(b => b.type === "tool_result")
+      ) {
+        previous.content.push(block)
+      } else {
+        turns.push({ role: "user", content: [block] })
+      }
     } else if (msg.role === "assistant") {
       const msgContent = translateOpenAiContentToAnthropic(msg.content ?? "")
       const content: AnthropicContentBlock[] = []
@@ -627,9 +641,10 @@ export function translateOpenAiToAnthropic(
     }
   }
 
-  // Pack prior turns into system context so each request is a fresh session.
-  // OpenAI clients resend full history; Meridian's session system would
-  // misclassify repeated history as undo/diverged. This avoids that.
+  // An unkeyed request packs prior turns into system context so each request
+  // is a fresh session: without a key a resent full history could only be
+  // misclassified as undo/diverged. A keyed request keeps its turns and is
+  // verified by lineage instead (see the design note at the top of the file).
   let systemPrompt = systemParts.join("\n")
   let messagesToSend: AnthropicMessage[] = turns
 

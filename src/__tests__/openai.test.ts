@@ -382,6 +382,42 @@ describe("translateOpenAiToAnthropic", () => {
     expect(result).not.toBeNull()
   })
 
+  it("coalesces consecutive tool results of one assistant turn into a single user message", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [
+        { role: "user", content: "call both" },
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            { type: "function", id: "tu_a", function: { name: "fn", arguments: "{}" } },
+            { type: "function", id: "tu_b", function: { name: "fn", arguments: "{}" } },
+          ],
+        },
+        { role: "tool", tool_call_id: "tu_a", content: "A" },
+        { role: "tool", tool_call_id: "tu_b", content: "B" },
+      ],
+    }, { preserveConversationHistory: true })
+    expect(result!.messages).toHaveLength(3)
+    const results = result!.messages[2]!
+    expect(results.role).toBe("user")
+    expect((results.content as any[]).map(b => [b.type, b.tool_use_id]))
+      .toEqual([["tool_result", "tu_a"], ["tool_result", "tu_b"]])
+  })
+
+  it("does not merge a tool result into a preceding plain user message", () => {
+    const result = translateOpenAiToAnthropic({
+      messages: [
+        { role: "user", content: "hello" },
+        { role: "tool", tool_call_id: "tu_x", content: "X" },
+      ],
+    }, { preserveConversationHistory: true })
+    expect(result!.messages).toHaveLength(2)
+    expect(result!.messages[0]!.role).toBe("user")
+    expect(result!.messages[1]!.role).toBe("user")
+    expect((result!.messages[1]!.content as any[])[0].type).toBe("tool_result")
+  })
+
   // --- assistant message with tool_calls ---
 
   it("assistant message with tool_calls → tool_use blocks appended to content", () => {

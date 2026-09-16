@@ -76,6 +76,7 @@ import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { isClaudeCodeClient } from "./adapters/claudecode"
+import { openAiAdapter } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages } from "./replay"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
@@ -7703,8 +7704,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       : undefined
     const isJcode = jcodeSessionId !== undefined
     const adapterName = isJcode ? "jcode" : "openai"
+    // A generic client that carries a session key the adapter recognizes
+    // (x-opencode-session / x-session-affinity) keeps its real messages and
+    // resumes, like Jcode — packing re-sends the whole conversation as fresh
+    // system text every turn, so the prompt cache never sees a continuation.
+    // The key is forwarded on the internal hop below so the inner handler
+    // resolves the same session. The forwarded headers are gated on a resolved
+    // key below.
+    const openAiSessionId = isJcode ? undefined : openAiAdapter.getSessionId(c)
     const anthropicBody = translateOpenAiToAnthropic(rawBody, {
-      preserveConversationHistory: isJcode,
+      preserveConversationHistory: isJcode || openAiSessionId !== undefined,
     })
 
     if (!anthropicBody) {
@@ -7755,12 +7764,34 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // the inner hop when MERIDIAN_API_KEY is set (issue #415).
     // Tag the inner hop as generic OpenAI unless a verified Jcode request
     // supplied its durable local session ID. Both adapters keep the Claude Code
-    // preset off, while Jcode additionally preserves append-only history.
+    // preset off; a keyed request (either adapter) preserves its real history
+    // and resumes instead of packing.
     const internalHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       "x-meridian-agent": adapterName,
     }
-    if (jcodeSessionId) internalHeaders["x-jcode-session"] = jcodeSessionId
+    if (jcodeSessionId) {
+      internalHeaders["x-jcode-session"] = jcodeSessionId
+    } else if (openAiSessionId !== undefined) {
+      // A keyed generic request: forward exactly the headers the inner hop
+      // needs to resolve the same session (openCodeAdapter.getSessionId reads
+      // the session and agent headers) and the caller's user-agent, which the
+      // pluginless-OpenCode degradation reads (#1024). On the inner path the
+      // agent headers do more than scope the key — they select the subagent
+      // model tier, cache isolation and the concurrent-flow declaration,
+      // exactly as on /v1/messages. Unkeyed requests forward none of these:
+      // they are packed and never resume.
+      for (const name of [
+        "x-opencode-session",
+        "x-session-affinity",
+        "x-opencode-agent-mode",
+        "x-opencode-agent-name",
+        "user-agent",
+      ]) {
+        const value = c.req.header(name)
+        if (value !== undefined) internalHeaders[name] = value
+      }
+    }
     const requestedProfile = c.req.header("x-meridian-profile")
     if (requestedProfile) internalHeaders["x-meridian-profile"] = requestedProfile
     const xApiKey = c.req.header("x-api-key")

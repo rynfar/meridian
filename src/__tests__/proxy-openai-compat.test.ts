@@ -474,6 +474,169 @@ describe("POST /v1/chat/completions — Jcode session continuity", () => {
   })
 })
 
+// Tool turns are not exercised here: this file's SDK mock never yields the
+// canonical result the passthrough checkpoint store waits for, so a keyed
+// tool loop is pinned in passthrough-early-stop-integration.test.ts instead.
+describe("POST /v1/chat/completions — session-keyed continuity for the generic adapter", () => {
+  const firstTurn = {
+    stream: false,
+    messages: [
+      { role: "system", content: "stable system" },
+      { role: "user", content: "Turn 1" },
+    ],
+  }
+  const secondTurn = {
+    stream: false,
+    messages: [
+      { role: "system", content: "stable system" },
+      { role: "user", content: "Turn 1" },
+      { role: "assistant", content: "Answer 1" },
+      { role: "user", content: "Turn 2" },
+    ],
+  }
+
+  type InnerRequest = {
+    url: string
+    clone(): InnerRequest
+    json(): Promise<unknown>
+    headers: { get(name: string): string | null }
+  }
+
+  // Capture the inner /v1/messages hop (cloned so the handler still reads the
+  // original body) — same seam as the keepalive test below.
+  function captureInnerRequests(app: ReturnType<typeof createTestApp>): InnerRequest[] {
+    const innerRequests: InnerRequest[] = []
+    const originalFetch = app.fetch.bind(app)
+    app.fetch = (req, env, executionCtx) => {
+      if (req.url === "http://internal/v1/messages") innerRequests.push(req.clone())
+      return originalFetch(req, env, executionCtx)
+    }
+    return innerRequests
+  }
+
+  beforeEach(() => {
+    mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
+    capturedPromptMessages = []
+    capturedOptions = null
+    capturedOptionHistory = []
+    clearSessionCache()
+  })
+
+  for (const [headerName, keyValue] of [
+    ["x-session-affinity", "affinity-session-a"],
+    ["x-opencode-session", "opencode-session-a"],
+  ] as const) {
+    it(`keeps the real messages and resumes across turns keyed by ${headerName}`, async () => {
+      const app = createTestApp()
+      const innerRequests = captureInnerRequests(app)
+      const headers = { [headerName]: keyValue }
+
+      expect((await postChatCompletion(app, firstTurn, headers)).status).toBe(200)
+      expect((await postChatCompletion(app, secondTurn, headers)).status).toBe(200)
+
+      expect(capturedOptionHistory).toHaveLength(2)
+      expect(capturedOptionHistory[0]?.resume).toBeUndefined()
+      expect(capturedOptionHistory[0]?.sessionId).toMatch(/^[0-9a-f-]{36}$/)
+      // Turn 2 is a continuation of turn 1's SDK session, so the key reached
+      // the inner hop and its lineage verified the full history.
+      expect(capturedOptionHistory[1]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
+      expect(capturedOptionHistory[1]?.systemPrompt).toBe("stable system" + REPLAY_PROVENANCE_NOTE)
+
+      // The inner body carried the full messages array, unpacked, and the key
+      // itself was forwarded on the inner hop. The adapter tag stays `openai`.
+      expect(innerRequests).toHaveLength(2)
+      const innerBody = await innerRequests[1]!.json() as {
+        messages: Array<Record<string, unknown>>
+        system?: string
+      }
+      expect(innerBody.messages).toHaveLength(3)
+      expect(JSON.stringify(innerBody.messages)).not.toContain("<conversation_history>")
+      expect(innerBody.system).not.toContain("<conversation_history>")
+      expect(innerRequests[1]!.headers.get(headerName)).toBe(keyValue)
+      expect(innerRequests[1]!.headers.get("x-meridian-agent")).toBe("openai")
+    })
+  }
+
+  it("keeps distinct generic session keys isolated", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn, { "x-session-affinity": "session-a" })
+    await postChatCompletion(app, secondTurn, { "x-session-affinity": "session-b" })
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+  })
+
+  it("packs history for an unkeyed generic request", async () => {
+    const app = createTestApp()
+
+    await postChatCompletion(app, firstTurn)
+    await postChatCompletion(app, secondTurn)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBeUndefined()
+    expect(capturedOptionHistory[1]?.systemPrompt).toContain("<conversation_history>")
+  })
+
+  it("forwards the caller's user-agent on the inner hop only for a keyed request", async () => {
+    // An OpenCode client keying its chat-completions traffic needs its UA on
+    // the inner hop: the pluginless-OpenCode degradation (#1024) reads it
+    // there. An unkeyed request is packed and headerless on the inner hop —
+    // exactly as before.
+    const keyedApp = createTestApp()
+    const keyedInner = captureInnerRequests(keyedApp)
+    await postChatCompletion(keyedApp, firstTurn, {
+      "x-session-affinity": "ua-key",
+      "user-agent": "opencode/1.0.0",
+    })
+    expect(keyedInner[0]?.headers.get("user-agent")).toBe("opencode/1.0.0")
+
+    const unkeyedApp = createTestApp()
+    const unkeyedInner = captureInnerRequests(unkeyedApp)
+    await postChatCompletion(unkeyedApp, firstTurn, { "user-agent": "opencode/1.0.0" })
+    expect(unkeyedInner[0]?.headers.get("user-agent")).toBeNull()
+    expect(unkeyedInner[0]?.headers.get("x-opencode-agent-mode")).toBeNull()
+  })
+
+  it("scopes a subagent turn to its own key and forwards the agent headers", async () => {
+    const app = createTestApp()
+    const innerRequests = captureInnerRequests(app)
+    const subagentHeaders = {
+      "x-session-affinity": "base-key",
+      "x-opencode-agent-mode": "subagent",
+      "x-opencode-agent-name": "title",
+    }
+
+    await postChatCompletion(app, firstTurn, subagentHeaders)
+    await postChatCompletion(app, secondTurn, subagentHeaders)
+
+    expect(capturedOptionHistory).toHaveLength(2)
+    expect(capturedOptionHistory[1]?.resume).toBe(capturedOptionHistory[0]?.sessionId)
+    expect(innerRequests[1]?.headers.get("x-opencode-agent-mode")).toBe("subagent")
+    expect(innerRequests[1]?.headers.get("x-opencode-agent-name")).toBe("title")
+
+    // Without the agent headers the key is the plain affinity value, not the
+    // scoped `base-key#title` the subagent turns resolved — a separate lineage.
+    await postChatCompletion(app, secondTurn, { "x-session-affinity": "base-key" })
+    expect(capturedOptionHistory[2]?.resume).toBeUndefined()
+  })
+
+  // Guards the contract, not the change: a retry must never resume and
+  // double-append the same turn onto the stored session.
+  it("replays fresh when a keyed turn is retried with an identical body", async () => {
+    const app = createTestApp()
+    const headers = { "x-session-affinity": "retry-key" }
+
+    await postChatCompletion(app, firstTurn, headers)
+    await postChatCompletion(app, secondTurn, headers)
+    const retry = await postChatCompletion(app, secondTurn, headers)
+
+    expect(retry.status).toBe(200)
+    expect(capturedOptionHistory).toHaveLength(3)
+    expect(capturedOptionHistory[2]?.resume).toBeUndefined()
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Streaming
 // ---------------------------------------------------------------------------
