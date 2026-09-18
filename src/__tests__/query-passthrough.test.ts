@@ -2,7 +2,7 @@
  * Tests for SDK parameter passthrough fields in buildQueryOptions.
  */
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { buildQueryOptions, type QueryContext } from "../proxy/query"
+import { buildQueryOptions, SCRATCHPAD_COUNTER_INSTRUCTION, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 
 function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
@@ -96,28 +96,56 @@ describe("buildQueryOptions — SDK parameter passthrough", () => {
   })
 })
 
-describe("scratchpad suppression via CLAUDE_CODE_SESSION_KIND (#627)", () => {
+describe("scratchpad suppression (#627, #1049)", () => {
   // The CLI advertises its scratchpad directory (a PROXY-HOST path) in the
   // model's context; in passthrough the CLIENT executes tools, and OpenCode
   // 1.18's permission model rejects that alien path (external_directory).
-  // The CLI skips the scratchpad block when CLAUDE_CODE_SESSION_KIND=bg —
-  // its own headless-background mode, which is semantically what Meridian's
-  // subprocess is.
-  let saved: string | undefined
-  beforeEach(() => { saved = process.env.MERIDIAN_SUPPRESS_SCRATCHPAD; delete process.env.MERIDIAN_SUPPRESS_SCRATCHPAD })
+  //
+  // #628 previously set CLAUDE_CODE_SESSION_KIND=bg on the subprocess.
+  // On CLI 2.1.274+, SESSION_KIND=bg registers a persistent job record per
+  // SDK subprocess under ~/.claude/jobs/<id>/state.json (#1049), filling
+  // the user's interactive /jobs list with phantom unclosed jobs.
+  // Meridian now suppresses scratchpad writes via prompt counter-instruction
+  // (SCRATCHPAD_COUNTER_INSTRUCTION, #627 option 2), avoiding SESSION_KIND=bg
+  // by default while preserving MERIDIAN_SUPPRESS_SCRATCHPAD_ENV=1 and
+  // MERIDIAN_SUPPRESS_SCRATCHPAD=0 kill switch.
+  let savedSuppress: string | undefined
+  let savedSuppressEnv: string | undefined
+  beforeEach(() => {
+    savedSuppress = process.env.MERIDIAN_SUPPRESS_SCRATCHPAD
+    savedSuppressEnv = process.env.MERIDIAN_SUPPRESS_SCRATCHPAD_ENV
+    delete process.env.MERIDIAN_SUPPRESS_SCRATCHPAD
+    delete process.env.MERIDIAN_SUPPRESS_SCRATCHPAD_ENV
+  })
   afterEach(() => {
-    if (saved === undefined) delete process.env.MERIDIAN_SUPPRESS_SCRATCHPAD
-    else process.env.MERIDIAN_SUPPRESS_SCRATCHPAD = saved
+    if (savedSuppress === undefined) delete process.env.MERIDIAN_SUPPRESS_SCRATCHPAD
+    else process.env.MERIDIAN_SUPPRESS_SCRATCHPAD = savedSuppress
+    if (savedSuppressEnv === undefined) delete process.env.MERIDIAN_SUPPRESS_SCRATCHPAD_ENV
+    else process.env.MERIDIAN_SUPPRESS_SCRATCHPAD_ENV = savedSuppressEnv
   })
 
-  it("sets CLAUDE_CODE_SESSION_KIND=bg in passthrough mode", () => {
+  it("appends SCRATCHPAD_COUNTER_INSTRUCTION and omits CLAUDE_CODE_SESSION_KIND in passthrough mode (#1049)", () => {
     const result = buildQueryOptions(makeContext({ passthrough: true }))
-    expect((result.options.env as Record<string, string>).CLAUDE_CODE_SESSION_KIND).toBe("bg")
+    expect((result.options.env as Record<string, string>).CLAUDE_CODE_SESSION_KIND).toBeUndefined()
+    const prompt = typeof result.options.systemPrompt === "string"
+      ? result.options.systemPrompt
+      : (result.options.systemPrompt as any)?.append
+    expect(prompt).toContain(SCRATCHPAD_COUNTER_INSTRUCTION)
   })
 
-  it("does NOT set it in internal mode (SDK executes tools; scratchpad is valid there)", () => {
+  it("does NOT inject counter-instruction or env in internal mode (SDK executes tools; scratchpad is valid there)", () => {
     const result = buildQueryOptions(makeContext({ passthrough: false }))
     expect((result.options.env as Record<string, string>).CLAUDE_CODE_SESSION_KIND).toBeUndefined()
+    const prompt = typeof result.options.systemPrompt === "string"
+      ? result.options.systemPrompt
+      : (result.options.systemPrompt as any)?.append
+    expect(prompt ?? "").not.toContain(SCRATCHPAD_COUNTER_INSTRUCTION)
+  })
+
+  it("sets CLAUDE_CODE_SESSION_KIND=bg when MERIDIAN_SUPPRESS_SCRATCHPAD_ENV=1 is set", () => {
+    process.env.MERIDIAN_SUPPRESS_SCRATCHPAD_ENV = "1"
+    const result = buildQueryOptions(makeContext({ passthrough: true }))
+    expect((result.options.env as Record<string, string>).CLAUDE_CODE_SESSION_KIND).toBe("bg")
   })
 
   it("respects an explicit value from profile env overrides", () => {
@@ -128,9 +156,14 @@ describe("scratchpad suppression via CLAUDE_CODE_SESSION_KIND (#627)", () => {
     expect((result.options.env as Record<string, string>).CLAUDE_CODE_SESSION_KIND).toBe("daemon")
   })
 
-  it("kill switch MERIDIAN_SUPPRESS_SCRATCHPAD=0 disables it", () => {
+  it("kill switch MERIDIAN_SUPPRESS_SCRATCHPAD=0 disables both counter-instruction and env tag", () => {
     process.env.MERIDIAN_SUPPRESS_SCRATCHPAD = "0"
+    process.env.MERIDIAN_SUPPRESS_SCRATCHPAD_ENV = "1"
     const result = buildQueryOptions(makeContext({ passthrough: true }))
     expect((result.options.env as Record<string, string>).CLAUDE_CODE_SESSION_KIND).toBeUndefined()
+    const prompt = typeof result.options.systemPrompt === "string"
+      ? result.options.systemPrompt
+      : (result.options.systemPrompt as any)?.append
+    expect(prompt ?? "").not.toContain(SCRATCHPAD_COUNTER_INSTRUCTION)
   })
 })

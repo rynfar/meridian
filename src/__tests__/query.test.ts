@@ -2,7 +2,7 @@
  * Tests for the SDK query options builder.
  */
 import { describe, it, expect } from "bun:test"
-import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "../proxy/query"
+import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, SCRATCHPAD_COUNTER_INSTRUCTION, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 import { CHERRY_BLOCKED_BUILTIN_TOOLS, CHERRY_INCOMPATIBLE_TOOLS, CHERRY_WEB_TOOLS } from "../proxy/adapters/cherry"
 
@@ -242,7 +242,7 @@ describe("buildQueryOptions", () => {
   it("uses raw system prompt in passthrough mode", () => {
     const result = buildQueryOptions(makeContext({ passthrough: true, systemContext: "Be helpful" }))
     const sp = (result.options as any).systemPrompt
-    expect(sp).toBe("Be helpful" + REPLAY_PROVENANCE_NOTE)
+    expect(sp).toBe("Be helpful" + REPLAY_PROVENANCE_NOTE + SCRATCHPAD_COUNTER_INSTRUCTION)
   })
 
   it("preserves the SDK default preset and adds transport provenance when context is empty", () => {
@@ -421,7 +421,7 @@ describe("buildQueryOptions", () => {
       systemContext: "",
       // No clientWorkingDirectory so cwdNote is empty
     }))
-    expect(result.options.systemPrompt).toBe(REPLAY_PROVENANCE_NOTE)
+    expect(result.options.systemPrompt).toBe(REPLAY_PROVENANCE_NOTE + SCRATCHPAD_COUNTER_INSTRUCTION)
   })
 
   it("strips API keys from environment", () => {
@@ -787,7 +787,7 @@ describe("buildQueryOptions", () => {
       systemContext: "Agent instructions",
       clientSystemPrompt: false,
     }))
-    expect(result.options.systemPrompt).toEqual({ type: "preset", preset: "claude_code", append: REPLAY_PROVENANCE_NOTE })
+    expect(result.options.systemPrompt).toEqual({ type: "preset", preset: "claude_code", append: REPLAY_PROVENANCE_NOTE + SCRATCHPAD_COUNTER_INSTRUCTION })
   })
 
   it("includes client prompt when clientSystemPrompt is true (default)", () => {
@@ -796,7 +796,7 @@ describe("buildQueryOptions", () => {
       systemContext: "Agent instructions",
       clientSystemPrompt: true,
     }))
-    expect(result.options.systemPrompt).toBe("Agent instructions" + REPLAY_PROVENANCE_NOTE)
+    expect(result.options.systemPrompt).toBe("Agent instructions" + REPLAY_PROVENANCE_NOTE + SCRATCHPAD_COUNTER_INSTRUCTION)
   })
 
   it("all three controls work together: preset + client + settingSources", () => {
