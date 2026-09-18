@@ -78,7 +78,14 @@ const fixtureCatalog = { data: [{
   capabilities: { effort: { low: { supported: true }, medium: { supported: true }, high: { supported: true },
     xhigh: { supported: true }, max: { supported: true }, supported: true } },
 }] }
+let teardownStarted = false
 const endpoint = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
+  if (teardownStarted) {
+    const row = { method: request.method, path: new URL(request.url).pathname, startedAt: Date.now(), teardownStraggler: true, status: 503, error: 'Teardown in progress' }
+    if (request.method === 'POST') requests.push(row)
+    else discoveryRequests.push(row)
+    return new Response('teardown in progress', { status: 503 })
+  }
   // #1004's model discovery issues a body-less `GET /v1/models`. Parsing a body
   // unconditionally threw here, which both failed discovery closed and set this
   // process's exit code, so the gate reported PASS and exited 1 (#1014).
@@ -106,6 +113,7 @@ const endpoint = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request
         row.status = 0
         row.aborted = request.signal.aborted
         row.error = String(error)
+        if (teardownStarted) row.teardownStraggler = true
         return new Response('discovery forward failed', { status: 502 })
       }
     }
@@ -114,7 +122,15 @@ const endpoint = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request
     row.body = text
     return new Response(text, { status: 200, headers: { 'content-type': 'application/json' } })
   }
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch (error) {
+    const row = { method: request.method, path: new URL(request.url).pathname, startedAt: Date.now(), status: 0, aborted: request.signal.aborted, error: String(error) }
+    if (teardownStarted) row.teardownStraggler = true
+    requests.push(row)
+    return new Response('invalid request body', { status: 400 })
+  }
   const headers = Object.fromEntries([...request.headers].filter(([key]) => (key.startsWith('x-') && key !== 'x-api-key') || key === 'user-agent'))
   const systemText = typeof body.system === 'string' ? body.system : (body.system ?? []).map(block => block.text ?? '').join('\n')
   const clientCwd = systemText.match(/Working directory:\s*([^\n]+)/i)?.[1]?.trim()
@@ -123,10 +139,20 @@ const endpoint = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request
     hasUndoMarker: JSON.stringify(body.messages).includes(undoMarker), hasSummaryMarker: JSON.stringify(body.messages).includes(summaryMarker), startedAt: Date.now() }
   requests.push(row)
   if (live) {
+    // #1028: Traps unhandled rejections if the forward fails or is aborted during
+    // client exit or fixture teardown.
     const forwardedHeaders = new Headers(request.headers)
     forwardedHeaders.set('x-request-id', row.requestId)
-    const response = await fetch(`${proxyUrl}${new URL(request.url).pathname}`, { method: 'POST', headers: forwardedHeaders, body: JSON.stringify(body), signal: request.signal })
-    return new Response(response.body.pipeThrough(new TransformStream({ flush() { row.completedAt = Date.now() } })), { status: response.status, headers: response.headers })
+    try {
+      const response = await fetch(`${proxyUrl}${new URL(request.url).pathname}`, { method: 'POST', headers: forwardedHeaders, body: JSON.stringify(body), signal: request.signal })
+      return new Response(response.body.pipeThrough(new TransformStream({ flush() { row.completedAt = Date.now() } })), { status: response.status, headers: response.headers })
+    } catch (error) {
+      row.status = 0
+      row.aborted = request.signal.aborted
+      row.error = String(error)
+      if (teardownStarted) row.teardownStraggler = true
+      return new Response('proxy post forward failed', { status: 502 })
+    }
   }
   const primary = headers['x-opencode-agent-name'] === 'build'
   if (primary) primaryRequests++
@@ -424,9 +450,10 @@ try {
   }
   console.log(JSON.stringify({ result: 'PASS', version, source, live, extended, discovery, root, session, requests, resumeEvidence, discoveryRequests, variantProbe, coldStartProbe, invalidationProbe }))
 } finally {
-  console.log(JSON.stringify({ requestTrace: requests, discoveryTrace: discoveryRequests }))
+  teardownStarted = true
   if (server) { server.kill(); await server.exited; console.log(JSON.stringify({ serverOutput: await serverOutput })) }
   await endpoint.stop(true)
   await proxy?.close()
+  console.log(JSON.stringify({ requestTrace: requests, discoveryTrace: discoveryRequests }))
   if (live) console.log(JSON.stringify({ proxyOutputs }))
 }

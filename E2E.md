@@ -3851,7 +3851,10 @@ E2E_OPENCODE_BIN=/tmp/opencode-18866/node_modules/.bin/opencode2 \
 The fixture answers non-`POST` requests without parsing a body, and forwards them
 upstream with their original method. Parsing unconditionally used to throw on the
 body-less catalog `GET`, which failed discovery closed **and** set the process
-exit code — the gate printed `PASS` and exited 1 (#1014).
+exit code — the gate printed `PASS` and exited 1 (#1014). Both non-`POST` and
+live `POST` forwards catch connection failures during client exit or fixture
+teardown, record `status: 0` (or `teardownStraggler: true` once teardown begins),
+and return 502/503 rather than throwing an unhandled rejection (#1028).
 Set `E2E_MERIDIAN_ROOT` to an independently installed `npm pack` consumer to test
 the shipped package without development dependencies. Run both betas in source
 and consumer modes. `--v1` with the pinned V1 `opencode@1.18.11` executable is the
