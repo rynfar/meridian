@@ -196,6 +196,29 @@ export interface CompleteToolResultContinuationOptions {
 }
 
 /**
+ * Detect mid-conversation effort metadata system messages (e.g. pi >= 0.85.0
+ * Persistent Claude thinking effort). These carry effort metadata in
+ * `output_config` with empty content and no tool ids or text instructions.
+ */
+export function isMidConvoEffortSystemMessage(
+  message: { role?: unknown; content?: unknown; output_config?: unknown } | null | undefined,
+): boolean {
+  if (!message || message.role !== "system") return false
+  const outputConfig = (message as { output_config?: unknown; outputConfig?: unknown }).output_config
+    ?? (message as { output_config?: unknown; outputConfig?: unknown }).outputConfig
+  if (typeof outputConfig !== "object" || outputConfig === null) return false
+  const content = message.content
+  if (content === undefined || content === null || content === "") return true
+  if (Array.isArray(content)) {
+    if (content.length === 0) return true
+    return content.every((b: any) =>
+      b === null || b === undefined || (b.type === "text" && (typeof b.text !== "string" || b.text.trim().length === 0))
+    )
+  }
+  return false
+}
+
+/**
  * Verify that a resumed tool-result delta settles exactly the tool calls at the
  * stored assistant checkpoint, then coalesce queued user turns into one SDK
  * input. Tool results must precede any ordinary user content, matching the
@@ -218,6 +241,10 @@ export function coalesceCompleteToolResultContinuation(
   let echoMessages = 0
 
   for (const message of messages) {
+    if (isMidConvoEffortSystemMessage(message)) {
+      continue
+    }
+
     if (message.role === "system") {
       if (!options?.allowTrailingSystemReminder) return undefined
       if (!sawUser || sawTrailingSystem) return undefined

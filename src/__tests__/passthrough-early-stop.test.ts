@@ -14,6 +14,7 @@ import { describe, it, expect } from "bun:test"
 import {
   clientAbortDisposition,
   coalesceCompleteToolResultContinuation,
+  isMidConvoEffortSystemMessage,
   findCompleteToolResultCheckpoint,
   createEarlyStopTracker,
   allForwardedCallsResolved,
@@ -562,5 +563,65 @@ describe("claude-code trailing system delta", () => {
       ["t1"],
       opts,
     )).toEqual([{ role: "user", content: [result("t1"), { type: "text", text: "r" }] }])
+  })
+})
+
+describe("pi 0.85+ mid-conversation effort system messages (#1047)", () => {
+  it("detects effort metadata system messages accurately", () => {
+    expect(isMidConvoEffortSystemMessage({ role: "system", content: [], output_config: { effort: "high" } })).toBe(true)
+    expect(isMidConvoEffortSystemMessage({ role: "system", content: "", output_config: { effort: "medium" } })).toBe(true)
+    expect(isMidConvoEffortSystemMessage({ role: "system", output_config: { effort: "low" } })).toBe(true)
+    expect(isMidConvoEffortSystemMessage({ role: "system", content: [{ type: "text", text: "" }], output_config: { effort: "max" } })).toBe(true)
+    expect(isMidConvoEffortSystemMessage({ role: "system", content: [{ type: "text", text: "   " }], output_config: { effort: "xhigh" } })).toBe(true)
+
+    // Rejects messages with real instructions
+    expect(isMidConvoEffortSystemMessage({ role: "system", content: "instruction", output_config: { effort: "high" } })).toBe(false)
+    expect(isMidConvoEffortSystemMessage({ role: "system", content: [{ type: "text", text: "instruction" }], output_config: { effort: "high" } })).toBe(false)
+
+    // Rejects non-system or non-effort messages
+    expect(isMidConvoEffortSystemMessage({ role: "system", content: [] })).toBe(false)
+    expect(isMidConvoEffortSystemMessage({ role: "user", content: [], output_config: { effort: "high" } })).toBe(false)
+    expect(isMidConvoEffortSystemMessage(null)).toBe(false)
+    expect(isMidConvoEffortSystemMessage(undefined)).toBe(false)
+  })
+
+  it("coalesces tool result continuation when pi sends trailing effort system message without opt-in", () => {
+    const delta = [
+      { role: "assistant", content: [{ type: "tool_use", id: "call_1", name: "read", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: "data" }] },
+      { role: "system", content: [], output_config: { effort: "high" } },
+    ]
+    // Default options (no allowTrailingSystemReminder) — pi is not Claude Code
+    const res = coalesceCompleteToolResultContinuation(delta, ["call_1"])
+    expect(res).toEqual([
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: "data" }] },
+    ])
+  })
+
+  it("admits effort system messages preceding assistant echo and trailing after user results", () => {
+    const delta = [
+      { role: "system", content: [], output_config: { effort: "high" } },
+      { role: "assistant", content: [{ type: "tool_use", id: "call_1", name: "read", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: "data" }] },
+      { role: "system", content: [], output_config: { effort: "high" } },
+    ]
+    const res = coalesceCompleteToolResultContinuation(delta, ["call_1"])
+    expect(res).toEqual([
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: "data" }] },
+    ])
+  })
+
+  it("findCompleteToolResultCheckpoint finds assistant checkpoint across mid-conversation effort messages", () => {
+    const history = [
+      { role: "user", content: "start" },
+      { role: "system", content: [], output_config: { effort: "high" } },
+      { role: "assistant", content: [{ type: "tool_use", id: "call_1", name: "read", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: "data" }] },
+      { role: "system", content: [], output_config: { effort: "high" } },
+    ]
+    const res = findCompleteToolResultCheckpoint(history, ["call_1"])
+    expect(res).toEqual([
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "call_1", content: "data" }] },
+    ])
   })
 })

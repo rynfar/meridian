@@ -2013,6 +2013,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           || body.reasoning_effort
           || body.output_config?.effort
         )
+        if (!effort && Array.isArray(body.messages)) {
+          for (let i = body.messages.length - 1; i >= 0; i--) {
+            const m = body.messages[i]
+            if (m?.role === "system") {
+              const cfg = (m as any).output_config ?? (m as any).outputConfig
+              if (cfg?.effort) {
+                effort = normalizeEffort(cfg.effort)
+                if (effort) break
+              }
+            }
+          }
+        }
         let thinking: QueryContext['thinking'] | undefined = body.thinking || undefined
         if (thinkingHeader !== undefined) {
           try {

@@ -1448,6 +1448,58 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
   })
 
+  it("resumes pi 0.85+ tool checkpoint across mid-conversation effort system messages (#1047)", async () => {
+    const sessionId = `pi-effort-${TEST_RUN_ID}`
+    const requestId = `pi-effort-turn2-${TEST_RUN_ID}`
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "pi-tu1", name: "read", input: { file_path: "foo.ts" } },
+    ])
+    mockMessages = [toolTurn, userDenyMessage("pi-tu1")]
+
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read foo" },
+        { role: "system", content: [], output_config: { effort: "high" } },
+      ],
+    }, sessionId, { "user-agent": "pi/0.85.0", "x-session-affinity": sessionId })
+    expect(first.status).toBe(200)
+    await first.text()
+
+    mockMessages = [assistantMessage([{ type: "text", text: "file read" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read foo" },
+        { role: "system", content: [], output_config: { effort: "high" } },
+        { role: "assistant", content: [{ type: "tool_use", id: "pi-tu1", name: "read", input: { file_path: "foo.ts" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "pi-tu1", content: "export const x = 1" }] },
+        { role: "system", content: [], output_config: { effort: "high" } },
+      ],
+    }, sessionId, { "user-agent": "pi/0.85.0", "x-session-affinity": sessionId, "x-request-id": requestId })
+    expect(second.status).toBe(200)
+    await second.text()
+
+    const resumed = capturedQueryParamsAll[1]
+    expect(resumed.options.resume).toBe(initialManagedSessionId())
+    expect(resumed.options.resumeSessionAt).toBe(toolTurn.uuid)
+    expect(resumed.options.effort).toBe("high")
+
+    let row: any
+    for (let i = 0; i < 500 && !row; i++) {
+      row = telemetryStore.getRecent({ limit: 200 }).find((m: any) => m.requestId === requestId)
+      if (!row) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(row).toBeDefined()
+    expect(row!.isResume).toBe(true)
+  })
+
   it("stream: waits for late parallel assistant metadata before freezing the checkpoint", async () => {
     const firstFragment = assistantMessage([
       { type: "tool_use", id: "late-tu-1", name: "read", input: { file_path: "a" } },
