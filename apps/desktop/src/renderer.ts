@@ -88,8 +88,9 @@ function quotas(limit = 100, manage = false) {
     const account = accountProfiles.find(item => item.id === id) ?? {}
     const active = object(state?.profiles).activeProfile === id
     const stale = number(profile.fetchedAt) && Date.now() - Number(profile.fetchedAt) > 90000
-    const reason = profile.error === 'no_token' ? 'Sign-in required for usage limits' : profile.error ? 'Usage unavailable' : stale ? 'Usage may be out of date' : ''
-    return `<article class="account ${active ? 'selected-account' : ''}"><div class="account-head"><div class="avatar">${esc(id.slice(0, 1).toUpperCase())}</div><div><strong>${esc(id)}</strong>${account.email ? `<small>${esc(account.email)}</small>` : ''}</div>${active ? '<span class="status active">Active</span>' : ''}</div>${reason ? `<p class="account-warning" title="${esc(profile.error || '')}">${esc(reason)}</p>` : ''}${rows(profile.windows).map(window => {
+    const needsLogin = account.loggedIn === false || profile.error === 'no_token'
+    const reason = needsLogin ? 'Sign-in required for this account' : profile.error ? 'Usage unavailable' : stale ? 'Usage may be out of date' : ''
+    return `<article class="account ${active ? 'selected-account' : ''}"><div class="account-head"><div class="avatar">${esc(id.slice(0, 1).toUpperCase())}</div><div><strong>${esc(id)}</strong>${account.email ? `<small>${esc(account.email)}</small>` : ''}</div>${active ? '<span class="status active">Active</span>' : needsLogin ? '<span class="status bad">Needs login</span>' : ''}</div>${reason ? `<p class="account-warning" title="${esc(profile.error || '')}">${esc(reason)}</p>` : ''}${rows(profile.windows).map(window => {
       const value = number(window.utilization)
       const clamped = Math.max(0, Math.min(1, value ?? 0))
       const reset = number(window.resetsAt)

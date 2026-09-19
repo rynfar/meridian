@@ -32,12 +32,14 @@ function render(state: DesktopState) {
     ${issue ? `<div class="notice">${esc(issue)}</div>` : ''}${error ? `<p class="error" role="alert">${esc(error)}</p>` : ''}
     <h2>Accounts <span class="limits-caption">Limits used</span></h2><div class="accounts">${ids.map(id => {
       const quota = quotas.find(profile => profile.id === id) ?? {}
+      const account = rows(object(state?.profiles).profiles).find(profile => profile.id === id) ?? {}
       const fetched = number(quota.fetchedAt)
-      const unavailable = quota.error || !fetched || Date.now() - fetched > 90_000
+      const needsLogin = account.loggedIn === false || quota.error === 'no_token'
+      const unavailable = needsLogin || quota.error || !fetched || Date.now() - fetched > 90_000
       const windows = rows(quota.windows)
       const label = (type: unknown) => text(type).replace(/^five_hour$/, '5h').replace(/^seven_day/, '7d').replaceAll('_', ' ')
       const nextReset = windows.filter(window => (number(window.resetsAt) ?? 0) > Date.now()).sort((a, b) => Number(a.resetsAt) - Number(b.resetsAt))[0]
-      return `<article class="account ${active === id ? 'active' : ''}"><div class="line"><strong class="account-name" title="${esc(id)}">${esc(id)}</strong>${active === id ? '<span class="active-label">Active</span>' : button('switch-profile', 'Use account', id, !state.running)}</div>${unavailable ? '<p>Usage unavailable</p>' : `<div class="account-limits">${windows.map(window => {
+      return `<article class="account ${active === id ? 'active' : ''}"><div class="line"><strong class="account-name" title="${esc(id)}">${esc(id)}</strong>${active === id ? '<span class="active-label">Active</span>' : needsLogin ? '<span class="needs-login-label">Needs login</span>' : button('switch-profile', 'Use account', id, !state.running)}</div>${needsLogin ? '<p>Sign-in required</p>' : unavailable ? '<p>Usage unavailable</p>' : `<div class="account-limits">${windows.map(window => {
         const utilization = number(window.utilization), reset = number(window.resetsAt)
         const fresh = reset !== undefined && reset > Date.now()
         const resetText = fresh ? `Resets ${new Date(reset).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}` : 'Awaiting usage update'
