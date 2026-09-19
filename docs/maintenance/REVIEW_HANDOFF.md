@@ -1834,10 +1834,97 @@ repo's `user.email`; do not substitute one from the environment.
    - Stabilized `desktop-manager.test.ts` shutdown race under recovery.
    - Closed PR #774 as incorporated.
 
-### Next Queue Item
+7. **Contributor PR #818 (`fix(profiles): loggedIn is not true if the profile has no token`) by @Nowaker**:
+   - Delivered in PR #1069 (`1cfd9805`).
+   - Fixes `readCredentialFile` and `discoverProfiles` to verify that a profile's credential file contains a valid, non-empty access token before marking `loggedIn: true`.
+   - Surfaces "Sign-in required" on cards and tray if a credential file exists without a valid token.
+   - Desktop parity in `apps/desktop/src/renderer.ts` and `apps/desktop/src/trayRenderer.ts`.
+   - Closed PR #818 as incorporated.
 
-- **Contributor PR #775 (`feat(profiles): reorder the profile pool by drag or keyboard, on both pages`) by @Nowaker**.
+8. **Contributor PR #795 & #804 (`fix(profiles): remember the account's plan at headless login` & `fix(profiles): backfill the plan on token refresh`) by @Nowaker**:
+   - Delivered in PR #1070 (`85f87f74`).
+   - Persists account plan fields (`subscriptionType`, `rateLimitTier`) returned by Anthropic OAuth during headless profile login.
+   - Backfills missing plan fields during background OAuth token refresh into `profiles.json`.
+   - Adds unit tests in `src/__tests__/profile-login-plan-fields.test.ts` and `src/__tests__/token-refresh-plan-backfill.test.ts`.
+   - Closed PR #795 and #804 as incorporated.
 
+9. **Contributor PR #824 (`feat(usage): keep the last good usage reading when rate-limited, and mark cached facts`) by @Nowaker**:
+   - Delivered in PR #1071 (`46c10563`).
+   - Retains the last successful quota and usage reading when upstream rate limits (`429`) occur, preventing quota displays from flipping to blank/missing.
+   - Tags cached facts with provenance (`cached: true`) in web telemetry and desktop UI.
+   - Closed PR #824 as incorporated.
+
+10. **Contributor PR #819 (`feat(health): /livez and /readyz liveness and readiness probes`) by @Nowaker**:
+    - Delivered in PR #1072 (`0d3d30c2`).
+    - Implemented `/livez` (lightweight process health) and `/readyz` (full subsystem readiness) probe routes for Kubernetes and supervisor environments.
+    - Verified route auth auditing and added unit tests in `src/__tests__/health-probes.test.ts`.
+    - Closed PR #819 as incorporated.
+
+11. **Contributor PR #826 (`feat(routing): say when an account is refusing, and route around it`) by @Nowaker**:
+    - Delivered in PR #1075 (`a5596f25`).
+    - Proactive allowance refusal routing: detects 5h vs 7d quota bucket exhaustion and preemptively routes around spent profiles to prevent avoidable upstream 429s.
+    - Exposes refusal rationale in `/quota` and UI cards.
+    - Closed PR #826 as incorporated.
+
+12. **Contributor PR #833 (`feat(telemetry): show the route chain, refusal load, and telemetry retention`) by @Nowaker**:
+    - Delivered in PR #1076 (`cfe13038`).
+    - Telemetry route attribution: exposes the full failover hop chain, per-profile served/refused tallies, and refusal metrics across web and desktop.
+    - Closed PR #833 as incorporated.
+
+13. **Contributor PR #776 & #777 (`feat(dashboard): dim spent accounts and offer a sort that sinks them` & `feat(profiles): also dim spent accounts on /profiles`) by @Nowaker**:
+    - Delivered in PR #1077 (`f1bb2d5f`).
+    - Visual dimming/fading of spent accounts and view sorting tabs (`Configured`, `Most used`, `Least used`) on both web dashboard and desktop manager.
+    - Closed PR #776 and #777 as incorporated.
+
+14. **Contributor PR #775 (`feat(profiles): reorder the profile pool by drag or keyboard, on both pages`) by @Nowaker**:
+    - Delivered in PR #1078 (`2268eef0`).
+    - Drag-and-drop and keyboard reordering (`Alt+Up` / `Alt+Down`) for profile failover priority in the pool, synced with desktop ordering.
+    - Closed PR #775 as incorporated.
+
+15. **Contributor PR #841 (`feat(profiles): rename a profile from the CLI and web UI`) by @Nowaker**:
+    - Delivered in PR #1079 (`fe9c69d1`).
+    - Profile renaming CLI (`meridian profile rename <old> <new>`) and Web UI modal. Automatically manages legacy alias redirects and updates desktop state.
+    - Closed PR #841 as incorporated.
+
+16. **Contributor PR #778, #779, #849 (`feat(settings): overhaul settings layout with routing first, harness tabs, and telemetry storage`) by @Nowaker**:
+    - Delivered in PR #1080 (`1ff2c678`).
+    - Settings reorganization into dedicated tabs (Routing, Telemetry retention, Harnesses/Adapters), plus sqlite telemetry retention tuning.
+    - Closed PR #778, #779, and #849 as incorporated.
+
+17. **Contributor PR #803 (`feat(profiles): say what plan an account is on, and how much usage it buys`) by @Nowaker**:
+    - Delivered in PR #1081 (`ce68af8f`).
+    - Visual plan badges and dynamic multiplier chips (`1x`, `5x`, `20x`) based on tier allowance across web dashboard, desktop manager, and tray renderer.
+    - Closed PR #803 as incorporated.
+
+18. **Contributor PR #822 (`feat(profiles): show the organization an account belongs to, and its details on hover`) by @Nowaker**:
+    - Delivered in PR #1082 (`7651b3ea`).
+    - Discovers Anthropic organization name and surfaces it with hover detail in web cards, desktop manager, and tray tooltips.
+    - Closed PR #822 as incorporated.
+
+19. **Contributor PR #805 (`feat(auth): log every property Anthropic returns during authentication`) by @Nowaker**:
+    - Delivered in PR #1083 (`944e7971`).
+    - Safe property logging during Anthropic authentication exchange with safe string key allowlisting.
+    - Closed PR #805 as incorporated.
+
+20. **Contributor PR #780 (`chore(opencode): pre-approve Meridian's own directories, refuse its credentials`) by @Nowaker**:
+    - Delivered in PR #1084 (`a93da86c`).
+    - OpenCode pre-approved project permissions in `.opencode/opencode.json`, explicitly denying access to credential storage while granting proxy cache/config.
+    - Closed PR #780 as incorporated.
+
+21. **Contributor PR #782 & #806 (`feat(profiles): follow mode with active profile and roster adoption`) by @Nowaker**:
+    - Delivered in PR #1085 (`dacc1b1b`).
+    - `MERIDIAN_FOLLOW_ACTIVE` engine allowing follower instances to mirror a primary instance's active profile and adopt shareable file-backed profiles.
+    - Desktop Parity: Desktop header notice surfaces followed status and stale alerts; active card and tray reflect follow state; local switching is gracefully disabled with explanatory tooltips.
+    - Closed PR #782 and #806 as incorporated.
+
+### Current Backlog Status & Next Items
+
+- **Contributor PR #792 (`feat(profiles): complete a profile login from the web UI`) by @Nowaker**:
+  - Status: DRAFT. Contributor requested in PR description: `# DRAFT - please do not review or merge yet`. Deferred until author marks ready.
+- **Antigravity Integration (PR #1074, PR #1050, Issue #1073)**:
+  - Excluded from this review workflow; handled by a dedicated agent per owner directive.
+- **Release Please (PR #1053)**:
+  - Tracks next scheduled semver release (`1.73.0`).
 
 ## Restart safely
 
