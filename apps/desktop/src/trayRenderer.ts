@@ -39,7 +39,9 @@ function render(state: DesktopState) {
       const windows = rows(quota.windows)
       const label = (type: unknown) => text(type).replace(/^five_hour$/, '5h').replace(/^seven_day/, '7d').replaceAll('_', ' ')
       const nextReset = windows.filter(window => (number(window.resetsAt) ?? 0) > Date.now()).sort((a, b) => Number(a.resetsAt) - Number(b.resetsAt))[0]
-      return `<article class="account ${active === id ? 'active' : ''}"><div class="line"><strong class="account-name" title="${esc(id)}">${esc(id)}</strong>${active === id ? '<span class="active-label">Active</span>' : needsLogin ? '<span class="needs-login-label">Needs login</span>' : button('switch-profile', 'Use account', id, !state.running)}</div>${needsLogin ? '<p>Sign-in required</p>' : unavailable ? '<p>Usage unavailable</p>' : `<div class="account-limits">${windows.map(window => {
+      const plan = text(account.subscriptionType)
+      const planTag = plan ? `<span class="tray-plan">${esc(plan.toUpperCase())}</span>` : ''
+      return `<article class="account ${active === id ? 'active' : ''}"><div class="line"><strong class="account-name" title="${esc(id)}">${esc(id)}</strong>${planTag}${active === id ? '<span class="active-label">Active</span>' : needsLogin ? '<span class="needs-login-label">Needs login</span>' : button('switch-profile', 'Use account', id, !state.running)}</div>${needsLogin ? '<p>Sign-in required</p>' : unavailable ? '<p>Usage unavailable</p>' : `<div class="account-limits">${windows.map(window => {
         const utilization = number(window.utilization), reset = number(window.resetsAt)
         const fresh = reset !== undefined && reset > Date.now()
         const resetText = fresh ? `Resets ${new Date(reset).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}` : 'Awaiting usage update'

@@ -197,3 +197,5 @@ form .check { display: flex; min-height: 40px; margin: 8px 0; }
   .filter-bar input { flex-basis: 200px; }
   .overview-status { align-items: flex-start; }
 }
+
+.plan-tag { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 1px 5px; border-radius: 4px; background: var(--surface); color: var(--accent2); border: 1px solid var(--control-border); margin-left: 6px; vertical-align: middle; }

@@ -5,3 +5,5 @@
 .account-limits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:9px}.account-limits .line{gap:4px}.quota .line span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.quota .line strong{flex-shrink:0;font-variant-numeric:tabular-nums}.account-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.account .line>button,.active-label{flex-shrink:0}.account p{margin:7px 0 0;font-size:11px}.next-reset{display:block;margin-top:5px}.limits-caption{float:right;text-transform:none;letter-spacing:0;font-weight:400}.account-limits p{grid-column:1/-1}
 
 .needs-login-label{font-size:11px;color:var(--red);flex-shrink:0}
+
+.tray-plan{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:1px 4px;border-radius:3px;background:var(--surface);color:var(--accent2);border:1px solid var(--border);margin-left:4px;vertical-align:middle;flex-shrink:0}
