@@ -157,7 +157,6 @@ function getConfigPath(): string {
 }
 
 let cachedConfig: FeatureConfig | null = null
-let cachedConfigPath: string | null = null
 let lastReadTime = 0
 let lastReadPath: string | undefined
 const CACHE_TTL_MS = 5000
@@ -165,13 +164,7 @@ const CACHE_TTL_MS = 5000
 function readConfig(): FeatureConfig {
   const now = Date.now()
   const path = getConfigPath()
-<<<<<<< HEAD
   if (cachedConfig && lastReadPath === path && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
-=======
-  if (cachedConfig && cachedConfigPath === path && now - lastReadTime < CACHE_TTL_MS) return cachedConfig
-
-  cachedConfigPath = path
->>>>>>> a51bcddf (fix: make MERIDIAN_CONFIG_DIR relocate the directory, not one file in it)
   try {
     if (existsSync(path)) {
       cachedConfig = JSON.parse(readFileSync(path, "utf-8")) as FeatureConfig
@@ -194,7 +187,6 @@ function writeConfig(config: FeatureConfig): void {
     writeFileSync(tmp, JSON.stringify(config, null, 2))
     renameSync(tmp, path)
     cachedConfig = config
-    cachedConfigPath = path
     lastReadTime = Date.now()
     lastReadPath = path
   } catch (e) {
