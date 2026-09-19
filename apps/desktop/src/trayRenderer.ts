@@ -34,9 +34,12 @@ function render(state: DesktopState) {
       const quota = quotas.find(profile => profile.id === id) ?? {}
       const account = rows(object(state?.profiles).profiles).find(profile => profile.id === id) ?? {}
       const fetched = number(quota.fetchedAt)
-      const needsLogin = account.loggedIn === false || quota.error === 'no_token'
-      const unavailable = needsLogin || quota.error || !fetched || Date.now() - fetched > 90_000
+      const failureObj = quota.failure && typeof quota.failure === 'object' ? quota.failure as Record<string, unknown> : null
+      const failureReason = failureObj ? text(failureObj.reason) : ''
       const windows = rows(quota.windows)
+      const isStale = Boolean(quota.stale) || (!fetched || Date.now() - fetched > 90_000)
+      const needsLogin = account.loggedIn === false || quota.error === 'no_token' || failureReason === 'auth_failure'
+      const unavailable = needsLogin || (!windows.length && (quota.error || !fetched))
       const label = (type: unknown) => text(type).replace(/^five_hour$/, '5h').replace(/^seven_day/, '7d').replaceAll('_', ' ')
       const nextReset = windows.filter(window => (number(window.resetsAt) ?? 0) > Date.now()).sort((a, b) => Number(a.resetsAt) - Number(b.resetsAt))[0]
       const plan = text(account.subscriptionType)
@@ -45,8 +48,8 @@ function render(state: DesktopState) {
         const utilization = number(window.utilization), reset = number(window.resetsAt)
         const fresh = reset !== undefined && reset > Date.now()
         const resetText = fresh ? `Resets ${new Date(reset).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}` : 'Awaiting usage update'
-        const description = `${id} · ${label(window.type)} · ${fresh ? pct(utilization) : '—'} used · ${resetText}`
-        return `<div class="quota" title="${esc(description)}"><div class="line"><span>${esc(label(window.type))}</span><strong>${fresh ? pct(utilization) : '—'}</strong></div>${fresh && utilization !== undefined ? `<progress max="1" value="${Math.max(0, Math.min(1, utilization))}" class="${utilization >= .95 ? 'danger' : ''}" aria-label="${esc(description)}"></progress>` : ''}</div>`
+        const description = `${id} · ${label(window.type)} · ${fresh ? pct(utilization) : '—'} used · ${resetText}${isStale ? ' (cached)' : ''}`
+        return `<div class="quota" title="${esc(description)}"><div class="line"><span>${esc(label(window.type))}</span><strong>${fresh ? pct(utilization) : '—'}${isStale ? '<small class="tray-stale-tag">cached</small>' : ''}</strong></div>${fresh && utilization !== undefined ? `<progress max="1" value="${Math.max(0, Math.min(1, utilization))}" class="${utilization >= .95 ? 'danger' : ''}" aria-label="${esc(description)}"></progress>` : ''}</div>`
       }).join('') || '<p>No usage windows available</p>'}</div>${active === id && nextReset ? `<small class="next-reset">${esc(label(nextReset.type))} resets ${esc(new Date(Number(nextReset.resetsAt)).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}))}</small>` : ''}`}</article>`
     }).join('') || (stopped ? '<p>Start Meridian to load accounts and usage.</p>' : '<p>No accounts available. Open the dashboard to connect.</p>')}</div>
     <div class="controls">${state.owned ? button('restart', 'Restart') + button('stop', 'Stop') : state.preferences.mode === 'managed' ? button('start', 'Start Meridian', '', !state.preferences.selected) : '<small>Service managed externally</small>'}</div>

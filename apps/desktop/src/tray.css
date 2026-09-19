@@ -7,3 +7,5 @@
 .needs-login-label{font-size:11px;color:var(--red);flex-shrink:0}
 
 .tray-plan{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;padding:1px 4px;border-radius:3px;background:var(--surface);color:var(--accent2);border:1px solid var(--border);margin-left:4px;vertical-align:middle;flex-shrink:0}
+
+.tray-stale-tag{display:inline-block;margin-left:3px;font-size:9px;font-weight:normal;opacity:0.75;text-transform:lowercase}
