@@ -51,6 +51,11 @@ function render(state: DesktopState) {
       const label = (type: unknown) => text(type).replace(/^five_hour$/, '5h').replace(/^seven_day/, '7d').replaceAll('_', ' ')
       const nextReset = windows.filter(window => (number(window.resetsAt) ?? 0) > Date.now()).sort((a, b) => Number(a.resetsAt) - Number(b.resetsAt))[0]
       const plan = text(account.subscriptionType)
+      const allowance = text(account.allowance)
+      const planLabel = text(account.planLabel)
+      const rateLimitTier = text(account.rateLimitTier)
+      const allowanceTitle = (planLabel || '') + (rateLimitTier ? ` · ${rateLimitTier}` : '')
+      const allowanceTag = allowance ? `<span class="tray-plan" style="color:var(--accent2, #58a6ff);" title="${esc(allowanceTitle)}">${esc(allowance)}</span>` : ''
       const planTag = plan ? `<span class="tray-plan">${esc(plan.toUpperCase())}</span>` : ''
       const spentObj = quota.spent && typeof quota.spent === 'object' ? quota.spent as Record<string, unknown> : null
       const isSpent = Boolean(spentObj && (!spentObj.until || Number(spentObj.until) > Date.now()))
@@ -58,7 +63,7 @@ function render(state: DesktopState) {
       const spentBucket = spentDiagnosis ? text(spentDiagnosis.bucket) : ''
       const spentBucketLabel = spentBucket ? (spentBucket === 'five_hour' ? '5h' : spentBucket.replace(/^seven_day/, '7d').replaceAll('_', ' ')) : 'limit'
       const spentBadge = isSpent ? `<span class="needs-login-label" style="background:#ef4444;color:white;" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Refusing')}">Refusing (${esc(spentBucketLabel)})</span>` : ''
-      return `<article class="account ${active === id ? 'active' : ''}"><div class="line"><strong class="account-name" title="${esc(id)}">${esc(id)}</strong>${planTag}${active === id ? `<span class="active-label">Active</span>${spentBadge ? ` ${spentBadge}` : ''}` : isSpent ? spentBadge : needsLogin ? '<span class="needs-login-label">Needs login</span>' : button('switch-profile', 'Use account', id, !state.running)}</div>${needsLogin ? '<p>Sign-in required</p>' : unavailable ? '<p>Usage unavailable</p>' : `<div class="account-limits">${windows.map(window => {
+      return `<article class="account ${active === id ? 'active' : ''}"><div class="line"><strong class="account-name" title="${esc(id)}">${esc(id)}</strong>${planTag}${allowanceTag}${active === id ? `<span class="active-label">Active</span>${spentBadge ? ` ${spentBadge}` : ''}` : isSpent ? spentBadge : needsLogin ? '<span class="needs-login-label">Needs login</span>' : button('switch-profile', 'Use account', id, !state.running)}</div>${needsLogin ? '<p>Sign-in required</p>' : unavailable ? '<p>Usage unavailable</p>' : `<div class="account-limits">${windows.map(window => {
         const utilization = number(window.utilization), reset = number(window.resetsAt)
         const fresh = reset !== undefined && reset > Date.now()
         const resetText = fresh ? `Resets ${new Date(reset).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}` : 'Awaiting usage update'

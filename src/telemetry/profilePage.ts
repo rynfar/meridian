@@ -594,8 +594,26 @@ function render(data, quotaData) {
     var emailCell = renderFactValue(p.email, authStale);
     if (emailCell) html += "<span class=\"detail-label\">Email</span>" + emailCell;
 
-    var planCell = renderFactValue(p.subscriptionType, authStale);
-    if (planCell) html += "<span class=\"detail-label\">Plan</span>" + planCell;
+    // Two rows, because two different fields answer two different questions
+    // and either can be known without the other: a Team seat whose seat_tier
+    // is missing has a trustworthy family and an unknowable plan.
+    if (p.accountType) {
+      html += '<span class="detail-label">Account</span>';
+      html += '<span class="detail-value">' + esc(p.accountType) + '</span>';
+    }
+    var planName = p.planName || p.planLabel || p.subscriptionType;
+    if (planName) {
+      html += '<span class="detail-label">Plan</span>';
+      html += '<span class="detail-value" title="' + esc(p.seatTier || p.rateLimitTier || '') + '">'
+        + esc(planName) + cachedTag(factProvenance(planName, authStale)) + '</span>';
+    }
+    if (p.allowance) {
+      // The number that says how much work the account can do. The plan alone
+      // does not: Max 5x and Max 20x both report "max" and differ 4x.
+      html += '<span class="detail-label">Allowance</span>';
+      html += '<span class="detail-value" title="' + esc(p.rateLimitTier || '') + '">' + esc(p.allowance)
+        + ' <span style="color:var(--muted);font-weight:400">of a Pro plan\u2019s Claude Code usage</span></span>';
+    }
 
     if (p.aliases && p.aliases.length > 0) {
       html += "<span class=\"detail-label\">Former names</span>";

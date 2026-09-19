@@ -94,6 +94,8 @@ export const landingHtml = `<!DOCTYPE html>
   .pace-row .w-pct { font-weight: 600; }
   .pool-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface2); color: var(--muted); margin-left: 6px; vertical-align: middle; }
   .pool-chip.exhausted { color: var(--red); background: rgba(248,81,73,0.12); }
+  .plan-chip { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--surface2);
+    color: var(--accent2); margin-left: 6px; vertical-align: middle; font-variant-numeric: tabular-nums; }
   .spent-banner { font-size: 12px; line-height: 1.45; color: var(--text); margin-bottom: 10px;
     padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(248,81,73,0.35); background: rgba(248,81,73,0.1); }
   .spent-banner strong { color: var(--red); }
@@ -279,7 +281,7 @@ function profileSection(q,s,pl,h){
   if(configured.length>0){\n    // Real profiles exist: show exactly those. Traffic that predates
     // per-profile attribution (the synthetic "default" bucket) still
     // counts in the totals strip but doesn't render as a fake account.
-    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,loggedIn:p.loggedIn,configured:true});seen[p.id]=1}
+    for(var i=0;i<configured.length;i++){var p=configured[i];profs.push({id:p.id,label:p.id,type:p.type,isActive:!!p.isActive,loggedIn:p.loggedIn,configured:true,allowance:p.allowance,planLabel:p.planLabel,rateLimitTier:p.rateLimitTier});seen[p.id]=1}
   }else{
     // Single-account setup: one card, labeled with the logged-in email.
     var email=(h&&h.auth&&h.auth.loggedIn&&h.auth.email)||'';
@@ -332,6 +334,9 @@ function profileSection(q,s,pl,h){
     var isActivePriority=pl&&pl.routing==='active+priority';
     var switchable=multi&&p.configured&&!p.isActive&&!isPriority;
     var badge=isPriority?'':p.isActive?'<span class="active-pill">Active</span>':switchable?'<span class="switch-hint">Click to activate</span>':'';
+    // Sits beside the name because it qualifies the percentages below it: 70%
+    // of a 20x account is several times the work left in 70% of a 5x one.
+    if(p.allowance)badge+='<span class="plan-chip" title="'+esc((p.planLabel||'')+(p.rateLimitTier?' · '+p.rateLimitTier:''))+'">'+esc(p.allowance)+'</span>';
     if(isPriority||isActivePriority){\n      var orderIdx=(pl.profileOrder||[]).indexOf(p.id);
       if(orderIdx>=0)badge+='<span class="pool-chip">'+(isActivePriority?'#'+(orderIdx+1)+' fallback':'#'+(orderIdx+1)+' in pool')+'</span>';
       var exh=(pl.exhausted||[]).filter(function(e){return e.id===p.id})[0];

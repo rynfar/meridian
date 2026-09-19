@@ -27,12 +27,23 @@ interface OAuthProfileResponse {
   organization?: {
     organization_type?: string | null
     rate_limit_tier?: string | null
+    seat_tier?: string | null
   } | null
 }
 
 export interface OAuthPlanFields {
   subscriptionType?: string
   rateLimitTier?: string
+  /**
+   * Which seat a Team member holds, and the ONLY field that separates a
+   * Premium seat from a Standard one. Measured across twelve live accounts:
+   * every Premium seat reports `rate_limit_tier: "default_claude_max_5x"` —
+   * byte-identical to what a personal Max 5x reports — and a Standard seat
+   * reports `default_raven`, a codename naming no published allotment. So the
+   * rate-limit tier can size neither kind of Team seat: one because it lies
+   * and one because it says nothing. Null on every personal account.
+   */
+  seatTier?: string
 }
 
 /**
@@ -61,9 +72,11 @@ export function subscriptionTypeFromOrganizationType(
 export function extractPlanFields(profile: OAuthProfileResponse | null | undefined): OAuthPlanFields {
   const subscriptionType = subscriptionTypeFromOrganizationType(profile?.organization?.organization_type)
   const rateLimitTier = profile?.organization?.rate_limit_tier
+  const seatTier = profile?.organization?.seat_tier
   return {
     ...(subscriptionType ? { subscriptionType } : {}),
     ...(rateLimitTier ? { rateLimitTier } : {}),
+    ...(seatTier ? { seatTier } : {}),
   }
 }
 
@@ -77,7 +90,7 @@ export function extractPlanFields(profile: OAuthProfileResponse | null | undefin
  * completed.
  */
 export function planFieldsMissing(fields: OAuthPlanFields | null | undefined): boolean {
-  return !fields?.subscriptionType || !fields?.rateLimitTier
+  return !fields?.subscriptionType || (!fields?.rateLimitTier && !fields?.seatTier)
 }
 
 /**
