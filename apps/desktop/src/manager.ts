@@ -71,7 +71,12 @@ export class Manager {
         const response = await fetch(this.preferences.endpoint + '/health', { signal: AbortSignal.timeout(2000) })
         const health = object(await response.json())
         if (isMeridianHealth(health)) this.preferences.mode = 'attached'
-      } catch { /* No local headless instance: offer the managed installer. */ }
+      } catch {
+        try {
+          const livez = await fetch(this.preferences.endpoint + '/livez', { signal: AbortSignal.timeout(1000) })
+          if (livez.ok && (await livez.text()).trim() === 'ok') this.preferences.mode = 'attached'
+        } catch { /* No local headless instance: offer the managed installer. */ }
+      }
     }
     this.publish()
   }
