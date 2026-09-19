@@ -1917,14 +1917,57 @@ repo's `user.email`; do not substitute one from the environment.
     - Desktop Parity: Desktop header notice surfaces followed status and stale alerts; active card and tray reflect follow state; local switching is gracefully disabled with explanatory tooltips.
     - Closed PR #782 and #806 as incorporated.
 
-### Current Backlog Status & Next Items
+22. **Release 1.73.0 (PR #1053) & Test Isolation (PR #1087)**:
+    - Delivered and published in Release Please workflow run `35468508440`.
+    - Candidate head SHA: `58a563b4845ffc771cd5eb4e787fc2feb7a4509f`.
+    - Merged with exact match to `main`: `0cfda823e418a5560e33c33f63f831ed92973bbf`.
+    - Scope included PR #1087 (`8eac9254`) isolating Claude SDK mock in follow-active tests to eliminate global mock leakage across test files.
+    - All 4 release workflow jobs passed:
+      - `release-please` (tag `meridian-v1.73.0`, release `meridian: v1.73.0`)
+      - `desktop / mac` (signed/notarized DMGs and ZIPs attached to release)
+      - `docker` (multi-arch images pushed to GHCR `ghcr.io/rynfar/meridian:1.73.0`, `:1.73`, `:latest`)
+      - `publish` (`npm publish --provenance --access public` via OIDC trusted publishing, Sigstore index `2893429092`, integrity `sha512-vJPtgC6wv72nBdkre3vCUtZG3Nnz8rAGavdVKzk2KZOZeuoYSh9pQbMULdKm07Qy8EM10PpXdu5pscauiBsDyw==`)
+    - Installed-package validation: verified `npm view @rynfar/meridian version` -> `1.73.0`, executed clean install in isolated temporary directory and verified `npx @rynfar/meridian --version` -> `1.73.0`.
+
+### Current Backlog Status & Open Issue Triage
+
+- **Antigravity Integration (PR #1074, PR #1050, Issue #1073)**:
+  - Excluded from this review workflow; handled by a dedicated agent per owner directive.
 
 - **Contributor PR #792 (`feat(profiles): complete a profile login from the web UI`) by @Nowaker**:
   - Status: DRAFT. Contributor requested in PR description: `# DRAFT - please do not review or merge yet`. Deferred until author marks ready.
-- **Antigravity Integration (PR #1074, PR #1050, Issue #1073)**:
-  - Excluded from this review workflow; handled by a dedicated agent per owner directive.
-- **Release Please (PR #1053)**:
-  - Tracks next scheduled semver release (`1.73.0`).
+
+- **Issue #1068 (`feat: define an opt-in contract for request-scoped context in passthrough sessions`)**:
+  - RFC / Design inquiry from Pydantic AI Harness maintainers regarding client request-scoped context (planning reminders, context-limit warnings) that are sent with one request and removed on subsequent requests, triggering `modified-history` fresh replays.
+  - Action / Status: Needs architectural guidance from repository owner before any patch. Options proposed by reporter: (1) advisory-context envelope eligible for lineage normalization, (2) separate request-context field, or (3) documented append-only requirement.
+
+- **Issue #1024 (`OpenCode title + primary turn collide on one SDK session`)**:
+  - Root cause resolved in PR #1031 (`2e118a92`) by admitting plugin-less OpenCode concurrent turns and degrading gracefully instead of returning 400.
+  - Status: Resolved in codebase; kept open pending confirmation from reporter (@calebdw).
+
+- **Issue #1011 (`Land the two passthrough commits held back from #980`)**:
+  - Commit 2 (`feat(proxy): classify abort causes`) landed in PR #1022 (`0fd59403`).
+  - Commit 1 (`fix: recover visible empty capped streams`, `c5804275`) deferred by owner decision because it introduced stream/non-stream asymmetry and altered gate-defended guarantees in `E2E.md`.
+
+- **Issue #1009 (`Uncaptured-tool recovery for capped passthrough turns`)**:
+  - Implementation landed behind opt-in flag `MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY=1` in PR #1025 (`d8516bea`).
+  - Status: Stays open pending canary validation on affected deployment and a positive fault-injection live gate.
+
+- **Issues #933 & #917 (`npm test is flaky on CI` / `Intermittent CI failures: concurrency tests fail fast`)**:
+  - Transcripts backlog saturation fixed in #935; test timeouts widened to 30s in #990; global Claude SDK mock pollution fixed in PR #1087.
+  - Status: Tracked. Singleton concurrency test races under high runner CPU load and potential ordering dependencies remain under observation.
+
+- **Issue #769 (`Official OpenClaw scrub plugin (meridian-plugin-openclaw-scrub)`)**:
+  - Official plugin repository built at `https://github.com/rynfar/meridian-plugin-openclaw-scrub` and listed via PR #799.
+  - Status: Tracking upstream OpenClaw changes and moving fingerprint targets with community contributors.
+
+- **Issue #767 (`OpenCode + Opus: turns diverge as modified-history with overlap messageCount - 1`)**:
+  - Investigated and mitigated in 1.61.0 (#784) and #872. Tested on current `main` across 80+ Opus requests with 0 divergences.
+  - Status: Main verified clean; awaiting reporter closure or reproduction with new mismatch diagnostic.
+
+- **Issue #650 (`Wire event-driven plugin-input bumps`)**:
+  - Repository dispatch receiver merged in #653; notification workflows merged in plugin repos.
+  - Status: Waiting for owner to mint fine-grained PAT and set `MERIDIAN_DISPATCH_TOKEN` secret across plugin repos.
 
 ## Restart safely
 
