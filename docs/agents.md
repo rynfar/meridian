@@ -44,15 +44,31 @@ export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 
 ### OpenCode V2 beta
 
-Meridian supports the exact public betas its V2 plugin is validated against:
-`@opencode-ai/cli@0.0.0-beta-18314` and `0.0.0-beta-18866`. V2 plugin APIs are
-still changing, so setup fails closed for another V2 version instead of
-installing a plugin with an unknown contract.
+#### Host support policy
+
+Meridian pins and qualifies explicit public OpenCode V2 beta releases:
+`@opencode-ai/cli@0.0.0-beta-18314`, `0.0.0-beta-18866`, and `0.0.0-beta-19271`.
+
+Because upstream V2 plugin interfaces, session headers, subagent tracking, and
+compaction hooks are under active iteration, Meridian enforces a strict
+fail-closed policy rather than permitting wildcard or unverified host versions.
+A V2 release is only added to `SUPPORTED_OPENCODE_V2_VERSIONS` after passing the
+full end-to-end package gate (`scripts/e2e-opencode-v2-package.mjs --live --extended`),
+verifying:
+
+1. **Plugin configuration & loading:** bundled and source plugin installation via `meridian setup --v2`.
+2. **Session continuity & replay:** durable lineage across turns, restarts, and file store rehydration.
+3. **Branching & undo:** tool execution, prefix rollback detection, and isolated fork histories.
+4. **Subagent & agent isolation:** detached title/summary work, independent concurrent subagents, and compaction.
+5. **Model discovery & effort variants:** `GET /v1/models` catalog synchronization, cold-start cache seeding, and cache invalidation.
+
+Unverified releases, phantom versions, and nightly/dev builds are rejected by
+`meridian setup --v2` with an informative message listing the verified releases.
 
 Install a supported beta and select its executable:
 
 ```bash
-npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-18866
+npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-19271
 meridian setup --v2 --opencode-bin ~/.local/bin/opencode2
 ```
 

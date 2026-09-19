@@ -64,7 +64,7 @@ try {
     return new Response(response.body,{status:response.status,headers:response.headers})
   }})
   const version=(await run([client,'--version'])).trim()
-  assert(v1?version==='1.18.11':['opencode2 v0.0.0-beta-18314','opencode2 v0.0.0-beta-18866'].includes(version))
+  assert(v1?version==='1.18.11':['opencode2 v0.0.0-beta-18314','opencode2 v0.0.0-beta-18866','opencode2 v0.0.0-beta-19271'].includes(version))
   // beta18314 does not auto-retry upstream_timeout SSE errors. Its control
   // checks first-stall behavior and recovery, not the three-attempt ceiling.
   const firstStallOnly = version === 'opencode2 v0.0.0-beta-18314'

@@ -265,7 +265,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E39 | [OpenCode internal-agent session key (#845)](#e39-opencode-internal-agent-session-key-845) | **Manual**, real OpenCode: its `title` agent runs under the USER'S session id, so the user's first turn used to queue behind it and then get HTTP 400 `session_turn_conflict`. Asserts the first turn succeeds, waits ~0ms on the session lease, and every later request is `lineage=continuation`. **Run after any OpenCode upgrade and before releases touching session keys or the turn coordinator** | 2026-08-19 |
 | E40 | [Passthrough digest-turn cap](#e40-passthrough-digest-turn-cap) | **Automated**: `bun scripts/e2e-digest-turn-cap.mjs` — real SDK. Asserts the capped tool turn generates no digest text, costs materially less than uncapped on an identical prompt, still RESUMES at its captured checkpoint, leaves text-only turns returning `success`, and does not truncate parallel tool calls. **Run before any release touching the passthrough tool loop, `maxTurns`, or the early-stop checkpoint** | 2026-08-20 |
 | E41 | [Passthrough multi-turn: one call, one answer](#e41-passthrough-multi-turn-one-call-one-answer) | **Automated**: `bun scripts/e2e-passthrough-turns.mjs [--stream]` — real proxy + SDK + Claude Max. Chain and `PROBE_PARALLEL=1` modes assert exact tool-call batching, a distinct durable fork per result round, one real answer per delivered call in the active transcript, and full prompt-cache continuity. **Run all four chain/parallel × stream/non-stream combinations before releases touching passthrough resume or the deny hook** | 2026-08-26 |
-| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314` and `18866`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction, overlapping general children and the model-discovery round trip with its Meridian-only effort variant. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-08-27 |
+| E42 | [OpenCode V2 beta compatibility](#e42-opencode-v2-beta-compatibility) | **Automated**, exact betas `18314`, `18866`, and `19271`: run `e2e-opencode-v2-package.mjs --live --extended` with each pinned binary. Covers hidden title/summary isolation, process restart, passthrough tools, undo/fork/compaction, overlapping general children and the model-discovery round trip with its Meridian-only effort variant. Also test source and packed npm artifacts. **Run after any V2 plugin/API change; another beta is not a pass** | 2026-09-18 |
 | E43 | [Passthrough tools in a namespaced client](#e43-passthrough-tools-in-a-namespaced-client) | **Automated**: `bun scripts/e2e-passthrough-namespaced-tools.mjs [--stream]` — real proxy + SDK. A client tool declared `mcp__oc__read` collides with the namespace Meridian nests client tools under; asserts the call is still dispatched and captured, delivered under the name the client declared, and answered from the client's real result, with an ordinary and a foreign-namespace control alongside. **Run before any release touching passthrough tool registration, the deny hook, or tool-name delivery** | 2026-09-08 |
 | E44 | [Tier refusal failover](#e44-tier-refusal-failover) | **Automated**: `bun scripts/e2e-tier-refusal-failover.mjs [--stream]` — local refusal fixture, **real Claude Max fallback**. Asserts the credits-era per-tier banner is recorded 429 on the refusing profile and that a healthy profile actually answers. Catches what unit tests cannot: the shape that arrives carries the upstream status. **Run before releases touching error classification or priority failover** | 2026-09-08 |
 | E45 | [Codex auto-defer](#e45-codex-auto-defer) | **Automated**: `bun scripts/e2e-codex-auto-defer.mjs` — real proxy + SDK, 40 Codex-shaped tools. Asserts a Codex request reports no deferral and that `exec_command` is loaded rather than found via ToolSearch. The codex transform inherited OpenCode's core tool names, which match nothing Codex sends, so every tool was deferred. **Run before releases touching the codex transform, auto-defer, or `computePassthroughMaxTurns`** | 2026-09-08 |
@@ -3782,16 +3782,18 @@ hidden title/summary work, attached compaction, and child sessions without
 changing request bodies. It also proves that durable primary lineage survives
 real V2 tools, a Meridian restart, undo, fork, and parallel subagents.
 
-Validate both supported hosts, `0.0.0-beta-18314` and `0.0.0-beta-18866`.
+Validate all supported hosts, `0.0.0-beta-18314`, `0.0.0-beta-18866`, and `0.0.0-beta-19271`.
 The beta CLI can update itself, so the automated gate verifies its exact version
 before and after each run and disables automatic updates. Use isolated installs:
 
 ```bash
 npm install --prefix /tmp/opencode-18314 @opencode-ai/cli@0.0.0-beta-18314
 npm install --prefix /tmp/opencode-18866 @opencode-ai/cli@0.0.0-beta-18866
+npm install --prefix /tmp/opencode-19271 @opencode-ai/cli@0.0.0-beta-19271
 npm run build
 E2E_OPENCODE_BIN=/tmp/opencode-18314/node_modules/.bin/opencode2 bun scripts/e2e-opencode-v2-package.mjs --live --extended
 E2E_OPENCODE_BIN=/tmp/opencode-18866/node_modules/.bin/opencode2 bun scripts/e2e-opencode-v2-package.mjs --live --extended
+E2E_OPENCODE_BIN=/tmp/opencode-19271/node_modules/.bin/opencode2 bun scripts/e2e-opencode-v2-package.mjs --live --extended
 ```
 
 Without `--live`, this uses the actual client against a scripted local API. It

@@ -232,7 +232,7 @@ function verifyResume(prior, current, label) {
 }
 try {
   const version = (await run([client, '--version'])).trim()
-  assert(v1 ? version === '1.18.11' : ['opencode2 v0.0.0-beta-18314', 'opencode2 v0.0.0-beta-18866'].includes(version))
+  assert(v1 ? version === '1.18.11' : ['opencode2 v0.0.0-beta-18314', 'opencode2 v0.0.0-beta-18866', 'opencode2 v0.0.0-beta-19271'].includes(version))
   await run([source ? process.execPath : 'node', join(repo, source ? 'bin/cli.ts' : 'dist/cli.js'), 'setup', v1 ? '--v1' : '--v2', '--opencode-bin', client])
   const path = join(config, 'opencode.json')
   const data = JSON.parse(readFileSync(path, 'utf8'))
