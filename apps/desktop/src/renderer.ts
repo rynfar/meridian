@@ -103,7 +103,9 @@ function update(next: DesktopState) {
   el('last-checked').textContent = next.busy ? next.busy + '…' : next.lastChecked ? `Updated ${time(next.lastChecked)}` : 'Not refreshed'
   el('version').textContent = next.running ? `Meridian ${next.running}` : `Desktop ${next.desktopVersion}`
   el('refresh').toggleAttribute('disabled', Boolean(next.busy))
-  el('notice').textContent = next.error || (next.dataErrors.length && !(next.preferences.mode === 'managed' && !next.owned && !next.busy) ? (online ? `${next.dataErrors.length} data source(s) unavailable. Check the connection and API key in Settings.` : 'No Meridian connection yet. Open Settings to connect your existing service.') : '')
+  const follow = object(next.profiles).follow as Record<string, unknown> | undefined
+  const followNotice = follow ? `Following active profile from ${text(follow.url)}${follow.stale ? ' (stale)' : ''}` : ''
+  el('notice').textContent = next.error || followNotice || (next.dataErrors.length && !(next.preferences.mode === 'managed' && !next.owned && !next.busy) ? (online ? `${next.dataErrors.length} data source(s) unavailable. Check the connection and API key in Settings.` : 'No Meridian connection yet. Open Settings to connect your existing service.') : '')
   el('notice').className = el('notice').textContent ? 'notice' : ''
   // Preserve editing focus across background polling. Explicit navigation and
   // completed actions rebuild the content, so settings can still reflect saves.
@@ -131,6 +133,7 @@ function stats() {
 const go = (target: Page, label: string) => `<button class="text-button" data-go="${esc(target)}">${esc(label)} <span aria-hidden="true">→</span></button>`
 const definition = (entries: [string, unknown][]) => `<dl>${entries.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value ?? '—')}</dd></div>`).join('')}</dl>`
 function quotas(limit = 100, manage = false) {
+  const follow = object(state?.profiles).follow as Record<string, unknown> | undefined
   const quotaProfiles = rows(object(state?.quota).profiles)
   const accountProfiles = rows(object(state?.profiles).profiles)
   let ids = [...new Set([...accountProfiles, ...quotaProfiles].map(profile => text(profile.id)))].filter(Boolean)
@@ -208,13 +211,13 @@ function quotas(limit = 100, manage = false) {
     const spend = computeProfileSpend(profile, account)
     const spendClass = spend.state === 'fading' ? 'spend-fading' : spend.state === 'spent' && spend.reason !== 'unusable' ? 'spend-spent' : ''
     const spendStyle = spend.fade > 0 && spend.state === 'fading' ? ` style="--spend-fade:${spend.fade.toFixed(2)}"` : ''
-    return `<article class="account ${active ? 'selected-account' : ''} ${spendClass}"${spendStyle}><div class="account-head"><div class="avatar">${esc(id.slice(0, 1).toUpperCase())}</div><div><strong>${esc(id)}</strong>${planTag}${allowanceTag}${tallyTag}${aliasesTag}${subTag}</div>${active ? (isSpent ? `<span class="status active">Active</span><span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : '<span class="status active">Active</span>') : isSpent ? `<span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : needsLogin ? '<span class="status bad">Needs login</span>' : ''}</div>${effectiveReason ? `<p class="account-warning ${isSpent ? 'account-refusing' : ''}" title="${esc(isSpent && spentDiagnosis ? text(spentDiagnosis.rationale) : profile.error || '')}">${esc(effectiveReason)}</p>` : ''}${rows(profile.windows).map(window => {
+    return `<article class="account ${active ? 'selected-account' : ''} ${spendClass}"${spendStyle}><div class="account-head"><div class="avatar">${esc(id.slice(0, 1).toUpperCase())}</div><div><strong>${esc(id)}</strong>${planTag}${allowanceTag}${tallyTag}${aliasesTag}${subTag}</div>${active ? (isSpent ? `<span class="status active">${follow ? `Following ${esc(text(follow.url))}` : 'Active'}</span><span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : `<span class="status active">${follow ? `Following ${esc(text(follow.url))}` : 'Active'}</span>`) : isSpent ? `<span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : needsLogin ? '<span class="status bad">Needs login</span>' : ''}</div>${effectiveReason ? `<p class="account-warning ${isSpent ? 'account-refusing' : ''}" title="${esc(isSpent && spentDiagnosis ? text(spentDiagnosis.rationale) : profile.error || '')}">${esc(effectiveReason)}</p>` : ''}${rows(profile.windows).map(window => {
       const value = number(window.utilization)
       const clamped = Math.max(0, Math.min(1, value ?? 0))
       const reset = number(window.resetsAt)
       const resetText = reset ? (reset > Date.now() ? `Resets ${new Date(reset).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Awaiting reset update') : 'Reset time unavailable'
       return `<div class="quota"><div><span>${esc(text(window.type).replaceAll('_', ' '))}</span><strong>${pct(value)} used</strong></div>${value === undefined ? '' : `<progress class="${clamped >= .85 ? 'danger' : clamped >= .6 ? 'warning' : ''}" max="1" value="${clamped}" aria-label="${esc(window.type)} usage"></progress>`}<small>${esc(resetText)}</small></div>`
-    }).join('') || (reason ? '' : '<p class="muted">No usage windows returned.</p>')}${manage ? `<div class="account-actions">${active ? '<span class="muted">Current profile</span>' : button('switch-profile', 'Use account', id, !state?.running)}${state?.preferences.mode === 'managed' ? button('login-profile', account.loggedIn ? 'Sign in again' : 'Sign in', id, !state.preferences.selected) : ''}</div>` : ''}</article>`
+    }).join('') || (reason ? '' : '<p class="muted">No usage windows returned.</p>')}${manage ? `<div class="account-actions">${active ? '<span class="muted">Current profile</span>' : follow ? `<span class="muted" title="Profile switching is controlled by ${esc(text(follow.url))}">Followed</span>` : button('switch-profile', 'Use account', id, !state?.running)}${state?.preferences.mode === 'managed' ? button('login-profile', account.loggedIn ? 'Sign in again' : 'Sign in', id, !state.preferences.selected) : ''}</div>` : ''}</article>`
   }).join('')}</div>`
 }
 function matchingRequests() { return filterRequests(state?.requests, filter, requestKind) }
