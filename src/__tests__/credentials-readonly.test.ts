@@ -143,7 +143,10 @@ describe("credential store write refusal", () => {
     expect(logged).not.toContain(FAKE_CREDENTIALS.claudeAiOauth.refreshToken)
   })
 
-  it("still reads — that is how a rotation by the other instance is picked up", async () => {
+  // On macOS (darwin), createPlatformCredentialStore is Keychain-backed and delegates
+  // to /usr/bin/security rather than touching .credentials.json on disk.
+  // Linux/Windows exercise the file store path directly.
+  it.skipIf(process.platform === "darwin")("still reads — that is how a rotation by the other instance is picked up", async () => {
     writeFileSync(join(dir, ".credentials.json"), JSON.stringify(FAKE_CREDENTIALS))
     process.env[FLAG] = "1"
     const store = createPlatformCredentialStore({ claudeConfigDir: dir })
@@ -152,7 +155,7 @@ describe("credential store write refusal", () => {
     expect(read?.claudeAiOauth?.accessToken).toBe(FAKE_CREDENTIALS.claudeAiOauth.accessToken)
   })
 
-  it("writes normally when the flag is absent", async () => {
+  it.skipIf(process.platform === "darwin")("writes normally when the flag is absent", async () => {
     const file = join(dir, ".credentials.json")
     const store = createPlatformCredentialStore({ claudeConfigDir: dir })
 
