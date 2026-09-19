@@ -1,5 +1,39 @@
 # Upstream review handoff
 
+## Delivered: Review and Autonomous Processing Batch (2026-09-19)
+
+### PR #1060 (Issue #1027): OpenCode V2 beta-19271 Qualification
+- Base: `d8516bea`
+- Delivery PR: [#1060](https://github.com/rynfar/meridian/pull/1060), merged as `303ce0d0`.
+- Problem: `@opencode-ai/cli@0.0.0-beta-19271` was published upstream, and Meridian's `SUPPORTED_OPENCODE_V2_VERSIONS` only accepted `beta-18314` and `beta-18866`.
+- Fix: Qualified `0.0.0-beta-19271` in `SUPPORTED_OPENCODE_V2_VERSIONS`, updated test assertions in `scripts/e2e-opencode-v2-package.mjs` and `scripts/e2e-idle-stall-clients.mjs`, and documented OpenCode V2 host qualification policy in `docs/agents.md`.
+- Validation:
+  - Real offline package E42 gate: PASSED.
+  - Real extended live E42 gate (`bun scripts/e2e-opencode-v2-package.mjs --live --extended --separate-proxy-cwd`): PASSED.
+  - Full test suite (`npm test`) 100% pass across 76 suites.
+  - CI: all 6 workflows green. Issue #1027 closed.
+
+### PR #1061 (Contributor PR #771): Profile Login Unknown ID Auto-Creation
+- Base: `303ce0d0`
+- Contributor PR: [#771](https://github.com/rynfar/meridian/pull/771) by @Nowaker (`19cf472a8380e5c814fd05d6d14b091c172b1994`).
+- Delivery PR: [#1061](https://github.com/rynfar/meridian/pull/1061), merged as `96a75ac5`.
+- Problem: `meridian profile login <id>` exited with code 1 if `<id>` was unknown, forcing a separate `meridian profile add` invocation for the same user intent.
+- Fix: Cherry-picked contributor commit preserving author and date. Extracted pure `isValidProfileId` and `planProfileLogin` decision helper in `src/proxy/profileCli.ts`. When an unknown ID is provided, warns with standard yellow warning notice and invokes `profileAdd(id, options)` to create and authenticate the profile. Path traversal attempts are rejected before touching disk.
+- Validation:
+  - Unit tests: `bun test src/__tests__/profile-login-plan.test.ts` (8/8 pass).
+  - Production build: `bun run build` and `npm run typecheck` clean.
+  - Full test suite: `npm test` 100% pass.
+  - CI: all 6 workflows green. PR #771 closed.
+
+### PR #1062 (PR #765): Plugin Flake Inputs Update
+- Base: `96a75ac5`
+- Contributor PR: [#765](https://github.com/rynfar/meridian/pull/765) (`ce320144ed2034c92669094bc108dcc58fb581e7`).
+- Delivery PR: [#1062](https://github.com/rynfar/meridian/pull/1062), merged as `865b8331`.
+- Problem: Nix `flake.lock` had outdated revisions for `meridian-plugin-hermes-scrub`, `meridian-plugin-opencode-scrub`, and `meridian-plugin-pi-scrub`.
+- Fix: Cherry-picked updated flake revisions.
+- Validation:
+  - Nix CI workflows (`build (macos-latest)`, `build (ubuntu-latest)`, `verify`) and all main repository CI workflows passed. PR #765 closed.
+
 ## Delivered: Claude Code Headless Concurrent Turns #1043 (2026-09-18)
 
 - Base: `75d0c507` (incorporation of contributor PR #1048 as #1055).
