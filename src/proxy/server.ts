@@ -7861,6 +7861,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           loggedIn: true,
           email: auth.email,
           subscriptionType: auth.subscriptionType,
+          organizationName: organizationNames()[healthProfile.id]?.name ?? null,
           rateLimitTier: plan.rateLimitTier ?? null,
           seatTier: plan.seatTier ?? null,
           allowance: allowance.multiplier,

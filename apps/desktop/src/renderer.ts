@@ -192,6 +192,7 @@ function quotas(limit = 100, manage = false) {
     const rateLimitTier = text(account.rateLimitTier)
     const allowanceTitle = (planLabel || '') + (rateLimitTier ? ` · ${rateLimitTier}` : '')
     const allowanceTag = allowance ? `<span class="plan-chip" style="font-size:10px;padding:2px 6px;border-radius:6px;background:var(--surface2, rgba(255,255,255,0.08));color:var(--accent2, #58a6ff);margin-left:6px;font-weight:600;font-variant-numeric:tabular-nums;" title="${esc(allowanceTitle)}">${esc(allowance)}</span>` : ''
+    const org = text(account.organizationName)
     const routesSummary = object(state?.routesSummary)
     const aliases = Array.isArray(account.aliases) ? (account.aliases as unknown[]).map(text).filter(Boolean) : []
     const aliasesTag = aliases.length > 0 ? `<small class="mono muted" style="margin-left:8px;font-size:10px" title="Also answers to: ${esc(aliases.join(', '))}">aka ${esc(aliases.join(', '))}</small>` : ""
@@ -201,10 +202,13 @@ function quotas(limit = 100, manage = false) {
     const tallyTag = (servedCount !== undefined && servedCount > 0) || (refusedCount !== undefined && refusedCount > 0)
       ? `<small class="mono muted" style="margin-left:8px;font-size:10px">${count(servedCount ?? 0)} served${refusedCount ? ` · <span class="status bad" style="font-size:9px;padding:1px 4px">${count(refusedCount)} refused</span>` : ''}</small>`
       : ''
+    const email = text(account.email)
+    const subParts = [org, email].filter(Boolean)
+    const subTag = subParts.length > 0 ? `<small>${esc(subParts.join(' · '))}</small>` : ''
     const spend = computeProfileSpend(profile, account)
     const spendClass = spend.state === 'fading' ? 'spend-fading' : spend.state === 'spent' && spend.reason !== 'unusable' ? 'spend-spent' : ''
     const spendStyle = spend.fade > 0 && spend.state === 'fading' ? ` style="--spend-fade:${spend.fade.toFixed(2)}"` : ''
-    return `<article class="account ${active ? 'selected-account' : ''} ${spendClass}"${spendStyle}><div class="account-head"><div class="avatar">${esc(id.slice(0, 1).toUpperCase())}</div><div><strong>${esc(id)}</strong>${planTag}${allowanceTag}${tallyTag}${aliasesTag}${account.email ? `<small>${esc(account.email)}</small>` : ''}</div>${active ? (isSpent ? `<span class="status active">Active</span><span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : '<span class="status active">Active</span>') : isSpent ? `<span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : needsLogin ? '<span class="status bad">Needs login</span>' : ''}</div>${effectiveReason ? `<p class="account-warning ${isSpent ? 'account-refusing' : ''}" title="${esc(isSpent && spentDiagnosis ? text(spentDiagnosis.rationale) : profile.error || '')}">${esc(effectiveReason)}</p>` : ''}${rows(profile.windows).map(window => {
+    return `<article class="account ${active ? 'selected-account' : ''} ${spendClass}"${spendStyle}><div class="account-head"><div class="avatar">${esc(id.slice(0, 1).toUpperCase())}</div><div><strong>${esc(id)}</strong>${planTag}${allowanceTag}${tallyTag}${aliasesTag}${subTag}</div>${active ? (isSpent ? `<span class="status active">Active</span><span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : '<span class="status active">Active</span>') : isSpent ? `<span class="status bad" title="${esc(spentDiagnosis ? text(spentDiagnosis.rationale) : 'Account refusing')}">Refusing</span>` : needsLogin ? '<span class="status bad">Needs login</span>' : ''}</div>${effectiveReason ? `<p class="account-warning ${isSpent ? 'account-refusing' : ''}" title="${esc(isSpent && spentDiagnosis ? text(spentDiagnosis.rationale) : profile.error || '')}">${esc(effectiveReason)}</p>` : ''}${rows(profile.windows).map(window => {
       const value = number(window.utilization)
       const clamped = Math.max(0, Math.min(1, value ?? 0))
       const reset = number(window.resetsAt)
