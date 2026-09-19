@@ -19,7 +19,7 @@ export function port(value: unknown): number {
   if (!Number.isInteger(value) || typeof value !== 'number' || value < 1024 || value > 65535) throw new Error('Port must be an integer between 1024 and 65535.')
   return value
 }
-export interface Preferences { mode: 'managed' | 'attached'; endpoint: string; port: number; selected?: string; previous?: string; autoStart: boolean; notifications: boolean; notificationCritical: boolean; notificationRequests: boolean; notificationCache: boolean; notificationQuota: boolean; openWindowAtLaunch: boolean; quietUntil: number; apiKey?: string }
+export interface Preferences { backend?: 'claude' | 'antigravity' | 'combined'; allowAntigravityTools?: boolean; allowAntigravityBrowser?: boolean; allowAntigravitySubagents?: boolean; mode: 'managed' | 'attached'; endpoint: string; port: number; selected?: string; previous?: string; autoStart: boolean; notifications: boolean; notificationCritical: boolean; notificationRequests: boolean; notificationCache: boolean; notificationQuota: boolean; openWindowAtLaunch: boolean; quietUntil: number; apiKey?: string }
 export const defaults: Preferences = { mode: 'managed', endpoint: 'http://127.0.0.1:3456', port: 3456, autoStart: false, notifications: false, notificationCritical: true, notificationRequests: false, notificationCache: false, notificationQuota: false, openWindowAtLaunch: true, quietUntil: 0 }
 export interface Incident { id: string; title: string; detail: string; timestamp: number; requestId?: string; severity: 'warning' | 'error' }
 export class IncidentDetector {

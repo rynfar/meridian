@@ -1,3 +1,6 @@
+import { providerPageHtml } from '../telemetry/providerPage'
+import { providerOverview } from '../telemetry/providerView'
+import { ClaudeProviderFacts, disabledProvider, providerSnapshot } from './backends/providerStatus'
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { stream } from "hono/streaming"
@@ -16,7 +19,8 @@ import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry, peekOAuthUsage } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
 import type { Context } from "hono"
-import { DEFAULT_PROXY_CONFIG } from "./types"
+import { DEFAULT_PROXY_CONFIG, resolveBackendConfig } from "./types"
+import { createAntigravityServer } from "./backends/antigravity"
 import { env, envBool, envInt } from "../env"
 import type { ProxyConfig, ProxyInstance, ProxyServer } from "./types"
 export type { ProxyConfig, ProxyInstance, ProxyServer }
@@ -610,7 +614,10 @@ type PriorityDispatchOptions = {
 }
 
 export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServer {
-  const finalConfig = { ...DEFAULT_PROXY_CONFIG, ...config }
+  if (resolveBackendConfig(config).backend === "antigravity") return createAntigravityServer(resolveBackendConfig(config))
+  const finalConfig = resolveBackendConfig(config)
+  const claudeProviderFacts = new ClaudeProviderFacts()
+  const antigravity = finalConfig.backend === "combined" ? createAntigravityServer({ ...finalConfig, profiles: undefined, defaultProfile: undefined }) : undefined
   proxyLogSilent = finalConfig.silent
   const serverVersion = finalConfig.version ?? "unknown"
 
@@ -970,6 +977,28 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   app.use("/settings/*", requireAuth)
   app.use("/settings", requireAuth)
   app.use("/design-login", requireAuth)
+  app.use("/providers", requireAuth)
+  app.use("/providers/*", requireAuth)
+  app.use("/antigravity/*", requireAuth)
+
+  // Separate provider routes; Claude retains all existing paths and semantics.
+  app.all('/antigravity/*', c => {
+    if (!antigravity) return c.json({ error: { type: 'not_found_error', message: 'Antigravity is not enabled' } }, 404)
+    const url = new URL(c.req.url); url.pathname = url.pathname.slice('/antigravity'.length)
+    return antigravity.app.fetch(new Request(url.toString(), c.req.raw))
+  })
+  app.get('/providers', c => c.html(providerPageHtml))
+  for (const route of ['/providers/status', '/providers/view']) app.get(route, async c => {
+    const read = async (path: string) => {
+      try { const response = await app.fetch(new Request(new URL(path, c.req.url).toString(), { headers: c.req.raw.headers })); return await response.json() }
+      catch (error) { return { error: String(error) } }
+    }
+    const [summary, google] = await Promise.all([read('/telemetry/summary'), antigravity?.providerStatus() ?? disabledProvider('antigravity')])
+    const data = providerSnapshot([claudeProviderFacts.snapshot(read, summary), google])
+    if (route.endsWith('/status')) return c.json(data)
+    const filter = c.req.query('provider')
+    return c.html(providerOverview(data, filter === 'claude' || filter === 'antigravity' ? filter : 'all'))
+  })
 
   // --- Priority routing (opt-in, routing="priority") ---
   // Ordered account pool with per-request failover. The /v1/messages handler
@@ -7777,6 +7806,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       return c.json({
         status: "draining",
         version: serverVersion,
+        backend: finalConfig.backend ?? "claude",
         message: "Meridian is shutting down; route new requests to another instance.",
       }, 503)
     }
@@ -7790,6 +7820,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       return c.json({
         status: "unhealthy",
         version: serverVersion,
+        backend: finalConfig.backend ?? "claude",
         error: "Cannot capture a process incarnation, so no request that touches a session can be served.",
         bootIdentity,
       }, 503)
@@ -7806,6 +7837,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         return c.json({
           status: "degraded",
           version: serverVersion,
+          backend: finalConfig.backend ?? "claude",
           build: currentBuild(),
           error: "Could not verify auth status",
           mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
@@ -7815,6 +7847,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         return c.json({
           status: "unhealthy",
           version: serverVersion,
+          backend: finalConfig.backend ?? "claude",
           build: currentBuild(),
           error: "Not logged in. Run: claude login",
           auth: { loggedIn: false }
@@ -7857,6 +7890,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       return c.json({
         status: "healthy",
         version: serverVersion,
+        backend: finalConfig.backend ?? "claude",
         build: currentBuild(),
         auth: {
           loggedIn: true,
@@ -7880,6 +7914,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       return c.json({
         status: "degraded",
         version: serverVersion,
+        backend: finalConfig.backend ?? "claude",
         build: currentBuild(),
         error: "Could not verify auth status",
         mode: envBool("PASSTHROUGH") ? "passthrough" : "internal",
@@ -8915,8 +8950,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     app,
     config: finalConfig,
     initPlugins: initPluginsAsync,
-    beginDrain: () => { draining = true },
+    closeBackend: antigravity?.closeBackend,
+    beginDrain: () => { draining = true; antigravity?.beginDrain?.() },
     forceAbortInFlight: () => {
+      antigravity?.forceAbortInFlight?.()
       durableWritesRevoked = true
       // Label every request's cause registry BEFORE aborting: shutdown is
       // the producer, and the diagnostic must not read unknown_abort.
@@ -8925,7 +8962,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         controller.abort(new Error("Proxy shutdown grace period elapsed"))
       }
     },
-    getInFlightCount: () => inFlightRequests,
+    getInFlightCount: () => inFlightRequests + (antigravity?.getInFlightCount?.() ?? 0),
     sweepSessionGc,
   }
 }
@@ -8955,6 +8992,30 @@ export function installProxyProcessErrorHandlers(): void {
 }
 
 export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promise<ProxyInstance> {
+  const selectedConfig = resolveBackendConfig(config)
+  if (selectedConfig.backend === "antigravity") {
+    const backend = createAntigravityServer(selectedConfig)
+    await backend.initPlugins?.()
+    if (selectedConfig.installProcessErrorHandlers) installProxyProcessErrorHandlers()
+    const server = serve({ fetch: backend.app.fetch, port: selectedConfig.port, hostname: selectedConfig.host, overrideGlobalObjects: false }, info => {
+      if (!selectedConfig.silent) console.log(`Meridian Antigravity backend: http://${selectedConfig.host}:${info.port}`)
+    }) as Server
+    const tracker = trackServerConnections(server)
+    server.once("error", () => { void backend.closeBackend().catch(error => console.error("[antigravity] Shutdown failed:", error)) })
+    server.keepAliveTimeout = selectedConfig.idleTimeoutSeconds * 1000
+    let closing: Promise<void> | undefined
+    return { server, config: selectedConfig, close() {
+      closing ??= (async () => {
+        backend.beginDrain?.()
+        try { await backend.closeBackend() }
+        finally {
+          try { await closeServerWithGracePeriod(server, { graceMs: 1000, getInFlightCount: () => 0, forceCloseConnections: () => tracker.forceCloseAll() }) }
+          finally { tracker.dispose() }
+        }
+      })()
+      return closing
+    } }
+  }
   // Refuse to bind a port we cannot serve from (#906). Without a boot identity
   // every session-store write throws, so every request that touches a session
   // returns a 500 — a total, non-transient failure. Binding anyway is what let
@@ -9004,6 +9065,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     forceAbortInFlight,
     getInFlightCount,
     sweepSessionGc,
+    closeBackend,
   } = createProxyServer(config)
   if (initPlugins) await initPlugins()
 
@@ -9175,6 +9237,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
           })
         } finally {
           connectionTracker.dispose()
+          await closeBackend?.()
         }
         // Give aborted SDK iterators one short bounded window to observe the
         // revocation and release their fencing leases. Durable callbacks also

@@ -67,6 +67,7 @@ jobs:
       # Run only the resolver tests on Windows. Useful even though they use
       # mocked deps, because the test runner itself exercises path joining,
       # file URL parsing, etc., on the real Windows runtime.
+      - run: bun test src/__tests__/antigravity-expansion.test.ts
       - run: bun test src/__tests__/claude-executable-resolver.test.ts
         shell: bash
 

@@ -323,9 +323,9 @@ describe("Working directory", () => {
         "user-agent": "opencode/1.18.22",
         "x-opencode-session": "ses_equal_path",
       })
-      await response.json()
+      const responseBody = await response.json()
 
-      expect(response.status).toBe(200)
+      expect(response.status, JSON.stringify(responseBody)).toBe(200)
       expect(capturedQueryParams.options.cwd).toBe(sharedText)
       expect(clientCwdFromAppend(capturedQueryParams)).toBe(sharedText)
       expect(systemPromptAppend(capturedQueryParams)).toContain("may not describe the client environment")

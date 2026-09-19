@@ -7,12 +7,12 @@ export function filterLogs(data: unknown, query: string) {
 }
 
 /** Search only operational metadata, never arbitrary nested request content. */
-export function filterRequests(data: unknown, query: string, kind: string) {
+export function filterRequests(data: unknown, query: string, kind: string, provider = 'all') {
   const search = query.trim().toLowerCase()
   return rows(data).filter(row => {
-    const matchesText = !search || [row.requestId, row.model, row.profileId, row.adapter, row.error, row.sdkSessionId].some(value => text(value).toLowerCase().includes(search))
+    const matchesText = !search || [row.provider, row.requestId, row.model, row.profileId, row.adapter, row.error, row.sdkSessionId].some(value => text(value).toLowerCase().includes(search))
     const matchesKind = kind === 'all' || (kind === 'errors' && Number(row.status) >= 400) || (kind === 'low-cache' && row.lineageType === 'continuation' && number(row.cacheHitRate) !== undefined && Number(row.cacheHitRate) <= .05)
-    return matchesText && matchesKind
+    return matchesText && matchesKind && (provider === 'all' || (text(row.provider) || 'claude') === provider)
   }).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
 }
 

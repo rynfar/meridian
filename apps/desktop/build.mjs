@@ -18,3 +18,8 @@ const tokens = await readFile('../../src/telemetry/profileBar.ts', 'utf8')
 const theme = tokens.match(/export const desktopThemeCss = `([\s\S]*?)`/)
 if (!theme) throw new Error('Missing canonical desktop theme')
 await writeFile('dist/theme.css', theme[1])
+
+const providerTokens = await readFile('../../src/telemetry/providerView.ts', 'utf8')
+const providerCss = providerTokens.match(/export const providerViewCss = `([\s\S]*?)`/)
+if (!providerCss) throw new Error('Missing provider styles')
+await writeFile('dist/providers.css', providerCss[1])

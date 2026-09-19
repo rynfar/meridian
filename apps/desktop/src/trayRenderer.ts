@@ -20,7 +20,7 @@ function render(state: DesktopState) {
   const follow = object(state.profiles).follow as Record<string, unknown> | undefined
   const profiles = rows(object(state.profiles).profiles)
   const quotas = rows(object(state.quota).profiles)
-  const rawIds = [...new Set([...profiles, ...quotas].map(profile => text(profile.id)))].filter(Boolean)
+  const rawIds = health.backend === 'antigravity' ? [] : [...new Set([...profiles, ...quotas].map(profile => text(profile.id)))].filter(Boolean)
   const profileOrder = Array.isArray(object(state.profiles).profileOrder)
     ? (object(state.profiles).profileOrder as string[])
     : undefined
@@ -30,16 +30,17 @@ function render(state: DesktopState) {
     : orderedIds.sort((a, b) => a === active ? -1 : b === active ? 1 : a.localeCompare(b))
   const busy = Boolean(state.busy) || pending
   const button = (action: Action, label: string, value = '', disabled = false) => `<button data-action="${action}" data-value="${esc(value)}" data-key="${action}:${esc(value)}" ${disabled || busy ? 'disabled' : ''}>${label}</button>`
+  const providerTotals = state.providers?.providers.filter(p => p.enabled && p.activity).reduce((sum,p) => ({requests:sum.requests + p.activity!.requests,tokens:sum.tokens + p.activity!.inputTokens + p.activity!.outputTokens,errors:sum.errors + p.activity!.errors}),{requests:0,tokens:0,errors:0})
   const populated = (number(summary.totalRequests) ?? 0) > 0
   const latency = number(object(summary.ttfb).p50)
   const status = state.running ? health.status === 'healthy' ? 'Connected' : 'Needs attention' : state.preferences.mode === 'managed' ? 'Stopped' : 'Disconnected'
   const stopped = !state.running && state.preferences.mode === 'managed' && !state.busy
   const issue = state.error || (stopped ? '' : !state.running && state.preferences.mode === 'attached' ? 'Cannot reach the external service.' : state.dataErrors.length ? 'Some live data is unavailable.' : '')
   const html = `<header><div><strong>Meridian</strong><small><span class="dot ${state.running ? health.status === 'healthy' ? 'good' : 'warn' : ''}"></span>${status} · ${state.owned || state.preferences.mode === 'managed' ? 'App managed' : 'External'}</small></div>${button('open-desktop', 'Open dashboard')}</header>
-    <section class="metrics" aria-label="Telemetry summary"><div class="hero"><small>Cache reuse</small><strong>${populated ? pct(tokens.avgCacheHitRate) : '—'}</strong></div><div><small>Requests</small><strong>${number(summary.totalRequests)?.toLocaleString() ?? '—'}</strong></div><div><small>First token</small><strong>${populated && latency !== undefined ? `${(latency / 1000).toFixed(1)}s` : '—'}</strong></div></section>
-    <small>${number(summary.windowMs) ? `Last ${Math.round(Number(summary.windowMs) / 60000)} minutes` : 'Current telemetry window'} · ${number(summary.errorCount) ?? '—'} errors</small>
+    ${providerTotals ? `<section class="metrics" aria-label="All provider activity"><div class="hero"><small>Requests</small><strong>${providerTotals.requests.toLocaleString()}</strong></div><div><small>Tokens</small><strong>${providerTotals.tokens.toLocaleString()}</strong></div><div><small>Errors</small><strong>${providerTotals.errors.toLocaleString()}</strong></div></section><small>All providers · past hour${state.providers?.providers.some(p => p.enabled && !p.activity) ? ' · partial data' : ''}</small>` : `<section class="metrics" aria-label="Telemetry summary"><div class="hero"><small>Cache reuse</small><strong>${populated ? pct(tokens.avgCacheHitRate) : '—'}</strong></div><div><small>Requests</small><strong>${number(summary.totalRequests)?.toLocaleString() ?? '—'}</strong></div><div><small>First token</small><strong>${populated && latency !== undefined ? `${(latency / 1000).toFixed(1)}s` : '—'}</strong></div></section>
+    <small>${number(summary.windowMs) ? `Last ${Math.round(Number(summary.windowMs) / 60000)} minutes` : 'Current telemetry window'} · ${number(summary.errorCount) ?? '—'} errors</small>`}
     ${issue ? `<div class="notice">${esc(issue)}</div>` : ''}${error ? `<p class="error" role="alert">${esc(error)}</p>` : ''}
-    <h2>Accounts <span class="limits-caption">Limits used</span></h2><div class="accounts">${ids.map(id => {
+    <h2>${health.backend === 'antigravity' ? '' : 'Claude accounts'} <span class="limits-caption">Limits used</span></h2><div class="accounts">${ids.map(id => {
       const quota = quotas.find(profile => profile.id === id) ?? {}
       const account = rows(object(state?.profiles).profiles).find(profile => profile.id === id) ?? {}
       const fetched = number(quota.fetchedAt)
@@ -74,7 +75,8 @@ function render(state: DesktopState) {
         const description = `${id} · ${label(window.type)} · ${fresh ? pct(utilization) : '—'} used · ${resetText}${isStale ? ' (cached)' : ''}`
         return `<div class="quota" title="${esc(description)}"><div class="line"><span>${esc(label(window.type))}</span><strong>${fresh ? pct(utilization) : '—'}${isStale ? '<small class="tray-stale-tag">cached</small>' : ''}</strong></div>${fresh && utilization !== undefined ? `<progress max="1" value="${Math.max(0, Math.min(1, utilization))}" class="${utilization >= .95 ? 'danger' : ''}" aria-label="${esc(description)}"></progress>` : ''}</div>`
       }).join('') || '<p>No usage windows available</p>'}</div>${active === id && nextReset ? `<small class="next-reset">${esc(label(nextReset.type))} resets ${esc(new Date(Number(nextReset.resetsAt)).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'}))}</small>` : ''}`}</article>`
-    }).join('') || (stopped ? '<p>Start Meridian to load accounts and usage.</p>' : '<p>No accounts available. Open the dashboard to connect.</p>')}</div>
+    }).join('') || (health.backend === 'antigravity' ? '' : stopped ? '<p>Start Meridian to load accounts and usage.</p>' : '<p>No accounts available. Open the dashboard to connect.</p>')}</div>
+    ${state.providers?.providers.filter(p => p.id === 'antigravity' && p.enabled).map(p => `<h2>Antigravity <span class="limits-caption">Google subscription</span></h2><div class="accounts">${p.accounts.map(account => `<article class="account"><div class="line"><strong>${esc(account.id)}</strong><small>${esc(p.status)}</small></div>${account.error ? `<p>${esc(account.error)}</p>` : ''}<div class="account-limits agy-limits">${account.windows.map(w => `<div class="quota"><div class="line"><span title="${esc(w.group)} · ${esc(w.type)}">${esc(w.group)} · ${w.type.endsWith('-5h') ? '5h' : '7d'}</span><strong>${pct(w.utilization)}${account.error || !account.fetchedAt || Date.now() - account.fetchedAt > 90000 || w.resetsAt <= Date.now() ? '<small class="tray-stale-tag">cached</small>' : ''}</strong></div><progress max="1" value="${w.utilization}" class="${account.error ? 'stale' : w.utilization >= .85 ? 'danger' : w.utilization >= .6 ? 'warning' : ''}" aria-label="${esc(w.group)} ${esc(w.type)} usage"></progress></div>`).join('') || '<p>Usage unavailable</p>'}</div></article>`).join('')}</div>`).join('') || ''}
     <div class="controls">${state.owned ? button('restart', 'Restart') + button('stop', 'Stop') : state.preferences.mode === 'managed' ? button('start', 'Start Meridian', '', !state.preferences.selected) : '<small>Service managed externally</small>'}</div>
     <footer>${button('toggle-snooze', state.preferences.quietUntil > Date.now() ? 'Resume alerts' : 'Pause alerts 1h', '', !state.preferences.notifications)}${button('refresh', 'Refresh')}${button('quit-app', 'Quit')}</footer><small>${state.busy ? esc(state.busy) : state.lastChecked ? `Updated ${esc(new Date(state.lastChecked).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}))}` : stopped ? 'Service stopped' : 'Awaiting connection'}</small>`
   if (html === rendered) return

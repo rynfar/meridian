@@ -4,6 +4,7 @@ export interface DesktopState {
   desktopVersion: string; platform: string; glass: string; preferences: Omit<Preferences, 'apiKey'>; hasApiKey: boolean;
   installed: string[]; available: string[]; latest?: string; running?: string; owned: boolean; busy?: string; error?: string;
   health: unknown; quota: unknown; requests: unknown; summary: unknown; logs: unknown; profiles: unknown; plugins: unknown; features: unknown; routesSummary?: unknown; retention?: unknown;
+  providers?: import('../../../src/telemetry/providerView').ProviderSnapshot;
   catalog?: CatalogRelease[];
   loginAtStartup?: boolean; notificationStatus?: string;
   migration?: { label: string; canAdopt: boolean; adopted: boolean }; dataErrors: string[]; incidents: Incident[]; serviceLog: string[]; lastChecked?: number; login?: { output: string; url?: string };

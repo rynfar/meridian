@@ -145,9 +145,11 @@ export const profileBarCss = `
     background: rgba(188,140,255,0.12);
     border: 1px solid rgba(188,140,255,0.35);
     cursor: default;
-    .meridian-header .mh-profile.following { border-color: var(--accent2, #bc8cff); }
+  }
+  .meridian-header .mh-profile.following { border-color: var(--accent2, #bc8cff); }
   .meridian-header .mh-profile .mh-profile-follow {
-    color: var(--accent2, #bc8cff); font-size: 10px;  }
+    color: var(--accent2, #bc8cff); font-size: 10px;
+  }
   .meridian-header .mh-status {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 11px; color: var(--muted, #8b949e); white-space: nowrap;
@@ -162,18 +164,21 @@ export const profileBarCss = `
   @media (max-width: 720px) {
     .meridian-header { gap: 10px; padding: 10px 16px; flex-wrap: wrap; }
     .meridian-header .mh-name { display: none; }
+    .meridian-header .mh-nav { order: 3; flex-basis: 100%; min-width: 0; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .meridian-header .mh-nav a { flex-shrink: 0; }
     .meridian-header .mh-status .mh-status-text { display: none; }
   }
 `
 
 export const profileBarHtml = `
 <header class="meridian-header" id="meridianHeader">
-  <a class="mh-brand" href="/">
+  <a class="mh-brand" href="/" aria-label="Meridian home">
     ${meridianLogoSvg}
     <span class="mh-name">Meridian</span>
   </a>
   <nav class="mh-nav">
     <a href="/" id="nav-home">Home</a>
+    <a href="/providers" id="nav-providers">Providers</a>
     <a href="/telemetry" id="nav-telemetry">Telemetry</a>
     <a href="/profiles" id="nav-profiles">Profiles</a>
     <a href="/settings" id="nav-settings">Settings</a>
@@ -237,6 +242,10 @@ export const profileBarJs = `
       statusDot.className = 'mh-dot ' + st;
       statusText.textContent = st === 'healthy' ? 'Operational' : st === 'degraded' ? 'Degraded' : 'Offline';
       renderBuild(h.build);
+      if (h.backend === 'antigravity') {
+        ['nav-telemetry','nav-profiles','nav-settings','nav-plugins'].forEach(function(id) { document.getElementById(id).hidden = true; });
+        profileChip.removeAttribute('href');
+      }
     }).catch(function() {
       statusDot.className = 'mh-dot unhealthy';
       statusText.textContent = 'Offline';

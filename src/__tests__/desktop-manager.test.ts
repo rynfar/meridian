@@ -42,9 +42,17 @@ async function installed(directory: string, release: string, broken = false) {
   await writeFile(join(root, 'dist/cli.js'), broken ? 'throw new Error("Deliberate bad release")' : `
     import { createServer } from 'node:http';
     export async function runCli() {
+      let providerFailure = false;
       const server = createServer((req, res) => {
         res.setHeader('content-type', 'application/json');
-        if (req.url === '/health') return res.end(JSON.stringify({ pid:process.pid, status:'healthy', version:${JSON.stringify(release)}, plugin:{ opencode:'configured' } }));
+        if (req.url === '/health') return res.end(JSON.stringify({ pid:process.pid, status:'healthy', backend:process.env.AGY_FIXTURE_LEGACY ? undefined : process.env.MERIDIAN_BACKEND || 'claude', version:${JSON.stringify(release)}, plugin:{ opencode:'configured' } }));
+        if (req.url === '/provider-fail') { providerFailure = true; return res.end('{}'); }
+        if (req.url === '/providers/status') {
+          if (providerFailure) { res.statusCode=503; return res.end(JSON.stringify({error:{message:'Fixture provider refresh failed'}})); }
+          return res.end(JSON.stringify({fetchedAt:Date.now(),providers:[{id:'antigravity',name:'Antigravity',enabled:true,status:'healthy',endpoint:'/antigravity/v1/messages',activity:{requests:1,errors:0,inputTokens:10,outputTokens:2,cacheReadTokens:0},accounts:[{id:'Google account',fetchedAt:Date.now(),windows:[{type:'5h',utilization:.25,resetsAt:Date.now()+60000}]}]}]}));
+        }
+        if (process.env.MERIDIAN_BACKEND === 'antigravity' && ['/telemetry/routes', '/telemetry/retention'].includes(req.url)) { res.statusCode=404; return res.end('{}'); }
+        if (req.url === '/backend') return res.end(JSON.stringify({backend:process.env.MERIDIAN_BACKEND, tools:process.env.MERIDIAN_AGY_ALLOW_TOOL_BRIDGE,browser:process.env.MERIDIAN_AGY_ALLOW_NATIVE_BROWSER,subagents:process.env.MERIDIAN_AGY_ALLOW_NATIVE_SUBAGENTS}));
         if (req.url === '/crash') return process.exit(19);
         if (req.url === '/slow') return setTimeout(() => res.end(JSON.stringify({ done:true })), 250);
         res.end(JSON.stringify({}));
@@ -56,6 +64,46 @@ async function installed(directory: string, release: string, broken = false) {
   `)
 }
 describe('desktop manager real child lifecycle', () => {
+  test('provider settings persist, reach the owned process, and require stop before changes', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await manager.inventory()
+    await manager.configure({ backend: 'combined', allowAntigravityTools: true, allowAntigravityBrowser: true, allowAntigravitySubagents: false })
+    manager.preferences.selected = '1.0.0'
+    await manager.start()
+    expect(await manager.api('/backend')).toEqual({backend:'combined',tools:'1',browser:'1',subagents:'0'})
+    await expect(manager.configure({backend:'antigravity'})).rejects.toThrow('Stop the managed service')
+    await manager.stop()
+    await manager.configure({backend:'antigravity',allowAntigravityTools:false})
+    expect(JSON.parse(await readFile(join(directory,'desktop.json'),'utf8')).backend).toBe('antigravity')
+    await expect(manager.configure({backend:'unknown'})).rejects.toThrow('Unknown backend')
+    manager.options.serviceEnvironment = {AGY_FIXTURE_LEGACY:'1'}
+    await expect(manager.start()).rejects.toThrow('does not support the selected providers')
+    expect(manager.snapshot().owned).toBe(false)
+  })
+
+  test('does not request Claude routing and retention data from standalone Antigravity', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await manager.inventory()
+    await manager.configure({ backend: 'antigravity' })
+    manager.preferences.selected = '1.0.0'
+    await manager.start()
+    expect(manager.state.dataErrors).toEqual([])
+    expect(manager.state.routesSummary).toBeNull()
+    expect(manager.state.retention).toBeNull()
+  })
+
+  test('retains provider data with stale labels when the provider refresh fails', async () => {
+    const { manager, directory } = await fixture()
+    await installed(directory, '1.0.0'); await manager.inventory(); await manager.activate('1.0.0'); await manager.start()
+    expect(manager.state.providers?.providers[0]?.status).toBe('healthy')
+    await manager.api('/provider-fail'); await manager.refresh()
+    const provider = manager.state.providers?.providers[0]
+    expect(provider?.status).toBe('unavailable')
+    expect(provider?.accounts[0]?.windows[0]?.utilization).toBe(.25)
+    expect(provider?.accounts[0]?.error).toContain('refresh failed')
+    expect(provider?.activity?.requests).toBe(1)
+  })
+
   test('notification preferences and cooldown survive clearing history and reopening', async () => {
     const { manager, directory } = await fixture()
     const delivered: Incident[] = []

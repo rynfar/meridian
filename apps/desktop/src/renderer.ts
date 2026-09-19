@@ -1,13 +1,16 @@
+import { providerOverview, type ProviderFilter } from '../../../src/telemetry/providerView'
 import { object, rows, text, number } from './core'
 import { filterLogs, filterRequests, sortProfilesByConfiguredOrder } from './uiData'
 import type { DesktopState, Action } from './contracts'
-const pages = ['Overview', 'Usage & accounts', 'Requests', 'Logs', 'Service', 'Versions', 'Plugins', 'Settings'] as const
+const pages = ['Overview', 'Providers', 'Usage & accounts', 'Requests', 'Logs', 'Service', 'Versions', 'Plugins', 'Settings'] as const
 type Page = typeof pages[number]
-const symbols = ['◉', '◷', '⇄', '≡', '◈', '↓', '◇', '⚙']
+const symbols = ['◉', '◎', '◷', '⇄', '≡', '◈', '↓', '◇', '⚙']
 let page: Page = 'Overview'
 let state: DesktopState | undefined
+let providerFilter: ProviderFilter = 'all'
 let filter = ''
 let requestKind = 'all'
+let requestProvider = 'all'
 let logSource = 'incidents'
 let logFilter = ''
 let selectedRequest = ''
@@ -72,7 +75,7 @@ const button = (action: Action, label: string, value = '', disabled = false) => 
 function navigate(next: Page) { page = next; selectedRequest = ''; el('content').scrollTop = 0; el('content').replaceChildren(); renderNav(); renderContent(); el('page-title').textContent = page }
 function renderNav() {
   const nav = document.querySelector('nav'); if (!nav) return
-  nav.innerHTML = pages.map((name, index) => `<button data-page="${esc(name)}" ${page === name ? 'aria-current="page"' : ''}><span aria-hidden="true">${symbols[index]}</span>${esc(name)}${name === 'Logs' && state?.incidents.length ? `<b>${state.incidents.length}</b>` : ''}</button>`).join('')
+  nav.innerHTML = pages.map((name, index) => `<button data-page="${esc(name)}" ${page === name ? 'aria-current="page"' : ''}><span aria-hidden="true">${symbols[index] || '◇'}</span>${esc(name)}${name === 'Logs' && state?.incidents.length ? `<b>${state.incidents.length}</b>` : ''}</button>`).join('')
   nav.querySelectorAll<HTMLButtonElement>('button').forEach(button => button.onclick = () => { const selected = pages.find(name => name === button.dataset.page); if (selected) navigate(selected) })
 }
 async function action(name: Action, value?: unknown) {
@@ -81,14 +84,14 @@ async function action(name: Action, value?: unknown) {
 }
 function contentKey() {
   if (!state) return 'loading'
-  const shared = [page, state.owned, state.running, state.busy, state.preferences, state.login]
+  const shared = [page, providerFilter, state.providers, state.owned, state.running, state.busy, state.preferences, state.login]
   if (page === 'Service') return JSON.stringify([...shared, state.migration])
   if (page === 'Versions') return JSON.stringify([...shared, state.installed, state.available, state.latest])
   if (page === 'Settings') return JSON.stringify([...shared, state.features, state.glass, state.loginAtStartup, state.notificationStatus])
   if (page === 'Plugins') return JSON.stringify([...shared, state.plugins, state.catalog])
   if (page === 'Requests') return JSON.stringify([...shared, state.requests])
   if (page === 'Logs') return JSON.stringify([...shared, state.logs, state.serviceLog, state.incidents])
-  return JSON.stringify([...shared, state.health, state.quota, state.profiles, state.requests, state.summary])
+  return JSON.stringify([...shared, state.health, state.quota, state.profiles, state.requests, state.summary, state.routesSummary, state.retention])
 }
 function update(next: DesktopState) {
   const alertsChanged = state?.incidents.length !== next.incidents.length
@@ -220,7 +223,7 @@ function quotas(limit = 100, manage = false) {
     }).join('') || (reason ? '' : '<p class="muted">No usage windows returned.</p>')}${manage ? `<div class="account-actions">${active ? '<span class="muted">Current profile</span>' : follow ? `<span class="muted" title="Profile switching is controlled by ${esc(text(follow.url))}">Followed</span>` : button('switch-profile', 'Use account', id, !state?.running)}${state?.preferences.mode === 'managed' ? button('login-profile', account.loggedIn ? 'Sign in again' : 'Sign in', id, !state.preferences.selected) : ''}</div>` : ''}</article>`
   }).join('')}</div>`
 }
-function matchingRequests() { return filterRequests(state?.requests, filter, requestKind) }
+function matchingRequests() { return filterRequests(state?.requests, filter, requestKind, requestProvider) }
 function accountRoutingCell(row: Record<string, unknown>) {
   const chain = Array.isArray(row.routeChain) ? (row.routeChain as Array<Record<string, unknown>>) : null
   const kind = text(row.routeKind)
@@ -241,7 +244,7 @@ function accountRoutingCell(row: Record<string, unknown>) {
 }
 function requestTable(limit: number, filtered = false) {
   const records = (filtered ? matchingRequests() : rows(state?.requests).sort((a, b) => Number(b.timestamp) - Number(a.timestamp))).slice(0, limit)
-  if (!records.length) return empty(filtered && (filter || requestKind !== 'all') ? 'No matching requests' : 'No requests recorded', filtered && (filter || requestKind !== 'all') ? 'Clear the filters to see all activity.' : '')
+  if (!records.length) return empty(filtered && (filter || requestKind !== 'all' || requestProvider !== 'all') ? 'No matching requests' : 'No requests recorded', filtered && (filter || requestKind !== 'all' || requestProvider !== 'all') ? 'Clear the filters to see all activity.' : '')
   return `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Model / client</th><th>Account</th><th>Cache</th><th>First token</th><th>Total</th><th>Status</th></tr></thead><tbody>${records.map(row => `<tr><td class="muted mono" title="${esc(new Date(Number(row.timestamp)).toLocaleString())}">${time(row.timestamp)}<small>${number(row.timestamp) ? esc(new Date(Number(row.timestamp)).toLocaleDateString([], {month: 'short', day: 'numeric'})) : ''}</small></td><td><button class="request-link" data-request="${esc(row.requestId)}">${esc(row.model || 'Unknown model')}</button><small>${esc(row.adapter || row.requestSource || 'Unknown client')}</small></td><td>${accountRoutingCell(row)}</td><td class="mono">${pct(row.cacheHitRate)}</td><td class="mono">${duration(row.ttfbMs)}</td><td class="mono">${duration(row.totalDurationMs)}</td><td><span class="status ${Number(row.status) >= 400 ? 'bad' : Number(row.status) >= 200 && Number(row.status) < 400 ? 'good' : ''}">${esc(row.status || '—')}</span></td></tr>`).join('')}</tbody></table></div>`
 }
 function requestDetail() {
@@ -249,7 +252,7 @@ function requestDetail() {
   if (!row) return ''
   const chain = Array.isArray(row.routeChain) ? (row.routeChain as Array<Record<string, unknown>>) : null
   const chainText = chain && chain.length > 1 ? chain.map(h => `${text(h.profileId) || 'default'} (${h.ok ? '✓' : text(h.refusedBucket) || h.status || '✗'})`).join(' → ') : undefined
-  return `<section class="request-detail" aria-label="Request details"><div class="section-heading"><div><h2>${esc(row.model)} <span class="status ${Number(row.status) >= 400 ? 'bad' : 'good'}">${esc(row.status)}</span></h2><p>${esc(new Date(Number(row.timestamp)).toLocaleString())}</p></div><button id="close-detail">Close details</button></div>${row.error ? `<p class="error-message">${esc(row.error)}</p>` : ''}<div class="detail-grid">${definition([['Account', row.profileId], ['Client', row.adapter], ['Routing', row.routeKind || 'direct'], ...(chainText ? [['Failover chain', chainText] as [string, unknown]] : []), ...(row.routeRefusedBucket ? [['Refused on', row.routeRefusedBucket] as [string, unknown]] : []), ['Conversation', row.lineageType], ['Mode', row.mode]])}${definition([['Queue wait', duration(row.queueWaitMs)], ['Proxy processing', duration(row.proxyOverheadMs)], ['First token', duration(row.ttfbMs)], ['Total', duration(row.totalDurationMs)]])}${definition([['Uncached input', count(row.inputTokens)], ['Cache read', count(row.cacheReadInputTokens)], ['Cache write', count(row.cacheCreationInputTokens)], ['Output tokens', count(row.outputTokens)]])}</div><div class="request-identifiers"><span>Request</span><code>${esc(row.requestId)}</code>${row.sdkSessionId ? `<span>SDK session</span><code>${esc(row.sdkSessionId)}</code>` : ''}</div>${Array.isArray(row.envelopeViolations) && row.envelopeViolations.length ? `<p class="error-message">Response integrity: ${esc(row.envelopeViolations.join(', '))}</p>` : ''}</section>`
+  return `<section class="request-detail" aria-label="Request details"><div class="section-heading"><div><h2>${esc(row.model)} <span class="status ${Number(row.status) >= 400 ? 'bad' : 'good'}">${esc(row.status)}</span></h2><p>${esc(new Date(Number(row.timestamp)).toLocaleString())}</p></div><button id="close-detail">Close details</button></div>${row.error ? `<p class="error-message">${esc(row.error)}</p>` : ''}<div class="detail-grid">${definition([['Provider', row.provider || 'claude'], ['Account', row.profileId], ['Client', row.adapter], ['Routing', row.routeKind || 'direct'], ...(chainText ? [['Failover chain', chainText] as [string, unknown]] : []), ...(row.routeRefusedBucket ? [['Refused on', row.routeRefusedBucket] as [string, unknown]] : []), ['Conversation', row.lineageType], ['Mode', row.mode]])}${definition([['Queue wait', duration(row.queueWaitMs)], ['Proxy processing', duration(row.proxyOverheadMs)], ['First token', duration(row.ttfbMs)], ['Total', duration(row.totalDurationMs)]])}${definition([['Uncached input', count(row.inputTokens)], ['Cache read', count(row.cacheReadInputTokens)], ['Cache write', count(row.cacheCreationInputTokens)], ['Output tokens', count(row.outputTokens)]])}</div><div class="request-identifiers"><span>Request</span><code>${esc(row.requestId)}</code>${row.sdkSessionId ? `<span>SDK session</span><code>${esc(row.sdkSessionId)}</code>` : ''}</div>${Array.isArray(row.envelopeViolations) && row.envelopeViolations.length ? `<p class="error-message">Response integrity: ${esc(row.envelopeViolations.join(', '))}</p>` : ''}</section>`
 }
 function logContent() {
   const matches = (value: string) => value.toLowerCase().includes(logFilter.toLowerCase())
@@ -265,7 +268,7 @@ function logContent() {
   return logs.length ? `<div class="log-view">${logs.map(log => `<div><time>${time(log.timestamp)}</time><span class="log-kind">${esc(log.category || log.level || 'event')}</span><span>${esc(log.message || JSON.stringify(log))}</span></div>`).join('')}</div>` : empty(logFilter ? 'No matching events' : 'No diagnostic events')
 }
 function activity() {
-  const requests = rows(state?.requests).sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).slice(-48)
+  const requests = rows(state?.requests).filter(r => r.provider !== 'antigravity' && r.adapter !== 'antigravity').sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).slice(-48)
   if (!requests.length) return empty('No cache history')
   return `<svg class="cache-chart" viewBox="0 0 480 120" preserveAspectRatio="none" role="img" aria-label="Cache reuse for the most recent requests">${requests.map((row, index) => {
     const width = 480 / requests.length
@@ -281,14 +284,16 @@ function renderContent() {
   let html = ''
   const managed = current.preferences.mode === 'managed'
   const endpoint = managed ? `http://127.0.0.1:${current.preferences.port}` : current.preferences.endpoint
-  if (page === 'Overview') {
-    html = `<div class="overview-status"><div><strong>${current.running ? `Meridian ${esc(current.running)}` : managed ? 'Meridian is stopped' : current.lastChecked ? 'Not connected' : 'Connecting…'}</strong><span class="status ${health.status === 'healthy' ? 'good' : ''}">${esc(health.status || 'Offline')}</span><small class="mono">${esc(endpoint)}</small></div><div class="button-group">${managed && !current.owned ? (current.preferences.selected ? button('start', 'Start Meridian') : go('Versions', 'Install Meridian')) : go('Service', 'Service')}${go('Usage & accounts', 'Accounts')}</div></div>${stats()}${current.incidents.length ? `<div class="attention-row"><div><strong>${current.incidents.length} new alert${current.incidents.length === 1 ? '' : 's'}</strong><p>${esc(current.incidents[current.incidents.length - 1]?.title)}</p></div>${go('Logs', 'Review alerts')}</div>` : ''}<div class="overview-grid">${section('Cache reuse', 'Last 48 requests', activity())}${section('Connection', '', definition([['Managed by', managed ? 'Meridian Desktop' : 'External service'], ['Active account', object(current.profiles).activeProfile], ['Accounts', rows(object(current.profiles).profiles).length]]))}</div>${section('Usage limits', '', quotas(2))}<div class="section-heading"><h2>Recent requests</h2>${go('Requests', 'View all')}</div>${requestTable(5)}`
+  if (page === 'Providers') {
+    html = current.providers ? providerOverview(current.providers, providerFilter) : empty('Provider overview unavailable', 'Connect to a Meridian version with provider support.')
+  } else if (page === 'Overview') {
+    html = `<div class="overview-status"><div><strong>${current.running ? `Meridian ${esc(current.running)}` : managed ? 'Meridian is stopped' : current.lastChecked ? 'Not connected' : 'Connecting…'}</strong><span class="status ${health.status === 'healthy' ? 'good' : ''}">${esc(health.status || 'Offline')}</span><small class="mono">${esc(endpoint)}</small></div><div class="button-group">${managed && !current.owned ? (current.preferences.selected ? button('start', 'Start Meridian') : go('Versions', 'Install Meridian')) : go('Service', 'Service')}${go('Usage & accounts', 'Accounts')}</div></div>${current.providers ? providerOverview(current.providers, providerFilter) : stats()}${current.incidents.length ? `<div class="attention-row"><div><strong>${current.incidents.length} new alert${current.incidents.length === 1 ? '' : 's'}</strong><p>${esc(current.incidents[current.incidents.length - 1]?.title)}</p></div>${go('Logs', 'Review alerts')}</div>` : ''}<div class="overview-grid">${section('Claude cache reuse', 'Last 48 Claude requests', activity())}${section('Connection', '', definition([['Managed by', managed ? 'Meridian Desktop' : 'External service'], ['Active account', object(current.profiles).activeProfile], ['Accounts', rows(object(current.profiles).profiles).length]]))}</div>${current.providers ? '' : section('Usage limits', '', quotas(2))}<div class="section-heading"><h2>Recent requests</h2>${go('Requests', 'View all')}</div>${requestTable(5)}`
   } else if (page === 'Usage & accounts') {
-    html = quotas(100, true)
-    if (managed) html += section('Add account', '', `<form id="profile-form" class="inline-form"><label>Profile name<input name="profile" placeholder="e.g. work" pattern="[a-zA-Z0-9_-]{1,64}" required></label><button name="operation" value="add-profile" type="submit" ${!current.preferences.selected || current.busy ? 'disabled' : ''}>Add account</button></form>${!current.preferences.selected ? go('Versions', 'Install Meridian to sign in') : ''}`)
+    html = (current.providers ? providerOverview(current.providers, providerFilter) : '') + (health.backend === 'antigravity' || providerFilter === 'antigravity' ? '' : section('Claude accounts', 'Anthropic subscription profiles', quotas(100, true)))
+    if (managed && health.backend !== 'antigravity' && providerFilter !== 'antigravity') html += section('Add account', '', `<form id="profile-form" class="inline-form"><label>Profile name<input name="profile" placeholder="e.g. work" pattern="[a-zA-Z0-9_-]{1,64}" required></label><button name="operation" value="add-profile" type="submit" ${!current.preferences.selected || current.busy ? 'disabled' : ''}>Add account</button></form>${!current.preferences.selected ? go('Versions', 'Install Meridian to sign in') : ''}`)
     else html += `<p class="page-note">Sign in through the CLI that manages this service.</p>`
   } else if (page === 'Requests') {
-    html = `<div class="filter-bar"><input id="filter" type="search" placeholder="Search model, account, client or ID" aria-label="Search requests" value="${esc(filter)}"><select id="request-kind" aria-label="Request filter"><option value="all" ${requestKind === 'all' ? 'selected' : ''}>All requests</option><option value="errors" ${requestKind === 'errors' ? 'selected' : ''}>Errors</option><option value="low-cache" ${requestKind === 'low-cache' ? 'selected' : ''}>Low-cache continuations</option></select><button id="clear-filters">Clear</button></div><div id="request-detail">${requestDetail()}</div><div class="result-count" id="request-count">${matchingRequests().length} of ${rows(current.requests).length} requests</div><div id="results">${requestTable(500, true)}</div>`
+    html = `<div class="filter-bar"><input id="filter" type="search" placeholder="Search model, account, client or ID" aria-label="Search requests" value="${esc(filter)}"><select id="request-provider" aria-label="Request provider">${[['all','All providers'],['claude','Claude'],['antigravity','Antigravity']].map(([id,label]) => `<option value="${id}" ${requestProvider === id ? 'selected' : ''}>${label}</option>`).join('')}</select><select id="request-kind" aria-label="Request filter"><option value="all" ${requestKind === 'all' ? 'selected' : ''}>All requests</option><option value="errors" ${requestKind === 'errors' ? 'selected' : ''}>Errors</option><option value="low-cache" ${requestKind === 'low-cache' ? 'selected' : ''}>Low-cache continuations</option></select><button id="clear-filters">Clear</button></div><div id="request-detail">${requestDetail()}</div><div class="result-count" id="request-count">${matchingRequests().length} of ${rows(current.requests).length} requests</div><div id="results">${requestTable(500, true)}</div>`
   } else if (page === 'Logs') {
     html = `<div class="tab-bar" aria-label="Log source">${[['incidents', 'Alerts', current.incidents.length], ['diagnostics', 'Diagnostics', rows(current.logs).length], ['output', 'Service output', current.serviceLog.length]].map(([value, label, total]) => `<button data-log-source="${value}" aria-pressed="${logSource === value}">${label}<span>${total}</span></button>`).join('')}</div><div class="filter-bar"><input id="log-filter" type="search" aria-label="Search logs" placeholder="Search ${logSource === 'incidents' ? 'alerts' : logSource === 'output' ? 'service output' : 'diagnostics'}" value="${esc(logFilter)}">${logSource === 'incidents' && current.incidents.length ? button('acknowledge', 'Dismiss all alerts') : ''}${button('export-diagnostics', 'Export summary')}</div><div id="log-results">${logContent()}</div>`
   } else if (page === 'Service') {
@@ -310,6 +315,7 @@ function renderContent() {
     }).join('')}${!managed ? go('Service', 'Manage a local installation') : ''}`)
   } else {
     html = section('Connection', '', `<form id="connection-form"><label>Meridian address<input name="endpoint" type="url" required value="${esc(current.preferences.endpoint)}" spellcheck="false" ${current.owned ? 'disabled' : ''}></label><label>API key <span class="muted">${current.hasApiKey ? '· saved' : '· optional'}</span><input name="apiKey" type="password" autocomplete="off" placeholder="${current.hasApiKey ? 'Leave blank to keep saved key' : 'API key'}" ${current.owned ? 'disabled' : ''}></label><button type="submit" ${current.owned || current.busy ? 'disabled' : ''}>Connect</button>${current.owned ? '<p class="page-note">Stop the managed service before changing connections.</p>' : ''}</form>`)
+    if (managed) html += section('Providers', 'Choose providers for the managed service. Stop the service before changing this setting.', `<form id="provider-form"><label>Enabled providers<select name="backend" ${current.owned ? 'disabled' : ''}>${([['claude','Claude'],['antigravity','Antigravity'],['combined','Claude + Antigravity']] as const).map(([id,label]) => `<option value="${id}" ${(current.preferences.backend || 'claude') === id ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label class="check"><input name="allowAntigravityTools" type="checkbox" ${current.preferences.allowAntigravityTools ? 'checked' : ''} ${current.owned ? 'disabled' : ''}> Allow Antigravity client tools</label><p class="muted">Antigravity must already be signed in through its CLI. Client tools use CLI auto-approval with Meridian’s restrictive hook; client-side approvals remain yours.</p><label class="check"><input name="allowAntigravityBrowser" type="checkbox" ${current.preferences.allowAntigravityBrowser ? 'checked' : ''} ${current.owned ? 'disabled' : ''}> Allow native Antigravity browser</label><label class="check"><input name="allowAntigravitySubagents" type="checkbox" ${current.preferences.allowAntigravitySubagents ? 'checked' : ''} ${current.owned ? 'disabled' : ''}> Allow native Antigravity subagents</label><p class="muted">Native actions run inside Antigravity without client approval dialogs. Browser access uses an isolated Chrome session and requires installed Chrome and chrome-devtools-mcp 1.9.0; subagents can use the tools enabled for this service.</p><button type="submit" ${current.owned ? 'disabled' : ''}>Save providers</button></form>` )
     html += section('Background', '', `<form id="preferences-form"><label class="check"><input name="autoStart" type="checkbox" ${current.preferences.autoStart ? 'checked' : ''}> Start managed Meridian when the app opens</label><label class="check"><input name="openWindowAtLaunch" type="checkbox" ${current.preferences.openWindowAtLaunch ? 'checked' : ''}> Open dashboard at launch</label><label class="check"><input name="notifications" type="checkbox" ${current.preferences.notifications ? 'checked' : ''}> Desktop notifications</label>${([ ['notificationCritical', 'Service recovery failed'], ['notificationRequests', 'Repeated request failures'], ['notificationCache', 'Repeated cache misses'], ['notificationQuota', 'Usage reaches 95%'] ] as const).map(([key, label]) => `<label class="check"><input name="${key}" type="checkbox" ${current.preferences[key] ? 'checked' : ''}> ${label}</label>`).join('')}<p class="muted">Critical alerts: at most once every 15 minutes. Optional alerts: once per category every 30 minutes. Alerts always remain in Logs.</p><button type="submit">Save</button></form><div class="setting-row"><div><strong>Notifications</strong>${current.notificationStatus ? `<p>${esc(current.notificationStatus)}</p>` : ''}</div>${button('toggle-snooze', current.preferences.quietUntil > Date.now() ? 'Resume alerts' : 'Pause for 1 hour')}${button('test-notification', 'Send test')}</div><div class="setting-row"><div><strong>Open at login</strong><p>${current.loginAtStartup ? 'On' : 'Off'}</p></div>${button('login-at-startup', current.loginAtStartup ? 'Turn off' : 'Turn on', current.loginAtStartup ? 'false' : 'true', current.platform !== 'darwin')}</div>`)
     const adapters = Object.entries(object(current.features)).filter(([, features]) => Object.values(object(features)).some(value => typeof value === 'boolean'))
     html += section('Client settings', 'Changes apply to subsequent requests.', adapters.map(([adapter, features]) => `<details data-detail="${esc(adapter)}"><summary>${esc(adapter)}</summary><form class="features-form" data-adapter="${esc(adapter)}">${Object.entries(object(features)).filter(([, value]) => typeof value === 'boolean').map(([key, value]) => `<label class="check"><input type="checkbox" name="${esc(key)}" ${value ? 'checked' : ''}> ${esc(key.replace(/([A-Z])/g, ' $1').replace(/^./, char => char.toUpperCase()))}</label>`).join('')}<button type="submit">Save</button></form></details>`).join('') || empty('Client settings unavailable'))
@@ -329,20 +335,24 @@ function renderContent() {
     const draft = drafts.get(key)
     if (draft) { field.value = draft.value; if (field instanceof HTMLInputElement) field.checked = draft.checked }
   })
+  el('content').querySelectorAll<HTMLAnchorElement>('a[data-provider-page]').forEach(link => link.onclick = event => { event.preventDefault(); providerFilter = 'claude'; navigate('Usage & accounts') })
   document.getElementById('check-updates')?.addEventListener('click', () => { void action('check-updates') })
   const refreshRequests = () => { el('results').innerHTML = requestTable(500, true); el('request-count').textContent = `${matchingRequests().length} of ${rows(state?.requests).length} requests` }
   const search = document.getElementById('filter')
   if (search instanceof HTMLInputElement) search.oninput = () => { filter = search.value; refreshRequests() }
+  const providerSelect = document.getElementById('request-provider')
+  if (providerSelect instanceof HTMLSelectElement) providerSelect.onchange = () => { requestProvider = providerSelect.value; refreshRequests() }
   const kind = document.getElementById('request-kind')
   if (kind instanceof HTMLSelectElement) kind.onchange = () => { requestKind = kind.value; refreshRequests() }
   const clear = document.getElementById('clear-filters')
-  if (clear) clear.onclick = () => { filter = ''; requestKind = 'all'; if (search instanceof HTMLInputElement) search.value = ''; if (kind instanceof HTMLSelectElement) kind.value = 'all'; refreshRequests() }
+  if (clear) clear.onclick = () => { filter = ''; requestKind = 'all'; requestProvider = 'all'; if (providerSelect instanceof HTMLSelectElement) providerSelect.value = 'all'; if (search instanceof HTMLInputElement) search.value = ''; if (kind instanceof HTMLSelectElement) kind.value = 'all'; refreshRequests() }
   const logSearch = document.getElementById('log-filter')
   if (logSearch instanceof HTMLInputElement) logSearch.oninput = () => { logFilter = logSearch.value; el('log-results').innerHTML = logContent() }
   el('content').onclick = event => {
     if (!(event.target instanceof Element)) return
     const target = event.target.closest<HTMLButtonElement>('button')
     if (!target) return
+    if (target.dataset.provider) { const id = target.dataset.provider; if (id === 'all' || id === 'claude' || id === 'antigravity') { providerFilter = id; renderContent() } }
     if (target.dataset.go) { const next = pages.find(name => name === target.dataset.go); if (next) navigate(next) }
     if (target.dataset.accountSort) { accountSort = target.dataset.accountSort as any; renderContent() }
     if (target.dataset.request) { const id = target.dataset.request; if (page !== 'Requests') navigate('Requests'); selectedRequest = id; el('request-detail').innerHTML = requestDetail(); el('request-detail').scrollIntoView({block:'nearest'}) }
@@ -359,6 +369,7 @@ function renderContent() {
     if (form instanceof HTMLFormElement) form.onsubmit = event => { event.preventDefault(); handler(new FormData(form), event) }
   }
   bindForm('service-form', data => { void action('save-preferences', { mode: data.get('mode'), port: Number(data.get('port')) }) })
+  bindForm('provider-form', data => { void action('save-preferences', { backend: data.get('backend'), allowAntigravityTools: data.has('allowAntigravityTools'), allowAntigravityBrowser: data.has('allowAntigravityBrowser'), allowAntigravitySubagents: data.has('allowAntigravitySubagents') }) })
   bindForm('install-form', data => { void action('install', data.get('version')) })
   bindForm('preferences-form', data => { void action('save-preferences', Object.fromEntries(['autoStart', 'notifications', 'openWindowAtLaunch', 'notificationCritical', 'notificationRequests', 'notificationCache', 'notificationQuota'].map(key => [key, data.has(key)]))) })
   bindForm('login-form', data => { void action('login-code', data.get('code')) })

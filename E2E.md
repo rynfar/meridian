@@ -6,6 +6,363 @@ Live tests against the real proxy + Claude Max SDK. These verify the full reques
 
 > **Droid tests (D1–D10)** additionally require `droid` installed (`droid --version` ≥ 0.89.0) and a Factory AI account for BYOK configuration. Tests D1–D10 cover internal mode (the default). Passthrough mode for Droid is opt-in via `MERIDIAN_PASSTHROUGH=1` and requires `droid` ≥ 0.109 — see "Droid passthrough mode" below.
 
+## Antigravity subscription CLI backend
+
+```sh
+npm run build
+node scripts/e2e-antigravity.mjs
+```
+
+Requires an account-authenticated official `agy` CLI, Node 22+, and Pi. This
+opt-in gate consumes account quota. `E2E_AGY_MODEL` selects an actual account
+model slug; `MERIDIAN_AGY_PATH` and `E2E_PI_BIN` select installed binaries.
+It never uses a Gemini API key or the Python SDK.
+
+The built Node server runs on an ephemeral loopback port with the
+Antigravity tool bridge explicitly enabled. The gate checks live text, a random
+HTTP client tool receipt, completed-history replay, then actual Pi streaming
+read/write tool rounds. Pi configuration, context discovery and files are
+isolated. The real CLI retains its existing account authentication. A recording
+relay requires the secret file value to enter through Pi's own `tool_result`;
+the copied file must exactly match the source, and the final answer must contain
+the receipt. CLI versions before and after the gate must match.
+
+The bridge currently uses per-process auto-approval plus a restrictive hook;
+see [the permission and capability limits](docs/antigravity.md). The Node
+entrypoint and macOS flow are the live target. Mocked CLI integration tests do
+not establish Linux or Windows compatibility, arbitrary clients, native resume,
+images or recovery of a pending call after process death.
+
+The gate writes a versioned report and client logs to a temporary artifact
+directory, printed at startup, and closes the public server, MCP listener and
+owned subprocesses. The CLI's own account conversation/project records persist.
+
+**Verified 2026-09-18:** macOS arm64, Node 22.22.3, official `agy` 1.2.7,
+`gemini-3.8-flash-low`, Pi 0.72.1. All four live checks passed. Pi made three
+HTTP requests for the read/write loop, copied the random client-only file
+exactly, and returned its value. The CLI version was unchanged across the run;
+server and subprocess shutdown completed successfully.
+
+The extended native gate runs the actual macOS app with disposable app data and
+an app-managed combined service:
+
+```sh
+npm run build
+npm ci --prefix apps/desktop
+npm run build --prefix apps/desktop
+env -u ELECTRON_RUN_AS_NODE apps/desktop/node_modules/.bin/electron \
+  scripts/e2e-antigravity-desktop.cjs
+```
+
+It verifies the provider navigation and managed setting, executes the same Pi
+file-copy flow through `/antigravity`, sends a real `claude-haiku-4-5` request
+through the ordinary route, checks both providers' activity and menu-bar quota
+presentation, and stops the owned service. It saves screenshots and state.
+`E2E_MERIDIAN_URL` can target an already-running Antigravity URL (including the
+`/antigravity` prefix); the standalone gate never stops an external service.
+
+Retained hardening failures: `meridian-agy-e2e-mbAvPv` caught CLI timestamps
+being copied into file content. Explicit `meridian_client_result` JSON boundaries
+fixed that exact-byte failure; subsequent actual Pi runs passed. The desktop
+`Movmeo` artifact caught `Providers: TimeoutError` while live quota reads blocked
+the eight-second desktop API deadline. Provider snapshots now return current
+local activity immediately and refresh quota facts in the background. Direct
+regression tests cover stalled quota reads and retaining stale desktop data;
+the native gate waits for the asynchronously refreshed provider snapshot without
+repeating any model or tool operation.
+
+**Verified 2026-09-18 (extended gate):** actual macOS arm64 Electron 44.3.0
+app, bundled Node 22.23.2, official agy 1.2.7, Gemini 3.8 Flash Low, Pi 0.72.1,
+and Claude Agent SDK / `claude-haiku-4-5`. The final native artifact is
+`meridian-agy-desktop-DvFSo0`; the nested live client artifact is
+`meridian-agy-e2e-E1r1RV`. All native checks passed, including separate routes,
+exact Pi copy, fresh activity from both providers, menu-bar quotas and shutdown.
+The same app-owned service's provider endpoint responded in 2 ms during live
+browser inspection. Web provider navigation was inspected at desktop and 390px
+phone widths; the final phone layout had no horizontal page overflow. This
+establishes the macOS text/tool path, not Linux, Windows or full Claude parity.
+
+### Antigravity coding-tool acceptance gate
+
+```sh
+npm run build
+node scripts/e2e-antigravity-tools.mjs
+```
+
+This gate prioritizes actual client tools: Pi must recover from a deliberately
+missing file, read a Unicode-named source file, edit it, execute it with `bash`,
+and write its exact output (including the trailing newline) with `write`.
+The relay verifies streaming, tool identities, correlated results and the
+missing-file `is_error` response. Both the modified source and output file are
+compared byte-for-byte. It uses an isolated workspace and Pi configuration,
+consumes subscription quota, records requests/logs/report, and stops owned
+processes. It never automatically reruns a failed model attempt.
+
+**Verified 2026-09-18:** macOS arm64, Node 22.22.3, official agy 1.2.7,
+Gemini 3.8 Flash Low, Pi 0.72.1. Artifact `meridian-agy-tools-zQKqd6` passed
+all five acceptance checks over seven streaming HTTP requests. The tool trace
+was read (expected missing-file error), read, edit (schema validation error),
+edit, bash, write. The first edit used `old_text`/`new_text`; Pi required
+`oldText`/`newText`. That error reached the model, which corrected its arguments
+within the same live conversation. No model rerun was used to obtain the pass.
+
+A deterministic transport regression separately reproduced corruption when an
+emoji in a tool argument spanned MCP HTTP chunks (`🧪` became replacement
+characters). The runtime now bounds and joins raw bytes before UTF-8 decoding;
+the test fails before the fix and passes after it. The live gate verifies actual
+Unicode paths/content, while the regression forces the otherwise nondeterministic
+network split. This evidence covers this model/client/platform, not every client
+or pending-tool recovery after process death.
+
+### Pi and OpenCode client/session acceptance
+
+```sh
+npm run build
+E2E_CLIENT=pi node scripts/e2e-antigravity-clients.mjs
+E2E_CLIENT=opencode E2E_AGY_EFFORT_MODEL=gemini-3.8-flash-high node scripts/e2e-antigravity-clients.mjs
+node scripts/e2e-antigravity-opencode-session.mjs
+```
+
+These gates use actual installed clients with isolated client configuration and
+saved sessions. They exercise client-owned tools against the real account-backed
+CLI, not fixture model responses. The coding task requires read-error recovery,
+an exact source edit, execution, a Unicode output file, and client-side byte
+verification/repair before the external byte-for-byte assertion. Both clients
+then continue and fork saved sessions and use their search tools. OpenCode also
+uses its `task` tool to invoke a real client-owned subagent; the high-effort probe
+uses the matching Gemini high variant. Pi's RPC mode checks steering while a
+bash tool runs, compaction, cancellation and the next prompt. A separate actual
+OpenCode server checks undo, compaction, cancellation and continued prompting.
+
+**Verified 2026-09-18:** macOS arm64, Node 22.22.3, agy 1.2.7,
+Pi 0.72.1, OpenCode 1.18.31; Gemini 3.8 Flash Low plus Gemini 3.8 Flash High
+for the OpenCode effort probe.
+
+| Artifact | Live outcome |
+| --- | --- |
+| `meridian-agy-pi-kqrZWn` | All 11 checks passed over 22 HTTP requests: coding, errors, exact bytes, streaming, saved continuation/fork, ls/find/grep, steering, compaction and abort/recovery. |
+| `meridian-agy-opencode-qyKT50` | All 9 checks passed over 18 HTTP requests: coding, errors, exact bytes, streaming, saved continuation/fork, glob/grep/task and native high effort. |
+| `meridian-agy-opencode-session-kolHLi` | Actual OpenCode server passed undo/continuation, saved compaction/recall, and cancellation/next-prompt recovery. |
+
+Pi steering must advance exactly one completed agy process and leave no pending
+process; the obsolete write must not exist. Regression tests separately cover
+steering in the same tool-result message and in a following user message, and
+reject an edited prefix before delivering either. Ordinary session continuation,
+fork, undo and compaction still replay client history rather than using native
+agy persistent resume.
+
+Retained failures and limits:
+
+- `meridian-agy-opencode-uiSPX9` caught a model writing literal backslash-n instead
+  of a newline. Runtime prompt guidance now distinguishes decoded bytes from JSON
+  escaping. The coding gate asks the client to verify bytes and repair failed
+  writes, then independently compares the final source/output. This does not
+  claim that model-generated arguments can never be wrong.
+- `meridian-agy-pi-ff38vU` passed coding/search/session checks but the optional
+  Claude Sonnet high-effort probe failed: the official CLI rejects that model's
+  effort override. Mismatching/unsupported model suffixes now fail before launch;
+  the supported native effort gate uses a matching Gemini high model. Pi should
+  select Gemini effort through model slugs, with numeric thinking controls off.
+- Official stream-json CLI input only supports text blocks. The additional gate
+  below verifies images through exact supplied attachment files instead. Native hard
+  token/thinking budgets, arbitrary plugins/extensions, native agy resume and
+  pending-tool recovery across process death are not established by these gates.
+
+The gates record the actual requests, client logs, versions and per-check report.
+They do not automatically repeat a failed model attempt. Client validation errors
+may be corrected by the model inside the same conversation, as in normal use.
+
+### Antigravity images, schemas and response controls
+
+```sh
+npm run build
+node scripts/e2e-antigravity-capabilities.mjs
+E2E_SESSION_CAPABILITIES=1 node scripts/e2e-antigravity-opencode-session.mjs
+```
+
+The first gate checks a multi-megabyte PNG through production Node and actual
+CLI vision, native JSON-schema output in JSON and SSE responses,
+text stops in both modes (including process cleanup), forced any/named client
+tools, and a named-tool continuation that finishes with native structured output.
+The second uses actual Pi/OpenCode attachments and each client's image read
+result, then OpenCode's own `StructuredOutput` workflow. Images contain newly
+randomized six-character codes absent from prompts and filenames. The image
+fixture generator needs Python Pillow and macOS Menlo. Configurations and client
+files are isolated, and all model traffic uses the official subscription CLI.
+OpenCode's deny-all fixture policy explicitly permits `read` and
+`StructuredOutput`. `E2E_IMAGE_CLIENT=opencode` or `structured` narrows diagnostic
+runs; `E2E_AGY_TRACE=1` records only fixture model stdin/stdout, never auth probes.
+
+**Verified 2026-09-18:** macOS arm64, Node 22.22.3, agy 1.2.7,
+Gemini 3.8 Flash Low, Pi 0.72.1 and OpenCode 1.18.31. All six response-control
+checks passed in `meridian-agy-capabilities-VXKid6`. All five actual-client checks
+passed in `meridian-agy-opencode-session-c4THXr`, including exact visual codes
+and exact structured object fields. The native schema result is independently
+validated; intermediate native finish metadata is never delivered as JSON.
+
+A 4 MiB raw image exposed a V8 stack overflow in the repeated-group base64
+regex. The replacement uses a flat character check plus canonical decoding.
+The production-Node regression test and live `meridian-agy-capabilities-UFHQLs`
+passed with a request exceeding 5 MiB and an exact random visual code on
+2026-09-19. `E2E_CAPABILITIES_LARGE_IMAGE_ONLY=1` isolates this check.
+
+Retained evidence and corrections:
+
+- `agy-image-probe-539I9h`: native MCP image results were offloaded into a CLI
+  private file, whose read the policy denied. `agy-image-probe-HqyUNq` proved
+  exact reads of supplied workspace images, leading to the attachment bridge.
+  Arbitrary host reads remain denied; other accepted image formats have signature
+  and transport validation, but only PNG vision was live-tested here.
+- `meridian-agy-capabilities-akVsTU`: Gemini rejected a numeric enum in a schema.
+  This native limitation remains an explicit invalid-argument error; the schema
+  is never silently weakened. `voyJLC` exposed a missing structured result while
+  the policy blocked native `finish`; schema requests now permit that operation.
+- `meridian-agy-opencode-session-FYJYKA`: the visual answers were correct, but the
+  test checked only the final assistant message for `read`. The corrected gate
+  checks saved tool history and verifies that the result contains an image.
+- `7iXEGN` timed out because the fixture's deny-all policy hid `StructuredOutput`.
+  Diagnostic trace `oHwzGQ` established the missing tool and blocked private-schema
+  reads. `yTlSGq` exposed a guessed, extra `output` argument wrapper. The fixture
+  now permits the requested tool; Meridian includes exact supplied schemas in its
+  prompt and rejects invalid arguments before delivery so the model can correct
+  them. Final `c4THXr` passed without relaxing its exact-object assertion.
+
+**Regression verification 2026-09-19:** the expanded schema/image boundary also
+passed the full actual Pi coding/session gate (`meridian-agy-pi-27Cpz6`, 11 checks,
+21 requests) and OpenCode coding/session/delegation/high-effort gate
+(`meridian-agy-opencode-lTc0nn`, 9 checks, 18 requests). The actual macOS app
+gate also passed all 9 checks in `meridian-agy-desktop-OOFlYO` (nested client
+artifact `meridian-agy-e2e-vQxLZf`): both live provider routes, Pi exact copy,
+provider/request/tray UI, clean activity with no data errors, standalone mode
+and owned-service shutdown.
+
+Text stops are enforced at the response boundary, including split-chunk prefixes;
+they are not native token caps and early-stop usage can be incomplete. Hard token
+caps, numeric reasoning budgets, sampling controls, arbitrary extensions, native
+agy persistent resume, Linux and Windows are not established by these gates.
+
+### Antigravity tool-result recovery and main integration
+
+```sh
+npm run build
+node scripts/e2e-antigravity-recovery.mjs
+E2E_AGY_RECOVERY=1 E2E_CLIENT=pi node scripts/e2e-antigravity-clients.mjs
+E2E_AGY_RECOVERY=1 E2E_CLIENT=opencode node scripts/e2e-antigravity-clients.mjs
+```
+
+The direct lifecycle gate expires a waiting process and separately reclaims one
+at a single-process capacity limit, then supplies the completed result and
+requires the exact random receipt without another tool call. Client recovery
+mode replaces the backend after a successful client tool has executed but before
+forwarding its result. It verifies that completed call is not repeated, exact
+file edits/output survive, and subsequent coding and saved-session flows work.
+This is explicit completed-history replay, not native process restoration or
+durable exactly-once execution. Failed active requests are not automatically
+retried.
+
+**Verified 2026-09-19:** after integrating main through `1ff2c678`, actual Pi
+0.72.1 passed 12 checks/21 requests in `meridian-agy-pi-acHx6U`; actual OpenCode
+1.18.31 passed 9 checks/16 requests in `meridian-agy-opencode-gugWII`. Both
+recovered the completed read without repeating it, then completed read/edit/bash/
+write, exact Unicode output, session resume/fork and search. Pi also passed
+steering, compaction and abort; OpenCode passed client-owned task delegation.
+Both used macOS arm64, Node 22.22.3, official agy 1.2.7 and Gemini 3.8 Flash Low.
+
+The direct expiry/capacity gate passed both cases in
+`meridian-agy-recovery-jY5StQ` with the same CLI/model/Node/platform. It returned
+the exact newly generated receipt after each original process had exited.
+
+The merged native macOS app passed all 9 checks in
+`meridian-agy-desktop-MIvv87` (nested client `meridian-agy-e2e-IpdsU7`): managed
+combined service, both actual provider routes, exact Pi copy, shared activity,
+separate quotas, provider/request/tray navigation, standalone mode and shutdown.
+
+Further integration included main through `dacc1b1b` (authentication diagnostics
+and profile following). The actual app passed all 9 checks in
+`meridian-agy-desktop-TOWjo8`, with nested Pi flow `meridian-agy-e2e-KQar9e`.
+An earlier run, `meridian-agy-desktop-0EaaSM` / `meridian-agy-e2e-uBAZTT`, failed
+before any model call because `/antigravity/health` returned a body without
+`backend`. That gate did not retain its HTTP status/body, so the cause remains
+unclassified. Three subsequent read-only combined health probes returned 200,
+and the instrumented native gate passed; neither establishes the first failure's
+cause or a production fix. Health status/body and desktop failure state are now
+saved by the gates. Preserve this open diagnostic rather than treating a green
+repeat as proof of resolution.
+
+Linux CI also exposed process-global SDK mock contamination from the newly
+merged `follow-active-integration.test.ts`: unrelated tests received its
+`session-${Date.now()}` identity instead of their own mocked session. `npm test`
+now runs that file in its own process, retaining all of its assertions alongside
+the other isolated groups. This changes test isolation, not runtime SDK behavior.
+
+### Antigravity expanded CLI capabilities
+
+**Verified 2026-09-19, macOS arm64, official agy 1.2.7, Node 22.22.3,
+Gemini 3.8 Flash Low:**
+
+| Gate | Result and retained artifact directory |
+| --- | --- |
+| `e2e-antigravity-expansion.mjs` | Six checks: same-process random-receipt recall, both OpenAI routes as JSON/SSE, one response with two real client actions and reversed results. `meridian-agy-expansion-u07uzW`. |
+| `e2e-antigravity-openai-tools.mjs` | Both routes return forced function calls, consume correlated random receipts and stream the exact result. `meridian-agy-openai-tools-h0C87G`. |
+| `e2e-antigravity-media.mjs` | Five checks: random PDF content, public HTTPS image, local speech transcript, sampled video receipt, numeric-enum schema with a nonmatching stop. `meridian-agy-media-9e5X4P`. |
+| `e2e-antigravity-native-tools.mjs` | Four checks: native self subagent arithmetic, isolated browser retrieves a random local-page heading, child hook denies a disposable non-attachment file, cancellation after child invocation releases active CLI process. `meridian-agy-native-tools-XMQrEz`. Earlier production browser/guard gate: `meridian-agy-native-tools-CnTWSG`. |
+| Actual Pi 0.72.1 | Coding/error recovery, exact Unicode output, saved resume/fork, search, steering, compaction, abort/recovery; 21 HTTP requests. `meridian-agy-pi-XHdxN7`. |
+| Actual OpenCode 1.18.31 | Coding/error recovery, exact Unicode output, saved resume/fork, glob/grep and client-owned task delegation; 16 requests. `meridian-agy-opencode-NjAsOQ`. |
+| Native Electron 44.3.0 app | Nine existing flows plus new capability disclosure and separate disabled-while-running native settings. Both actual subscription routes, requests/quotas/tray, standalone restart and owned shutdown. `meridian-agy-desktop-1qiLRK`, nested `meridian-agy-e2e-b1n5y8`. |
+
+Artifacts are in the local OS temporary directory; they are not committed.
+The native browser gate used installed Chrome DevTools MCP **1.9.0** through
+`MERIDIAN_AGY_BROWSER_MCP_PATH`, with headless isolated Chrome. It did not reuse
+personal Chrome state. Media used local Poppler, ffmpeg/ffprobe, whisper.cpp 1.9.4,
+a local ggml-base model and Python 3.11 with ReportLab/Pillow. These gates consume
+the signed-in subscription; they do not use an API-key/SDK fallback.
+
+The new Windows transport CI initially failed because its test harness applied
+C-runtime argument escaping to a `cmd.exe` command string, passing literal
+backslash-quoted executable names. The harness now supplies the outer `/s /c`
+quotes and `windowsVerbatimArguments`; the hook command itself is unchanged.
+Authenticated Windows CLI behavior is still unverified.
+
+Retained failures explain the changes rather than disappearing behind reruns:
+
+- `meridian-agy-expansion-j54zOe`: direct native calls arrived serially. Added an
+  explicit atomic `meridian_parallel` MCP tool; the succeeding gate requires a
+  two-call response. `xgKAm5` failed a test assertion that searched raw SSE for
+  contiguous text; the gate now assembles deltas before comparing receipts.
+- `meridian-agy-media-5v527G`: fixture setup selected a Python without ReportLab,
+  before a model call. `E2E_PYTHON` selects the fixture interpreter explicitly.
+- `meridian-agy-native-tools-9EnS8A`: native browsing reached Chrome DevTools but
+  default personal Chrome had no DevToolsActivePort. A workspace MCP override
+  with isolated Chrome passed (`20e2YO`), then the actual adapter implementation
+  passed in `CnTWSG` and `XMQrEz`. Earlier native probes also established the
+  actual child MCP tool names and that completed invocation events use the
+  `subagent` category; the policy and telemetry parser were corrected accordingly.
+- `meridian-agy-pi-ewtigM`: an old assertion treated all retained processes as
+  abandoned tools. Health now distinguishes idle, active and pending-tool work;
+  the Pi gate requires zero active/pending work while allowing warm conversations.
+
+Collaborative-browser inspection at 1280px and 390px found a missing closing
+brace in shared `profileBarCss` from the integrated main change `dacc1b1b`.
+It incorrectly nested all following page styles. The brace is restored; actual
+browser checks confirm the provider grid, foreground color, filter, expanded
+capability details and no horizontal overflow at either width. The macOS native
+renderer uses its own shared style assembly. A painted-settings/capabilities
+check (`meridian-agy-desktop-FSEVET`, no model calls) also exposed inherited
+desktop definition-list styling; the shared capability section now overrides
+that layout so descriptions stay below their labels. The corrected native UI
+passed and was visually inspected in `meridian-agy-desktop-eZy7f8`.
+Local validation passed 4,627 tests across 15 isolated groups, typecheck, server
+build and desktop build; the final presentation adjustment also passed all six
+provider presentation tests.
+
+This evidence establishes the listed flows. It does not establish authenticated
+Linux/Windows support, native PDF/audio/video semantics, exact token counts,
+signed reasoning, arbitrary OpenAI clients, provider-independent Claude SDK
+plugins, or durable native restoration after restart. The native cancellation
+gate observes the owned CLI lifecycle, not a proof about undocumented remote
+provider work cancellation. Preserve the earlier unclassified health failure
+above; these newer successes do not identify its cause.
+
 ## Quick Start
 
 ```bash
@@ -4964,3 +5321,25 @@ The refined panel was rechecked in the signed Mac package: active account first,
 colored usage bars, content-sized stopped state, restart, persisted snooze after
 relaunch, Resume alerts and Escape dismissal all worked. Disabling dashboard at
 launch left no visible app window; explicit Finder activation reopened it.
+
+### Antigravity stored Responses acceptance
+
+`node scripts/e2e-antigravity-responses-state.mjs` runs after `npm run build`
+against the real signed-in CLI. On 2026-09-19, macOS arm64 / agy 1.2.7 /
+Gemini 3.8 Flash Low passed five checks in
+`meridian-agy-responses-state-UQyJug`: JSON retrieval, streamed ID continuation
+with observed warm-process reuse, an independent fork with replacement
+instructions and `store: false`, a streamed function call completed by ID with a
+random client result, and deletion with surviving completed descendants.
+Artifacts include exact request/response bodies and a report in the OS temporary
+directory. This proves process-local API state, not durable native CLI recovery.
+The focused tests additionally cover credential scope, expiry, entry/byte limits,
+expanded-history admission, original image URL retention, cancellation and
+incomplete/failed streams.
+
+The updated storage disclosure was checked in the collaborative web preview
+(no horizontal overflow at 1280px) and the actual Electron provider page in
+`meridian-agy-desktop-OQj6ib`. The native check asserts the new response-ID text
+and captures the expanded capabilities. Its first harness launch inherited
+`ELECTRON_RUN_AS_NODE` and failed before app startup; running Electron with that
+variable unset exercised the actual app successfully.

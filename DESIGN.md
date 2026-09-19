@@ -227,3 +227,23 @@ The macOS menu-bar icon uses a transparent monochrome Meridian template, tinted
 by the system. The Dock retains the full-color app icon. Committed 18-point
 assets include 1x, 2x and 3x representations; regenerate them with
 `swift scripts/render-tray-icon.swift`.
+
+
+## 9. Provider navigation
+
+`/providers` and Meridian Desktop share `telemetry/providerView.ts`. The primary
+filter is All providers / Claude / Antigravity. A compact stats strip summarizes
+observed hourly activity; provider cards own their accounts, model catalogues,
+quota windows and management links. Never add subscription percentages across
+providers or show an unavailable reading as zero. Old readings remain visible
+with stale labels while background refresh runs.
+
+Keep provider identity separate from model identity: Claude models reached
+through Antigravity consume a Google allowance. Claude profile controls stay
+inside the Claude account view. Shared totals must label partial data. Use the
+existing blue active underline, neutral cards, violet endpoint/model literals,
+and semantic quota thresholds; provider identity does not invent a new palette.
+
+The desktop menu bar separates account quota groups and labels combined activity.
+Provider selection belongs in managed-service settings, with tool permission as
+a separate opt-in. An attached service remains controlled by its owner.

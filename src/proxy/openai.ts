@@ -99,6 +99,8 @@ export interface OpenAiChatRequest {
 export interface OpenAiTranslationOptions {
   /** Keep append-only turns intact so Meridian can verify and resume lineage. */
   preserveConversationHistory?: boolean
+  /** Providers without native reasoning blocks must retain literal markup. */
+  preserveThinkingText?: boolean
 }
 
 export interface AnthropicTextBlock {
@@ -561,7 +563,7 @@ export function translateOpenAiToAnthropic(
       const endOfThink = firstBlock?.type === "text" && firstBlock.text.startsWith("<think>")
         ? firstBlock.text.indexOf("</think>")
         : -1
-      if (firstBlock?.type === "text" && firstBlock.text.startsWith("<think>") && endOfThink !== -1) {
+      if (!options.preserveThinkingText && firstBlock?.type === "text" && firstBlock.text.startsWith("<think>") && endOfThink !== -1) {
         // Extract <think>...</think> to thinking block. Skip a single optional
         // trailing newline after </think> for readability, but tolerate its
         // absence rather than dropping the first character of the answer.
