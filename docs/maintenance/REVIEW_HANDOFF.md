@@ -1797,6 +1797,48 @@ the GitHub account verifies as `no_user`, and the merge is refused with "the
 base branch policy prohibits the merge" with no mention of signatures. Use the
 repo's `user.email`; do not substitute one from the environment.
 
+## Checkpoint: 2026-09-18 (Autonomous Review Session)
+
+### Completed items in this review session
+
+1. **Issue #1027 (`Supported OpenCode V2 betas are ~400 revisions behind`)**:
+   - Delivered in PR #1060 (`303ce0d0`).
+   - Extended pinned OpenCode V2 beta range through `0.0.0-beta-18866`.
+   - Closed Issue #1027.
+
+2. **Contributor PR #771 (`feat(profile): create the profile when profile login names an unknown one`) by @Nowaker**:
+   - Delivered in PR #1061 (`96a75ac5`).
+   - Auto-creates profile on login if named profile does not exist.
+   - Closed PR #771 as incorporated.
+
+3. **Contributor PR #765 (`chore: update plugin flake inputs`) by @Nowaker**:
+   - Delivered in PR #1062 (`865b8331`).
+   - Updated Nix flake inputs for plugins and flake-parts.
+   - Closed PR #765 as incorporated.
+
+4. **Contributor PR #772 (`feat(dev): MERIDIAN_CREDENTIALS_READONLY, for a second instance on shared credentials`) by @Nowaker**:
+   - Delivered in PR #1064 (`b7b820e9`).
+   - Adds `MERIDIAN_CREDENTIALS_READONLY=1` support preventing secondary instances from modifying shared credential stores.
+   - Closed PR #772 as incorporated.
+
+5. **Contributor PR #773 (`feat(cli): print the dashboard when the port is already serving Meridian`) by @Nowaker**:
+   - Delivered in PR #1065 (`a80a15e2`).
+   - Adds pre-flight port probing: when port is already running Meridian, displays terminal dashboard and exits 0 instead of failing `EADDRINUSE`.
+   - Added `meridian status` command.
+   - Closed PR #773 as incorporated.
+
+6. **Contributor PR #774 (`fix(config): make MERIDIAN_CONFIG_DIR relocate the directory, not one file in it`) by @Nowaker**:
+   - Delivered in PR #1066 (`c07cefd4`).
+   - Relocates all Meridian configuration files (`profiles.json`, `profiles/<id>`, `adapter-instances.json`, `sdk-features.json`, `model-pricing.json`, `telemetry.db`) under `MERIDIAN_CONFIG_DIR`.
+   - Keys 5s disk caches by resolved path.
+   - Stabilized `desktop-manager.test.ts` shutdown race under recovery.
+   - Closed PR #774 as incorporated.
+
+### Next Queue Item
+
+- **Contributor PR #775 (`feat(profiles): reorder the profile pool by drag or keyboard, on both pages`) by @Nowaker**.
+
+
 ## Restart safely
 
 Fetch origin/main and refresh the selected PR/issue, its exact head and related
