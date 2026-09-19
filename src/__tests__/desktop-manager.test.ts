@@ -9,6 +9,10 @@ import { Manager } from '../../apps/desktop/src/manager'
 const fixtures: { manager: Manager; directory: string }[] = []
 afterEach(async () => {
   for (const fixture of fixtures.splice(0)) {
+    const deadline = Date.now() + 5000
+    while (fixture.manager.state.busy && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
     await fixture.manager.shutdown()
     await rm(fixture.directory, { recursive: true, force: true })
   }
@@ -117,7 +121,7 @@ describe('desktop manager real child lifecycle', () => {
     await fetch(manager.baseUrl() + '/crash').catch(() => undefined)
     const deadline = Date.now() + 12000
     while (Date.now() < deadline) {
-      if (manager.snapshot().owned && (manager.state.health as { pid: number } | null)?.pid !== firstPid && manager.state.running === '1.0.0') break
+      if (!manager.state.busy && manager.snapshot().owned && (manager.state.health as { pid: number } | null)?.pid !== firstPid && manager.state.running === '1.0.0') break
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     expect(manager.snapshot().owned).toBe(true)
