@@ -4,9 +4,10 @@
  * profile.
  */
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { mock } from "bun:test"
+import { installSdkMock } from "./sdkMock"
+import { installLoggerMock } from "./loggerMock"
 
-mock.module("@anthropic-ai/claude-agent-sdk", () => ({
+installSdkMock(() => ({
   query: () => (async function* () {
     yield {
       type: "assistant",
@@ -18,28 +19,11 @@ mock.module("@anthropic-ai/claude-agent-sdk", () => ({
   })(),
   createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
   tool: () => ({}),
-}))
+}), "follow-active-integration.test.ts")
 
-mock.module("../logger", () => ({
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
-}))
-
-// Pass through the real resolveSdkModelDefaults — mock.module is process-global
-// in Bun, and stubbing it as () => ({}) leaks to proxy-env-stripping.test.ts.
-import { resolveSdkModelDefaults } from "../proxy/models"
-
-mock.module("../proxy/models", () => ({
-  mapModelToClaudeModel: () => "sonnet",
-  resolveClaudeExecutableAsync: async () => "claude",
-  resolveSdkModelDefaults,
-  getClaudeAuthStatusAsync: async () => ({ loggedIn: true, email: "test@test.com", subscriptionType: "max" }),
-  getAuthCacheInfo: () => ({ lastCheckedAt: 0, lastSuccessAt: 0, isFailure: false }),
-  hasExtendedContext: () => false,
-  stripExtendedContext: (m: string) => m,
-  isClosedControllerError: (e: unknown) => e instanceof Error && e.message.includes("controller is closed"),
-  recordExtendedContextUnavailable: () => {},
-  isExtendedContextKnownUnavailable: () => false,
 }))
 
 const { createProxyServer } = await import("../proxy/server")
