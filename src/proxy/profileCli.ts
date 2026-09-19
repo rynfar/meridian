@@ -53,9 +53,9 @@ export function isValidProfileId(id: string): boolean {
   return Boolean(id) && !/[^a-zA-Z0-9_-]/.test(id)
 }
 
-/** Red text — plain when stdout is piped, where escape codes are noise. */
-function red(text: string): string {
-  return process.stdout.isTTY ? `\x1b[31m${text}\x1b[0m` : text
+/** Yellow text — plain when stdout is piped, where escape codes are noise. */
+function yellow(text: string): string {
+  return process.stdout.isTTY ? `\x1b[33m${text}\x1b[0m` : text
 }
 
 interface AuthLoginOptions {
@@ -516,7 +516,7 @@ export async function profileLogin(id: string, options: AuthLoginOptions = {}): 
   }
 
   if (plan.action === "create") {
-    console.log(red(`⚠ Profile "${id}" does not exist yet — adding it first.`))
+    console.log(yellow(`⚠ Profile "${id}" does not exist yet — adding it first.`))
     console.log()
     await profileAdd(id, options)
     return
