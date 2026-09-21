@@ -84,7 +84,7 @@ import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
 import { isClaudeCodeClient } from "./adapters/claudecode"
-import { openAiAdapter } from "./adapters/openai"
+import { openAiAdapter, deriveToolLoopSessionId, SYNTHESIZED_SESSION_HEADER } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
 import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages } from "./replay"
 import { extractAdvisorModel, extractSystemText, getLastUserMessage, stripAdvisorTools, stripNonStandardStreamFields, MULTIMODAL_TYPES, buildToolUseIndex, frameReplayTurns } from "./messages"
@@ -2516,9 +2516,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         const declaresPerRequestConcurrentFlow =
           requestSource?.startsWith("fork-") === true
           || isSubagentRequest
+        // A synthesized key is Meridian's own inference, not a client contract.
+        // The client never asked for a session and cannot "retry with a
+        // distinct session ID" as the conflict message instructs, so a lost
+        // race must degrade to the replay it would have done anyway rather
+        // than refuse the turn.
+        const carriesSynthesizedSessionKey = c.req.header(SYNTHESIZED_SESSION_HEADER) === "1"
         const declaresConcurrentFlow =
           declaresPerRequestConcurrentFlow
           || protocolRunsConcurrentTurnsPerSessionKey
+          || carriesSynthesizedSessionKey
         // Exact pending tool IDs identify the batch, not the earlier history.
         // Rebinding a checkpoint must also preserve its complete stored prefix;
         // otherwise a revised user instruction would be silently discarded.
@@ -8240,7 +8247,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // The key is forwarded on the internal hop below so the inner handler
     // resolves the same session. The forwarded headers are gated on a resolved
     // key below.
-    const openAiSessionId = isJcode ? undefined : openAiAdapter.getSessionId(c)
+    const openAiHeaderSessionId = isJcode ? undefined : openAiAdapter.getSessionId(c)
+    // A client running its own tool loop and sending no header gets a key
+    // derived from the loop's first tool-call id (see deriveToolLoopSessionId).
+    // Without one every round of the loop is a fresh session: the request is
+    // packed, the headerless-tool-result guard skips lookup, and nothing is
+    // stored for the next round. The derived key is a fallback only — a client
+    // that sends its own key keeps it, and an ordinary chat derives none.
+    const toolLoopSessionId = isJcode || openAiHeaderSessionId !== undefined
+      ? undefined
+      : deriveToolLoopSessionId(rawBody)
+    const openAiSessionId = openAiHeaderSessionId ?? toolLoopSessionId
     const anthropicBody = translateOpenAiToAnthropic(rawBody, {
       preserveConversationHistory: isJcode || openAiSessionId !== undefined,
     })
@@ -8319,6 +8336,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       ]) {
         const value = c.req.header(name)
         if (value !== undefined) internalHeaders[name] = value
+      }
+      // A derived key has no header of its own to copy. Hand it to the inner
+      // hop through the affinity header the adapter already reads, and mark it
+      // as synthesized so the concurrency guard keeps its failure mode soft.
+      if (toolLoopSessionId !== undefined) {
+        internalHeaders["x-session-affinity"] = toolLoopSessionId
+        internalHeaders[SYNTHESIZED_SESSION_HEADER] = "1"
       }
     }
     const requestedProfile = c.req.header("x-meridian-profile")
