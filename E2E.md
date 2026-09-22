@@ -5358,7 +5358,7 @@ that request produced, so the two arms cannot be confused in the evidence.
   `cached_tokens = 0` with a full `cache_write_tokens` rewrite. The control is
   what attributes the hit to the reminder rather than to the prefix wording.
 
-**Verified:** 2026-09-22 against commit `4f26b91`, model `claude-sonnet-5`,
+**Verified:** 2026-09-22 against the code at `579185b`, before the rebase onto 1.75.0, model `claude-sonnet-5`,
 `stream:false`, `max_tokens:64`, no session header on either arm. The probe puts
 the reminder in the opening user message alone, so the id Meridian resolves on
 turn 2 comes from the replayed history, not from the newest message. Measured:
