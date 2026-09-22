@@ -5223,18 +5223,19 @@ The unsettled-checkpoint rescue is model-dependent — it needs the model to emi
 a forwarded tool call under the derived key — so the marker
 (`reason=synthesized-session-key`) is printed as evidence rather than asserted.
 
-**Verified:** 2026-09-22 against commit `475d0aa`, model
+**Verified:** 2026-09-22 against commit `7c43316` (the branch tip at the time
+of the run, which includes the synthesized-key loser reclassification fix), model
 `claude-haiku-4-5-20251001`, `stream:false`, `max_tokens:512`, no session header
 on either arm. Loop arm: 5 turns, 23 tools, 22 filler tools to clear the
 minimum cacheable prefix:
 
 | Turn | lineage | prompt_tokens | cached_tokens | cache_write_tokens | Proxy log |
 |---|---|---|---|---|---|
-| 1 | new | 15921 | 0 | 15911 | `adapter=openai lineage=new session=new` |
-| 2 | new | 16115 | 15157 (94%, 95% of prev) | 948 | `adapter=openai lineage=new session=new` |
-| 3 | continuation | 16559 | 16105 (97%, 100% of prev) | 444 | `resume=continued checkpoint=unsettled reason=synthesized-session-key` |
-| 4 | continuation | 16873 | 16549 (98%, 100% of prev) | 314 | `resume=continued checkpoint=unsettled reason=synthesized-session-key` |
-| 5 | continuation | 17053 | 16863 (99%, 100% of prev) | 180 | `lineage=continuation` |
+| 1 | new | 15806 | 0 | 15796 | `adapter=openai lineage=new session=new` |
+| 2 | new | 16000 | 15042 (94%, 95% of prev) | 948 | `adapter=openai lineage=new session=new` |
+| 3 | continuation | 16447 | 15990 (97%, 100% of prev) | 447 | `resume=continued checkpoint=unsettled reason=synthesized-session-key` |
+| 4 | continuation | 16765 | 16437 (98%, 100% of prev) | 318 | `resume=continued checkpoint=unsettled reason=synthesized-session-key` |
+| 5 | continuation | 16946 | 16755 (99%, 100% of prev) | 181 | `lineage=continuation` |
 
 Turn 2 is the first turn under the derived key, so `lineage=new` there is
 expected; every turn after the first tool round resumes. The two
@@ -5245,11 +5246,11 @@ tools, same shape:
 
 | Turn | lineage | prompt_tokens | cached_tokens | cache_write_tokens |
 |---|---|---|---|---|
-| 1 | new | 9007 | 0 | 8997 |
-| 2 | new | 9052 | 0 | 9042 |
-| 3 | new | 9070 | 0 | 9060 |
-| 4 | new | 9088 | 0 | 9078 |
-| 5 | new | 9106 | 0 | 9096 |
+| 1 | new | 9002 | 0 | 8992 |
+| 2 | new | 9047 | 0 | 9037 |
+| 3 | new | 9065 | 0 | 9055 |
+| 4 | new | 9083 | 0 | 9073 |
+| 5 | new | 9101 | 0 | 9091 |
 
 The control reads nothing back and rewrites essentially its whole prompt every
 turn, which is what the loop arm would cost on the bypass. The script exits 0,
