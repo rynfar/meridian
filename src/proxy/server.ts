@@ -8303,9 +8303,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // Forward the caller's auth headers so requireAuth on /v1/messages accepts
     // the inner hop when MERIDIAN_API_KEY is set (issue #415).
     // Tag the inner hop as generic OpenAI unless a verified Jcode request
-    // supplied its durable local session ID. Both adapters keep the Claude Code
-    // preset off; a keyed request (either adapter) preserves its real history
-    // and resumes instead of packing.
+    // supplied its durable local session ID, or a verified Letta request
+    // supplied its conversation id. All three tags keep the Claude Code preset
+    // off; a keyed request preserves its real history and resumes instead of
+    // packing.
     const internalHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       "x-meridian-agent": adapterName,

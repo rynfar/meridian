@@ -450,7 +450,7 @@ rather than relying on the fallback.
 | `codex` | `x-codex-session` |
 | `crush` | `x-session-id`, then `x-session-affinity` |
 | `jcode` | `x-jcode-session` |
-| `letta` | The conversation id Letta injects into its own user messages (no session header) |
+| `letta` | The `conv-<uuid>` id in the agent-info block Letta places in its opening user message (no session header) |
 | `passthrough` (LiteLLM) | `x-litellm-session-id` |
 | `cherry`, `openai` | Inherit OpenCode header handling; generic OpenAI history packing still differs from keyed native clients |
 | `polytoken` | Valid `x-polytoken-session` |

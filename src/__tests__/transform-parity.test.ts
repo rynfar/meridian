@@ -144,7 +144,7 @@ describe("OpenAI-compatible adapters reuse the OpenCode pipeline (#546)", () => 
     expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
     expect([...ctx.blockedTools]).toContain("Bash")
     expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
-    expect(ctx.passthrough).toBe(true)
+    expect(ctx.passthrough).toBe(openCodeAdapter.usesPassthrough!())
   })
 })
 

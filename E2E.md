@@ -5178,10 +5178,13 @@ installed.
 - Prompts long enough to clear Anthropic's minimum cacheable prefix
   (~1024 tokens): the probe's prefixes are ~44 KB each, ~15k prompt tokens.
 - Loopback needs no `MERIDIAN_API_KEY`; send no `Authorization` header.
-- To run beside a live instance, relocate everything Meridian writes. Every path
-  moves except the Claude credential file — `~/.claude/.credentials.json` has no
-  switch — so an isolated instance sharing a live login must set
-  `MERIDIAN_CREDENTIALS_READONLY=1`. The switches used here are `MERIDIAN_PORT`,
+- To run beside a live instance, relocate everything Meridian writes. Most paths
+  follow `MERIDIAN_CONFIG_DIR`, but two do not: the plugin directory
+  (`~/.config/meridian/plugins`) and `~/.config/meridian/design-token.json` (which
+  has its own `MERIDIAN_DESIGN_TOKEN_PATH`). The Claude credential file,
+  `~/.claude/.credentials.json`, has no switch either — so an isolated instance
+  sharing a live login must set `MERIDIAN_CREDENTIALS_READONLY=1` to stop writes.
+  The switches used here are `MERIDIAN_PORT`,
   `MERIDIAN_CONFIG_DIR`, `MERIDIAN_SESSION_DIR`, `MERIDIAN_TELEMETRY_DB` and
   `MERIDIAN_UPDATE_CHECK_PATH`:
 

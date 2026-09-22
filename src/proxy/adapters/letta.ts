@@ -82,7 +82,7 @@ export function normalizeLettaConversationId(value: string | undefined): string 
  * Flatten a message's content to text across both the OpenAI and Anthropic
  * shapes, keeping only the text parts of array content, so the scan below can
  * match against it. Mirrors the private helper each sibling adapter carries
- * (jcode, claudecode, forgecode, pi, prime, droid, passthrough, opencode); the
+ * (jcode, claudecode, forgecode, pi, prime, droid, passthrough); the
  * duplication is deliberate — a thin adapter stays self-contained rather than
  * reaching into another adapter's module.
  */
