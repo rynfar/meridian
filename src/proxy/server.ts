@@ -2521,7 +2521,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // distinct session ID" as the conflict message instructs, so a lost
         // race must degrade to the replay it would have done anyway rather
         // than refuse the turn.
-        const carriesSynthesizedSessionKey = c.req.header(SYNTHESIZED_SESSION_HEADER) === "1"
+        //
+        // The marker alone is not proof: it is read off the ordinary
+        // client-facing request path, so any caller could send
+        // `x-meridian-synthesized-session: 1` and claim an exemption meant for
+        // the gateway's own hop. Require the per-instance internal-hop token as
+        // well — the same randomUUID that never leaves the process and already
+        // backs the draining exemption — so the marker cannot be spoofed from
+        // the wire.
+        const carriesSynthesizedSessionKey =
+          c.req.header("x-meridian-internal-hop") === internalHopToken
+          && c.req.header(SYNTHESIZED_SESSION_HEADER) === "1"
         const declaresConcurrentFlow =
           declaresPerRequestConcurrentFlow
           || protocolRunsConcurrentTurnsPerSessionKey

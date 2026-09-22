@@ -402,6 +402,31 @@ describe("SDK and Session concurrency coordination", () => {
     expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(1)
   })
 
+  it("refuses a client that spoofs the synthesized-session marker", async () => {
+    // The marker relaxes this guard and is read off the ordinary client-facing
+    // request path, so it cannot be self-asserted. Only Meridian's own internal
+    // hop carries the proof — the per-instance x-meridian-internal-hop token —
+    // so a client sending the marker without that token earns nothing and keeps
+    // the loud conflict the previous test pins.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const headers = {
+      "user-agent": "opencode/1.18.30 ai-sdk/provider-utils/4.0.46 runtime/bun/1.3.14",
+      "x-opencode-agent-mode": "primary",
+      "x-meridian-synthesized-session": "1",
+    }
+    const messages = [{ role: "user", content: "same request" }]
+    const firstP = app.fetch(request(messages, "spoofed", false, headers))
+    const firstControl = await waitForControl(0)
+    const secondP = app.fetch(request(messages, "spoofed", false, headers))
+
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+    const second = await secondP
+    expect(second.status).toBe(400)
+    expect(queryCalls).toBe(1)
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(1)
+  })
+
   it("answers, instead of refusing, a headless Claude Code client's concurrent turn (#1043)", async () => {
     // Claude Code in headless mode (`claude -p "..."`) fires a session-start
     // side request and the primary prompt concurrently under the same session
