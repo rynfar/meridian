@@ -6116,7 +6116,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }
 
               if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
-                throw new Error("Request canceled before final stream envelope")
+                // The passthrough single-step path aborts this request itself so the captured
+                // tool_use can be handed back. "canceled" hides that from extractSdkTermination,
+                // which only recognises "aborted", so the recovery canRecoverCapturedToolUses
+                // gates on abortIsOurs never runs and a deliberate turn end surfaces as a 500.
+                const selfAborted =
+                  !durableWritesRevoked &&
+                  requestAbort.abortSnapshot().cause === "passthrough_single_step"
+                throw new Error(
+                  selfAborted
+                    ? "Request aborted before final stream envelope"
+                    : "Request canceled before final stream envelope",
+                )
               }
 
               if (!streamClosed) {
