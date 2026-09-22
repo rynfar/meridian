@@ -101,6 +101,12 @@ const ADAPTER_DEFAULTS: Record<string, Partial<AdapterFeatures>> = {
   jcode: {
     codeSystemPrompt: false,
   },
+  // Letta Code ships its own harness prompt over the generic
+  // OpenAI-compatible endpoint; keep the ~28KB Claude Code preset off, same
+  // rationale as openai/jcode.
+  letta: {
+    codeSystemPrompt: false,
+  },
   // Cherry Studio is a chat client that brings its own system prompt. Default
   // the ~28KB Claude Code preset OFF (same rationale as openai/passthrough) so
   // its prompt isn't overridden. WebSearch still works without the preset

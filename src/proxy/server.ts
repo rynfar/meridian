@@ -83,6 +83,7 @@ import { livenessReport, readinessReport, renderProbe } from "./probes"
 import type { AnthropicSseEvent } from "./openai"
 import { translateOpenAiToAnthropic, translateAnthropicToOpenAi, buildModelList, createSseTranslator } from "./openai"
 import { normalizeJcodeSessionId } from "./adapters/jcode"
+import { extractLettaConversationId, LETTA_CONVERSATION_HEADER } from "./adapters/letta"
 import { isClaudeCodeClient } from "./adapters/claudecode"
 import { openAiAdapter } from "./adapters/openai"
 import { translateResponsesToAnthropic, translateAnthropicToResponses, createResponsesSseTranslator, reasoningRequested, buildResponsesToolAliases, resolveCodexThreadIdentity, type ResponsesRequest, type AnthropicSseEvent as ResponsesAnthropicSseEvent } from "./openaiResponses"
@@ -8232,7 +8233,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       ? normalizeJcodeSessionId(c.req.header("x-jcode-session"))
       : undefined
     const isJcode = jcodeSessionId !== undefined
-    const adapterName = isJcode ? "jcode" : "openai"
+    // Letta Code sends no session header; the conversation id it re-injects
+    // into its own user messages is the only identity available, and the
+    // fingerprint fallback cannot substitute because that reminder is stripped
+    // before hashing (see adapters/letta.ts). Parsing it here both selects the
+    // adapter and supplies the key: a body without one is not a Letta request
+    // and keeps today's generic behaviour.
+    const lettaConversationId = isJcode ? undefined : extractLettaConversationId(rawBody)
+    const isLetta = lettaConversationId !== undefined
+    const adapterName = isJcode ? "jcode" : isLetta ? "letta" : "openai"
     // A generic client that carries a session key the adapter recognizes
     // (x-opencode-session / x-session-affinity) keeps its real messages and
     // resumes, like Jcode — packing re-sends the whole conversation as fresh
@@ -8242,7 +8251,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // key below.
     const openAiSessionId = isJcode ? undefined : openAiAdapter.getSessionId(c)
     const anthropicBody = translateOpenAiToAnthropic(rawBody, {
-      preserveConversationHistory: isJcode || openAiSessionId !== undefined,
+      preserveConversationHistory: isJcode || isLetta || openAiSessionId !== undefined,
     })
 
     if (!anthropicBody) {
@@ -8301,6 +8310,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     }
     if (jcodeSessionId) {
       internalHeaders["x-jcode-session"] = jcodeSessionId
+    } else if (lettaConversationId) {
+      // The inner hop rebuilds headers from scratch, so hand it the id the
+      // outer handler already resolved rather than re-parsing a body that has
+      // since been translated to Anthropic shape.
+      internalHeaders[LETTA_CONVERSATION_HEADER] = lettaConversationId
     } else if (openAiSessionId !== undefined) {
       // A keyed generic request: forward exactly the headers the inner hop
       // needs to resolve the same session (openCodeAdapter.getSessionId reads
