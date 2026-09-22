@@ -387,8 +387,13 @@ if (import.meta.main) {
   // by accident. Checking here rather than from the EADDRINUSE handler keeps
   // the dashboard as the whole output: by the time a bind fails, the
   // pre-flight auth check and the plugin loader have already printed.
+  // Under systemd socket activation the port is intentionally held by the
+  // .socket unit's inherited fd — the proxy adopts it instead of binding, so
+  // the availability probe is meaningless (and self-deadlocking: probing the
+  // port is what triggers the activation in the first place). Skip it.
+  const { socketActivationFd } = await import("../src/proxy/socketActivation")
   const { isPortAvailable } = await import("../src/proxy/statusProbe")
-  if (!(await isPortAvailable(host, port))) {
+  if (socketActivationFd() === undefined && !(await isPortAvailable(host, port))) {
     const result = await printRunningInstance()
     if (result.kind === "meridian") process.exit(0)
     const { formatConflictMessage } = await import("../src/proxy/statusProbe")
