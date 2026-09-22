@@ -8233,12 +8233,14 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       ? normalizeJcodeSessionId(c.req.header("x-jcode-session"))
       : undefined
     const isJcode = jcodeSessionId !== undefined
-    // Letta Code sends no session header; the conversation id it re-injects
-    // into its own user messages is the only identity available, and the
-    // fingerprint fallback cannot substitute because that reminder is stripped
-    // before hashing (see adapters/letta.ts). Parsing it here both selects the
-    // adapter and supplies the key: a body without one is not a Letta request
-    // and keeps today's generic behaviour.
+    // Letta Code sends no session header; the conversation id inside the
+    // agent-info block of its opening user message is the only identity
+    // available — the block is emitted once, and later turns carry it only
+    // because the client replays the history. The fingerprint fallback cannot
+    // substitute because that reminder is stripped before hashing (see
+    // adapters/letta.ts). Parsing it here both selects the adapter and supplies
+    // the key: a body without one is not a Letta request and keeps today's
+    // generic behaviour.
     const lettaConversationId = isJcode ? undefined : extractLettaConversationId(rawBody)
     const isLetta = lettaConversationId !== undefined
     const adapterName = isJcode ? "jcode" : isLetta ? "letta" : "openai"

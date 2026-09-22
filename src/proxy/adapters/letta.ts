@@ -6,8 +6,10 @@
  * Claude Code preset stays off, exactly as for `openai` and `jcode`.
  *
  * Letta sends no session header. Its conversation identity travels in the
- * request body instead: a `<system-reminder>` block that Letta re-injects on
- * every turn names the conversation.
+ * request body instead: a `<system-reminder>` block in one of Letta's own user
+ * messages names the conversation. Letta emits that block once, in the opening
+ * user message; later turns carry it only because the client replays the
+ * history.
  *
  *   <system-reminder> This is an automated message providing information about you.
  *   - **Agent ID (also stored in `AGENT_ID` env var)**: agent-<uuid>
@@ -49,7 +51,13 @@ import { openAiAdapter } from "./openai"
  */
 export const LETTA_CONVERSATION_HEADER = "x-letta-conversation"
 
-/** A Letta conversation id is `conv-` followed by a UUID. */
+/**
+ * A Letta conversation id is `conv-` followed by a UUID, and only that shape is
+ * accepted. The literal `default` is deliberately rejected: it is the id that
+ * every subagent conversation of an agent shares, so keying all of them to one
+ * session would be worse than leaving them unidentified. Requests carrying it
+ * keep the generic `openai` behaviour (see `docs/agents.md`).
+ */
 const CONVERSATION_UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 const LETTA_CONVERSATION_ID = new RegExp(`^conv-${CONVERSATION_UUID}$`, "i")
@@ -90,10 +98,10 @@ function messageText(content: unknown): string {
 /**
  * Extract the conversation id Letta injects into its own user messages.
  *
- * Walks user messages newest-first: the reminder is re-injected every turn, so
- * the freshest copy is nearest the end, and a long history is not scanned in
- * full on the common path. Returns undefined for every non-Letta body, which
- * is what keeps this inert for other clients on the same endpoint.
+ * Walks user messages newest-first, so the scan stops at the nearest copy
+ * rather than reading a long history in the common case. Returns undefined for
+ * every non-Letta body, which is what keeps this inert for other clients on
+ * the same endpoint.
  */
 export function extractLettaConversationId(body: unknown): string | undefined {
   const messages = (body as { messages?: unknown })?.messages

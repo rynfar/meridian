@@ -431,7 +431,7 @@ Identity is resolved in this order:
 
 1. **The adapter's session header**, if the client sends one.
 2. **An id the adapter reads out of the request body**, for clients that carry
-   one there instead (`claudecode`, `pi`, `letta`).
+   one there instead (`claudecode`, `pi`, `prime`, `letta`).
 3. **A conversation fingerprint** — a hash of the opening user message plus the
    client working directory — when there is neither.
 

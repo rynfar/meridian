@@ -2,9 +2,10 @@
  * Letta Code adapter — unit tests.
  *
  * Letta reaches Meridian over `/v1/chat/completions` and sends no session
- * header. Its conversation id arrives inside a `<system-reminder>` block that
- * Letta re-injects on every turn, and getConversationFingerprint strips those
- * blocks before hashing — so without this adapter a Letta conversation has no
+ * header. Its conversation id arrives inside the `<system-reminder>` agent-info
+ * block in the opening user message; later turns carry it only because the
+ * client replays the history. getConversationFingerprint strips those blocks
+ * before hashing — so without this adapter a Letta conversation has no
  * identity at all, history is repacked every turn and each tool round takes
  * the headerless bypass.
  */
@@ -85,7 +86,7 @@ describe("extractLettaConversationId", () => {
     expect(extractLettaConversationId(body)).toBe(CONV_A)
   })
 
-  it("prefers the freshest reminder, since Letta re-injects it every turn", () => {
+  it("takes the newest copy when more than one reminder is present", () => {
     const body = {
       messages: [
         { role: "user", content: `${agentInfoReminder(CONV_A)}\nfirst` },

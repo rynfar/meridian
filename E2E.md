@@ -5153,10 +5153,17 @@ request falls back to `adapter=openai`, which repacks the conversation into the
 system prompt and rewrites the prefix on every turn.
 
 Letta Code sends no session header of any kind. Its only identity on the wire is
-the `conv-<uuid>` value inside the `<system-reminder>` block that Letta injects
-into its own user messages and re-injects every turn. The probe deliberately
+the `conv-<uuid>` value inside the `<system-reminder>` agent-info block Letta
+places in its opening user message; later turns carry it only because the client
+replays the history. The probe deliberately
 sends no header on either arm — the absence is the point being tested. The two
 arms share one body shape; the only difference is that one line.
+
+The driver here is a probe that reproduces Letta Code's wire shape, not the
+Letta Code binary itself. The corresponding real-client evidence is the deployed
+gateway running this same adapter module. So this procedure is what a maintainer
+can re-run on this machine; it is not a substitute for a run with the client
+installed.
 
 **Prerequisites:**
 

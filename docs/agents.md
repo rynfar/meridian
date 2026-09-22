@@ -320,7 +320,9 @@ Use `/v1/chat/completions` with a stable `x-jcode-session` header. The dedicated
 
 Letta Code reaches Meridian over the OpenAI-compatible `POST /v1/chat/completions` endpoint and sends no session header. Register Meridian as an OpenAI-compatible provider, using any API key value (or the shared key when `MERIDIAN_API_KEY` is set).
 
-Its conversation identity is the `conv-<uuid>` id inside the `<system-reminder>` agent-info block that Letta injects into its own user messages and re-injects every turn. Meridian reads that id and uses it as the session key, which is what turns on history preservation and cache reuse. The fingerprint fallback cannot help here: those reminder blocks are stripped before hashing, leaving only the opening message and the working directory — so two conversations opened with the same words in one project would land on one key.
+Its conversation identity is the `conv-<uuid>` id inside the `<system-reminder>` agent-info block that Letta places in one of its own user messages. Letta emits that block once, in the opening user message; it appears on later turns only because the client replays the history. Meridian reads that id and uses it as the session key, which is what turns on history preservation and cache reuse. The fingerprint fallback cannot help here: those reminder blocks are stripped before hashing, leaving only the opening message and the working directory — so two conversations opened with the same words in one project would land on one key.
+
+Only a `conv-<uuid>` value is accepted. The literal `default` is the id that every subagent conversation of an agent shares, so it is not used as a key: keying all of a parent's subagent conversations to one session would be worse than leaving them unidentified. Requests carrying `default`, and requests with no reminder at all, keep the generic `openai` behaviour.
 
 A request body without such a reminder is not a Letta request; it falls through to the `openai` adapter with unchanged behaviour. There is deliberately no User-Agent match, since Letta shares the generic OpenAI SDK User-Agent with other clients.
 
