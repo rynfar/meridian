@@ -791,6 +791,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E54 | [Lineage divergence reason](#e54-lineage-divergence-reason) | **Automated**: `bun scripts/e2e-lineage-divergence-reason.mjs` — real proxy + SDK, A/B. Drives a headerless pi tool loop and the same loop with `x-session-affinity`. Asserts no divergence is silent, that the headerless bypass names itself, that the advice is printed once per process, and that the named remedy actually restores resume and prompt-cache reuse. **Run before releases touching lineage classification, the independence guards, or the request log line** | 2026-09-09 |
 | E55 | [Gateway-fronted Claude Code](#e55-gateway-fronted-claude-code) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-passthrough-claude-code-session.mjs` — real proxy + SDK, and the REAL Claude Code CLI as the client. Asserts a gateway-fronted Claude Code session keeps the tool-loop exemption it has on a direct connection, that its following turn resumes, and that the CLI's auxiliary requests do not collide with the conversation. **Run before releases touching the independence guards, adapter detection, or passthrough session identity** | 2026-09-09 |
 | E56 | [Namespaced tool-round resume](#e56-namespaced-tool-round-resume) | **Automated**: `bun scripts/e2e-passthrough-namespace-resume.mjs` — real proxy + SDK, three adapters. Drives an identical keyed tool loop on `pi`, `passthrough` and `opencode` and asserts every keyed tool round resumes on all of them, so an adapter-specific client-tool namespace cannot silently take the resume checkpoint away. **Run before releases touching the passthrough namespace, the early-stop tracker, or checkpoint storage** | 2026-09-09 |
+| E58 | [Headerless OpenAI tool-loop identity](#e58-headerless-openai-tool-loop-identity) | **Automated**: `bun scripts/e2e-tool-loop-identity.mjs` — real proxy + SDK, A/B. Drives a headerless OpenAI `/v1/chat/completions` tool loop with the client's own stable first tool-call id, and a no-tool control. Asserts the derived `tool-loop:<hash>` resumes and every turn from the second reads ≥90% of the previous prompt from cache with only the new-turn delta written, that no round takes the headerless-tool-result bypass, and that the packed control reads nothing and rewrites everything; also observes the `synthesized-session-key` checkpoint rescue. **Run before releases touching OpenAI session identity, the derived tool-loop key, the passthrough early-stop checkpoint, or the headerless-tool-result bypass** | 2026-09-22 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -5141,6 +5142,119 @@ visible as an asymmetry rather than as an absolute.
 **Verified:** 2026-09-09, Haiku 4.5. On main before the fix, `pi` and
 `opencode` report `continuation` on all three tool rounds and `passthrough`
 reports `new` on all three. After, all three agree.
+
+## E58: Headerless OpenAI tool-loop identity
+
+**What it proves:** a generic OpenAI client running its own tool loop — sending
+no session header of any kind — keeps one SDK session and reads its prompt
+prefix back from cache on every round after the first, instead of taking the
+headerless-tool-result bypass and re-writing it. The control sends the same
+shape with no tool call at all and stays on the packed path, reading nothing
+back.
+
+A client's own tool loop resends the whole growing conversation every round,
+ending in the `tool` message it just produced. With no identity those rounds
+took the bypass: no session lookup, no cache write, and a fresh SDK session per
+round — #820 measured 35k-56k cache-write tokens per turn against 46-53 on a
+direct connection. The conversation fingerprint cannot stand in: it is
+`(first user message, cwd)`, so two runs of one workflow started from one prompt
+in one directory hash to a single key. Meridian instead derives
+`tool-loop:<hash>` from the loop's own **first tool-call id** — issued per
+generation, retained in the replayed history, so every later round derives the
+same key and no two concurrent runs collide. A body with no tool call derives
+nothing, so an ordinary chat is untouched.
+
+The second half is why the first survives. A derived key is Meridian's own
+inference, not a contract the client agreed to: a generic OpenAI client echoes
+its **own** tool-call ids, not the ids Meridian forwarded, so the passthrough
+tool checkpoint cannot always be settled. When it cannot, the continuation the
+session store does confirm must win — it resumes and logs
+`resume=continued checkpoint=unsettled reason=synthesized-session-key` — rather
+than discarding the verified session and rebuilding. A client that supplies its
+own key keeps today's replay-on-mismatch behaviour, so the exemption stays
+scoped to the synthesized key.
+
+```bash
+bun scripts/e2e-tool-loop-identity.mjs
+```
+
+Two arms, no session header on either. The loop arm's first request is the
+client's opening message, before any tool call (cold, no derived key); each
+later turn appends the client's own `assistant.tool_calls` plus its `role:"tool"`
+result, with the **first call id stable** for the life of the loop — the anchor
+the derived key hashes. The control appends plain text turns and declares no
+tools, so no key is ever derived and the packed path is the only one left.
+
+The script starts its own proxy in-process on a spare port, with all state
+relocated and credentials marked read-only (the `MERIDIAN_*` path overrides at the top of the script), so it
+can run beside a live instance. It disables auto-defer
+(`MERIDIAN_DEFER_TOOL_THRESHOLD=0`): with auto-defer on, the 23-tool set defers
+every non-core tool, which flips `ENABLE_TOOL_SEARCH` and adds the billed digest
+turn — a second SDK query inside one request whose usage the OpenAI response
+reports, so the first turn read a cache it had just written and every prompt
+looked roughly doubled. Deferral is E45/E53's subject, not this gate's.
+
+**Prerequisites:**
+
+- A proxy with a Claude Max login. The measured run used
+  `claude-haiku-4-5-20251001` (`PROBE_MODEL` overrides).
+- Loopback needs no `MERIDIAN_API_KEY`; no `Authorization` header is sent.
+- Every execution gives the tools block and the system prefix a fresh random
+  nonce. An upstream prompt-cache entry outlives a run, and tools render at
+  position 0, so without a per-run tool nonce turn 1 reads the previous run's
+  identical tools back from cache (measured: 5,661 tokens) and never starts
+  cold.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Both arms complete every turn with HTTP 200.
+- Loop turn 1 is cold: `cached_tokens = 0` and `cache_write_tokens` ≈ the whole
+  prompt.
+- **Every loop turn from the second reads ≥90% of the previous turn's prompt
+  back from cache** — the derived continuation is real.
+- Loop continuations write only the new-turn delta (measured 1-6% of the
+  prompt).
+- Every loop turn after the first tool round is `lineage=continuation`, and **no
+  loop turn takes the `headerless-tool-result` bypass**.
+- The control stays `lineage=new` and packed on every turn, with
+  `cached_tokens = 0` and a full-prompt `cache_write_tokens` each turn.
+
+The unsettled-checkpoint rescue is model-dependent — it needs the model to emit
+a forwarded tool call under the derived key — so the marker
+(`reason=synthesized-session-key`) is printed as evidence rather than asserted.
+
+**Verified:** 2026-09-22 against commit `475d0aa`, model
+`claude-haiku-4-5-20251001`, `stream:false`, `max_tokens:512`, no session header
+on either arm. Loop arm: 5 turns, 23 tools, 22 filler tools to clear the
+minimum cacheable prefix:
+
+| Turn | lineage | prompt_tokens | cached_tokens | cache_write_tokens | Proxy log |
+|---|---|---|---|---|---|
+| 1 | new | 15921 | 0 | 15911 | `adapter=openai lineage=new session=new` |
+| 2 | new | 16115 | 15157 (94%, 95% of prev) | 948 | `adapter=openai lineage=new session=new` |
+| 3 | continuation | 16559 | 16105 (97%, 100% of prev) | 444 | `resume=continued checkpoint=unsettled reason=synthesized-session-key` |
+| 4 | continuation | 16873 | 16549 (98%, 100% of prev) | 314 | `resume=continued checkpoint=unsettled reason=synthesized-session-key` |
+| 5 | continuation | 17053 | 16863 (99%, 100% of prev) | 180 | `lineage=continuation` |
+
+Turn 2 is the first turn under the derived key, so `lineage=new` there is
+expected; every turn after the first tool round resumes. The two
+`synthesized-session-key` lines are the second claim: the model forwarded a tool
+call under the derived key, the client's echoed id could not settle that
+checkpoint, and the continuation was preferred over a rebuild. Control arm, no
+tools, same shape:
+
+| Turn | lineage | prompt_tokens | cached_tokens | cache_write_tokens |
+|---|---|---|---|---|
+| 1 | new | 9007 | 0 | 8997 |
+| 2 | new | 9052 | 0 | 9042 |
+| 3 | new | 9070 | 0 | 9060 |
+| 4 | new | 9088 | 0 | 9078 |
+| 5 | new | 9106 | 0 | 9096 |
+
+The control reads nothing back and rewrites essentially its whole prompt every
+turn, which is what the loop arm would cost on the bypass. The script exits 0,
+closes its proxy, removes its scratch state directory and the SDK transcripts it
+created (`~/.claude/projects/<scratch-cwd>`), and leaves the port free.
 
 ## Concurrent transcript publication
 
