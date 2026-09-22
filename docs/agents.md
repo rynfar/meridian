@@ -7,7 +7,7 @@ This guide covers Claude client setup. For the Antigravity preview, use the
 
 Client configurations and existing verification notes. Examples use a local proxy with authentication disabled; replace placeholder keys with your `MERIDIAN_API_KEY` when enabled. Model lists are examples, not account entitlements: inspect `GET /v1/models` and match the client context window to the proxy's configured window.
 
-[OpenCode](#opencode) · [Crush](#crush) · [Droid](#droid-factory-ai) · [Cline](#cline) · [Aider](#aider) · [Codex](#codex-cli) · [OpenAI clients](#openai-compatible-tools-open-webui-continue-etc) · [Jcode](#jcode) · [Cherry Studio](#cherry-studio) · [ForgeCode](#forgecode) · [Pi](#pi) · [Prime Agent](#prime-agent) · [Claude Code](#claude-code) · [Polytoken](#polytoken) · [Hermes](#hermes-agent)
+[OpenCode](#opencode) · [Crush](#crush) · [Droid](#droid-factory-ai) · [Cline](#cline) · [Aider](#aider) · [Codex](#codex-cli) · [OpenAI clients](#openai-compatible-tools-open-webui-continue-etc) · [Jcode](#jcode) · [Letta Code](#letta-code) · [Cherry Studio](#cherry-studio) · [ForgeCode](#forgecode) · [Pi](#pi) · [Prime Agent](#prime-agent) · [Claude Code](#claude-code) · [Polytoken](#polytoken) · [Hermes](#hermes-agent)
 
 Shell environment examples use POSIX syntax. In PowerShell, set variables with `$env:NAME = "value"` before launching the client.
 
@@ -315,6 +315,14 @@ Set the OpenAI API base to `http://127.0.0.1:3456/v1` (clients append `/chat/com
 ### Jcode
 
 Use `/v1/chat/completions` with a stable `x-jcode-session` header. The dedicated `jcode` adapter preserves append-only history for SDK session reuse. Explicit selection uses `x-meridian-agent: jcode`; automatic detection requires both a `jcode/` User-Agent and a valid session header. Generic OpenAI clients retain their separate history-packing behavior.
+
+### Letta Code
+
+Letta Code reaches Meridian over the OpenAI-compatible `POST /v1/chat/completions` endpoint and sends no session header. Register Meridian as an OpenAI-compatible provider, using any API key value (or the shared key when `MERIDIAN_API_KEY` is set).
+
+Its conversation identity is the `conv-<uuid>` id inside the `<system-reminder>` agent-info block that Letta injects into its own user messages and re-injects every turn. Meridian reads that id and uses it as the session key, which is what turns on history preservation and cache reuse. The fingerprint fallback cannot help here: those reminder blocks are stripped before hashing, leaving only the opening message and the working directory — so two conversations opened with the same words in one project would land on one key.
+
+A request body without such a reminder is not a Letta request; it falls through to the `openai` adapter with unchanged behaviour. There is deliberately no User-Agent match, since Letta shares the generic OpenAI SDK User-Agent with other clients.
 
 ### Cherry Studio
 
@@ -803,6 +811,7 @@ letting the header decide.
 | [Cherry Studio](https://github.com/CherryHQ/cherry-studio) | ✅ Verified | `cherry` adapter (see [Agent Setup](#agent-setup)) — chat client with Claude's built-in web search via internal mode |
 | [Polytoken](https://polytoken.dev/) | ✅ Verified | Provider config (see [Agent Setup](#Polytoken)) — `X-Polytoken-Session` identity, mandatory client-owned tools (passthrough cannot be disabled), signed-thinking passthrough |
 | Jcode | ✅ Verified | `/v1/chat/completions` + `x-jcode-session` header — dedicated `jcode` adapter keeps append-only history intact, so retained sessions resume on one SDK session (90.9% cache hit on turn 2 of a two-turn Opus session) |
+| Letta Code | ✅ Verified | `/v1/chat/completions` (see [Agent Setup](#letta-code)) — adapter reads the `conv-<uuid>` id from Letta's own agent-info reminder as the session key, so history is preserved and the prompt cache reused across turns |
 | [Codex CLI](https://github.com/openai/codex) | ✅ Verified | `/v1/responses` (see [Agent Setup](#agent-setup)) — Responses-API provider, passthrough tool execution; verified on 0.144 (plain + tool-driving turns) |
 | [Continue](https://github.com/continuedev/continue) | 🔲 Untested | OpenAI-compatible endpoints should work — set `apiBase` to `http://127.0.0.1:3456` |
 

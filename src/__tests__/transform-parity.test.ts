@@ -133,12 +133,8 @@ describe("OpenAI-compatible adapters reuse the OpenCode pipeline (#546)", () => 
     expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
   })
 
-  // "letta" is the adapter name the /v1/chat/completions handler resolves from
-  // Letta's body reminder. Missing here (as jcode once was), the adapter gets no
-  // transforms: blockedTools stays [], passthrough stays undefined and falls to
-  // the unset MERIDIAN_PASSTHROUGH, so the SDK runs with its built-ins unblocked
-  // under bypassPermissions and executes each tool call on the proxy host while
-  // Meridian also forwards it to the client — one call, two executions.
+  // "letta" is the adapter name Letta's body reminder resolves to. Without this
+  // registry entry one tool call executes twice, on two machines.
   it("registers the letta adapter against the OpenCode pipeline", () => {
     expect(getAdapterTransforms("letta")).toBe(openCodeTransforms)
   })

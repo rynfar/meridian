@@ -49,16 +49,20 @@ import { openAiAdapter } from "./openai"
  */
 export const LETTA_CONVERSATION_HEADER = "x-letta-conversation"
 
-/** Letta conversation ids are `conv-` followed by a UUID. */
-const LETTA_CONVERSATION_ID = /^conv-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** A Letta conversation id is `conv-` followed by a UUID. */
+const CONVERSATION_UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+
+const LETTA_CONVERSATION_ID = new RegExp(`^conv-${CONVERSATION_UUID}$`, "i")
 
 /**
  * The labelled id inside the agent-info reminder. Anchored on the label rather
  * than on a bare `conv-…` match so a conversation id quoted in ordinary task
  * text cannot be mistaken for this request's own identity.
  */
-const CONVERSATION_MARKER =
-  /\*\*Conversation ID[^*]*\*\*:\s*(conv-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+const CONVERSATION_MARKER = new RegExp(
+  `\\*\\*Conversation ID[^*]*\\*\\*:\\s*(conv-${CONVERSATION_UUID})`,
+  "i",
+)
 
 /** Return the value if it is a well-formed Letta conversation id, else undefined. */
 export function normalizeLettaConversationId(value: string | undefined): string | undefined {
@@ -66,7 +70,14 @@ export function normalizeLettaConversationId(value: string | undefined): string 
   return trimmed && LETTA_CONVERSATION_ID.test(trimmed) ? trimmed.toLowerCase() : undefined
 }
 
-/** Flatten a message's content to text across both OpenAI and Anthropic shapes. */
+/**
+ * Flatten a message's content to text across both the OpenAI and Anthropic
+ * shapes, keeping only the text parts of array content, so the scan below can
+ * match against it. Mirrors the private helper each sibling adapter carries
+ * (jcode, claudecode, forgecode, pi, prime, droid, passthrough, opencode); the
+ * duplication is deliberate — a thin adapter stays self-contained rather than
+ * reaching into another adapter's module.
+ */
 function messageText(content: unknown): string {
   if (typeof content === "string") return content
   if (!Array.isArray(content)) return ""

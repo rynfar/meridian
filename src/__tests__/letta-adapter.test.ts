@@ -17,6 +17,7 @@ import {
 } from "../proxy/adapters/letta"
 import { detectAdapter } from "../proxy/adapters/detect"
 import { getConversationFingerprint } from "../proxy/session/fingerprint"
+import type { Context } from "hono"
 
 const CONV_A = "conv-6dc268b6-06cf-48f6-8706-46f45d4826a7"
 const CONV_B = "conv-4dc73925-f4f8-4379-a984-9ffe30e925da"
@@ -32,13 +33,13 @@ function agentInfoReminder(conversationId?: string): string {
 </system-reminder>`
 }
 
-function ctxFor(headers: Record<string, string> = {}) {
+function ctxFor(headers: Record<string, string> = {}): Context {
   const h = new Headers(headers)
   // Hono's `header()` returns one value when given a name and the whole record
   // when given none; detectAdapter uses both forms.
   const header = (k?: string) =>
     k === undefined ? Object.fromEntries(h.entries()) : (h.get(k) ?? undefined)
-  return { req: { header, raw: { headers: h } } } as any
+  return { req: { header, raw: { headers: h } } } as unknown as Context
 }
 
 describe("lettaAdapter identity", () => {
