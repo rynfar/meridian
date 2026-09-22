@@ -430,12 +430,19 @@ re-write its prompt prefix.
 Identity is resolved in this order:
 
 1. **The adapter's session header**, if the client sends one.
-2. **A conversation fingerprint** — a hash of the opening user message plus the
-   client working directory — when there is no header.
+2. **An id Meridian derives for a client-driven tool loop** — `tool-loop:<hash>`
+   from the loop's own first tool-call id — for a headerless generic OpenAI
+   client that resends its whole growing conversation every round (`openai`).
+3. **A conversation fingerprint** — a hash of the opening user message plus the
+   client working directory — when there is neither.
 
 The fingerprint is a fallback, not an equivalent. It cannot distinguish two
 concurrent conversations that open with the same text, and it moves if anything
-rewrites the opening message.
+rewrites the opening message. The derived tool-loop id closes that gap for a
+headerless OpenAI loop: the opening text and working directory alone put two
+concurrent runs of one workflow under a single key, so Meridian anchors on the
+loop's first tool-call id instead — issued per generation, still present in the
+replayed history, and unique to that run.
 
 | Adapter | Session identity it reads |
 |---|---|
@@ -446,7 +453,7 @@ rewrites the opening message.
 | `crush` | `x-session-id`, then `x-session-affinity` |
 | `jcode` | `x-jcode-session` |
 | `passthrough` (LiteLLM) | `x-litellm-session-id` |
-| `cherry`, `openai` | Inherit OpenCode header handling; generic OpenAI history packing still differs from keyed native clients |
+| `cherry`, `openai` | Inherit OpenCode header handling; a headerless generic OpenAI tool loop additionally gets a derived `tool-loop:<hash>` key, so it resumes instead of packing |
 | `polytoken` | Valid `x-polytoken-session` |
 | `droid`, `forgecode` | none — fingerprint fallback |
 
@@ -496,15 +503,22 @@ general_settings:
 ### Client-driven tool loops need a session header
 
 A request whose last message is a `tool_result` is a round of the client's own
-tool loop. When such a request carries **no** session identity, Meridian skips
-session lookup entirely and runs it as a fresh session.
+tool loop. A round with **no** session identity used to skip session lookup
+entirely and run as a fresh session. A generic OpenAI-protocol client on
+`/v1/chat/completions` no longer has to: Meridian derives `tool-loop:<hash>` from
+the loop's first tool-call id and resumes. Nothing is claimed on the client's
+behalf — the derived id is Meridian's own inference, so an unsettled tool
+checkpoint resumes rather than being rebuilt, and a lost concurrency race
+replays rather than returning a hard `400`.
 
-That is deliberate. Headerless rounds all collapse onto the same
-`(first user message, working directory)` fingerprint, so a workflow engine
-running several loops concurrently would have one run resume another run's
-Claude session and corrupt it — premature `end_turn`, dropped tool calls. A
-conversation fingerprint is not proof that two requests are the same chat, and
-an explicit key is.
+The bypass still governs everywhere else. A headerless round with no tool-call
+to anchor on, and a headerless round on any other transport, still runs fresh.
+That is deliberate. Those rounds all collapse onto the same `(first user
+message, working directory)` fingerprint, so a workflow engine running several
+loops concurrently would have one run resume another run's Claude session and
+corrupt it — premature `end_turn`, dropped tool calls. A conversation
+fingerprint is not proof that two requests are the same chat; an explicit key,
+or a per-generation tool-call id, is.
 
 For an **interactive** client the same rule is expensive, because every
 agentic turn ends in a `tool_result`:
