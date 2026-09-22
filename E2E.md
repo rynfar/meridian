@@ -5223,8 +5223,9 @@ The unsettled-checkpoint rescue is model-dependent — it needs the model to emi
 a forwarded tool call under the derived key — so the marker
 (`reason=synthesized-session-key`) is printed as evidence rather than asserted.
 
-**Verified:** 2026-09-22 against commit `7c43316` (the branch tip at the time
-of the run, which includes the synthesized-key loser reclassification fix), model
+**Verified:** 2026-09-22 against the code at `8059e07`, before the rebase onto
+1.75.0 and on a branch that also carried an unrelated adapter; the tool-loop code
+is identical, including the synthesized-key loser reclassification fix. Model
 `claude-haiku-4-5-20251001`, `stream:false`, `max_tokens:512`, no session header
 on either arm. Loop arm: 5 turns, 23 tools, 22 filler tools to clear the
 minimum cacheable prefix:

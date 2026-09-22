@@ -28,8 +28,7 @@ import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
 // Only `req.header` is exercised; the cast narrows a partial fake to Hono's
-// Context rather than re-declaring the framework type (same pattern as
-// letta-adapter.test.ts).
+// Context rather than re-declaring the framework type.
 function ctx(headers: Record<string, string | undefined>): Context {
   return { req: { header: (name: string) => headers[name.toLowerCase()] } } as unknown as Context
 }

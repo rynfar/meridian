@@ -40,8 +40,8 @@ export const openAiAdapter: AgentAdapter = {
 export const SYNTHESIZED_SESSION_HEADER = "x-meridian-synthesized-session"
 
 /**
- * Narrow an unknown value to a plain object, the same guard the sibling
- * adapters carry (`opencode.ts` and `letta.ts`); adapters stay self-contained
+ * Narrow an unknown value to a plain object, the same guard `opencode.ts`
+ * carries; adapters stay self-contained
  * rather than reaching into another adapter's module.
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
