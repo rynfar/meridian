@@ -35,6 +35,15 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   // tool config. Without this entry it falls through to the empty default —
   // built-ins unblocked under bypassPermissions, passthrough off.
   jcode: openCodeTransforms,
+  // Letta Code also reaches Meridian over /v1/chat/completions, so it needs the
+  // identical tool config for exactly the reason above. Without this entry the
+  // adapter resolved from the body reminder ("letta") has no transforms at all:
+  // blockedTools stays [], passthrough stays undefined, MERIDIAN_PASSTHROUGH is
+  // unset, and the run falls back to `tools` unset under bypassPermissions. The
+  // SDK then executes every tool call itself on the proxy host while Meridian
+  // also forwards it to the client, so one tool call runs twice on two
+  // different machines and the model sees both results.
+  letta: openCodeTransforms,
   // Codex (/v1/responses): OpenCode's tool config + a follow-on transform
   // that forces passthrough (Codex executes its own tools). See #475.
   codex: [...openCodeTransforms, ...codexTransforms],

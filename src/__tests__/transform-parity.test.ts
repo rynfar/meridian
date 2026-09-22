@@ -132,6 +132,24 @@ describe("OpenAI-compatible adapters reuse the OpenCode pipeline (#546)", () => 
     expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
     expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
   })
+
+  // "letta" is the adapter name the /v1/chat/completions handler resolves from
+  // Letta's body reminder. Missing here (as jcode once was), the adapter gets no
+  // transforms: blockedTools stays [], passthrough stays undefined and falls to
+  // the unset MERIDIAN_PASSTHROUGH, so the SDK runs with its built-ins unblocked
+  // under bypassPermissions and executes each tool call on the proxy host while
+  // Meridian also forwards it to the client — one call, two executions.
+  it("registers the letta adapter against the OpenCode pipeline", () => {
+    expect(getAdapterTransforms("letta")).toBe(openCodeTransforms)
+  })
+
+  it("applies the same core transforms to Letta, including blocked built-ins", () => {
+    const ctx = runTransformHook(getAdapterTransforms("letta"), "onRequest", makeCtx("letta"), "letta")
+    expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
+    expect([...ctx.blockedTools]).toContain("Bash")
+    expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
+    expect(ctx.passthrough).toBe(true)
+  })
 })
 
 describe("Crush transform parity", () => {
