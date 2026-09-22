@@ -343,12 +343,45 @@ export function singleTurnCapLiftRaisesBudget(
  * the proxy-side SDK subprocess. The CLI always emits its own working-directory
  * and repository facts; appended prompt text cannot suppress those lines.
  */
+/**
+ * Counter-note for a may-differ client that declared no working directory.
+ * Exported so prompt-level tests can compose exact expectations with it.
+ * See buildCwdNote for when it applies.
+ */
+export function buildNoClientCwdNote(sdkCwd: string, passthrough?: boolean): string {
+  const safeSdkCwd = escapePromptPath(sdkCwd)
+  const toolLocus = passthrough
+    ? `Client-managed tools run in the client environment; their paths and results describe it, not the subprocess environment. `
+    : `SDK tools run in the proxy execution environment; their results describe that environment, not the client's. `
+  return (
+    `\n\n<meridian-note>\n` +
+    `This request passes through a proxy. The client did not declare a working directory for it, so the client's project location and repository state are unknown. ` +
+    `The SDK subprocess executes in "${safeSdkCwd}"; its built-in environment lines ("Primary working directory: ${safeSdkCwd}" and ` +
+    `"Is a git repository: ...") describe the proxy execution environment only and are not evidence about the client's project. ` +
+    `Do not adopt them as the client's workspace, and do not refuse or re-scope a task because it targets a different directory or repository than the one they name. ` +
+    toolLocus +
+    `Treat the client's environment as unknown until a request message or a client-side tool result states it.\n` +
+    `</meridian-note>`
+  )
+}
+
 export function buildCwdNote(
   sdkCwd: string,
   clientCwd?: string,
   options: CwdNoteOptions = {},
 ): string {
-  if (!clientCwd) return ""
+  if (!clientCwd) {
+    // A may-differ client that declared no working directory leaves the SDK's
+    // own environment lines as the only cwd/git context in the prompt — and
+    // they describe the proxy's checkout. Counter them explicitly instead of
+    // letting the model adopt the proxy's repo as its workspace (measured:
+    // per-task pi sessions asserting the proxy host's branch and refusing
+    // their own project's work as cross-project injection). Same-host
+    // adapters keep the previous silence: there the subprocess cwd is the
+    // best available statement of the workspace.
+    if (!options.clientEnvironmentMayDifferFromProxy) return ""
+    return buildNoClientCwdNote(sdkCwd, options.passthrough)
+  }
   if (!options.clientEnvironmentMayDifferFromProxy && pathsEquivalent(clientCwd, sdkCwd)) return ""
 
   const safeSdkCwd = escapePromptPath(sdkCwd)

@@ -144,6 +144,15 @@ describe("piAdapter.extractClientWorkingDirectory", () => {
         .toBe(piAdapter.extractWorkingDirectory(body))
     }
   })
+
+  it("declares that the client environment may differ from the proxy", () => {
+    // pi hosts run in other checkouts than the meridian process, and
+    // per-task sessions may send no system prompt at all. Without the flag,
+    // a bare request gets no counter-note and the model adopts the proxy
+    // host's repo/branch as its workspace. Aligns pi with
+    // claudecode/opencode/polytoken.
+    expect(piAdapter.clientEnvironmentMayDifferFromProxy).toBe(true)
+  })
 })
 
 describe("piAdapter.normalizeContent", () => {

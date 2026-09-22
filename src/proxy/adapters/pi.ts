@@ -119,6 +119,16 @@ export const piAdapter: AgentAdapter = {
   },
 
   /**
+   * NOTE: agent-specific (pi) — pi hosts routinely run somewhere other than
+   * the meridian process: orchestrators spawn per-task pi sessions rooted in
+   * other checkouts, sometimes with no system prompt (and therefore no cwd
+   * line) at all. Neither lexical path equality nor the proxy's fallback
+   * directory may be read as the client's environment. Mirrors
+   * claudecode/opencode/polytoken.
+   */
+  clientEnvironmentMayDifferFromProxy: true,
+
+  /**
    * Pi normally runs on the same host as the proxy, so the SDK subprocess
    * can chdir into the client's project (see extractWorkingDirectory).
    * Still expose the parse as extractClientWorkingDirectory too — this

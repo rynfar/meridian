@@ -18,6 +18,28 @@ describe("buildCwdNote", () => {
     expect(buildCwdNote("/srv/proxy", "")).toBe("")
   })
 
+  it("counters the proxy's environment lines when a may-differ client declared no cwd", () => {
+    const note = buildCwdNote("/srv/proxy", undefined, REMOTE)
+    expect(note).toContain("did not declare a working directory")
+    expect(note).toContain('executes in "/srv/proxy"')
+    expect(note).toContain("not evidence about the client's project")
+    expect(note).toContain("do not refuse or re-scope a task")
+    expect(note).toContain("unknown until a request message or a client-side tool result states it")
+    expect(note).toContain("SDK tools run in the proxy execution environment")
+  })
+
+  it("keeps the no-cwd counter-note's tool locus on the client for passthrough", () => {
+    const note = buildCwdNote("/srv/proxy", undefined, { ...REMOTE, passthrough: true })
+    expect(note).toContain("Client-managed tools run in the client environment")
+    expect(note).not.toContain("SDK tools run in the proxy execution environment")
+  })
+
+  it("escapes unsafe characters in the no-cwd counter-note", () => {
+    const note = buildCwdNote('/proxy/<unsafe>&"quoted"', undefined, REMOTE)
+    expect(note).toContain("/proxy/&lt;unsafe&gt;&amp;&quot;quoted&quot;")
+    expect(note).not.toContain("<unsafe>")
+  })
+
   it("suppresses a same-host note for equivalent POSIX paths", () => {
     expect(buildCwdNote("/srv/project/", "/srv/project")).toBe("")
   })
