@@ -2895,6 +2895,32 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         )
         if (checkpointContinuation) {
           messagesToConvert = checkpointContinuation
+        } else if (carriesSynthesizedSessionKey) {
+          // The checkpoint is Meridian's own inference, not a client contract.
+          // A synthesized key means the client sent no session header and never
+          // agreed to echo the exact tool-call ids Meridian forwarded, so an
+          // unsettled checkpoint is a disagreement between Meridian's own
+          // inference and a continuation the session store does confirm — not
+          // evidence the resume is wrong. Prefer the continuation: drop the
+          // rewind marker so the ordinary resume delta is sent, instead of
+          // discarding a verified session and re-reading the whole prompt.
+          //
+          // Scope stays deliberately narrow. A client that supplies its own key
+          // (OpenCode, pylon, jcode, any header-keyed client) keeps today's
+          // exact behaviour: for it the key is a contract the client chose, so
+          // an unsettled checkpoint is a real mismatch worth replaying for.
+          claudeLog("passthrough.checkpoint_resume_preferred", {
+            expectedToolIds: passthroughToolCallIds?.length ?? 0,
+            reason: "synthesized_session_key",
+          })
+          // Visible in normal operation: without this marker the whole class of
+          // checkpoint demotion was silent unless the debug flag was set, which
+          // left live triage blind.
+          plog(`[PROXY] ${requestMeta.requestId} resume=continued checkpoint=unsettled reason=synthesized-session-key`)
+          passthroughToolCallAssistantUuid = undefined
+          // Keep isResume, resumeSessionId and the resume delta already in
+          // messagesToConvert; clearing the marker drops the resumeSessionAt
+          // rewind and the structured tool-result expectation.
         } else {
           // Partial, late, duplicate, or unknown results get one safe fresh
           // replay rather than an invalid SDK resume.
@@ -2902,6 +2928,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             expectedToolIds: passthroughToolCallIds?.length ?? 0,
             reason: "incomplete_or_mismatched_results",
           })
+          // Same visibility for the demotion itself, so a keyed client's replay
+          // is distinguishable from a resume without a debug flag.
+          plog(`[PROXY] ${requestMeta.requestId} resume=demoted checkpoint=unsettled reason=incomplete_or_mismatched_results`)
           isResume = false
           resumeSessionId = undefined
           passthroughToolCallAssistantUuid = undefined
