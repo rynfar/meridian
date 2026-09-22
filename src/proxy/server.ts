@@ -2665,10 +2665,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         // exactly that shape. Replay its own body instead. A per-request fork
         // or subagent signal keeps its lineage: those callers name their own
         // session boundary, so an undo from them is deliberate.
+        //
+        // A synthesized key is Pi's shape reached a different way: the client
+        // sent no session at all and Meridian inferred one, so an undo against
+        // it is likewise an accident of arrival order rather than a boundary the
+        // client named. It is admitted as a concurrent flow above (no 400), so
+        // it must be reclassified here too — otherwise it degrades to the undo
+        // this guard exists to prevent.
         if (
           lostRaceWhileWaiting &&
           !declaresPerRequestConcurrentFlow &&
-          protocolRunsConcurrentTurnsPerSessionKey &&
+          (protocolRunsConcurrentTurnsPerSessionKey || carriesSynthesizedSessionKey) &&
           lineageResult.type === "undo"
         ) {
           lineageResult = { type: "diverged", reason: "concurrent-race" }

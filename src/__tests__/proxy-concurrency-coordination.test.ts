@@ -84,6 +84,8 @@ const { telemetryStore } = await import("../telemetry")
 const { setSessionStoreDir, storeSharedSession, readSessionStoreSnapshot } = await import("../proxy/sessionStore")
 const { processSessionTurns } = await import("../proxy/session/turnCoordinator")
 const { computeLineageHash, computeMessageHashes, verifyLineage } = await import("../proxy/session/lineage")
+const { deriveToolLoopSessionId, openAiAdapter } = await import("../proxy/adapters/openai")
+const { translateOpenAiToAnthropic } = await import("../proxy/openai")
 
 function request(
   messages: Array<{ role: string; content: unknown }>,
@@ -153,6 +155,19 @@ function claudeCodeRequest(
       messages,
       metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
     }),
+  })
+}
+
+/**
+ * A generic OpenAI client running its own tool loop sends no session header.
+ * The derived key (deriveToolLoopSessionId) is what the inner hop resolves, so
+ * two rounds of one loop that collide share it.
+ */
+function chatRequest(messages: unknown[]): Request {
+  return new Request("http://localhost/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": "dummy" },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 128, stream: false, messages }),
   })
 }
 
@@ -541,6 +556,73 @@ describe("SDK and Session concurrency coordination", () => {
     expect((await forkP).status).toBe(200)
     expect(capturedParams[0]?.options?.resume).toBe("winner-sdk")
     expect(capturedParams[0]?.options?.resumeSessionAt).toBe("winner-uuid-2")
+  })
+
+  it("replays a synthesized-key loser instead of rewinding the session it lost to", async () => {
+    // A generic OpenAI client owns its tool loop and sends no session header,
+    // so Meridian derives one from the loop's first tool-call id. A later round
+    // and an earlier one can still collide on it: the earlier body is a prefix
+    // of what the committed round stored, so it reads as an undo. That shape is
+    // an accident of arrival order — the client named no boundary — so
+    // honouring it would rewind the session the later round just committed. The
+    // synthesized-key proof (x-meridian-internal-hop; see the spoof test above)
+    // earns the same soft reclassification a protocol that runs concurrent
+    // turns per key already gets.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const call = { id: "call_race_1", type: "function", function: { name: "bash", arguments: "{}" } }
+    const winner = [
+      { role: "user", content: "start the task" },
+      { role: "assistant", content: null, tool_calls: [call] },
+      { role: "tool", tool_call_id: "call_race_1", content: "winner result" },
+    ]
+    const loser = [
+      ...winner.slice(0, 2),
+      { role: "tool", tool_call_id: "call_race_1", content: "earlier attempt, arrived late" },
+    ]
+    const derivedKey = deriveToolLoopSessionId({ messages: winner })
+    expect(derivedKey).toBeDefined()
+    // Same key, so the two rounds share one session and one turn lease; only the
+    // final message differs, which is the undo shape.
+    expect(deriveToolLoopSessionId({ messages: loser })).toBe(derivedKey!)
+
+    // The lineage the inner hop will compare against: the OpenAI bodies
+    // translated to Anthropic and canonicalized by the adapter the internal hop
+    // selects. The loser shares the first two messages and rewrites the last.
+    const committed = openAiAdapter.canonicalizeMessagesForLineage!(
+      translateOpenAiToAnthropic({ messages: winner } as never, { preserveConversationHistory: true })!.messages,
+    )
+    const incoming = openAiAdapter.canonicalizeMessagesForLineage!(
+      translateOpenAiToAnthropic({ messages: loser } as never, { preserveConversationHistory: true })!.messages,
+    )
+
+    const lease = await processSessionTurns.acquire(`session:${derivedKey}`)
+    const arrival = observeTurnArrival(derivedKey!)
+    const loserP = app.fetch(chatRequest(loser))
+    try { await arrival.arrived } finally { arrival.restore() }
+
+    // The round this request lost to has committed; its body reads as an undo.
+    storeSharedSession(
+      derivedKey!,
+      "winner-sdk",
+      committed.length,
+      computeLineageHash(committed),
+      computeMessageHashes(committed),
+      ["winner-uuid-1", "winner-uuid-2", "winner-uuid-3"],
+    )
+    const winnerStored = readSessionStoreSnapshot()[derivedKey!]
+    if (!winnerStored?.lineageHash) throw new Error("Expected a verifiable winner mapping")
+    expect(verifyLineage({ ...winnerStored, lineageHash: winnerStored.lineageHash, lastAccess: 0 }, incoming).type).toBe("undo")
+    lease.markCommitted(derivedKey!)
+    lease.release()
+
+    const loserControl = await waitForControl(0)
+    loserControl.release()
+    expect((await loserP).status).toBe(200)
+    // Neither resumed nor rolled back: the committed session is left alone, and
+    // the loser replays its own body instead of being refused or rewinding.
+    expect(capturedParams[0]?.options?.resume).toBeUndefined()
+    expect(capturedParams[0]?.options?.resumeSessionAt).toBeUndefined()
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
   })
 
   it("does not refuse a turn because a DIFFERENT profile advanced the same session id", async () => {
