@@ -791,7 +791,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E54 | [Lineage divergence reason](#e54-lineage-divergence-reason) | **Automated**: `bun scripts/e2e-lineage-divergence-reason.mjs` — real proxy + SDK, A/B. Drives a headerless pi tool loop and the same loop with `x-session-affinity`. Asserts no divergence is silent, that the headerless bypass names itself, that the advice is printed once per process, and that the named remedy actually restores resume and prompt-cache reuse. **Run before releases touching lineage classification, the independence guards, or the request log line** | 2026-09-09 |
 | E55 | [Gateway-fronted Claude Code](#e55-gateway-fronted-claude-code) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-passthrough-claude-code-session.mjs` — real proxy + SDK, and the REAL Claude Code CLI as the client. Asserts a gateway-fronted Claude Code session keeps the tool-loop exemption it has on a direct connection, that its following turn resumes, and that the CLI's auxiliary requests do not collide with the conversation. **Run before releases touching the independence guards, adapter detection, or passthrough session identity** | 2026-09-09 |
 | E56 | [Namespaced tool-round resume](#e56-namespaced-tool-round-resume) | **Automated**: `bun scripts/e2e-passthrough-namespace-resume.mjs` — real proxy + SDK, three adapters. Drives an identical keyed tool loop on `pi`, `passthrough` and `opencode` and asserts every keyed tool round resumes on all of them, so an adapter-specific client-tool namespace cannot silently take the resume checkpoint away. **Run before releases touching the passthrough namespace, the early-stop tracker, or checkpoint storage** | 2026-09-09 |
-| E57 | [Letta conversation identity and cache reuse](#e57-letta-conversation-identity-and-cache-reuse) | **Manual**, real Claude Max, two arms without any session header: the `<system-reminder>` `Conversation ID` makes the second turn `adapter=letta lineage=continuation` and reads the prefix from cache (15,273 of 15,504 prompt tokens reused, 229 written); the same body minus that line falls back to `adapter=openai lineage=new` and rewrites the whole prefix every turn. **Run before releases touching the letta adapter, adapter detection, or prompt-cache reuse** | 2026-09-22 |
+| E57 | [Letta conversation identity and cache reuse](#e57-letta-conversation-identity-and-cache-reuse) | **Manual**, real Claude Max, two arms without any session header: the `<system-reminder>` `Conversation ID` makes the second turn `adapter=letta lineage=continuation` and reads the prefix from cache (15,300 of 15,365 prompt tokens reused, 63 written); the same body minus that line falls back to `adapter=openai lineage=new` and rewrites the whole prefix every turn. **Run before releases touching the letta adapter, adapter detection, or prompt-cache reuse** | 2026-09-22 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -5161,7 +5161,10 @@ not in the newest message. The probe deliberately sends no header on either arm
 — the absence is the point being tested. The two arms share the body shape and
 differ only in whether the reminder is present; each arm uses its own prefix, so
 neither arm's cache can warm the other's, and within an arm the turns differ
-only by the appended exchange.
+only by the appended exchange. Every execution also gives each arm's prefix a
+fresh random nonce, because an upstream prompt-cache entry outlives a run: on a
+machine that has run the probe before, the same fixed text would otherwise show
+a turn-1 cache read the run never earned.
 
 The driver here is a probe that reproduces Letta Code's wire shape, not the
 Letta Code binary itself. The corresponding real-client evidence is the deployed
@@ -5201,9 +5204,10 @@ PROXYLOG=/tmp/meridian-e2e-letta/proxy.log
 mkdir -p "$WORK"
 
 # Long stable prefixes. Arm B shares no wording with Arm A, so a prefix warmed
-# by Arm A cannot be mistaken for a hit Arm B earned.
+# by Arm A cannot be mistaken for a hit Arm B earned. Each execution adds a
+# fresh nonce, so the same reasoning holds across runs too.
 python3 - "$WORK" <<'PY'
-import sys
+import sys, uuid
 work = sys.argv[1]
 para_a = ("Meridian routes Anthropic-compatible traffic from local coding clients to a "
           "subscription-backed Claude backend. Preserving session identity lets a resumed "
@@ -5215,8 +5219,9 @@ para_b = ("A control arm needs a prefix of its own, otherwise a warm cache left 
           "shares no sentences with its counterpart and no n-gram long enough to matter. "
           "It is repeated to the same length on purpose, so the only differences between "
           "the arms are the reminder line and this wording.")
-open(f"{work}/prefixA.txt", "w").write(" ".join([para_a] * 120))
-open(f"{work}/prefixB.txt", "w").write(" ".join([para_b] * 120))
+nonce_a, nonce_b = uuid.uuid4().hex, uuid.uuid4().hex
+open(f"{work}/prefixA.txt", "w").write(f"[cache-run nonce {nonce_a}] " + " ".join([para_a] * 120))
+open(f"{work}/prefixB.txt", "w").write(f"[cache-run nonce {nonce_b}] " + " ".join([para_b] * 120))
 PY
 
 # One OpenAI-shaped chat completion per call. No session header is ever sent;
@@ -5349,20 +5354,25 @@ that request produced, so the two arms cannot be confused in the evidence.
   `cached_tokens = 0` with a full `cache_write_tokens` rewrite. The control is
   what attributes the hit to the reminder rather than to the prefix wording.
 
-**Verified:** 2026-09-22 against commit `50e9f21`, model `claude-sonnet-5`,
-`stream:false`, `max_tokens:64`, no session header on either arm. Measured:
+**Verified:** 2026-09-22 against commit `4f26b91`, model `claude-sonnet-5`,
+`stream:false`, `max_tokens:64`, no session header on either arm. The probe puts
+the reminder in the opening user message alone, so the id Meridian resolves on
+turn 2 comes from the replayed history, not from the newest message. Measured:
 
 | Arm | Turn | prompt_tokens | cached_tokens | cache_write_tokens | Proxy log |
 |---|---|---|---|---|---|
-| A — reminder present | 1 | 15275 | 0 | 15273 | `adapter=letta lineage=new msgCount=1` |
-| A | 2 | 15504 | 15273 | 229 | `adapter=letta lineage=continuation session=cd9bbb73 msgCount=3`, `cache=99%` |
-| B — control, no `Conversation ID` | 1 | 13293 | 0 | 13291 | `adapter=openai lineage=new msgCount=1` |
-| B | 2 | 13463 | 0 | 13461 | `adapter=openai lineage=new msgCount=1` |
+| A — reminder present | 1 | 15302 | 0 | 15300 | `adapter=letta lineage=new msgCount=1` |
+| A | 2 | 15365 | 15300 | 63 | `adapter=letta lineage=continuation session=940542e5 msgCount=3`, `cache=100%` |
+| B — control, no `Conversation ID` | 1 | 13220 | 0 | 13218 | `adapter=openai lineage=new msgCount=1` |
+| B | 2 | 13286 | 0 | 13284 | `adapter=openai lineage=new msgCount=1` |
 
 The two arms' absolute numbers differ because the prefixes differ; the
-comparison is within each arm. Arm A turn 2 read 15,273 of its 15,504 prompt
-tokens from cache and wrote 229; the control rewrote its whole prefix both
-turns, reading nothing.
+comparison is within each arm. Arm A turn 2 read 15,300 of its 15,365 prompt
+tokens from cache and wrote 63; the control, whose bodies carry no
+`Conversation ID`, fell through to `openai`, started a new session, and rewrote
+its whole prefix both turns, reading nothing. The hit is therefore attributable
+to the reminder in the replayed opening message, not to the prefix wording and
+not to the newest message.
 
 ## Concurrent transcript publication
 
