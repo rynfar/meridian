@@ -791,7 +791,7 @@ UI. Both fixtures isolate Meridian state and work only in temporary directories.
 | E54 | [Lineage divergence reason](#e54-lineage-divergence-reason) | **Automated**: `bun scripts/e2e-lineage-divergence-reason.mjs` — real proxy + SDK, A/B. Drives a headerless pi tool loop and the same loop with `x-session-affinity`. Asserts no divergence is silent, that the headerless bypass names itself, that the advice is printed once per process, and that the named remedy actually restores resume and prompt-cache reuse. **Run before releases touching lineage classification, the independence guards, or the request log line** | 2026-09-09 |
 | E55 | [Gateway-fronted Claude Code](#e55-gateway-fronted-claude-code) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-passthrough-claude-code-session.mjs` — real proxy + SDK, and the REAL Claude Code CLI as the client. Asserts a gateway-fronted Claude Code session keeps the tool-loop exemption it has on a direct connection, that its following turn resumes, and that the CLI's auxiliary requests do not collide with the conversation. **Run before releases touching the independence guards, adapter detection, or passthrough session identity** | 2026-09-09 |
 | E56 | [Namespaced tool-round resume](#e56-namespaced-tool-round-resume) | **Automated**: `bun scripts/e2e-passthrough-namespace-resume.mjs` — real proxy + SDK, three adapters. Drives an identical keyed tool loop on `pi`, `passthrough` and `opencode` and asserts every keyed tool round resumes on all of them, so an adapter-specific client-tool namespace cannot silently take the resume checkpoint away. **Run before releases touching the passthrough namespace, the early-stop tracker, or checkpoint storage** | 2026-09-09 |
-| E57 | [Letta conversation identity and cache reuse](#e57-letta-conversation-identity-and-cache-reuse) | **Manual**, real Claude Max, two arms without any session header: the `<system-reminder>` `Conversation ID` makes the second turn `adapter=letta lineage=continuation` and reads the prefix from cache (15,300 of 15,365 prompt tokens reused, 63 written); the same body minus that line falls back to `adapter=openai lineage=new` and rewrites the whole prefix every turn. **Run before releases touching the letta adapter, adapter detection, or prompt-cache reuse** | 2026-09-22 |
+| E57 | [Letta conversation identity and cache reuse](#e57-letta-conversation-identity-and-cache-reuse) | **Manual**, real Claude Max, two arms without any session header (driver: a probe reproducing Letta Code's wire shape, not the Letta Code binary): the `<system-reminder>` `Conversation ID` makes the second turn `adapter=letta lineage=continuation` and reads the prefix from cache (15,300 of 15,365 prompt tokens reused, 63 written); the control — the same request shape with no reminder, on its own prefix — falls back to `adapter=openai lineage=new` and rewrites the whole prefix every turn. **Run before releases touching the letta adapter, adapter detection, or prompt-cache reuse** | 2026-09-22 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
 | P2 | [Profile: Switch via API](#p2-profile-switch-via-api) | `POST /profiles/active` switches profile; health endpoint reflects new email | - |
@@ -5148,9 +5148,9 @@ reports `new` on all three. After, all three agree.
 **What it proves:** with Letta's agent-info reminder present, Meridian resolves
 `adapter=letta` and the second turn resumes the same SDK session
 (`lineage=continuation`), so the prompt prefix is read from cache instead of
-re-written. Remove the `Conversation ID` line from that same body and the
-request falls back to `adapter=openai`, which repacks the conversation into the
-system prompt and rewrites the prefix on every turn.
+re-written. The control repeats that request shape with no `Conversation ID`
+line and its own prefix, and falls back to `adapter=openai`, which repacks the
+conversation into the system prompt and rewrites the prefix on every turn.
 
 Letta Code sends no session header of any kind. Its only identity on the wire is
 the `conv-<uuid>` value inside the `<system-reminder>` agent-info block Letta
@@ -5352,7 +5352,8 @@ that request produced, so the two arms cannot be confused in the evidence.
   a small `cache_write_tokens` for the appended turn. The proxy log line reads
   `adapter=letta` and `lineage=continuation`, and the following usage line reads
   `cache=99%` or similar.
-- Arm B, same body minus the `Conversation ID` line: both turns log
+- Arm B, the same request shape with no `Conversation ID` line and its own
+  prefix: both turns log
   `adapter=openai` and `lineage=new`, and turn 2 still shows
   `cached_tokens = 0` with a full `cache_write_tokens` rewrite. The control is
   what attributes the hit to the reminder rather than to the prefix wording.

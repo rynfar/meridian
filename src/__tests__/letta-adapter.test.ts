@@ -9,7 +9,7 @@
  * identity at all, history is repacked every turn and each tool round takes
  * the headerless bypass.
  */
-import { describe, it, expect } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import {
   lettaAdapter,
   extractLettaConversationId,
@@ -44,6 +44,19 @@ function ctxFor(headers: Record<string, string> = {}): Context {
 }
 
 describe("lettaAdapter identity", () => {
+  // Save/restore env so the fallthrough assertion isn't sensitive to ambient
+  // state: MERIDIAN_DEFAULT_AGENT is read at call time, so a developer running
+  // with it set to "letta" would resolve letta instead of the default.
+  let savedDefaultAgent: string | undefined
+  beforeEach(() => {
+    savedDefaultAgent = process.env.MERIDIAN_DEFAULT_AGENT
+    delete process.env.MERIDIAN_DEFAULT_AGENT
+  })
+  afterEach(() => {
+    if (savedDefaultAgent !== undefined) process.env.MERIDIAN_DEFAULT_AGENT = savedDefaultAgent
+    else delete process.env.MERIDIAN_DEFAULT_AGENT
+  })
+
   it("is named 'letta'", () => {
     expect(lettaAdapter.name).toBe("letta")
   })

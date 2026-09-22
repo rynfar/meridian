@@ -30,10 +30,10 @@
  *
  * Detection and identity come from the same signal. A body carrying this
  * reminder is a Letta request; a body without one is not, and falls through to
- * the `openai` adapter unchanged. Letta's User-Agent is the generic OpenAI SDK
- * string shared with Open WebUI, LibreChat and curl, so there is deliberately
- * no User-Agent heuristic — widening one would silently change behaviour for
- * unrelated clients.
+ * the `openai` adapter unchanged. Letta's User-Agent is the generic OpenAI JS
+ * SDK string, which many OpenAI-protocol clients also send, so it does not
+ * identify Letta and must not be used for detection — a User-Agent heuristic
+ * would silently change behaviour for unrelated clients.
  *
  * NOTE: Letta-specific. Keep this a thin specialization of openAiAdapter; do
  * not fork behaviour here.
