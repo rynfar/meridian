@@ -39,14 +39,26 @@ export const openAiAdapter: AgentAdapter = {
  */
 export const SYNTHESIZED_SESSION_HEADER = "x-meridian-synthesized-session"
 
+/**
+ * Narrow an unknown value to a plain object, the same guard the sibling
+ * adapters carry (`opencode.ts` and `letta.ts`); adapters stay self-contained
+ * rather than reaching into another adapter's module.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 /** Flatten OpenAI message content to text; array content keeps text parts. */
 function messageText(content: unknown): string {
   if (typeof content === "string") return content
   if (!Array.isArray(content)) return ""
-  return content
-    .filter((part: any) => part?.type === "text" && typeof part.text === "string")
-    .map((part: any) => part.text)
-    .join("\n")
+  const parts: string[] = []
+  for (const part of content) {
+    if (isRecord(part) && part.type === "text" && typeof part.text === "string") {
+      parts.push(part.text)
+    }
+  }
+  return parts.join("\n")
 }
 
 /**
@@ -73,20 +85,26 @@ function messageText(content: unknown): string {
  * chat: those keep today's packed, unkeyed behaviour untouched.
  */
 export function deriveToolLoopSessionId(body: unknown): string | undefined {
-  const messages = (body as { messages?: unknown })?.messages
+  if (!isRecord(body)) return undefined
+  const messages = body.messages
   if (!Array.isArray(messages)) return undefined
   let anchorId: string | undefined
   let seedText: string | undefined
-  for (const message of messages as any[]) {
+  for (const message of messages) {
+    if (!isRecord(message)) continue
     if (anchorId === undefined) {
-      const calls = Array.isArray(message?.tool_calls) ? message.tool_calls : []
-      const call = calls.find((c: any) => typeof c?.id === "string" && c.id.length > 0)
-      if (call) anchorId = call.id as string
-      else if (message?.role === "tool" && typeof message.tool_call_id === "string" && message.tool_call_id.length > 0) {
+      const calls = Array.isArray(message.tool_calls) ? message.tool_calls : []
+      for (const call of calls) {
+        if (isRecord(call) && typeof call.id === "string" && call.id.length > 0) {
+          anchorId = call.id
+          break
+        }
+      }
+      if (anchorId === undefined && message.role === "tool" && typeof message.tool_call_id === "string" && message.tool_call_id.length > 0) {
         anchorId = message.tool_call_id
       }
     }
-    if (seedText === undefined && message?.role === "user") {
+    if (seedText === undefined && message.role === "user") {
       const text = messageText(message.content)
       if (text) seedText = text
     }

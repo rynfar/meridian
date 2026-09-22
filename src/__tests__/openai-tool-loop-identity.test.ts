@@ -17,6 +17,7 @@
  * every later round of the same run derives the same key.
  */
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "bun:test"
+import type { Context } from "hono"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -26,8 +27,11 @@ import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, resolveMockSdkSessionId } from "./helpers"
 
-function ctx(headers: Record<string, string | undefined>) {
-  return { req: { header: (name: string) => headers[name.toLowerCase()] } } as any
+// Only `req.header` is exercised; the cast narrows a partial fake to Hono's
+// Context rather than re-declaring the framework type (same pattern as
+// letta-adapter.test.ts).
+function ctx(headers: Record<string, string | undefined>): Context {
+  return { req: { header: (name: string) => headers[name.toLowerCase()] } } as unknown as Context
 }
 
 const PROMPT = "List the files in the repo and summarise the build setup."
