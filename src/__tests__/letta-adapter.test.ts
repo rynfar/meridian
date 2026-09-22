@@ -97,6 +97,20 @@ describe("extractLettaConversationId", () => {
     expect(extractLettaConversationId(body)).toBe(CONV_B)
   })
 
+  it("reads the id from the opening message when no later turn carries a reminder", () => {
+    // The real wire shape: the reminder appears once, in the opening user
+    // message, and later turns carry it only because the client replays the
+    // history. A scan that only inspected the newest message would fail here.
+    const body = {
+      messages: [
+        { role: "user", content: `${agentInfoReminder(CONV_A)}\nfirst` },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "second" },
+      ],
+    }
+    expect(extractLettaConversationId(body)).toBe(CONV_A)
+  })
+
   it("ignores reminders on non-user messages", () => {
     const body = { messages: [{ role: "assistant", content: agentInfoReminder(CONV_A) }] }
     expect(extractLettaConversationId(body)).toBeUndefined()
@@ -117,6 +131,17 @@ describe("extractLettaConversationId", () => {
     expect(extractLettaConversationId({})).toBeUndefined()
     expect(extractLettaConversationId({ messages: "not an array" })).toBeUndefined()
     expect(extractLettaConversationId({ messages: [{ role: "user", content: "hello" }] })).toBeUndefined()
+  })
+})
+
+describe("why the literal `default` id is deliberately rejected", () => {
+  it("is rejected by both the normalizer and the body scan", () => {
+    // `default` is the id every subagent conversation of an agent shares, so
+    // keying them all to one session would merge unrelated conversations
+    // (docs/agents.md, "Letta Code").
+    expect(normalizeLettaConversationId("default")).toBeUndefined()
+    const body = { messages: [{ role: "user", content: `${agentInfoReminder("default")}\nhello` }] }
+    expect(extractLettaConversationId(body)).toBeUndefined()
   })
 })
 

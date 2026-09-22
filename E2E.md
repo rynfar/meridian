@@ -5155,9 +5155,13 @@ system prompt and rewrites the prefix on every turn.
 Letta Code sends no session header of any kind. Its only identity on the wire is
 the `conv-<uuid>` value inside the `<system-reminder>` agent-info block Letta
 places in its opening user message; later turns carry it only because the client
-replays the history. The probe deliberately
-sends no header on either arm — the absence is the point being tested. The two
-arms share one body shape; the only difference is that one line.
+replays the history. The probe therefore puts the reminder in the opening user
+message alone, so the id Meridian resolves is found in the replayed history and
+not in the newest message. The probe deliberately sends no header on either arm
+— the absence is the point being tested. The two arms share the body shape and
+differ only in whether the reminder is present; each arm uses its own prefix, so
+neither arm's cache can warm the other's, and within an arm the turns differ
+only by the appended exchange.
 
 The driver here is a probe that reproduces Letta Code's wire shape, not the
 Letta Code binary itself. The corresponding real-client evidence is the deployed
@@ -5216,7 +5220,8 @@ open(f"{work}/prefixB.txt", "w").write(" ".join([para_b] * 120))
 PY
 
 # One OpenAI-shaped chat completion per call. No session header is ever sent;
-# the only identity on the wire is the Conversation ID line when the arm has it.
+# the only identity on the wire is the Conversation ID line in the opening user
+# message, when the arm has it.
 cat > "$WORK/probe.py" <<'PY'
 #!/usr/bin/env python3
 import argparse, json, sys, urllib.request, urllib.error
@@ -5254,8 +5259,10 @@ def main():
     if args.turn == 1:
         messages = [system, user1]
     else:
+        # The real client emits the reminder once, in the opening user message;
+        # turn 2 replays that history and appends a message with no reminder.
         reply1 = open(args.reply_in).read()
-        user2 = {"role": "user", "content": rem + "\n\n" + "Now reply with exactly the word BETA."}
+        user2 = {"role": "user", "content": "Now reply with exactly the word BETA."}
         messages = [system, user1, {"role": "assistant", "content": reply1}, user2]
 
     body = {"model": "claude-sonnet-5", "max_tokens": 64, "stream": False, "messages": messages}
