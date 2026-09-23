@@ -67,6 +67,9 @@ process.env.MERIDIAN_UPDATE_CHECK_PATH = join(WORKDIR, 'update-check.json')
 process.env.MERIDIAN_DESIGN_TOKEN_PATH = join(WORKDIR, 'design-token.json')
 process.env.MERIDIAN_CREDENTIALS_READONLY = '1'
 process.env.MERIDIAN_PASSTHROUGH = '1'
+// The checkpoint decision is recorded only in the debug log
+// (`passthrough.checkpoint_resume_preferred` / `passthrough.checkpoint_replay`).
+process.env.OPENCODE_CLAUDE_PROVIDER_DEBUG = '1'
 // Disable auto-defer. With it on, the 23-tool set defers every non-core tool,
 // which flips `ENABLE_TOOL_SEARCH` and adds the billed digest turn — a second
 // SDK query inside one request. Its usage is what the OpenAI response reports,
@@ -156,7 +159,7 @@ async function post(messages, tools) {
   const lines = proxyLog.slice(before)
   const requestLine = lines.find(l => l.includes('[PROXY]') && l.includes('adapter=') && l.includes('msgCount=')) ?? ''
   const usageLine = lines.find(l => l.includes('[PROXY]') && l.includes('usage:')) ?? ''
-  const checkpointLines = lines.filter(l => l.includes('[PROXY]') && l.includes('checkpoint='))
+  const checkpointLines = lines.filter(l => /"event":"passthrough\.checkpoint_(resume_preferred|replay)"/.test(l))
   const usage = body?.usage ?? {}
   const details = usage.prompt_tokens_details ?? {}
   const forwarded = (body?.choices?.[0]?.message?.tool_calls ?? []).map(c => c.id)
@@ -298,8 +301,8 @@ try {
   // Second claim: where the model forwarded a tool call, its checkpoint could
   // not be settled by the client's own ids, and the continuation was preferred
   // rather than rebuilt. Model-dependent, so reported as evidence, not asserted.
-  const resumedUnsettled = loop.flatMap(r => r.checkpointLines).filter(l => l.includes('reason=synthesized-session-key'))
-  const demoted = loop.flatMap(r => r.checkpointLines).filter(l => l.includes('resume=demoted'))
+  const resumedUnsettled = loop.flatMap(r => r.checkpointLines).filter(l => l.includes('checkpoint_resume_preferred'))
+  const demoted = loop.flatMap(r => r.checkpointLines).filter(l => l.includes('checkpoint_replay'))
   say(`  note  unsettled-checkpoint resumes observed: ${resumedUnsettled.length}`
     + ` (${resumedUnsettled.length ? 'derived key preferred the continuation' : 'the model forwarded no tool call this run'})`)
   if (demoted.length) say(`  note  WARNING: ${demoted.length} turn(s) demoted to a fresh replay`)

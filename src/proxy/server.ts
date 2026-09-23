@@ -2930,10 +2930,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             expectedToolIds: passthroughToolCallIds?.length ?? 0,
             reason: "synthesized_session_key",
           })
-          // Visible in normal operation: without this marker the whole class of
-          // checkpoint demotion was silent unless the debug flag was set, which
-          // left live triage blind.
-          plog(`[PROXY] ${requestMeta.requestId} resume=continued checkpoint=unsettled reason=synthesized-session-key`)
           passthroughToolCallAssistantUuid = undefined
           // Keep isResume, resumeSessionId and the resume delta already in
           // messagesToConvert; clearing the marker drops the resumeSessionAt
@@ -2945,9 +2941,6 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
             expectedToolIds: passthroughToolCallIds?.length ?? 0,
             reason: "incomplete_or_mismatched_results",
           })
-          // Same visibility for the demotion itself, so a keyed client's replay
-          // is distinguishable from a resume without a debug flag.
-          plog(`[PROXY] ${requestMeta.requestId} resume=demoted checkpoint=unsettled reason=incomplete_or_mismatched_results`)
           isResume = false
           resumeSessionId = undefined
           passthroughToolCallAssistantUuid = undefined

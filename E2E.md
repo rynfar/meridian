@@ -5168,8 +5168,8 @@ The second half is why the first survives. A derived key is Meridian's own
 inference, not a contract the client agreed to: a generic OpenAI client echoes
 its **own** tool-call ids, not the ids Meridian forwarded, so the passthrough
 tool checkpoint cannot always be settled. When it cannot, the continuation the
-session store does confirm must win — it resumes and logs
-`resume=continued checkpoint=unsettled reason=synthesized-session-key` — rather
+session store does confirm must win — it resumes and records the debug event
+`passthrough.checkpoint_resume_preferred` — rather
 than discarding the verified session and rebuilding. A client that supplies its
 own key keeps today's replay-on-mismatch behaviour, so the exemption stays
 scoped to the synthesized key.
@@ -5220,15 +5220,19 @@ looked roughly doubled. Deferral is E45/E53's subject, not this gate's.
   `cached_tokens = 0` and a full-prompt `cache_write_tokens` each turn.
 
 The unsettled-checkpoint rescue is model-dependent — it needs the model to emit
-a forwarded tool call under the derived key — so the marker
-(`reason=synthesized-session-key`) is printed as evidence rather than asserted.
+a forwarded tool call under the derived key — so the debug event
+(`passthrough.checkpoint_resume_preferred`; the script turns on debug logging for
+its own instance) is printed as evidence rather than asserted.
 
 **Verified:** 2026-09-22 against the code at `8059e07`, before the rebase onto
 1.75.0 and on a branch that also carried an unrelated adapter; the tool-loop code
 is identical, including the synthesized-key loser reclassification fix. Model
 `claude-haiku-4-5-20251001`, `stream:false`, `max_tokens:512`, no session header
 on either arm. Loop arm: 5 turns, 23 tools, 22 filler tools to clear the
-minimum cacheable prefix:
+minimum cacheable prefix. That run predates moving the checkpoint decision to the
+debug log, so turns 3 and 4 show the normal-level line it printed then; the
+script now reports the equivalent `passthrough.checkpoint_resume_preferred`
+event:
 
 | Turn | lineage | prompt_tokens | cached_tokens | cache_write_tokens | Proxy log |
 |---|---|---|---|---|---|
