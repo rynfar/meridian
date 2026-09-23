@@ -1,5 +1,130 @@
 # Upstream review handoff
 
+## Follow-up review: PRs #1134 and #1133 (2026-09-23)
+
+The previous authorized batch shipped Meridian v1.76.1. Refresh GitHub before acting on any
+status here. Two newer PRs were reviewed newest first; the existing open issues and draft PRs
+below retain their prior dispositions.
+
+### Bot plugin pin #1134 → maintainer delivery #1135
+
+- Source head `e6fb700b` (rynfar, authored 2026-09-23 10:36:41 UTC) was cherry-picked with
+  Author and AuthorDate intact as signed `df695864` in `/tmp/meridian-pr1134-review`, branch
+  `codex/plugin-pin-1134`. One input changed: `meridian-plugin-opencode-scrub` in `flake.lock`
+  now points to `18e36c14` (published plugin v0.2.1). The source fix was previously validated
+  under issue #1101 with real Meridian HTTP → SDK → Claude Max in both response modes and a
+  fresh npm install; the scheduled plugin workflow `35849737110` rebuilt all plugin outputs
+  with this pin.
+- Local frozen install, typecheck, build, full `npm test` and diff check passed. Delivery
+  [#1135](https://github.com/rynfar/meridian/pull/1135) passed final-head `test`, Nix verify
+  and Ubuntu/macOS builds, desktop, Windows and container checks. The macOS Nix build and
+  binary check passed before its optional cache upload took about 20 minutes. CI:
+  `https://github.com/rynfar/meridian/actions/runs/35927258693` (Nix) and
+  `https://github.com/rynfar/meridian/actions/runs/35927258663` (test).
+- After rechecking head `df695864`, base `cce20b96`, and every check, #1135 was squash-merged
+  as `2f5c0bfd64bf9aa432d11bdf27fdaa8911421b23`. The merged tree exactly matches the validated
+  branch. The resulting commit credits rynfar as co-author. Original #1134 was rechecked at
+  unchanged head `e6fb700b` and closed without comment.
+
+### Contributor schema #1133 → maintainer delivery #1136
+
+- Source head `08e8accc` (groundnuty <groundnuty@gmail.com>, authored 2026-09-23 09:51:29 UTC)
+  became signed authored cherry-pick `9500fd8c`, then rebased onto merged #1135 as `8834d31f`,
+  in `/tmp/meridian-pr1133-review`, branch `codex/review-1133`. Author and AuthorDate remain
+  unchanged. Signed commit verification is green on GitHub. The patch advertises declared
+  nested JSON Schema through the pinned Agent SDK's MCP renderer while keeping input
+  validation/repair and `$` reference fallback.
+- Running the contributor's three real-SDK MCP tests unchanged against `main` gave 1 pass / 2
+  fail; after the cherry-pick, 3 pass. The built proxy's live Sonnet 5 nonce probe failed on
+  unchanged code at both nested locations and passed on the candidate at both locations:
+  `/tmp/meridian-pr1133-schema-live-before.log`, `/tmp/meridian-pr1133-schema-live-after.log`.
+  A freshly installed tarball built from the PR passed the same live nonce probe
+  (`/tmp/meridian-pr1133-schema-live-packed.log`); the rebased built proxy passed again
+  (`/tmp/meridian-pr1133-schema-live-postrebase.log`).
+- On macOS Bun 1.3.14 / Agent SDK 0.2.141 / Claude Code 2.1.280, all four live E41
+  chain/parallel × stream/nonstream modes passed with Sonnet 5, plus a Pi parallel-stream
+  control; logs `/tmp/meridian-pr1133-e41-*.log`. The real built-package OpenCode client gate
+  passed on all pinned betas 18314/18866/19271 with Claude Haiku 4.5 and separate proxy/client
+  CWD; logs `/tmp/meridian-pr1133-e42-*-core.log`. The extended beta 18314 `#xhigh` variant
+  probe failed with the same `session advanced` HTTP 400 on unchanged built main and the
+  candidate, after file call and continuation succeeded. Retain both failed logs
+  (`/tmp/meridian-pr1133-e42-18314-extended-baseline.log`,
+  `/tmp/meridian-pr1133-e42-18314.log`); do not claim that V2 variant issue is fixed.
+- Local typecheck, build, and full isolated `npm test` passed (4,551 main tests plus every
+  isolated segment). An earlier full run overlapped another suite and live model run and hit
+  two cross-process Pi timeouts; the same 11-case file then passed in isolation, followed by
+  the complete green suite. Logs: `/tmp/meridian-pr1133-test.log`,
+  `/tmp/meridian-pr1133-cross-process-isolated.log`, `/tmp/meridian-pr1133-test-isolated.log`.
+  No production correction was needed. After the lockfile-only rebase, 11 focused schema/input
+  tests, typecheck and build passed; logs `/tmp/meridian-pr1133-postrebase-*`. Delivery
+  [#1136](https://github.com/rynfar/meridian/pull/1136) on signed head `8834d31f` passed all
+  final-head checks, including `test`, desktop, Windows and container. Its squash merge is
+  `2922970e8c5d0657b74edddb044554239af80c63`; the merged tree exactly matches the validated
+  head and credits groundnuty as co-author. Original #1133 was rechecked at unchanged head
+  `08e8accc` and closed without comment.
+- Open work after these two merges consists of previously reviewed draft/held PRs and issues.
+  Refresh the queue before claiming it is empty.
+
+### Release 1.76.2 publication
+
+- Previous tag `meridian-v1.76.1` is at `cce20b96`. The product commits in the release range
+  are #1135 (`2f5c0bfd`) and #1136 (`2922970e`). Release Please PR
+  [#1137](https://github.com/rynfar/meridian/pull/1137) changed only
+  `.release-please-manifest.json`, `CHANGELOG.md`, `package-lock.json`, and `package.json`;
+  the changelog has one Bug Fixes entry for #1136 and no duplicate chore entry. The bot's
+  original candidate head `403ed493` was re-signed with the exact same tree as signed
+  `d9430a7edd110c01ab08b55e578a5e55d04edf3f`, preserving bot Author and AuthorDate, to trigger
+  the required PR checks.
+- Local frozen install, typecheck, build, full `npm test`, release metadata consistency and
+  diff checks passed on that tree. Logs `/tmp/meridian-release-1137-*.log`. The built
+  candidate passed a real Sonnet 5 nested-schema tool call. Live E41 passed chain/parallel ×
+  stream/nonstream with exact results, durable forks and cache continuity
+  (`/tmp/meridian-release-1137-e41-*.log`). The built package passed the real beta 18314
+  OpenCode client flow (`/tmp/meridian-release-1137-opencode-18314.log`).
+- An independently packed 1.76.2 tarball was freshly installed; its CLI reported 1.76.2 and
+  the installed proxy passed the real Sonnet nested-schema tool call
+  (`/tmp/meridian-release-1137-packed-live.log`). Candidate tarball integrity is
+  `sha512-SADLZ4H4QiEM602MULxohrSLx90FAUctGU0Ap2P4eFJSu9o3cCuwIsFoGsZ//GYoW3pAuZSEypgSSwHJ/yPAAw==`.
+  This is candidate evidence, not registry publication.
+- All final-head CI passed, including `test`, both Nix builds, desktop, Windows, and
+  container. After rechecking unchanged head/base and checks, #1137 was merged with
+  `--merge --match-head-commit d9430a7e` as
+  `8cd3e9ee57f30df015e6a6ceea0fc544bd3842e7`. Its merged tree exactly matches the validated
+  candidate. Release Please created GitHub release `meridian-v1.76.2` at that SHA on
+  2026-09-23 23:10:12 UTC. The publication workflow is
+  [run 35932196039](https://github.com/rynfar/meridian/actions/runs/35932196039).
+- The publication workflow's Docker job pushed `ghcr.io/rynfar/meridian:1.76.2` with
+  `linux/amd64` and `linux/arm64` manifests (index digest
+  `sha256:9fffe485041b730d5faba464be56cf7c1383071955e798dde787bac6ab237424`). The
+  separate main-branch [Docker workflow](https://github.com/rynfar/meridian/actions/runs/35932195787)
+  passed and pushed `latest` for the same release commit, with both architectures and index
+  digest `sha256:2be03d3f603cb5373ea09dab011287a3f2e0ddec264eeec6f66d3a602f765a83`.
+  The desktop job passed and attached the signed/notarized 1.76.2 macOS ARM64 DMG and ZIP,
+  checksums, and build info to the GitHub release. All four release workflow jobs passed.
+- The npm publish job reported `+ @rynfar/meridian@1.76.2` and published signed provenance to
+  Sigstore index `2927534032` at 2026-09-23 23:16 UTC. After npm's processing delay, registry
+  `latest` became 1.76.2. Its tarball integrity is
+  `sha512-FXkpUwBZUlVfwrAGjXTvNxnshhXnWNwaLQcePo+JT5XUKU9iUzfuQa3Otf7ED/VxTxROo3QSo9kigbtf+tDZAQ==`,
+  shasum `bbfd12a2c349ef6142e32611b95baf5727726c15`. Registry provenance identifies
+  `pkg:npm/%40rynfar/meridian@1.76.2`, the same SHA-512 digest, release commit
+  `8cd3e9ee57f30df015e6a6ceea0fc544bd3842e7`, and workflow run `35932196039`.
+- A clean install from the public registry in `/tmp/meridian-release-1.76.2-registry` reported
+  CLI version 1.76.2. Its installed proxy passed the real Sonnet 5 nested-schema nonce flow:
+  HTTP 200, one `report` call, and exact object-field and array-item values. Log:
+  `/tmp/meridian-release-1.76.2-registry-live.log`. Publication is complete; no manual
+  versioning, tag push or npm publish was used.
+
+### Queue after publication
+
+- Refreshed live GitHub status after release: four open PRs, all with previously reviewed
+  dispositions. Letta source #1105 is unchanged at `5f2a9a9e`; delivery #1113 is still draft
+  at `52a3f914`, waiting for actual Letta cloud-client verification. #1050 remains draft
+  Antigravity research; #792 remains draft at the contributor's request. No newer ready PR
+  is waiting for review.
+- Nine issues remain open: #1094, #1073, #1068, #1011, #1009, #933, #917, #769, and #650.
+  Their previously reviewed holds and owner/client prerequisites are recorded below. This
+  queue is not empty and no unsupported closure is implied by the 1.76.2 release.
+
 ## Active review batch (2026-09-23)
 
 The owner asked for PR review first, newest issues next, author-preserving
