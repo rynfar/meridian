@@ -103,11 +103,11 @@
     "meridian-plugin-opencode-scrub": {
       "flake": false,
       "locked": {
-        "lastModified": 1789483331,
-        "narHash": "sha256-LQLoffoy55ZMAeOcWCUZvjzWBpzO72bgVgqmbS1VFIk=",
+        "lastModified": 1790149493,
+        "narHash": "sha256-k6BZ7uOGOVL3F+y6Nv8k0cDg+E5p8aYN0/WtBYV3iHk=",
         "owner": "rynfar",
         "repo": "meridian-plugin-opencode-scrub",
-        "rev": "8ace4ca10551c168dc024355d782c4cef491aac5",
+        "rev": "18e36c14e9b2070b610af2856c55a28aa7cea934",
         "type": "github"
       },
       "original": {
