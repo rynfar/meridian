@@ -176,11 +176,27 @@ were sent.
   #1094 is now an actionable compatibility port, not a safe unpin. Preserve
   the beta gates while adapting it, and require real 2.0.16 client/package E2E
   plus the reported billing-payload path before declaring the issue resolved.
-  An isolated candidate has passed an initial real 2.0.16 → Meridian 1.76.4
-  → Haiku 4.5 request (`meridian-opencode-v2-stable-4CyuRt`): the title request
-  detached as a subagent, and the visible build request carried its session
-  identity and signed turn attestation. This is preliminary until the full
-  compatibility and published-package gates pass.
+  The isolated compatibility candidate now supports the released 2.0.16 host
+  while retaining the three beta APIs. The committed headless probe is
+  [`scripts/e2e-opencode-v2-stable-live.mjs`](../../scripts/e2e-opencode-v2-stable-live.mjs).
+  Against a fresh registry install of the published 1.76.4 baseline, that
+  probe fails before a model call because setup rejects 2.0.16.
+  Its real 2.0.16 → Meridian → Sonnet 5 source and independently installed
+  npm-pack runs each passed 15 requests on macOS. They assert setup/loading,
+  signed primary and detached title/generate requests, resumed context,
+  discovered `#xhigh`, an actual read-tool result, fork isolation, and attached
+  compaction. The final pack integrity was
+  `sha512-sWEY3wvTqQUCsqjjT4qx2xVsrjcKLRhqvcJ64HDFh6xyzetEpAqLDnHJvZYmOMxk+ybEEcQrJL1xTkQe5NJScg==`.
+  An installed-pack Linux arm64 OpenCode 2.0.16 and Node 22.23.1 run passed
+  the same 15-request gate against the candidate Meridian proxy on macOS;
+  this checks the reported client platform but is a split-platform run, not
+  an all-Linux proxy deployment. The three pinned beta live extended gates
+  passed separately on the candidate. Full `npm test`, standalone typecheck,
+  and build passed. The reporter's exact content-sensitive system block is
+  still unavailable, so these results do not resolve the specific
+  `billing_error` replay. Leave #1094 open for that payload and a full Linux
+  proxy replay; do not describe the narrower compatibility port as a complete
+  billing fix.
 
 ## Follow-up review: PR #1139 (2026-09-24)
 

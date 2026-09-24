@@ -24,7 +24,7 @@ const MAX_FUTURE_SKEW_SECONDS = 30
 const SAFE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
 const TURN_DIGEST_PATTERN = /^[A-Za-z0-9_-]{43}$/
 
-export type OpenCodeAttestationGeneration = "oc1" | "oc2b18314"
+export type OpenCodeAttestationGeneration = "oc1" | "oc2b18314" | "oc2v2016"
 
 export interface VerifiedPriorityAttestation {
   readonly generation: OpenCodeAttestationGeneration
@@ -147,7 +147,7 @@ function parseCanonicalPayload(raw: string): VerifiedPriorityAttestation | undef
   if (!isRecord(value)) return undefined
   if (Object.keys(value).join(",") !== "v,g,s,a,t,iat") return undefined
   if (value.v !== 1) return undefined
-  if (value.g !== "oc1" && value.g !== "oc2b18314") return undefined
+  if (value.g !== "oc1" && value.g !== "oc2b18314" && value.g !== "oc2v2016") return undefined
   if (typeof value.s !== "string" || !SAFE_ID_PATTERN.test(value.s)) return undefined
   if (typeof value.a !== "string" || !isSafeAgentId(value.a)) return undefined
   if (typeof value.t !== "string" || !TURN_DIGEST_PATTERN.test(value.t)) return undefined

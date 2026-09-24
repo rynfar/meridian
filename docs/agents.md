@@ -45,19 +45,23 @@ export ANTHROPIC_API_KEY=x
 export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
 ```
 
-### OpenCode V2 beta
+### OpenCode V2
 
 #### Host support policy
 
-Meridian pins and qualifies explicit public OpenCode V2 beta releases:
-`@opencode-ai/cli@0.0.0-beta-18314`, `0.0.0-beta-18866`, and `0.0.0-beta-19271`.
+Meridian qualifies the released `@opencode/cli@2.0.16` and the earlier public
+`@opencode-ai/cli` betas `0.0.0-beta-18314`, `0.0.0-beta-18866`, and
+`0.0.0-beta-19271`. The 2.0.16 plugin API moved catalog editing into separate
+provider and model domains; the bundled plugin selects the matching host API
+at load time while keeping the beta path.
 
 Because upstream V2 plugin interfaces, session headers, subagent tracking, and
 compaction hooks are under active iteration, Meridian enforces a strict
 fail-closed policy rather than permitting wildcard or unverified host versions.
 A V2 release is only added to `SUPPORTED_OPENCODE_V2_VERSIONS` after passing the
-full end-to-end package gate (`scripts/e2e-opencode-v2-package.mjs --live --extended`),
-verifying:
+matching headless package gate (`scripts/e2e-opencode-v2-package.mjs --live --extended`
+for the betas; `scripts/e2e-opencode-v2-stable-live.mjs` for 2.0.16).
+Across these gates, we verify:
 
 1. **Plugin configuration & loading:** bundled and source plugin installation via `meridian setup --v2`.
 2. **Session continuity & replay:** durable lineage across turns, restarts, and file store rehydration.
@@ -65,10 +69,22 @@ verifying:
 4. **Subagent & agent isolation:** detached title/summary work, independent concurrent subagents, and compaction.
 5. **Model discovery & effort variants:** `GET /v1/models` catalog synchronization, cold-start cache seeding, and cache invalidation.
 
+The 2.0.16 gate exercises its real setup, title and generate jobs, resume,
+read-tool result, fork, compaction, and discovered effort variant. The beta
+gate additionally exercises undo, concurrent subagents, and cache invalidation;
+those checks have not yet been repeated on the released host.
+
 Unverified releases, phantom versions, and nightly/dev builds are rejected by
 `meridian setup --v2` with an informative message listing the verified releases.
 
-Install a supported beta and select its executable:
+Install the qualified 2.0.16 release and select its executable:
+
+```bash
+npm install -g --prefix ~/.local @opencode/cli@2.0.16
+meridian setup --v2 --opencode-bin ~/.local/bin/opencode
+```
+
+For an earlier beta, use its matching executable:
 
 ```bash
 npm install -g --prefix ~/.local @opencode-ai/cli@0.0.0-beta-19271
@@ -76,7 +92,7 @@ meridian setup --v2 --opencode-bin ~/.local/bin/opencode2
 ```
 
 If your binary is elsewhere, pass that path to `--opencode-bin`. V2 can
-self-update to a newer beta, so keep it pinned and launch it with automatic
+self-update, so keep it pinned and launch it with automatic
 updates disabled while this compatibility target is current:
 
 ```bash
@@ -111,16 +127,17 @@ would talk to the real Anthropic API instead of Meridian. Anything you put under
 `models` is your own override and wins over both the built-in catalog and
 Meridian's advertised models.
 
-Then start the pinned client:
+Then start the selected client (`opencode` for 2.0.16, `opencode2` for a beta):
 
 ```bash
-OPENCODE_DISABLE_AUTOUPDATE=1 ~/.local/bin/opencode2
+OPENCODE_DISABLE_AUTOUPDATE=1 ~/.local/bin/opencode
 ```
 
 The V2 plugin uses the native `model.request` and `http.request` hooks. It keeps
 primary and compaction requests attached to the correct OpenCode session,
-detaches concurrent hidden title/summary requests, and gives each visible
-subagent its own trusted identity. Request bodies and model input are unchanged.
+detaches concurrent hidden title/summary and transient generate requests, and
+gives each visible subagent its own trusted identity. Request bodies and model
+input are unchanged.
 
 The V2 plugin also reads `GET /v1/models` from the configured Meridian base URL
 and writes what it finds into V2's model catalog: the context window your

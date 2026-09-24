@@ -21,7 +21,7 @@ const MAX_HEADER_BYTES = 768
 const MAX_PAYLOAD_BYTES = 384
 const TURN_DIGEST_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const SAFE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/
-export type OpenCodeAttestationGeneration = "oc1" | "oc2b18314"
+export type OpenCodeAttestationGeneration = "oc1" | "oc2b18314" | "oc2v2016"
 
 export interface PriorityAttestationSignInput {
   readonly generation: OpenCodeAttestationGeneration

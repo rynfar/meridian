@@ -151,12 +151,12 @@ if (args[0] === "setup") {
     process.exit(1)
   }
   if (forceV2 && detected.generation !== "v2") {
-    console.error("Could not find an OpenCode V2 beta. Install the pinned beta or pass --opencode-bin <path>.")
+    console.error("Could not find a qualified OpenCode V2 host. Install a supported version or pass --opencode-bin <path>.")
     process.exit(1)
   }
   if (detected.generation === "v2" && !SUPPORTED_OPENCODE_V2_VERSIONS.has(detected.version ?? "")) {
     console.error(`OpenCode V2 ${detected.version ?? "unknown"} is not supported by this Meridian build.`)
-    console.error(`Install a supported OpenCode beta (${[...SUPPORTED_OPENCODE_V2_VERSIONS].join(", ")}), then re-run meridian setup --v2.`)
+    console.error(`Install a qualified OpenCode V2 host (${[...SUPPORTED_OPENCODE_V2_VERSIONS].join(", ")}), then re-run meridian setup --v2.`)
     process.exit(1)
   }
 

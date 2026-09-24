@@ -155,7 +155,7 @@ export const openCodeAdapter: AgentAdapter = {
       issuedAt: attestation.issuedAt,
       generation: attestation.generation === "oc1"
         ? "opencode-v1"
-        : "opencode-v2-beta-18314",
+        : attestation.generation === "oc2b18314" ? "opencode-v2-beta-18314" : "opencode-v2-2.0.16",
     }
   },
 
