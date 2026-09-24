@@ -93,7 +93,7 @@ were sent.
   build. Before the fix, the old Nix output reproduced
   `ERR_MODULE_NOT_FOUND`. On the corrected final pins, all three Linux arm64
   Nix plugin builds, imports and version assertions passed.
-  The two committed headless harnesses also passed against independently
+  The Pi and OpenCode headless harnesses also passed against independently
   packed final packages in the real macOS clients: `pi-scrub-live-v3rHYL`
   and `opencode-scrub-live-F7CpFW`. The Pi probe observed both identity and
   docs markers before the plugin; the SDK call had neither and retained the
@@ -120,9 +120,41 @@ were sent.
   The three actual Nix outputs passed the client/model flows recorded above.
 - Release Please [run 35978034021](https://github.com/rynfar/meridian/actions/runs/35978034021)
   found no user-facing conventional commit after the `chore:` squash and made
-  no release candidate. This handoff's `Release-As: 1.76.4` commit requests a
-  patch tag for the validated Nix repair through the normal Release Please
-  workflow; publication and installed-package verification remain pending.
+  no release candidate. The explicit `Release-As: 1.76.4` intent in
+  [#1145](https://github.com/rynfar/meridian/pull/1145) produced
+  [#1146](https://github.com/rynfar/meridian/pull/1146). Adversarial review
+  of that candidate caught three E2E scripts hardcoding Meridian 1.76.3 in
+  their logs; the separate maintainer commit `cabbc75a` reads the installed
+  version and can assert it with `E2E_EXPECT_MERIDIAN_VERSION`. A negative
+  control failed before any model call. All three corrected scripts passed on
+  the 1.76.4 candidate through their real clients and models (Hermes
+  `hermes-scrub-live-qz94pi`, Pi `pi-scrub-live-b4d5As`, OpenCode
+  `opencode-scrub-live-kKregc`). The corrected final head passed full local
+  `npm test`, typecheck and build and required final-head CI `test`, both Nix
+  builds, Windows, Docker and desktop checks. The release PR merged with the
+  required merge method as `076922f58dbf2c58637501339b2b2526c71af687`;
+  its merge tree equals the validated candidate.
+- [Meridian 1.76.4](https://github.com/rynfar/meridian/releases/tag/meridian-v1.76.4)
+  tags that merge commit. The registry's `latest` is 1.76.4 with integrity
+  `sha512-yGzy9EU5q9F3uFeQ6kDTCA4oHX8BABbKBKrI18IonOVyfkRb9jWQsv+0LGUKIgPWme1MnFz5JUZ2Z/bRV6CJXw==`.
+  Its SLSA provenance subject digest matches the registry integrity and its
+  resolved Git commit matches `076922f5`; `npm audit signatures` verified the
+  installed dependency signatures and attestations. A fresh registry install
+  passed real HTTP → SDK Opus 5.5 fresh and resumed conversations, preserving
+  the fixture marker (`meridian-release-live-kGx3Zh`). The published tarball
+  differs from the local candidate pack only in three bundle files: a baked
+  build-machine path in `libsql`, two Bun optimizer no-op branches, and the
+  resulting chunk filename/imports. The actual published package passed the
+  installed-package E2E, so validation covers that final artifact directly.
+  [Release run 35981302861](https://github.com/rynfar/meridian/actions/runs/35981302861)
+  published the package and signed/notarized macOS DMG and ZIP. The release's
+  `BUILD-INFO.txt` identifies `076922f5`; its `SHA256SUMS.txt` records DMG
+  `8a010a7f55ee2f0aab53eb2b91802931e69c6ab07f1087c95ce8e38515e276e6`
+  and ZIP `8a724c4cdb2de98c10ac446536ac12ef6a2aad31aeddd10e57bf9433ed3cc404`.
+  The completed release workflow also published
+  `ghcr.io/rynfar/meridian:1.76.4` as OCI index
+  `sha256:1d1e8c33c55ec40b38aa65a224d79073cbf8f14f98c6dd87c205f446de8a9056`
+  with both `linux/amd64` and `linux/arm64` manifests and attestations.
 - An additional headless probe for [issue #1009](https://github.com/rynfar/meridian/issues/1009)
   confirmed the existing `--case=unhandled --stream` fixture still passes with
   the flag off and an undeclared tool. Substituting a declared tool makes the
@@ -134,9 +166,21 @@ were sent.
   scrub repositories and no new PRs or issues. Pi, Hermes, OpenClaw scrub and
   HUDScrub are clear. OpenCode contributor #5 is unchanged and deferred for
   its documented regression. Meridian #1113/#1105, #1050 and #792 remain as
-  above; its nine open issues have unchanged dispositions. OpenCode's npm
-  plugin `latest` is still 1.18.32, so #1094's v2 unpinning trigger has not
-  occurred.
+  above; its nine open issues have unchanged dispositions except #1094.
+  An issue update at 09:16 UTC reports that `@opencode/cli@2.0.16` is released,
+  even though `@opencode-ai/plugin` still has `latest=1.18.32`. The official
+  `v2.0.16` Git tag and npm CLI version were verified. On that exact binary,
+  `meridian setup --v2` rejects the version, and manually loading the bundled
+  V2 plugin logs `context.catalog.transform` undefined. The 2.0.16 plugin
+  interface moved catalog work into separate `provider` and `model` domains.
+  #1094 is now an actionable compatibility port, not a safe unpin. Preserve
+  the beta gates while adapting it, and require real 2.0.16 client/package E2E
+  plus the reported billing-payload path before declaring the issue resolved.
+  An isolated candidate has passed an initial real 2.0.16 → Meridian 1.76.4
+  → Haiku 4.5 request (`meridian-opencode-v2-stable-4CyuRt`): the title request
+  detached as a subagent, and the visible build request carried its session
+  identity and signed turn attestation. This is preliminary until the full
+  compatibility and published-package gates pass.
 
 ## Follow-up review: PR #1139 (2026-09-24)
 
