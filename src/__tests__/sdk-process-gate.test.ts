@@ -1,14 +1,22 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
-import { createSdkProcessGate } from "../proxy/session/sdkProcessGate"
+import { basename, isAbsolute, join } from "node:path"
+import { createSdkProcessGate, getSdkGateNodeExecutable } from "../proxy/session/sdkProcessGate"
 import type { ProcessIncarnation } from "../proxy/session/processIncarnation"
 
 describe("SDK process gate", () => {
   const roots: string[] = []
   afterEach(() => {
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  })
+
+  it("resolves the actual Node executable under an embedded Bun host", () => {
+    const executable = getSdkGateNodeExecutable()
+    expect(isAbsolute(executable)).toBe(true)
+    if (typeof process.versions.bun === "string") {
+      expect(basename(executable).toLowerCase()).toMatch(/^node(?:\.exe)?$/)
+    }
   })
 
   it("persists the exact wrapper incarnation before opening the child command", async () => {
