@@ -107,6 +107,37 @@ were sent.
   (`opencode-scrub-live-9TiJfp`), with the passthrough markers removed and
   the client working directory preserved.
 
+### Final integration and remaining gates
+
+- Meridian [#1144](https://github.com/rynfar/meridian/pull/1144) passed its
+  exact-head `test`, Ubuntu/macOS Nix builds, Windows smoke, Docker, desktop,
+  and bun.nix verification checks, then squash-merged as `f8830dee35450898af64f26c3e37d7de32c132c2`
+  at 08:54 UTC. The merge tree matches the locally validated branch. The
+  original workflow-authored pin commit retains its Author and AuthorDate in
+  the delivery history; the squash credits both author identities.
+  Local `npm test`, standalone typecheck/build, all three final-pin Linux arm64
+  plugin Nix builds, script syntax, skill validation and local links passed.
+  The three actual Nix outputs passed the client/model flows recorded above.
+- Release Please [run 35978034021](https://github.com/rynfar/meridian/actions/runs/35978034021)
+  found no user-facing conventional commit after the `chore:` squash and made
+  no release candidate. This handoff's `Release-As: 1.76.4` commit requests a
+  patch tag for the validated Nix repair through the normal Release Please
+  workflow; publication and installed-package verification remain pending.
+- An additional headless probe for [issue #1009](https://github.com/rynfar/meridian/issues/1009)
+  confirmed the existing `--case=unhandled --stream` fixture still passes with
+  the flag off and an undeclared tool. Substituting a declared tool makes the
+  real SDK invoke `PreToolUse` before the tool's `content_block_stop` becomes
+  observable to the harness, so that substitution does not reproduce the
+  missing-hook abort window. Leave the flag off until a dedicated fault
+  injection and the affected deployment's canary establish the positive path.
+- A fresh owner/organization repo and queue scan found the same five managed
+  scrub repositories and no new PRs or issues. Pi, Hermes, OpenClaw scrub and
+  HUDScrub are clear. OpenCode contributor #5 is unchanged and deferred for
+  its documented regression. Meridian #1113/#1105, #1050 and #792 remain as
+  above; its nine open issues have unchanged dispositions. OpenCode's npm
+  plugin `latest` is still 1.18.32, so #1094's v2 unpinning trigger has not
+  occurred.
+
 ## Follow-up review: PR #1139 (2026-09-24)
 
 Refresh GitHub and `origin/main` before resuming this queue. The newest ready contributor
