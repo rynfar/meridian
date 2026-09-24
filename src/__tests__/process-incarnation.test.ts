@@ -1,4 +1,5 @@
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it, spyOn } from "bun:test"
+import * as childProcess from "node:child_process"
 import {
   captureProcessIncarnation,
   evaluateProcessIncarnation,
@@ -6,6 +7,7 @@ import {
   parseProcessIncarnation,
   parseProcessIncarnationJson,
   probeProcessIncarnation,
+  processIncarnationPredatesBoot,
   type LocalBootIdentity,
   type ProcessIncarnation,
 } from "../proxy/session/processIncarnation"
@@ -119,22 +121,62 @@ describe("process incarnation protocol", () => {
 
   it("captures and conservatively probes the current process on every supported platform", () => {
     if (!(["darwin", "linux", "win32"] as string[]).includes(process.platform)) return
-    // Retried, mirroring what startProxyServer now does. On Linux the identity
-    // is read from files and is deterministic, but darwin and win32 derive it
-    // from a subprocess with a 10s budget. This test failed on Windows CI at
-    // 10265ms — the probe expired and the module correctly FAILED CLOSED,
-    // returning undefined, while this assertion demanded success (#917/#933).
-    //
-    // The strict assertion is kept deliberately: a capture that never succeeds
-    // across three attempts is a real defect, and loosening this to "defined or
-    // undefined" would assert nothing at all.
-    let current = captureProcessIncarnation()
-    for (let attempt = 0; current === undefined && attempt < 2; attempt++) {
-      current = captureProcessIncarnation()
-    }
-    expect(current).toBeDefined()
+    const current = captureCurrentProcessIncarnation()
     expect(parseProcessIncarnation(current)).toEqual(current)
-    expect(probeProcessIncarnation(current!))
+    expect(probeProcessIncarnation(current))
       .toBe(process.platform === "linux" ? "alive" : "indeterminate")
   }, 25_000) // Windows can run two cold PowerShell probes at up to 10s each.
+
+  it("probes this process from its capture without spawning an observer", () => {
+    if (!(["darwin", "linux", "win32"] as string[]).includes(process.platform)) return
+    const current = captureCurrentProcessIncarnation()
+    // Another start behind this pid is an earlier process whose pid was reused.
+    const earlier = {
+      ...current,
+      startId: current.startIdKind === "darwin-ps-lstart" ? "Mon Jan 01 00:00:00 2001" : "1",
+    }
+    const spawned = spyOn(childProcess, "spawnSync")
+    try {
+      expect(probeProcessIncarnation(current))
+        .toBe(process.platform === "linux" ? "alive" : "indeterminate")
+      expect(probeProcessIncarnation(earlier)).toBe("dead")
+      expect(spawned).not.toHaveBeenCalled()
+    } finally {
+      spawned.mockRestore()
+    }
+  }, 25_000)
+
+  it("recognizes an owner from an earlier boot of this host without a probe", () => {
+    if (!(["darwin", "linux", "win32"] as string[]).includes(process.platform)) return
+    const current = captureCurrentProcessIncarnation()
+    const spawned = spyOn(childProcess, "spawnSync")
+    try {
+      expect(processIncarnationPredatesBoot(current)).toBe(false)
+      expect(processIncarnationPredatesBoot({ ...current, bootId: otherBootId })).toBe(true)
+      // Another host's boots say nothing about this one.
+      expect(processIncarnationPredatesBoot({ ...current, hostId: otherHostId, bootId: otherBootId }))
+        .toBe(false)
+      expect(spawned).not.toHaveBeenCalled()
+    } finally {
+      spawned.mockRestore()
+    }
+  }, 25_000)
 })
+
+function captureCurrentProcessIncarnation(): ProcessIncarnation {
+  // Retried, mirroring what startProxyServer now does. On Linux the identity
+  // is read from files and is deterministic, but darwin and win32 derive it
+  // from a subprocess with a 10s budget. This test failed on Windows CI at
+  // 10265ms — the probe expired and the module correctly FAILED CLOSED,
+  // returning undefined, while this assertion demanded success (#917/#933).
+  //
+  // The strict assertion is kept deliberately: a capture that never succeeds
+  // across three attempts is a real defect, and loosening this to "defined or
+  // undefined" would assert nothing at all.
+  let current = captureProcessIncarnation()
+  for (let attempt = 0; current === undefined && attempt < 2; attempt++) {
+    current = captureProcessIncarnation()
+  }
+  expect(current).toBeDefined()
+  return current!
+}
