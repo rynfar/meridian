@@ -6319,3 +6319,39 @@ report and HTTP response artifacts; the passing run also contains `pi.log`.
 This validates macOS text and client tool use, not Windows/Linux runtime behavior.
 Model ID, capability and pricing source:
 https://platform.claude.com/docs/en/models/opus-5-5/overview .
+
+## Scrub plugin headless acceptance
+
+These opt-in harnesses preserve the actual client paths used for the 2026-09-24
+scrub fixes. Build Meridian first, install the plugin under test independently
+from its tarball or the public registry, and pass the absolute path to its
+`dist/index.js` as `E2E_PLUGIN_PATH`. They use isolated config, sessions, ports,
+and project directories and consume Claude Max quota. Keep the generated local
+artifact private because it contains client and proxy logs. For a Nix plugin
+build, point `E2E_PLUGIN_PATH` at the output's `lib/index.js` instead.
+
+```sh
+npm run build
+E2E_PLUGIN_PATH=/absolute/path/to/node_modules/@rynfar/meridian-plugin-pi-scrub/dist/index.js \
+  E2E_EXPECT_VERSION=0.2.2 bun scripts/e2e-pi-scrub-live.mjs
+E2E_PLUGIN_PATH=/absolute/path/to/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js \
+  E2E_EXPECT_VERSION=0.2.3 E2E_MODEL=claude-opus-5-5 \
+  E2E_LITELLM_BIN=/absolute/path/to/litellm \
+  bun scripts/e2e-opencode-scrub-live.mjs
+E2E_PLUGIN_PATH=/absolute/path/to/node_modules/@rynfar/meridian-plugin-hermes-scrub/dist/index.js \
+  E2E_PLUGIN_VERSION=0.2.0 E2E_MODEL=claude-opus-5-5 \
+  bun scripts/e2e-hermes-scrub-live.mjs
+```
+
+The Pi gate uses actual Pi 0.72.1 and Haiku 4.5. It checks that Pi's fingerprint
+reaches a before-plugin probe, is absent at the real Claude Agent SDK call, and
+the generic coding identity survives. The OpenCode gate uses OpenCode 1.18.32
+through LiteLLM 1.81.10 and Opus 5.5. It checks the metering-trigger fingerprint
+before the plugin, its removal afterward, preserved client cwd, a successful
+client response, and the loaded plugin version. Run the OpenCode harness with a
+known affected earlier plugin and `E2E_EXPECT_SCRUB=0` to assert the original
+billing-gate failure. Save the exact plugin and Meridian commits, command,
+result, and sanitized artifact link in the PR or handoff for each run.
+The Hermes gate uses Hermes 0.21.4 and Opus 5.5. It checks a real Hermes
+request's self-management tool identifiers before the plugin, neutral names
+afterward, and preservation of the finishing-job guidance.

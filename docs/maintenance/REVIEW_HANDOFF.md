@@ -50,11 +50,62 @@ Live discovery found five owner-controlled scrub repositories:
   #769, and #650. The older Meridian notes below are historical; refresh their
   status and revisit triggers before acting.
 
-The issue-specific live harnesses currently live in isolated local `/tmp`
-workspaces; the PRs and this handoff retain their commands, outcomes and
-versions. Promote reusable critical headless E2E harnesses into the affected
-repositories during future changes so reproduction does not depend on local
-scripts. No community comments were sent.
+The Pi, OpenCode and Hermes live probes are now escrowed as
+[`scripts/e2e-pi-scrub-live.mjs`](../../scripts/e2e-pi-scrub-live.mjs) and
+[`scripts/e2e-opencode-scrub-live.mjs`](../../scripts/e2e-opencode-scrub-live.mjs),
+and [`scripts/e2e-hermes-scrub-live.mjs`](../../scripts/e2e-hermes-scrub-live.mjs),
+with the repeatable commands in [`E2E.md`](../../E2E.md). No community comments
+were sent.
+
+### Package metadata patch releases and Nix integration
+
+- Adversarial review found published Pi 0.2.1 reporting plugin version 0.2.0.
+  [Pi #11](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/11)
+  (`a6f1b3e7`) adds a package-version assertion (failing on unchanged main),
+  derives runtime metadata from the shipped package, and passed 14 tests,
+  build, packed install and real Pi 0.72.1 → Meridian 1.76.3 → Haiku 4.5.
+  Release [Pi #12](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/12)
+  had final-head CI and candidate E2E, merged at `23c98fac`, and published
+  0.2.2 through [run 35975618398](https://github.com/rynfar/meridian-plugin-pi-scrub/actions/runs/35975618398).
+  Registry integrity is
+  `sha512-ksw4pOQdz54DTg2YkG06KB39EIIY5u0pH8VCPh9Se/+ONIzNx2PqbRJECvZ2Ti5j63wVagAYr2kTJ+/V6uKcRA==`;
+  its signed provenance digest and source commit match the registry and
+  `23c98fac`. `npm audit signatures` verified the attestation and a fresh
+  registry-installed Pi run passed (`pi-scrub-live-H5bdwW`).
+- Published OpenCode 0.2.2 reported plugin version 0.1.0.
+  [OpenCode #16](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/16)
+  (`015d373d`) adds the corresponding failing-baseline assertion and package
+  metadata import. It passed 22 tests, build, packed install and real OpenCode
+  1.18.32 → LiteLLM 1.81.10 → Meridian 1.76.3 → Opus 5.5.
+  Release [OpenCode #17](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/17)
+  had final-head CI and candidate E2E, merged at `4b410c5a`, and published
+  0.2.3 through [run 35975742509](https://github.com/rynfar/meridian-plugin-opencode-scrub/actions/runs/35975742509).
+  Registry integrity is
+  `sha512-JOlxV0VAbWcXGTC+bsi4K2d4g3vb2UG5y8s1HzKjWkeAm7kmdIYcHbPie+ror2HTaNaRKIpzGOkPqqonEgs5YA==`;
+  its signed provenance digest and source commit match the registry and
+  `4b410c5a`. `npm audit signatures` verified the attestation and a fresh
+  registry-installed Opus 5.5 run passed (`opencode-scrub-live-aYHjqK`).
+- Meridian [#1144](https://github.com/rynfar/meridian/pull/1144) advances
+  `flake.lock` to Hermes 0.2.0 (`06bbe816`), Pi 0.2.2 (`23c98fac`), and
+  OpenCode 0.2.3 (`4b410c5a`). Its separate Nix fix retains the source
+  `package.json` at the relative path imported by all three plugins and runs
+  a Node import and plugin/package version equality check inside each package
+  build. Before the fix, the old Nix output reproduced
+  `ERR_MODULE_NOT_FOUND`. On the corrected final pins, all three Linux arm64
+  Nix plugin builds, imports and version assertions passed.
+  The two committed headless harnesses also passed against independently
+  packed final packages in the real macOS clients: `pi-scrub-live-v3rHYL`
+  and `opencode-scrub-live-F7CpFW`. The Pi probe observed both identity and
+  docs markers before the plugin; the SDK call had neither and retained the
+  generic coding identity. The OpenCode passthrough probe observed both
+  metering-trigger markers before the plugin, neither afterward, retained
+  the client working directory, and the client exited successfully.
+  Actual exported Nix outputs also passed Hermes 0.21.4 → Opus 5.5
+  (`hermes-scrub-live-XVeNQ5`) and Pi 0.72.1 → Haiku 4.5
+  (`pi-scrub-live-Qa4NtE`) through the same isolated Meridian runtime.
+  The OpenCode 1.18.32 → LiteLLM 1.81.10 → Opus 5.5 Nix-output run passed
+  (`opencode-scrub-live-9TiJfp`), with the passthrough markers removed and
+  the client working directory preserved.
 
 ## Follow-up review: PR #1139 (2026-09-24)
 
