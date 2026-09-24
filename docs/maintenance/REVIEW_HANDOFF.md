@@ -1,5 +1,61 @@
 # Upstream review handoff
 
+## Cross-repository scrub review (2026-09-24)
+
+Live discovery found five owner-controlled scrub repositories:
+`meridian-plugin-pi-scrub`, `meridian-plugin-opencode-scrub`,
+`meridian-plugin-hermes-scrub`, `meridian-plugin-openclaw-scrub`, and
+`hudscrub`. Refresh the owner's repository list and each queue on continuation.
+
+- **Pi scrub:** Serge Baranov's source #7 `fa9366c3` was cherry-picked as
+  `8732fd2d` with Author and AuthorDate preserved, corrected in a separate
+  maintainer commit, and delivered by [#10](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/10)
+  (`54e0706a`, Serge credited on the squash commit). The unchanged main failed
+  two foreign-prompt exact-byte tests; the delivery passed 13 tests and real Pi
+  0.72.1 → Meridian 1.76.3 → Haiku 4.5 E2E. Original #7 closed at its unchanged
+  head. Release [#5](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/5)
+  merged/tagged at `ae3d2ac7`; npm 0.2.1 integrity
+  `sha512-luYfyF84gt8AxNKpzqbqR00Lw7F2GwQS1NdxIZigb6tjFLt2nQbxtlRuGHHiybZp1LeChJ92h2+vrcyY1SatNA==`
+  has matching provenance. A fresh registry-installed Pi live run passed.
+- **OpenCode scrub:** Brian Keefe's [#5](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/5)
+  remains open; its minimal mode conflicts with later OMO 4.x and cwd fixes,
+  leaves a metering trigger, and lacks tests. Revisit on an amended head or a
+  reproducible prompt-stability case. Newest issue #10 was reproduced on npm
+  0.2.1 (real OpenCode 1.18.32 → LiteLLM 1.81.10 → Meridian 1.76.3 → Opus 5.5
+  reached the billing gate), fixed by [#14](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/14)
+  (`c517a2c3`), and passed the same client flow, 21 tests and final-head CI.
+  Release [#15](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/15)
+  merged/tagged at `46383730`; npm 0.2.2 integrity
+  `sha512-w522x+6UWSKoXXPdvEY6vAwe4rur8r15GpwB3UUYixSvjVYhMzJayiONxqtd2N2HzNARS+SbCisqo6ovTmCgTQ==`
+  has matching provenance. A fresh registry-installed Opus flow passed; issues
+  #10, #9 and #1 are closed on this evidence.
+- **Hermes scrub:** Documentation [#10](https://github.com/rynfar/meridian-plugin-hermes-scrub/pull/10)
+  corrected the current identifier-neutralization behavior. Adversarial release
+  review found the 0.2.0 package would report plugin version 0.1.0; [#11](https://github.com/rynfar/meridian-plugin-hermes-scrub/pull/11)
+  derives it from the shipped package metadata, with a version assertion and
+  real Hermes 0.21.4 → Meridian 1.76.3 → Opus 5.5 validation. Release
+  [#2](https://github.com/rynfar/meridian-plugin-hermes-scrub/pull/2) merged/tagged
+  at `06bbe816`; final-head CI, 14 tests, build and packed install passed.
+  Actual Hermes parent and delegated child prompts contained targeted tokens
+  before the plugin and none after; the guidance remained. Fresh npm 0.2.0
+  installed-package E2E passed (local artifact `hermes-scrub-live-LvJRNp`).
+  Registry integrity is
+  `sha512-SSjCvjw3QQk8vOALdIMONUrntWs4MCQjCbxtYvgkbp7dwSXzOwRJYMFXUFt/ZEW5yTnhadZVsua1/88d81H2AA==`;
+  provenance resolves to `06bbe816`. Publication issue #5 is closed.
+- **OpenClaw scrub and HUDScrub:** No open PRs or issues in the refreshed queue.
+  Meridian's live open PRs at this checkpoint are #1113 (draft Letta delivery,
+  blocked on the real cloud flow), #1105 (source Letta PR), #1050 (draft
+  Antigravity research), and #792 (author explicitly requested no review).
+  Its live open issues are #1094, #1073, #1068, #1011, #1009, #933, #917,
+  #769, and #650. The older Meridian notes below are historical; refresh their
+  status and revisit triggers before acting.
+
+The issue-specific live harnesses currently live in isolated local `/tmp`
+workspaces; the PRs and this handoff retain their commands, outcomes and
+versions. Promote reusable critical headless E2E harnesses into the affected
+repositories during future changes so reproduction does not depend on local
+scripts. No community comments were sent.
+
 ## Follow-up review: PR #1139 (2026-09-24)
 
 Refresh GitHub and `origin/main` before resuming this queue. The newest ready contributor

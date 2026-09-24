@@ -8,8 +8,10 @@ Continue authorized implementation through relevant verification, corrections, a
 
 - Use `ARCHITECTURE.md` for module and dependency changes, `DESIGN.md` for user-facing UI/brand changes, and `E2E.md` for affected-client live verification.
 - Use [meridian-upstream-review](.agents/skills/meridian-upstream-review/SKILL.md) for contributor review/incorporation or authorized release work. Read `docs/maintenance/REVIEW_HANDOFF.md` only when continuing that work; refresh live GitHub status before relying on a dated checkpoint.
+- Use [meridian-backlog](.agents/skills/meridian-backlog/SKILL.md) for an authorized PR/issue queue across Meridian and the owner's scrub repositories. Use [meridian-evidence](.agents/skills/meridian-evidence/SKILL.md) for adversarial review and proof of a fix, merge, or release.
 - For commits/PRs/merges, use [contribution workflow](.agents/references/contributing.md). Normal PRs squash with `--match-head-commit`; Release Please PRs merge with `--merge`. Required final-head CI, including `test`, remains a merge gate. Never bypass checks routinely.
 - External comments/messages need explicit authorization. Release authorization is separate from completing a change. Never manually run `npm version`, push tags, or `npm publish`; use the release reference in the review skill.
+- Adversarially review every proposed PR and release before landing it. Record the concrete product-fit, regression, and evidence findings in its PR or review handoff; fix material findings before merge.
 
 ## Engineering boundaries
 
@@ -28,3 +30,5 @@ UI uses `DESIGN.md`, color tokens from `themeCss` in `src/telemetry/profileBar.t
 Choose focused checks during iteration and fix failures caused by the change. For code changes, the final local gates are `npm test`, typecheck and build. Documentation/instruction-only changes need content, link and diff validation, not model calls or an application rebuild. Required CI still applies before merge.
 
 Cover meaningful extracted behavior with direct pure-function tests or HTTP integration tests through the mocked SDK; tests live in `src/__tests__/`. Every accepted product behavior change and release requires affected-flow live E2E using the actual implicated model, SDK, client and platform. Use `E2E.md`; mocks, another platform/model, or an unexplained green rerun cannot establish that the reported problem is fixed. Preserve missing evidence explicitly and continue any independent work.
+
+For critical fixes, commit a reproducible headless E2E harness when feasible, even if real credentials keep it out of CI, and retain a durable before/after evidence record beyond a temporary local path. Capture short video for visual or timing behavior when it helps review; keep secrets out of logs and media.

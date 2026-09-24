@@ -9,6 +9,7 @@ This workflow applies to the selected contribution, bounded backlog, or authoriz
 
 - For contributor assessment, authored cherry-picks, integration or a durable checkpoint, read [incorporation](references/incorporation.md).
 - Before accepting a behavior change, read [verification](references/verification.md) and the applicable cases in repository `E2E.md`. Preserve the actual before/after evidence, tested model/platform, and remaining limitations.
+- Before merging an integration or release, perform the adversarial review and evidence capture in [meridian-evidence](../meridian-evidence/SKILL.md). Resolve material findings and keep the result in the PR or handoff.
 - For an authorized release, read [release](references/release.md). Completing a backlog item does not authorize publication.
 - When continuing earlier review work, read `docs/maintenance/REVIEW_HANDOFF.md`, refresh live GitHub and origin/main, and recover the existing scope before selecting more work.
 
