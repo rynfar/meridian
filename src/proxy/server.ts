@@ -197,7 +197,7 @@ import {
   prepareForkForPublication,
   publishPinnedTranscript,
   registerLiveTranscript,
-  releaseActiveTranscriptLease,
+  releaseJoinedTranscriptLease,
   runGc as runSessionGc,
   getTranscriptResourceKey,
   SessionLifecycleError,
@@ -946,7 +946,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           throw new SessionLifecycleError("SDK writer could not be joined; transcript remains fenced")
         }
         if (activeTranscriptLease) {
-          await releaseActiveTranscriptLease(activeTranscriptLease, sessionGcOptions)
+          await releaseJoinedTranscriptLease(activeTranscriptLease, sessionGcOptions)
         }
       } finally {
         requestMeta.sdkActiveDurationMs += Date.now() - startedAt

@@ -33,6 +33,7 @@ import {
   captureProcessIncarnation,
   parseProcessIncarnation,
   processIncarnationIsDead,
+  processIncarnationPredatesBoot,
   processIncarnationProbeBudgetMs,
   type ProcessIncarnation,
 } from "./session/processIncarnation"
@@ -263,6 +264,42 @@ export async function releaseActiveTranscriptLease(
     }
     if (changed) await writeSidecar(paths.sidecar, sidecar)
   })
+}
+
+/** Joined writers' leases whose release met a busy lock, by store directory. */
+const deferredLeaseReleases = new Map<string, Map<string, ActiveTranscriptLease>>()
+
+/**
+ * Release the lease of a writer that has already been joined.
+ *
+ * Once the writer has exited, only the bookkeeping is late, so a busy lock must
+ * not fail the finished turn. Throwing also stranded the lease: an armed win32
+ * lease outlives its owner until the host reboots, so its transcript could not
+ * be leased or collected and it held a retirement-backlog slot all that time.
+ * The next GC sweep, including the one at shutdown, retries the release.
+ */
+export async function releaseJoinedTranscriptLease(
+  lease: ActiveTranscriptLease,
+  options: SessionLifecycleOptions = {},
+): Promise<void> {
+  try {
+    await releaseActiveTranscriptLease(lease, options)
+  } catch (error) {
+    if (!(error instanceof SessionLifecycleLockError)) throw error
+    const storeDir = getStoreDir(options)
+    let pending = deferredLeaseReleases.get(storeDir)
+    if (!pending) deferredLeaseReleases.set(storeDir, pending = new Map())
+    pending.set(lease.token, lease)
+  }
+}
+
+async function retryDeferredLeaseReleases(options: SessionLifecycleOptions): Promise<void> {
+  const pending = deferredLeaseReleases.get(getStoreDir(options))
+  if (!pending) return
+  for (const lease of pending.values()) {
+    await releaseActiveTranscriptLease(lease, options)
+    pending.delete(lease.token)
+  }
 }
 
 /** Persist ownership before the SDK process which can create the transcript starts. */
@@ -588,9 +625,9 @@ export async function reconcile(
 ): Promise<ReconcileResult> {
   // Validate caller pins before waiting for the lock. The authoritative pin
   // provider is refreshed again while the lifecycle lock is held.
-  pins.map(canonicalizeTranscriptLocator)
+  indexPins(pins)
   return withSidecarLock(options, async (paths) => {
-    const effectivePins = (options.pinProvider?.() ?? pins).map(canonicalizeTranscriptLocator)
+    const effectivePins = indexPins(options.pinProvider?.() ?? pins)
     const sidecar = await readSidecar(paths.sidecar)
     const pinKeys = new Set(Object.values(sidecar.resources)
       .filter((resource) => resourceIsPinned(resource, effectivePins))
@@ -695,13 +732,17 @@ export async function reconcile(
   })
 }
 
-/** Delete a bounded batch of unpinned retired transcripts through the supported SDK API. */
+/**
+ * Delete a bounded batch of unpinned retired transcripts through the supported
+ * SDK API, after retrying deferred lease releases that would otherwise fence them.
+ */
 export async function runGc(
   pins: readonly TranscriptLocator[],
   options: SessionLifecycleOptions = {},
 ): Promise<GcResult> {
+  await retryDeferredLeaseReleases(options)
   await reconcile(pins, options)
-  let currentPins = pins.map(canonicalizeTranscriptLocator)
+  let currentPins = indexPins(pins)
   const limit = option(options.maxDeletesPerRun, DEFAULT_MAX_DELETES, "maxDeletesPerRun")
   const result: GcResult = { deleted: 0, notFound: 0, failed: 0, deferred: 0 }
   const runTimeoutMs = option(options.runTimeoutMs, DEFAULT_DELETE_TIMEOUT_MS, "runTimeoutMs")
@@ -711,7 +752,7 @@ export async function runGc(
     if (Date.now() >= deadline) break
     const refreshedPins = options.pinProvider?.()
     if (refreshedPins) {
-      currentPins = refreshedPins.map(canonicalizeTranscriptLocator)
+      currentPins = indexPins(refreshedPins)
     }
     const candidate = await claimDeletion(currentPins, options)
     if (!candidate) break
@@ -766,12 +807,12 @@ export async function runGc(
 }
 
 async function claimDeletion(
-  pins: readonly TranscriptLocator[],
+  pins: PinIndex,
   options: SessionLifecycleOptions,
 ): Promise<TranscriptResource | undefined> {
   return withSidecarLock(options, async (paths) => {
     const sidecar = await readSidecar(paths.sidecar)
-    const finalPins = (options.pinProvider?.() ?? pins).map(canonicalizeTranscriptLocator)
+    const finalPins = options.pinProvider ? indexPins(options.pinProvider()) : pins
     const now = nowMs(options)
     const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     let leasesChanged = false
@@ -859,7 +900,7 @@ async function finishDeletion(
 }
 
 async function countDeferred(
-  pins: readonly TranscriptLocator[],
+  pins: PinIndex,
   options: SessionLifecycleOptions,
 ): Promise<number> {
   return withSidecarLock(options, async (paths) => {
@@ -1741,15 +1782,34 @@ function assertResourceCapacity(
   }
 }
 
-function resourceIsPinned(
-  resource: TranscriptResource,
-  pins: readonly TranscriptLocator[],
-): boolean {
-  return pins.some((pin) =>
-    getTranscriptResourceKey(pin) === resource.key
+/** Pinned resource keys, each with the lifecycle generations its pins name. */
+type PinIndex = ReadonlyMap<string, ReadonlySet<string | undefined>>
+
+/**
+ * Canonicalise and hash every pin once. Matching resources against the raw pin
+ * list rehashed each pin for each resource: with ~1,400 resources and ~800 pins
+ * that is over a million SHA-256 digests, which kept every sweep inside the
+ * lifecycle lock for more than a second and starved all other requests.
+ */
+function indexPins(pins: readonly TranscriptLocator[]): PinIndex {
+  const realpaths = new Map<string, string>()
+  const index = new Map<string, Set<string | undefined>>()
+  for (const pin of pins) {
+    const canonical = canonicalizeLocator(pin, realpaths)
+    const key = getTranscriptResourceKey(canonical)
+    let generations = index.get(key)
+    if (!generations) index.set(key, generations = new Set())
+    generations.add(canonical.lifecycleGeneration)
+  }
+  return index
+}
+
+function resourceIsPinned(resource: TranscriptResource, pins: PinIndex): boolean {
+  const generations = pins.get(resource.key)
+  return generations !== undefined
     // Legacy mappings conservatively pin the physical locator until their
     // first exact-CAS lifecycle attachment stores a generation.
-    && (pin.lifecycleGeneration === undefined || pin.lifecycleGeneration === resource.generation))
+    && (generations.has(undefined) || generations.has(resource.generation))
 }
 
 function hasActiveTranscriptLease(resource: TranscriptResource): boolean {
@@ -1772,16 +1832,21 @@ function pruneDeadActiveLeases(resource: TranscriptResource, now: number, unarme
   if (!resource.activeLeases) return false
   let changed = false
   for (const [token, lease] of Object.entries(resource.activeLeases)) {
-    const executorDead = lease.executor && lease.executorRecoverable !== false
-      ? processIncarnationIsDead(lease.executor)
+    // An executor whose death cannot prove its descendants gone (win32) is
+    // still provably gone, with them, once the host has rebooted.
+    const executorDead = lease.executor
+      ? lease.executorRecoverable === false
+        ? processIncarnationPredatesBoot(lease.executor)
+        : processIncarnationIsDead(lease.executor)
       : false
     // An unarmed lease cannot have started a physical writer: production opens
     // the SDK gate only after attachActiveTranscriptExecutor commits. The TTL is
     // sized by the turn watchdog, so one that outlives it with its owner still
     // alive can only be a release that failed — collect it by age instead of
-    // fencing the conversation until restart.
-    const unarmedOwnerDead = !lease.executor && processIncarnationIsDead(lease.owner)
+    // fencing the conversation until restart. Age is checked first because an
+    // owner probe can spawn a process.
     const unarmedLeaseExpired = !lease.executor && now - lease.createdAt > unarmedLeaseTtlMs
+    const unarmedOwnerDead = !lease.executor && !unarmedLeaseExpired && processIncarnationIsDead(lease.owner)
     if (!executorDead && !unarmedOwnerDead && !unarmedLeaseExpired) continue
     delete resource.activeLeases[token]
     changed = true
@@ -1816,22 +1881,35 @@ function pruneTombstones(sidecar: SessionGcSidecar, options: SessionLifecycleOpt
   for (const resource of tombstones.slice(maximum)) delete sidecar.resources[resource.key]
 }
 
-function canonicalLocatorPath(path: string): string {
+function canonicalLocatorPath(path: string, realpaths: Map<string, string> | undefined): string {
   const lexical = resolve(path)
+  const known = realpaths?.get(lexical)
+  if (known !== undefined) return known
+  let canonical: string
   try {
-    return realpathSync.native(lexical)
+    canonical = realpathSync.native(lexical)
   } catch (error) {
-    if (hasCode(error, "ENOENT")) return lexical
-    throw error
+    if (!hasCode(error, "ENOENT")) throw error
+    canonical = lexical
   }
+  realpaths?.set(lexical, canonical)
+  return canonical
 }
 
 export function canonicalizeTranscriptLocator(locator: TranscriptLocator): TranscriptLocator {
+  return canonicalizeLocator(locator, undefined)
+}
+
+/** `realpaths` memoises resolution across one batch; its pins share a few directories. */
+function canonicalizeLocator(
+  locator: TranscriptLocator,
+  realpaths: Map<string, string> | undefined,
+): TranscriptLocator {
   validateLocator(locator)
   return {
     sessionId: locator.sessionId,
-    configDir: canonicalLocatorPath(locator.configDir),
-    ...(locator.projectDir ? { projectDir: canonicalLocatorPath(locator.projectDir) } : {}),
+    configDir: canonicalLocatorPath(locator.configDir, realpaths),
+    ...(locator.projectDir ? { projectDir: canonicalLocatorPath(locator.projectDir, realpaths) } : {}),
     ...(locator.lifecycleGeneration ? { lifecycleGeneration: locator.lifecycleGeneration } : {}),
   }
 }

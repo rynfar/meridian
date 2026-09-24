@@ -32,6 +32,7 @@ import {
   reconcile,
   registerLiveTranscript,
   releaseActiveTranscriptLease,
+  releaseJoinedTranscriptLease,
   runGc,
   type SessionLifecycleOptions,
   type TranscriptLocator,
@@ -59,6 +60,7 @@ interface StoredResource {
   deletionOwner?: ProcessIncarnation
   deletionExecutor?: ProcessIncarnation
   deletionProcessGroupId?: number
+  activeLeases?: Record<string, unknown>
 }
 
 interface StoredSidecar {
@@ -461,6 +463,69 @@ describe("session transcript lifecycle", () => {
     await acquireActiveTranscriptLease([fork], graceOptions)
     now += 50
     await expect(acquireActiveTranscriptLease([fork], graceOptions)).rejects.toThrow("active SDK writer")
+  })
+
+  it("releases a joined writer's lease on the next sweep when its lock is busy", async () => {
+    const fork = locator("joined-writer-busy-lock")
+    await prepareFork(fork, options)
+    const lease = await acquireActiveTranscriptLease([fork], options)
+    await abandonFork(fork, options)
+    const lock = join(storeDir, "session-gc.json.lock")
+    writeFileSync(lock, "another-owner\n", { mode: 0o600 })
+
+    await releaseJoinedTranscriptLease(lease, { ...options, lockWaitMs: 3 })
+    rmSync(lock)
+    expect(readSidecar(storeDir).resources[getTranscriptResourceKey(fork)]?.activeLeases?.[lease.token])
+      .toBeDefined()
+
+    const deleted: string[] = []
+    await runGc([], { ...options, deleter: async (item) => { deleted.push(item.sessionId) } })
+    expect(deleted).toEqual(["joined-writer-busy-lock"])
+  })
+
+  it("still surfaces a joined writer's release failure that retrying cannot fix", async () => {
+    const fork = locator("joined-writer-corrupt")
+    await prepareFork(fork, options)
+    const lease = await acquireActiveTranscriptLease([fork], options)
+    writeFileSync(join(storeDir, "session-gc.json"), "{", { mode: 0o600 })
+
+    await expect(releaseJoinedTranscriptLease(lease, options))
+      .rejects.toBeInstanceOf(SessionLifecycleCorruptError)
+  })
+
+  it("keeps a non-recoverable writer lease fenced until the host reboots", async () => {
+    const current = captureProcessIncarnation()
+    if (!current) throw new Error("test process incarnation unavailable")
+    // Neither executor is running. Only the earlier boot proves that no
+    // descendant of the exited executor can still be writing its transcript.
+    const writers: Array<[TranscriptLocator, ProcessIncarnation]> = [
+      [locator("exited-writer-this-boot"), { ...current, pid: 999_999 }],
+      [locator("exited-writer-earlier-boot"), deadProcessIncarnation(999_998)],
+    ]
+    for (const [fork, executor] of writers) {
+      await prepareFork(fork, options)
+      const lease = await acquireActiveTranscriptLease([fork], options)
+      await attachActiveTranscriptExecutor(lease, executor, options, false)
+      await abandonFork(fork, options)
+    }
+
+    const deleted: string[] = []
+    const result = await runGc([], { ...options, deleter: async (item) => { deleted.push(item.sessionId) } })
+    expect(deleted).toEqual(["exited-writer-earlier-boot"])
+    expect(result.deferred).toBe(1)
+  })
+
+  it("pins a resource by its exact generation or by a generation-less legacy pin", async () => {
+    const target = locator("generation-pin")
+    await prepareFork(target, options)
+    await commitFork(target, options)
+    const stale = { ...target, lifecycleGeneration: `r:${getTranscriptResourceKey(target)}:999` }
+    const legacy = { ...target, lifecycleGeneration: undefined }
+
+    // The stale pin comes last so that it cannot shadow the other pin of its key.
+    expect((await reconcile([legacy, stale], options)).liveRetired).toBe(0)
+    expect((await reconcile([target, stale], options)).liveRetired).toBe(0)
+    expect((await reconcile([stale], options)).liveRetired).toBe(1)
   })
 
   it("retires an unpinned live resource once its stale publication lease expires", async () => {
