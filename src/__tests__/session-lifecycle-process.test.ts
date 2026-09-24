@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
+import { captureProcessIncarnation, probeProcessIncarnation } from "../proxy/session/processIncarnation"
 import {
   getTranscriptResourceKey,
   prepareFork,
@@ -293,6 +294,9 @@ describe("session lifecycle leases across OS processes", () => {
     const ready = await waitForEvent(fixture.events, "ready")
     expect(ready.pid).not.toBe(process.pid)
     expect(ready.executorPid).not.toBe(ready.pid)
+    if (ready.executorPid === undefined) throw new Error("worker did not report its executor")
+    const executor = captureProcessIncarnation(ready.executorPid)
+    if (!executor) throw new Error("executor process incarnation unavailable")
 
     worker.child.kill("SIGKILL")
     const ownerExit = await Promise.race([
@@ -315,7 +319,13 @@ describe("session lifecycle leases across OS processes", () => {
       },
     })
 
-    await Bun.sleep(1_700)
+    // The gate starts its child asynchronously; its ready event does not start
+    // the child's 1.5-second lifetime. Observe exit rather than guess startup time.
+    const exitDeadline = Date.now() + 10_000
+    while (probeProcessIncarnation(executor) !== "dead" && Date.now() < exitDeadline) {
+      await Bun.sleep(10)
+    }
+    expect(probeProcessIncarnation(executor)).toBe("dead")
     expect((await reconcile([], options)).liveRetired).toBe(1)
     expect(readSidecar(fixture.root).resources[key]).toMatchObject({ state: "retired" })
     expect(readSidecar(fixture.root).resources[key]?.activeLeases).toBeUndefined()
