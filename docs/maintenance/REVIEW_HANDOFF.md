@@ -1,5 +1,127 @@
 # Upstream review handoff
 
+## Follow-up review: PR #1139 (2026-09-24)
+
+Refresh GitHub and `origin/main` before resuming this queue. The newest ready contributor
+PR was reviewed first. The older Letta and draft PRs retain the dispositions below.
+
+### Session GC lock contention #1139 → maintainer delivery #1140
+
+- Source head `e8d1333ffbf59c93b8ddb60d9e2b3d13db99c33c` by Aaron Masover
+  <amasover@gmail.com> (authored 2026-09-24 01:47:42 UTC) was cherry-picked with
+  Author and AuthorDate intact as signed `340f36befbbba03df410c9342b03accae410f2eb`
+  in `/tmp/meridian-pr1139-review`, branch `codex/review-1139`. The cherry-pick
+  has the exact source tree. A separate signed maintainer commit
+  `3b5f3ed3d10d49d18b258f5986490a6dd79f0af1` retains the existing
+  `pinProvider?.() ?? pins` fallback when a GC snapshot is unavailable; the
+  source-only branch threw a `TypeError` in that case, while the corrected
+  branch returned a healthy `GcResult`.
+- The change moves session GC reconciliation away from the lifecycle lock's
+  expensive scan while retaining lock-protected state updates and pin safety.
+  A synthetic 1,438-resource/810-pin case measured about 450–457 ms on the
+  previous main and 6–7 ms on the candidate, with the same 810 pins. A forced
+  lifecycle-lock collision in a real macOS Opus 5.5 HTTP → SDK request returned
+  HTTP 503 on previous main and HTTP 200 after the fix, with the retry observed
+  and zero leaked active leases. Logs:
+  `/tmp/meridian-pr1139-{baseline,candidate}-bench.log`,
+  `/tmp/meridian-pr1139-live-busy-{before,after}.log`, and
+  `/tmp/meridian-pr1139-pin-fallback-{before,after}.log`.
+- Focused lifecycle/process tests (56), typecheck, build and full `npm test`
+  passed on the corrected final head. Real macOS Opus 5.5 publication E2E passed
+  nonstreaming and streaming: four competing sweeps per mode deleted nothing,
+  both conversations retained their fixture identifiers and source transcripts.
+  The real SDK transcript pin/retire/delete gate passed; Docker boot and host
+  identity gates E51/E52 passed. Real Oh My Pi 18.2.11 through Meridian on macOS
+  passed transcript GC with Haiku 4.5. The Opus 5.5 Oh My Pi 18.2.11 macOS run
+  encountered the same `Claude Code 2.1.141 does not support this model` error
+  on unchanged main and the candidate. Native Windows 11 Oh My Pi 18.2.11 Opus
+  5.5 comparison in #1139 reported six concurrent sessions taking 881 s with
+  44 client-visible errors on 1.76.2 versus 86 s with zero errors on the
+  branch; this is contributor evidence, not an independently repeated
+  maintainer run. Logs:
+  `/tmp/meridian-pr1139-final-{typecheck,build,npm-test,publication,publication-stream}.log`,
+  `/tmp/meridian-pr1139-gc-sdk.log`,
+  `/tmp/meridian-pr1139-gc-omp-haiku.log`, and
+  `/tmp/meridian-pr1139-{e51,e52}.log`.
+- Delivery [#1140](https://github.com/rynfar/meridian/pull/1140) passed all
+  final-head CI including `test`, Docker, desktop and Windows smoke. After
+  rechecking unchanged head `3b5f3ed3`, base `398006fe`, and green checks, it
+  was squash-merged as `f30b22f9a99a73b723ced39aa1fab263a84272a8`.
+  The merged tree exactly matches the validated branch; its commit credits
+  Aaron as co-author. Source #1139 was rechecked at unchanged `e8d1333f`
+  and closed without comment.
+
+### Release 1.76.3 publication
+
+- The previous tag is `meridian-v1.76.2`; the product release range contains
+  #1140, plus the earlier documentation-only #1138. Release Please
+  [#1141](https://github.com/rynfar/meridian/pull/1141) changes only
+  `.release-please-manifest.json`, `CHANGELOG.md`, `package-lock.json`, and
+  `package.json`. It raises all root version fields to 1.76.3 and has one
+  Bug Fixes entry for #1140. The bot's original `20eac8fe` head was signed
+  as `8e65087996e8fd47665d928cbd39e8ff7a04f514` with the exact same
+  tree and bot Author/AuthorDate; GitHub verifies the signed replacement.
+- On macOS with Bun 1.3.14, Node 22.22.3, Agent SDK 0.2.141, and Claude Code
+  2.1.280, frozen Bun install, full `npm test`, standalone typecheck, build,
+  version consistency and diff check passed. Logs:
+  `/tmp/meridian-release-1141-{npm-test,typecheck,build}.log`.
+  Real Opus 5.5 publication E2E passed nonstreaming and streaming, each with
+  four competing sweeps, durable mappings, preserved identifiers, and unchanged
+  source transcripts. The forced lifecycle-lock collision returned HTTP 200
+  with no leaked lease. Logs:
+  `/tmp/meridian-release-1141-publication-opus{,-stream}.log` and
+  `/tmp/meridian-release-1141-busy-opus.log`.
+- A 1.76.3 tarball was packed with candidate integrity
+  `sha512-OZ4zKucyQvZ3F0ReB08A4TVGVZll7vWx0uvZcfGIaei9lkHEdS9Vv+HFj8FdQ0YrVZAnv1patnbuji1i8meU8w==`.
+  An independent npm install in `/tmp/meridian-release-1141-packed` reported
+  CLI version 1.76.3 and passed a real Opus 5.5 fresh and resumed HTTP turn
+  through its installed Node server, preserving the fixture identifier. That
+  consumer resolved Agent SDK 0.2.141 and Claude Code 2.1.281. Logs:
+  `/tmp/meridian-release-1141-packed-{install,live}.log`.
+- All exact-head CI passed, including `test`, both Nix builds, Windows, desktop
+  and Docker. After rechecking unchanged head/base, #1141 was merged with
+  `--merge --match-head-commit 8e650879` as
+  `df6523e953076c361c5b7ca2d5fbb50107db6190`; the merged tree exactly
+  matches the validated candidate. Release Please created tag and GitHub release
+  `meridian-v1.76.3` at that SHA. Publication workflow:
+  [run 35959542289](https://github.com/rynfar/meridian/actions/runs/35959542289).
+  All four jobs passed. The signed/notarized macOS ARM64 DMG and ZIP, checksums
+  and build info are attached. The release Docker job pushed
+  `ghcr.io/rynfar/meridian:1.76.3` for `linux/amd64` and `linux/arm64` at index
+  digest `sha256:7a0b9e9f3155182041188f7df1bb7d1ec7e161cd0189470f77a16e6a14e0ce1c`.
+  The main-branch [Docker workflow](https://github.com/rynfar/meridian/actions/runs/35959542024)
+  passed and pushed `latest` for the same commit and architectures, index digest
+  `sha256:e781adf9774cf8919a23a8521ea345f1f94176523e3f16a265d5a12c81635b99`.
+- The npm publish job reported `+ @rynfar/meridian@1.76.3` with signed
+  provenance at Sigstore index `2932371200` on 2026-09-24 05:27 UTC.
+  The public registry's `latest` is 1.76.3; tarball integrity is
+  `sha512-jDB06dshmgGc2XFdSnYyeBP2jOITuQ7ca25cAP/45kgy9QgzEGqGCSy7PFLFzlfZm08TTkQawQIUkM4GkqS3rQ==`
+  and shasum `859c5a78414597fc42f8a3b15f738dee2f8f11bc`. The provenance
+  subject's SHA-512 digest matches the registry integrity and identifies
+  release commit `df6523e9` and run `35959542289`. A clean public-registry
+  install in `/tmp/meridian-release-1.76.3-registry` reported CLI 1.76.3 and
+  passed a real Opus 5.5 fresh and resumed HTTP turn with the fixture marker
+  preserved. Its lockfile integrity matches the registry; `npm audit signatures`
+  verified all 108 registry signatures and 14 attestations. Logs:
+  `/tmp/meridian-release-1.76.3-registry-{install,live}.log`.
+- `npm ci` on the source tree fails because the root npm lockfile still records
+  Claude Code 2.1.257 while `package.json` requests `^2.1.280`, a mismatch
+  inherited from #1102; the repository CI and frozen release gate use
+  `bun.lock` and Bun. This did not prevent the verified public-registry install.
+
+### Queue after publication
+
+- Live GitHub refresh shows four open PRs: Letta source #1105 remains at
+  `5f2a9a9e` and draft delivery #1113 at `52a3f914`, waiting for actual Letta
+  cloud-client verification. #1050 remains draft Antigravity research; #792
+  remains draft at its contributor's request. There is no newer ready PR.
+- Nine issues remain open: #1094, #1073, #1068, #1011, #1009, #933, #917,
+  #769, and #650. #1094's newest comment asks for a defined OpenCode v2
+  compatibility goal and notes that npm's plugin `latest` still points to 1.x;
+  its implementation target is not established. The prior dispositions and
+  owner/client prerequisites for the other issues are recorded below. This
+  release does not imply those issues are resolved.
+
 ## Follow-up review: PRs #1134 and #1133 (2026-09-23)
 
 The previous authorized batch shipped Meridian v1.76.1. Refresh GitHub before acting on any
