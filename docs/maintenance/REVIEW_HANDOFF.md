@@ -155,6 +155,49 @@ were sent.
   `ghcr.io/rynfar/meridian:1.76.4` as OCI index
   `sha256:1d1e8c33c55ec40b38aa65a224d79073cbf8f14f98c6dd87c205f446de8a9056`
   with both `linux/amd64` and `linux/arm64` manifests and attestations.
+- Meridian [#1148](https://github.com/rynfar/meridian/pull/1148) delivered the
+  OpenCode 2.0.16 compatibility port as `1a5e1a2b43311527650fc834d7d777abc5620141`.
+  The published 1.76.4 baseline failed the committed headless gate at setup
+  before a model call; manually loading its V2 plugin reproduced the missing
+  `context.catalog.transform` error. The corrected source and fresh npm-pack
+  candidate each passed the 15-request OpenCode 2.0.16 → Meridian SDK → Sonnet 5
+  gate on macOS. A Linux arm64 OpenCode 2.0.16 / Node 22.23.1 client passed
+  the same installed-pack gate against a macOS candidate proxy. All three
+  pinned beta extended live gates passed. Local `npm test`, typecheck and build
+  passed, as did final-head CI `test`, Windows, desktop and Docker checks. The
+  signed head `8d06fd5c` had the same tree as the squash merge.
+- Release Please [#1149](https://github.com/rynfar/meridian/pull/1149) made only
+  the expected 1.76.5 manifest/package/lockfile bumps and changelog entry.
+  Its head `858de1fc15f82c9e2c28bca3ab0399f210f6981c` passed final-head
+  `test`, Nix builds, Windows, Docker and desktop CI; the local full suite,
+  standalone typecheck and build also passed. The independently installed
+  1.76.5 pack passed the same 15-request real Sonnet 5 gate on macOS and with
+  the Linux arm64 client. The release PR merged at
+  `9170c68feeddae4bee438939b7587647f2275123`, with a tree identical to the
+  tested candidate. The tag `meridian-v1.76.5` points to that commit.
+  [Release run 35989239706](https://github.com/rynfar/meridian/actions/runs/35989239706)
+  completed all four jobs successfully. Its signed/notarized macOS DMG and ZIP
+  have release-asset SHA-256 digests
+  `3ae56de7c38420da786674b31a5b632d6acecea82df4c4ada14d132eaaab7fca`
+  and `f3463f0aa3fbe6b4f919df02acc39d18c50a910b0247320fd8c445ac9820b6b0`,
+  matching `SHA256SUMS.txt`; `BUILD-INFO.txt` names the release commit. The
+  versioned Docker index is
+  `sha256:17f84fc60f3090e02f159b78b915f3932155a97cc71b456a584d21d94af40899`
+  with `linux/amd64` and `linux/arm64` images and attestations. The separate
+  main-branch Docker workflow also passed for `latest`.
+  npm `latest` is 1.76.5 with registry integrity
+  `sha512-4pDqR1ZRtyCV1NBpdf+6ddYQTs55lVUUD9ZRN7ryeGO+J1uv4rD+IdyZc7WH4BARSQTwMLbiJwrmRwIhyL7ngw==`
+  and shasum `5fa0f21d50fdc8fad74ef8e88b599d73818a8663`.
+  Its SLSA provenance subject digest equals that integrity and names source
+  commit `9170c68f` and release run `35989239706`; `npm audit signatures`
+  verified 108 signatures and 14 attestations. A fresh registry-installed
+  1.76.5 package passed the 15-request real OpenCode 2.0.16 → Sonnet 5 gate
+  on macOS (`meridian-opencode-v2-stable-ruagkV`). A separate fresh registry
+  install in Linux arm64 / Node 22.23.1 passed the same client gate
+  (`meridian-opencode-v2-stable-HQEd88`) against the published macOS proxy.
+  The reporter's exact content-sensitive system block is unavailable and the
+  full Linux proxy/SDK path has not been replayed; keep #1094 open for that
+  narrower `billing_error` claim.
 - An additional headless probe for [issue #1009](https://github.com/rynfar/meridian/issues/1009)
   confirmed the existing `--case=unhandled --stream` fixture still passes with
   the flag off and an undeclared tool. Substituting a declared tool makes the

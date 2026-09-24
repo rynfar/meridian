@@ -179,8 +179,8 @@ running setup so it loads the selected plugin.
 
 #### oh-my-opencagent (OMO)
 
-> **OpenCode V1:** The integration below is validated on V1. Do not assume that
-> its plugin schema is compatible with the pinned V2 beta.
+> **OpenCode V1:** The integration below is validated on V1. Its plugin schema
+> has not been validated on the qualified V2 betas or released 2.0.16 host.
 
 [oh-my-opencagent](https://github.com/nicobailey/oh-my-opencagent) adds multi-agent orchestration on top of OpenCode. It works transparently through Meridian with no extra configuration — OMO uses the same OpenCode headers and tool format, so Meridian detects it automatically.
 
@@ -807,7 +807,7 @@ letting the header decide.
 
 | Agent | Status | Notes |
 |-------|--------|-------|
-| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1 and pinned V2 beta support; requires the matching `meridian setup` mode ([setup](#opencode)) — tools, durable resume, restart, undo, compaction, parallel subagents |
+| [OpenCode](https://github.com/anomalyco/opencode) | ✅ Verified | V1, three pinned V2 betas, and released 2.0.16; use the matching `meridian setup` mode ([setup](#opencode)). The [V2 host policy](#host-support-policy) lists version-specific live coverage. |
 | [ForgeCode](https://forgecode.dev) | ✅ Verified | Provider config (see [Agent Setup](#agent-setup)) — passthrough tool execution, session resume, streaming |
 | [Droid (Factory AI)](https://factory.ai/product/ide) | ✅ Verified | BYOK config (see [Agent Setup](#agent-setup)) — full tool support, session resume, streaming |
 | [Crush](https://github.com/charmbracelet/crush) | ✅ Verified | Provider config (see [Agent Setup](#agent-setup)) — full tool support, session resume, headless `crush run` |
