@@ -812,7 +812,8 @@ async function claimDeletion(
 ): Promise<TranscriptResource | undefined> {
   return withSidecarLock(options, async (paths) => {
     const sidecar = await readSidecar(paths.sidecar)
-    const finalPins = options.pinProvider ? indexPins(options.pinProvider()) : pins
+    const refreshedPins = options.pinProvider?.()
+    const finalPins = refreshedPins ? indexPins(refreshedPins) : pins
     const now = nowMs(options)
     const unarmedLeaseTtlMs = nonNegativeOption(options.unarmedLeaseTtlMs, DEFAULT_UNARMED_LEASE_TTL_MS, "unarmedLeaseTtlMs")
     let leasesChanged = false
