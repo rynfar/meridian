@@ -462,12 +462,18 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
     (lower.includes("timed out waiting for") && lower.includes(".lock"))
     || lower.includes("ownership backlog is full")
     || lower.includes("ownership capacity is full")
+    || lower.includes("lifecycle queue capacity reached")
+    || lower.includes("active lifecycle holder stalled")
   ) {
     const reason = lower.includes("ownership backlog is full")
       ? "the retirement backlog is full"
       : lower.includes("ownership capacity is full")
         ? "the ownership capacity is full"
-        : "a bookkeeping lock is busy"
+        : lower.includes("lifecycle queue capacity reached")
+          ? "the bookkeeping queue is full"
+          : lower.includes("active lifecycle holder stalled")
+            ? "an active bookkeeping transaction has stalled"
+            : "a bookkeeping lock is busy"
     return {
       status: 503,
       type: "overloaded_error",

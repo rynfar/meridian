@@ -872,18 +872,19 @@ describe("session transcript lifecycle", () => {
     expect(order).toEqual(["early", "late"])
   })
 
-  it("hands the turn on when a queued caller's budget expires", async () => {
+  it("hands the turn on when a queued caller cancels admission", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     writeFileSync(lock, "another-owner\n", { mode: 0o600 })
     chmodSync(lock, 0o600)
 
     const first = prepareFork(locator("first"), options)
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    const impatient = prepareFork(locator("impatient"), { ...options, lockWaitMs: 50 })
+    const controller = new AbortController()
+    const impatient = prepareFork(locator("impatient"), { ...options, admissionSignal: controller.signal })
       .catch((error: unknown) => error)
     const last = prepareFork(locator("last"), options)
 
-    expect(await impatient).toBeInstanceOf(SessionLifecycleLockError)
+    controller.abort(new Error("queued admission cancelled"))
+    expect(await impatient).toEqual(new Error("queued admission cancelled"))
     rmSync(lock, { force: true })
     await Promise.all([first, last])
     expect(Object.keys(readSidecar(storeDir).resources)).toHaveLength(2)

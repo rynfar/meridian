@@ -16,6 +16,23 @@ import {
 } from "node:fs/promises"
 import { hostname } from "node:os"
 import { basename, dirname, isAbsolute, join, resolve } from "node:path"
+import { setTimeout as waitForLockRetry } from "node:timers/promises"
+import { lifecycleLockQueue } from "./session/lifecycleLockQueue"
+import {
+  SessionLifecycleError,
+  SessionLifecycleLockError,
+  SessionLifecycleCorruptError,
+  SessionLifecycleBacklogError,
+} from "./session/lifecycleErrors"
+export {
+  SessionLifecycleError,
+  SessionLifecycleLockError,
+  SessionLifecycleCorruptError,
+  SessionLifecycleBacklogError,
+  SessionLifecycleQueueCapacityError,
+  SessionLifecycleQueueStalledError,
+  SessionLifecycleReentrancyError,
+} from "./session/lifecycleErrors"
 import { getMaxStoredSessionsLimit, getSessionStoreDir } from "./sessionStore"
 import {
   directoryRenameWasBlocked,
@@ -110,6 +127,8 @@ interface SessionGcSidecar {
 export type SessionDeleter = (locator: TranscriptLocator) => Promise<void>
 
 export interface SessionLifecycleOptions {
+  /** Cancel queued/external-lock admission only, never a running durable transaction. */
+  admissionSignal?: AbortSignal
   /** Test seam. Production callers should use getSessionStoreDir(). */
   storeDir?: string
   deleter?: SessionDeleter
@@ -159,11 +178,6 @@ export interface GcResult {
   failed: number
   deferred: number
 }
-
-export class SessionLifecycleError extends Error {}
-export class SessionLifecycleLockError extends SessionLifecycleError {}
-export class SessionLifecycleCorruptError extends SessionLifecycleError {}
-export class SessionLifecycleBacklogError extends SessionLifecycleError {}
 
 /** Stable ownership key. The separator prevents ambiguous concatenation. */
 export function getTranscriptResourceKey(locator: TranscriptLocator): string {
@@ -1248,101 +1262,63 @@ export async function createInitializedSidecarLockCandidate(
   }
 }
 
-/** Tail of each lock path's in-process queue: settles when its last entrant leaves. */
-const sidecarLockQueues = new Map<string, Promise<void>>()
-
-/**
- * Take this process's turn at one lock path, in arrival order.
- *
- * The lock file arbitrates between processes, but it is a poll: a waiter that
- * is asleep in its retry interval when the holder leaves loses to whoever
- * arrives next, so under steady load an early waiter can be overtaken until its
- * budget runs out while the p99 wait stays small. One process's own callers
- * need no poll to agree on an order. Queueing them turns the budget into a
- * bound on the work ahead instead of a lottery, and leaves the file contended
- * only by other processes. An entrant whose budget expires in the queue leaves
- * it at once and still hands the turn on.
- */
-async function enterSidecarLockQueue(lockPath: string, deadline: number): Promise<() => void> {
-  const ahead = sidecarLockQueues.get(lockPath) ?? Promise.resolve()
-  let leave!: () => void
-  const turn = new Promise<void>((resolve) => { leave = resolve })
-  const tail = ahead.then(() => turn)
-  sidecarLockQueues.set(lockPath, tail)
-  void tail.then(() => {
-    if (sidecarLockQueues.get(lockPath) === tail) sidecarLockQueues.delete(lockPath)
-  })
-
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const expired = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => resolve(true), Math.max(0, deadline - Date.now()))
-  })
-  const timedOut = await Promise.race([ahead.then(() => false), expired])
-  clearTimeout(timer)
-  if (timedOut) {
-    leave()
-    throw new SessionLifecycleLockError(`timed out waiting for ${lockPath}`)
-  }
-  return leave
-}
-
 async function withSidecarLock<T>(
   options: SessionLifecycleOptions,
   operation: (paths: SidecarPaths) => Promise<T>,
 ): Promise<T> {
   const dir = getStoreDir(options)
-  await mkdir(dir, { recursive: true, mode: 0o700 })
-  await chmod(dir, 0o700)
   const paths = { sidecar: join(dir, SIDECAR_NAME), lock: join(dir, `${SIDECAR_NAME}.lock`) }
-  const incarnation = captureProcessIncarnation()
-  if (!incarnation) throw new SessionLifecycleLockError("cannot capture lock owner process incarnation")
-  const token = JSON.stringify({ pid: process.pid, hostname: hostname(), token: randomUUID(), incarnation })
-  const deadline = Date.now() + nonNegativeOption(options.lockWaitMs, DEFAULT_LOCK_WAIT_MS, "lockWaitMs")
-  const retryMs = option(options.lockRetryMs, DEFAULT_LOCK_RETRY_MS, "lockRetryMs")
-  const staleMs = option(options.lockStaleMs, DEFAULT_LOCK_STALE_MS, "lockStaleMs")
-  // Initialised before queueing, so its fsync overlaps the holds ahead instead
-  // of adding to them. The lock's mtime then dates the candidate rather than
-  // the winning link(); staleness is judged in minutes and an acquisition
-  // budget in seconds, so that skew stays far below the threshold.
-  const candidate = await createInitializedSidecarLockCandidate(
-    paths.lock,
-    `${token}\n${Date.now()}\n`,
-  )
-  let acquired = false
-  let leaveQueue: (() => void) | undefined
-
-  try {
-    leaveQueue = await enterSidecarLockQueue(paths.lock, deadline)
-    while (!acquired) {
-      acquired = await candidate.publish()
-      if (acquired) break
-      await recoverStaleLock(paths.lock, staleMs)
-      if (Date.now() >= deadline) {
-        throw new SessionLifecycleLockError(`timed out waiting for ${paths.lock}`)
-      }
-      await delay(Math.min(retryMs, Math.max(1, deadline - Date.now())))
-    }
-  } catch (error) {
-    leaveQueue?.()
-    throw error
-  } finally {
-    await candidate.discard()
-  }
-
-  try {
-    return await operation(paths)
-  } finally {
-    // Only the owner may release. A stale-lock recovery must not unlink a successor.
+  return lifecycleLockQueue.run(paths.lock, options.admissionSignal, async () => {
+    await mkdir(dir, { recursive: true, mode: 0o700 })
+    await chmod(dir, 0o700)
+    options.admissionSignal?.throwIfAborted()
+    const incarnation = captureProcessIncarnation()
+    if (!incarnation) throw new SessionLifecycleLockError("cannot capture lock owner process incarnation")
+    const token = JSON.stringify({ pid: process.pid, hostname: hostname(), token: randomUUID(), incarnation })
+    const deadline = performance.now() + nonNegativeOption(options.lockWaitMs, DEFAULT_LOCK_WAIT_MS, "lockWaitMs")
+    const retryMs = option(options.lockRetryMs, DEFAULT_LOCK_RETRY_MS, "lockRetryMs")
+    const staleMs = option(options.lockStaleMs, DEFAULT_LOCK_STALE_MS, "lockStaleMs")
+    // Only the local head creates a durable candidate; local backlog consumes
+    // neither the external acquisition budget nor candidate-file I/O.
+    const candidate = await createInitializedSidecarLockCandidate(
+      paths.lock,
+      `${token}\n${Date.now()}\n`,
+    )
+    let acquired = false
     try {
-      const contents = await readFile(paths.lock, "utf8")
-      if (contents.startsWith(`${token}\n`)) await unlink(paths.lock)
-    } catch (error) {
-      if (!hasCode(error, "ENOENT")) {
-        console.error("[sessionLifecycle] lock release failed:", errorMessage(error))
+      try {
+        while (!acquired) {
+          options.admissionSignal?.throwIfAborted()
+          acquired = await candidate.publish()
+          if (acquired) break
+          await recoverStaleLock(paths.lock, staleMs)
+          options.admissionSignal?.throwIfAborted()
+          if (performance.now() >= deadline) {
+            throw new SessionLifecycleLockError(`timed out waiting for ${paths.lock}`)
+          }
+          await waitForLockRetry(Math.min(retryMs, Math.max(1, deadline - performance.now())), undefined, {
+            signal: options.admissionSignal,
+          })
+        }
+      } finally {
+        await candidate.discard()
+      }
+      options.admissionSignal?.throwIfAborted()
+      return await operation(paths)
+    } finally {
+      // Only the owner may release. A stale-lock recovery must not unlink a successor.
+      try {
+        if (acquired) {
+          const contents = await readFile(paths.lock, "utf8")
+          if (contents.startsWith(`${token}\n`)) await unlink(paths.lock)
+        }
+      } catch (error) {
+        if (!hasCode(error, "ENOENT")) {
+          console.error("[sessionLifecycle] lock release failed:", errorMessage(error))
+        }
       }
     }
-    leaveQueue()
-  }
+  })
 }
 
 interface CanonicalLifecycleLockOwner {

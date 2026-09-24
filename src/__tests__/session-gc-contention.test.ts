@@ -1,7 +1,7 @@
 import { expect, it, spyOn } from "bun:test"
 import * as crypto from "node:crypto"
 import * as fsPromises from "node:fs/promises"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -14,7 +14,7 @@ import {
   type TranscriptLocator,
 } from "../proxy/sessionLifecycle"
 
-it("keeps pin matching linear when a large GC sweep competes with request bookkeeping", async () => {
+it.each([false, true])("durably admits 24 simultaneous registrations with a large sidecar (GC=%s)", async withGc => {
   // Given: an isolated real sidecar with 1,400 resources and 800 pinned sessions.
   const storeDir = mkdtempSync(join(tmpdir(), "meridian-gc-contention-"))
   const locators: TranscriptLocator[] = Array.from({ length: 1_400 }, (_, i) => ({
@@ -28,10 +28,7 @@ it("keeps pin matching linear when a large GC sweep competes with request bookke
     return [key, { key, locator, state: "live", createdAt: 1, updatedAt: 1, attempts: 0 }]
   }))
   writeFileSync(join(storeDir, "session-gc.json"), JSON.stringify({ version: 1, resources }), { mode: 0o600 })
-  // The regression gate counts work; it must not depend on the host's fsync latency.
-  const options: SessionLifecycleOptions = {
-    storeDir, retiredGraceMs: 60_000, now: () => 10_000, lockWaitMs: 30_000,
-  }
+  const options: SessionLifecycleOptions = { storeDir, retiredGraceMs: 60_000, now: () => 10_000 }
   try {
     await reconcile(pins, options)
     const createHash = crypto.createHash
@@ -55,38 +52,46 @@ it("keeps pin matching linear when a large GC sweep competes with request bookke
       if (path === lockPath) holds.push(performance.now() - acquiredAt)
     })
     const requests: Promise<boolean>[] = []
-    let launched = false
-    let gcMs = 0
+    const gcEntered = Promise.withResolvers<void>()
     try {
-      // When: requests arrive after GC owns the lock, without artificial I/O delays.
+      // The arrival continuation belongs to the request context, not the GC's
+      // synchronous pin callback (which must not reenter lifecycle bookkeeping).
       const started = performance.now()
-      await runGc(pins, {
+      const requestsFinished = gcEntered.promise.then(async () => {
+        for (let i = 0; i < 24; i++) {
+          const requestStarted = performance.now()
+          requests.push(registerLiveTranscript({ sessionId: `request-${i}`, configDir: storeDir }, options)
+            .then(() => true, error => {
+              if (error instanceof SessionLifecycleLockError) return false
+              throw error
+            }).finally(() => { durations.push(performance.now() - requestStarted) }))
+        }
+        return Promise.all(requests)
+      })
+      const gc = withGc ? runGc(pins, {
         ...options,
         pinProvider: () => {
-          if (!launched) {
-            launched = true
-            for (let i = 0; i < 4; i++) {
-              const requestStarted = performance.now()
-              requests.push(registerLiveTranscript({ sessionId: `request-${i}`, configDir: storeDir }, options)
-                .then(() => true, error => {
-                  if (error instanceof SessionLifecycleLockError) return false
-                  throw error
-                }).finally(() => { durations.push(performance.now() - requestStarted) }))
-            }
-          }
+          gcEntered.resolve()
           return pins
         },
         deleter: async () => { throw new Error("quarantined resources must not be deleted") },
-      })
-      gcMs = performance.now() - started
-      const results = await Promise.all(requests)
+      }) : Promise.resolve()
+      if (!withGc) gcEntered.resolve()
+      const [results, gcError] = await Promise.all([requestsFinished, gc.then(() => undefined, error => error)])
       const timeouts = results.filter(result => !result).length
-      console.log(JSON.stringify({ resources: 1_400, pins: pins.length, requests: results.length,
-        timeouts, hashes, gcMs: Math.round(gcMs), maxRequestMs: Math.round(Math.max(...durations)),
+      console.log(JSON.stringify({ gc: withGc, resources: 1_400, pins: pins.length, requests: results.length,
+        timeouts, gcFailed: gcError !== undefined, hashes, elapsedMs: Math.round(performance.now() - started), maxRequestMs: Math.round(Math.max(...durations)),
         lockHoldsMs: holds.map(value => Math.round(value)) }))
       // Then: work scales with the input, not resources multiplied by pins.
-      expect(hashes).toBeLessThan(20_000)
+      expect(hashes).toBeLessThan(100_000)
       expect(timeouts).toBe(0)
+      expect(gcError).toBeUndefined()
+      const persisted: unknown = JSON.parse(readFileSync(join(storeDir, "session-gc.json"), "utf8"))
+      for (let i = 0; i < 24; i++) {
+        const key = getTranscriptResourceKey({ sessionId: `request-${i}`, configDir: storeDir })
+        expect(persisted).toHaveProperty(`resources.${key}.state`, "live")
+        expect(persisted).toHaveProperty(`resources.${key}.generation`)
+      }
     } finally {
       await Promise.allSettled(requests)
       hashSpy.mockRestore()

@@ -430,6 +430,17 @@ describe("classifyError", () => {
   })
 
   describe("session bookkeeping saturation", () => {
+    it("distinguishes queue capacity from a stalled holder without exposing host paths", () => {
+      const capacity = classifyError("lifecycle queue capacity reached for /private/session-gc.json.lock")
+      const stalled = classifyError("active lifecycle holder stalled for /private/session-gc.json.lock")
+      for (const result of [capacity, stalled]) {
+        expect(result.status).toBe(503)
+        expect(result.type).toBe("overloaded_error")
+        expect(result.message).not.toContain("/private")
+      }
+      expect(capacity.message).not.toBe(stalled.message)
+    })
+
     it("classifies the lifecycle lock wait as proxy load, not a request timeout", () => {
       const result = classifyError("timed out waiting for /var/lib/meridian/.cache/meridian/session-gc.json.lock")
       expect(result.status).toBe(503)
