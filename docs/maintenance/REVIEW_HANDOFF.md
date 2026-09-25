@@ -1,5 +1,31 @@
 # Upstream review handoff
 
+## Live queue refresh (2026-09-25)
+
+- [#1113](https://github.com/rynfar/meridian/pull/1113) merged as `aedb9b25`
+  after final-head CI, full local gates, a Sonnet 5 E57 cache/control run, and
+  all four E41 modes. Chris Wilson's ten authored cherry-picks remain in the
+  integration history; the squash commit credits him as co-author. The
+  contributor supplied an actual Letta Code 0.32.18 cloud-client run on the
+  same feature code; it included two unrelated effort-routing commits, and the
+  maintainer could not repeat cloud login locally (401). Source #1105 was
+  rechecked at `5f2a9a9e` and closed unchanged.
+- New issue [#1155](https://github.com/rynfar/meridian/issues/1155) is in
+  [#1156](https://github.com/rynfar/meridian/pull/1156). Unchanged 1.76.6,
+  actual Oh My Pi 13.18.0, Agent SDK 0.2.141, Haiku 4.5 and a historical
+  agent-owned image produced the false current-attachment answer. The fix's
+  matching headless client run attributed it to history; a Sonnet 5 Pi-protocol
+  control distinguished no new image from a genuine new red image. The PR
+  adds E65 and a pure regression test. Final-head CI and merge are pending;
+  refresh its head before relying on this checkpoint.
+- [#1152](https://github.com/rynfar/meridian/pull/1152) remains held by the
+  affected Linux OpenCode/Opus billing-error gate. #1050 and #792 remain draft.
+  The five scrub repos had no newly opened issues or PRs; OpenCode scrub #5 is
+  still deferred. Release Please [#1157](https://github.com/rynfar/meridian/pull/1157)
+  appeared after #1113; wait for #1156 and all release gates before publishing.
+- The older #1151/#1153 checkpoint below predates their successful merge and
+  1.76.6 release. Its pending language is historical.
+
 ## Contributor PR review checkpoint (2026-09-25)
 
 - [#1152](https://github.com/rynfar/meridian/pull/1152), head `51bcec4f`,

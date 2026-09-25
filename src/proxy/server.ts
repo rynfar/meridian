@@ -500,7 +500,8 @@ function buildFreshPrompt(
         }
       }
     }
-    // See #553 — consolidate earlier-turn multimodal onto the final user turn.
+    // One SDK input keeps historical media visible; frame its provenance
+    // before the live user turn (#553, #1155).
     const prompt = frameStructuredReplay(structured, messages.at(-1)?.role !== "assistant")
     return (async function* () { for (const msg of prompt) yield msg })()
   }
