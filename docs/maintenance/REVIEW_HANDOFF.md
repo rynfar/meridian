@@ -1,5 +1,27 @@
 # Upstream review handoff
 
+## Contributor PR review checkpoint (2026-09-25)
+
+- [#1152](https://github.com/rynfar/meridian/pull/1152), head `51bcec4f`,
+  separates local lifecycle queue residence from the external lock deadline.
+  Its physical-disk stress and CI pass, but the contributor's affected Linux
+  OpenCode 1.18.32 / Opus 5.5 live batches completed no primary turns:
+  requests ended in HTTP 402 `billing_error` (one batch also reached 500 after
+  fallback). Keep this PR open and unmerged until that exact flow succeeds;
+  a successful simple model probe or synthetic lock test does not clear it.
+- [#1151](https://github.com/rynfar/meridian/pull/1151), source head
+  `79ee7d59` from @builder-main, fixes the Windows OpenCode V2 SDK gate using
+  an actual Node executable. Its commit author is `arch <arch@not.me>`; the
+  fork head is unsigned and GitHub held its workflow runs for approval.
+  Signed cherry-pick `9899e46b` on `codex/windows-sdk-gate-1151` preserves
+  Author and AuthorDate in delivery [#1153](https://github.com/rynfar/meridian/pull/1153).
+  The contributor reports published-1.76.5 failure and fixed Windows 11,
+  OpenCode 2.0.16, Claude Code 2.1.281, Opus 5.5 success. The integration
+  passed 13 focused process tests, full local `npm test`, typecheck, build,
+  and native Windows CI smoke on its first head. The final delivery head,
+  affected-client regression control, remaining CI, merge and source closure
+  must be checked in #1153; this is a dated checkpoint, not their verdict.
+
 ## Cross-repository scrub review (2026-09-24)
 
 Live discovery found five owner-controlled scrub repositories:

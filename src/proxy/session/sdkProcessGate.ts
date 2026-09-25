@@ -202,7 +202,7 @@ async function waitForExit(exited: Promise<void>, timeoutMs: number): Promise<bo
 /**
  * Start a harmless gated wrapper and capture its exact incarnation before the
  * SDK can execute Claude Code. POSIX wrappers `exec` the CLI in the same PID.
- * Windows keeps a PowerShell parent for the complete CLI lifetime; crash
+ * Windows keeps a Node wrapper parent for the complete CLI lifetime; crash
  * recovery of that lease is deliberately disabled because Windows has no
  * built-in, authoritative descendant-group incarnation.
  */
