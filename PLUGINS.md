@@ -155,7 +155,7 @@ export default {
 }
 ```
 
-Canonical adapter names: `opencode`, `crush`, `droid`, `pi`, `prime`, `forgecode`, `passthrough`, `cherry`, `claude-code`, `polytoken`, `openai`, `jcode`, `codex`. Instances inherit their base adapter's plugin scope.
+Canonical adapter names: `opencode`, `crush`, `droid`, `pi`, `prime`, `forgecode`, `passthrough`, `cherry`, `claude-code`, `polytoken`, `openai`, `jcode`, `letta`, `codex`. Instances inherit their base adapter's plugin scope.
 
 ## Plugin Configuration
 

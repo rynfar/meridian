@@ -35,6 +35,9 @@ const ADAPTER_TRANSFORMS: Record<string, readonly Transform[]> = {
   // tool config. Without this entry it falls through to the empty default —
   // built-ins unblocked under bypassPermissions, passthrough off.
   jcode: openCodeTransforms,
+  // Letta Code rides the same OpenAI-compatible endpoint. Without this entry its
+  // adapter gets no transforms and one tool call executes twice on two machines.
+  letta: openCodeTransforms,
   // Codex (/v1/responses): OpenCode's tool config + a follow-on transform
   // that forces passthrough (Codex executes its own tools). See #475.
   codex: [...openCodeTransforms, ...codexTransforms],

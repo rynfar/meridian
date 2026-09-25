@@ -33,7 +33,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_FABLE_MODEL` | `CLAUDE_PROXY_FABLE_MODEL` | `fable[1m]` | Fable context tier opt-out: set to `fable` to disable the 1M extended context window and stay on the 200k base variant (also governs Mythos, which rides the Fable tier). `fable[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_FABLE_MODEL` below, which pins a concrete model id, not a context tier. |
 | `MERIDIAN_OPUS_MODEL` | `CLAUDE_PROXY_OPUS_MODEL` | `opus[1m]` | Opus context tier opt-out: set to `opus` to disable the 1M extended context window and stay on the 200k base variant. `opus[1m]` is a documented no-op. Not to be confused with `MERIDIAN_DEFAULT_OPUS_MODEL` below, which pins a concrete model id, not a context tier. |
 | `MERIDIAN_1M_CONTEXT_SUPPORT` | `CLAUDE_PROXY_1M_CONTEXT_SUPPORT` | unset | Set to `0`/`false`/`no` to disable 1M context entirely — every model resolves to its 200k base variant, so Meridian never requests the extended window (avoids Extra Usage on 1M). To opt out a single tier instead, use `MERIDIAN_FABLE_MODEL` or `MERIDIAN_OPUS_MODEL` above. |
-| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `prime`, `crush`, `droid`, `cherry`, `claude-code`, `passthrough`, `polytoken`, `openai`, `jcode`, `codex`. Aliases: `prime-agent`, `cherrystudio`, `claudecode`. Re-read per request from the process environment — restart the proxy to pick up deployment-level env changes. |
+| `MERIDIAN_DEFAULT_AGENT` | — | `opencode` | Default adapter for unrecognized agents: `opencode`, `forgecode`, `pi`, `prime`, `crush`, `droid`, `cherry`, `claude-code`, `passthrough`, `polytoken`, `openai`, `jcode`, `letta`, `codex`. Aliases: `prime-agent`, `cherrystudio`, `claudecode`. Re-read per request from the process environment — restart the proxy to pick up deployment-level env changes. |
 | `MERIDIAN_ROUTING` | — | `active` | Session-to-profile routing: `active` (all traffic to the active profile), `sticky` ([sticky session routing](profiles.md#sticky-session-routing)), or `priority` ([priority failover](profiles.md#priority-failover-routing)) |
 | `MERIDIAN_PROFILE_ORDER` | — | *(config order)* | Priority-mode pool order, comma-separated, highest priority first (e.g. `work,personal`). Also editable at `/settings`. |
 | `MERIDIAN_PRIORITY_FAILBACK` | — | `new-conversation` | Priority failback policy: `new-conversation` (current behavior) or `next-user-turn`. Environment value overrides `priorityFailback` in the settings JSON. Applies only to priority routing and OpenCode turn metadata; other adapters retain `new-conversation` behavior. |
@@ -465,19 +465,22 @@ re-write its prompt prefix.
 Identity is resolved in this order:
 
 1. **The adapter's session header**, if the client sends one.
-2. **An id Meridian derives for a client-driven tool loop** — `tool-loop:<hash>`
+2. **An id the adapter reads out of the request body**, for clients that carry
+   one there instead (`claudecode`, `pi`, `prime`, `letta`).
+3. **An id Meridian derives for a client-driven tool loop** — `tool-loop:<hash>`
    from the loop's own first tool-call id — for a headerless generic OpenAI
    client that resends its whole growing conversation every round (`openai`).
-3. **A conversation fingerprint** — a hash of the opening user message plus the
-   client working directory — when there is neither.
+4. **A conversation fingerprint** — a hash of the opening user message plus the
+   client working directory — when none of the above applies.
 
 The fingerprint is a fallback, not an equivalent. It cannot distinguish two
 concurrent conversations that open with the same text, and it moves if anything
-rewrites the opening message. The derived tool-loop id closes that gap for a
-headerless OpenAI loop: the opening text and working directory alone put two
-concurrent runs of one workflow under a single key, so Meridian anchors on the
-loop's first tool-call id instead — issued per generation, still present in the
-replayed history, and unique to that run.
+rewrites the opening message. It is also blind to identity carried inside a
+`<system-reminder>` block, which is stripped before hashing — that is why Letta,
+whose conversation id lives in exactly such a block, reads the id directly
+rather than relying on the fallback. For a headerless OpenAI tool loop, the
+first tool-call id distinguishes concurrent runs of the same workflow even
+when their opening text and working directory match.
 
 | Adapter | Session identity it reads |
 |---|---|
@@ -487,6 +490,7 @@ replayed history, and unique to that run.
 | `codex` | `x-codex-session` |
 | `crush` | `x-session-id`, then `x-session-affinity` |
 | `jcode` | `x-jcode-session` |
+| `letta` | The `conv-<uuid>` id in the agent-info block Letta places in its opening user message (no session header) |
 | `passthrough` (LiteLLM) | `x-litellm-session-id` |
 | `cherry`, `openai` | Inherit OpenCode header handling; a headerless generic OpenAI tool loop additionally gets a derived `tool-loop:<hash>` key, so it resumes instead of packing |
 | `polytoken` | Valid `x-polytoken-session` |

@@ -12,8 +12,9 @@ export const openCodeTransforms: Transform[] = [
     // pipeline via the transform registry; each must be listed here or the
     // transform is skipped and clients get built-in tools unblocked +
     // passthrough off (#546). Codex additionally FORCES passthrough on via a
-    // follow-on transform (#475).
-    adapters: ["opencode", "openai", "jcode", "codex"],
+    // follow-on transform (#475). "letta" is the same surface: without it here
+    // one tool call executes twice on two machines (see transforms/registry.ts).
+    adapters: ["opencode", "openai", "jcode", "codex", "letta"],
 
     onRequest(ctx: RequestContext): RequestContext {
       const body = ctx.body

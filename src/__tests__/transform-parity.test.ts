@@ -132,6 +132,20 @@ describe("OpenAI-compatible adapters reuse the OpenCode pipeline (#546)", () => 
     expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
     expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
   })
+
+  // "letta" is the adapter name Letta's body reminder resolves to. Without this
+  // registry entry one tool call executes twice, on two machines.
+  it("registers the letta adapter against the OpenCode pipeline", () => {
+    expect(getAdapterTransforms("letta")).toBe(openCodeTransforms)
+  })
+
+  it("applies the same core transforms to Letta, including blocked built-ins", () => {
+    const ctx = runTransformHook(getAdapterTransforms("letta"), "onRequest", makeCtx("letta"), "letta")
+    expect([...ctx.blockedTools]).toEqual([...openCodeAdapter.getBlockedBuiltinTools()])
+    expect([...ctx.blockedTools]).toContain("Bash")
+    expect([...ctx.allowedMcpTools]).toEqual([...openCodeAdapter.getAllowedMcpTools()])
+    expect(ctx.passthrough).toBe(openCodeAdapter.usesPassthrough!())
+  })
 })
 
 describe("Crush transform parity", () => {
