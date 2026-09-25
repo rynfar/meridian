@@ -1,9 +1,30 @@
 /** Pure rendering of client tool history for SDK replay. */
 import { sanitizeAssistantText } from "./sanitize"
-import { describeToolCall, REPLAY_CONTEXT_OPEN, REPLAY_CONTEXT_CLOSE, type ToolCallInfo } from "./messages"
+import { describeToolCall, MULTIMODAL_TYPES, REPLAY_CONTEXT_OPEN, REPLAY_CONTEXT_CLOSE, type ToolCallInfo } from "./messages"
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function mediaType(block: unknown): string | undefined {
+  return record(block) && typeof block.type === "string" && MULTIMODAL_TYPES.has(block.type)
+    ? block.type : undefined
+}
+
+function mediaCounts(content: unknown): Record<"image" | "document" | "file", number> {
+  const counts = { image: 0, document: 0, file: 0 }
+  if (!Array.isArray(content)) return counts
+  for (const block of content) {
+    const type = mediaType(block)
+    if (type === "image" || type === "document" || type === "file") counts[type]++
+  }
+  return counts
+}
+
+function mediaSummary(counts: ReturnType<typeof mediaCounts>): string {
+  return `${counts.image} ${counts.image === 1 ? "image" : "images"}, ` +
+    `${counts.document} ${counts.document === 1 ? "document" : "documents"}, and ` +
+    `${counts.file} ${counts.file === 1 ? "file" : "files"}`
 }
 
 /** One HTTP request must not become several independently answered SDK turns. */
@@ -19,13 +40,46 @@ export function coalesceStructuredUserMessages<T extends { message: { content: u
  * user input messages, but their historical/context boundary must survive. */
 export function frameStructuredReplay<T extends { message: { content: unknown } }>(messages: T[], endsWithUser = true): T[] {
   if (messages.length < 2) return messages
+  const lastIndex = messages.length - 1
+  const historical = { image: 0, document: 0, file: 0 }
+  if (endsWithUser) {
+    for (const entry of messages.slice(0, lastIndex)) {
+      const counts = mediaCounts(entry.message.content)
+      historical.image += counts.image
+      historical.document += counts.document
+      historical.file += counts.file
+    }
+  }
+  const hasHistoricalMedia = historical.image + historical.document + historical.file > 0
+  const current = mediaCounts(messages[lastIndex]!.message.content)
+  const provenance = hasHistoricalMedia
+    ? `\n[Meridian attachment provenance: The current client turn contains exactly ${mediaSummary(current)}. ` +
+      `Earlier replayed turns contain ${mediaSummary(historical)}. ` +
+      `Those historical media are not new user attachments in this turn.]`
+    : ""
   const framed = messages.map((entry, index) => {
-    const prefix = !endsWithUser ? "" : index === 0 ? REPLAY_CONTEXT_OPEN : index === messages.length - 1 ? REPLAY_CONTEXT_CLOSE : ""
-    if (!prefix) return entry
+    const isHistory = endsWithUser && index < lastIndex
+    const prefix = !endsWithUser ? "" : index === 0 ? REPLAY_CONTEXT_OPEN : index === lastIndex
+      ? REPLAY_CONTEXT_CLOSE + (hasHistoricalMedia
+        ? "Any images, documents, or files above came from earlier turns in this replay. They are not attachments to the user's current message below.\n\n"
+        : "") : ""
     const content = entry.message.content
-    return { ...entry, message: { ...entry.message, content: Array.isArray(content)
-      ? [{ type: "text", text: prefix }, ...content]
-      : prefix + String(content ?? "") } }
+    const suffix = index === lastIndex ? provenance : ""
+    if (!Array.isArray(content)) {
+      if (!prefix && !suffix) return entry
+      return { ...entry, message: { ...entry.message, content: prefix + String(content ?? "") + suffix } }
+    }
+    const blocks = isHistory ? content.flatMap(block => {
+      const type = mediaType(block)
+      return type
+        ? [{ type: "text", text: `Historical ${type} from an earlier turn, not an attachment to the current user message:\n` }, block]
+        : [block]
+    }) : content
+    if (!prefix && !suffix && blocks === content) return entry
+    return { ...entry, message: { ...entry.message, content: [
+      ...(prefix ? [{ type: "text", text: prefix }] : []), ...blocks,
+      ...(suffix ? [{ type: "text", text: suffix }] : []),
+    ] } }
   })
   // SDK stream inputs are live turns, not a history-import interface. Send
   // the complete replay atomically so the model cannot answer an earlier

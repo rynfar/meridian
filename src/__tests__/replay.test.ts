@@ -3,6 +3,9 @@ import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResu
 
 const call = { type: "tool_use", id: "call-one", name: "write", input: { path: "a.txt", content: "complete\ncontents" } }
 const image = { type: "image", source: { type: "base64", media_type: "image/png", data: "pixels" } }
+const textOf = (block: unknown): string =>
+  block !== null && typeof block === "object" && "text" in block && typeof block.text === "string"
+    ? block.text : ""
 
 describe("faithful tool history rendering", () => {
   it("delivers a complete resume delta atomically without changing native results, media or input", () => {
@@ -83,8 +86,40 @@ describe("faithful tool history rendering", () => {
     expect(JSON.stringify(framed[0]!.message.content)).toContain("<conversation_history>")
     expect(JSON.stringify(framed[0]!.message.content)).toContain("</conversation_history>")
     expect(framed[0]!.message.content).toContainEqual(image)
+    expect(JSON.stringify(framed)).not.toContain("attachment provenance")
     expect(source).toEqual(before)
     expect(JSON.stringify(frameStructuredReplay(source, false))).not.toContain("<conversation_history>")
+    expect(JSON.stringify(frameStructuredReplay(source, false))).not.toContain("Historical image")
     expect(frameStructuredReplay(source.slice(0, 1))).toEqual(source.slice(0, 1))
+  })
+
+  it("attributes historical media without labelling the current user's attachment", () => {
+    const document = { type: "document", source: { type: "base64", media_type: "application/pdf", data: "prior" } }
+    const file = { type: "file", source: { type: "base64", media_type: "text/plain", data: "prior" } }
+    const currentImage = { ...image, source: { ...image.source, data: "current" } }
+    const source = [
+      { message: { content: [{ type: "text", text: "old screenshot" }, image, document, file] } },
+      { message: { content: "[Assistant: I captured the screenshot]" } },
+      { message: { content: [{ type: "text", text: "current request" }, currentImage] } },
+    ]
+    const before = structuredClone(source)
+    const blocks = frameStructuredReplay(source)[0]!.message.content
+    expect(Array.isArray(blocks)).toBe(true)
+    if (!Array.isArray(blocks)) throw new Error("expected structured replay")
+    for (const historical of [image, document, file]) {
+      const index = blocks.indexOf(historical)
+      expect(index).toBeGreaterThan(0)
+      expect(textOf(blocks[index - 1])).toContain(`Historical ${historical.type}`)
+      expect(textOf(blocks[index - 1])).toContain("not an attachment to the current user message")
+    }
+    const closeIndex = blocks.findIndex(block => textOf(block).includes("</conversation_history>"))
+    const currentIndex = blocks.indexOf(currentImage)
+    expect(closeIndex).toBeGreaterThan(blocks.indexOf(file))
+    expect(textOf(blocks[closeIndex])).toContain("not attachments to the user's current message")
+    expect(currentIndex).toBeGreaterThan(closeIndex)
+    expect(blocks[currentIndex - 1]).toEqual({ type: "text", text: "current request" })
+    expect(textOf(blocks.at(-1))).toContain("current client turn contains exactly 1 image, 0 documents, and 0 files")
+    expect(textOf(blocks.at(-1))).toContain("Earlier replayed turns contain 1 image, 1 document, and 1 file")
+    expect(source).toEqual(before)
   })
 })
