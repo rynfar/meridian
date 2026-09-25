@@ -2,7 +2,7 @@
 /** Real Oh My Pi client check for agent-owned historical media on a fresh replay. */
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -45,8 +45,10 @@ function imageData() {
     chunk("IDAT", deflateSync(Buffer.concat(Array.from({ length: 48 }, () => row)))), chunk("IEND", Buffer.alloc(0))]).toString("base64")
 }
 
-const { startProxyServer } = await import(pathToFileURL(join(meridianRoot, "src/proxy/server.ts")).href)
-const { telemetryStore } = await import(pathToFileURL(join(meridianRoot, "src/telemetry/index.ts")).href)
+const sourceModule = join(meridianRoot, "src/proxy/server.ts")
+const serverModule = existsSync(sourceModule) ? sourceModule : join(meridianRoot, "dist/server.js")
+assert(existsSync(serverModule), `Missing Meridian server module: ${serverModule}`)
+const { startProxyServer } = await import(pathToFileURL(serverModule).href)
 const proxy = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true })
 const address = proxy.server.address()
 assert(address && typeof address === "object")
@@ -96,11 +98,13 @@ try {
   assert(main.length >= 2, JSON.stringify(main))
   assert(main.slice(0, -1).some(message => message.media > 0), JSON.stringify(main))
   assert.equal(main.at(-1)?.media, 0, "the current Oh My Pi turn must be text only")
-  const telemetry = telemetryStore.getRecent({ limit: 1 })[0]
+  const telemetryResponse = await fetch(`http://127.0.0.1:${address.port}/telemetry/requests?limit=1&hops=1`)
+  assert.equal(telemetryResponse.status, 200)
+  const telemetry = (await telemetryResponse.json())[0]
   assert.equal(telemetry?.adapter, "pi")
   assert.equal(telemetry?.lineageType, "new")
   console.log(JSON.stringify({ ompVersion: JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")).version,
-    meridianRoot, modelId, requestCount: requests.length, messageSummary: main, lineage: telemetry.lineageType,
+    meridianRoot, serverModule, modelId, requestCount: requests.length, messageSummary: main, lineage: telemetry.lineageType,
     answer: session.getLastAssistantText(), root }))
 } finally {
   if (session) await session.dispose()

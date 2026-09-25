@@ -5244,7 +5244,9 @@ reports `new` on all three. After, all three agree.
 Run `bun scripts/e2e-letta-identity.mjs` for an automated two-arm, real SDK/model
 check before releases touching Letta or generic OpenAI conversation identity.
 It asserts Letta continuation and cache reuse against a no-reminder OpenAI
-control, with isolated proxy state and a fresh prompt prefix on each run. Like
+control, with isolated proxy state and a fresh prompt prefix on each run. Set
+`E2E_MERIDIAN_ROOT` to an independently installed package root to check its
+`dist/server.js` instead of this checkout. Like
 the manual procedure below, this reproduces Letta's wire shape; it does not
 run the Letta Code binary. Actual cloud-client evidence is required separately.
 
@@ -5627,7 +5629,7 @@ Run `bun scripts/e2e-compaction-summary.mjs` and again with `--legacy`. The loca
 
 Run `bun scripts/e2e-replay-media-attribution.mjs` and again with `--current-image` using Claude Max authentication. The first arm supplies one historical blue image and a text-only current Pi turn; the control adds a genuine red image to the current turn. Both use the real Agent SDK and model, inspect supported SDK session messages, and assert the historical image precedes `</conversation_history>`, the current image follows it only in the control, and Meridian's final provenance note reports the exact media counts. The model's answer is recorded for review without making its wording a brittle assertion.
 
-For the affected client, install Oh My Pi in a disposable directory and run `E2E_OMP_PACKAGE=/absolute/path/to/node_modules/@oh-my-pi/pi-coding-agent bun scripts/e2e-omp-replay-media-attribution.mjs`. This uses Oh My Pi's actual session API to put an agent-owned image in prior context, sends a text-only current turn through an isolated Meridian proxy, and checks the actual client wire shape, `adapter=pi`, and `lineage=new`. `E2E_MERIDIAN_ROOT` selects another checkout for before/after comparison. The fixture constructs the affected fresh-replay request directly; it does not edit a user's existing Oh My Pi session.
+For the affected client, install Oh My Pi in a disposable directory and run `E2E_OMP_PACKAGE=/absolute/path/to/node_modules/@oh-my-pi/pi-coding-agent bun scripts/e2e-omp-replay-media-attribution.mjs`. This uses Oh My Pi's actual session API to put an agent-owned image in prior context, sends a text-only current turn through an isolated Meridian proxy, and checks the actual client wire shape, `adapter=pi`, and `lineage=new`. `E2E_MERIDIAN_ROOT` selects another checkout or an independently installed Meridian package root; the latter loads `dist/server.js`. The fixture constructs the affected fresh-replay request directly; it does not edit a user's existing Oh My Pi session.
 
 On 2026-09-25, macOS arm64, Oh My Pi 13.18.0, Agent SDK 0.2.141 and Haiku 4.5, the same client fixture on unchanged 1.76.6 answered that the user attached an image; after the provenance change it answered that the blue image was historical. A separate Sonnet 5 HTTP probe also answered incorrectly before and distinguished both no-new-image and real-new-red-image cases afterward. These observed model answers support the fix but are not deterministic assertions; the structural checks are the regression gate.
 

@@ -2,10 +2,12 @@
 /** Real SDK/model wire-shape gate for Letta conversation identity (E57). */
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
-import { mkdtempSync, realpathSync } from "node:fs"
+import { existsSync, mkdtempSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
+const meridianRoot = process.env.E2E_MERIDIAN_ROOT ?? fileURLToPath(new URL("..", import.meta.url))
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-letta-identity-")))
 for (const key of Object.keys(process.env)) {
   if (key.startsWith("MERIDIAN_") || key.startsWith("CLAUDE_PROXY_")) delete process.env[key]
@@ -17,8 +19,10 @@ Object.assign(process.env, {
   MERIDIAN_TELEMETRY_PERSIST: "0",
   MERIDIAN_CREDENTIALS_READONLY: "1",
 })
-const { startProxyServer } = await import("../src/proxy/server.ts")
-const { telemetryStore } = await import("../src/telemetry/index.ts")
+const sourceModule = join(meridianRoot, "src/proxy/server.ts")
+const serverModule = existsSync(sourceModule) ? sourceModule : join(meridianRoot, "dist/server.js")
+assert(existsSync(serverModule), `Missing Meridian server module: ${serverModule}`)
+const { startProxyServer } = await import(pathToFileURL(serverModule).href)
 const instance = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true })
 const address = instance.server.address()
 assert(address && typeof address === "object")
@@ -52,7 +56,9 @@ async function turn(arm, id, prefix, reply) {
   const content = body.choices?.[0]?.message?.content ?? ""
   const usage = body.usage ?? {}
   const cached = usage.prompt_tokens_details?.cached_tokens ?? usage.cache_read_input_tokens ?? 0
-  const row = telemetryStore.getRecent({ limit: 1 })[0]
+  const telemetryResponse = await fetch(`http://127.0.0.1:${address.port}/telemetry/requests?limit=1&hops=1`)
+  assert.equal(telemetryResponse.status, 200)
+  const row = (await telemetryResponse.json())[0]
   assert(row, "missing proxy telemetry")
   console.log(JSON.stringify({ arm, turn: reply ? 2 : 1, model, adapter: row.adapter,
     lineage: row.lineageType, cached, usage, answer: content }))
@@ -75,7 +81,7 @@ try {
   assert.equal(controlFirst.row.adapter, "openai")
   assert.equal(controlSecond.row.adapter, "openai")
   assert.equal(controlSecond.row.lineageType, "new")
-  console.log(JSON.stringify({ pass: true, model, root }))
+  console.log(JSON.stringify({ pass: true, model, meridianRoot, serverModule, root }))
 } finally {
   await instance.close()
 }
