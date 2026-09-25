@@ -236,8 +236,11 @@ function spawnProxyWorker(
       MERIDIAN_PASSTHROUGH: options.passthrough ? "1" : "0",
       CLAUDE_PROXY_PASSTHROUGH: "0",
       MERIDIAN_MAX_CONCURRENT: "8",
-      MERIDIAN_SESSION_TURN_ACQUIRE_TIMEOUT_MS: "5000",
-      MERIDIAN_SESSION_TURN_MAX_HOLD_MS: "5000",
+      // The test controls release through a file and has its own 15–20s
+      // timeout. A test-configured 5s watchdog can abort a healthy owner while
+      // another test file or OS process delays this harness's release call.
+      MERIDIAN_SESSION_TURN_ACQUIRE_TIMEOUT_MS: "30000",
+      MERIDIAN_SESSION_TURN_MAX_HOLD_MS: "60000",
       MERIDIAN_SESSION_TURN_RETRY_MS: "5",
       EVENT_FILE: paths.events,
       RELEASE_FILE: releaseFile,
@@ -286,6 +289,12 @@ async function waitForEvent(
 }
 
 async function release(worker: WorkerHandle): Promise<void> {
+  // Optional scheduling stall for reproducing a watchdog race without relying
+  // on CPU contention during the full suite.
+  const delayMs = Number(process.env.CROSS_PROCESS_TEST_RELEASE_DELAY_MS ?? 0)
+  if (worker.id === "modified-owner" && Number.isFinite(delayMs) && delayMs > 0) {
+    await Bun.sleep(delayMs)
+  }
   await writeFile(worker.releaseFile, "release")
 }
 
