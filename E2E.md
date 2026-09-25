@@ -5240,6 +5240,13 @@ reports `new` on all three. After, all three agree.
 
 ## E57: Letta conversation identity and cache reuse
 
+Run `bun scripts/e2e-letta-identity.mjs` for an automated two-arm, real SDK/model
+check before releases touching Letta or generic OpenAI conversation identity.
+It asserts Letta continuation and cache reuse against a no-reminder OpenAI
+control, with isolated proxy state and a fresh prompt prefix on each run. Like
+the manual procedure below, this reproduces Letta's wire shape; it does not
+run the Letta Code binary. Actual cloud-client evidence is required separately.
+
 **What it proves:** with Letta's agent-info reminder present, Meridian resolves
 `adapter=letta` and the second turn resumes the same SDK session
 (`lineage=continuation`), so the prompt prefix is read from cache instead of
