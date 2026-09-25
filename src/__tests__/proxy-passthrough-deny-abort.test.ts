@@ -45,6 +45,7 @@ const PASSTHROUGH_PREFIX = "mcp__oc__"
 let mockTurns: any[] = []
 let capturedController: AbortController | undefined
 let capturedResume: string | undefined
+let abortCompletesNormally = false
 
 function toolTurn(toolId: string, toolName: string, input: Record<string, unknown>) {
   return {
@@ -122,6 +123,7 @@ installSdkMock(() => ({
       const sessionId = resolveMockSdkSessionId(opts?.options, "test-session")
       for (const turn of mockTurns) {
         if (capturedController?.signal.aborted) {
+          if (abortCompletesNormally) return
           throw new Error("Claude Code process aborted by user")
         }
         // The real SDK honors Options.sessionId for a fork. Keep this mock
@@ -135,6 +137,7 @@ installSdkMock(() => ({
           }
         }
         if (capturedController?.signal.aborted) {
+          if (abortCompletesNormally) return
           throw new Error("Claude Code process aborted by user")
         }
       }
@@ -215,6 +218,7 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
     mockTurns = []
     capturedController = undefined
     capturedResume = undefined
+    abortCompletesNormally = false
     clearSessionCache()
   })
 
@@ -273,6 +277,32 @@ describe("Passthrough deny aborts the nested SDK session on loop detection", () 
       .filter((e: any) => e.event === "content_block_start" && e.data?.content_block?.type === "tool_use")
       .map((e: any) => e.data.content_block.id)
     expect(toolStartIds).toEqual(["toolu_s1"])
+  })
+
+  it("stream: treats a normally completed self-abort as a recoverable tool handoff", async () => {
+    // The SDK can finish its iterator cleanly after Meridian aborts it. The
+    // final-envelope guard then throws its own error; that error must identify
+    // the self-abort so the existing captured-call recovery can run (#1095).
+    abortCompletesNormally = true
+    mockTurns = [
+      streamMessageStart(),
+      toolTurn("toolu_s1", "get_weather", { city: "SF" }),
+      toolTurn("toolu_s2", "get_weather", { city: "LA" }),
+    ]
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+
+    const response = await post(app, true)
+    const events = await readSSE(response)
+    expect(capturedController?.signal.aborted).toBe(true)
+    expect(events.filter(event => event.event === "error")).toHaveLength(0)
+    expect(events.filter(event => event.event === "message_stop")).toHaveLength(1)
+    expect(events.filter(event => event.event === "message_delta")
+      .map(event => (event.data.delta as { stop_reason?: string }).stop_reason))
+      .toContain("tool_use")
+    expect(events.filter(event => event.event === "content_block_start" &&
+      (event.data.content_block as { type?: string })?.type === "tool_use")
+      .map(event => (event.data.content_block as { id?: string }).id))
+      .toEqual(["toolu_s1"])
   })
 
   it("retains buffered numeric arguments when recovery closes a dangling tool block", async () => {

@@ -415,8 +415,8 @@ describe("Session lineage: undo detection", () => {
 // Scenarios 5-7: Compaction
 // ---------------------------------------------------------------------------
 
-describe("Session lineage: compaction survival", () => {
-  it("resumes after compaction rewrites older messages (suffix preserved)", async () => {
+describe("Session lineage: compaction replay", () => {
+  it("replays a shortened summary head with its preserved suffix and new turns", async () => {
     const app = createTestApp()
 
     // Build a 9-message conversation
@@ -471,12 +471,13 @@ describe("Session lineage: compaction survival", () => {
       { role: "user", content: "topic E" },
     ], "sdk-c")
 
-    expect(getCaptured()?.options?.resume).toBeDefined()
+    expect(getCaptured()?.options?.resume).toBeUndefined()
+    expect(getCaptured()?.prompt).toContain("[Summary: A, B and C discussed]")
     expect(getCaptured()?.prompt).toContain("INTERMEDIATE COMPACTION SENTINEL")
     expect(getCaptured()?.prompt).toContain("topic E")
   })
 
-  it("resumes after compaction reduces message count", async () => {
+  it("allows the legacy resume with MERIDIAN_COMPACTION_SURVIVAL=1", async () => {
     const app = createTestApp()
 
     // Build to 9 messages
@@ -489,17 +490,22 @@ describe("Session lineage: compaction survival", () => {
 
     // Compaction: 9 msgs → 7 (summary + preserved tail + new)
     capturedQueryParams = null
-    await post(app, "sess-s", [
-      { role: "user", content: "[Summary: steps 1-3]" },
-      { role: "assistant", content: "done 3" },
-      { role: "user", content: "step 4" },
-      { role: "assistant", content: "done 4" },
-      { role: "user", content: "step 5" },
-      { role: "assistant", content: "done 5" },
-      { role: "user", content: "step 6" },
-    ], "sdk-s")
+    process.env.MERIDIAN_COMPACTION_SURVIVAL = "1"
+    try {
+      await post(app, "sess-s", [
+        { role: "user", content: "[Summary: steps 1-3]" },
+        { role: "assistant", content: "done 3" },
+        { role: "user", content: "step 4" },
+        { role: "assistant", content: "done 4" },
+        { role: "user", content: "step 5" },
+        { role: "assistant", content: "done 5" },
+        { role: "user", content: "step 6" },
+      ], "sdk-s")
 
-    expect(getCaptured()?.options?.resume).toBeDefined()
+      expect(getCaptured()?.options?.resume).toBeDefined()
+    } finally {
+      delete process.env.MERIDIAN_COMPACTION_SURVIVAL
+    }
   })
 
   it("does NOT resume when both prefix AND suffix changed (real branch)", async () => {
@@ -722,7 +728,8 @@ describe("Session lineage: post-compaction behavior", () => {
       { role: "user", content: "H" },
     ], "sdk-2c")
 
-    expect(getCaptured()?.options?.resume).toBeDefined()
+    expect(getCaptured()?.options?.resume).toBeUndefined()
+    expect(getCaptured()?.prompt).toContain("[Summary: A-F]")
   // Measured at 5317ms on CI, over the 5s default this suite used to run with.
   // It drives four compaction rounds through the HTTP layer, so it is
   // legitimately slow rather than stuck; the harness budget is now 30s

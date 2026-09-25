@@ -197,6 +197,54 @@ describe("Streaming: single message per response", () => {
     expect((textDeltas[0]?.data as any).delta.text).toBe("Hello!")
   })
 
+  it("opens and closes an SSE envelope when the SDK only yields a complete assistant message", async () => {
+    // Claude Code falls back to a non-streaming upstream request after an
+    // early streaming refusal. The SDK still yields the completed assistant
+    // turn, but no stream_event messages (#1098).
+    mockMessages = [assistantMessage([{ type: "text", text: "MOCK_FALLBACK_TEXT" }])]
+
+    const events = await postStream(createTestApp(), "hello")
+    expect(events.filter(event => event.event === "error")).toHaveLength(0)
+    expect(events.filter(event => event.event === "message_start")).toHaveLength(1)
+    expect(events.filter(event => event.event === "message_stop")).toHaveLength(1)
+    expect(events.filter(event => event.event === "content_block_delta")
+      .map(event => (event.data.delta as { text?: string }).text).join(""))
+      .toBe("MOCK_FALLBACK_TEXT")
+    expect(events.filter(event => event.event === "message_delta")
+      .map(event => (event.data.delta as { stop_reason?: string }).stop_reason))
+      .toEqual(["end_turn"])
+  })
+
+  it("keeps all visible text from assistant-only internal turns", async () => {
+    mockMessages = [
+      assistantMessage([{ type: "text", text: "Checking. " }]),
+      assistantMessage([{ type: "text", text: "Done." }]),
+    ]
+
+    const events = await postStream(createTestApp(), "check")
+    expect(events.filter(event => event.event === "message_start")).toHaveLength(1)
+    expect(events.filter(event => event.event === "message_stop")).toHaveLength(1)
+    expect(events.filter(event => event.event === "content_block_delta")
+      .map(event => (event.data.delta as { text?: string }).text).join(""))
+      .toBe("Checking. Done.")
+  })
+
+  it("preserves thinking blocks when the client supports thinking", async () => {
+    mockMessages = [assistantMessage([
+      { type: "thinking", thinking: "Consider the input.", signature: "signed" },
+      { type: "text", text: "Ready." },
+    ])]
+
+    const events = await postStream(createTestApp(), "think")
+    const starts = events.filter(event => event.event === "content_block_start")
+    expect(starts.map(event => (event.data.content_block as { type: string }).type))
+      .toEqual(["thinking", "text"])
+    expect(events.filter(event => event.event === "content_block_delta")
+      .map(event => (event.data.delta as { type: string }).type))
+      .toEqual(["thinking_delta", "signature_delta", "text_delta"])
+    expect(events.filter(event => event.event === "message_stop")).toHaveLength(1)
+  })
+
   it("should remap block indices to be monotonic across turns", async () => {
     // Turn 1: thinking (index=0), text (index=1), MCP tool (index=2, filtered)
     // Turn 2: text (index=0 in SDK, should become index=2 for client)

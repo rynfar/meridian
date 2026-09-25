@@ -409,6 +409,17 @@ try {
 }
 
 function observeProcessStart(pid: number): ProcessStartObservation {
+  // The pid is this process, so its start is the one already captured. On
+  // win32 and darwin a fresh observation is a synchronous child process that
+  // stalls the event loop, and the lifecycle probes this process's own leases
+  // on every sweep while holding its lock.
+  if (pid === process.pid && cachedCurrentProcessIncarnation) {
+    return {
+      status: "found",
+      startId: cachedCurrentProcessIncarnation.startId,
+      startIdKind: cachedCurrentProcessIncarnation.startIdKind,
+    }
+  }
   if (process.platform === "linux") return linuxProcessStart(pid)
   if (process.platform === "darwin") return darwinProcessStart(pid)
   if (process.platform === "win32") return windowsProcessStart(pid)
@@ -450,4 +461,18 @@ export function probeProcessIncarnation(owner: ProcessIncarnation): ProcessIncar
 
 export function processIncarnationIsDead(owner: ProcessIncarnation): boolean {
   return probeProcessIncarnation(owner) === "dead"
+}
+
+/**
+ * Whether `owner` ran on this host during an earlier boot. A reboot ends every
+ * process, descendants included, so this holds even where a dead process
+ * cannot prove its children are gone. It never spawns a probe.
+ */
+export function processIncarnationPredatesBoot(owner: ProcessIncarnation): boolean {
+  const parsed = parseProcessIncarnation(owner)
+  const localBoot = getLocalBootIdentity()
+  return parsed !== undefined
+    && localBoot !== undefined
+    && parsed.hostId === localBoot.hostId
+    && parsed.bootId !== localBoot.bootId
 }

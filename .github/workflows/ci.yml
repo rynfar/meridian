@@ -23,6 +23,12 @@ jobs:
       - run: bun install
       - run: npm run typecheck
       - run: npm test
+      - run: bun scripts/e2e-implicit-attachments.mjs --run
+      - run: bun scripts/e2e-rejected-tool-handoff.mjs --case=rejected
+      - run: bun scripts/e2e-rejected-tool-handoff.mjs --case=registered
+      - run: bun scripts/e2e-capped-turns.mjs --case=client-refusal --stream
+      - run: bun scripts/e2e-compaction-summary.mjs
+      - run: bun scripts/e2e-compaction-summary.mjs --legacy
       - run: bun run build
 
   # Windows smoke test — catches platform-specific regressions in:
@@ -173,11 +179,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - name: Head commit body must not contain conventional-commit lines
         run: |
           subject=$(git log -1 --format=%s)
           body=$(git log -1 --format=%b)
           echo "subject: ${subject}"
+
+          # Author-preserving PR merges have two parents and GitHub puts the
+          # conventional PR title in their body. The release PR is reviewed
+          # for duplicate entries separately; this guard targets accidental
+          # conventional lines in a single-parent squash/body.
+          parent_count=$(git rev-list --parents -n 1 HEAD | awk '{print NF-1}')
+          case "${subject}" in
+            "Merge pull request #"*)
+              if [ "${parent_count}" -eq 2 ]; then
+                echo "authored PR merge — exempt"; exit 0
+              fi ;;
+          esac
 
           # Release Please's own release commits are merged with --merge by
           # design (squashing breaks its version anchor), so their body legally
@@ -204,7 +224,7 @@ jobs:
             echo "::error::Cause is usually one of:"
             echo "::error::  - repo squash settings drifted off PR_TITLE + BLANK"
             echo "::error::  - the PR was merged with a hand-written --body"
-            echo "::error::  - a non-release PR was merged with --merge instead of --squash"
+            echo "::error::  - a conventional title was copied into a single-parent commit body"
             echo "::error::Check the release PR before it ships; see CLAUDE.md 'Development workflow'."
             exit 1
           fi

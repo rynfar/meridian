@@ -14,7 +14,7 @@ export type RoutingTurnIdentity = Readonly<{
   readonly turnId: string
   /** Signed wall-clock issue time used as a durable anti-replay high-water mark. */
   readonly issuedAt: number
-  readonly generation: "opencode-v1" | "opencode-v2-beta-18314"
+  readonly generation: "opencode-v1" | "opencode-v2-beta-18314" | "opencode-v2-2.0.16"
 }>
 
 /**

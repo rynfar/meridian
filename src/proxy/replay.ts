@@ -35,14 +35,17 @@ export function frameStructuredReplay<T extends { message: { content: unknown } 
 
 /** Keep completed calls as context, including their exact identity and input.
  * Native assistant messages cannot be supplied to a fresh SDK query. */
-export function flattenAssistantContent(content: unknown): string {
+export function flattenAssistantContent(content: unknown, renderToolName?: (name: string) => string): string {
   if (typeof content === "string") return sanitizeAssistantText(content)
   if (!Array.isArray(content)) return String(content ?? "")
   return content.map(block => {
     if (!record(block)) return ""
     if (block.type === "text" && typeof block.text === "string") return sanitizeAssistantText(block.text)
     if (block.type === "tool_use") {
-      return `Previously called tool: ${JSON.stringify({ id: block.id, name: block.name, input: block.input })}`
+      const name = typeof block.name === "string" && renderToolName
+        ? renderToolName(block.name)
+        : block.name
+      return `Previously called tool: ${JSON.stringify({ id: block.id, name, input: block.input })}`
     }
     return ""
   }).filter(Boolean).join("\n")

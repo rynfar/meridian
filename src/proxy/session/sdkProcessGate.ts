@@ -1,15 +1,16 @@
-import { spawn, type ChildProcess } from "node:child_process"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import {
   closeSync,
   fsyncSync,
   mkdirSync,
   openSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs"
-import { dirname, join } from "node:path"
+import { dirname, isAbsolute, join } from "node:path"
 import type {
   SpawnedProcess,
   SpawnOptions,
@@ -26,6 +27,27 @@ export interface SdkProcessGate {
   readonly spawnClaudeCodeProcess: (options: SpawnOptions) => SpawnedProcess
   /** True only after the exact wrapper/CLI process has exited safely. */
   closeAndJoin(timeoutMs?: number): Promise<boolean>
+}
+
+let sdkGateNodeExecutable: string | undefined
+
+/** Resolve Node itself when an embedded Bun host exposes its own binary as process.execPath. */
+export function getSdkGateNodeExecutable(): string {
+  if (typeof process.versions.bun !== "string") return process.execPath
+  if (sdkGateNodeExecutable) return sdkGateNodeExecutable
+
+  const probe = spawnSync("node", ["-p", "process.execPath"], {
+    encoding: "utf8",
+    timeout: 5_000,
+    maxBuffer: 16 * 1024,
+    windowsHide: true,
+  })
+  const executable = probe.stdout?.trim()
+  if (probe.error || probe.status !== 0 || !executable || !isAbsolute(executable)) {
+    throw new Error("cannot resolve Node executable for SDK process gate")
+  }
+  sdkGateNodeExecutable = realpathSync(executable)
+  return sdkGateNodeExecutable
 }
 
 function shellQuote(value: string): string {
@@ -153,7 +175,7 @@ const status = await new Promise((resolve) => {
 clearInterval(cancellation);
 process.exit(status.code ?? (status.signal ? 1 : 0));
 `
-  return spawn(process.execPath, ["--input-type=module", "--eval", wrapper], {
+  return spawn(getSdkGateNodeExecutable(), ["--input-type=module", "--eval", wrapper], {
     env: {
       ...process.env,
       MERIDIAN_SDK_GATE_PATH: gatePath,
@@ -180,7 +202,7 @@ async function waitForExit(exited: Promise<void>, timeoutMs: number): Promise<bo
 /**
  * Start a harmless gated wrapper and capture its exact incarnation before the
  * SDK can execute Claude Code. POSIX wrappers `exec` the CLI in the same PID.
- * Windows keeps a PowerShell parent for the complete CLI lifetime; crash
+ * Windows keeps a Node wrapper parent for the complete CLI lifetime; crash
  * recovery of that lease is deliberately disabled because Windows has no
  * built-in, authoritative descendant-group incarnation.
  */

@@ -134,6 +134,35 @@ describe("priority attestation wire contract", () => {
 })
 
 describe("OpenCode adapter trusted turn identity", () => {
+  test("identifies a signed 2.0.16 turn as the released host generation", async () => {
+    const issuedAt = Math.floor(Date.now() / 1000)
+    const token = createPriorityAttestation({
+      generation: "oc2v2016",
+      sessionId: "ses_root",
+      agentId: "build",
+      humanMessageId: "msg_human_1",
+      issuedAt,
+    }, KEY)
+    const identity = await identityFromHeaders({
+      "x-opencode-session": "ses_root",
+      "x-opencode-agent-name": "build",
+      "x-opencode-agent-mode": "primary",
+      [PRIORITY_ATTESTATION_HEADER]: token,
+    })
+    const turnId = computePriorityTurnDigest({
+      generation: "oc2v2016",
+      sessionId: "ses_root",
+      humanMessageId: "msg_human_1",
+    })
+    if (!turnId) throw new Error("The test's host IDs must produce a digest")
+    expect(identity).toEqual({
+      kind: "human",
+      turnId,
+      issuedAt,
+      generation: "opencode-v2-2.0.16",
+    })
+  })
+
   test("returns only a normalized identity for a valid primary root attestation", async () => {
     const issuedAt = Math.floor(Date.now() / 1000)
     const token = createPriorityAttestation({

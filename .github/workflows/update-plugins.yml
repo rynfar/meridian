@@ -27,13 +27,10 @@ jobs:
             nix build ".#meridianPlugins.${input#meridian-plugin-}" --no-link --print-out-paths
           done
 
-      # All changes reach main through PRs (repo policy — never a direct
-      # push, which branch protection would reject anyway). Re-runs update
-      # the same branch/PR in place. Note: PRs opened with the default
-      # GITHUB_TOKEN don't trigger CI workflows, so the required `test`
-      # check won't run automatically — each plugin build above is the real
-      # gate for a lock bump, and the PR is merged with admin rights like
-      # every other PR in this repo.
+      # All changes reach main through PRs. Re-runs update the same branch.
+      # A PR opened by GITHUB_TOKEN does not trigger CI automatically, so a
+      # maintainer must trigger the required final-head checks before merge.
+      # The plugin builds above are an additional gate, not a CI bypass.
       - uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "chore: update plugin flake inputs"

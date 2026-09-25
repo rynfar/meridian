@@ -22,6 +22,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_MAX_STORED_SESSIONS` | `CLAUDE_PROXY_MAX_STORED_SESSIONS` | `10000` | File-based session store capacity |
 | `MERIDIAN_WORKDIR` | `CLAUDE_PROXY_WORKDIR` | `cwd()` | Default working directory for SDK |
 | `MERIDIAN_IDLE_TIMEOUT_SECONDS` | `CLAUDE_PROXY_IDLE_TIMEOUT_SECONDS` | `120` | HTTP keep-alive timeout |
+| `MERIDIAN_IDLE_EXIT_SECONDS` | `CLAUDE_PROXY_IDLE_EXIT_SECONDS` | unset | Exit through graceful shutdown after this many seconds without a model request; intended for socket activation. `/health` polls do not reset the timer. |
 | `MERIDIAN_SHUTDOWN_GRACE_MS` | `CLAUDE_PROXY_SHUTDOWN_GRACE_MS` | `30000` | Milliseconds `close()` waits for in-flight `/v1/messages` requests to finish after it stops admitting new ones, before closing the port. See [Graceful shutdown](#graceful-shutdown). |
 | `MERIDIAN_SESSION_TURN_MAX_HOLD_MS` | `CLAUDE_PROXY_SESSION_TURN_MAX_HOLD_MS` | `600000` | Hard ceiling on how long one turn may hold its session's serialization lease. On timeout the lease is force-released with a warning and queued turns for that session proceed concurrently. See [Concurrent requests to the same session](#concurrent-requests-to-the-same-session). |
 | `MERIDIAN_TELEMETRY_SIZE` | `CLAUDE_PROXY_TELEMETRY_SIZE` | `1000` | Telemetry ring buffer size, in rows. Pool routing writes one row **per account attempted**, so a request that failed over twice spends three. `/telemetry` reports what is actually held. |
@@ -39,13 +40,15 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_FOLLOW_ACTIVE` | `CLAUDE_PROXY_FOLLOW_ACTIVE` | unset | Base URL of another Meridian instance to take the active profile from, e.g. `http://127.0.0.1:3456`. For a development instance running beside a primary one — see [Following another instance's active profile](#following-another-instances-active-profile). |
 | `MERIDIAN_PASSTHROUGH_EARLY_STOP` | — | `1` | Set to `0` to disable [digest-turn elimination](#how-tool-calling-works-in-passthrough) and restore the old end-of-turn behavior |
 | `MERIDIAN_PASSTHROUGH_MAX_TURNS` | `CLAUDE_PROXY_PASSTHROUGH_MAX_TURNS` | *(unset — capped at 1)* | Pin the passthrough SDK turn budget. **Setting this opts out of [digest-turn elimination](#how-tool-calling-works-in-passthrough)** — an explicit value always wins over the cap, so a turn budget set to work around an older issue keeps paying for the discarded digest turn. Unset it unless you still need it. |
-| `MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY` | — | *(unset — off)* | Set to `1` to recover a capped passthrough turn whose `tool_use` blocks fully streamed but were never captured, because an abort landed between stream completion and tool dispatch. **Experimental and streaming-only**: non-streaming responses are unaffected, and the positive path has integration coverage but no live abort-window gate yet. Recovery is refused unless the turn had `maxTurns=1`, an open envelope, no cancellation of any kind, and every streamed block completed naturally with a client-declared tool name. |
+| `MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY` | — | *(unset — confirmed CLI rejection only)* | In streaming passthrough, a capped turn with complete client-declared tool calls is returned as `tool_use` when every call has an ID-matched CLI `No such tool available` result; the rejected SDK session is evicted so the next client result replays against a fresh one. Set to `1` to **also** allow the experimental uncaptured abort-window recovery without an explicit dispatch rejection (no live positive gate yet). Set to `0` to disable both recoveries. Non-streaming responses are unaffected. Recovery requires `maxTurns=1`, a complete open envelope, and no cancellation. |
 | `MERIDIAN_SESSION_GC_LOCK_WAIT_MS` | `CLAUDE_PROXY_SESSION_GC_LOCK_WAIT_MS` | `2000` | How long session bookkeeping waits for its lifecycle lock before giving up. A wait that expires now answers **503 `overloaded_error`** naming the reason, not a 504 that blames the request. Raise it on a busy proxy that would rather wait than fail; minimum 100 ms. |
 | `MERIDIAN_SILENT_TURN_RECOVERY` | `CLAUDE_PROXY_SILENT_TURN_RECOVERY` | `1` | Set to `0` to stop spending a recovery turn on a [silent turn](#silent-turns). Detection and telemetry stay on either way |
 | `MERIDIAN_UPSTREAM_IDLE_MS` | `CLAUDE_PROXY_UPSTREAM_IDLE_MS` | `90000` | Milliseconds the upstream stream may go quiet before the turn is treated as stalled. Raise it for long-thinking turns that were being killed mid-flight; `0` disables the guard entirely. Applies to the recovery turn too. |
 | `MERIDIAN_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `CLAUDE_PROXY_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `3` | Consecutive idle stalls for the same request and session before returning a terminal error. Identical retries are then rejected before another SDK query for one idle window (at least 60 seconds). A changed request or completed turn resets the streak; rejected retries do not extend the pause. `0` disables this ceiling. Tracking is bounded and local to the proxy instance; requests without a correlatable session are not pooled. |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to disable prompt-level scratchpad suppression in passthrough mode (#627, #1049) |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD_ENV` | — | `0` | Set to `1` to also pass `CLAUDE_CODE_SESSION_KIND=bg` to the SDK subprocess. Disabled by default to prevent CLI 2.1.274+ from registering persistent phantom background jobs under `~/.claude/jobs/` (#1049) |
+| `MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS` | — | `1` | Set to `0` to stop defaulting `CLAUDE_CODE_DISABLE_ATTACHMENTS=1` in passthrough mode. Does not clear an explicitly inherited CLI setting. See [known limitations](#known-limitations). |
+| `MERIDIAN_COMPACTION_SURVIVAL` | — | `0` | Set to `1` to resume the old SDK session after a client shortens its history head into a summary. By default Meridian replays the supplied summary in a fresh SDK session so the removed context is released. Equal-length pruning still resumes. |
 | `MERIDIAN_CONFIG_DIR` | — | `~/.config/meridian` | Meridian's own config directory. Moving it moves everything inside it — see [below](#relocating-the-config-directory). |
 | `MERIDIAN_PRICING_CONFIG` | `CLAUDE_PROXY_PRICING_CONFIG` | `~/.config/meridian/model-pricing.json` | Path to the model pricing overrides file used by cost estimation |
 | `MERIDIAN_PROFILES` | — | unset | JSON array of profile configs (overrides disk discovery). See [Multi-Profile Support](profiles.md). |
@@ -376,6 +379,38 @@ MERIDIAN_DEV_BUILD=1 MERIDIAN_PORT=3457 bin/meridian-launchd.sh
 
 Set `MERIDIAN_NO_SELF_UPDATE=1` to keep the launcher's package resolution but
 skip the update step.
+
+## systemd socket activation
+
+On Linux, run the service under **Node** when using systemd socket activation. The daemon adopts the single listening fd passed in `LISTEN_FDS=1` when `LISTEN_PID` matches its own pid. Bun 1.3.14 does not adopt that fd correctly. The CLI skips its port probe for an activated service, because probing the socket would start the service again.
+
+Example user units:
+
+```ini
+# ~/.config/systemd/user/meridian.socket
+[Unit]
+Description=Meridian proxy socket
+
+[Socket]
+ListenStream=127.0.0.1:3456
+
+[Install]
+WantedBy=sockets.target
+```
+
+```ini
+# ~/.config/systemd/user/meridian.service
+[Unit]
+Description=Meridian proxy
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /path/to/meridian/dist/cli.js
+Environment=MERIDIAN_IDLE_EXIT_SECONDS=600
+Restart=no
+```
+
+The idle exit setting is optional. It starts a graceful shutdown after the configured period without a model request; the socket unit starts a new process on the next connection. The inherited fd is not passed on to the SDK subprocess. [E59](../E2E.md#e59-node-socket-activation-and-idle-exit) describes the process-level probe.
 
 ## Graceful shutdown
 
@@ -871,6 +906,9 @@ Coverage: `E38` in [E2E.md](../E2E.md), with `MERIDIAN_DEBUG_FORCE_SILENT_TURN=1
 
 - **Client-owned tool loops** — ordinary passthrough turns default to `maxTurns=1` to stop at the tool boundary. Deferred tools, advisors, structured output, and explicit turn budgets can lift that cap; see [digest-turn elimination](#how-tool-calling-works-in-passthrough). The client sends another request after executing the returned tools.
 - **Blocked tools** — 10 built-in SDK tools (Read, Write, Bash, etc.) are blocked to prevent conflicts with the client's own tools. 19 additional Claude Code-only tools (CronCreate, EnterWorktree, Agent, etc.) are blocked because they require capabilities that external clients don't support.
+- **Implicit SDK attachments (passthrough)** - replayed source tokens such as Ruby `@app` and `@config` can trigger proxy-host filesystem reads that the CLI presents as tool calls. Meridian defaults `CLAUDE_CODE_DISABLE_ATTACHMENTS=1` to prevent that enrichment, including automatic MCP resource attachments. Explicit client images/documents and native SDK mode are unchanged. This internal switch also bypasses the CLI's kept-deferred-tools optimization. Linux CI runs the [real-CLI attachment probe](../E2E.md#implicit-sdk-file-mentions-in-passthrough) against a local API fixture to catch CLI-version drift.
+
+  Set `MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS=0` to disable Meridian's default. An inherited `CLAUDE_CODE_DISABLE_ATTACHMENTS` value still wins: an empty string permits expansion, while nonempty `"0"` or `"false"` still disable it because the CLI checks truthiness. Existing attachments in resumed history are not scrubbed.
 - **Subagent extraction** — Meridian parses the client's Task tool description to extract subagent names and build SDK AgentDefinitions. If the client's agent framework uses a non-standard format, subagent routing may not work automatically.
 - **Scratchpad suppression (passthrough)** — the Claude CLI advertises a proxy-host scratchpad directory that clients can't use; OpenCode 1.18+ permission-blocks writes to it. Meridian suppresses it in passthrough mode (`CLAUDE_CODE_SESSION_KIND=bg` on the subprocess). Kill switch: `MERIDIAN_SUPPRESS_SCRATCHPAD=0`.
 - **`max_tokens` is not enforced by default** — the Anthropic contract makes `max_tokens` a hard cap on total output (thinking and response text combined), with a truncated response reporting `stop_reason: "max_tokens"`. Meridian ignores it unless you opt in, so a small value does not bound the answer and a long answer still reports `end_turn`.

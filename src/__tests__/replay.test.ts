@@ -39,6 +39,13 @@ describe("faithful tool history rendering", () => {
     expect(flattenAssistantContent("plain assistant answer")).toBe("plain assistant answer")
   })
 
+  it("renders an earlier call with its registered SDK name only when requested", () => {
+    const history = [call]
+    expect(flattenAssistantContent(history)).toContain('"name":"write"')
+    expect(flattenAssistantContent(history, name => `mcp__oc__${name}`)).toContain('"name":"mcp__oc__write"')
+    expect(call.name).toBe("write")
+  })
+
   it("distinguishes successful and failed results even if their payloads match", () => {
     expect(replayToolResultHeader({ tool_use_id: "a", is_error: true })).toContain('"is_error":true')
     expect(replayToolResultHeader({ tool_use_id: "a" })).toContain('"is_error":false')

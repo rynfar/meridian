@@ -1,6 +1,6 @@
 {
   "name": "@rynfar/meridian",
-  "version": "1.75.0",
+  "version": "1.76.6",
   "description": "Use Claude and Antigravity subscriptions with Pi, OpenCode and other coding clients. Local API bridge, usage dashboard and optional Mac app.",
   "type": "module",
   "main": "./dist/server.js",

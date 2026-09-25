@@ -11,7 +11,10 @@ import * as sdk from "@anthropic-ai/claude-agent-sdk"
 const root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-cap-")))
 const stream = process.argv.includes("--stream")
 const mode = process.argv.find(arg => arg.startsWith("--case="))?.slice(7) ?? "partial"
-assert(["partial", "empty", "thinking", "unhandled", "retry", "retry-resume", "pinned"].includes(mode))
+const headerless = process.argv.includes("--headerless")
+if (headerless) assert(mode === "client-refusal", "Headerless Pi is only tested with CLI refusal recovery")
+assert(["partial", "empty", "thinking", "unhandled", "retry", "retry-resume", "pinned", "client-refusal"].includes(mode))
+if (mode === "client-refusal") assert(stream, "CLI refusal recovery is streaming-only")
 const retry = mode.startsWith("retry")
 const silent = retry || mode === "pinned"
 for (const key of Object.keys(process.env)) {
@@ -20,7 +23,7 @@ for (const key of Object.keys(process.env)) {
 Object.assign(process.env, { MERIDIAN_CONFIG_DIR: join(root, "config"), MERIDIAN_SESSION_DIR: join(root, "sessions"),
   MERIDIAN_WORKDIR: root, MERIDIAN_PASSTHROUGH: "1", MERIDIAN_TELEMETRY_PERSIST: "0" })
 if (mode === "pinned") process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = "1"
-let phase = mode === "retry-resume" ? "seed" : "cap"
+let phase = mode === "retry-resume" || mode === "client-refusal" ? "seed" : "cap"
 let capAttempt = 0
 const apiCallsByQuery = new Map()
 const upstreamErrors = []
@@ -31,6 +34,7 @@ const toolId = "toolu_cap_read"
 const queries = []
 const results = []
 const hooks = []
+const rejections = []
 const tool = { name: "read_fixture", description: "Read synthetic data without side effects", input_schema: { type: "object", properties: {} } }
 const upstream = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request) {
   try {
@@ -48,11 +52,20 @@ const upstream = Bun.serve({ hostname: "127.0.0.1", port: 0, async fetch(request
     apiCallsByQuery.set(queryKey, apiCalls)
     const capFault = apiPhase === "cap" && apiAttempt === 1
     const handoff = apiPhase === "cap" && apiAttempt === 2 && apiCalls === 1
-    if (apiPhase === "followup") assert(body.messages.some(message => Array.isArray(message.content) && message.content.some(block =>
-      block.type === "tool_result" && block.tool_use_id === toolId && JSON.stringify(block.content).includes(receipt))),
-    "The resumed CLI must receive the actual client result")
+    if (apiPhase === "followup") {
+      const history = JSON.stringify(body.messages)
+      assert(history.includes(receipt), "The fresh CLI must receive the client's real result")
+      if (mode === "client-refusal") {
+        const registeredName = body.tools.find(candidate => candidate.name.endsWith(tool.name))?.name
+        assert(history.includes(registeredName), "Fresh replay did not use the registered MCP tool name")
+      }
+      if (mode !== "client-refusal") assert(body.messages.some(message => Array.isArray(message.content) && message.content.some(block =>
+        block.type === "tool_result" && block.tool_use_id === toolId)), "Resumed CLI lost structured tool result")
+    }
     const text = apiPhase === "seed" ? "The fixture is ready." : apiPhase === "followup" ? receipt : mode === "empty" ? "" : "A partial answer"
-    const blocks = handoff ? [{ type: "tool_use", id: toolId, name: body.tools.find(candidate => candidate.name.endsWith(tool.name)).name, input: {} }]
+    const blocks = mode === "client-refusal" && capFault
+      ? [{ type: "tool_use", id: toolId, name: tool.name, input: {} }]
+      : handoff ? [{ type: "tool_use", id: toolId, name: body.tools.find(candidate => candidate.name.endsWith(tool.name)).name, input: {} }]
       : [mode === "thinking" ? { type: "thinking", thinking: "internal fixture reasoning", signature: "fixture-signature" } : { type: "text", text },
         ...(capFault ? [{ type: "tool_use", id: "toolu_missing_fixture", name: "__cap_fixture_missing__", input: {} }] : [])]
     const events = [{ type: "message_start", message: { id: `msg_cap_${upstreamCalls}`, type: "message", role: "assistant", content: [], model: body.model,
@@ -97,10 +110,17 @@ const observer = spyOn(sdk, "query").mockImplementation(input => {
     if (property === Symbol.asyncIterator) return async function* () {
       for await (const message of actual) {
         if (message.type === "result") results.push({ phase: queryPhase, attempt, subtype: message.subtype })
+        if (message.type === "user") {
+          for (const block of message.message?.content ?? []) {
+            if (block.type === "tool_result" && JSON.stringify(block.content).includes("No such tool available:")) {
+              rejections.push({ phase: queryPhase, attempt, id: block.tool_use_id, content: block.content })
+            }
+          }
+        }
         // The unknown fixture tool makes the REAL CLI spend its capped turn
         // without executing a tool. Withhold its wire/assistant content, or all
         // content for silent recovery. The CLI result and session stay real.
-        if (queryPhase === "cap" && attempt === 1 && mode !== "unhandled") {
+        if (queryPhase === "cap" && attempt === 1 && mode !== "unhandled" && mode !== "client-refusal") {
           if (message.type === "stream_event" && (silent || message.event?.index === 1)) { withheld++; continue }
           if (message.type === "assistant") {
             withheld++
@@ -121,10 +141,16 @@ const proxy = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true,
 })
 const address = proxy.server.address()
 assert(address && typeof address === "object")
-async function request(messages) {
+async function request(messages, includeTools = true) {
+  const headers = { "content-type": "application/json" }
+  if (mode === "client-refusal") {
+    headers["x-meridian-agent"] = "pi"
+    headers["user-agent"] = "pi/0.85.0"
+    if (!headerless) headers["x-session-affinity"] = "cap-cli-refusal"
+  } else headers["x-opencode-session"] = "cap-fixture"
   const response = await fetch(`http://127.0.0.1:${address.port}/v1/messages`, {
-    method: "POST", headers: { "content-type": "application/json", "x-opencode-session": "cap-fixture" },
-    body: JSON.stringify({ model: "haiku", stream, max_tokens: 256, tools: [tool], messages }), signal: AbortSignal.timeout(120_000),
+    method: "POST", headers,
+    body: JSON.stringify({ model: "haiku", stream, max_tokens: 256, ...(includeTools ? { tools: [tool] } : {}), messages }), signal: AbortSignal.timeout(120_000),
   })
   const raw = await response.text()
   const content = stream ? [] : JSON.parse(raw).content ?? []
@@ -197,6 +223,23 @@ try {
     assert(last.resumeSessionAt)
     assert.deepEqual(await sdk.getSessionMessages(capQueries[1].sessionId, { dir: root }), history)
     if (source) assert.deepEqual(await sdk.getSessionMessages(source, { dir: root }), sourceHistory)
+  } else if (mode === "client-refusal") {
+    success(response, "tool_use")
+    assert.equal(response.content.length, 1)
+    assert.equal(response.content[0].id, toolId)
+    assert.equal(response.content[0].name, tool.name)
+    if (!headerless) assert.equal(capQueries[0].resume, source)
+    assert(!hooks.some(hook => hook.phase === "cap"), "CLI executed a client tool instead of rejecting the bare name")
+    assert(rejections.some(result => result.phase === "cap" && result.attempt === 1 && result.id === toolId &&
+      JSON.stringify(result.content).includes("No such tool available: " + tool.name)),
+    "Real CLI did not reject the bare declared tool")
+    phase = "followup"
+    const followup = await request([...messages, { role: "assistant", content: response.content },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: toolId, content: receipt }] }], false)
+    success(followup, "end_turn")
+    assert.equal(followup.content.filter(block => block.type === "text").map(block => block.text).join(""), receipt)
+    assert.equal(queries.at(-1).resume, undefined, "Rejected SDK checkpoint was reused")
+    assert.notEqual(queries.at(-1).sessionId, capQueries[0].sessionId)
   } else if (mode === "partial") {
     success(response, "max_tokens")
     assert.equal(response.content.filter(block => block.type === "text").map(block => block.text).join(""), "A partial answer")
@@ -205,7 +248,8 @@ try {
     else assert.equal(response.status, 500, response.raw)
   }
   assert.deepEqual(upstreamErrors, [])
-  console.log(JSON.stringify({ result: "PASS", mode, stream, root, withheld, queries, results, upstreamCalls }))
+  console.log(JSON.stringify({ result: "PASS", mode, stream, root, withheld, queries, results,
+    rejections: rejections.map(({ phase, attempt, id }) => ({ phase, attempt, id })), upstreamCalls }))
 } finally {
   await proxy.close()
   await upstream.stop(true)

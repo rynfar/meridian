@@ -1,14 +1,10 @@
-/**
- * Unit tests for the uncaptured-streamed-tool-use recovery predicate and
- * block-completeness tracker (FIX B, the 2026-09-10 0a95wd-tusk incident
- * shape: an abort between stream completion and tool dispatch yields
- * max_turns_reached without the hook ever running, so captures are empty
- * though the call fully streamed).
- */
+/** Recovery and completeness checks for fully streamed client tool calls
+ * rejected by CLI dispatch or stranded before PreToolUse capture. */
 import { describe, expect, it } from "bun:test"
 import {
   canRecoverUncapturedToolUses,
   isStreamedToolBlockComplete,
+  unavailableToolResults,
   type StreamedToolBlockRecord,
 } from "../proxy/errors"
 
@@ -22,6 +18,7 @@ const eligibleBase = {
   forceSingleToolUse: false,
   earlyStopFired: false,
   uncapturedRecoveryEnabled: true,
+  confirmedToolUnavailable: false,
   attemptedMaxTurns: 1,
 }
 
@@ -76,7 +73,27 @@ describe("canRecoverUncapturedToolUses", () => {
     expect(canRecoverUncapturedToolUses({ ...eligibleBase, forceSingleToolUse: true })).toBe(false)
     expect(canRecoverUncapturedToolUses({ ...eligibleBase, earlyStopFired: true })).toBe(false)
   })
+
+  it("accepts explicit CLI rejection despite an early-stop signal", () => {
+    expect(canRecoverUncapturedToolUses({
+      ...eligibleBase,
+      uncapturedRecoveryEnabled: false,
+      confirmedToolUnavailable: true,
+      earlyStopFired: true,
+    })).toBe(true)
+  })
 })
+
+describe("unavailableToolResults", () => {
+  it("recognizes only the CLI's id-correlated dispatch refusal", () => {
+    expect(unavailableToolResults([
+      { type: "tool_result", tool_use_id: "t1", is_error: true, content: "<tool_use_error>Error: No such tool available: read</tool_use_error>" },
+      { type: "tool_result", tool_use_id: "t2", is_error: true, content: "permission denied" },
+      { type: "tool_result", tool_use_id: "t3", is_error: false, content: "<tool_use_error>Error: No such tool available: glob</tool_use_error>" },
+    ])).toEqual([{ id: "t1", name: "read" }])
+  })
+})
+
 
 describe("isStreamedToolBlockComplete", () => {
   it("accepts a fully forwarded block with parseable object JSON", () => {
@@ -97,6 +114,7 @@ describe("isStreamedToolBlockComplete", () => {
 
   it("refuses truncated JSON", () => {
     expect(isStreamedToolBlockComplete(completeBlock({ json: '{"file_path":' }))).toBe(false)
+    expect(isStreamedToolBlockComplete(completeBlock({ json: '{"file_path":', startedInputObject: true }))).toBe(false)
   })
 
   it("refuses non-object JSON payloads", () => {

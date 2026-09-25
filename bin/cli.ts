@@ -64,6 +64,7 @@ Environment variables:
   MERIDIAN_AGY_ALLOW_NATIVE_SUBAGENTS Opt into native subagents (1)
   MERIDIAN_PASSTHROUGH              Enable passthrough mode (tools forwarded to client)
   MERIDIAN_IDLE_TIMEOUT_SECONDS     Idle timeout in seconds (default: 120)
+  MERIDIAN_IDLE_EXIT_SECONDS        Exit after this many seconds without a model request (opt-in)
   MERIDIAN_PLUGIN_DIR               Plugin auto-discovery directory (default: ~/.config/meridian/plugins)
   MERIDIAN_PLUGIN_CONFIG            Plugin manifest path (default: ~/.config/meridian/plugins.json)
 
@@ -150,12 +151,12 @@ if (args[0] === "setup") {
     process.exit(1)
   }
   if (forceV2 && detected.generation !== "v2") {
-    console.error("Could not find an OpenCode V2 beta. Install the pinned beta or pass --opencode-bin <path>.")
+    console.error("Could not find a qualified OpenCode V2 host. Install a supported version or pass --opencode-bin <path>.")
     process.exit(1)
   }
   if (detected.generation === "v2" && !SUPPORTED_OPENCODE_V2_VERSIONS.has(detected.version ?? "")) {
     console.error(`OpenCode V2 ${detected.version ?? "unknown"} is not supported by this Meridian build.`)
-    console.error(`Install a supported OpenCode beta (${[...SUPPORTED_OPENCODE_V2_VERSIONS].join(", ")}), then re-run meridian setup --v2.`)
+    console.error(`Install a qualified OpenCode V2 host (${[...SUPPORTED_OPENCODE_V2_VERSIONS].join(", ")}), then re-run meridian setup --v2.`)
     process.exit(1)
   }
 
@@ -387,8 +388,13 @@ if (import.meta.main) {
   // by accident. Checking here rather than from the EADDRINUSE handler keeps
   // the dashboard as the whole output: by the time a bind fails, the
   // pre-flight auth check and the plugin loader have already printed.
+  // Under systemd socket activation the port is intentionally held by the
+  // .socket unit's inherited fd — the proxy adopts it instead of binding, so
+  // the availability probe is meaningless (and self-deadlocking: probing the
+  // port is what triggers the activation in the first place). Skip it.
+  const { socketActivationFd } = await import("../src/proxy/socketActivation")
   const { isPortAvailable } = await import("../src/proxy/statusProbe")
-  if (!(await isPortAvailable(host, port))) {
+  if (socketActivationFd() === undefined && !(await isPortAvailable(host, port))) {
     const result = await printRunningInstance()
     if (result.kind === "meridian") process.exit(0)
     const { formatConflictMessage } = await import("../src/proxy/statusProbe")

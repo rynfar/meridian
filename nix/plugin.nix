@@ -1,6 +1,7 @@
 {
   formats,
   lib,
+  nodejs,
   pname,
   src,
   stdenvNoCC,
@@ -21,7 +22,7 @@ stdenvNoCC.mkDerivation (
     inherit (package) version;
 
     strictDeps = true;
-    nativeBuildInputs = [ typescript ];
+    nativeBuildInputs = [ typescript nodejs ];
 
     buildPhase = ''
       runHook preBuild
@@ -34,6 +35,16 @@ stdenvNoCC.mkDerivation (
       mkdir -p $out/lib
       cp dist/*.js $out/lib/
       cp ${packageFile} $out/lib/package.json
+      # Some plugins import their own package metadata from ../package.json.
+      cp ${finalAttrs.src}/package.json $out/package.json
+      node --input-type=module -e '
+        import { readFileSync } from "node:fs";
+        const plugin = (await import(process.argv[1])).default;
+        const metadata = JSON.parse(readFileSync(process.argv[2], "utf8"));
+        if (plugin.version !== metadata.version) {
+          throw new Error("plugin version " + plugin.version + " != " + metadata.version);
+        }
+      ' "$out/lib/index.js" "$out/package.json"
       runHook postInstall
     '';
 

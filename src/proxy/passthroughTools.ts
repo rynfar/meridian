@@ -124,15 +124,50 @@ export function hasRepairableToolInput(schema: { properties?: Record<string, unk
 }
 
 /**
- * The MCP schema converter reads `description` from the OUTERMOST node only —
- * an inner `.describe()` under `.optional()` or a `preprocess` pipe is dropped
- * from the advertised schema. Apply it last so the model keeps seeing what the
- * client wrote, optional parameters included.
+ * `createSdkMcpServer` copies `.description` into the SDK's own Zod registry
+ * from each top-level shape value only — an inner `.describe()` under
+ * `.optional()` or a `preprocess` pipe is dropped from the advertised schema.
+ * Apply it last so the model keeps seeing what the client wrote, optional
+ * parameters included. Below the top level, `advertiseDeclared` carries it.
  */
 function withDescription(node: z.ZodTypeAny, schema: JsonSchemaNode): z.ZodTypeAny {
   return typeof schema.description === "string" && schema.description
     ? node.describe(schema.description)
     : node
+}
+
+/**
+ * Advertise the client's declared JSON Schema for this node, verbatim.
+ *
+ * tools/list is rendered by the Agent SDK's bundled Zod, whose metadata
+ * registry is not this module's. Descriptions set here below the top level
+ * never reach it, and neither does anything this simplified converter cannot
+ * express: `integer` renders as `number`, a property-less object as `{}`, and
+ * `additionalProperties` is lost. Both Zod versions consult
+ * `_zod.toJSONSchema` before walking a node, so the declared subtree is what
+ * the model sees, while the Zod node still validates and repairs arguments.
+ *
+ * A subtree carrying any `$` keyword keeps the converted rendering: the SDK
+ * builds the root from a raw shape, so root `$defs` never reach the model and
+ * a `#/…` reference would dangle.
+ */
+function advertiseDeclared(node: z.ZodTypeAny, schema: JsonSchemaNode): z.ZodTypeAny {
+  // Describe this node in place rather than through `.describe()`: that clones,
+  // a clone starts without the override, and its parent link would send Zod's
+  // own renderer to a node it never rendered.
+  if (typeof schema.description === "string" && schema.description) {
+    z.globalRegistry.add(node, { description: schema.description })
+  }
+  // A fresh copy per render: the converter writes into what it is given, and
+  // the client's schema also keys the tool-set cache and drives input repair.
+  node._zod.toJSONSchema = () => structuredClone(schema)
+  return node
+}
+
+function hasSchemaKeyword(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasSchemaKeyword)
+  if (!value || typeof value !== "object") return false
+  return Object.entries(value).some(([key, child]) => key.startsWith("$") || hasSchemaKeyword(child))
 }
 
 /** Wrap a validating node so a repairable slip is fixed instead of rejected. */
@@ -150,7 +185,8 @@ function repairing(schema: JsonSchemaNode, node: z.ZodTypeAny): z.ZodTypeAny {
 function jsonSchemaToZod(schema: unknown): z.ZodTypeAny {
   if (!schema || typeof schema !== "object") return z.any()
   const node = schema as JsonSchemaNode
-  return withDescription(buildZodNode(node), node)
+  const built = buildZodNode(node)
+  return hasSchemaKeyword(node) ? withDescription(built, node) : advertiseDeclared(built, node)
 }
 
 function buildZodNode(schema: JsonSchemaNode): z.ZodTypeAny {
@@ -427,6 +463,21 @@ export function buildPassthroughToolAliases(
     clientNameByAlias.set(alias, name)
   }
   return { aliasByClientName, clientNameByAlias }
+}
+
+/** Render historical client calls with the name the SDK registered today.
+ * A tool absent from the current request keeps its historical name; only
+ * currently registered tools can be presented as callable SDK names. */
+export function createPassthroughReplayToolNameRenderer(
+  names: readonly string[],
+  serverName: string = PASSTHROUGH_MCP_NAME,
+): (name: string) => string {
+  const aliases = buildPassthroughToolAliases(names, serverName).aliasByClientName
+  const prefix = passthroughMcpPrefix(serverName)
+  return (name) => {
+    const alias = aliases.get(name)
+    return alias === undefined ? name : `${prefix}${alias}`
+  }
 }
 
 /**

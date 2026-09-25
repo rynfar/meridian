@@ -21,9 +21,11 @@ import { readSessionStoreSnapshot, setSessionStoreDir } from "../src/proxy/sessi
 
 process.env.MERIDIAN_PASSTHROUGH = "1"
 process.env.OPENCODE_CLAUDE_PROVIDER_DEBUG = "1"
+process.env.MERIDIAN_TELEMETRY_PERSIST = "0"
 const { startProxyServer } = await import("../src/proxy/server.ts")
 
 const STREAM = process.argv.includes("--stream")
+const PI = process.env.PROBE_ADAPTER === "pi"
 const PORT = Number(process.env.PROBE_PORT ?? 3522)
 const MODEL = process.env.PROBE_MODEL ?? "claude-sonnet-5"
 const MAX_TURNS = Number(process.env.PROBE_TURNS ?? 6)
@@ -104,7 +106,9 @@ function checkCache(label, usage, lineage) {
 async function send(messages) {
   return fetch(`http://127.0.0.1:${PORT}/v1/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": "dummy", "x-opencode-session": sessionId, "user-agent": "opencode/1.0.0" },
+    headers: { "Content-Type": "application/json", "x-api-key": "dummy",
+      ...(PI ? { "x-meridian-agent": "pi", "x-session-affinity": sessionId, "user-agent": "pi/0.85.0" }
+        : { "x-opencode-session": sessionId, "user-agent": "opencode/1.0.0" }) },
     body: JSON.stringify({ model: MODEL, max_tokens: 2048, stream: STREAM, tools: [READ_TOOL], messages }),
   })
 }

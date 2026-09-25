@@ -64,7 +64,7 @@ installSdkMock(() => ({
           }
           continue
         }
-        const { session_id: _ignoredSessionId, ...messageWithoutSessionId } = msg
+        const { session_id: _ignoredSessionId, test_skip_pre_tool_hook, ...messageWithoutSessionId } = msg
         const delivered = {
           ...messageWithoutSessionId,
           ...(mockOmitReturnedSessionId ? {} : { session_id: returnedSessionId }),
@@ -74,7 +74,7 @@ installSdkMock(() => ({
         }
         if (delivered?.type === "result") sawResult = true
         yield delivered
-        if (preHook && delivered?.type === "assistant" && Array.isArray(delivered?.message?.content)) {
+        if (preHook && !test_skip_pre_tool_hook && delivered?.type === "assistant" && Array.isArray(delivered?.message?.content)) {
           for (const block of delivered.message.content) {
             // Explicit timing fixtures already invoked this hook before metadata.
             if (block?.type !== "tool_use" || explicitlyHookedIds.has(block.id)) continue
@@ -134,6 +134,17 @@ function userDenyMessage(toolUseId: string) {
     parent_tool_use_id: null,
     uuid: crypto.randomUUID(),
     session_id: "test-session",
+  }
+}
+
+function unavailableToolMessage(toolUseId: string, name: string) {
+  return {
+    ...userDenyMessage(toolUseId),
+    message: {
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: toolUseId,
+        content: `<tool_use_error>Error: No such tool available: ${name}</tool_use_error>`, is_error: true }],
+    },
   }
 }
 
@@ -215,6 +226,7 @@ describe("Integration: passthrough early stop", () => {
   beforeEach(() => {
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     savedEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
+    savedUncapturedRecovery = process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     process.env.MERIDIAN_PASSTHROUGH = "1"
     delete process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     mockMessages = []
@@ -1195,13 +1207,15 @@ describe("Integration: passthrough early stop", () => {
   // claude-cli with mid-conversation-system on ends a tool-result delta with a
   // trailing system reminder (assistant[tool_use] -> user[tool_result] ->
   // system[text]); the generic helpers reject role=system and forced a fresh
-  // replay. The opt-in must resume and deliver the reminder as user text.
+  // replay. Oh My Pi (adapter pi) produces the same tail when it upgrades a
+  // developer-origin note to a mid-conversation system turn. The opt-in must
+  // resume and deliver the reminder as user text.
   const reminderCases = [false, true].flatMap(stream =>
-    ["claude-code", "opencode"].flatMap(adapter =>
+    ["claude-code", "pi", "opencode"].flatMap(adapter =>
       ["unchanged", "revised", "inserted"].flatMap(historyChange =>
         [false, true].map(image => ({ stream, adapter, historyChange, image })))))
   for (const { stream, adapter, historyChange, image } of reminderCases) {
-    it(`scopes trailing reminder checkpoint resume to Claude Code (adapter=${adapter}, stream=${stream}, historyChange=${historyChange}, image=${image})`, async () => {
+    it(`scopes trailing reminder checkpoint resume to Claude Code and pi (adapter=${adapter}, stream=${stream}, historyChange=${historyChange}, image=${image})`, async () => {
       const sessionId = `cc-delta-${adapter}-${stream}-${historyChange}-${image}-${TEST_RUN_ID}`
       const resultContent = image
         ? [{ type: "text", text: "hi" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "test-image" } }]
@@ -1278,7 +1292,8 @@ describe("Integration: passthrough early stop", () => {
       expect(secondBody).toContain("the file says hi")
       expect(secondBody).not.toContain("CC_DELTA_GARBAGE_DIGEST")
 
-      if (adapter !== "claude-code" || historyChange !== "unchanged") {
+      const optsIn = adapter === "claude-code" || adapter === "pi"
+      if (!optsIn || historyChange !== "unchanged") {
         expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
         expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
         const fresh = capturedQueryParamsAll[1]
@@ -2358,27 +2373,39 @@ describe("Integration: passthrough early stop", () => {
     const body = await res.text()
     expect(body).toContain("event: error")
   })
-
-
-  // The other boundary: a tool_use block reached the client while the hook
-  // captured nothing, which means those calls were refused rather than
-  // forwarded (forced-single overflow, duplicate abort, early-stop reversion).
-  // Ending that with `max_tokens` would leave a call the client is told
-  // neither to run nor to drop, so it stays on the error path.
-  //
-  // Observed exception (2026-09-10, 0a95wd-tusk): an external abort landing
-  // between stream completion and tool dispatch makes the CLI yield
-  // `max_turns_reached` WITHOUT running the hook — captures are empty though
-  // every streamed block is complete and the call belongs to a declared
-  // client tool. With MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY=1 that
-  // shape recovers as a normal tool-use handoff; the flag defaults OFF, so
-  // the default behavior below is unchanged.
-  it("stream: a capped turn with an uncaptured streamed tool call still reports the failure", async () => {
+  // The SDK can stream a declared client call but reject its bare name before
+  // PreToolUse runs ("No such tool available: read"). The proxy must deliver
+  // that complete call to the client, then evict the unusable SDK checkpoint.
+  // Incomplete or undeclared calls must remain errors.
+  it("stream: uncaptured declared Pi calls complete the handoff by default", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const sessionHeader = "es-capped-dangling"
+    const tools = [READ_TOOL, { name: "glob", input_schema: { type: "object",
+      properties: { pattern: { type: "string" } }, required: ["pattern"] } }]
+    mockMessages = [assistantMessage([{ type: "text", text: "seed" }])]
+    const seed = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      tools, messages: [{ role: "user", content: "seed" }],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    await seed.text()
+    const sourceSessionId = lookupSharedSession(sessionHeader)?.claudeSessionId
+    expect(sourceSessionId).toBeDefined()
     mockMessages = [
       messageStart("msg_capped_dangling"),
       toolUseBlockStart(0, "read", "toolu_dangling"),
       inputJsonDelta(0, '{"file_path":"/x"}'),
       blockStop(0),
+      toolUseBlockStart(1, "glob", "toolu_glob"),
+      inputJsonDelta(1, '{"pattern":"*.ts"}'),
+      blockStop(1),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_dangling", name: "read", input: { file_path: "/x" } },
+        { type: "tool_use", id: "toolu_glob", name: "glob", input: { pattern: "*.ts" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_dangling", "read"),
+      unavailableToolMessage("toolu_glob", "glob"),
       { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
@@ -2387,16 +2414,521 @@ describe("Integration: passthrough early stop", () => {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
       stream: true,
+      tools,
+      messages: [
+        { role: "user", content: "seed" },
+        { role: "assistant", content: "seed" },
+        { role: "user", content: "call read and glob" },
+      ],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader, "user-agent": "pi/0.85.0" })
+    expect(res.status).toBe(200)
+    const events = parseSSE(await res.text())
+    expect(capturedQueryParamsAll[1]?.options.resume).toBe(sourceSessionId)
+    expect(events.filter(e => e.event === "error")).toHaveLength(0)
+    const toolNames = events.flatMap(({ event, data }) => {
+      const block = data.content_block
+      return event === "content_block_start" && block && typeof block === "object" &&
+        "type" in block && block.type === "tool_use" && "name" in block && typeof block.name === "string"
+        ? [block.name] : []
+    })
+    expect(toolNames).toEqual(["read", "glob"])
+    const terminalReasons = events.flatMap(({ event, data }) => {
+      const delta = data.delta
+      return event === "message_delta" && delta && typeof delta === "object" &&
+        "stop_reason" in delta && typeof delta.stop_reason === "string"
+        ? [delta.stop_reason] : []
+    })
+    expect(terminalReasons).toEqual(["tool_use"])
+    expect(events.filter(e => e.event === "message_stop")).toHaveLength(1)
+    expect(lookupSharedSession(sessionHeader)).toBeUndefined()
+    mockTerminalError = undefined
+    mockMessages = [
+      assistantMessage([{ type: "tool_use", id: "toolu_followup", name: "glob", input: { pattern: "*.ts" } }]),
+      userDenyMessage("toolu_followup"),
+    ]
+    const continuation = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "seed" },
+        { role: "assistant", content: "seed" },
+        { role: "user", content: "call read and glob" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_dangling", name: "read", input: { file_path: "/x" } },
+          { type: "tool_use", id: "toolu_glob", name: "glob", input: { pattern: "*.ts" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "toolu_dangling", content: "file contents" },
+          { type: "tool_result", tool_use_id: "toolu_glob", content: "matched files" },
+        ] },
+      ],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    const continuationBody = await continuation.json()
+    expect(capturedQueryParamsAll[2]?.options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[2]?.options.allowedTools).toContain("mcp__oc__read")
+    expect(capturedQueryParamsAll[2]?.options.allowedTools).toContain("mcp__oc__glob")
+    expect(continuationBody.content).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "tool_use", name: "glob" }),
+    ]))
+
+    mockMessages = [assistantMessage([{ type: "text", text: "glob completed" }])]
+    const followup = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "seed" },
+        { role: "assistant", content: "seed" },
+        { role: "user", content: "call read and glob" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_dangling", name: "read", input: { file_path: "/x" } },
+          { type: "tool_use", id: "toolu_glob", name: "glob", input: { pattern: "*.ts" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "toolu_dangling", content: "file contents" },
+          { type: "tool_result", tool_use_id: "toolu_glob", content: "matched files" },
+        ] },
+        { role: "assistant", content: continuationBody.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_followup", content: "found files" }] },
+      ],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    expect((await followup.json()).content).toContainEqual({ type: "text", text: "glob completed" })
+    expect(capturedQueryParamsAll[3]?.options.allowedTools).toContain("mcp__oc__glob")
+
+    mockMessages = [assistantMessage([{ type: "text", text: "fresh branch" }])]
+    const fresh = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [{ role: "user", content: "different independent prompt" }],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    await fresh.text()
+    expect(capturedQueryParamsAll[4]?.options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[4]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
+    expect(capturedQueryParamsAll[4]?.options.allowedTools ?? []).not.toContain("mcp__oc__glob")
+  })
+
+  it("stream: explicit empty tools do not spend the recovered grant", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const sessionHeader = "es-pi-recovery-empty-tools"
+    mockMessages = [
+      messageStart("msg_empty_tools_refusal"),
+      toolUseBlockStart(0, "read", "toolu_empty_tools"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_empty_tools", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_empty_tools", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const recovered = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [READ_TOOL], messages: [{ role: "user", content: "call read" }],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    expect(await recovered.text()).toContain('"stop_reason":"tool_use"')
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "no tools requested" }])]
+    const continuation = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      tools: [],
+      messages: [
+        { role: "user", content: "call read" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_empty_tools", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "toolu_empty_tools", content: "file contents" },
+        ] },
+      ],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    expect((await continuation.json()).content).toContainEqual({ type: "text", text: "no tools requested" })
+    expect(capturedQueryParamsAll[1]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
+  })
+
+  it("stream: headerless Pi continues an unavailable tool without inheriting another loop", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const pi = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0" }
+    mockMessages = [
+      messageStart("msg_headerless_refusal"),
+      toolUseBlockStart(0, "read", "toolu_headerless"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_headerless", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_headerless", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const recovered = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [READ_TOOL], messages: [{ role: "user", content: "headerless call read" }],
+    }, "unused-headerless", pi)
+    expect(await recovered.text()).toContain('"stop_reason":"tool_use"')
+
+    // Same fingerprint, different CLI tool-use ID: the second loop must not
+    // replace the first loop's pending grant.
+    const globTool = { name: "glob", input_schema: { type: "object",
+      properties: { pattern: { type: "string" } }, required: ["pattern"] } }
+    mockMessages = [
+      messageStart("msg_headerless_glob"),
+      toolUseBlockStart(0, "glob", "toolu_headerless_glob"),
+      inputJsonDelta(0, '{"pattern":"*.ts"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_headerless_glob", name: "glob", input: { pattern: "*.ts" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_headerless_glob", "glob"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    const recoveredGlob = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [globTool], messages: [{ role: "user", content: "headerless call read" }],
+    }, "unused-headerless", pi)
+    expect(await recoveredGlob.text()).toContain('"stop_reason":"tool_use"')
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "different loop" }])]
+    const unrelated = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "headerless call read" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_other_loop", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "toolu_other_loop", content: "not this call" },
+        ] },
+      ],
+    }, "unused-headerless", pi)
+    expect((await unrelated.json()).content).toContainEqual({ type: "text", text: "different loop" })
+    expect(capturedQueryParamsAll[2]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
+    expect(capturedQueryParamsAll[2]?.options.allowedTools ?? []).not.toContain("mcp__oc__glob")
+
+    mockMessages = [assistantMessage([{ type: "text", text: "new task" }])]
+    const fresh = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "headerless call read" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_headerless", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_headerless", content: "file contents" }] },
+        { role: "assistant", content: "Already processed" },
+        { role: "user", content: "A new request" },
+      ],
+    }, "unused-headerless", pi)
+    expect((await fresh.json()).content).toContainEqual({ type: "text", text: "new task" })
+    expect(capturedQueryParamsAll[3]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
+
+    mockMessages = [assistantMessage([{ type: "text", text: "continued" }])]
+    const continuation = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "headerless call read" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_headerless", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "toolu_headerless", content: "file contents" },
+        ] },
+      ],
+    }, "unused-headerless", pi)
+    expect((await continuation.json()).content).toContainEqual({ type: "text", text: "continued" })
+    expect(capturedQueryParamsAll[4]?.options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[4]?.options.allowedTools).toContain("mcp__oc__read")
+    expect(capturedQueryParamsAll[4]?.options.allowedTools).not.toContain("mcp__oc__glob")
+
+    mockMessages = [assistantMessage([{ type: "text", text: "glob continued" }])]
+    const globContinuation = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "headerless call read" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_headerless_glob", name: "glob", input: { pattern: "*.ts" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "toolu_headerless_glob", content: "matched files" },
+        ] },
+      ],
+    }, "unused-headerless", pi)
+    expect((await globContinuation.json()).content).toContainEqual({ type: "text", text: "glob continued" })
+    expect(capturedQueryParamsAll[5]?.options.allowedTools).toContain("mcp__oc__glob")
+    expect(capturedQueryParamsAll[5]?.options.allowedTools).not.toContain("mcp__oc__read")
+  })
+
+  it("stream: a second headerless CLI refusal grants the next result turn its tools", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const pi = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0" }
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    mockMessages = [
+      messageStart("msg_first"),
+      toolUseBlockStart(0, "read", "toolu_first"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_first", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_first", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [READ_TOOL], messages: [{ role: "user", content: "two refused reads" }],
+    }, "unused-headerless", pi)
+    expect(await first.text()).toContain('"stop_reason":"tool_use"')
+
+    mockMessages = [
+      messageStart("msg_second"),
+      toolUseBlockStart(0, "read", "toolu_second"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_second", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_second", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      messages: [
+        { role: "user", content: "two refused reads" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_first", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_first", content: "first result" }] },
+      ],
+    }, "unused-headerless", pi)
+    expect(await second.text()).toContain('"stop_reason":"tool_use"')
+    expect(capturedQueryParamsAll[1]?.options.allowedTools).toContain("mcp__oc__read")
+    expect(capturedQueryParamsAll[1]?.options.resume).toBeUndefined()
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "both results received" }])]
+    const third = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "two refused reads" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_first", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_first", content: "first result" }] },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_second", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_second", content: "second result" }] },
+      ],
+    }, "unused-headerless", pi)
+    expect((await third.json()).content).toContainEqual({ type: "text", text: "both results received" })
+    expect(capturedQueryParamsAll[2]?.options.allowedTools).toContain("mcp__oc__read")
+    expect(capturedQueryParamsAll[2]?.options.resume).toBeUndefined()
+  })
+
+  it.each([
+    ["a trailing system reminder", [{ role: "system", content: "Check the result" }]],
+    ["a queued user turn", [{ role: "user", content: "Also summarize it" }]],
+  ])("stream: headerless Pi retains recovered tools with %s", async (_label, suffix) => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const pi = { "x-meridian-agent": "pi", "user-agent": "pi/0.85.0" }
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    mockMessages = [
+      messageStart("msg_suffix_refusal"),
+      toolUseBlockStart(0, "read", "toolu_suffix_refusal"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_suffix_refusal", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_suffix_refusal", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [READ_TOOL], messages: [{ role: "user", content: "read with suffix" }],
+    }, "unused-headerless", pi)
+    expect(await first.text()).toContain('"stop_reason":"tool_use"')
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "result processed" }])]
+    const continuation = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [
+        { role: "user", content: "read with suffix" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "toolu_suffix_refusal", name: "read", input: { file_path: "/x" } },
+        ] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_suffix_refusal", content: "file contents" }] },
+        ...suffix,
+      ],
+    }, "unused-headerless", pi)
+    expect((await continuation.json()).content).toContainEqual({ type: "text", text: "result processed" })
+    expect(capturedQueryParamsAll[1]?.options.allowedTools).toContain("mcp__oc__read")
+    expect(capturedQueryParamsAll[1]?.options.resume).toBeUndefined()
+  })
+
+  it("stream: an unrelated fresh Pi turn cannot spend a pending recovered tool grant", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const sessionHeader = "es-pi-recovery-unrelated"
+    mockMessages = [assistantMessage([{ type: "text", text: "seed" }])]
+    await (await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      tools: [READ_TOOL], messages: [{ role: "user", content: "seed" }],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })).text()
+
+    mockMessages = [
+      messageStart("msg_unrelated_refusal"),
+      toolUseBlockStart(0, "read", "toolu_unrelated_refusal"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_unrelated_refusal", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_unrelated_refusal", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const recovered = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "seed" },
+        { role: "assistant", content: "seed" },
+        { role: "user", content: "call read" },
+      ],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    expect(await recovered.text()).toContain('"stop_reason":"tool_use"')
+    expect(lookupSharedSession(sessionHeader)).toBeUndefined()
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "unrelated" }])]
+    const unrelated = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: false,
+      messages: [{ role: "user", content: "other branch" }],
+    }, sessionHeader, { "x-meridian-agent": "pi", "x-session-affinity": sessionHeader })
+    await unrelated.text()
+    expect(capturedQueryParamsAll[2]?.options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[2]?.options.allowedTools ?? []).not.toContain("mcp__oc__read")
+  })
+
+  it("stream: a refused SDK alias resolves to its declared client name", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    mockMessages = [
+      messageStart("msg_capped_alias"),
+      toolUseBlockStart(0, "read", "toolu_alias"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_alias", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_alias", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const res = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [{ ...READ_TOOL, name: "mcp__oc__read" }],
+      messages: [{ role: "user", content: "call read" }],
+    }, "es-capped-alias", { "x-meridian-agent": "pi" })
+    const body = await res.text()
+    expect(body).not.toContain("event: error")
+    expect(body).toContain('"name":"mcp__oc__read"')
+    expect(body).toContain('"stop_reason":"tool_use"')
+  })
+
+  it("stream: malformed buffered arguments cannot be recovered", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    const tool = { name: "numbers", input_schema: { type: "object",
+      properties: { count: { type: "integer" } }, required: ["count"] } }
+    mockMessages = [
+      messageStart("msg_capped_buffered"),
+      toolUseBlockStart(0, "numbers", "toolu_buffered"),
+      inputJsonDelta(0, '{"count":'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_buffered", name: "numbers", input: {} },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_buffered", "numbers"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const res = await post(app, {
+      model: "claude-sonnet-4-5", max_tokens: 400, stream: true,
+      tools: [tool],
+      messages: [{ role: "user", content: "call numbers" }],
+    }, "es-capped-buffered", { "x-meridian-agent": "pi" })
+    expect(await res.text()).toContain("event: error")
+  })
+
+  it("stream: an unrelated SDK tool error does not authorize execution", async () => {
+    delete process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
+    mockMessages = [
+      messageStart("msg_capped_other_error"),
+      toolUseBlockStart(0, "read", "toolu_other_error"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_other_error", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      userDenyMessage("toolu_other_error"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
       tools: [READ_TOOL],
       messages: [{ role: "user", content: "call read" }],
-    }, "es-capped-dangling")
-    expect(res.status).toBe(200)
-    const body = await res.text()
-    expect(body).toContain("event: error")
+    }, "es-capped-other-error", { "x-meridian-agent": "pi" })
+    expect(await res.text()).toContain("event: error")
+  })
+
+
+  it("stream: uncaptured recovery can be disabled", async () => {
+    process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = "0"
+    mockMessages = [
+      messageStart("msg_capped_opt_out"),
+      toolUseBlockStart(0, "read", "toolu_opt_out"),
+      inputJsonDelta(0, '{"file_path":"/x"}'),
+      blockStop(0),
+      messageDelta("tool_use"),
+      messageStop(),
+      { ...assistantMessage([
+        { type: "tool_use", id: "toolu_opt_out", name: "read", input: { file_path: "/x" } },
+      ]), test_skip_pre_tool_hook: true },
+      unavailableToolMessage("toolu_opt_out", "read"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+    const res = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "call read" }],
+    }, "es-capped-opt-out", { "x-meridian-agent": "pi" })
+    expect(await res.text()).toContain("event: error")
   })
 
   it("stream: uncaptured streamed tool call recovers as tool_use when the flag is on", async () => {
-    savedUncapturedRecovery = process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = "1"
     mockMessages = [
       messageStart("msg_capped_uncaptured"),
@@ -2441,7 +2973,6 @@ describe("Integration: passthrough early stop", () => {
   })
 
   it("stream: uncaptured recovery is refused when the block never completed", async () => {
-    savedUncapturedRecovery = process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY
     process.env.MERIDIAN_PASSTHROUGH_UNCAPTURED_TOOL_RECOVERY = "1"
     mockMessages = [
       messageStart("msg_capped_partial"),

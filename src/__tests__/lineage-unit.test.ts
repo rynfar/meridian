@@ -390,7 +390,7 @@ describe("verifyLineage", () => {
     expect(result.type).toBe("continuation")
   })
 
-  it("returns compaction when suffix matches on long conversation", () => {
+  it("replays a summarized head and preserves the legacy opt-in", () => {
     // Need >= 6 stored messages and >= MIN_SUFFIX_FOR_COMPACTION suffix overlap
     const msgs = [
       msg("user", "a"), msg("assistant", "b"),
@@ -411,15 +411,48 @@ describe("verifyLineage", () => {
       msg("user", "e"), msg("assistant", "f"), // preserved suffix
       msg("assistant", "new response"), msg("user", "continue"),
     ]
-    const result = verifyLineage(session, compacted)
-    expect(result.type).toBe("compaction")
-    if (result.type === "compaction") {
-      expect(result.resumeFrom).toBe(3)
-      expect(result.suffixOverlap).toBe(2)
+    expect(verifyLineage(session, compacted)).toEqual({ type: "diverged", reason: "compaction" })
+    const legacy = verifyLineage(session, compacted, { compactionSurvival: true })
+    expect(legacy.type).toBe("compaction")
+    if (legacy.type === "compaction") {
+      expect(legacy.resumeFrom).toBe(3)
+      expect(legacy.suffixOverlap).toBe(2)
     }
     expect(session.messageCount).toBe(msgs.length)
     expect(session.lineageHash).toBe(originalLineageHash)
     expect(session.messageHashes).toEqual(originalMessageHashes)
+  })
+
+  it("replays a shortened head so the client's summary reaches the SDK", () => {
+    const stored = [
+      msg("user", "a"), msg("assistant", "b"),
+      msg("user", "c"), msg("assistant", "d"),
+      msg("user", "e"), msg("assistant", "f"),
+    ]
+    const session = makeSession({
+      lineageHash: computeLineageHash(stored),
+      messageCount: stored.length,
+      messageHashes: computeMessageHashes(stored),
+    })
+    const incoming = [msg("user", "Summary of a through d"), ...stored.slice(-2), msg("user", "continue")]
+    expect(verifyLineage(session, incoming)).toEqual({ type: "diverged", reason: "compaction" })
+  })
+
+  it("keeps an equal-length pruned head on the stored checkpoint", () => {
+    const stored = [
+      msg("user", "a"), msg("assistant", "b"),
+      msg("user", "large tool result"), msg("assistant", "d"),
+      msg("user", "e"), msg("assistant", "f"),
+    ]
+    const session = makeSession({
+      lineageHash: computeLineageHash(stored),
+      messageCount: stored.length,
+      messageHashes: computeMessageHashes(stored),
+    })
+    const incoming = [...stored]
+    incoming[2] = msg("user", "pruned tool result")
+    incoming.push(msg("user", "continue"))
+    expect(verifyLineage(session, incoming)).toMatchObject({ type: "compaction", resumeFrom: 6 })
   })
 
   it("does not false-detect compaction when suffix hashes appear at wrong positions (regression #283)", () => {
@@ -1063,10 +1096,10 @@ describe("verifyLineage compaction that reaches the end of the incoming array", 
     if (result.type === "diverged") expect(result.reason).toBe("modified-history")
   })
 
-  it("still detects a real compaction that appends a new turn", () => {
+  it("replays a real compaction that appends a new turn", () => {
     // The genuine shape: a long head replaced by a short summary, preserved
-    // tail intact, and the new turn appended after it. resumeFrom stays inside
-    // the array, so this must keep resuming — the fix must not cost it.
+    // tail intact, and the new turn appended after it. The shorter head
+    // carries a summary that must replace the stored SDK context.
     const compacted = [
       msg("user", "summary of earlier"),
       ...stored.slice(-3),
@@ -1074,8 +1107,7 @@ describe("verifyLineage compaction that reaches the end of the incoming array", 
       msg("user", "a brand new turn"),
     ]
     const result = verifyLineage(session, compacted)
-    expect(result.type).toBe("compaction")
-    if (result.type === "compaction") expect(result.resumeFrom).toBeLessThan(compacted.length)
+    expect(result).toEqual({ type: "diverged", reason: "compaction" })
   })
 })
 

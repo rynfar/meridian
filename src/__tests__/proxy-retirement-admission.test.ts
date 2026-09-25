@@ -96,6 +96,10 @@ describe("profile switch admission with bounded retirement", () => {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: "work" }),
     }))
     expect(switched.status).toBe(200)
+    // A switch keeps profile-scoped mappings; losing them all is what leaves
+    // every old transcript pending retirement at the bound.
+    expect(Object.values(readSessionStoreSnapshot())).toHaveLength(2)
+    clearSessionCache()
     expect(Object.values(readSessionStoreSnapshot())).toHaveLength(0)
     await sweep()
     const sidecar = JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")) as {

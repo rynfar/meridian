@@ -766,10 +766,9 @@ export function isStreamedToolBlockComplete(
 ): boolean {
   if (!record.forwardedStart) return false
   if (!record.naturalStop) return false
-  if (record.startedInputObject) return true
-  // Zero-argument calls stream as `{}` deltas; anything must parse as an
-  // object. A truncated JSON string is not executable.
-  if (!record.json.trim()) return false
+  // A block_start may carry `{}` before its actual JSON deltas. If deltas
+  // arrived, validate them rather than treating that placeholder as input.
+  if (!record.json.trim()) return record.startedInputObject
   try {
     const parsed = JSON.parse(record.json)
     return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
@@ -778,23 +777,35 @@ export function isStreamedToolBlockComplete(
   }
 }
 
+/** CLI dispatch rejection, keyed by the exact tool-use id and name. A generic
+ * failed tool_result is not evidence that a call was never executed. */
+export function unavailableToolResults(content: unknown): Array<{ id: string; name: string }> {
+  if (!Array.isArray(content)) return []
+  const unavailable: Array<{ id: string; name: string }> = []
+  for (const block of content) {
+    if (!block || typeof block !== "object" || block.type !== "tool_result" ||
+      block.is_error !== true || typeof block.tool_use_id !== "string" ||
+      typeof block.content !== "string") continue
+    const name = /^<tool_use_error>Error: No such tool available: ([^<>]+)<\/tool_use_error>$/.exec(block.content)?.[1]
+    if (name) unavailable.push({ id: block.tool_use_id, name })
+  }
+  return unavailable
+}
+
 /**
  * Can a failed passthrough turn whose tool_use blocks fully streamed but
  * were NEVER captured by the PreToolUse hook still be delivered as a
  * tool-use response?
  *
- * This is the 2026-09-10 0a95wd-tusk incident shape: an abort landing
- * between stream completion and tool dispatch makes the CLI yield
- * `max_turns_reached` WITHOUT running the hook, so captures are empty even
- * though every streamed block is complete and names a declared client tool.
- * This is a materially different trust basis from
- * `canRecoverCapturedToolUses` (which requires the hook to have seen the
- * calls) and is therefore a separate predicate, not a relaxed count.
+ * Two distinct cases: a CLI dispatch rejection ("No such tool available")
+ * for every streamed call proves none executed, even if its error results
+ * settled the early-stop tracker. Separately, the opt-in abort-window path
+ * covers calls that fully streamed but produced no hook or rejection result.
+ * Neither case can reuse the SDK's rejected transcript; callers evict it
+ * before authorizing the client to execute the tools.
  *
- * Callers must further verify: the attempted maxTurns was 1, the kill switch
- * is enabled, no cancellation of any kind fired, no forced-single/duplicate/
- * early-stop state exists, and the envelope is still open. Every streamed
- * block must pass `isStreamedToolBlockComplete`.
+ * Callers must also verify the one-turn cap, no cancellation, an open
+ * envelope, complete blocks, and names declared by the client.
  */
 export function canRecoverUncapturedToolUses(input: {
   reason: SdkTermination["reason"]
@@ -806,9 +817,11 @@ export function canRecoverUncapturedToolUses(input: {
   forceSingleToolUse: boolean
   earlyStopFired: boolean
   uncapturedRecoveryEnabled: boolean
+  /** Every forwarded call was explicitly rejected by CLI dispatch. */
+  confirmedToolUnavailable: boolean
   attemptedMaxTurns: number | undefined
 }): boolean {
-  if (!input.uncapturedRecoveryEnabled) return false
+  if (!input.uncapturedRecoveryEnabled && !input.confirmedToolUnavailable) return false
   if (!input.passthrough) return false
   if (input.reason !== "max_turns") return false
   // Only a turn this proxy capped at 1 qualifies; an uncapped budget that
@@ -820,7 +833,7 @@ export function canRecoverUncapturedToolUses(input: {
   if (input.droppedToolUseIds > 0) return false
   if (input.sawDuplicateToolUse) return false
   if (input.forceSingleToolUse) return false
-  if (input.earlyStopFired) return false
+  if (input.earlyStopFired && !input.confirmedToolUnavailable) return false
   return true
 }
 

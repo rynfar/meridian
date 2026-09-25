@@ -132,6 +132,7 @@ export type LineageDivergenceReason =
   | "priority-failback"
   | "missing-session-header"
   | "concurrent-race"
+  | "compaction"
 
 // --- Hashing ---
 
@@ -582,7 +583,8 @@ function findSuffixAnchorStart(
  *
  * Decision matrix:
  *   Full prefix match (fast-path)          → continuation (resume from stored count)
- *   Suffix overlap >= MIN_SUFFIX           → compaction   (resume after matched suffix)
+ *   Suffix overlap, shortened head          → diverged     (replay client summary)
+ *   Suffix overlap, unchanged-length head   → compaction   (resume after matched suffix)
  *   Trailing user slot gained blocks       → continuation (resume mid-message)
  *   Prefix overlap > 0, no suffix, shrank  → undo         (fork at rollback point)
  *   Cached prefix changed while growing    → diverged     (fresh full-history replay)
@@ -595,7 +597,8 @@ function findSuffixAnchorStart(
  */
 export function verifyLineage(
   cached: SessionState,
-  messages: Array<{ role: string; content: any }>
+  messages: Array<{ role: string; content: any }>,
+  options: { compactionSurvival?: boolean } = {},
 ): LineageResult {
   // A legacy entry cannot prove which client history its SDK session contains.
   if (!cached.lineageHash || cached.messageCount === 0) {
@@ -660,6 +663,15 @@ export function verifyLineage(
     suffixStartInIncoming > 0 &&            // at least one changed message before the preserved suffix
     compactionResumeFrom < messages.length  // and at least one new message after it
   ) {
+    // A shorter incoming head means the client summarized earlier messages.
+    // Resuming the stored SDK suffix would discard that summary and retain the
+    // very context the client meant to release. An equal-length head is a
+    // replacement in place (for example, pruned tool output), which can keep
+    // the cached SDK prefix. The explicit legacy option restores old behavior.
+    const storedHeadLength = cached.messageHashes.length - suffixOverlap
+    if (suffixStartInIncoming < storedHeadLength && !options.compactionSurvival) {
+      return { type: "diverged", reason: "compaction" }
+    }
     return {
       type: "compaction",
       session: cached,

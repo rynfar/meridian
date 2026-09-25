@@ -1,5 +1,515 @@
 # Upstream review handoff
 
+## Contributor PR review checkpoint (2026-09-25)
+
+- [#1152](https://github.com/rynfar/meridian/pull/1152), head `51bcec4f`,
+  separates local lifecycle queue residence from the external lock deadline.
+  Its physical-disk stress and CI pass, but the contributor's affected Linux
+  OpenCode 1.18.32 / Opus 5.5 live batches completed no primary turns:
+  requests ended in HTTP 402 `billing_error` (one batch also reached 500 after
+  fallback). Keep this PR open and unmerged until that exact flow succeeds;
+  a successful simple model probe or synthetic lock test does not clear it.
+- [#1151](https://github.com/rynfar/meridian/pull/1151), source head
+  `79ee7d59` from @builder-main, fixes the Windows OpenCode V2 SDK gate using
+  an actual Node executable. Its commit author is `arch <arch@not.me>`; the
+  fork head is unsigned and GitHub held its workflow runs for approval.
+  Signed cherry-pick `9899e46b` on `codex/windows-sdk-gate-1151` preserves
+  Author and AuthorDate in delivery [#1153](https://github.com/rynfar/meridian/pull/1153).
+  The contributor reports published-1.76.5 failure and fixed Windows 11,
+  OpenCode 2.0.16, Claude Code 2.1.281, Opus 5.5 success. The integration
+  passed 13 focused process tests, full local `npm test`, typecheck, build,
+  and native Windows CI smoke on its first head. The final delivery head,
+  affected-client regression control, remaining CI, merge and source closure
+  must be checked in #1153; this is a dated checkpoint, not their verdict.
+
+## Cross-repository scrub review (2026-09-24)
+
+Live discovery found five owner-controlled scrub repositories:
+`meridian-plugin-pi-scrub`, `meridian-plugin-opencode-scrub`,
+`meridian-plugin-hermes-scrub`, `meridian-plugin-openclaw-scrub`, and
+`hudscrub`. Refresh the owner's repository list and each queue on continuation.
+
+- **Pi scrub:** Serge Baranov's source #7 `fa9366c3` was cherry-picked as
+  `8732fd2d` with Author and AuthorDate preserved, corrected in a separate
+  maintainer commit, and delivered by [#10](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/10)
+  (`54e0706a`, Serge credited on the squash commit). The unchanged main failed
+  two foreign-prompt exact-byte tests; the delivery passed 13 tests and real Pi
+  0.72.1 → Meridian 1.76.3 → Haiku 4.5 E2E. Original #7 closed at its unchanged
+  head. Release [#5](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/5)
+  merged/tagged at `ae3d2ac7`; npm 0.2.1 integrity
+  `sha512-luYfyF84gt8AxNKpzqbqR00Lw7F2GwQS1NdxIZigb6tjFLt2nQbxtlRuGHHiybZp1LeChJ92h2+vrcyY1SatNA==`
+  has matching provenance. A fresh registry-installed Pi live run passed.
+- **OpenCode scrub:** Brian Keefe's [#5](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/5)
+  remains open; its minimal mode conflicts with later OMO 4.x and cwd fixes,
+  leaves a metering trigger, and lacks tests. Revisit on an amended head or a
+  reproducible prompt-stability case. Newest issue #10 was reproduced on npm
+  0.2.1 (real OpenCode 1.18.32 → LiteLLM 1.81.10 → Meridian 1.76.3 → Opus 5.5
+  reached the billing gate), fixed by [#14](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/14)
+  (`c517a2c3`), and passed the same client flow, 21 tests and final-head CI.
+  Release [#15](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/15)
+  merged/tagged at `46383730`; npm 0.2.2 integrity
+  `sha512-w522x+6UWSKoXXPdvEY6vAwe4rur8r15GpwB3UUYixSvjVYhMzJayiONxqtd2N2HzNARS+SbCisqo6ovTmCgTQ==`
+  has matching provenance. A fresh registry-installed Opus flow passed; issues
+  #10, #9 and #1 are closed on this evidence.
+- **Hermes scrub:** Documentation [#10](https://github.com/rynfar/meridian-plugin-hermes-scrub/pull/10)
+  corrected the current identifier-neutralization behavior. Adversarial release
+  review found the 0.2.0 package would report plugin version 0.1.0; [#11](https://github.com/rynfar/meridian-plugin-hermes-scrub/pull/11)
+  derives it from the shipped package metadata, with a version assertion and
+  real Hermes 0.21.4 → Meridian 1.76.3 → Opus 5.5 validation. Release
+  [#2](https://github.com/rynfar/meridian-plugin-hermes-scrub/pull/2) merged/tagged
+  at `06bbe816`; final-head CI, 14 tests, build and packed install passed.
+  Actual Hermes parent and delegated child prompts contained targeted tokens
+  before the plugin and none after; the guidance remained. Fresh npm 0.2.0
+  installed-package E2E passed (local artifact `hermes-scrub-live-LvJRNp`).
+  Registry integrity is
+  `sha512-SSjCvjw3QQk8vOALdIMONUrntWs4MCQjCbxtYvgkbp7dwSXzOwRJYMFXUFt/ZEW5yTnhadZVsua1/88d81H2AA==`;
+  provenance resolves to `06bbe816`. Publication issue #5 is closed.
+- **OpenClaw scrub and HUDScrub:** No open PRs or issues in the refreshed queue.
+  Meridian's live open PRs at this checkpoint are #1113 (draft Letta delivery,
+  blocked on the real cloud flow), #1105 (source Letta PR), #1050 (draft
+  Antigravity research), and #792 (author explicitly requested no review).
+  Its live open issues are #1094, #1073, #1068, #1011, #1009, #933, #917,
+  #769, and #650. The older Meridian notes below are historical; refresh their
+  status and revisit triggers before acting.
+
+The Pi, OpenCode and Hermes live probes are now escrowed as
+[`scripts/e2e-pi-scrub-live.mjs`](../../scripts/e2e-pi-scrub-live.mjs) and
+[`scripts/e2e-opencode-scrub-live.mjs`](../../scripts/e2e-opencode-scrub-live.mjs),
+and [`scripts/e2e-hermes-scrub-live.mjs`](../../scripts/e2e-hermes-scrub-live.mjs),
+with the repeatable commands in [`E2E.md`](../../E2E.md). No community comments
+were sent.
+
+### Package metadata patch releases and Nix integration
+
+- Adversarial review found published Pi 0.2.1 reporting plugin version 0.2.0.
+  [Pi #11](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/11)
+  (`a6f1b3e7`) adds a package-version assertion (failing on unchanged main),
+  derives runtime metadata from the shipped package, and passed 14 tests,
+  build, packed install and real Pi 0.72.1 → Meridian 1.76.3 → Haiku 4.5.
+  Release [Pi #12](https://github.com/rynfar/meridian-plugin-pi-scrub/pull/12)
+  had final-head CI and candidate E2E, merged at `23c98fac`, and published
+  0.2.2 through [run 35975618398](https://github.com/rynfar/meridian-plugin-pi-scrub/actions/runs/35975618398).
+  Registry integrity is
+  `sha512-ksw4pOQdz54DTg2YkG06KB39EIIY5u0pH8VCPh9Se/+ONIzNx2PqbRJECvZ2Ti5j63wVagAYr2kTJ+/V6uKcRA==`;
+  its signed provenance digest and source commit match the registry and
+  `23c98fac`. `npm audit signatures` verified the attestation and a fresh
+  registry-installed Pi run passed (`pi-scrub-live-H5bdwW`).
+- Published OpenCode 0.2.2 reported plugin version 0.1.0.
+  [OpenCode #16](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/16)
+  (`015d373d`) adds the corresponding failing-baseline assertion and package
+  metadata import. It passed 22 tests, build, packed install and real OpenCode
+  1.18.32 → LiteLLM 1.81.10 → Meridian 1.76.3 → Opus 5.5.
+  Release [OpenCode #17](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/17)
+  had final-head CI and candidate E2E, merged at `4b410c5a`, and published
+  0.2.3 through [run 35975742509](https://github.com/rynfar/meridian-plugin-opencode-scrub/actions/runs/35975742509).
+  Registry integrity is
+  `sha512-JOlxV0VAbWcXGTC+bsi4K2d4g3vb2UG5y8s1HzKjWkeAm7kmdIYcHbPie+ror2HTaNaRKIpzGOkPqqonEgs5YA==`;
+  its signed provenance digest and source commit match the registry and
+  `4b410c5a`. `npm audit signatures` verified the attestation and a fresh
+  registry-installed Opus 5.5 run passed (`opencode-scrub-live-aYHjqK`).
+- Meridian [#1144](https://github.com/rynfar/meridian/pull/1144) advances
+  `flake.lock` to Hermes 0.2.0 (`06bbe816`), Pi 0.2.2 (`23c98fac`), and
+  OpenCode 0.2.3 (`4b410c5a`). Its separate Nix fix retains the source
+  `package.json` at the relative path imported by all three plugins and runs
+  a Node import and plugin/package version equality check inside each package
+  build. Before the fix, the old Nix output reproduced
+  `ERR_MODULE_NOT_FOUND`. On the corrected final pins, all three Linux arm64
+  Nix plugin builds, imports and version assertions passed.
+  The Pi and OpenCode headless harnesses also passed against independently
+  packed final packages in the real macOS clients: `pi-scrub-live-v3rHYL`
+  and `opencode-scrub-live-F7CpFW`. The Pi probe observed both identity and
+  docs markers before the plugin; the SDK call had neither and retained the
+  generic coding identity. The OpenCode passthrough probe observed both
+  metering-trigger markers before the plugin, neither afterward, retained
+  the client working directory, and the client exited successfully.
+  Actual exported Nix outputs also passed Hermes 0.21.4 → Opus 5.5
+  (`hermes-scrub-live-XVeNQ5`) and Pi 0.72.1 → Haiku 4.5
+  (`pi-scrub-live-Qa4NtE`) through the same isolated Meridian runtime.
+  The OpenCode 1.18.32 → LiteLLM 1.81.10 → Opus 5.5 Nix-output run passed
+  (`opencode-scrub-live-9TiJfp`), with the passthrough markers removed and
+  the client working directory preserved.
+
+### Final integration and remaining gates
+
+- Meridian [#1144](https://github.com/rynfar/meridian/pull/1144) passed its
+  exact-head `test`, Ubuntu/macOS Nix builds, Windows smoke, Docker, desktop,
+  and bun.nix verification checks, then squash-merged as `f8830dee35450898af64f26c3e37d7de32c132c2`
+  at 08:54 UTC. The merge tree matches the locally validated branch. The
+  original workflow-authored pin commit retains its Author and AuthorDate in
+  the delivery history; the squash credits both author identities.
+  Local `npm test`, standalone typecheck/build, all three final-pin Linux arm64
+  plugin Nix builds, script syntax, skill validation and local links passed.
+  The three actual Nix outputs passed the client/model flows recorded above.
+- Release Please [run 35978034021](https://github.com/rynfar/meridian/actions/runs/35978034021)
+  found no user-facing conventional commit after the `chore:` squash and made
+  no release candidate. The explicit `Release-As: 1.76.4` intent in
+  [#1145](https://github.com/rynfar/meridian/pull/1145) produced
+  [#1146](https://github.com/rynfar/meridian/pull/1146). Adversarial review
+  of that candidate caught three E2E scripts hardcoding Meridian 1.76.3 in
+  their logs; the separate maintainer commit `cabbc75a` reads the installed
+  version and can assert it with `E2E_EXPECT_MERIDIAN_VERSION`. A negative
+  control failed before any model call. All three corrected scripts passed on
+  the 1.76.4 candidate through their real clients and models (Hermes
+  `hermes-scrub-live-qz94pi`, Pi `pi-scrub-live-b4d5As`, OpenCode
+  `opencode-scrub-live-kKregc`). The corrected final head passed full local
+  `npm test`, typecheck and build and required final-head CI `test`, both Nix
+  builds, Windows, Docker and desktop checks. The release PR merged with the
+  required merge method as `076922f58dbf2c58637501339b2b2526c71af687`;
+  its merge tree equals the validated candidate.
+- [Meridian 1.76.4](https://github.com/rynfar/meridian/releases/tag/meridian-v1.76.4)
+  tags that merge commit. The registry's `latest` is 1.76.4 with integrity
+  `sha512-yGzy9EU5q9F3uFeQ6kDTCA4oHX8BABbKBKrI18IonOVyfkRb9jWQsv+0LGUKIgPWme1MnFz5JUZ2Z/bRV6CJXw==`.
+  Its SLSA provenance subject digest matches the registry integrity and its
+  resolved Git commit matches `076922f5`; `npm audit signatures` verified the
+  installed dependency signatures and attestations. A fresh registry install
+  passed real HTTP → SDK Opus 5.5 fresh and resumed conversations, preserving
+  the fixture marker (`meridian-release-live-kGx3Zh`). The published tarball
+  differs from the local candidate pack only in three bundle files: a baked
+  build-machine path in `libsql`, two Bun optimizer no-op branches, and the
+  resulting chunk filename/imports. The actual published package passed the
+  installed-package E2E, so validation covers that final artifact directly.
+  [Release run 35981302861](https://github.com/rynfar/meridian/actions/runs/35981302861)
+  published the package and signed/notarized macOS DMG and ZIP. The release's
+  `BUILD-INFO.txt` identifies `076922f5`; its `SHA256SUMS.txt` records DMG
+  `8a010a7f55ee2f0aab53eb2b91802931e69c6ab07f1087c95ce8e38515e276e6`
+  and ZIP `8a724c4cdb2de98c10ac446536ac12ef6a2aad31aeddd10e57bf9433ed3cc404`.
+  The completed release workflow also published
+  `ghcr.io/rynfar/meridian:1.76.4` as OCI index
+  `sha256:1d1e8c33c55ec40b38aa65a224d79073cbf8f14f98c6dd87c205f446de8a9056`
+  with both `linux/amd64` and `linux/arm64` manifests and attestations.
+- Meridian [#1148](https://github.com/rynfar/meridian/pull/1148) delivered the
+  OpenCode 2.0.16 compatibility port as `1a5e1a2b43311527650fc834d7d777abc5620141`.
+  The published 1.76.4 baseline failed the committed headless gate at setup
+  before a model call; manually loading its V2 plugin reproduced the missing
+  `context.catalog.transform` error. The corrected source and fresh npm-pack
+  candidate each passed the 15-request OpenCode 2.0.16 → Meridian SDK → Sonnet 5
+  gate on macOS. A Linux arm64 OpenCode 2.0.16 / Node 22.23.1 client passed
+  the same installed-pack gate against a macOS candidate proxy. All three
+  pinned beta extended live gates passed. Local `npm test`, typecheck and build
+  passed, as did final-head CI `test`, Windows, desktop and Docker checks. The
+  signed head `8d06fd5c` had the same tree as the squash merge.
+- Release Please [#1149](https://github.com/rynfar/meridian/pull/1149) made only
+  the expected 1.76.5 manifest/package/lockfile bumps and changelog entry.
+  Its head `858de1fc15f82c9e2c28bca3ab0399f210f6981c` passed final-head
+  `test`, Nix builds, Windows, Docker and desktop CI; the local full suite,
+  standalone typecheck and build also passed. The independently installed
+  1.76.5 pack passed the same 15-request real Sonnet 5 gate on macOS and with
+  the Linux arm64 client. The release PR merged at
+  `9170c68feeddae4bee438939b7587647f2275123`, with a tree identical to the
+  tested candidate. The tag `meridian-v1.76.5` points to that commit.
+  [Release run 35989239706](https://github.com/rynfar/meridian/actions/runs/35989239706)
+  completed all four jobs successfully. Its signed/notarized macOS DMG and ZIP
+  have release-asset SHA-256 digests
+  `3ae56de7c38420da786674b31a5b632d6acecea82df4c4ada14d132eaaab7fca`
+  and `f3463f0aa3fbe6b4f919df02acc39d18c50a910b0247320fd8c445ac9820b6b0`,
+  matching `SHA256SUMS.txt`; `BUILD-INFO.txt` names the release commit. The
+  versioned Docker index is
+  `sha256:17f84fc60f3090e02f159b78b915f3932155a97cc71b456a584d21d94af40899`
+  with `linux/amd64` and `linux/arm64` images and attestations. The separate
+  main-branch Docker workflow also passed for `latest`.
+  npm `latest` is 1.76.5 with registry integrity
+  `sha512-4pDqR1ZRtyCV1NBpdf+6ddYQTs55lVUUD9ZRN7ryeGO+J1uv4rD+IdyZc7WH4BARSQTwMLbiJwrmRwIhyL7ngw==`
+  and shasum `5fa0f21d50fdc8fad74ef8e88b599d73818a8663`.
+  Its SLSA provenance subject digest equals that integrity and names source
+  commit `9170c68f` and release run `35989239706`; `npm audit signatures`
+  verified 108 signatures and 14 attestations. A fresh registry-installed
+  1.76.5 package passed the 15-request real OpenCode 2.0.16 → Sonnet 5 gate
+  on macOS (`meridian-opencode-v2-stable-ruagkV`). A separate fresh registry
+  install in Linux arm64 / Node 22.23.1 passed the same client gate
+  (`meridian-opencode-v2-stable-HQEd88`) against the published macOS proxy.
+  The reporter's exact content-sensitive system block is unavailable and the
+  full Linux proxy/SDK path has not been replayed; keep #1094 open for that
+  narrower `billing_error` claim.
+- An additional headless probe for [issue #1009](https://github.com/rynfar/meridian/issues/1009)
+  confirmed the existing `--case=unhandled --stream` fixture still passes with
+  the flag off and an undeclared tool. Substituting a declared tool makes the
+  real SDK invoke `PreToolUse` before the tool's `content_block_stop` becomes
+  observable to the harness, so that substitution does not reproduce the
+  missing-hook abort window. Leave the flag off until a dedicated fault
+  injection and the affected deployment's canary establish the positive path.
+- A fresh owner/organization repo and queue scan found the same five managed
+  scrub repositories and no new PRs or issues. Pi, Hermes, OpenClaw scrub and
+  HUDScrub are clear. OpenCode contributor #5 is unchanged and deferred for
+  its documented regression. Meridian #1113/#1105, #1050 and #792 remain as
+  above; its nine open issues have unchanged dispositions except #1094.
+  An issue update at 09:16 UTC reports that `@opencode/cli@2.0.16` is released,
+  even though `@opencode-ai/plugin` still has `latest=1.18.32`. The official
+  `v2.0.16` Git tag and npm CLI version were verified. On that exact binary,
+  `meridian setup --v2` rejects the version, and manually loading the bundled
+  V2 plugin logs `context.catalog.transform` undefined. The 2.0.16 plugin
+  interface moved catalog work into separate `provider` and `model` domains.
+  #1094 is now an actionable compatibility port, not a safe unpin. Preserve
+  the beta gates while adapting it, and require real 2.0.16 client/package E2E
+  plus the reported billing-payload path before declaring the issue resolved.
+  The isolated compatibility candidate now supports the released 2.0.16 host
+  while retaining the three beta APIs. The committed headless probe is
+  [`scripts/e2e-opencode-v2-stable-live.mjs`](../../scripts/e2e-opencode-v2-stable-live.mjs).
+  Against a fresh registry install of the published 1.76.4 baseline, that
+  probe fails before a model call because setup rejects 2.0.16.
+  Its real 2.0.16 → Meridian → Sonnet 5 source and independently installed
+  npm-pack runs each passed 15 requests on macOS. They assert setup/loading,
+  signed primary and detached title/generate requests, resumed context,
+  discovered `#xhigh`, an actual read-tool result, fork isolation, and attached
+  compaction. The final pack integrity was
+  `sha512-sWEY3wvTqQUCsqjjT4qx2xVsrjcKLRhqvcJ64HDFh6xyzetEpAqLDnHJvZYmOMxk+ybEEcQrJL1xTkQe5NJScg==`.
+  An installed-pack Linux arm64 OpenCode 2.0.16 and Node 22.23.1 run passed
+  the same 15-request gate against the candidate Meridian proxy on macOS;
+  this checks the reported client platform but is a split-platform run, not
+  an all-Linux proxy deployment. The three pinned beta live extended gates
+  passed separately on the candidate. Full `npm test`, standalone typecheck,
+  and build passed. The reporter's exact content-sensitive system block is
+  still unavailable, so these results do not resolve the specific
+  `billing_error` replay. Leave #1094 open for that payload and a full Linux
+  proxy replay; do not describe the narrower compatibility port as a complete
+  billing fix.
+
+## Follow-up review: PR #1139 (2026-09-24)
+
+Refresh GitHub and `origin/main` before resuming this queue. The newest ready contributor
+PR was reviewed first. The older Letta and draft PRs retain the dispositions below.
+
+### Session GC lock contention #1139 → maintainer delivery #1140
+
+- Source head `e8d1333ffbf59c93b8ddb60d9e2b3d13db99c33c` by Aaron Masover
+  <amasover@gmail.com> (authored 2026-09-24 01:47:42 UTC) was cherry-picked with
+  Author and AuthorDate intact as signed `340f36befbbba03df410c9342b03accae410f2eb`
+  in `/tmp/meridian-pr1139-review`, branch `codex/review-1139`. The cherry-pick
+  has the exact source tree. A separate signed maintainer commit
+  `3b5f3ed3d10d49d18b258f5986490a6dd79f0af1` retains the existing
+  `pinProvider?.() ?? pins` fallback when a GC snapshot is unavailable; the
+  source-only branch threw a `TypeError` in that case, while the corrected
+  branch returned a healthy `GcResult`.
+- The change moves session GC reconciliation away from the lifecycle lock's
+  expensive scan while retaining lock-protected state updates and pin safety.
+  A synthetic 1,438-resource/810-pin case measured about 450–457 ms on the
+  previous main and 6–7 ms on the candidate, with the same 810 pins. A forced
+  lifecycle-lock collision in a real macOS Opus 5.5 HTTP → SDK request returned
+  HTTP 503 on previous main and HTTP 200 after the fix, with the retry observed
+  and zero leaked active leases. Logs:
+  `/tmp/meridian-pr1139-{baseline,candidate}-bench.log`,
+  `/tmp/meridian-pr1139-live-busy-{before,after}.log`, and
+  `/tmp/meridian-pr1139-pin-fallback-{before,after}.log`.
+- Focused lifecycle/process tests (56), typecheck, build and full `npm test`
+  passed on the corrected final head. Real macOS Opus 5.5 publication E2E passed
+  nonstreaming and streaming: four competing sweeps per mode deleted nothing,
+  both conversations retained their fixture identifiers and source transcripts.
+  The real SDK transcript pin/retire/delete gate passed; Docker boot and host
+  identity gates E51/E52 passed. Real Oh My Pi 18.2.11 through Meridian on macOS
+  passed transcript GC with Haiku 4.5. The Opus 5.5 Oh My Pi 18.2.11 macOS run
+  encountered the same `Claude Code 2.1.141 does not support this model` error
+  on unchanged main and the candidate. Native Windows 11 Oh My Pi 18.2.11 Opus
+  5.5 comparison in #1139 reported six concurrent sessions taking 881 s with
+  44 client-visible errors on 1.76.2 versus 86 s with zero errors on the
+  branch; this is contributor evidence, not an independently repeated
+  maintainer run. Logs:
+  `/tmp/meridian-pr1139-final-{typecheck,build,npm-test,publication,publication-stream}.log`,
+  `/tmp/meridian-pr1139-gc-sdk.log`,
+  `/tmp/meridian-pr1139-gc-omp-haiku.log`, and
+  `/tmp/meridian-pr1139-{e51,e52}.log`.
+- Delivery [#1140](https://github.com/rynfar/meridian/pull/1140) passed all
+  final-head CI including `test`, Docker, desktop and Windows smoke. After
+  rechecking unchanged head `3b5f3ed3`, base `398006fe`, and green checks, it
+  was squash-merged as `f30b22f9a99a73b723ced39aa1fab263a84272a8`.
+  The merged tree exactly matches the validated branch; its commit credits
+  Aaron as co-author. Source #1139 was rechecked at unchanged `e8d1333f`
+  and closed without comment.
+
+### Release 1.76.3 publication
+
+- The previous tag is `meridian-v1.76.2`; the product release range contains
+  #1140, plus the earlier documentation-only #1138. Release Please
+  [#1141](https://github.com/rynfar/meridian/pull/1141) changes only
+  `.release-please-manifest.json`, `CHANGELOG.md`, `package-lock.json`, and
+  `package.json`. It raises all root version fields to 1.76.3 and has one
+  Bug Fixes entry for #1140. The bot's original `20eac8fe` head was signed
+  as `8e65087996e8fd47665d928cbd39e8ff7a04f514` with the exact same
+  tree and bot Author/AuthorDate; GitHub verifies the signed replacement.
+- On macOS with Bun 1.3.14, Node 22.22.3, Agent SDK 0.2.141, and Claude Code
+  2.1.280, frozen Bun install, full `npm test`, standalone typecheck, build,
+  version consistency and diff check passed. Logs:
+  `/tmp/meridian-release-1141-{npm-test,typecheck,build}.log`.
+  Real Opus 5.5 publication E2E passed nonstreaming and streaming, each with
+  four competing sweeps, durable mappings, preserved identifiers, and unchanged
+  source transcripts. The forced lifecycle-lock collision returned HTTP 200
+  with no leaked lease. Logs:
+  `/tmp/meridian-release-1141-publication-opus{,-stream}.log` and
+  `/tmp/meridian-release-1141-busy-opus.log`.
+- A 1.76.3 tarball was packed with candidate integrity
+  `sha512-OZ4zKucyQvZ3F0ReB08A4TVGVZll7vWx0uvZcfGIaei9lkHEdS9Vv+HFj8FdQ0YrVZAnv1patnbuji1i8meU8w==`.
+  An independent npm install in `/tmp/meridian-release-1141-packed` reported
+  CLI version 1.76.3 and passed a real Opus 5.5 fresh and resumed HTTP turn
+  through its installed Node server, preserving the fixture identifier. That
+  consumer resolved Agent SDK 0.2.141 and Claude Code 2.1.281. Logs:
+  `/tmp/meridian-release-1141-packed-{install,live}.log`.
+- All exact-head CI passed, including `test`, both Nix builds, Windows, desktop
+  and Docker. After rechecking unchanged head/base, #1141 was merged with
+  `--merge --match-head-commit 8e650879` as
+  `df6523e953076c361c5b7ca2d5fbb50107db6190`; the merged tree exactly
+  matches the validated candidate. Release Please created tag and GitHub release
+  `meridian-v1.76.3` at that SHA. Publication workflow:
+  [run 35959542289](https://github.com/rynfar/meridian/actions/runs/35959542289).
+  All four jobs passed. The signed/notarized macOS ARM64 DMG and ZIP, checksums
+  and build info are attached. The release Docker job pushed
+  `ghcr.io/rynfar/meridian:1.76.3` for `linux/amd64` and `linux/arm64` at index
+  digest `sha256:7a0b9e9f3155182041188f7df1bb7d1ec7e161cd0189470f77a16e6a14e0ce1c`.
+  The main-branch [Docker workflow](https://github.com/rynfar/meridian/actions/runs/35959542024)
+  passed and pushed `latest` for the same commit and architectures, index digest
+  `sha256:e781adf9774cf8919a23a8521ea345f1f94176523e3f16a265d5a12c81635b99`.
+- The npm publish job reported `+ @rynfar/meridian@1.76.3` with signed
+  provenance at Sigstore index `2932371200` on 2026-09-24 05:27 UTC.
+  The public registry's `latest` is 1.76.3; tarball integrity is
+  `sha512-jDB06dshmgGc2XFdSnYyeBP2jOITuQ7ca25cAP/45kgy9QgzEGqGCSy7PFLFzlfZm08TTkQawQIUkM4GkqS3rQ==`
+  and shasum `859c5a78414597fc42f8a3b15f738dee2f8f11bc`. The provenance
+  subject's SHA-512 digest matches the registry integrity and identifies
+  release commit `df6523e9` and run `35959542289`. A clean public-registry
+  install in `/tmp/meridian-release-1.76.3-registry` reported CLI 1.76.3 and
+  passed a real Opus 5.5 fresh and resumed HTTP turn with the fixture marker
+  preserved. Its lockfile integrity matches the registry; `npm audit signatures`
+  verified all 108 registry signatures and 14 attestations. Logs:
+  `/tmp/meridian-release-1.76.3-registry-{install,live}.log`.
+- `npm ci` on the source tree fails because the root npm lockfile still records
+  Claude Code 2.1.257 while `package.json` requests `^2.1.280`, a mismatch
+  inherited from #1102; the repository CI and frozen release gate use
+  `bun.lock` and Bun. This did not prevent the verified public-registry install.
+
+### Queue after publication
+
+- Live GitHub refresh shows four open PRs: Letta source #1105 remains at
+  `5f2a9a9e` and draft delivery #1113 at `52a3f914`, waiting for actual Letta
+  cloud-client verification. #1050 remains draft Antigravity research; #792
+  remains draft at its contributor's request. There is no newer ready PR.
+- Nine issues remain open: #1094, #1073, #1068, #1011, #1009, #933, #917,
+  #769, and #650. #1094's newest comment asks for a defined OpenCode v2
+  compatibility goal and notes that npm's plugin `latest` still points to 1.x;
+  its implementation target is not established. The prior dispositions and
+  owner/client prerequisites for the other issues are recorded below. This
+  release does not imply those issues are resolved.
+
+## Follow-up review: PRs #1134 and #1133 (2026-09-23)
+
+The previous authorized batch shipped Meridian v1.76.1. Refresh GitHub before acting on any
+status here. Two newer PRs were reviewed newest first; the existing open issues and draft PRs
+below retain their prior dispositions.
+
+### Bot plugin pin #1134 → maintainer delivery #1135
+
+- Source head `e6fb700b` (rynfar, authored 2026-09-23 10:36:41 UTC) was cherry-picked with
+  Author and AuthorDate intact as signed `df695864` in `/tmp/meridian-pr1134-review`, branch
+  `codex/plugin-pin-1134`. One input changed: `meridian-plugin-opencode-scrub` in `flake.lock`
+  now points to `18e36c14` (published plugin v0.2.1). The source fix was previously validated
+  under issue #1101 with real Meridian HTTP → SDK → Claude Max in both response modes and a
+  fresh npm install; the scheduled plugin workflow `35849737110` rebuilt all plugin outputs
+  with this pin.
+- Local frozen install, typecheck, build, full `npm test` and diff check passed. Delivery
+  [#1135](https://github.com/rynfar/meridian/pull/1135) passed final-head `test`, Nix verify
+  and Ubuntu/macOS builds, desktop, Windows and container checks. The macOS Nix build and
+  binary check passed before its optional cache upload took about 20 minutes. CI:
+  `https://github.com/rynfar/meridian/actions/runs/35927258693` (Nix) and
+  `https://github.com/rynfar/meridian/actions/runs/35927258663` (test).
+- After rechecking head `df695864`, base `cce20b96`, and every check, #1135 was squash-merged
+  as `2f5c0bfd64bf9aa432d11bdf27fdaa8911421b23`. The merged tree exactly matches the validated
+  branch. The resulting commit credits rynfar as co-author. Original #1134 was rechecked at
+  unchanged head `e6fb700b` and closed without comment.
+
+### Contributor schema #1133 → maintainer delivery #1136
+
+- Source head `08e8accc` (groundnuty <groundnuty@gmail.com>, authored 2026-09-23 09:51:29 UTC)
+  became signed authored cherry-pick `9500fd8c`, then rebased onto merged #1135 as `8834d31f`,
+  in `/tmp/meridian-pr1133-review`, branch `codex/review-1133`. Author and AuthorDate remain
+  unchanged. Signed commit verification is green on GitHub. The patch advertises declared
+  nested JSON Schema through the pinned Agent SDK's MCP renderer while keeping input
+  validation/repair and `$` reference fallback.
+- Running the contributor's three real-SDK MCP tests unchanged against `main` gave 1 pass / 2
+  fail; after the cherry-pick, 3 pass. The built proxy's live Sonnet 5 nonce probe failed on
+  unchanged code at both nested locations and passed on the candidate at both locations:
+  `/tmp/meridian-pr1133-schema-live-before.log`, `/tmp/meridian-pr1133-schema-live-after.log`.
+  A freshly installed tarball built from the PR passed the same live nonce probe
+  (`/tmp/meridian-pr1133-schema-live-packed.log`); the rebased built proxy passed again
+  (`/tmp/meridian-pr1133-schema-live-postrebase.log`).
+- On macOS Bun 1.3.14 / Agent SDK 0.2.141 / Claude Code 2.1.280, all four live E41
+  chain/parallel × stream/nonstream modes passed with Sonnet 5, plus a Pi parallel-stream
+  control; logs `/tmp/meridian-pr1133-e41-*.log`. The real built-package OpenCode client gate
+  passed on all pinned betas 18314/18866/19271 with Claude Haiku 4.5 and separate proxy/client
+  CWD; logs `/tmp/meridian-pr1133-e42-*-core.log`. The extended beta 18314 `#xhigh` variant
+  probe failed with the same `session advanced` HTTP 400 on unchanged built main and the
+  candidate, after file call and continuation succeeded. Retain both failed logs
+  (`/tmp/meridian-pr1133-e42-18314-extended-baseline.log`,
+  `/tmp/meridian-pr1133-e42-18314.log`); do not claim that V2 variant issue is fixed.
+- Local typecheck, build, and full isolated `npm test` passed (4,551 main tests plus every
+  isolated segment). An earlier full run overlapped another suite and live model run and hit
+  two cross-process Pi timeouts; the same 11-case file then passed in isolation, followed by
+  the complete green suite. Logs: `/tmp/meridian-pr1133-test.log`,
+  `/tmp/meridian-pr1133-cross-process-isolated.log`, `/tmp/meridian-pr1133-test-isolated.log`.
+  No production correction was needed. After the lockfile-only rebase, 11 focused schema/input
+  tests, typecheck and build passed; logs `/tmp/meridian-pr1133-postrebase-*`. Delivery
+  [#1136](https://github.com/rynfar/meridian/pull/1136) on signed head `8834d31f` passed all
+  final-head checks, including `test`, desktop, Windows and container. Its squash merge is
+  `2922970e8c5d0657b74edddb044554239af80c63`; the merged tree exactly matches the validated
+  head and credits groundnuty as co-author. Original #1133 was rechecked at unchanged head
+  `08e8accc` and closed without comment.
+- Open work after these two merges consists of previously reviewed draft/held PRs and issues.
+  Refresh the queue before claiming it is empty.
+
+### Release 1.76.2 publication
+
+- Previous tag `meridian-v1.76.1` is at `cce20b96`. The product commits in the release range
+  are #1135 (`2f5c0bfd`) and #1136 (`2922970e`). Release Please PR
+  [#1137](https://github.com/rynfar/meridian/pull/1137) changed only
+  `.release-please-manifest.json`, `CHANGELOG.md`, `package-lock.json`, and `package.json`;
+  the changelog has one Bug Fixes entry for #1136 and no duplicate chore entry. The bot's
+  original candidate head `403ed493` was re-signed with the exact same tree as signed
+  `d9430a7edd110c01ab08b55e578a5e55d04edf3f`, preserving bot Author and AuthorDate, to trigger
+  the required PR checks.
+- Local frozen install, typecheck, build, full `npm test`, release metadata consistency and
+  diff checks passed on that tree. Logs `/tmp/meridian-release-1137-*.log`. The built
+  candidate passed a real Sonnet 5 nested-schema tool call. Live E41 passed chain/parallel ×
+  stream/nonstream with exact results, durable forks and cache continuity
+  (`/tmp/meridian-release-1137-e41-*.log`). The built package passed the real beta 18314
+  OpenCode client flow (`/tmp/meridian-release-1137-opencode-18314.log`).
+- An independently packed 1.76.2 tarball was freshly installed; its CLI reported 1.76.2 and
+  the installed proxy passed the real Sonnet nested-schema tool call
+  (`/tmp/meridian-release-1137-packed-live.log`). Candidate tarball integrity is
+  `sha512-SADLZ4H4QiEM602MULxohrSLx90FAUctGU0Ap2P4eFJSu9o3cCuwIsFoGsZ//GYoW3pAuZSEypgSSwHJ/yPAAw==`.
+  This is candidate evidence, not registry publication.
+- All final-head CI passed, including `test`, both Nix builds, desktop, Windows, and
+  container. After rechecking unchanged head/base and checks, #1137 was merged with
+  `--merge --match-head-commit d9430a7e` as
+  `8cd3e9ee57f30df015e6a6ceea0fc544bd3842e7`. Its merged tree exactly matches the validated
+  candidate. Release Please created GitHub release `meridian-v1.76.2` at that SHA on
+  2026-09-23 23:10:12 UTC. The publication workflow is
+  [run 35932196039](https://github.com/rynfar/meridian/actions/runs/35932196039).
+- The publication workflow's Docker job pushed `ghcr.io/rynfar/meridian:1.76.2` with
+  `linux/amd64` and `linux/arm64` manifests (index digest
+  `sha256:9fffe485041b730d5faba464be56cf7c1383071955e798dde787bac6ab237424`). The
+  separate main-branch [Docker workflow](https://github.com/rynfar/meridian/actions/runs/35932195787)
+  passed and pushed `latest` for the same release commit, with both architectures and index
+  digest `sha256:2be03d3f603cb5373ea09dab011287a3f2e0ddec264eeec6f66d3a602f765a83`.
+  The desktop job passed and attached the signed/notarized 1.76.2 macOS ARM64 DMG and ZIP,
+  checksums, and build info to the GitHub release. All four release workflow jobs passed.
+- The npm publish job reported `+ @rynfar/meridian@1.76.2` and published signed provenance to
+  Sigstore index `2927534032` at 2026-09-23 23:16 UTC. After npm's processing delay, registry
+  `latest` became 1.76.2. Its tarball integrity is
+  `sha512-FXkpUwBZUlVfwrAGjXTvNxnshhXnWNwaLQcePo+JT5XUKU9iUzfuQa3Otf7ED/VxTxROo3QSo9kigbtf+tDZAQ==`,
+  shasum `bbfd12a2c349ef6142e32611b95baf5727726c15`. Registry provenance identifies
+  `pkg:npm/%40rynfar/meridian@1.76.2`, the same SHA-512 digest, release commit
+  `8cd3e9ee57f30df015e6a6ceea0fc544bd3842e7`, and workflow run `35932196039`.
+- A clean install from the public registry in `/tmp/meridian-release-1.76.2-registry` reported
+  CLI version 1.76.2. Its installed proxy passed the real Sonnet 5 nested-schema nonce flow:
+  HTTP 200, one `report` call, and exact object-field and array-item values. Log:
+  `/tmp/meridian-release-1.76.2-registry-live.log`. Publication is complete; no manual
+  versioning, tag push or npm publish was used.
+
+### Queue after publication
+
+- Refreshed live GitHub status after release: four open PRs, all with previously reviewed
+  dispositions. Letta source #1105 is unchanged at `5f2a9a9e`; delivery #1113 is still draft
+  at `52a3f914`, waiting for actual Letta cloud-client verification. #1050 remains draft
+  Antigravity research; #792 remains draft at the contributor's request. No newer ready PR
+  is waiting for review.
+- Nine issues remain open: #1094, #1073, #1068, #1011, #1009, #933, #917, #769, and #650.
+  Their previously reviewed holds and owner/client prerequisites are recorded below. This
+  queue is not empty and no unsupported closure is implied by the 1.76.2 release.
+
 ## Active review batch (2026-09-23)
 
 The owner asked for PR review first, newest issues next, author-preserving
@@ -60,16 +570,22 @@ the queue is complete. This batch has one owner and no delegated agents.
   local full tests, typecheck, build and all relevant CI jobs (CI run
   `35828305778`, Docker `35828305721`, desktop `35828305756`).
 
-### #1105 and #1100 under review
+### #1105 held as draft #1113; #1100 incorporated as #1111
 
 - #1105 source `5f2a9a9e` (Chris Wilson) was cherry-picked as ten authored
   commits on `/tmp/meridian-letta-1105`, branch `codex/letta-identity-1105`.
-  Maintainer commits `23f01050` remove prohibited casts and guard malformed
-  Letta bodies; `91e6df4b` limits reminder extraction to a system reminder.
-  Focused 62 tests and typecheck passed before rebasing on #1110. Actual Letta
-  Code 0.32.18 local backend requests use `local-conv-*`, not the `conv-<uuid>`
-  reminder path being fixed. A real cloud-client acceptance gate remains
-  unavailable; do not claim #1105 complete from the wire-shape probe alone.
+  On current main, the first authored cherry-pick is `b30fc617`; maintainer
+  commits `15c01ba5` remove prohibited casts and guard malformed Letta bodies,
+  and `52a3f914` requires the label inside a system reminder. Delivery
+  [#1113](https://github.com/rynfar/meridian/pull/1113) is draft. Rebasing
+  preserved both Letta and OpenAI identity documentation. Focused 69/69,
+  typecheck, build, full `npm test`, and every CI check on the draft head
+  passed (`35830427471`, Docker `35830427507`, desktop `35830427622`). Actual Letta Code
+  0.32.18 local backend requests use `local-conv-*`, not the `conv-<uuid>`
+  reminder path being fixed. A cloud backend connect returned 401; the real
+  affected-client acceptance gate remains unavailable. E57's wire-shape
+  probe must not be presented as Letta binary evidence. Hold merge and source
+  closure until the client gate is satisfied.
 - #1100 source `0823b361` (Guy Addadi) was cherry-picked to
   `/tmp/meridian-cwd-1100`, branch `codex/cwd-no-client-1100`, and rebased onto
   `73d98d14` as `72dbaab4` (author and AuthorDate intact). Maintainer test
@@ -83,9 +599,270 @@ the queue is complete. This batch has one owner and no delegated agents.
   `/tmp/meridian-1100-e2e-no-cwd.log`. Full `npm test` exited 0; all four
   distinct E41 modes passed, including an explicit parallel+stream rerun after
   a shell argument grouping mistake. Logs `/tmp/meridian-1100-e41-*.log`.
-  OpenCode V2 `0.0.0-beta-19271` passed the extended live E42 gate with a
-  separate proxy CWD; log `/tmp/meridian-1100-e42.log`. Final-head CI and
-  source-head recheck are still required before merge.
+  All three pinned OpenCode V2 betas (`18314`, `18866`, `19271`) passed extended
+  live E42 with separate proxy CWD; logs `/tmp/meridian-1100-e42*.log`.
+  Delivery [#1111](https://github.com/rynfar/meridian/pull/1111) passed all
+  final-head CI jobs (`35829422423`, Docker `35829422455`, desktop
+  `35829422393`), merged as `bfede92b` with Guy's authored commit intact;
+  unchanged source #1100 was closed without comment.
+
+### #1097 incorporated as #1115; #1112 incorporated as #1117
+
+- #1097 source `73ba641a` (Guy Addadi) was cherry-picked as authored commit
+  `d81be56b` onto `/tmp/meridian-systemd-1097`, branch
+  `codex/systemd-1097`. Separate maintainer commits `9dbb3b82` and
+  `7e0dadfd` make numeric parsing strict, reset the idle clock on completed
+  model HTTP requests, clear the timer on manual close, add the E59 process
+  gate and document Node/systemd use. Focused 13/13, typecheck and build pass.
+  E59 passed with an inherited fd and real Haiku response on macOS Node
+  22.22.3 (`/tmp/meridian-1097-macos-live.log`); Linux Node 24.20.0 passed
+  fd adoption, idle exit and reactivation without a model call
+  (`/tmp/meridian-1097-linux.log`). The first Linux attempt failed solely
+  because the minimal container lacked `/etc/machine-id`; a generated
+  container-local ID enabled the successful rerun. Full `npm test` and all
+  final-head CI passed (`35830800049`, Docker `35830799848`, desktop
+  `35830799897`). Delivery [#1115](https://github.com/rynfar/meridian/pull/1115)
+  merged as `79e14d7f` with Guy's authored commit intact; unchanged source
+  #1097 was closed without comment.
+- #1112 source `b5c485a8` (Nowaker) was cherry-picked onto
+  `/tmp/meridian-gc-1112`, branch `codex/session-gc-lock-1112`. On current
+  main the authored commit is `7d809138`; maintainer test correction is
+  `98db8278`. Focused 43/43 and typecheck/build pass. On unchanged
+  main, the source's sampling-based candidate-reuse test passed despite the
+  old implementation; its FIFO test failed with `late, early`, whereas the
+  cherry-picked code passes. The maintainer correction replaces the sampling
+  test with a direct candidate lifetime assertion. Full `npm test` exited 0
+  before rebasing onto #1115. Real E2E publication lifetime passed both
+  nonstream and stream on that base,
+  preserving markers, sources and zero unsafe deletions; logs
+  `/tmp/meridian-1112-publication*.log`. Delivery
+  [#1117](https://github.com/rynfar/meridian/pull/1117) merged as `a3640f0d`
+  with Nowaker's authored cherry-pick intact; unchanged source #1112 was
+  closed without comment. After the
+  #1115 rebase, focused 43/43, typecheck/build and both real publication E2E
+  modes passed again (`/tmp/meridian-1112-publication*-rebase.log`). Full
+  final-head CI passed (`35831709077`, Docker `35831709065`, desktop
+  `35831709066`).
+
+### Issue #1107: fresh replay tool names
+
+- On unchanged main, a real HTTP regression reproduced a fresh Pi replay
+  containing the bare historical names `bash` and `mcp__oc__read`; the SDK
+  registers prefixed aliases. The first baseline test run unexpectedly passed
+  under shared process mocks, but an instrumented rerun and a clean rerun
+  both failed as expected (`/tmp/meridian-1107-before.log`).
+- Branch `fix/replay-tool-names-1107` renders historical calls with the same
+  aliases used for current MCP registration, including collision handling,
+  and threads the renderer through text and structured fresh replay and
+  resume-fallback paths. Ordinary non-passthrough flattening is unchanged.
+  Focused 34/34, typecheck, build and full `npm test` passed before rebase.
+  Real Opus 5.5 E60 passed nonstream and stream, returning a new `bash` call
+  after twelve old calls; existing Haiku replay-history control passed both
+  modes. Logs `/tmp/meridian-1107-opus-live*.log` and
+  `/tmp/meridian-1107-replay-control*.log`. After rebasing onto #1117,
+  focused 34/34, typecheck/build, all four live E41 modes, and both live
+  Opus E60 modes passed again. E41 logs are
+  `/tmp/meridian-1107-e41-*.log`; E60 logs are
+  `/tmp/meridian-1107-e60-*.log`. The real E43 namespaced-tool control
+  also passed in both response modes (`/tmp/meridian-1107-e43-*.log`).
+  Full final-head `npm test` and all CI passed (`35832749521`, Docker
+  `35832749546`, desktop `35832749543`). Delivery
+  [#1120](https://github.com/rynfar/meridian/pull/1120) merged as
+  `253c0fcc`; issue #1107 closed automatically.
+
+### Issue #1101: client-side OpenCode scrub drops cwd
+
+- The exported scrub function in companion repository
+  `rynfar/meridian-plugin-opencode-scrub` removed the entire duplicate
+  `<env>` block before Meridian could extract the client's working directory.
+  On unchanged plugin code, three new regression assertions failed. PR
+  [#13](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/13)
+  retains a bare `Working directory` field without the duplicate preamble or
+  other fields; all 17 tests and build passed, as did final-head CI. A real
+  Meridian HTTP → SDK → Claude Max check using the built scrub package passed
+  both response modes with SDK `cwd` equal to the client project, distinct
+  from the proxy directory (`/tmp/meridian-1101-live.log`).
+- The plugin's Release Please [#7](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/7)
+  was updated to include the fix. Its duplicate merge-commit changelog entry
+  was removed in a separate maintainer commit; the exact release diff has
+  three distinct fixes, version `0.2.1`, and a passing build/test/pack gate.
+  The release workflow `35833345705` published the tagged GitHub release and
+  npm package with provenance. Registry `latest` and version are `0.2.1`,
+  integrity is `sha512-DOLXcZzuH0dXmL3i+2ENIc/x7WTLC0rmOJ757z5nZGIbxmNIVOhUWgmvamWK+ivklvDUPApqy1D+Emfc9/slTQ==`.
+  A fresh registry install executed the exported scrub and preserved the cwd.
+  Issue #1101 is closed.
+
+### Issue #1098: unstreamed SDK fallback delivered
+
+- Source illustration [#1099](https://github.com/rynfar/meridian/pull/1099)
+  head `7043fa93` (Magnus Schmidt Rasmussen) is cherry-picked as authored
+  commit `7137eb71` onto `fix/unstreamed-fallback-1098`. The source explicitly
+  asks not to merge its draft as-is; maintainer corrections and gates are
+  separate. An actual SDK/CLI request with a local API fixture reproduced
+  unchanged main's HTTP 200 with no `message_start`, despite Claude Code's
+  successful nonstreaming retry (`/tmp/meridian-1098-e2e-before.log`). The
+  cherry-picked code plus corrections passed the same fixture's text, client
+  tool-call and normal-stream controls (`/tmp/meridian-1098-e2e-corrected.log`).
+  New HTTP tests exercise assistant-only turns; a pure helper and direct tests
+  preserve thinking blocks for clients that support them. Focused 14/14 and
+  typecheck/build pass. The unchanged-main streaming control also passed;
+  all 14 real-SDK local-fixture capped-turn cases passed, and live E41 passed
+  all four chain/parallel × plain/stream modes. Logs:
+  `/tmp/meridian-1098-capped-*.log` and `/tmp/meridian-1098-e41-*.log`.
+  Full `npm test` and all final-head CI passed (`35834431194`, Docker
+  `35834431188`, desktop `35834431167`). Delivery
+  [#1121](https://github.com/rynfar/meridian/pull/1121) merged as `31d8560f`
+  with Magnus's authored commit intact. Issue #1098 closed automatically;
+  unchanged source illustration #1099 was closed without comment.
+
+### Issue #1095: single-step abort delivered
+
+- Source illustration [#1096](https://github.com/rynfar/meridian/pull/1096)
+  head `38bc082f` (Magnus Schmidt Rasmussen) was cherry-picked with Author
+  and AuthorDate intact as `a012b4f7` onto `fix/single-step-abort-1095`.
+  The source explicitly
+  asked not to merge as-is. A new HTTP regression makes a self-aborted SDK
+  iterator complete normally. It fails on unchanged main with a client error
+  and passes with a separate cause-aware correction; source wording alone
+  still failed because an earlier durability guard can throw a cancellation
+  error before the final-envelope guard. Baseline log:
+  `/tmp/meridian-1095-before.log`.
+- The real SDK/CLI E62 local fixture passed a repeated same-tool call on both
+  unchanged main and the fix. It checks the surrounding delivery contract but
+  does not force the normal-completion abort timing. Focused HTTP and error tests
+  passed 233/233; typecheck and build passed. Live E41 passed all four
+  chain/parallel by stream/non-stream modes. E34 delivered three intact
+  parallel tool batches, but its separate #742 intermittent race did not occur
+  in three attempts, so that race gate is inconclusive for #742. Full `npm test`
+  and all final-head CI jobs passed (`35835762270`, desktop `35835762260`,
+  Docker `35835762353`). Delivery
+  [#1122](https://github.com/rynfar/meridian/pull/1122) merged as `71495332`
+  with Magnus's authored commit intact. Issue #1095 closed automatically;
+  unchanged source #1096 was closed without comment.
+
+### PR #1119: implicit attachment suppression delivered
+
+- Source head `8a7aec9c` (Nowaker) was cherry-picked with Author and
+  AuthorDate intact. Its AI attribution lines were removed from the copied
+  commit message to match project format; the implementation is unchanged.
+  On `fix/implicit-attachments-1119` rebased onto #1122, the authored commit
+  is `5dae08e4`.
+- The credential-free real CLI probe passed native expansion, passthrough
+  suppression, resume, fork, exact explicit media, and inherited opt-out.
+  Its negative control failed at the expected canary assertion. Focused query
+  tests passed 92/92; full `npm test`, typecheck, build, and live E53 all
+  passed before rebase. E41 passed all four chain/parallel by stream modes.
+  After rebase, focused query/abort tests passed 108/108 and the real CLI
+  probe passed again. All final-head CI jobs passed (`35836546338`, desktop
+  `35836546319`, Docker `35836546387`). Delivery
+  [#1123](https://github.com/rynfar/meridian/pull/1123) merged as `25a46612`
+  with Nowaker's authored commit intact; unchanged source #1119 was closed
+  without comment.
+
+### PR #1118: Pi trailing reminder checkpoint delivered
+
+- Source commits `7f3ecf48` and `756c3037` (Mate Remias) were cherry-picked
+  with Author and AuthorDate intact. Rebased onto #1123 as `885791ab` and
+  `6f92793e` on `fix/pi-trailing-reminder-1118`.
+- Focused passthrough tests passed 159/159 before rebase and 175/175 after
+  #1095 landed. Live Pi E2E passed plain and streaming checkpoint resumes;
+  a revised-history streaming image case fresh-replayed with the reminder and
+  image result intact. Typecheck, build, and full `npm test` passed on #1122.
+  After rebase onto #1123, focused tests passed 175/175 and live Pi streaming
+  resume passed again. All final-head CI jobs passed (`35837311983`, desktop
+  `35837311976`, Docker `35837312005`). Delivery
+  [#1124](https://github.com/rynfar/meridian/pull/1124) merged as `bace62f9`
+  with Mate's authored commits intact. Source #1118 added an empty CI-retry
+  commit `893348c8` without file changes; after recheck it was closed without
+  comment.
+
+### PR #1116 and follow-up #1126: CLI-rejected client tools delivered
+
+- Source `f501cf9d` (Mate Remias) was cherry-picked with Author and AuthorDate
+  intact as `14a47c34` onto `fix/rejected-tools-1116`, rebased through #1124.
+  Its copied headline was normalized to `fix:` for this repository. Separate
+  maintainer commit `d1420779` adds E63, a credential-free real SDK/CLI gate
+  in Linux CI.
+- E63's bare `read` refusal fails on unchanged #1122 main with an SSE API
+  error after `max_tokens`; it passes with #1116 as one complete `tool_use`
+  handoff. The registered-name control passes before and after. Focused
+  tests passed 125/125 before rebase; full `npm test`, typecheck and build
+  passed on #1122. After rebase onto #1124, focused tests passed 137/137,
+  both real SDK/CLI E63 cases passed, and E41 passed all four
+  chain/parallel by stream modes. Final-head Linux test, Windows smoke,
+  desktop and Docker checks passed (`35838259252`, `35838259244`,
+  `35838259072`). Delivery [#1125](https://github.com/rynfar/meridian/pull/1125)
+  merged as `ec7c9c39` with Mate's authored commit intact.
+- The source added a follow-up commit after #1125 merged. Commit `8bce3b4d`
+  and #1126's extra assertion `7d02c432` were cherry-picked with Author and
+  AuthorDate intact as `c6b0bc54` and `0a502cc5` on
+  `fix/rejected-tools-continuation-1116`. The #1120 tool-selection move made
+  one cherry-pick conflict; tool restoration was placed before the fresh
+  replay renderer so the replay and MCP registration see the same schema.
+  A separate maintainer commit runs the real SDK/CLI refusal-to-result-turn
+  fixture in Linux CI. The fixture failed on #1125 main and passed on the
+  follow-up, including a fresh SDK session, omitted client tools, and the
+  registered MCP name in replay. Focused integration 104/104, full
+  `npm test`, typecheck, build, E63 controls, and live Pi parallel streaming
+  E41 all passed. Final-head Linux, Windows, desktop and Docker checks passed
+  (`35839354306`, `35839354302`, `35839354294`). Delivery
+  [#1127](https://github.com/rynfar/meridian/pull/1127) merged as `438b2bf9`;
+  unchanged source #1116 and follow-up #1126 were closed without comment.
+
+### PR #1114: preserve in-flight profile turns delivered
+
+- Source head `464c3c87` (Nowaker) is cherry-picked as `6ecfbaa7` with Author
+  and AuthorDate intact on `fix/profile-switch-inflight-1114`; the copied
+  headline was normalized to `fix:`. The source's HTTP fixture reproduced
+  the in-flight failure on unchanged #1122 main in both response modes.
+  The fix removes the global session-cache clear during profile switching;
+  existing profile-scoped keys keep the mappings isolated. A separate
+  maintainer test checks another profile's durable resume state. Focused
+  17/17, full `npm test`, typecheck and build passed on the final branch.
+  Final-head Linux, Windows, desktop and Docker checks passed
+  (`35840110191`, `35840110130`, `35840110184`). Delivery
+  [#1128](https://github.com/rynfar/meridian/pull/1128) merged as `69bcf6de`
+  with Nowaker's authored commit intact; unchanged source #1114 was closed
+  without comment.
+
+### Issue #1089: client summary compaction replay under review
+
+- The old suffix-overlap classifier resumed the stored SDK session after a
+  client replaced a long head with a short summary. A new pure-lineage
+  regression fails on unchanged main; the real SDK/CLI E64 local fixture
+  confirms the summary never reached the model on #1124. The correction
+  fresh-replays only a shortened head, keeps equal-length pruning on the
+  existing checkpoint, and has explicit legacy opt-in
+  `MERIDIAN_COMPACTION_SURVIVAL=1`. The lineage helper remains pure.
+- Focused lineage/HTTP tests passed 180/180, full `npm test`, typecheck and
+  build passed before the latest rebases. After #1127, focused 110/110 and
+  both real SDK/CLI E64 modes passed: default delivered the summary and
+  omitted the removed head; legacy resumed. E64 runs both modes in Linux CI.
+  Delivery [#1129](https://github.com/rynfar/meridian/pull/1129) is open;
+  final-head validation after #1128 remains. Its first final-head Linux CI
+  run passed the full main test pass but failed one of 73 isolated priority
+  tests: a fixed 5s quota reset expired during the test's own retry ladder,
+  causing the 10-minute fallback mark. This is unrelated to compaction and
+  reproduced only under that runner's timing. A separate test correction
+  shortens the mock retry delay and waits until the recorded reset rather
+  than sleeping 3.6s; all three affected cases and the entire 73-case
+  priority file pass locally. The corrected CI rerun remains.
+
+### Issue #1094: stable OpenCode V2 compatibility hold
+
+- [Official OpenCode V2 installation](https://opencode.ai/v2/docs) now uses
+  `@opencode/cli`; npm `latest` was 2.0.15
+  when checked September 23. The isolated binary reports `opencode v2.0.15`.
+  Current Meridian setup correctly rejects it and leaves the beta-only
+  plugin uninstalled (`/tmp/meridian-1094-setup.log`). The plugin imports
+  `@opencode-ai/plugin/promise`, while the
+  [stable V2 migration guide](https://opencode.ai/v2/docs/build/plugins/migrate-v1)
+  requires `@opencode/plugin` and a changed setup/hook API. Unpinning the
+  version gate alone would load
+  an incompatible plugin. Leave #1094 open for a port and full E42-style host
+  qualification; do not claim stable V2 support in this release.
+- #1050 is Antigravity research with no production
+  behavior. #792 explicitly asks not to be reviewed or merged yet.
 - The Release Please PR remains open until the issue pass and all affected
   flow gates are complete.
 

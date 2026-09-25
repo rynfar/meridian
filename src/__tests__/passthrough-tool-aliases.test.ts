@@ -13,6 +13,7 @@
 import { describe, it, expect } from "bun:test"
 import {
   buildPassthroughToolAliases,
+  createPassthroughReplayToolNameRenderer,
   resolveClientToolName,
   createPassthroughMcpServer,
   stripMcpPrefix,
@@ -20,6 +21,15 @@ import {
 } from "../proxy/passthroughTools"
 
 describe("buildPassthroughToolAliases", () => {
+  it("renders replay calls with the actual namespace and collision-free alias", () => {
+    const render = createPassthroughReplayToolNameRenderer(["read", "mcp__oc__read", "bash"])
+    expect(render("bash")).toBe("mcp__oc__bash")
+    expect(render("read")).toBe("mcp__oc__read")
+    expect(render("mcp__oc__read")).toBe("mcp__oc__read_2")
+    expect(render("historical_missing_tool")).toBe("historical_missing_tool")
+    expect(createPassthroughReplayToolNameRenderer(["read"], "pi")("read")).toBe("mcp__pi__read")
+  })
+
   it("leaves ordinary tool names untouched, so model-visible names never move", () => {
     const { aliasByClientName, clientNameByAlias } = buildPassthroughToolAliases([
       "read",

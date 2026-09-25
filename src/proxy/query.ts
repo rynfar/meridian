@@ -600,6 +600,12 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       env: {
         // First, so an operator-set value of any kind overrides it.
         ...QUIET_SUBPROCESS_ENV,
+        // Passthrough clients own filesystem context. The CLI otherwise parses
+        // replayed Ruby @app/@config as file mentions and invents Bash listings.
+        // Explicit client media is unaffected; inherited env may opt out.
+        ...(passthrough && process.env.MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS !== "0"
+          ? { CLAUDE_CODE_DISABLE_ATTACHMENTS: "1" }
+          : {}),
         // sharedMemory: the user wants the SDK to use Claude Code's default
         // config dir so memories sync. Counter-intuitively we DON'T set
         // CLAUDE_CONFIG_DIR=$HOME/.claude here — explicitly setting it (even

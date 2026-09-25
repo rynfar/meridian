@@ -242,7 +242,9 @@ function classifyLineage(
   messages: Array<{ role: string; content: any }>,
   cacheKey: string
 ): LineageResult {
-  const result = verifyLineage(state, messages)
+  const result = verifyLineage(state, messages, {
+    compactionSurvival: process.env.MERIDIAN_COMPACTION_SURVIVAL === "1",
+  })
 
   if (result.type === "continuation" && result.resumeContentFrom !== undefined) {
     const msg = `Parallel tool-result continuation (key=${cacheKey.slice(0, 8)}…): resume from message ${result.resumeFrom}, content block ${result.resumeContentFrom}.`
@@ -250,6 +252,10 @@ function classifyLineage(
     diagnosticLog.lineage(msg)
   } else if (result.type === "compaction") {
     const msg = `Compaction detected (key=${cacheKey.slice(0, 8)}…): suffix overlap ${result.suffixOverlap}/${state.messageCount}, resume from incoming message ${result.resumeFrom}.`
+    console.error(`[PROXY] ${msg}`)
+    diagnosticLog.lineage(msg)
+  } else if (result.type === "diverged" && result.reason === "compaction") {
+    const msg = `Client compaction detected (key=${cacheKey.slice(0, 8)}…): shorter summarized head; replaying supplied history.`
     console.error(`[PROXY] ${msg}`)
     diagnosticLog.lineage(msg)
   } else if (result.type === "undo") {

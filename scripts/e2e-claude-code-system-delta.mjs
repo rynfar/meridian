@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
-// Real SDK/HTTP gate for Claude Code trailing-system checkpoint delivery.
+// Real SDK/HTTP gate for trailing-system checkpoint delivery: Claude Code by
+// default, Oh My Pi's mid-conversation system turn with `--agent pi`.
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { mkdtempSync, realpathSync } from "node:fs"
@@ -28,6 +29,8 @@ const querySpy = spyOn(sdk, "query").mockImplementation(input => {
 })
 
 const stream = process.argv.includes("--stream")
+const agent = process.argv.includes("--agent") ? process.argv[process.argv.indexOf("--agent") + 1] : "claude-code"
+assert(agent === "claude-code" || agent === "pi", `unsupported --agent ${agent}`)
 const image = process.argv.includes("--image")
 const reviseHistory = process.argv.includes("--revise-history")
 const insertHistory = process.argv.includes("--insert-history")
@@ -68,7 +71,8 @@ const tools = [{ name: "get_fixture", description: "Return a JavaScript fixture 
   input_schema: { type: "object", properties: {}, additionalProperties: false } }]
 async function request(messages) {
   const response = await fetch(`http://127.0.0.1:${address.port}/v1/messages`, {
-    method: "POST", headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.259" },
+    method: "POST", headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.259",
+      ...(agent === "pi" ? { "x-meridian-agent": "pi" } : {}) },
     body: JSON.stringify({ model: process.env.E2E_MODEL ?? "claude-haiku-4-5-20251001", max_tokens: 200, stream, tools, messages, metadata: { user_id: JSON.stringify({ session_id: key }) } }),
     signal: AbortSignal.timeout(90_000),
   })
@@ -110,7 +114,7 @@ try {
   const second = await request(history)
   const answer = second.filter(block => block.type === "text").map(block => block.text).join("")
   const metric = telemetryStore.getRecent({ limit: 1 })[0]
-  console.log(JSON.stringify({ root, stream, image, reviseHistory, insertHistory, blankReminder, answer, expected: [value, marker], isResume: metric?.isResume,
+  console.log(JSON.stringify({ root, agent, adapter: metric?.adapter, stream, image, reviseHistory, insertHistory, blankReminder, answer, expected: [value, marker], isResume: metric?.isResume,
     blocks: second.map(block => ({ type: block.type, name: block.name, text: block.text })), sdkResults, freshPrompt: textPrompts[1], resumeAt: queryOptions[1]?.resumeSessionAt ?? null, expectedCheckpoint: source.passthroughToolCallAssistantUuid }))
   assert.equal(second.filter(block => block.type === "tool_use").length, 0, "A completed result must not cause another tool request")
   assert(answer.includes(value) && (blankReminder || answer.includes(marker)), "Both real result and system-reminder text must reach the answer")
@@ -118,6 +122,7 @@ try {
   assert(answer.includes(revisedContext), "Revised opening context must reach the answer")
   if (reviseHistory) assert(!answer.includes(originalContext), "Removed opening context leaked into the answer")
   if (insertHistory) assert(answer.includes(insertedIdentifier), "Inserted user context must reach the answer")
+  assert.equal(metric?.adapter, agent, "Request must run through the selected adapter")
   assert.equal(metric?.isResume, expectResume, "Only unchanged history may resume its checkpoint")
   assert.equal(queryOptions[1]?.resumeSessionAt, expectResume ? source.passthroughToolCallAssistantUuid : undefined)
   assert(!JSON.stringify(queryOptions[1]?.systemPrompt).includes(marker), "Reminder was escalated into the SDK system prompt")

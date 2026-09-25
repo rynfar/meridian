@@ -115,6 +115,52 @@ describe("buildQueryOptions", () => {
     expect(env.DISABLE_TELEMETRY).toBe("1")
   })
 
+  it.each([false, true])("suppresses implicit SDK attachments in passthrough (stream=%s)", (stream) => {
+    const prompt = "class Middleware\n  @app = app\n  @config = config\nend"
+    const result = buildQueryOptions(makeContext({ passthrough: true, stream, prompt }))
+    expect(result.options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("1")
+    expect(result.prompt).toBe(prompt)
+  })
+
+  it("preserves an explicit inherited attachment setting for client-owned tools", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      cleanEnv: { CLAUDE_CODE_DISABLE_ATTACHMENTS: "" },
+    }))
+    expect(result.options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("")
+  })
+
+  it("allows an explicit query override of implicit SDK attachments", () => {
+    const result = buildQueryOptions(makeContext({
+      passthrough: true,
+      envOverrides: { CLAUDE_CODE_DISABLE_ATTACHMENTS: "" },
+    }))
+    expect(result.options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("")
+  })
+
+  it("allows the process kill switch without clearing an inherited CLI setting", () => {
+    const previous = process.env.MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS
+    process.env.MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS = "0"
+    try {
+      expect(buildQueryOptions(makeContext({ passthrough: true })).options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBeUndefined()
+      const result = buildQueryOptions(makeContext({
+        passthrough: true, cleanEnv: { CLAUDE_CODE_DISABLE_ATTACHMENTS: "1" },
+      }))
+      expect(result.options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("1")
+    } finally {
+      if (previous === undefined) delete process.env.MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS
+      else process.env.MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS = previous
+    }
+  })
+
+  it("keeps native SDK attachment discovery unchanged", () => {
+    expect(buildQueryOptions(makeContext()).options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBeUndefined()
+    const result = buildQueryOptions(makeContext({
+      cleanEnv: { CLAUDE_CODE_DISABLE_ATTACHMENTS: "1" },
+    }))
+    expect(result.options.env?.CLAUDE_CODE_DISABLE_ATTACHMENTS).toBe("1")
+  })
+
   it("applies envOverrides after inherited env", () => {
     const result = buildQueryOptions(makeContext({
       cleanEnv: { ANTHROPIC_DEFAULT_OPUS_MODEL: "claude-opus-4-6" },

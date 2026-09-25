@@ -216,28 +216,22 @@ describe("Profile rename API", () => {
   })
 })
 
-describe("Session cache eviction on profile switch", () => {
+describe("Session mappings across a profile switch", () => {
   const profiles = [
     { id: "personal", claudeConfigDir: "/home/.claude" },
     { id: "work", claudeConfigDir: "/home/.claude-work" },
   ]
 
-  test("switching profile clears session cache", async () => {
+  test("switching profile keeps profile-scoped sessions resumable", async () => {
     const app = createTestApp(profiles)
 
-    // Store a session in the cache
     const msgs = [
       { role: "user", content: "a" },
       { role: "assistant", content: "b" },
       { role: "user", content: "c" },
     ]
-    storeSession("test-session-123", msgs, "claude-abc")
+    storeSession("personal:test-session-123", msgs, "claude-abc")
 
-    // Verify session exists
-    const before = lookupSession("test-session-123", msgs)
-    expect(before.type).not.toBe("new")
-
-    // Switch profile via API
     const res = await app.fetch(req("/profiles/active", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -245,26 +239,8 @@ describe("Session cache eviction on profile switch", () => {
     }))
     expect(res.status).toBe(200)
 
-    // Session should be gone — new lookup returns diverged (sessionId known but no cache entry)
-    const after = lookupSession("test-session-123", msgs)
-    expect(after.type).toBe("diverged")
-  })
-
-  test("switching to same profile still clears cache", async () => {
-    const app = createTestApp(profiles)
-
-    const msgs = [{ role: "user", content: "x" }]
-    storeSession("session-same", msgs, "claude-same")
-
-    // Switch to first profile (already active)
-    await app.fetch(req("/profiles/active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile: "personal" }),
-    }))
-
-    const after = lookupSession("session-same", msgs)
-    expect(after.type).toBe("diverged")
+    const after = lookupSession("personal:test-session-123", [...msgs, { role: "assistant", content: "d" }, { role: "user", content: "e" }])
+    expect(after.type).toBe("continuation")
   })
 })
 

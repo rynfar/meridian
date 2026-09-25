@@ -373,3 +373,35 @@ describe("transcript-format imitation (#496 self-talk regression)", () => {
     expect(prompt).toContain("and of Germany?")
   })
 })
+
+describe("fresh passthrough replay tool names (#1107)", () => {
+  it("shows the registered MCP names, including collision-free aliases, in old calls", async () => {
+    const app = createTestApp()
+    const response = await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-meridian-agent": "pi", "x-session-affinity": "fresh-replay-names" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5", max_tokens: 128, stream: false,
+        tools: ["bash", "read", "mcp__oc__read"].map(name => ({
+          name, description: name, input_schema: { type: "object", properties: {} },
+        })),
+        messages: [
+          { role: "user", content: "Inspect the files." },
+          { role: "assistant", content: [
+            { type: "tool_use", id: "old-bash", name: "bash", input: { command: "pwd" } },
+            { type: "tool_use", id: "old-read", name: "mcp__oc__read", input: { path: "a.txt" } },
+          ] },
+          { role: "user", content: [
+            { type: "tool_result", tool_use_id: "old-bash", content: "/tmp" },
+            { type: "tool_result", tool_use_id: "old-read", content: "file content" },
+          ] },
+          { role: "user", content: "Continue." },
+        ],
+      }),
+    }))
+    expect(response.status).toBe(200)
+    const prompt = promptToString(getCaptured()?.prompt)
+    expect(prompt).toContain('Previously called tool: {"id":"old-bash","name":"mcp__oc__bash"')
+    expect(prompt).toContain('Previously called tool: {"id":"old-read","name":"mcp__oc__read_2"')
+  })
+})
