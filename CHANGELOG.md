@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.77.2](https://github.com/rynfar/meridian/compare/meridian-v1.77.1...meridian-v1.77.2) (2026-09-26)
+
+
+### Bug Fixes
+
+* resume interrupted OpenCode checkpoint safely ([#1166](https://github.com/rynfar/meridian/issues/1166)) ([7e157aa](https://github.com/rynfar/meridian/commit/7e157aa24421c91dbc47fa520058f6d268ae121e))
+
 ## [1.77.1](https://github.com/rynfar/meridian/compare/meridian-v1.77.0...meridian-v1.77.1) (2026-09-26)
 
 
