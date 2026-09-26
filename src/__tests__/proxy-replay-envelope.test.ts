@@ -7,18 +7,38 @@
  * transcript (self-play / confabulated tool output). Resume deltas stay bare.
  */
 
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, spyOn, beforeEach, afterEach } from "bun:test"
 
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import { estimateTokens, replayBudgetFor } from "../proxy/replayBudget"
 import { resetExtendedContextUnavailable } from "../proxy/models"
+import * as models from "../proxy/models"
 let capturedPrompts: any[] = []
 let overflowFailures = 0
 let overflowMessage = "Claude Code returned an error result: Prompt is too long"
 let capturedPromptTexts: string[] = []
 let capturedOptions: any[] = []
+
+// Match the fixed Max/model fixtures in proxy-subagent-model-selection and
+// proxy-extra-usage-fallback. Auth on this machine is not part of replay, and
+// another file's process-global model mock can otherwise silently select sonnet.
+// Scope the overrides to each test and restore them, rather than leaking a
+// second mock.module into whichever suite Bun loads next.
+let modelOverrides: Array<{ mockRestore(): void }> = []
+beforeEach(() => {
+  modelOverrides = [
+    spyOn(models, "mapModelToClaudeModel").mockImplementation(model => model.includes("opus") ? "opus[1m]" : "sonnet"),
+    spyOn(models, "getClaudeAuthStatusAsync").mockResolvedValue({ loggedIn: true, subscriptionType: "max" }),
+    spyOn(models, "resolveClaudeExecutableAsync").mockResolvedValue("claude"),
+    spyOn(models, "hasExtendedContext").mockImplementation(model => model.endsWith("[1m]")),
+    spyOn(models, "stripExtendedContext").mockImplementation(model => model.replace("[1m]", "") as models.ClaudeModel),
+  ]
+})
+afterEach(() => {
+  for (const override of modelOverrides) override.mockRestore()
+})
 
 import { resolveMockSdkSessionId } from "./helpers"
 
