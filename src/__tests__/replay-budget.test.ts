@@ -36,6 +36,29 @@ describe("replay budget", () => {
     const result = trimReplayHistory([user(text(2)), assistant(text(200)), assistant("orphan"), user("live")], 100)
     expect(result.omittedMessages).toBe(2)
   })
+  it("drops even a small head when the live tail leaves no room for it", () => {
+    const messages = [user(text(8)), assistant(text(30)), user(text(96))]
+    const result = trimReplayHistory(messages, 100)
+    expect(result.omittedMessages).toBe(2)
+    expect(result.messages.slice(1)).toEqual(messages.slice(2))
+  })
+  it("does not separate historical tool results from their originating request", () => {
+    const messages = [user(text(2)), assistant(text(20)), user(text(80)),
+      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "read", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "result" }] },
+      assistant(text(20)), user(text(10))]
+    const result = trimReplayHistory(messages, 100)
+    expect(result.omittedMessages).toBe(5)
+    expect(result.messages.slice(2)).toEqual(messages.slice(6))
+  })
+  it("keeps the originating request with a live result-only turn", () => {
+    const messages = [user(text(2)), assistant(text(200)), user(text(80)),
+      { role: "assistant", content: [{ type: "tool_use", id: "t1", name: "read", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: text(80) }] }]
+    const result = trimReplayHistory(messages, 100)
+    expect(result.omittedMessages).toBe(2)
+    expect(result.messages.slice(1)).toEqual(messages.slice(2))
+  })
   it("estimates Cyrillic higher than equal-length ASCII", () => {
     expect(estimateTokens("я".repeat(100))).toBeGreaterThan(estimateTokens("a".repeat(100)))
   })

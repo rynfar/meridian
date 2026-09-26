@@ -12,6 +12,8 @@ import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
+import { estimateTokens, replayBudgetFor } from "../proxy/replayBudget"
+import { resetExtendedContextUnavailable } from "../proxy/models"
 let capturedPrompts: any[] = []
 let overflowFailures = 0
 let overflowMessage = "Claude Code returned an error result: Prompt is too long"
@@ -66,13 +68,14 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { storeSession } = await import("../proxy/session/cache")
+const { diagnosticLog } = await import("../telemetry")
 
-function post(app: any, messages: any[], headers: Record<string, string> = {}, stream = false) {
+function post(app: any, messages: any[], headers: Record<string, string> = {}, stream = false, model = "sonnet") {
   return app.fetch(
     new Request("http://localhost/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ model: "sonnet", stream, messages }),
+      body: JSON.stringify({ model, stream, messages }),
     })
   )
 }
@@ -85,8 +88,9 @@ describe("bounded fresh replay", () => {
     overflowMessage = "Claude Code returned an error result: Prompt is too long"
     capturedPromptTexts = []
     capturedOptions = []
+    resetExtendedContextUnavailable()
   })
-  afterEach(() => { overflowFailures = 0 })
+  afterEach(() => { overflowFailures = 0; resetExtendedContextUnavailable() })
 
   const history = () => [
     { role: "user", content: "objective" },
@@ -108,6 +112,65 @@ describe("bounded fresh replay", () => {
   })
 
   for (const streaming of [false, true]) {
+    for (const error of ["rate limit exceeded", "extra usage required for 1m"]) {
+      it(`rebudgets fresh replay after ${error} (stream=${streaming})`, async () => {
+        overflowFailures = 1
+        overflowMessage = error
+        const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+        const res = await post(app, history(), {}, streaming, "opus[1m]")
+        await res.text()
+        expect(res.status).toBe(200)
+        expect(capturedPrompts).toHaveLength(2)
+        expect(capturedOptions[0].model).toBe("opus[1m]")
+        expect(capturedOptions[1].model).toBe("opus")
+        expect(estimateTokens(capturedPromptTexts[0])).toBeGreaterThan(replayBudgetFor("opus"))
+        expect(estimateTokens(capturedPromptTexts[1])).toBeLessThanOrEqual(replayBudgetFor("opus"))
+        expect(capturedPromptTexts[1]).toContain("were omitted from this replay")
+      })
+    }
+
+    it(`does not retry an overflowing indivisible live tail (stream=${streaming})`, async () => {
+      overflowFailures = 3
+      const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+      const res = await post(app, [...history(), { role: "user", content: "я".repeat(200_000) }], {}, streaming)
+      const body = await res.text()
+      expect(capturedPrompts).toHaveLength(1)
+      if (!streaming) expect(res.status).toBe(400)
+      else expect(body).toContain("error")
+    })
+
+    it(`budgets the fresh fallback after a refused resume (stream=${streaming})`, async () => {
+      const prior = [...history(), { role: "assistant", content: "prior answer" }]
+      storeSession("sess-budget-refusal", prior, "sdk-budget-refusal", "/tmp/test", prior.map(() => null))
+      overflowFailures = 1
+      overflowMessage = "No message found with message.uuid of: 6f1c0f4e-0a1e-4d61-9a2f-7b0c1d2e3f40"
+      const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+      const res = await post(app, [...prior, { role: "user", content: "continue" }], { "x-opencode-session": "sess-budget-refusal" }, streaming)
+      await res.text()
+      expect(res.status).toBe(200)
+      expect(capturedPrompts).toHaveLength(2)
+      expect(capturedOptions[0].resume).toBe("sdk-budget-refusal")
+      expect(capturedOptions[1].resume).toBeUndefined()
+      expect(capturedPrompts[1]).toContain("were omitted from this replay")
+      expect(estimateTokens(capturedPromptTexts[1])).toBeLessThanOrEqual(replayBudgetFor("sonnet"))
+    })
+
+    it(`budgets undo without a rollback point (stream=${streaming})`, async () => {
+      const prior = [...history(), { role: "assistant", content: "prior answer" }, { role: "user", content: "later" }]
+      storeSession("sess-budget-undo", prior, "sdk-budget-undo", "/tmp/test", prior.map(() => null))
+      diagnosticLog.clear()
+      const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+      const res = await post(app, [...prior.slice(0, -3), { role: "user", content: "replacement question" }], { "x-opencode-session": "sess-budget-undo" }, streaming)
+      await res.text()
+      expect(res.status).toBe(200)
+      expect(capturedPrompts).toHaveLength(1)
+      expect(capturedOptions[0].resume).toBeUndefined()
+      expect(capturedOptions[0].resumeSessionAt).toBeUndefined()
+      expect(capturedPrompts[0]).toContain("were omitted from this replay")
+      expect(capturedPrompts[0]).toEndWith("replacement question")
+      expect(diagnosticLog.getRecent().some(entry => entry.message.includes("lineage=undo"))).toBe(true)
+    })
+
     it(`retries fresh overflow with a smaller prompt (stream=${streaming})`, async () => {
       overflowFailures = 1
       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
