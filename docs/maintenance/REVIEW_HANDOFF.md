@@ -1,5 +1,72 @@
 # Upstream review handoff
 
+## Issue-comment follow-up (2026-09-26)
+
+This checkpoint follows the merged [Meridian 1.77.1 release](https://github.com/rynfar/meridian/releases/tag/meridian-v1.77.1).
+Refresh GitHub and the affected account/client state before acting on it. The
+audit covered open Meridian issues with comments, recent closed issues with
+post-closure comments, and all five owner-controlled scrub repositories.
+
+- [#1094](https://github.com/rynfar/meridian/issues/1094): setup and V2 plugin
+  compatibility for **exact** OpenCode 2.0.16 shipped in #1148. Its separate
+  content-specific `billing_error` remains unverified: the reporter's failing
+  10,357-character system block is unavailable to maintainers, and a different
+  large passing block does not prove a fix. The [follow-up](https://github.com/rynfar/meridian/issues/1094#issuecomment-5844310560)
+  asks for a locally minimized, sanitized fragment that still fails, plus the
+  independent scrub plugin status. Keep the issue open until that affected
+  request can be reproduced and retested.
+- [#1068](https://github.com/rynfar/meridian/issues/1068): verified the Pi
+  comment's existing-text-block `<system-reminder>` behavior against lineage
+  hashing and the SDK retention path. [#1163](https://github.com/rynfar/meridian/pull/1163)
+  documents exact tag/whitespace limits and append-only snapshots; final-head
+  CI passed and its merge tree matched the reviewed head. The
+  [reply](https://github.com/rynfar/meridian/issues/1068#issuecomment-5844359601)
+  keeps the explicit request-scoped context contract open: stable hashing does
+  not remove text from a resumed SDK session.
+- [#933](https://github.com/rynfar/meridian/issues/933): one new Windows CWD
+  smoke failure on `main` was a measured 5,313 ms expiry of Bun's 5-second
+  default after the mocked HTTP response completed. [#1162](https://github.com/rynfar/meridian/pull/1162)
+  applies the existing 30-second suite bound only to those three Windows CWD
+  files, retaining assertions. The focused 28 tests, full local gates, and
+  final-head Windows, `test`, desktop, and Docker checks passed before merge.
+  The [issue update](https://github.com/rynfar/meridian/issues/933#issuecomment-5844318842)
+  separates this timeout from the unexplained fast assertion failures in
+  [#917](https://github.com/rynfar/meridian/issues/917); both issues remain open.
+- [#769](https://github.com/rynfar/meridian/issues/769): the September OpenClaw
+  production commenter reported a moving, undisclosed prompt trigger. The
+  [openclaw-scrub #3](https://github.com/rynfar/meridian-plugin-openclaw-scrub/pull/3)
+  README correction passed CI and merged; it scopes current rules and explains
+  same-window off/on/off, auth, and private minimization controls. The
+  [reply](https://github.com/rynfar/meridian/issues/769#issuecomment-5844308652)
+  does not claim a new scrub rule works without the new failing prompt. Issue
+  stays open for affected-flow evidence.
+- [#650](https://github.com/rynfar/meridian/issues/650): receiver and three
+  sender workflows are merged, but `MERIDIAN_DISPATCH_TOKEN` was absent from
+  all three sender repo secret lists on this audit. Only the owner can mint
+  and install the narrowly scoped credential, then trigger a sender and verify
+  the receiver. Do not substitute a broad existing CLI token.
+- The [closed #495 follow-up](https://github.com/rynfar/meridian/issues/495#issuecomment-5844366647)
+  answers the September request for a current tool-bearing Max control. The
+  published 1.77.1/OpenCode 1.18.32/Opus 5.5 path with both required plugins
+  completed a real `bash` tool call on the initial turn and same-session
+  continuation with zero client or billing errors. A fresh usage read on that
+  Max 20x account showed Extra Usage disabled. The
+  [sanitized evidence](evidence/495-max-tool-control-20260926.json) records the
+  measured scope; it does not replay the historic failing OpenClaw body.
+- The [closed OpenCode scrub #1 follow-up](https://github.com/rynfar/meridian-plugin-opencode-scrub/issues/1#issuecomment-5844328374)
+  fulfilled the earlier promise to report a published fix: npm scrub 0.2.3
+  installed as a Meridian server plugin passed the current real client gate.
+  It does not assert the original client/version tuple was retested.
+
+At this checkpoint Meridian has nine open issues: #1094, #1073, #1068, #1011,
+#1009, #933, #917, #769, and #650. #1073, #1011, and #1009 have no comment
+threads yet; they were outside this comment follow-up. The Meridian PR queue
+contains draft #1050 and #792 (author requested no review). All five scrub
+repos have zero open issues. OpenCode scrub #5 is the sole open scrub PR; its
+unchanged July head remains conflicted and its minimal-mode behavior remains
+unverified against newer prompt variants. No further release was cut for this
+documentation and Windows CI-budget work.
+
 ## Live queue snapshot (2026-09-25; #1152 updated 2026-09-26)
 
 - [#1113](https://github.com/rynfar/meridian/pull/1113) merged as `aedb9b25`

@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-26",
+  "issue": "https://github.com/rynfar/meridian/issues/495",
+  "environment": {
+    "platform": "linux/arm64",
+    "meridian": "1.77.1 (published npm package)",
+    "opencode": "1.18.32",
+    "model": "claude-opus-5-5",
+    "client_plugin": "Meridian OpenCode plugin",
+    "server_plugin": "@rynfar/meridian-plugin-opencode-scrub 0.2.3",
+    "account": "Claude Max 20x OAuth"
+  },
+  "fresh_usage_read_after_client_run": {
+    "extra_usage_present": true,
+    "extra_usage_enabled": false,
+    "five_hour_utilization_percent": 36,
+    "seven_day_utilization_percent": 69
+  },
+  "initial_turn": {
+    "client_exit": 0,
+    "tool": "bash",
+    "command": "pwd",
+    "tool_status": "completed",
+    "tool_output_present": true,
+    "assistant_text_events": 1,
+    "error_events": 0,
+    "billing_error_events": 0
+  },
+  "same_session_continuation": {
+    "client_exit": 0,
+    "tool": "bash",
+    "command": "pwd",
+    "tool_status": "completed",
+    "tool_output_present": true,
+    "assistant_text_events": 1,
+    "error_events": 0,
+    "billing_error_events": 0
+  },
+  "scrub_hook": {
+    "invocations": 5,
+    "errors": 0
+  },
+  "limitations": [
+    "The account usage setting was read immediately after, not during, the client run; both checks used the same OAuth credential.",
+    "This passing OpenCode control does not reproduce the historic failing OpenClaw request or establish how Anthropic classifies every prompt.",
+    "Raw client, proxy, and credential artifacts remain private; this file contains only sanitized observations."
+  ]
+}
