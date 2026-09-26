@@ -1,5 +1,47 @@
 # Upstream review handoff
 
+## #1165 interrupted OpenCode checkpoint review (2026-09-26)
+
+Disposition: accept [source #1165](https://github.com/rynfar/meridian/pull/1165)
+with a maintainer safety correction in [delivery #1166](https://github.com/rynfar/meridian/pull/1166).
+Refresh both PRs before any integration or closure. Source head
+`758d80b86ea744f0eeadb6a28e8bf1f546cd3ade` by Nikita Bige
+(`wargloom@gmail.com`, authored 2026-09-26) was unchanged at review; its
+unsigned commit blocks direct merge. The signed cherry-pick `965bef6c` from
+base `cd1ada92057926ee0bceeddaeca42318d0f06b07` retains Author and
+AuthorDate. Maintainer correction and evidence are separate commit `cf48561a`
+on `codex/review-resume-1165-20260926` in isolated worktree
+`/private/tmp/meridian-review-resume-1165-20260926`.
+
+The source helper verified the first complete tool-result batch but ignored
+later messages once it found an assistant turn. Direct tests proved it would
+resume after later unknown or duplicate tool results, tool calls, or system
+reminders. The correction accepts the observed text-only partial assistant
+turn followed by ordinary user turns, and keeps those mismatches on replay.
+Focused pure and HTTP tests pass. Full local `npm test` (isolated test HOME),
+standalone typecheck, build, and diff validation pass. E66 baseline on unchanged
+main used `isResume=false`; the correction resumed and answered with the tool
+result while its unknown-result control still replayed. Real Opus 5.5 E41
+chain/parallel, stream/nonstream and E56 namespaced resume gates pass.
+
+The [E67 actual-client gate](../../scripts/e2e-opencode-checkpoint-fault.mjs)
+uses OpenCode 2.0.16 with the installed Meridian V2 client plugin, independent
+OpenCode scrub 0.2.3, SDK 0.2.141, Claude Code 2.1.280 and Opus 5.5. It
+injects one partial SSE response after a real client tool call. On unchanged
+main, the real client sent `[tool_result, assistant text, user]` in its retry
+but Meridian took `isResume=false`; the corrected branch took `isResume=true`
+on macOS arm64 and Linux x64, and the next same-session client turn answered.
+The [sanitized evidence](evidence/1165-opencode-interrupted-checkpoint.json)
+records versions, checks, and limits. The original 1,345-message session was
+unavailable; the injected error does not establish that the SDK itself emitted
+the reporter's `upstream_idle`. Raw client logs remain in private temporary
+artifacts.
+
+The delivery PR's live final-head CI, merge commit, and source PR state are
+the remaining acceptance checks. Preserve Nikita's credit on the squash
+commit, verify the merged tree, and close source #1165 only if its head still
+matches the reviewed SHA. Do not close an unrelated issue based on this gate.
+
 ## Issue-comment follow-up (2026-09-26)
 
 This checkpoint follows the merged [Meridian 1.77.1 release](https://github.com/rynfar/meridian/releases/tag/meridian-v1.77.1).
