@@ -921,6 +921,40 @@ describe("Integration: passthrough early stop", () => {
     expect(JSON.stringify(capturedQueryParams.prompt)).not.toContain("first instruction only")
   })
 
+  it("non-stream: replays when a later turn adds an unknown tool result", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "settled-before-mismatch", name: "read", input: { file_path: "a" } },
+    ])
+    mockMessages = [toolTurn, userDenyMessage("settled-before-mismatch")]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read a" }],
+    }, "es-settled-then-unknown")).status).toBe(200)
+
+    mockMessages = [assistantMessage([{ type: "text", text: "safe replay" }])]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read a" },
+        { role: "assistant", content: toolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "settled-before-mismatch", content: "A" }] },
+        { role: "assistant", content: [{ type: "text", text: "partial answer" }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "unknown-later", content: "unexpected" }] },
+        { role: "user", content: "continue" },
+      ],
+    }, "es-settled-then-unknown")).status).toBe(200)
+    expect(capturedQueryParams.options.resume).toBeUndefined()
+    expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+    expect(typeof capturedQueryParams.prompt).toBe("string")
+    expect(capturedQueryParams.prompt).toContain("unknown-later")
+  })
+
   it("non-stream: preserves a nested multimodal tool_result wrapper", async () => {
     const toolTurn = assistantMessage([
       { type: "tool_use", id: "image-result", name: "read", input: { file_path: "image.png" } },

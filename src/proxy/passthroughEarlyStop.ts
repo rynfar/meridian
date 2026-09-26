@@ -336,8 +336,37 @@ export function settlesCheckpointThenContinues(
 ): boolean {
   const firstUser = messages.findIndex((message) => message.role === "user")
   if (firstUser < 0) return false
-  if (!messages.slice(firstUser + 1).some((message) => message.role === "assistant")) return false
-  return coalesceCompleteToolResultContinuation(messages.slice(0, firstUser + 1), expectedIds, options) !== undefined
+  if (coalesceCompleteToolResultContinuation(messages.slice(0, firstUser + 1), expectedIds, options) === undefined) return false
+
+  // This rescue covers only the observed interrupted-text shape. Looking for
+  // any later assistant turn would skip validation of later tool results,
+  // tool calls or system reminders and resume a genuinely changed history.
+  const interrupted = messages[firstUser + 1]
+  if (interrupted?.role !== "assistant") return false
+  const assistantContent = typeof interrupted.content === "string"
+    ? [{ type: "text", text: interrupted.content }]
+    : interrupted.content
+  if (!Array.isArray(assistantContent) || assistantContent.length === 0 ||
+      !assistantContent.every((rawBlock) => {
+        const block = rawBlock as { type?: unknown; text?: unknown } | null | undefined
+        return block?.type === "text" && typeof block.text === "string" && block.text.trim().length > 0
+      })) return false
+
+  const subsequent = messages.slice(firstUser + 2)
+  if (subsequent.length === 0) return false
+  for (const message of subsequent) {
+    if (message.role !== "user") return false
+    if (typeof message.content === "string") {
+      if (message.content.trim().length === 0) return false
+      continue
+    }
+    if (!Array.isArray(message.content) || message.content.length === 0) return false
+    for (const rawBlock of message.content) {
+      const block = rawBlock as { type?: unknown } | null | undefined
+      if (!block || typeof block !== "object" || block.type === "tool_result" || block.type === "tool_use") return false
+    }
+  }
+  return true
 }
 
 /** Find and validate the exact echoed assistant checkpoint plus its result tail. */

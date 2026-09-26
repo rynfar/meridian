@@ -296,6 +296,9 @@ describe("settlesCheckpointThenContinues", () => {
     expect(settlesCheckpointThenContinues([
       { role: "user", content: [result("t1"), result("t2")] }, partial, next,
     ], ["t1", "t2"])).toBe(true)
+    expect(settlesCheckpointThenContinues([
+      { role: "user", content: [result("t1")] }, partial, next, { role: "user", content: "one more queued instruction" },
+    ], ["t1"])).toBe(true)
   })
 
   it("rejects partial or unknown results even when history moved on", () => {
@@ -306,6 +309,21 @@ describe("settlesCheckpointThenContinues", () => {
   it("rejects a delta with no later assistant turn, which the coalescer owns", () => {
     expect(settlesCheckpointThenContinues([{ role: "user", content: [result("t1")] }, next], ["t1"])).toBe(false)
     expect(settlesCheckpointThenContinues([partial], ["t1"])).toBe(false)
+  })
+
+  it("rejects later unmatched or duplicate results after a settled batch", () => {
+    const settled = { role: "user", content: [result("t1")] }
+    expect(settlesCheckpointThenContinues([settled, partial, { role: "user", content: [result("unknown")] }], ["t1"])).toBe(false)
+    expect(settlesCheckpointThenContinues([settled, partial, { role: "user", content: [result("t1")] }], ["t1"])).toBe(false)
+  })
+
+  it("rejects later tool calls, reminders, and an assistant-only tail", () => {
+    const settled = { role: "user", content: [result("t1")] }
+    const newCall = { role: "assistant", content: [{ type: "tool_use", id: "t2", name: "read", input: {} }] }
+    expect(settlesCheckpointThenContinues([settled, newCall, next], ["t1"])).toBe(false)
+    expect(settlesCheckpointThenContinues([settled, partial, { role: "system", content: "reminder" }, next], ["t1"])).toBe(false)
+    expect(settlesCheckpointThenContinues([settled, partial], ["t1"])).toBe(false)
+    expect(settlesCheckpointThenContinues([settled, { role: "assistant", content: [{ type: "text", text: "  " }] }, next], ["t1"])).toBe(false)
   })
 })
 

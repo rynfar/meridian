@@ -1,0 +1,67 @@
+{
+  "date": "2026-09-26",
+  "source_pr": "https://github.com/rynfar/meridian/pull/1165",
+  "source_head": "758d80b86ea744f0eeadb6a28e8bf1f546cd3ade",
+  "integration_base": "cd1ada92057926ee0bceeddaeca42318d0f06b07",
+  "runnable_harness": "scripts/e2e-opencode-checkpoint-fault.mjs",
+  "environment": {
+    "client": "OpenCode 2.0.16",
+    "client_plugin": "Meridian V2 installed by meridian setup --v2",
+    "server_plugin": "@rynfar/meridian-plugin-opencode-scrub 0.2.3",
+    "model": "claude-opus-5-5",
+    "agent_sdk": "0.2.141",
+    "claude_code": "2.1.280",
+    "macos_arm64": {
+      "bun": "1.3.14"
+    },
+    "linux_x64": {
+      "node": "24.21.0",
+      "bun": "1.3.14"
+    }
+  },
+  "injected_fault": {
+    "count": 1,
+    "client_saw_partial_text": true,
+    "primary_turn_attested": true,
+    "scrub_hook_errors": 0,
+    "first_retry_roles": [
+      "user:text",
+      "assistant:tool_use",
+      "user:tool_result",
+      "assistant:text",
+      "user:text"
+    ]
+  },
+  "unchanged_main_macos_arm64": {
+    "lineage": "continuation",
+    "retry_is_resume": false,
+    "gate_exit": 1
+  },
+  "corrected_macos_arm64": {
+    "lineage": "continuation",
+    "retry_is_resume": true,
+    "gate_exit": 0,
+    "same_session_followup_exit": 0,
+    "same_session_followup_text_events": 1
+  },
+  "corrected_linux_x64": {
+    "lineage": "continuation",
+    "retry_is_resume": true,
+    "gate_exit": 0,
+    "same_session_followup_exit": 0,
+    "same_session_followup_text_events": 1
+  },
+  "adjacent_live_gates": {
+    "e41_chain_nonstream": "PASS",
+    "e41_chain_stream": "PASS",
+    "e41_parallel_nonstream": "PASS",
+    "e41_parallel_stream": "PASS",
+    "e56_namespaced_resume": "PASS",
+    "e66_checkpoint_interrupted_turn": "PASS"
+  },
+  "limitations": [
+    "The relay injects one partial SSE error after a real tool call; it does not claim the SDK itself emitted upstream_idle during this test.",
+    "The reporter's original 1345-message session and its context-overflow response were not available for replay.",
+    "Raw client output and credentials remain in private temporary artifacts; only sanitized observations are committed."
+  ]
+}
