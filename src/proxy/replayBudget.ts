@@ -1,6 +1,8 @@
 import { hasExtendedContext, type ClaudeModel } from "./models"
 
-/** Conservative replay estimate: non-ASCII text is substantially denser than English. */
+/** Approximate replay estimate: overestimates Cyrillic-like scripts, but can
+ * underestimate CJK, base64, and multi-page documents. Reactive overflow
+ * retries cover underestimates when more history can be dropped. */
 export function estimateTokens(content: unknown): number {
   if (typeof content === "string") {
     let ascii = 0
@@ -31,25 +33,31 @@ export function replayBudgetFor(model: string): number {
   return Math.floor(contextWindowFor(model) * 0.9) - REPLAY_RESERVE_TOKENS
 }
 
-/** Keep the objective and a contiguous suffix; never split a user/tool exchange. */
+function startsReplayGroup(message: { role: string; content: unknown }): boolean {
+  return message.role === "user" && !(Array.isArray(message.content) && message.content.length > 0 &&
+    message.content.every(block => block?.type === "tool_result"))
+}
+
+/** Keep the objective and a contiguous suffix; result-only turns belong to
+ * the preceding user request, not a new independently droppable group. */
 export function trimReplayHistory<T extends { role: string; content: unknown }>(
   messages: T[], budget: number,
 ): { messages: T[]; omittedMessages: number; omittedTokens: number } {
   const costs = messages.map(message => estimateTokens(message.content))
   const total = costs.reduce((sum, cost) => sum + cost, 0)
   if (total <= budget) return { messages, omittedMessages: 0, omittedTokens: 0 }
-  const lastUser = messages.findLastIndex(message => message.role === "user")
+  const lastUser = messages.findLastIndex(startsReplayGroup)
   // No user boundary means there is no safe historical group to discard.
   const liveStart = Math.max(0, lastUser)
   let keptStart = liveStart
   let keptTokens = costs.slice(liveStart).reduce((sum, cost) => sum + cost, 0)
-  const keepHead = liveStart > 0 && keptTokens <= budget && costs[0]! <= budget * 0.1
+  const keepHead = liveStart > 0 && keptTokens + costs[0]! <= budget && costs[0]! <= budget * 0.1
   if (keepHead) keptTokens += costs[0]!
   const middleStart = keepHead ? 1 : 0
   let end = liveStart
   while (end > middleStart) {
     let start = end - 1
-    while (start >= middleStart && messages[start]!.role !== "user") start--
+    while (start >= middleStart && !startsReplayGroup(messages[start]!)) start--
     if (start < middleStart) break
     const cost = costs.slice(start, end).reduce((sum, value) => sum + value, 0)
     if (keptTokens + cost > budget) break

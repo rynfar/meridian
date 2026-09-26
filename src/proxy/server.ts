@@ -3027,17 +3027,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
       // Budget only the replay payload, never the lineage or SDK UUID mapping.
       const replaySource = messagesToConvert
+      const freshReplay = !isResume && !resumeSessionId
+      // Client usage describes its resumed context, not the fresh transcript;
+      // derive replay capacity from the actual SDK model's window instead.
       let currentReplayBudget = replayBudgetFor(model)
       let replayTrimRetries = 0
-      const trimReplay = (attempt: number): void => {
+      let replayOmittedMessages = 0
+      const trimReplay = (attempt: number, reason?: string): boolean => {
         const trimmed = trimReplayHistory(replaySource, currentReplayBudget)
+        const changed = trimmed.messages.length !== messagesToConvert.length ||
+          trimmed.omittedMessages !== replayOmittedMessages
         messagesToConvert = trimmed.messages
-        if (trimmed.omittedMessages > 0 || attempt > 0) claudeLog("session.replay_trimmed", {
+        replayOmittedMessages = trimmed.omittedMessages
+        if (reason || (changed && trimmed.omittedMessages > 0)) claudeLog("session.replay_trimmed", {
           omittedMessages: trimmed.omittedMessages, omittedTokens: trimmed.omittedTokens,
-          budget: currentReplayBudget, model, attempt,
+          budget: currentReplayBudget, model, attempt, ...(reason ? { reason } : {}),
         })
+        return changed
       }
-      if (!isResume) trimReplay(0)
+      if (freshReplay) trimReplay(0)
 
       // Multimodal blocks and passthrough tool results must remain structured.
       // In particular, a continuation resumed at an assistant tool_use expects
@@ -3300,16 +3308,30 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       }
       rebuildReplayPrompt()
 
+      function rebudgetReplay(reason: string): void {
+        if (!freshReplay) return
+        // Stripping [1m] changes capacity, not only billing: the previously
+        // valid replay must fit the smaller window before another SDK call.
+        currentReplayBudget = replayBudgetFor(model)
+        trimReplay(replayTrimRetries, reason)
+        rebuildReplayPrompt()
+      }
+
       // Re-estimate from the original input: trimming an already marked replay
       // would count our own omission notice as history and lose its provenance.
       function retryReplayOverflow(errMsg: string): boolean {
-        if (resumeSessionId || replayTrimRetries >= 2 || extractSdkTermination(errMsg).reason !== "context_overflow") return false
+        // Resume owns hidden SDK history; shortening its delta cannot compact
+        // that history, and replay recovery must not silently replace a resume.
+        if (!freshReplay || replayTrimRetries >= 2 || extractSdkTermination(errMsg).reason !== "context_overflow") return false
         const counts = errMsg.match(/(\d+)\s*tokens\s*>\s*(\d+)\s*maximum/i)
-        currentReplayBudget = counts
+        const shrunkBudget = counts
           ? Math.floor(currentReplayBudget * (Number(counts[2]) / Number(counts[1])) * 0.9)
           : Math.floor(currentReplayBudget * 0.5)
+        currentReplayBudget = Math.min(shrunkBudget, replayBudgetFor(model))
+        // A live tail is indivisible. Reissuing the same kept history only
+        // spends another upstream attempt to obtain the identical overflow.
+        if (!trimReplay(replayTrimRetries + 1)) return false
         replayTrimRetries++
-        trimReplay(replayTrimRetries)
         rebuildReplayPrompt()
         return true
       }
@@ -3962,6 +3984,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   if (isExtraUsageRequiredError(errMsg) && hasExtendedContext(model)) {
                     const from = model
                     model = stripExtendedContext(model)
+                    rebudgetReplay("extra_usage_required")
                     recordExtendedContextUnavailable(profile.id)
                     claudeLog("upstream.context_fallback", {
                       mode: "non_stream",
@@ -4033,6 +4056,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     if (hasExtendedContext(model)) {
                       const from = model
                       model = stripExtendedContext(model)
+                      rebudgetReplay("rate_limit")
                       // Bench [1m] until the window resets. Without this the next
                       // request maps straight back to [1m], so one rate limit costs
                       // TWO model switches and a cold prompt cache in both directions
@@ -5125,6 +5149,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     if (isExtraUsageRequiredError(errMsg) && hasExtendedContext(model)) {
                       const from = model
                       model = stripExtendedContext(model)
+                      rebudgetReplay("extra_usage_required")
                       recordExtendedContextUnavailable(profile.id)
                       claudeLog("upstream.context_fallback", {
                         mode: "stream",
@@ -5196,6 +5221,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       if (hasExtendedContext(model)) {
                         const from = model
                         model = stripExtendedContext(model)
+                        rebudgetReplay("rate_limit")
                         // Bench [1m] until the window resets. Without this the next
                         // request maps straight back to [1m], so one rate limit costs
                         // TWO model switches and a cold prompt cache in both directions
