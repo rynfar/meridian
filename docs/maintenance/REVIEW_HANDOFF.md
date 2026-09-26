@@ -2,12 +2,12 @@
 
 ## #1165 interrupted OpenCode checkpoint review (2026-09-26)
 
-Disposition: accept [source #1165](https://github.com/rynfar/meridian/pull/1165)
+Disposition: accepted [source #1165](https://github.com/rynfar/meridian/pull/1165)
 with a maintainer safety correction in [delivery #1166](https://github.com/rynfar/meridian/pull/1166).
-Refresh both PRs before any integration or closure. Source head
+Source head
 `758d80b86ea744f0eeadb6a28e8bf1f546cd3ade` by Nikita Bige
-(`wargloom@gmail.com`, authored 2026-09-26) was unchanged at review; its
-unsigned commit blocks direct merge. The signed cherry-pick `965bef6c` from
+(`wargloom@gmail.com`, authored 2026-09-26) was unchanged at closure; its
+unsigned commit blocked direct merge. The signed cherry-pick `965bef6c` from
 base `cd1ada92057926ee0bceeddaeca42318d0f06b07` retains Author and
 AuthorDate. Maintainer correction and evidence are separate commit `cf48561a`
 on `codex/review-resume-1165-20260926` in isolated worktree
@@ -37,10 +37,14 @@ unavailable; the injected error does not establish that the SDK itself emitted
 the reporter's `upstream_idle`. Raw client logs remain in private temporary
 artifacts.
 
-The delivery PR's live final-head CI, merge commit, and source PR state are
-the remaining acceptance checks. Preserve Nikita's credit on the squash
-commit, verify the merged tree, and close source #1165 only if its head still
-matches the reviewed SHA. Do not close an unrelated issue based on this gate.
+Delivery final head `561d0939` passed required
+[CI/test](https://github.com/rynfar/meridian/actions/runs/36253279248/job/108435205698),
+Windows smoke, Docker smoke/build and both desktop builds. Squash merge
+`7e157aa24421c91dbc47fa520058f6d268ae121e` has the same tree as the
+validated head and credits Nikita as co-author. Source #1165 was rechecked at
+the reviewed SHA and closed as incorporated; no issue was closed based on this
+gate. The owned remote review branch was deleted; the isolated worktree remains
+under `/private/tmp`.
 
 ## Issue-comment follow-up (2026-09-26)
 
