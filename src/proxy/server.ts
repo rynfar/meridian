@@ -45,6 +45,7 @@ export type {
 // transforms through the same runner meridian uses internally.
 export { runTransformHook, runObserveHook, buildPipeline, createRequestContext } from "./transform"
 import { claudeLog } from "../logger"
+import { replayBudgetFor, trimReplayHistory } from "./replayBudget"
 import { PASSTHROUGH_DENY_REASON } from "./passthroughDenial"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
@@ -473,7 +474,16 @@ function buildFreshPrompt(
   messages: Array<{ role: string; content: any }>,
   sanitizeOpts: import("./sanitize").SanitizeOptions = {},
   renderToolName?: (name: string) => string,
+  budget?: number,
+  attempt = "fallback",
 ): string | AsyncIterable<any> {
+  if (budget !== undefined) {
+    const trimmed = trimReplayHistory(messages, budget)
+    messages = trimmed.messages
+    if (trimmed.omittedMessages > 0) claudeLog("session.replay_trimmed", {
+      omittedMessages: trimmed.omittedMessages, omittedTokens: trimmed.omittedTokens, budget, attempt,
+    })
+  }
   const hasMultimodal = messages.some((m) => hasMultimodalContent(m.content))
   const toolIndex = buildToolUseIndex(messages)
 
@@ -3015,6 +3025,20 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
       }
 
+      // Budget only the replay payload, never the lineage or SDK UUID mapping.
+      const replaySource = messagesToConvert
+      let currentReplayBudget = replayBudgetFor(model)
+      let replayTrimRetries = 0
+      const trimReplay = (attempt: number): void => {
+        const trimmed = trimReplayHistory(replaySource, currentReplayBudget)
+        messagesToConvert = trimmed.messages
+        if (trimmed.omittedMessages > 0 || attempt > 0) claudeLog("session.replay_trimmed", {
+          omittedMessages: trimmed.omittedMessages, omittedTokens: trimmed.omittedTokens,
+          budget: currentReplayBudget, model, attempt,
+        })
+      }
+      if (!isResume) trimReplay(0)
+
       // Multimodal blocks and passthrough tool results must remain structured.
       // In particular, a continuation resumed at an assistant tool_use expects
       // the client's real tool_result blocks, not a flattened transcript string.
@@ -3180,95 +3204,114 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       let structuredMessages: Array<{ type: "user"; message: { role: string; content: any }; parent_tool_use_id: null }> | undefined
       let textPrompt: string | undefined
 
-      if (hasMultimodal || hasPassthroughToolResults) {
-        // Structured messages preserve image/document/file and tool_result blocks.
-        // On resume, only send user messages (SDK has assistant context already).
-        // On first request, include everything.
-        structuredMessages = []
+      function rebuildReplayPrompt(): void {
+        structuredMessages = undefined
+        textPrompt = undefined
+        if (hasMultimodal || hasPassthroughToolResults) {
+          // Structured messages preserve image/document/file and tool_result blocks.
+          // On resume, only send user messages (SDK has assistant context already).
+          // On first request, include everything.
+          structuredMessages = []
 
-        if (isResume) {
-          // Resume: only send user messages from the delta (SDK has the rest)
-          for (const m of messagesToConvert) {
-            if (m.role === "user") {
-              structuredMessages.push({
-                type: "user" as const,
-                message: { role: "user" as const, content: normalizeStructuredUserContent(
-                  stripCacheControlDeep(m.content),
-                  Boolean(passthroughToolCallAssistantUuid)
-                ) },
-                parent_tool_use_id: null,
-              })
-            }
-          }
-        } else {
-          // Fresh replay preserves the text path's role attribution. In-message
-          // reminders are ordinary input; only assistant turns get its marker.
-          for (const m of messagesToConvert) {
-            if (m.role !== "assistant") {
-              structuredMessages.push({
-                type: "user" as const,
-                message: { role: "user" as const, content: normalizeStructuredUserContent(
-                  stripCacheControlDeep(m.content),
-                  Boolean(passthroughToolCallAssistantUuid)
-                ) },
-                parent_tool_use_id: null,
-              })
-            } else {
-              // Preserve assistant text and completed tool calls as replay context.
-              const assistantText = flattenAssistantContent(m.content, renderReplayToolName)
-              if (assistantText) {
+          if (isResume) {
+            // Resume: only send user messages from the delta (SDK has the rest)
+            for (const m of messagesToConvert) {
+              if (m.role === "user") {
                 structuredMessages.push({
                   type: "user" as const,
-                  message: { role: "user" as const, content: `[Assistant: ${assistantText}]` },
+                  message: { role: "user" as const, content: normalizeStructuredUserContent(
+                    stripCacheControlDeep(m.content),
+                    Boolean(passthroughToolCallAssistantUuid)
+                  ) },
                   parent_tool_use_id: null,
                 })
               }
             }
-          }
-        }
-
-        // SDK stream inputs are independently answered live turns. Deliver the
-        // complete delta before generation so appended context cannot produce
-        // an answer before the final user question arrives. With one input,
-        // media also stays visible in its original relative position (#553).
-        if (structuredMessages.length > 1) {
-          structuredMessages = isResume
-            ? coalesceStructuredUserMessages(structuredMessages)
-            : frameStructuredReplay(structuredMessages, messagesToConvert.at(-1)?.role !== "assistant")
-        }
-
-      } else {
-        // Text prompt — convert messages to string.
-        // Sanitize each text block before flattening to strip orchestration
-        // wrappers (<env>, <task_metadata>, etc.) that harnesses inject.
-        // `<system-reminder>` is only stripped for adapters that leak CWD
-        // through it (Droid) — preserved otherwise so that harness state
-        // like oh-my-opencode's background-task IDs reaches the model.
-        // Tool-result attribution is indexed from the FULL history so ids
-        // resolve even when the originating call sits before a resume-delta
-        // boundary (#552).
-        const toolIndex = buildToolUseIndex(allMessages ?? messagesToConvert ?? [])
-        // NEVER render 'Human:'/'Assistant:' transcript lines — the model
-        // imitates that format, emitting 'Human: ...' turns itself and
-        // self-approving actions (#496 self-talk). Match the structured
-        // path's proven convention instead: user turns plain, assistant
-        // turns bracketed as '[Assistant: ...]'. On resume, drop assistant
-        // messages entirely — the resumed SDK session already contains
-        // those turns; replaying them as user text is the imitation seed.
-        const promptTurns = (messagesToConvert ?? [])
-          .map((m: { role: string; content: any }) => {
-            if (m.role === "assistant") {
-              if (isResume) return { role: "assistant", text: "" }
-              const assistantText = flattenAssistantContent(m.content, renderReplayToolName)
-              return { role: "assistant", text: assistantText ? `[Assistant: ${assistantText}]` : "" }
+          } else {
+            // Fresh replay preserves the text path's role attribution. In-message
+            // reminders are ordinary input; only assistant turns get its marker.
+            for (const m of messagesToConvert) {
+              if (m.role !== "assistant") {
+                structuredMessages.push({
+                  type: "user" as const,
+                  message: { role: "user" as const, content: normalizeStructuredUserContent(
+                    stripCacheControlDeep(m.content),
+                    Boolean(passthroughToolCallAssistantUuid)
+                  ) },
+                  parent_tool_use_id: null,
+                })
+              } else {
+                // Preserve assistant text and completed tool calls as replay context.
+                const assistantText = flattenAssistantContent(m.content, renderReplayToolName)
+                if (assistantText) {
+                  structuredMessages.push({
+                    type: "user" as const,
+                    message: { role: "user" as const, content: `[Assistant: ${assistantText}]` },
+                    parent_tool_use_id: null,
+                  })
+                }
+              }
             }
-            return { role: "user", text: flattenUserContent(m.content, sanitizeOpts, toolIndex) }
-          })
-        // Fresh (non-resume) replays get the #619 anti-self-play envelope:
-        // history framed as context-only, the live user message terminal.
-        // Resume deltas are tail-only and stay bare.
-        const resumeDelta = promptTurns.map((t: { text: string }) => t.text).filter(Boolean).join("\n\n") || ""
-        textPrompt = isResume ? resumeDelta : frameReplayTurns(promptTurns)
+          }
+
+          // SDK stream inputs are independently answered live turns. Deliver the
+          // complete delta before generation so appended context cannot produce
+          // an answer before the final user question arrives. With one input,
+          // media also stays visible in its original relative position (#553).
+          if (structuredMessages.length > 1) {
+            structuredMessages = isResume
+              ? coalesceStructuredUserMessages(structuredMessages)
+              : frameStructuredReplay(structuredMessages, messagesToConvert.at(-1)?.role !== "assistant")
+          }
+
+        } else {
+          // Text prompt — convert messages to string.
+          // Sanitize each text block before flattening to strip orchestration
+          // wrappers (<env>, <task_metadata>, etc.) that harnesses inject.
+          // `<system-reminder>` is only stripped for adapters that leak CWD
+          // through it (Droid) — preserved otherwise so that harness state
+          // like oh-my-opencode's background-task IDs reaches the model.
+          // Tool-result attribution is indexed from the FULL history so ids
+          // resolve even when the originating call sits before a resume-delta
+          // boundary (#552).
+          const toolIndex = buildToolUseIndex(allMessages ?? messagesToConvert ?? [])
+          // NEVER render 'Human:'/'Assistant:' transcript lines — the model
+          // imitates that format, emitting 'Human: ...' turns itself and
+          // self-approving actions (#496 self-talk). Match the structured
+          // path's proven convention instead: user turns plain, assistant
+          // turns bracketed as '[Assistant: ...]'. On resume, drop assistant
+          // messages entirely — the resumed SDK session already contains
+          // those turns; replaying them as user text is the imitation seed.
+          const promptTurns = (messagesToConvert ?? [])
+            .map((m: { role: string; content: any }) => {
+              if (m.role === "assistant") {
+                if (isResume) return { role: "assistant", text: "" }
+                const assistantText = flattenAssistantContent(m.content, renderReplayToolName)
+                return { role: "assistant", text: assistantText ? `[Assistant: ${assistantText}]` : "" }
+              }
+              return { role: "user", text: flattenUserContent(m.content, sanitizeOpts, toolIndex) }
+            })
+          // Fresh (non-resume) replays get the #619 anti-self-play envelope:
+          // history framed as context-only, the live user message terminal.
+          // Resume deltas are tail-only and stay bare.
+          const resumeDelta = promptTurns.map((t: { text: string }) => t.text).filter(Boolean).join("\n\n") || ""
+          textPrompt = isResume ? resumeDelta : frameReplayTurns(promptTurns)
+        }
+      }
+      rebuildReplayPrompt()
+
+      // Re-estimate from the original input: trimming an already marked replay
+      // would count our own omission notice as history and lose its provenance.
+      function retryReplayOverflow(errMsg: string): boolean {
+        if (resumeSessionId || replayTrimRetries >= 2 || extractSdkTermination(errMsg).reason !== "context_overflow") return false
+        const counts = errMsg.match(/(\d+)\s*tokens\s*>\s*(\d+)\s*maximum/i)
+        currentReplayBudget = counts
+          ? Math.floor(currentReplayBudget * (Number(counts[2]) / Number(counts[1])) * 0.9)
+          : Math.floor(currentReplayBudget * 0.5)
+        replayTrimRetries++
+        trimReplay(replayTrimRetries)
+        rebuildReplayPrompt()
+        return true
       }
 
       // Create a fresh prompt value — can be called multiple times for retry
@@ -3830,6 +3873,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                   // Tool hooks and structured output are committed exposure
                   // even when the iterator has not yielded assistant content.
                   if (didYieldContent || options.priorityAttemptExposure?.committed) throw error
+                  if (retryReplayOverflow(errMsg)) continue
 
                   // Retry: the resume was refused, not answered. Both refusals
                   // that mean "not right now" — the session is busy, or it could
@@ -3891,7 +3935,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName),
+                      prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "non_stream_resume_replay"),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -3951,7 +3995,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName),
+                      prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "non_stream_model_fallback"),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -5007,6 +5051,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                     // Tool hooks and structured output are committed exposure
                     // even before the first client-visible SSE event.
                     if (didYieldClientEvent || options.priorityAttemptExposure?.committed) throw error
+                    if (retryReplayOverflow(errMsg)) continue
 
                     // Retry: the resume was refused, not answered — see the
                     // non-stream branch above for the full rationale. The busy
@@ -5057,7 +5102,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName),
+                        prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "stream_resume_replay"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -5113,7 +5158,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName),
+                        prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "stream_model_fallback"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,

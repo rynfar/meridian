@@ -13,13 +13,28 @@ import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 let capturedPrompts: any[] = []
+let overflowFailures = 0
+let overflowMessage = "Claude Code returned an error result: Prompt is too long"
+let capturedPromptTexts: string[] = []
+let capturedOptions: any[] = []
 
 import { resolveMockSdkSessionId } from "./helpers"
 
 installSdkMock(() => ({
   query: (opts: any) => {
     capturedPrompts.push(opts.prompt)
+    capturedOptions.push(opts.options)
     return (async function* () {
+      if (typeof opts.prompt === "string") capturedPromptTexts.push(opts.prompt)
+      else {
+        const inputs = []
+        for await (const input of opts.prompt) inputs.push(input)
+        capturedPromptTexts.push(JSON.stringify(inputs))
+      }
+      if (overflowFailures > 0) {
+        overflowFailures--
+        throw new Error(overflowMessage)
+      }
       yield {
         type: "assistant",
         uuid: "uuid-1",
@@ -52,15 +67,107 @@ installMcpToolsMock(() => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { storeSession } = await import("../proxy/session/cache")
 
-function post(app: any, messages: any[], headers: Record<string, string> = {}) {
+function post(app: any, messages: any[], headers: Record<string, string> = {}, stream = false) {
   return app.fetch(
     new Request("http://localhost/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify({ model: "sonnet", stream: false, messages }),
+      body: JSON.stringify({ model: "sonnet", stream, messages }),
     })
   )
 }
+
+describe("bounded fresh replay", () => {
+  beforeEach(() => {
+    clearSessionCache()
+    capturedPrompts = []
+    overflowFailures = 0
+    overflowMessage = "Claude Code returned an error result: Prompt is too long"
+    capturedPromptTexts = []
+    capturedOptions = []
+  })
+  afterEach(() => { overflowFailures = 0 })
+
+  const history = () => [
+    { role: "user", content: "objective" },
+    ...Array.from({ length: 6 }, (_, i) => [
+      { role: "user", content: `question ${i}` },
+      { role: "assistant", content: "я".repeat(60_000) },
+    ]).flat(),
+    { role: "user", content: "live question" },
+  ]
+
+  it("trims a long fresh history before the SDK call", async () => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, history())
+    expect(res.status).toBe(200)
+    expect(capturedPrompts).toHaveLength(1)
+    expect(capturedPrompts[0]).toContain("were omitted from this replay")
+    expect(capturedPrompts[0]).toContain("objective")
+    expect(capturedPrompts[0]).toEndWith("live question")
+  })
+
+  for (const streaming of [false, true]) {
+    it(`retries fresh overflow with a smaller prompt (stream=${streaming})`, async () => {
+      overflowFailures = 1
+      const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+      const res = await post(app, history(), {}, streaming)
+      await res.text()
+      expect(res.status).toBe(200)
+      expect(capturedPrompts).toHaveLength(2)
+      expect(capturedPrompts[1].length).toBeLessThan(capturedPrompts[0].length)
+      expect(capturedOptions[1].sessionId).not.toBe(capturedOptions[0].sessionId)
+    })
+
+    it(`does not retry resumed overflow (stream=${streaming})`, async () => {
+      const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+      const prior = [{ role: "user", content: "hello" }, { role: "assistant", content: "hi there" }]
+      storeSession("sess-overflow", prior, "sdk-overflow", "/tmp/test", [null, "uuid-1"])
+      overflowFailures = 1
+      const res = await post(app, [...prior, { role: "user", content: "follow up" }], { "x-opencode-session": "sess-overflow" }, streaming)
+      const body = await res.text()
+      expect(capturedPrompts).toHaveLength(1)
+      expect(capturedPrompts[0]).toBe("follow up")
+      if (!streaming) expect(res.status).toBe(400)
+      else expect(body).toContain("error")
+    })
+  }
+
+  it("renders the string omission marker in structured replays and rebuilds them on overflow", async () => {
+    overflowFailures = 1
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const messages = [...history().slice(0, -1), { role: "user", content: [
+      { type: "text", text: "live image" },
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "aGVsbG8=" } },
+    ] }]
+    const res = await post(app, messages)
+    expect(res.status).toBe(200)
+    expect(capturedPromptTexts).toHaveLength(2)
+    expect(capturedPromptTexts[0]).toContain("were omitted from this replay")
+    expect(capturedPromptTexts[1]).toContain("were omitted from this replay")
+    expect(capturedPromptTexts[1]).toContain("aGVsbG8=")
+    expect(capturedPromptTexts[1]!.length).toBeLessThan(capturedPromptTexts[0]!.length)
+  })
+
+  it("uses token counts in an overflow error to reduce the retry budget", async () => {
+    overflowFailures = 1
+    overflowMessage = "Prompt is too long: 400000 tokens > 200000 maximum"
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, history())
+    expect(res.status).toBe(200)
+    expect(capturedPrompts).toHaveLength(2)
+    expect(capturedPrompts[1].length).toBeLessThan(capturedPrompts[0].length)
+  })
+
+  it("returns the existing context error after at most two retries", async () => {
+    overflowFailures = 3
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
+    const res = await post(app, history())
+    expect(res.status).toBe(400)
+    expect(capturedPrompts).toHaveLength(3)
+    expect(await res.text()).toContain("context")
+  })
+})
 
 describe("fresh-session replay envelope (#619)", () => {
   beforeEach(() => {
