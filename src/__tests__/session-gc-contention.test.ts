@@ -1,7 +1,7 @@
 import { expect, it, spyOn } from "bun:test"
 import * as crypto from "node:crypto"
 import * as fsPromises from "node:fs/promises"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -16,7 +16,9 @@ import {
 
 it.each([false, true])("durably admits 24 simultaneous registrations with a large sidecar (GC=%s)", async withGc => {
   // Given: an isolated real sidecar with 1,400 resources and 800 pinned sessions.
-  const storeDir = mkdtempSync(join(tmpdir(), "meridian-gc-contention-"))
+  // macOS may return /var for a directory whose real path is /private/var.
+  // Use the same canonical path for fixture keys and lifecycle registrations.
+  const storeDir = realpathSync(mkdtempSync(join(tmpdir(), "meridian-gc-contention-")))
   const locators: TranscriptLocator[] = Array.from({ length: 1_400 }, (_, i) => ({
     sessionId: `synthetic-${i}`,
     configDir: storeDir,

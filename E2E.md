@@ -6645,3 +6645,33 @@ result, and sanitized artifact link in the PR or handoff for each run.
 The Hermes gate uses Hermes 0.21.4 and Opus 5.5. It checks a real Hermes
 request's self-management tool identifiers before the plugin, neutral names
 afterward, and preservation of the finishing-job guidance.
+
+### OpenCode lifecycle admission with both plugins
+
+The lifecycle contention gate uses the built Meridian **OpenCode client plugin**
+to send `x-opencode-session` and the separately installed **OpenCode scrub
+server plugin** to remove the billing-trigger system fingerprint. Run it on the
+affected Linux platform with an authenticated Claude Agent SDK, OpenCode
+1.18.32, and Opus 5.5. The harness isolates client and proxy state, captures
+plugin hook counts and sanitized prompt probes, and requires each client to
+complete an initial turn and a continuation in the same OpenCode session.
+It leaves raw client output in a private temporary artifact directory.
+
+```sh
+npm run build
+E2E_PLUGIN_PATH=/absolute/path/to/node_modules/@rynfar/meridian-plugin-opencode-scrub/dist/index.js \
+  E2E_EXPECT_VERSION=0.2.3 E2E_MODEL=claude-opus-5-5 E2E_CONCURRENCY=6 \
+  bun scripts/e2e-opencode-lifecycle-admission.mjs
+E2E_EXPECT_BILLING_ERROR=1 E2E_MODEL=claude-opus-5-5 \
+  bun scripts/e2e-opencode-lifecycle-admission.mjs
+```
+
+The second command is a negative control: without the server scrub plugin,
+the same real client plugin leaves the OpenCode fingerprint in the system
+prompt and must receive `billing_error`. Use the same model and authenticated
+profile for both commands. The concurrent live gate complements the physical
+disk 1,400-resource / 800-pin / 24-registration test in
+`src/__tests__/session-gc-contention.test.ts`; it does not replace that test.
+The [sanitized #1152 Linux evidence](docs/maintenance/evidence/1152-opencode-admission.json)
+records the matching baseline, six-client pass, disk contention and four E41
+results without publishing credentials or raw transcripts.

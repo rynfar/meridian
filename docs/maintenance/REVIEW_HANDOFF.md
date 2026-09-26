@@ -10,31 +10,69 @@
   same feature code; it included two unrelated effort-routing commits, and the
   maintainer could not repeat cloud login locally (401). Source #1105 was
   rechecked at `5f2a9a9e` and closed unchanged.
-- New issue [#1155](https://github.com/rynfar/meridian/issues/1155) is in
-  [#1156](https://github.com/rynfar/meridian/pull/1156). Unchanged 1.76.6,
+- New issue [#1155](https://github.com/rynfar/meridian/issues/1155) was fixed by
+  [#1156](https://github.com/rynfar/meridian/pull/1156), merged as `16834f25`.
+  Unchanged 1.76.6,
   actual Oh My Pi 13.18.0, Agent SDK 0.2.141, Haiku 4.5 and a historical
   agent-owned image produced the false current-attachment answer. The fix's
   matching headless client run attributed it to history; a Sonnet 5 Pi-protocol
   control distinguished no new image from a genuine new red image. The PR
-  adds E65 and a pure regression test. Final-head CI and merge are pending;
-  refresh its head before relying on this checkpoint.
-- [#1152](https://github.com/rynfar/meridian/pull/1152) remains held by the
-  affected Linux OpenCode/Opus billing-error gate. #1050 and #792 remain draft.
+  added E65 and a pure regression test. Release Please
+  [#1157](https://github.com/rynfar/meridian/pull/1157) merged, and npm
+  `@rynfar/meridian` 1.77.0 is published.
+- [#1152](https://github.com/rynfar/meridian/pull/1152) is under integration
+  review after reproducing the missing-plugin billing error and passing the
+  corrected Linux client/model gate below. #1050 and #792 remain draft.
   The five scrub repos had no newly opened issues or PRs; OpenCode scrub #5 is
-  still deferred. Release Please [#1157](https://github.com/rynfar/meridian/pull/1157)
-  appeared after #1113; wait for #1156 and all release gates before publishing.
+  still deferred.
 - The older #1151/#1153 checkpoint below predates their successful merge and
   1.76.6 release. Its pending language is historical.
 
-## Contributor PR review checkpoint (2026-09-25)
+## #1152 corrected live gate and integration checkpoint (2026-09-25)
+
+- User identified the missing OpenCode Meridian plugin in the earlier failed
+  live gate. The new headless harness
+  [`scripts/e2e-opencode-lifecycle-admission.mjs`](../../scripts/e2e-opencode-lifecycle-admission.mjs)
+  loads both the built Meridian OpenCode client plugin and independently
+  installed OpenCode scrub 0.2.3. With the scrub plugin absent on Linux, the
+  same OpenCode 1.18.32 / Opus 5.5 path produced one `billing_error`, no text,
+  and retained both reported system fingerprints. With both plugins present,
+  six concurrent Linux client processes each completed an initial turn and
+  same-session continuation: 12/12 text responses, zero client errors;
+  `/plugins/list` recorded 18 scrub invocations and zero hook errors. The
+  fingerprint was present before the scrub hook and absent after it. The
+  Linux run used Bun 1.4.0, Node 24.20.0 and Agent SDK 0.2.141, with a
+  privately passed Claude Max OAuth credential. A macOS arm64 six-client
+  control also passed. Raw client logs are private temporary artifacts;
+  the runnable gate and [sanitized Linux evidence](evidence/1152-opencode-admission.json)
+  are escrowed here and in the delivery PR.
+- Linux physical-disk contention on the integrated code passed 24/24
+  durable registrations with zero timeouts, both with and without GC, using
+  1,400 resources and 800 pins. Adversarial review found that the new test
+  failed on macOS because `/var` resolves to `/private/var`; a separate
+  maintainer correction canonicalizes the fixture path before constructing
+  resource keys. The corrected focused test passed both modes on macOS and
+  Linux. All four live E41 chain/parallel × stream/non-stream modes passed,
+  including exact tool-result pairing and cache continuity. The clean-exit
+  local `npm test` rerun passed 4,885 tests with four skips and zero failures;
+  standalone typecheck, build and diff validation passed. Final-head CI is
+  the remaining merge gate at this checkpoint.
+- Source head `51bcec4f` by Nowaker is unchanged. The four authored
+  cherry-picks onto `ddb23e17` are `e5e4b22` → `3869cc4b`, `2f3e944` →
+  `c5ee3b5d`, `bee4e7d` → `70e4d1e2`, and `51bcec4` → `9874881b`.
+  Worktree: `/private/tmp/meridian-review-1152-opencode-plugin-20260925`,
+  branch `codex/review-1152-opencode-plugin-20260925`. The test correction,
+  proof harness and E2E documentation remain a separate maintainer change.
+
+## Earlier contributor PR review checkpoint (2026-09-25)
 
 - [#1152](https://github.com/rynfar/meridian/pull/1152), head `51bcec4f`,
   separates local lifecycle queue residence from the external lock deadline.
   Its physical-disk stress and CI pass, but the contributor's affected Linux
   OpenCode 1.18.32 / Opus 5.5 live batches completed no primary turns:
   requests ended in HTTP 402 `billing_error` (one batch also reached 500 after
-  fallback). Keep this PR open and unmerged until that exact flow succeeds;
-  a successful simple model probe or synthetic lock test does not clear it.
+  fallback). This was the state before the missing OpenCode plugin was
+  identified; the corrected Linux live gate above supersedes this hold.
 - [#1151](https://github.com/rynfar/meridian/pull/1151), source head
   `79ee7d59` from @builder-main, fixes the Windows OpenCode V2 SDK gate using
   an actual Node executable. Its commit author is `arch <arch@not.me>`; the
