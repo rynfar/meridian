@@ -89,8 +89,10 @@ jobs:
 
       # Exercise Windows client paths through extraction, query construction,
       # and the HTTP adapter boundary. These assertions intentionally avoid
-      # resolving the client path on the runner.
-      - run: bun test src/__tests__/opencode-cwd-note.test.ts src/__tests__/query-cwd-note.test.ts src/__tests__/proxy-working-directory.test.ts
+      # resolving the client path on the runner. The HTTP round trips can
+      # exceed Bun's 5s default under runner contention, so use the main
+      # suite's 30s per-test bound without weakening their assertions.
+      - run: bun test --timeout 30000 src/__tests__/opencode-cwd-note.test.ts src/__tests__/query-cwd-note.test.ts src/__tests__/proxy-working-directory.test.ts
         shell: bash
 
       # Session GC's fenced deletion path was a silent no-op on win32 until it
