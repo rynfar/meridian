@@ -612,6 +612,33 @@ context.
 Extensions load at startup, so a pi session started before the file existed
 keeps the old behaviour until pi is restarted.
 
+### Reminders and changing request context
+
+Meridian resumes an SDK session only when the next request extends its verified
+history. A client that removes a plan reminder or limit warning from an earlier
+message changes that history and gets a fresh replay (`modified-history`). The
+client can keep the history append-only by persisting a new plan snapshot only
+when the plan changes and retaining earlier warnings.
+
+Meridian ignores exact `<system-reminder>...</system-reminder>` spans **inside a
+text block** when hashing lineage. A Pi extension can therefore fold a notice
+into an existing, persisted text block without changing that block's hash if
+it adds nothing outside the tags, as observed in
+[#1068](https://github.com/rynfar/meridian/issues/1068). For Pi and generic
+passthrough, the notice still reaches the model on that request, and an SDK
+session resumed on the next request **retains the earlier notice**. Omitting
+it from the client's later request does not remove it from the SDK transcript.
+Adding or removing a whole content block, changing text outside the tags, or
+changing a tool result still changes lineage.
+
+This hash rule accommodates client-generated reminder noise; it is not a
+request-scoped context contract or a way to make content disappear from an
+active model session. In particular, do not use it for secrets or instructions
+that must be forgotten. For Pi and generic passthrough, persist advisory
+snapshots in append-only history when client and SDK context must agree. An
+explicit opt-in contract with defined retention semantics remains under
+discussion in [#1068](https://github.com/rynfar/meridian/issues/1068).
+
 ### Reading the log
 
 Every request line carries `lineage=`, and every divergence also carries
