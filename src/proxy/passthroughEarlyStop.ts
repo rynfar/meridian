@@ -321,6 +321,25 @@ export function coalesceCompleteToolResultContinuation(
   return [{ role: "user", content }]
 }
 
+/**
+ * The delta settles the checkpoint batch in its first user message, but the
+ * history then moved on past it: an assistant turn follows. A stream cut off
+ * by a dropped connection leaves exactly this shape — complete tool results,
+ * a partial assistant message, then the next user turn. The checkpoint is not
+ * contradicted, only passed, so the caller can resume the stored session
+ * instead of replaying the whole conversation.
+ */
+export function settlesCheckpointThenContinues(
+  messages: Array<{ role?: unknown; content?: unknown }>,
+  expectedIds: readonly string[],
+  options?: CompleteToolResultContinuationOptions,
+): boolean {
+  const firstUser = messages.findIndex((message) => message.role === "user")
+  if (firstUser < 0) return false
+  if (!messages.slice(firstUser + 1).some((message) => message.role === "assistant")) return false
+  return coalesceCompleteToolResultContinuation(messages.slice(0, firstUser + 1), expectedIds, options) !== undefined
+}
+
 /** Find and validate the exact echoed assistant checkpoint plus its result tail. */
 export function findCompleteToolResultCheckpoint(
   messages: Array<{ role?: unknown; content?: unknown }>,

@@ -14,6 +14,7 @@ import { describe, it, expect } from "bun:test"
 import {
   clientAbortDisposition,
   coalesceCompleteToolResultContinuation,
+  settlesCheckpointThenContinues,
   isMidConvoEffortSystemMessage,
   findCompleteToolResultCheckpoint,
   createEarlyStopTracker,
@@ -285,6 +286,28 @@ describe("early-stop tracking", () => {
   })
 })
 
+
+describe("settlesCheckpointThenContinues", () => {
+  const result = (id: string) => ({ type: "tool_result", tool_use_id: id, content: "ok" })
+  const partial = { role: "assistant", content: [{ type: "text", text: "The file contains" }] }
+  const next = { role: "user", content: "still there?" }
+
+  it("accepts complete results followed by an interrupted assistant turn", () => {
+    expect(settlesCheckpointThenContinues([
+      { role: "user", content: [result("t1"), result("t2")] }, partial, next,
+    ], ["t1", "t2"])).toBe(true)
+  })
+
+  it("rejects partial or unknown results even when history moved on", () => {
+    expect(settlesCheckpointThenContinues([{ role: "user", content: [result("t1")] }, partial, next], ["t1", "t2"])).toBe(false)
+    expect(settlesCheckpointThenContinues([{ role: "user", content: [result("other")] }, partial, next], ["t1"])).toBe(false)
+  })
+
+  it("rejects a delta with no later assistant turn, which the coalescer owns", () => {
+    expect(settlesCheckpointThenContinues([{ role: "user", content: [result("t1")] }, next], ["t1"])).toBe(false)
+    expect(settlesCheckpointThenContinues([partial], ["t1"])).toBe(false)
+  })
+})
 
 describe("coalesceCompleteToolResultContinuation", () => {
   const result = (id: string, content: unknown = "ok") => ({ type: "tool_result", tool_use_id: id, content })

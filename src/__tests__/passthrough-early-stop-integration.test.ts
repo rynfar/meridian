@@ -885,6 +885,42 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParams.prompt).toContain("keep this queued")
   })
 
+  it("non-stream: resumes when complete results are followed by an interrupted assistant turn", async () => {
+    // A dropped connection ends a turn after its first streamed block, so the
+    // client keeps a partial assistant message after the settled tool results.
+    // Replaying the whole history for that would re-read the entire session.
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "settled-1", name: "read", input: { file_path: "a" } },
+    ])
+    mockMessages = [toolTurn, userDenyMessage("settled-1")]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "first instruction only" }],
+    }, "es-settled-then-interrupted")).status).toBe(200)
+
+    mockMessages = [assistantMessage([{ type: "text", text: "resumed" }])]
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "first instruction only" },
+        { role: "assistant", content: toolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "settled-1", content: "A" }] },
+        { role: "assistant", content: [{ type: "text", text: "partial answer cut by the network" }] },
+        { role: "user", content: "are you still there?" },
+      ],
+    }, "es-settled-then-interrupted")).status).toBe(200)
+    expect(capturedQueryParams.options.resume).toBeDefined()
+    expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+    expect(JSON.stringify(capturedQueryParams.prompt)).toContain("are you still there?")
+    expect(JSON.stringify(capturedQueryParams.prompt)).not.toContain("first instruction only")
+  })
+
   it("non-stream: preserves a nested multimodal tool_result wrapper", async () => {
     const toolTurn = assistantMessage([
       { type: "tool_use", id: "image-result", name: "read", input: { file_path: "image.png" } },

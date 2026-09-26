@@ -53,7 +53,7 @@ import { withClaudeLogContext } from "../logger"
 import { createPassthroughMcpServer, createPassthroughReplayToolNameRenderer, resolveClientToolName, normalizeToolInput, hasRepairableToolInput, computeToolSetKey, toolUseSignature, PASSTHROUGH_MCP_NAME, PASSTHROUGH_MCP_PREFIX, passthroughMcpPrefix, autoDeferDecision, getAutoDeferThreshold } from "./passthroughTools"
 import { describeLocalBootIdentity } from "./session/processIncarnation"
 import { detectServerTools, serverToolErrorMessage } from "./tools"
-import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
+import { clientAbortDisposition, coalesceCompleteToolResultContinuation, createEarlyStopTracker, isClientForwardedToolUse, noteAssistantMessage, noteUserContent, settledToolCallAssistantUuid, settlesCheckpointThenContinues, shouldEarlyStop, trackerCoversStreamedCalls } from "./passthroughEarlyStop"
 import { checkEmptyToolInputs, checkUndeliveredToolUses, type EnvelopeViolation } from "./envelopeIntegrity"
 import { classifyTurnOutcome, createRecoveryLifter, hasTruncatableText, shouldAttemptRecovery, shouldInjectSilentTurn, SILENT_TURN_NUDGE } from "./turnOutcome"
 import { resolveAgentAlias } from "./agentMatch"
@@ -2967,9 +2967,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           passthroughToolCallIds ?? [],
           trailingSystemReminderOptions,
         )
+        // A settled batch followed by an interrupted turn: a full replay would
+        // re-read the entire session and can exceed the context window the
+        // resumed session fits in.
+        const settledThenContinued = !checkpointContinuation && settlesCheckpointThenContinues(
+          messagesToConvert,
+          passthroughToolCallIds ?? [],
+          trailingSystemReminderOptions,
+        )
         if (checkpointContinuation) {
           messagesToConvert = checkpointContinuation
-        } else if (carriesSynthesizedSessionKey) {
+        } else if (carriesSynthesizedSessionKey || settledThenContinued) {
           // The checkpoint is Meridian's own inference, not a client contract.
           // A synthesized key means the client sent no session header and never
           // agreed to echo the exact tool-call ids Meridian forwarded, so an
@@ -2983,9 +2991,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
           // (OpenCode, pylon, jcode, any header-keyed client) keeps today's
           // exact behaviour: for it the key is a contract the client chose, so
           // an unsettled checkpoint is a real mismatch worth replaying for.
+          // The one header-keyed exception is a batch the client did settle in
+          // full before continuing (settledThenContinued above).
           claudeLog("passthrough.checkpoint_resume_preferred", {
             expectedToolIds: passthroughToolCallIds?.length ?? 0,
-            reason: "synthesized_session_key",
+            reason: carriesSynthesizedSessionKey ? "synthesized_session_key" : "settled_then_continued",
           })
           passthroughToolCallAssistantUuid = undefined
           // Keep isResume, resumeSessionId and the resume delta already in
