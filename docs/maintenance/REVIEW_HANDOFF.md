@@ -1,6 +1,6 @@
 # Upstream review handoff
 
-## Live queue refresh (2026-09-25)
+## Live queue snapshot (2026-09-25; #1152 updated 2026-09-26)
 
 - [#1113](https://github.com/rynfar/meridian/pull/1113) merged as `aedb9b25`
   after final-head CI, full local gates, a Sonnet 5 E57 cache/control run, and
@@ -20,15 +20,16 @@
   added E65 and a pure regression test. Release Please
   [#1157](https://github.com/rynfar/meridian/pull/1157) merged, and npm
   `@rynfar/meridian` 1.77.0 is published.
-- [#1152](https://github.com/rynfar/meridian/pull/1152) is under integration
-  review after reproducing the missing-plugin billing error and passing the
-  corrected Linux client/model gate below. #1050 and #792 remain draft.
+- [#1152](https://github.com/rynfar/meridian/pull/1152) was incorporated by
+  [#1159](https://github.com/rynfar/meridian/pull/1159), merged as `da28f1e8`
+  after the corrected Linux client/model gate and final-head CI. The unchanged
+  source head was closed. #1050 and #792 remain draft.
   The five scrub repos had no newly opened issues or PRs; OpenCode scrub #5 is
   still deferred.
 - The older #1151/#1153 checkpoint below predates their successful merge and
   1.76.6 release. Its pending language is historical.
 
-## #1152 corrected live gate and integration checkpoint (2026-09-25)
+## #1152 corrected live gate and merge (2026-09-26)
 
 - User identified the missing OpenCode Meridian plugin in the earlier failed
   live gate. The new headless harness
@@ -55,14 +56,20 @@
   Linux. All four live E41 chain/parallel × stream/non-stream modes passed,
   including exact tool-result pairing and cache continuity. The clean-exit
   local `npm test` rerun passed 4,885 tests with four skips and zero failures;
-  standalone typecheck, build and diff validation passed. Final-head CI is
-  the remaining merge gate at this checkpoint.
+  standalone typecheck, build and diff validation passed. Final-head
+  [CI/test](https://github.com/rynfar/meridian/actions/runs/36222150845/job/108349302263),
+  Windows smoke, both desktop builds, Docker smoke and Docker build/push all
+  passed on `8ca37345`; changelog duplication was skipped by its workflow.
 - Source head `51bcec4f` by Nowaker is unchanged. The four authored
   cherry-picks onto `ddb23e17` are `e5e4b22` → `3869cc4b`, `2f3e944` →
   `c5ee3b5d`, `bee4e7d` → `70e4d1e2`, and `51bcec4` → `9874881b`.
-  Worktree: `/private/tmp/meridian-review-1152-opencode-plugin-20260925`,
-  branch `codex/review-1152-opencode-plugin-20260925`. The test correction,
-  proof harness and E2E documentation remain a separate maintainer change.
+  The test correction, proof harness and E2E documentation were committed
+  separately as `8ca37345`. Delivery [#1159](https://github.com/rynfar/meridian/pull/1159)
+  squash-merged as `da28f1e81fc3a0c9b0e8abe159a9e0153d88534f`; its tree
+  matches the validated head exactly and the squash commit credits Nowaker
+  with a co-author trailer. Source #1152 was rechecked at unchanged head
+  `51bcec4f` and closed as incorporated. The owned remote delivery branch
+  was deleted; the private review worktree remains under `/private/tmp`.
 
 ## Earlier contributor PR review checkpoint (2026-09-25)
 
