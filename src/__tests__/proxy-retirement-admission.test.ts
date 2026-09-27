@@ -11,9 +11,18 @@ import {
 } from "./helpers"
 
 const queryProfiles: Array<string | undefined> = []
+// When set, the next query parks inside the SDK until released, holding its
+// turn (and its prepared transcript) in flight.
+let holdNextQuery: { entered: () => void; release: Promise<void> } | undefined
 installSdkMock(() => ({
   query: (params: { options?: { sessionId?: string; resume?: string; includePartialMessages?: boolean; env?: Record<string, string | undefined> } }) => (async function* () {
     queryProfiles.push(params.options?.env?.CLAUDE_CONFIG_DIR)
+    const hold = holdNextQuery
+    holdNextQuery = undefined
+    if (hold) {
+      hold.entered()
+      await hold.release
+    }
     if (params.options?.includePartialMessages) {
       for (const event of [messageStart(), textBlockStart(), textDelta(0, "ok"), blockStop(0), messageDelta(), messageStop()]) {
         yield withMockSdkSessionId(event, params.options)
@@ -120,5 +129,37 @@ describe("profile switch admission with bounded retirement", () => {
     expect(queryProfiles).toEqual([join(root, "personal"), join(root, "personal"), join(root, "work")])
     expect(Object.values(readSessionStoreSnapshot())).toHaveLength(1)
     expect(Object.values(sidecar.resources).filter(resource => resource.state === "retired")).toHaveLength(1)
+  })
+
+  it.each([false, true])("admits concurrent turns while the retirement backlog sits at its passive bound (stream=%s)", async (stream) => {
+    for (const key of ["old-a", "old-b"]) {
+      const response = await request(key, false)
+      expect(response.status, await response.clone().text()).toBe(200)
+    }
+    await sweep()
+    clearSessionCache()
+    await sweep()
+    const retired = () => Object.values((JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")) as {
+      resources: Record<string, { state: string }>
+    }).resources).filter(resource => resource.state === "retired").length
+    expect(retired()).toBe(1)
+
+    let entered!: () => void
+    const inside = new Promise<void>(resolve => { entered = resolve })
+    let release!: () => void
+    holdNextQuery = { entered: () => entered(), release: new Promise<void>(resolve => { release = resolve }) }
+    const first = request("busy-a", stream)
+    await inside
+    try {
+      const second = await request("busy-b", stream)
+      const text = await second.text()
+      expect(second.status, text).toBe(200)
+      if (stream) expect(parseSSE(text).some(event => event.event === "error"), text).toBe(false)
+    } finally {
+      release()
+    }
+    const firstResponse = await first
+    expect(firstResponse.status, await firstResponse.clone().text()).toBe(200)
+    await firstResponse.text()
   })
 })

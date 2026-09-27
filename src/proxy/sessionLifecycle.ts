@@ -358,8 +358,9 @@ async function prepareForkIntent(
       Object.assign(locator, exactLocator(existing))
       return exactLocator(existing)
     }
-    assertResourceCapacity(sidecar, options, "prepared")
     const now = nowMs(options)
+    deferRetirementForAdmission(sidecar, options, now)
+    assertResourceCapacity(sidecar, options, "prepared")
     const resource: TranscriptResource = {
       key,
       generation: allocateLifecycleGeneration(sidecar, key),
@@ -1838,6 +1839,38 @@ function pendingResourceCount(sidecar: SessionGcSidecar): number {
     || resource.state === "retired"
     || resource.state === "deleting"
   ).length
+}
+
+/**
+ * A request's preallocation outranks transcript cleanup. Passive retirement
+ * fills the pending budget up to one free slot, and every in-flight turn holds
+ * a prepared slot until it publishes, so a strict budget would refuse
+ * concurrent turns whenever deletion lags behind retirement. A retired
+ * transcript that no deletion has claimed is merely waiting for cleanup:
+ * returning the newest one to live only postpones its deletion until reconcile
+ * finds room again, while the oldest keep their place at the head of the
+ * deletion queue. Admission is refused only when the whole budget is in-flight
+ * preparations and deletions.
+ */
+function deferRetirementForAdmission(
+  sidecar: SessionGcSidecar,
+  options: SessionLifecycleOptions,
+  now: number,
+): void {
+  const maximum = option(options.maxPending, DEFAULT_MAX_PENDING, "maxPending")
+  let excess = pendingResourceCount(sidecar) - maximum + 1
+  if (excess <= 0) return
+  const newestRetired = Object.values(sidecar.resources)
+    .filter((resource) => resource.state === "retired")
+    .sort((left, right) => right.updatedAt - left.updatedAt || left.key.localeCompare(right.key))
+  for (const resource of newestRetired) {
+    if (excess <= 0) return
+    resource.state = "live"
+    resource.updatedAt = now
+    delete resource.nextAttemptAt
+    delete resource.lastError
+    excess--
+  }
 }
 
 function assertPendingCapacity(

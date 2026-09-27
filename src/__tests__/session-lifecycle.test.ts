@@ -305,7 +305,7 @@ describe("session transcript lifecycle", () => {
     expect(deleted).not.toContain(active.sessionId)
   })
 
-  it("does not overbook reserved capacity when two publication requests race", async () => {
+  it("defers retirement instead of refusing racing publications, without overbooking", async () => {
     const bounded = { ...options, maxPending: 2 }
     for (const id of ["stale-a", "stale-b"]) await registerLiveTranscript(locator(id), bounded)
     await reconcile([], bounded)
@@ -313,12 +313,48 @@ describe("session transcript lifecycle", () => {
       prepareForkForPublication(locator("racing-a"), bounded),
       prepareForkForPublication(locator("racing-b"), bounded),
     ])
+    expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(2)
+    const resources = Object.values(readSidecar(storeDir).resources)
+    expect(resources.filter(resource => resource.state === "prepared")).toHaveLength(2)
+    expect(resources.filter(resource => ["retired", "deleting"].includes(resource.state))).toHaveLength(0)
+    expect(resources.filter(resource => resource.state === "live")).toHaveLength(2)
+  })
+
+  it("still refuses a publication when the whole backlog is in-flight work", async () => {
+    const bounded = { ...options, maxPending: 2 }
+    await prepareForkForPublication(locator("in-flight-a"), bounded)
+    const attempts = await Promise.allSettled([
+      prepareForkForPublication(locator("in-flight-b"), bounded),
+      prepareForkForPublication(locator("in-flight-c"), bounded),
+    ])
     expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(1)
     const failures = attempts.filter(result => result.status === "rejected")
     expect(failures).toHaveLength(1)
     expect(failures[0]?.reason).toBeInstanceOf(SessionLifecycleBacklogError)
     const resources = Object.values(readSidecar(storeDir).resources)
-    expect(resources.filter(resource => ["prepared", "retired", "deleting"].includes(resource.state))).toHaveLength(2)
+    expect(resources.filter(resource => resource.state === "prepared")).toHaveLength(2)
+  })
+
+  it("defers the newest retirement so the deletion queue keeps its oldest head", async () => {
+    const deleted: string[] = []
+    const bounded = { ...options, maxPending: 3, maxDeletesPerRun: 1,
+      deleter: async (resource: TranscriptLocator) => { deleted.push(resource.sessionId) } }
+    await registerLiveTranscript(locator("retired-oldest"), bounded)
+    await reconcile([], bounded)
+    now += 1_000
+    await registerLiveTranscript(locator("retired-newest"), bounded)
+    await reconcile([], bounded)
+    await prepareForkForPublication(locator("admitted-a"), bounded)
+    await prepareForkForPublication(locator("admitted-b"), bounded)
+
+    const resources = readSidecar(storeDir).resources
+    expect(resources[getTranscriptResourceKey(locator("retired-oldest"))]?.state).toBe("retired")
+    expect(resources[getTranscriptResourceKey(locator("retired-newest"))]?.state).toBe("live")
+    expect(Object.values(resources).filter(resource =>
+      ["prepared", "retired", "deleting"].includes(resource.state))).toHaveLength(3)
+
+    await runGc([], bounded)
+    expect(deleted).toEqual([locator("retired-oldest").sessionId])
   })
 
   it("still enforces total ownership when passive retirement leaves pending capacity", async () => {
