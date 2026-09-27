@@ -179,6 +179,7 @@ function getAuthStatus(configDir: string): { loggedIn: boolean; email?: string; 
     // resolved path and bypasses the shell entirely — no PATH lookup.
     const result = execFileSync(resolved.path, ["auth", "status"], {
       timeout: 5000,
+      windowsHide: true,
       env: { ...process.env, CLAUDE_CONFIG_DIR: configDir },
       stdio: ["pipe", "pipe", "pipe"],
     })
