@@ -34,7 +34,6 @@ import {
   createOAuthPkce,
   exchangeAuthorizationCodeForCredentials,
   parseAuthorizationCodeInput,
-  profileConfigDirFor,
   OAUTH_LOOPBACK_CALLBACK_PATH,
   OAUTH_REDIRECT_URI,
 } from "./profileCli"
@@ -93,6 +92,7 @@ interface FinishedLogin {
  * interfere — each carries its own verifier, state and target directory.
  */
 const pendingLogins = new Map<string, PendingLogin>()
+const exchangingLogins = new Map<string, string>()
 
 /**
  * `state` → login id.
@@ -112,6 +112,7 @@ export type LoginErrorCode =
   | "no_profiles"
   | "unknown_profile"
   | "unsupported_profile_type"
+  | "missing_config_dir"
   | "invalid_request"
   | "expired_login"
   | "no_code"
@@ -240,15 +241,18 @@ function consume(loginId: string): PendingLogin | undefined {
   if (!pending) return undefined
   pendingLogins.delete(loginId)
   loginIdByState.delete(pending.state)
+  exchangingLogins.set(loginId, pending.profileId)
   return pending
 }
 
 function restore(loginId: string, pending: PendingLogin): void {
+  exchangingLogins.delete(loginId)
   pendingLogins.set(loginId, pending)
   loginIdByState.set(pending.state, loginId)
 }
 
 function finish(loginId: string, profileId: string, now: number, failure?: LoginFailure): void {
+  exchangingLogins.delete(loginId)
   finishedLogins.set(loginId, {
     profileId,
     status: failure ? "failed" : "completed",
@@ -474,6 +478,16 @@ export function startProfileLogin(params: StartLoginParams): StartLoginSuccess |
     }
   }
 
+  const claudeConfigDir = resolved.env.CLAUDE_CONFIG_DIR || process.env.CLAUDE_CONFIG_DIR
+  if (!claudeConfigDir) {
+    return {
+      ok: false,
+      code: "missing_config_dir",
+      status: 400,
+      message: `Profile "${profileId}" has no explicit Claude credential directory. Configure claudeConfigDir or CLAUDE_CONFIG_DIR before using browser login.`,
+    }
+  }
+
   const pkce = createOAuthPkce()
   // Two questions, not one: whether a loopback redirect is CERTAIN and whether
   // one is merely POSSIBLE. Certain has two proofs — the browser reached us ON
@@ -503,7 +517,7 @@ export function startProfileLogin(params: StartLoginParams): StartLoginSuccess |
   prune(now)
   restore(loginId, {
     profileId,
-    claudeConfigDir: resolved.env.CLAUDE_CONFIG_DIR ?? profileConfigDirFor(profileId),
+    claudeConfigDir,
     codeVerifier: pkce.codeVerifier,
     state: pkce.state,
     expiresAt,
@@ -720,6 +734,8 @@ export function getProfileLoginStatus(loginId: string, now: number = Date.now())
   prune(now)
   const pending = pendingLogins.get(loginId)
   if (pending) return { status: "waiting", profileId: pending.profileId }
+  const exchangingProfile = exchangingLogins.get(loginId)
+  if (exchangingProfile) return { status: "waiting", profileId: exchangingProfile }
   const finished = finishedLogins.get(loginId)
   if (!finished) return null
   if (finished.status === "completed") return { status: "completed", profileId: finished.profileId }
@@ -738,6 +754,7 @@ export function pendingLoginCount(): number {
 /** Drop all pending logins — for testing only. */
 export function resetPendingLogins(): void {
   pendingLogins.clear()
+  exchangingLogins.clear()
   loginIdByState.clear()
   finishedLogins.clear()
 }

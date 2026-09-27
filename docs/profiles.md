@@ -41,6 +41,13 @@ The same login also records the account's plan (`subscriptionType`, `rateLimitTi
 
 A profile whose credentials expired can be logged in again from the Profiles page, with no shell on the Meridian host. Click **Log in from browser** on the profile's card, sign in to that profile's Claude account, and you are done — Claude sends you back to Meridian, which finishes the login and updates the card. There is nothing to copy and paste.
 
+Browser login requires an explicit `claudeConfigDir` on the profile or an inherited
+`CLAUDE_CONFIG_DIR`, so credentials go to the same location model requests use.
+An implicit default credential context is refused rather than silently creating
+an unused profile directory. Profiles created by Meridian already have an explicit
+directory. While a token exchange is running, status polling continues to report
+the login as waiting; duplicate completions cannot redeem the code again.
+
 **It is an ordinary link, and that is deliberate.** If you are signed into several Claude accounts, the session your main browser offers is often the wrong one for the profile you are re-authenticating. Because the control is a real `<a href>` carrying the authorize URL, the browser's own context menu applies: **Open Link in Incognito Window**, **Open Link in New Private Window**, or **Copy Link Address** to paste into a different browser or browser profile. The login still lands on the profile it was started for — the PKCE verifier and `state` live on the server, keyed by `state`, so the browser that finishes the sign-in does not have to be the one that started it, and the page you started from notices and updates itself. Nothing secret is in the link: the authorize URL is public by design, and the verifier never leaves the server.
 
 That works whenever the **browser** is on the machine Meridian runs on — including through an SSH port-forward, and including when you reached the UI by some other name such as a LAN or tailnet hostname. What matters is the browser's position, not the URL in its address bar, so the page settles it by measurement: before opening the sign-in tab it asks the browser to reach Meridian on loopback, and takes the redirect flow only if that answers.
@@ -92,7 +99,11 @@ A new Claude account can be added from the Profiles page without a shell on the 
 2. Sign in to the Claude account this profile should use. Claude shows you a code.
 3. Paste it back — the **bare code** or the **whole callback URL**, exactly as for a re-login.
 
-The profile appears in the list, with its own config directory under `~/.config/meridian/profiles/<name>/`, ready to use with no restart.
+The profile appears in the list with its own exclusive directory under
+`~/.config/meridian/profiles/.add-*/`, recorded as `claudeConfigDir` in
+`profiles.json`, ready to use with no restart. The directory is not derived from
+the requested name: a concurrent creation that loses that name cannot overwrite
+the winner's credentials.
 
 ```bash
 # → {"addId":"…","authorizeUrl":"https://claude.com/cai/oauth/authorize?…","expiresAt":…,"profile":"work"}
@@ -104,15 +115,20 @@ curl -X POST http://127.0.0.1:3456/profiles/add/complete \
   -H 'Content-Type: application/json' -d '{"addId":"…","code":"…"}'
 ```
 
-**Nothing is written until the credentials are in hand.** The exchange with Anthropic happens first; the `profiles.json` entry is written only once it succeeds. A sign-in that is abandoned, rejected or never finished therefore leaves no profile behind at all — there is no half-made account slot stuck at "not logged in" to notice and clean up. Just add it again with the same name.
+**No profile entry is written until the credentials are in hand.** The exchange
+uses an exclusive directory; the `profiles.json` entry is written only once it
+succeeds and the name is still available. Rejected attempts remove their own
+directory and never change the winning profile's credentials. On macOS, the
+existing credential-store API cannot delete an unreferenced Keychain item left
+by a rejected creation. Just start again with an available name.
 
-**Who can do this.** These routes inherit `/profiles/*`'s `requireAuth`, so they are behind `MERIDIAN_API_KEY` **when that key is set**. When it is not set — the default — the only thing standing between this page and a new profile is whatever reaches the port: bind Meridian to loopback, or to a private network you trust. Adding a profile is the most privileged thing the Profiles page does, so treat an unauthenticated instance on a shared network accordingly. There is deliberately no delete, rename or edit here; removal stays `meridian profile remove <name>` on the host.
+**Who can do this.** These routes inherit `/profiles/*`'s `requireAuth`, so they are behind `MERIDIAN_API_KEY` **when that key is set**. When it is not set - the default - the only thing standing between this page and account changes is whatever reaches the port: bind Meridian to loopback, or to a private network you trust. The page also supports renaming through its separate rename route. Removal stays `meridian profile remove <name>` on the host.
 
 Details worth knowing:
 
-- Names may use only letters, numbers, hyphens and underscores. The name becomes a directory, and the check is the same one `meridian profile add` applies.
+- Names may use only letters, numbers, hyphens and underscores, using the same validation as `meridian profile add`.
 - An existing name is refused and points you at **Log in from browser** on that profile's card — re-authenticating an account is what that button is for.
-- One open sign-in per name at a time, so two people cannot both be part-way through creating the same one. Starting another for the same name **replaces** the first rather than being refused — cancelling the panel, reloading the page and closing the tab all abandon a sign-in without telling the server, and a name you could not retry until the 10-minute expiry would be worse than the race it prevents. Only the most recently started sign-in can be completed.
+- Starting another sign-in for the same name replaces an attempt that has not begun exchanging its code. An exchange already in progress can finish, but the first attempt to publish the profile wins; a later completion returns `profile_exists` without changing the winner's credentials.
 - `MERIDIAN_CREDENTIALS_READONLY=1` refuses **before** the sign-in tab opens, and names `meridian profile add <name>` as the alternative.
 - Only **claude-max** profiles are created this way. `api` and `oauth-token` profiles are CLI-only — neither has an OAuth flow to drive from a page.
 - **The `~/.claude` import offer is CLI-only.** `meridian profile add` on a host whose default config dir is already signed in offers to adopt those credentials as the new profile. The UI never does: clicking **Add profile** always signs in fresh. Silently claiming the account you happen to be logged in as on that machine is not something a button press should be able to do.
@@ -193,7 +209,7 @@ MERIDIAN_ROUTING=priority MERIDIAN_PROFILE_ORDER=work,personal meridian
 
 ### How it works
 
-Each profile stores its credentials in an isolated `CLAUDE_CONFIG_DIR` under `~/.config/meridian/profiles/<name>/`. OAuth-token profiles use the same isolated directory layout — but the token itself lives in `~/.config/meridian/profiles.json` and is fed to the SDK via `CLAUDE_CODE_OAUTH_TOKEN`, so the per-profile dir holds only SDK state (sessions, settings) and never the credential. When a request arrives, Meridian resolves the profile in priority order:
+Each profile stores its credentials in its configured `CLAUDE_CONFIG_DIR`. CLI-created profiles normally use `~/.config/meridian/profiles/<name>/`; browser-created profiles use an exclusive `.add-*` directory under the same parent. OAuth-token profiles use the name-derived directory layout, but the token itself lives in `~/.config/meridian/profiles.json` and is fed to the SDK via `CLAUDE_CODE_OAUTH_TOKEN`, so that directory holds only SDK state (sessions, settings) and never the credential. When a request arrives, Meridian resolves the profile in priority order:
 
 1. `x-meridian-profile` request header (per-request override)
 2. Active profile (set via `meridian profile switch` or the web UI)

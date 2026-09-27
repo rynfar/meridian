@@ -79,6 +79,10 @@ describe("profile add routes", () => {
     const requests: Array<Record<string, unknown>> = []
     globalThis.fetch = Object.assign(
       async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        if (String(_input) === "https://api.anthropic.com/api/oauth/profile") {
+          return Response.json({ organization: { organization_type: "claude_max", rate_limit_tier: "default_claude_max_5x" } })
+        }
+        expect(String(_input)).toBe("https://platform.claude.com/v1/oauth/token")
         requests.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>)
         return makeResponse()
       },
@@ -169,8 +173,13 @@ describe("profile add routes", () => {
 
     expect(requests).toHaveLength(1)
     expect(requests[0]).toMatchObject({ grant_type: "authorization_code", code: "abc123" })
-    expect(profilesJson()).toEqual([{ id: "work", claudeConfigDir: join(configDir, "profiles", "work") }])
-    expect(JSON.parse(readFileSync(join(configDir, "profiles", "work", ".credentials.json"), "utf-8")).claudeAiOauth.accessToken)
+    const saved = profilesJson()
+    expect(saved).toHaveLength(1)
+    const profile = saved[0]
+    if (!profile?.claudeConfigDir) throw new Error("expected persisted credential directory")
+    expect(profile.id).toBe("work")
+    expect(profile.claudeConfigDir).not.toBe(join(configDir, "profiles", "work"))
+    expect(JSON.parse(readFileSync(join(profile.claudeConfigDir, ".credentials.json"), "utf-8")).claudeAiOauth.accessToken)
       .toBe("add-route-access-token")
   })
 

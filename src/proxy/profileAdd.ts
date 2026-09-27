@@ -13,14 +13,15 @@
  * and its own refusals.
  *
  * The slot is written only after Anthropic has returned credentials — see
- * `completeProfileAdd`. Everything that can refuse does so at `/start`, before
- * a sign-in tab opens, because a user who signs in and is only then refused has
- * burned a one-time authorization code for nothing.
+ * `completeProfileAdd`. Names are checked at `/start` and again when publishing
+ * the slot, since another creator can take the name while OAuth is in flight.
  *
  * This is a leaf module — no imports from server.ts or session/.
  */
 
 import { randomBytes } from "node:crypto"
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { envBool } from "../env"
 import {
   createManualOAuthSession,
@@ -50,9 +51,9 @@ interface PendingAdd {
  *
  * At most one entry per profile id: starting a second sign-in for the same name
  * SUPERSEDES the first (see `startProfileAdd`). Nothing is on disk between
- * `/start` and `/complete`, so this map is the only thing stopping two sign-ins
- * for one new name from both completing, with the loser having spent a code to
- * be told the name is taken.
+ * `/start` and `/complete`. In-flight exchanges no longer have a reservation;
+ * isolated credential stores keep a later rejected completion from changing
+ * the credentials of whichever creation published the slot first.
  */
 const pendingAdds = new Map<string, PendingAdd>()
 
@@ -190,8 +191,8 @@ export function startProfileAdd(params: StartAddParams): StartAddSuccess | AddFa
   // refused. Cancelling the panel, reloading the page or closing the tab all
   // abandon a sign-in without telling the server, so refusing here would lock
   // the name out for the full TTL with no way for the user to release it. One
-  // entry per name still holds, which is what stops two sign-ins from both
-  // completing; superseding just decides which one survives.
+  // pending entry per name still holds; an already in-flight exchange instead
+  // competes at slot creation without sharing a credential store.
   for (const [id, pending] of pendingAdds) {
     if (pending.profileId === profileId) pendingAdds.delete(id)
   }
@@ -215,10 +216,9 @@ export function startProfileAdd(params: StartAddParams): StartAddSuccess | AddFa
  * callback URL from the browser's address bar.
  *
  * Order matters: the credentials are exchanged FIRST and the profiles.json
- * entry is written only once they are in hand. An OAuth failure therefore
- * leaves no profile behind at all, rather than a half-made one that shows as
- * permanently logged out and has to be noticed and cleaned up. The residue of
- * a failure is at most an empty directory, which the next attempt reuses.
+ * entry is written only once they are in hand. Each attempt owns a fresh
+ * directory, never the name-derived CLI directory or another attempt's store.
+ * Keep its path unchanged after writing: macOS Keychain services hash that path.
  */
 export async function completeProfileAdd(params: CompleteAddParams): Promise<CompleteAddSuccess | AddFailure> {
   const now = params.now ?? Date.now()
@@ -251,16 +251,31 @@ export async function completeProfileAdd(params: CompleteAddParams): Promise<Com
   // against two completions racing the same id.
   pendingAdds.delete(params.addId)
 
+  let claudeConfigDir: string
+  try {
+    const parent = dirname(pending.claudeConfigDir)
+    mkdirSync(parent, { recursive: true })
+    // The dot excludes this namespace from valid CLI profile names. mkdtemp
+    // reserves it exclusively even across independent Meridian processes.
+    claudeConfigDir = mkdtempSync(join(parent, ".add-"))
+  } catch (err) {
+    return {
+      ok: false, code: "write_failed", status: 500,
+      message: `Could not create a credential directory: ${err instanceof Error ? err.message : String(err)}`,
+    }
+  }
+
   const exchange = await exchangeAuthorizationCodeForCredentials({
     code: parsed.code,
     returnedState: parsed.state,
     sessionState: pending.state,
     codeVerifier: pending.codeVerifier,
-    claudeConfigDir: pending.claudeConfigDir,
+    claudeConfigDir,
     fetchFn: params.fetchFn,
   })
 
   if (!exchange.ok) {
+    rmSync(claudeConfigDir, { recursive: true, force: true })
     if (exchange.reason === "state_mismatch") {
       // Rejected locally — nothing was spent, so put the reservation back and
       // let the user paste from the right tab.
@@ -293,30 +308,30 @@ export async function completeProfileAdd(params: CompleteAddParams): Promise<Com
     }
   }
 
-  const created = createProfileSlot(pending.profileId)
+  const created = createProfileSlot(pending.profileId, { claudeConfigDir })
   if (!created.ok) {
+    // File credentials are discarded with our own directory only. The current
+    // store API cannot delete a macOS Keychain item; a rejected add may leave an
+    // unreferenced item there, but never writes the winner's service.
+    rmSync(claudeConfigDir, { recursive: true, force: true })
     if (created.reason === "already_exists") {
-      // Something created this name during the sign-in — the CLI, or another
-      // instance. Said plainly rather than reported as success: the credentials
-      // just authorized went into that profile's directory.
       return {
         ok: false,
         code: "profile_exists",
         status: 409,
         message: `Profile "${pending.profileId}" was created elsewhere while you were signing in. `
-          + "The account you just authorized was written to its config directory; check it before using it.",
+          + "Its credentials were not changed. Start again with a different name.",
       }
     }
     return {
       ok: false,
       code: "create_failed",
       status: 500,
-      message: `Signed in, but "${pending.profileId}" could not be written to profiles.json (${created.message}). `
-        + `The credentials are on disk — \`meridian profile add ${pending.profileId}\` will pick them up.`,
+      message: `Signed in, but "${pending.profileId}" could not be written to profiles.json (${created.message}). Start again.`,
     }
   }
 
-  return { ok: true, profileId: created.profile.id, claudeConfigDir: created.profile.claudeConfigDir ?? pending.claudeConfigDir }
+  return { ok: true, profileId: created.profile.id, claudeConfigDir }
 }
 
 export function pendingAddCount(): number {

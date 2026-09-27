@@ -71,6 +71,10 @@ describe("profile login routes", () => {
     const requests: Array<Record<string, unknown>> = []
     globalThis.fetch = Object.assign(
       async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        if (String(_input) === "https://api.anthropic.com/api/oauth/profile") {
+          return Response.json({ organization: { organization_type: "claude_max", rate_limit_tier: "default_claude_max_5x" } })
+        }
+        expect(String(_input)).toBe("https://platform.claude.com/v1/oauth/token")
         requests.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>)
         return makeResponse()
       },
@@ -92,6 +96,14 @@ describe("profile login routes", () => {
     expect(body.loginId).toBeTruthy()
     expect(body.expiresAt).toBeGreaterThan(Date.now())
     expect(new URL(body.authorizeUrl).searchParams.get("code_challenge")).toBeTruthy()
+  })
+
+  it("rejects malformed OAuth request shapes without entering the login flow", async () => {
+    for (const route of ["/profiles/login/start", "/profiles/add/start", "/profiles/login/complete", "/profiles/add/complete"]) {
+      for (const body of [null, [], { profile: 123, loginId: 123, addId: 123, code: 123 }]) {
+        expect((await post(route, body)).status).toBe(400)
+      }
+    }
   })
 
   it("refuses to start on an instance that must not write credentials", async () => {

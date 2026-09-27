@@ -773,9 +773,16 @@ function render(data, quotaData) {
     html += '</div>';
   }
 
+  // A refresh already in flight when a login panel opened still renders. Carry
+  // the open panel's node across so the paste, and its focus, survive.
+  var keptSlot = activeLogin ? loginSlot(activeLogin.profile) : null;
+  var keptFocus = keptSlot && keptSlot.contains(document.activeElement) ? document.activeElement : null;
   document.getElementById('content').innerHTML = html;
+  var freshSlot = keptSlot ? loginSlot(activeLogin.profile) : null;
+  if (freshSlot) freshSlot.replaceWith(keptSlot);
   meridianReorder.restoreFocus(refocusId);
   afterRender();
+  if (freshSlot && keptFocus) keptFocus.focus();
   // render() replaces #content wholesale, so the anchors are new elements with
   // whatever href the markup carried. Restore them from the cache, then top up
   // anything missing or near expiry in the background.
@@ -951,6 +958,21 @@ var loginLinks = {};
 var loopbackOk = null;
 // Set when the refusal is about the instance rather than a profile.
 var loginBlocked = null;
+// Cards whose link is being minted right now, so a render landing mid-mint
+// does not start a second login for the same card.
+var mintingLinks = {};
+
+// A card's link names ONE pending login. Once a panel has opened it, that
+// login may be spent - completed, failed, or finished in the sign-in tab
+// before the poll noticed - and its state will not be honoured again. Drop it
+// so the card mints a fresh one rather than sending the next sign-in to a dead
+// state. A link already re-minted underneath the panel is left alone.
+function retireLoginLink(login) {
+  var link = loginLinks[login.profile];
+  if (link && link.loginId === login.loginId) delete loginLinks[login.profile];
+  applyLoginHrefs();
+  if (lastProfiles) ensureLoginLinks(lastProfiles.profiles || []);
+}
 
 function loginHrefFor(id) {
   var link = loginLinks[id];
@@ -1012,17 +1034,22 @@ async function ensureLoginLinks(profiles) {
   var due = [];
   for (var i = 0; i < profiles.length; i++) {
     var p = profiles[i];
-    if ((p.type || 'claude-max') !== 'claude-max') continue;
+    if ((p.type || 'claude-max') !== 'claude-max' || mintingLinks[p.id]) continue;
     var link = loginLinks[p.id];
     if (!link || link.expiresAt - Date.now() < 120000) due.push(p.id);
   }
   if (due.length === 0) return;
+  for (var m = 0; m < due.length; m++) mintingLinks[due[m]] = true;
 
-  // The first alone: a refusal about the INSTANCE (a read-only standby, no
-  // profiles at all) would otherwise repeat once per card, and each one is a
-  // logged refusal on the server.
-  if (await mintLoginLink(due[0]) === 'blocked') { applyLoginHrefs(); return; }
-  await Promise.all(due.slice(1).map(mintLoginLink));
+  try {
+    // The first alone: a refusal about the INSTANCE (a read-only standby, no
+    // profiles at all) would otherwise repeat once per card, and each one is a
+    // logged refusal on the server.
+    if (await mintLoginLink(due[0]) === 'blocked') { applyLoginHrefs(); return; }
+    await Promise.all(due.slice(1).map(mintLoginLink));
+  } finally {
+    for (var n = 0; n < due.length; n++) delete mintingLinks[due[n]];
+  }
 
   if (loopbackOk === null) {
     var probe = null;
@@ -1212,7 +1239,9 @@ async function checkLoginStatus() {
 
 function finishLogin() {
   stopLoginPoll();
+  var finished = activeLogin;
   activeLogin = null;
+  if (finished) retireLoginLink(finished);
   if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
   refresh();
 }
@@ -1273,6 +1302,7 @@ function cancelLogin() {
   if (previous) {
     var slot = loginSlot(previous.profile);
     if (slot) slot.innerHTML = '';
+    retireLoginLink(previous);
   }
 }
 

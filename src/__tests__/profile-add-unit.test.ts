@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -26,10 +26,14 @@ interface TokenRequest {
   grant_type?: string
 }
 
-function stubTokenFetch(makeResponse: () => Response) {
+function stubTokenFetch(makeResponse: () => Response | Promise<Response>) {
   const requests: TokenRequest[] = []
   const fetchFn: typeof fetch = Object.assign(
     async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (String(_input) === "https://api.anthropic.com/api/oauth/profile") {
+        return Response.json({ organization: { organization_type: "claude_max", rate_limit_tier: "default_claude_max_5x" } })
+      }
+      expect(String(_input)).toBe("https://platform.claude.com/v1/oauth/token")
       requests.push(JSON.parse(String(init?.body ?? "{}")) as TokenRequest)
       return makeResponse()
     },
@@ -264,6 +268,42 @@ describe("profileAdd", () => {
   })
 
   describe("completeProfileAdd", () => {
+    it.skipIf(skipOnDarwin)("preserves the winning credentials when an older exchange finishes last", async () => {
+      const first = start("work")
+      const tokenResponse = Promise.withResolvers<Response>()
+      const { fetchFn } = stubTokenFetch(() => tokenResponse.promise)
+      const firstCompletion = completeProfileAdd({ addId: first.addId, input: "first-code", fetchFn })
+      const second = start("work")
+      const winner = await completeProfileAdd({ addId: second.addId, input: "second-code", fetchFn: okTokenFetch().fetchFn })
+      if (!winner.ok) throw new Error(`expected winner, got ${winner.code}`)
+      const winnerFile = join(winner.claudeConfigDir, ".credentials.json")
+      const winnerCredentials = readFileSync(winnerFile, "utf-8")
+
+      tokenResponse.resolve(Response.json({ ...TOKEN_RESPONSE, access_token: "losing-access-token" }))
+      expect(await firstCompletion).toMatchObject({ ok: false, code: "profile_exists", status: 409 })
+      expect(readFileSync(winnerFile, "utf-8")).toBe(winnerCredentials)
+      expect(profilesJson()).toEqual([{ id: "work", claudeConfigDir: winner.claudeConfigDir }])
+      expect(readdirSync(join(configDir, "profiles"))).toHaveLength(1)
+    })
+
+    it.skipIf(skipOnDarwin)("preserves CLI credentials when the CLI creates the name during exchange", async () => {
+      const { addId } = start("work")
+      const tokenResponse = Promise.withResolvers<Response>()
+      const { fetchFn } = stubTokenFetch(() => tokenResponse.promise)
+      const completion = completeProfileAdd({ addId, input: "browser-code", fetchFn })
+      const cli = createProfileSlot("work")
+      if (!cli.ok || !cli.profile.claudeConfigDir) throw new Error("expected CLI slot")
+      const credentialFile = join(cli.profile.claudeConfigDir, ".credentials.json")
+      const cliCredentials = JSON.stringify({ claudeAiOauth: { accessToken: "cli-winner-token" } })
+      writeFileSync(credentialFile, cliCredentials)
+
+      tokenResponse.resolve(Response.json(TOKEN_RESPONSE))
+      expect(await completion).toMatchObject({ ok: false, code: "profile_exists", status: 409 })
+      expect(readFileSync(credentialFile, "utf-8")).toBe(cliCredentials)
+      expect(profilesJson()).toEqual([cli.profile])
+      expect(readdirSync(join(configDir, "profiles"))).toEqual(["work"])
+    })
+
     it("410s an id that was never issued", async () => {
       const result = await completeProfileAdd({ addId: "made-up", input: "abc123" })
       expect(result).toMatchObject({ ok: false, code: "expired_add", status: 410 })
@@ -311,10 +351,14 @@ describe("profileAdd", () => {
       expect(requests).toHaveLength(1)
       expect(requests[0]).toMatchObject({ grant_type: "authorization_code", code: "abc123" })
 
-      expect(profilesJson()).toEqual([{ id: "work", claudeConfigDir: join(configDir, "profiles", "work") }])
+      expect(profilesJson()).toEqual([{ id: "work", claudeConfigDir: result.claudeConfigDir }])
+      expect(result.claudeConfigDir).not.toBe(join(configDir, "profiles", "work"))
+      if (process.platform === "linux") expect(statSync(result.claudeConfigDir).mode & 0o777).toBe(0o700)
       const stored = JSON.parse(readFileSync(join(result.claudeConfigDir, ".credentials.json"), "utf-8"))
       expect(stored.claudeAiOauth.accessToken).toBe("web-add-access-token")
       expect(stored.claudeAiOauth.refreshToken).toBe("web-add-refresh-token")
+      expect(stored.claudeAiOauth.subscriptionType).toBe("max")
+      expect(stored.claudeAiOauth.rateLimitTier).toBe("default_claude_max_5x")
       expect(pendingAddCount()).toBe(0)
     })
 
@@ -383,9 +427,7 @@ describe("profileAdd", () => {
       expect(existsSync(join(configDir, "profiles.json"))).toBe(false)
     })
 
-    // Nothing holds the name on disk during the sign-in, so the CLI (or another
-    // instance) can take it in the meantime. Said plainly rather than reported
-    // as success — the credentials just authorized went into that directory.
+    // Nothing holds the name on disk during sign-in, so the CLI can take it.
     it.skipIf(skipOnDarwin)("refuses when the name was taken during the sign-in", async () => {
       const { addId } = start("work")
       const { fetchFn } = okTokenFetch()

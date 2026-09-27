@@ -41,6 +41,10 @@ function stubTokenFetch(makeResponse: () => Response) {
   const requests: TokenRequest[] = []
   const fetchFn: typeof fetch = Object.assign(
     async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      if (String(_input) === "https://api.anthropic.com/api/oauth/profile") {
+        return Response.json({ organization: { organization_type: "claude_max", rate_limit_tier: "default_claude_max_5x" } })
+      }
+      expect(String(_input)).toBe("https://platform.claude.com/v1/oauth/token")
       requests.push(JSON.parse(String(init?.body ?? "{}")) as TokenRequest)
       return makeResponse()
     },
@@ -321,6 +325,7 @@ describe("profileLogin", () => {
       expect(stored.accessToken).toBe("web-login-access-token")
       expect(stored.refreshToken).toBe("web-login-refresh-token")
       expect(stored.scopes).toEqual(["user:inference", "user:profile"])
+      expect(stored).toMatchObject({ subscriptionType: "max", rateLimitTier: "default_claude_max_5x" })
       expect(existsSync(join(tempDir, "work", ".credentials.json"))).toBe(false)
     })
 
