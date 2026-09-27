@@ -559,6 +559,7 @@ export async function getClaudeAuthStatusAsync(profileId?: string, envOverrides?
       const claudePath = await resolveClaudeExecutableAsync()
       const { stdout } = await execFile(claudePath, ["auth", "status"], {
         timeout: 5000,
+        windowsHide: true,
         ...(envOverrides ? { env: { ...process.env, ...envOverrides } } : {}),
       })
       const parsed = JSON.parse(stdout) as ClaudeAuthStatus
@@ -667,7 +668,7 @@ type ResolverDeps = {
 const DEFAULT_DEPS: ResolverDeps = {
   existsSync,
   statSync: (p) => statSync(p),
-  exec,
+  exec: (cmd) => exec(cmd, { windowsHide: true }),
   resolvePackage: (specifier) => fileURLToPath(import.meta.resolve(specifier)),
   envGet: (name) => process.env[name],
   platform: process.platform,
