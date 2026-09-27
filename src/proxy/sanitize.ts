@@ -35,6 +35,11 @@
 // stripped when the caller opts in via { stripThinking: true }. No adapter does
 // today — a survey of opencode, crush, pi, droid and codex found none of them
 // injecting it, so the #167 leak appears to have been fixed upstream.
+//
+// `skill_content` and its nested `skill_files` are NOT here either: OpenCode V2
+// sends a user-invoked skill (`/name`) as a user text block wrapped in
+// `<skill_content>`. That body is the instruction the user asked for, so
+// stripping it deleted the request and, with no typed text, left an empty turn.
 const ORCHESTRATION_TAGS = [
   // OpenCode / Crush: environment context blocks
   "env",
@@ -44,12 +49,10 @@ const ORCHESTRATION_TAGS = [
   "operating_system",
   "default_shell",
   "home_directory",
-  // OpenCode: task/tool/skill orchestration
+  // OpenCode: task/tool orchestration
   "task_metadata",
   "tool_exec",
   "tool_output",
-  "skill_content",
-  "skill_files",
   // OpenCode: context injection blocks
   "directories",
   "available_skills",

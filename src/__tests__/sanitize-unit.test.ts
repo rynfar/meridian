@@ -76,14 +76,33 @@ describe("sanitizeTextContent", () => {
     expect(sanitizeTextContent(input)).toBe("output")
   })
 
-  it("strips <skill_content> blocks", () => {
+  // OpenCode V2 sends a user-invoked skill (`/name`) as a user text block
+  // wrapped in <skill_content>. That body is the instruction the user asked
+  // the model to follow; stripping it left an empty turn. Regression guard: it
+  // must fail if `skill_content` or `skill_files` return to ORCHESTRATION_TAGS.
+  it("keeps <skill_content> blocks unchanged", () => {
     const input = '<skill_content name="gh">skill instructions</skill_content>rest'
-    expect(sanitizeTextContent(input)).toBe("rest")
+    expect(sanitizeTextContent(input)).toBe(input)
   })
 
-  it("strips <skill_files> blocks", () => {
+  it("keeps a skill body that is the whole user text, including <skill_files>", () => {
+    const input = [
+      '<skill_content name="pulse-setup">',
+      "# Skill: pulse-setup",
+      "",
+      "Write .pulse/config.toml.",
+      "",
+      "<skill_files>",
+      "<file>/skills/pulse-setup/SKILL.md</file>",
+      "</skill_files>",
+      "</skill_content>",
+    ].join("\n")
+    expect(sanitizeTextContent(input)).toBe(input)
+  })
+
+  it("keeps <skill_files> blocks unchanged", () => {
     const input = 'before<skill_files>\nfile1.ts\nfile2.ts\n</skill_files>after'
-    expect(sanitizeTextContent(input)).toBe("beforeafter")
+    expect(sanitizeTextContent(input)).toBe(input)
   })
 
   it("strips <directories> blocks", () => {

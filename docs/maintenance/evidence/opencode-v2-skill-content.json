@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-27",
+  "baseline": "8d4c88c",
+  "runnable_harness": "scripts/e2e-opencode-skill-content.mjs",
+  "environment": {
+    "platform": "Windows 10 x64",
+    "bun": "1.4.2",
+    "client": "OpenCode 2.0.18 (opencode serve, isolated config/data/home)",
+    "server_plugin": "@rynfar/meridian-plugin-opencode-scrub 0.2.3",
+    "model": "claude-opus-5-5",
+    "agent_sdk": "0.2.141",
+    "claude_code": "2.1.141",
+    "mode": "passthrough"
+  },
+  "client_request": {
+    "admission": "POST /api/session/:id/prompt { text: \"\", skills: [{ id, name }] }",
+    "stored_user_text": "",
+    "skill_wrapped_in_skill_content": true,
+    "receipt_location": "skill body only"
+  },
+  "unchanged_main": {
+    "sdk_prompt_chars": 0,
+    "sdk_prompt_has_receipt": false,
+    "reply_has_receipt": false,
+    "reply_excerpt": "Your message came through with only context attached and no request.",
+    "gate_exit": 0,
+    "gate_mode": "--baseline"
+  },
+  "corrected": {
+    "sdk_prompt_chars": 477,
+    "sdk_prompt_has_receipt": true,
+    "sdk_prompt_has_skill_content_wrapper": true,
+    "reply_equals_receipt": true,
+    "assistant_errors": 0,
+    "gate_exit": 0
+  },
+  "retained_failures": [
+    "Before the scrub plugin was loaded, both builds returned a billing_error from the real model for the V2 system prompt. The SDK-boundary observation already differed (0 vs 477 prompt characters); the model-level result was taken only with the scrub plugin, as in the E67 V2 gate."
+  ],
+  "limitations": [
+    "The OpenCode 2.0.18 host is newer than the hosts listed in SUPPORTED_OPENCODE_V2_VERSIONS; the harness configures the provider directly and does not install the Meridian V2 plugin.",
+    "Only sanitized observations are committed. The baseline reply also mentioned local git state from the fixture's parent directory; that text is omitted."
+  ]
+}
