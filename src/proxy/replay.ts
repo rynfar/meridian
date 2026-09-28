@@ -111,6 +111,16 @@ export function replayToolResultHeader(block: Record<string, unknown>, info?: To
   return `${attribution}Recorded tool result: ${JSON.stringify({ tool_use_id: block.tool_use_id, is_error: block.is_error ?? false })}`
 }
 
+/** Client `system` tool-change blocks (`tool_addition`/`tool_removal`) are only
+ * valid inside a mid-conversation system message. Replay recasts history as user
+ * turns, where the API rejects them, so they are rendered as history text. */
+function toolChangeText(block: Record<string, unknown>): string | undefined {
+  if (block.type !== "tool_addition" && block.type !== "tool_removal") return undefined
+  const tool = record(block.tool) ? block.tool : undefined
+  const name = typeof block.name === "string" ? block.name : typeof tool?.name === "string" ? tool.name : "unknown"
+  return `[Client ${block.type === "tool_addition" ? "added" : "removed"} tool: ${name}]`
+}
+
 /** Only a real SDK tool checkpoint may receive native tool_result blocks.
  * Fresh replay renders results as history, retaining their payloads and media
  * rather than presenting orphan results for calls absent from the SDK session. */
@@ -122,6 +132,8 @@ export function normalizeStructuredUserContent(
   if (!Array.isArray(content)) return content
   return content.flatMap(block => {
     if (!record(block)) return []
+    const toolChange = toolChangeText(block)
+    if (toolChange) return [{ type: "text", text: toolChange }]
     if (block.type !== "tool_result") return [block]
     if (preserveToolResultWrapper) {
       return [{ ...block, content: normalizeStructuredUserContent(block.content, true, toolIndex) }]
