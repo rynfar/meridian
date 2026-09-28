@@ -5672,6 +5672,30 @@ Build Meridian, then run `E2E_OPENCODE_BIN=/path/to/opencode-2.0.16 E2E_PLUGIN_P
 
 On 2026-09-26, macOS arm64, OpenCode 2.0.16, Meridian V2 plugin, OpenCode scrub 0.2.3, Agent SDK 0.2.141, Claude Code 2.1.280 and Opus 5.5 produced the exact retry shape on both unchanged `cd1ada9` and the reviewed integration. Unchanged main verified `lineage=continuation` but used `isResume=false`; the corrected integration used `isResume=true` and completed the next same-session client turn. A Linux x64 image with Node 24.21.0 and Bun 1.3.14 passed the same corrected client gate. The [sanitized result](docs/maintenance/evidence/1165-opencode-interrupted-checkpoint.json) is escrowed here.
 
+## E68: Client tool-change blocks in structured replay
+
+Run `bun scripts/e2e-replay-tool-change-blocks.mjs` and again with `--stream`
+using Claude Max authentication (`E2E_MODEL` overrides the default `haiku`).
+
+omp sends a mid-conversation `system` message whose content is
+`tool_addition`/`tool_removal` blocks when it activates a deferred tool. The API
+accepts those block types only inside a `mid_conv_system` message, while
+structured replay recasts every non-assistant message as a user turn, so a fresh
+rebuild after compaction, undo or `diverged=not-found` failed outright. The text
+replay path already drops unknown blocks, so only the structured path is
+affected; the gate therefore includes real media to force that path and uses an
+unused session key to force a fresh replay.
+
+Require status 200 and exactly `PONG`, both `name` and nested `tool.name`
+spellings rendered as `[Client added tool: grep]` / `[Client removed tool: bash]`
+in supported SDK history, no raw `tool_addition`/`tool_removal` block reaching the
+SDK, and `lineage=new`.
+
+On 2026-09-28 (macOS arm64, Bun 1.3.14, Agent SDK 0.2.141, Haiku), unchanged
+`8d4c88ce` returned `500` carrying `API Error: 400 messages.0.content.8: Input tag
+'tool_addition' found using 'type' does not match any of the expected tags`, and
+the fix answered `PONG` in both modes.
+
 ## Concurrent transcript publication
 
 Run `bun scripts/e2e-publication-lifetime.mjs` and again with `--stream` after lifecycle or publication changes. This gate uses real Claude Max queries and two concurrent HTTP conversations, each with a fresh and resumed turn. A timing hook pauses each request after its real SDK writer lease is released, promotes its request pin as the owning proxy would, and runs a separate collector process before publication. The collector uses zero grace periods and the supported SDK deleter, exercising the destructive race in an isolated session store and disposable project.
