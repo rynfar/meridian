@@ -5702,6 +5702,35 @@ Build Meridian, then run `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/pa
 
 On 2026-09-27, Windows 10 x64, Bun 1.4.2, OpenCode 2.0.18, OpenCode scrub 0.2.3, Agent SDK 0.2.141, Claude Code 2.1.141 and Opus 5.5: unchanged `8d4c88c` sent a 0-character prompt, and the model answered that the message came through with no request. The fix sent 477 characters including the wrapper, and the reply was exactly the receipt. The [sanitized result](docs/maintenance/evidence/opencode-v2-skill-content.json) is escrowed here.
 
+### Portable HTTP arm
+
+```bash
+bun scripts/e2e-skill-content-http.mjs            # bare /skill, nothing typed
+bun scripts/e2e-skill-content-http.mjs --stream
+bun scripts/e2e-skill-content-http.mjs --typed    # skill body plus a typed request
+bun scripts/e2e-skill-content-http.mjs --typed --stream
+```
+
+The client arm above needs an OpenCode V2 install. Sanitization is proxy-side, so
+this arm sends V2's exact composer shape over HTTP against the real SDK and needs
+no client binary, which keeps the case runnable where only V1 is installed.
+
+The deterministic assertion is structural: supported SDK history must contain the
+random receipt, the `<skill_content name=...>` wrapper and the nested
+`<skill_files>` list. Whether the model then acts on a bare invocation is its own
+choice and is recorded, never asserted. Haiku has been observed calling an
+unsolicited instruction block a prompt-injection attempt and declining it, while
+quoting the receipt in the refusal, so the result reports `complied` (the reply is
+the receipt alone) separately from `quotedReceipt`. Compare against extracted text, not `JSON.stringify` output,
+which escapes the quotes inside `name="..."`.
+
+On 2026-09-28 (macOS arm64, Bun 1.3.14, Agent SDK 0.2.141, Haiku), reverting only
+`sanitize.ts` on the same tree failed with "The skill body did not reach the SDK
+prompt" in both modes, and all four arms passed with the fix. Observed bare-arm
+replies were the receipt alone; one earlier run on a conditional fixture had the
+model acknowledge the skill and decline to run it, which is why the model's
+wording is not the gate.
+
 ## Concurrent transcript publication
 
 Run `bun scripts/e2e-publication-lifetime.mjs` and again with `--stream` after lifecycle or publication changes. This gate uses real Claude Max queries and two concurrent HTTP conversations, each with a fresh and resumed turn. A timing hook pauses each request after its real SDK writer lease is released, promotes its request pin as the owning proxy would, and runs a separate collector process before publication. The collector uses zero grace periods and the supported SDK deleter, exercising the destructive race in an isolated session store and disposable project.
