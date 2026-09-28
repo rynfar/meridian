@@ -5696,7 +5696,7 @@ On 2026-09-28 (macOS arm64, Bun 1.3.14, Agent SDK 0.2.141, Haiku), unchanged
 `8d4c88ce` returned `500` carrying `API Error: 400 messages.0.content.8: Input tag
 'tool_addition' found using 'type' does not match any of the expected tags`, and
 the fix answered `PONG` in both modes.
-## E68: OpenCode V2 user-invoked skill
+## E69: OpenCode V2 user-invoked skill
 
 Build Meridian, then run `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/independently-installed-opencode-scrub/dist/index.js bun scripts/e2e-opencode-skill-content.mjs` with Claude Max authentication. The gate starts an actual OpenCode V2 server with isolated config, data and home, and a project-level fixture skill whose body holds a random receipt. It admits the same prompt the V2 composer sends for `/skill` with nothing typed (`text: ""` plus a skill attachment), so the only model-visible content is the `<skill_content>` block. An observer on the real SDK query records only the prompt length and whether it holds the receipt and wrapper. Require both, and a reply containing the receipt. `--baseline` with `E2E_MERIDIAN_ROOT` pointing at an unchanged build asserts the original failure instead: an empty SDK prompt.
 
