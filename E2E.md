@@ -683,6 +683,28 @@ would disable passive cleanup. At limit two, passive retirement can pause while 
 publication is in flight, then resume after it completes. Capacity and cleanup
 progress are covered by the lifecycle tests.
 
+### Concurrent retirement admission (#1174)
+
+```bash
+bun scripts/e2e-retirement-concurrent-admission.mjs
+bun scripts/e2e-retirement-concurrent-admission.mjs --stream
+```
+
+The gate above is sequential and cannot reach the refusal this one covers: a turn
+holds its prepared publication slot across its whole SDK call, so the backlog only
+saturates when later turns arrive while an earlier one is still in the model. With
+a three-slot budget and a long quarantine, seed three real sessions, drop their
+mappings so the sweep parks two genuinely unpinned transcripts at the passive
+bound, then issue three concurrent real turns.
+
+Require zero refusals, each turn's own token in its own transcript and no other
+turn's token in it, one durable mapping per session, a pending count never above
+the budget, every parked transcript still tracked after the sweep, correct
+follow-up answers on each session and unchanged seeded histories. A refusal is
+reported with its response body rather than thrown, so the `overloaded_error`
+backlog message is recorded as evidence. Run both modes after any change to
+retirement admission or the pending budget.
+
 ### Fresh replay with completed tool calls (#888 / #858)
 
 ```bash
