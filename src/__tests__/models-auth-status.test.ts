@@ -27,6 +27,8 @@ import { join } from "node:path"
 /** Controls what the mocked `claude auth status` does on the next call. */
 let authBehavior: "success" | "fail" = "success"
 let execFileCalls = 0
+/** Options the probe passed to execFile, so spawn flags can be asserted. */
+let execFileOptions: any
 let currentPayload = { loggedIn: true, email: "test@test.com", subscriptionType: "max" }
 
 mock.module("child_process", () => ({
@@ -36,6 +38,7 @@ mock.module("child_process", () => ({
   },
   execFile: (_file: string, _args: any, optsOrCb: any, cb?: any) => {
     execFileCalls++
+    execFileOptions = typeof optsOrCb === "function" ? undefined : optsOrCb
     const done = typeof optsOrCb === "function" ? optsOrCb : cb
     if (authBehavior === "fail") {
       done?.(new Error("claude auth status failed"), { stdout: "", stderr: "" })
@@ -68,8 +71,19 @@ describe("getClaudeAuthStatusAsync — real implementation", () => {
   beforeEach(() => {
     authBehavior = "success"
     execFileCalls = 0
+    execFileOptions = undefined
     currentPayload = { loggedIn: true, email: "test@test.com", subscriptionType: "max" }
     resetCachedClaudeAuthStatus()
+  })
+
+  // Windows allocates a visible console for a child launched without this flag,
+  // and the probe re-runs on cache expiry, so a service with no console of its
+  // own flashed a window on most prompts (#1172). The flag is a no-op elsewhere,
+  // so this guards the fix from every platform CI runs on.
+  it("hides the console window when probing auth status", async () => {
+    await getClaudeAuthStatusAsync(nextProfile())
+    expect(execFileCalls).toBe(1)
+    expect(execFileOptions?.windowsHide).toBe(true)
   })
 
   it("fetches and returns auth status on a cold cache", async () => {
