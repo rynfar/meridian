@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { contextWindowFor, estimateTokens, replayBudgetFor, trimReplayHistory } from "../proxy/replayBudget"
+import { contextWindowFor, estimateTokens, replayBudgetFor, replayReserveFor, trimReplayHistory } from "../proxy/replayBudget"
 
 const user = (content: string) => ({ role: "user", content })
 const assistant = (content: string) => ({ role: "assistant", content })
@@ -73,6 +73,37 @@ describe("replay budget", () => {
     expect(contextWindowFor("opus[1m]")).toBe(1_000_000)
     expect(contextWindowFor("sonnet")).toBe(200_000)
     expect(replayBudgetFor("opus[1m]")).toBe(836_000)
-    expect(replayBudgetFor("sonnet")).toBe(116_000)
+    // Was 116_000 under a flat 64k reserve. That reserve is 32% of a 200k
+    // window, which put the budget at 58% of it and dropped history from about
+    // 101k real English tokens; the cap lifts this to the same ~80% share the
+    // 1M window already had. The extended-context budget is unchanged.
+    expect(replayBudgetFor("sonnet")).toBe(160_000)
+  })
+
+  it("keeps the reserve proportionate to the window", () => {
+    expect(replayReserveFor("opus[1m]")).toBe(64_000)
+    expect(replayReserveFor("sonnet")).toBe(20_000)
+    // The share of the window left for replay must not swing wildly by model.
+    for (const model of ["sonnet", "opus[1m]"]) {
+      const share = replayBudgetFor(model) / contextWindowFor(model)
+      expect(share).toBeGreaterThan(0.75)
+      expect(share).toBeLessThan(0.9)
+    }
+  })
+
+  it("honours the budget override and ignores unusable values", () => {
+    const saved = process.env.MERIDIAN_REPLAY_BUDGET_TOKENS
+    try {
+      process.env.MERIDIAN_REPLAY_BUDGET_TOKENS = "4096"
+      expect(replayBudgetFor("sonnet")).toBe(4096)
+      expect(replayBudgetFor("opus[1m]")).toBe(4096)
+      for (const bad of ["0", "-1", "not-a-number", ""]) {
+        process.env.MERIDIAN_REPLAY_BUDGET_TOKENS = bad
+        expect(replayBudgetFor("sonnet")).toBe(160_000)
+      }
+    } finally {
+      if (saved === undefined) delete process.env.MERIDIAN_REPLAY_BUDGET_TOKENS
+      else process.env.MERIDIAN_REPLAY_BUDGET_TOKENS = saved
+    }
   })
 })

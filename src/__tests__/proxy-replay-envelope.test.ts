@@ -152,7 +152,12 @@ describe("bounded fresh replay", () => {
     it(`does not retry an overflowing indivisible live tail (stream=${streaming})`, async () => {
       overflowFailures = 3
       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
-      const res = await post(app, [...history(), { role: "user", content: "я".repeat(200_000) }], {}, streaming)
+      // Derive the tail from the budget instead of a literal: the estimator bills
+      // non-ASCII at 1.5 chars per token, so a fixed 200_000 stopped overflowing
+      // the moment the budget rose and the case quietly tested nothing.
+      const indivisible = "я".repeat(Math.ceil(replayBudgetFor("sonnet") * 1.5) + 1_000)
+      expect(estimateTokens(indivisible)).toBeGreaterThan(replayBudgetFor("sonnet"))
+      const res = await post(app, [...history(), { role: "user", content: indivisible }], {}, streaming)
       const body = await res.text()
       expect(capturedPrompts).toHaveLength(1)
       if (!streaming) expect(res.status).toBe(400)

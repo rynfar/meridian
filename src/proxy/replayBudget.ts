@@ -29,8 +29,32 @@ export function contextWindowFor(model: string): number {
 // Leave space for system instructions, tool schemas, and the generated answer.
 export const REPLAY_RESERVE_TOKENS = 64_000
 
+/** The reserve is capped at a tenth of the window so it stays proportionate.
+ *  A flat 64k is 6.4% of a 1M window but 32% of a 200k one, and stacked on the
+ *  0.9 factor and an estimator that overestimates Latin text it put the 200k
+ *  budget at 58% of the window: history was dropped from about 101k real
+ *  English tokens, roughly half the window, for conversations that used to fit.
+ *  Capping keeps the 1M budget byte-for-byte unchanged and lifts 200k models to
+ *  the same ~80% share. Underestimates are still covered by the overflow retry. */
+export function replayReserveFor(model: string): number {
+  return Math.min(REPLAY_RESERVE_TOKENS, Math.floor(contextWindowFor(model) * 0.1))
+}
+
 export function replayBudgetFor(model: string): number {
-  return Math.floor(contextWindowFor(model) * 0.9) - REPLAY_RESERVE_TOKENS
+  const configured = replayBudgetOverride()
+  if (configured !== undefined) return configured
+  return Math.floor(contextWindowFor(model) * 0.9) - replayReserveFor(model)
+}
+
+/** Test-only override. Proving the trim against a real model otherwise needs a
+ *  six-figure-token conversation, which no gate can afford; with this the live
+ *  gate drives the same code path from a handful of turns. */
+function replayBudgetOverride(): number | undefined {
+  const raw = process.env.MERIDIAN_REPLAY_BUDGET_TOKENS
+  if (!raw) return undefined
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined
+  return parsed
 }
 
 function startsReplayGroup(message: { role: string; content: unknown }): boolean {

@@ -5730,6 +5730,31 @@ prompt" in both modes, and all four arms passed with the fix. Observed bare-arm
 replies were the receipt alone; one earlier run on a conditional fixture had the
 model acknowledge the skill and decline to run it, which is why the model's
 wording is not the gate.
+## E70: Fresh replay bounded to the context window
+
+```bash
+bun scripts/e2e-replay-budget.mjs
+bun scripts/e2e-replay-budget.mjs --stream
+```
+
+The production failure needs a six-figure-token conversation, which no gate can
+afford, so `MERIDIAN_REPLAY_BUDGET_TOKENS` (test-only, opt-in, ignored when
+unusable) drives the same code path from a handful of turns. `E2E_REPLAY_BUDGET`
+sets it, default 900. What this proves is the behaviour, not the constant.
+
+Require status 200, the oldest turn absent from supported SDK history, the live
+tail present, an `[Meridian: N earlier messages (~K tokens) were omitted …]`
+marker with a non-zero count, and an answer drawn from the surviving tail — so the
+turn is usable rather than merely admitted. Disabling the override so no trim
+occurs must fail the oldest-turn assertion; that control confirms the gate is
+sensitive to the trim rather than passing by construction.
+
+On 2026-09-28 (macOS arm64, Bun 1.3.14, Agent SDK 0.2.141, Haiku), both modes
+trimmed 12 messages (~3114 estimated tokens) and answered from the kept tail.
+
+**Not covered.** The original 400 (`context_overflow` on an oversized replay) was
+not reproduced live, and neither was the reactive retry, which needs a real
+overflow from the model. Those remain covered only by the mocked envelope tests.
 
 ## Concurrent transcript publication
 
