@@ -78,6 +78,17 @@ describe("faithful tool history rendering", () => {
     expect(normalizeStructuredUserContent(content)).toEqual(content)
   })
 
+  it("renders client tool-change blocks as text, since user turns reject them", () => {
+    const content = [
+      { type: "tool_addition", name: "grep" },
+      { type: "tool_removal", tool: { name: "bash" } },
+    ]
+    expect(normalizeStructuredUserContent(content)).toEqual([
+      { type: "text", text: "[Client added tool: grep]" },
+      { type: "text", text: "[Client removed tool: bash]" },
+    ])
+  })
+
   it("frames multimodal history before the live turn without changing images or the source", () => {
     const source = [{ message: { content: "earlier question" } }, { message: { content: [image, { type: "text", text: "live question" }] } }]
     const before = structuredClone(source)
