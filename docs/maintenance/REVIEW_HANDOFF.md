@@ -1,5 +1,178 @@
 # Upstream review handoff
 
+## Contributor fix batch #1174/#1178/#1172/#1173/#1169 (2026-09-28)
+
+Live queue at start: 9 contributor PRs plus release PR #1167 and own #1050, from
+`origin/main` `8d4c88ce`. Bug fixes were taken before the four feature proposals
+(#1176, #1175, #1171, #792), which remain untriaged and are not approved by this
+entry. Worktrees `/private/tmp/mer-117{2,3,4,8}` and `/private/tmp/mer-1169`.
+
+**#1174 session retirement backlog — accepted with maintainer corrections.**
+Delivered as [#1179](https://github.com/rynfar/meridian/pull/1179), merged
+`074c44b8f116fa546e6c18df28292492c5a85b2d`, tree
+`826f06ecc9e37d1fd936b51b60558c013daae3aa` identical to the validated head
+`e4f97c93`. Source `389f3c543ab3b7fec6c9bbf86e3fe49fc807ccbd` by Nowaker
+(`spam@nowaker.net`, 2026-09-27) retained as `20058f649` with Author/AuthorDate;
+`Co-authored-by` present on the squash. Source head unchanged at closure.
+Reproduced first: contributor tests alone on unmodified main returned the exact
+`overloaded_error` "retirement backlog is full" 503 in both modes (baseline
+49 pass/0 fail on those files beforehand), 53 pass/0 fail after. Verified that
+`retired → live` cannot resurrect a transcript for resume: the gc sidecar has no
+state readers outside `sessionLifecycle.ts`, resume authority is `sessionStore`,
+and reconcile's pin rescue already performs that transition.
+Known limitations recorded in the PR: sustained saturation defers the newest
+retirements so the effective ceiling becomes the larger `maxOwned` one, and
+demotion clears `lastError`/`nextAttemptAt`, resetting a persistently failing
+deletion's backoff from up to 1 h to the 11 min grace (caused by reconcile's
+pre-existing re-stamp, newly reachable).
+
+**Broken #923 gate repaired in the same PR.** `scripts/e2e-retirement-admission.mjs`
+had failed on main since `6ecfbaa7` (2026-09-23) made a profile switch retain
+session mappings: it asserted the switch emptied the store, so it aborted before
+any retirement assertion and the documented gate could not pass. On current main a
+switch leaves both transcripts `live` with `pending: 0`. It now unpins explicitly,
+as cache eviction and a proxy restart do, and passes both modes. **Worth auditing
+whether other documented gates drifted the same way.**
+New gate `scripts/e2e-retirement-concurrent-admission.mjs` (E2E.md "Concurrent
+retirement admission"): the sequential gate cannot reach this refusal. With the fix
+reverted on the same tree, 2 of 3 concurrent real turns took that 503; with it,
+both modes passed with per-turn transcript isolation and no overbooking.
+
+**#1178 client tool-change blocks — accepted as proposed.** Delivered as
+[#1180](https://github.com/rynfar/meridian/pull/1180), merged
+`e8e74434a395e32314a5664cc867e39892f10127`, tree `5f8266f0` identical to validated
+head `33ad5229`. Source `175e6bb969b0571c5b11bb739534171f28318faf` was authored by
+the placeholder `Preview User <preview@example.invalid>`, a preview-tool default;
+recorded under the verified identity `Mate Remias <materemias@gmail.com>` (owner
+decision) with AuthorDate preserved, `Co-authored-by` present. Live RED on
+unmodified main returned `500` carrying `API Error: 400 messages.0.content.8: Input
+tag 'tool_addition' ...`; GREEN answered `PONG` in both modes with `lineage=new`.
+New gate E68 `scripts/e2e-replay-tool-change-blocks.mjs`.
+Verified the fix is correctly scoped: on resume only `role === "user"` messages pass
+through `normalizeStructuredUserContent`, so tool-change blocks never reach the SDK
+there. **Open limitation:** the structured path still forwards every unknown block
+type while the text path drops them, so another non-standard block in a client
+`system` message fails identically. A block-type allowlist would close the class
+but could swallow legitimately new types; left as a product decision.
+
+**#1172 windowsHide — accepted with a maintainer correction.** Delivered as
+[#1181](https://github.com/rynfar/meridian/pull/1181), merged
+`2a502b7a7ba9c49384343f5a1391192f17603404`, tree `eea504a2` identical to validated
+head `1542b5b4`. Source `8afda574` by `arch <arch@not.me>` preserved verbatim — a
+self-chosen pseudonym, unlike #1178's tool default — `Co-authored-by` present,
+source head unchanged at closure. The fix shipped with no test; the maintainer
+commit asserts the probe's `windowsHide` through `models-auth-status.test.ts`'s
+existing `child_process` mock, verified RED (`Expected: true, Received: undefined`)
+against the unfixed probe. **The Windows symptom was not independently reproduced**
+— this review ran on macOS arm64, where it cannot occur. The behavioural evidence
+is the contributor's window watcher (0 windows over 150s with two prompts 71s
+apart, versus one per ~100s before). Owner accepted that evidence explicitly.
+
+**#1173 OpenCode skill_content — accepted as proposed.** Delivery
+[#1182](https://github.com/rynfar/meridian/pull/1182) on
+`codex/opencode-skill-content`, source `0c80a42c281f65fb0f1c599146634eb978df8b5a`
+by `arch <arch@not.me>` preserved. Contributor tests alone on unmodified main gave
+the reported 7 failures; 42 pass/0 fail after. The client gate needs OpenCode V2
+and the scrub plugin and could not run here (host has 1.18.33 V1), so a portable
+HTTP arm sends V2's composer shape against the real SDK: reverting only
+`sanitize.ts` fails with "The skill body did not reach the SDK prompt" in both
+modes, all four arms pass with it. Renumbered to E69 in a maintainer commit because
+E68 went to #1180.
+**Behavioural caveat, repeatedly observed:** Haiku called the `<skill_content>`
+block "a prompt injection attempt" and declined it, including with an explicit
+typed request. The fix provably delivers the body to the model; it does not make
+the model act on it, so a bare `/skill` may still not do what the user expects.
+The gate therefore asserts structure (receipt, wrapper and nested `skill_files` in
+supported SDK history) and only *records* `complied` versus `quotedReceipt` — an
+earlier reply-based assertion passed on a refusal that quoted the receipt.
+
+**#1169 bounded fresh replay — accepted, corrected by us on owner instruction.**
+Delivered as [#1183](https://github.com/rynfar/meridian/pull/1183), merged
+`4e845f29f800283dc21b2c0c24f156961b6fb680`, tree `d1e1b397` identical to the
+validated head `4910ee10`; `Co-authored-by` present and source head `cec690477`
+unchanged at closure. Sources `324a37f290`, `653be40358`, `cec6904775`
+by Aleksey Proshutinskiy (`alexey.prosh@fluence.one`, 2026-09-26) cherry-picked
+with Author/AuthorDate; correction in a separate commit.
+Verified as correct: lineage, message hashing and the SDK UUID map all see full
+history (the trim sits after that work, and `buildToolUseIndex` uses full
+`allMessages`); `replaySource` holds the untrimmed array by reference so re-trims
+do not compound; `freshReplay = !isResume && !resumeSessionId` really excludes
+resumed attempts; a message of only `tool_result` blocks cannot start a droppable
+group.
+**The defect we corrected:** the flat 64k reserve is 6.4% of a 1M window but 32% of
+a 200k one. Stacked on the 0.9 factor and an estimator that overestimates Latin
+text, the 200k budget was 58% of the window, dropping history from about 101k real
+English tokens (~70k Cyrillic). Only the 1M case was analysed upstream, while
+extended context is opt-in. Capping the reserve at a tenth of the window leaves the
+1M budget byte-for-byte at 836_000 and lifts 200k models to 160_000, the same ~80%
+share; the 1M figures reproduce the contributor's own stated 730k/500k thresholds,
+which is what validates the 200k measurement.
+Two fixtures changed deliberately: `replayBudgetFor("sonnet")` 116_000 → 160_000,
+and the "indivisible live tail" case, whose literal `"я".repeat(200_000)` (133k
+estimated) stopped overflowing once the budget rose and so quietly tested nothing —
+now derived from the budget with an explicit overflow assertion.
+Added `MERIDIAN_REPLAY_BUDGET_TOKENS` (test-only, opt-in, ignored when unusable)
+because the trim cannot otherwise be proven against a real model at any affordable
+conversation size, plus gate E70 `scripts/e2e-replay-budget.mjs`: both modes trimmed
+12 messages (~3114 estimated tokens), kept the live tail, carried the omission
+marker and answered from the surviving tail; the control with the override disabled
+fails the oldest-turn assertion, so the gate is not passing by construction.
+**Not proven:** the original `context_overflow` 400 and the reactive retry were not
+reproduced live — both need a genuine overflow from the model and remain covered
+only by the mocked envelope tests. Recorded in E2E.md.
+
+**`npm ci` is broken on main — still open.** `package-lock.json` pins
+`@anthropic-ai/claude-code-win32-x64@2.1.257` while `claude-code` resolves to
+`^2.1.280`/`2.1.283`, so `npm ci` fails outright. CI runs only `bun install`, so no
+gate catches it; any clean install or contributor using `npm ci` fails. Not bundled
+into a contributor PR.
+
+**#1173 delivery merged.** [#1182](https://github.com/rynfar/meridian/pull/1182) is
+`26c41f9f09806db9c95fa2805b642983b3c059f1`; `Co-authored-by: arch` present, source
+head `0c80a42c2` unchanged at closure. Its branch predated #1181, so the squash
+layered the validated diff onto a newer base and the merged tree legitimately
+differs from the validated head by exactly #1181's three files. That combination had
+been tested by neither the branch nor CI, so merged main was verified separately:
+4903 pass / 0 fail / 4 skip.
+
+**`npm ci` fix delivered.** [#1184](https://github.com/rynfar/meridian/pull/1184)
+regenerates the lockfile. `package.json` was bumped to `^2.1.280` without
+regenerating it, so the lockfile kept the `^2.1.257` range and pinned every platform
+package at `2.1.257`. Regeneration aligns it with the range `bun install` already
+resolved rather than introducing a version. `npm ci` fails on the parent and exits 0
+after; 4903 pass / 0 fail.
+
+**E2E gate audit (bounded).** All 78 scripts referenced by E2E.md exist; the 8
+unreferenced scripts are `-host.mjs` helpers and probes invoked by parent gates. The
+#923 drift class is isolated: no other gate assumes a profile switch empties the
+mapping store. A "gates with no assert" heuristic flagged ~30 scripts and was
+disproved — they use a failure-counter plus `process.exit(1)` idiom and do verify.
+**This audit did not execute the gates**, which needs real models at prohibitive
+cost, so it rules out dangling references and that one drift class, not gate rot in
+general.
+
+**Feature PRs triaged, none incorporated, none approved by this entry.**
+[#1175](https://github.com/rynfar/meridian/pull/1175) version display and opt-in
+update check: recommend accept, but it deliberately changes `/health` — `build.latest`
+and `build.updateAvailable` become absent until `checkForUpdates` is enabled, and
+`/health` is on the stable-API list, so drift monitors need the setting.
+[#1176](https://github.com/rynfar/meridian/pull/1176) OpenAI list pricing: accept
+with reservations — a daily PR-opening workflow needing an Actions setting, a
+hand-maintained second-vendor price table as a standing obligation, and the
+actually-served-by-OpenAI path unit-tested only (no ChatGPT backend upstream).
+[#1171](https://github.com/rynfar/meridian/pull/1171) build provenance: defer pending
+a scope decision — 27 files, a new authenticated `/build-status`, a per-worktree
+counter ledger and an observation worker, with no full `npm test` claimed, on top of
+already-shipped #866 provenance.
+[#792](https://github.com/rynfar/meridian/pull/792) web profile login: defer, needs a
+dedicated security review — it makes `/callback` deliberately public and holds
+server-side PKCE verifiers; largest of the four and will need rebasing.
+
+Next actions: triage the remaining feature PRs on their own terms, and consider
+whether the two drifted-gate findings warrant executing high-value gates
+periodically rather than only on change. No release is authorized by this entry, and
+no contributor comment has been posted on any of these PRs.
+
 ## #1165 interrupted OpenCode checkpoint review (2026-09-26)
 
 Disposition: accepted [source #1165](https://github.com/rynfar/meridian/pull/1165)
