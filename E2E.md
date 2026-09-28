@@ -673,8 +673,11 @@ bun scripts/e2e-retirement-admission.mjs --stream
 ```
 
 With a two-slot pending budget and a long retirement quarantine, seed two real
-sessions, switch profiles through HTTP, sweep GC and require a fresh request and
-its follow-up to answer correctly. Supported SDK history inspection verifies both
+sessions, switch profiles through HTTP, drop the old mappings, sweep GC and
+require a fresh request and its follow-up to answer correctly. The switch itself
+deliberately retains session mappings (`6ecfbaa7`): their keys are already
+profile-scoped, so the gate unpins them explicitly rather than assuming the
+switch did, which is what cache eviction and a proxy restart do in production. Supported SDK history inspection verifies both
 old histories remain unchanged and the new mapping contains the expected token.
 Both profile aliases use the existing authentication; this does not validate two
 distinct billing accounts. Meridian state and SDK working directory are isolated.

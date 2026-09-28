@@ -20,7 +20,7 @@ Object.assign(process.env, {
   MERIDIAN_WORKDIR: root, MERIDIAN_TELEMETRY_PERSIST: "0", MERIDIAN_ROUTING: "manual",
   MERIDIAN_SESSION_GC_MAX_PENDING: "2", MERIDIAN_SESSION_GC_GRACE_MS: "3600000",
 })
-const { createProxyServer } = await import("../src/proxy/server.ts")
+const { createProxyServer, clearSessionCache } = await import("../src/proxy/server.ts")
 const { readSessionStoreSnapshot } = await import("../src/proxy/sessionStore.ts")
 const proxy = createProxyServer({
   port: 0, host: "127.0.0.1", defaultProfile: "personal", silent: true,
@@ -75,6 +75,12 @@ try {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ profile: "work" }),
   })
   assert.equal(switched.status, 200, await switched.text())
+  // A profile switch deliberately keeps session mappings: their keys are already
+  // profile-scoped, and wiping the store failed every in-flight keyed turn at
+  // publication (6ecfbaa7). Retirement therefore needs the mappings actually
+  // dropped, which cache eviction under session pressure and a proxy restart
+  // both do, so unpin them explicitly instead of assuming the switch did it.
+  clearSessionCache()
   assert.equal(mappings().length, 0)
   await proxy.sweepSessionGc()
   const retired = resources().filter(row => row.state === "retired").length
