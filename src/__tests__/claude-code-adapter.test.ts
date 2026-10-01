@@ -10,7 +10,7 @@
  *    OpenCode uses.
  */
 import { describe, it, expect } from "bun:test"
-import { claudeCodeAdapter } from "../proxy/adapters/claudecode"
+import { claudeCodeAdapter, isClaudeCodeAuxiliaryRequest } from "../proxy/adapters/claudecode"
 
 describe("claudeCodeAdapter — identity", () => {
   it("has name 'claude-code'", () => {
@@ -279,5 +279,87 @@ describe("claudeCodeAdapter.extractFileChangesFromToolUse", () => {
         pattern: "foo",
       })
     ).toEqual([])
+  })
+})
+
+describe("isClaudeCodeAuxiliaryRequest", () => {
+  // The auto-mode permission classifier: the conversation's own session id,
+  // no tools, not streamed, and stop sequences closing its XML verdict.
+  const classifier = {
+    model: "claude-sonnet-4-6",
+    max_tokens: 64,
+    stream: false,
+    stop_sequences: ["</block>"],
+    messages: [
+      { role: "user", content: "<transcript>…</transcript>" },
+      { role: "user", content: "Classify the action." },
+    ],
+    metadata: { user_id: JSON.stringify({ session_id: "conv-1" }) },
+  }
+
+  it("recognises the classifier's shape when the request-class header is absent", () => {
+    expect(isClaudeCodeAuxiliaryRequest(undefined, classifier)).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: ["</severity>"] }))
+      .toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, tools: [] })).toBe(true)
+  })
+
+  it("lets an explicit request class decide when the client sends one", () => {
+    expect(isClaudeCodeAuxiliaryRequest("auxiliary", { messages: [] })).toBe(true)
+    for (const requestClass of ["main", "compaction", "subagent", "workflow", "future-class"]) {
+      expect(isClaudeCodeAuxiliaryRequest(requestClass, classifier)).toBe(false)
+    }
+  })
+
+  // Headless `claude -p` sends a tool-less session-start request alongside the
+  // first turn. It streams, so it keeps normal session handling.
+  it("leaves the streaming session-start side request alone", () => {
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stream: true })).toBe(false)
+  })
+
+  it("never isolates a request that declares tools", () => {
+    expect(isClaudeCodeAuxiliaryRequest(undefined, {
+      ...classifier,
+      tools: [{ name: "Read", input_schema: { type: "object" } }],
+    })).toBe(false)
+  })
+
+  it("requires one of the classifier's stop sequences", () => {
+    const { stop_sequences: _omitted, ...withoutStops } = classifier
+    expect(isClaudeCodeAuxiliaryRequest(undefined, withoutStops)).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: ["\n\nHuman:"] }))
+      .toBe(false)
+  })
+
+  it("requires a Claude Code session key", () => {
+    const { metadata: _omitted, ...unkeyed } = classifier
+    expect(isClaudeCodeAuxiliaryRequest(undefined, unkeyed)).toBe(false)
+  })
+
+  it("rejects malformed shapes without throwing", () => {
+    expect(isClaudeCodeAuxiliaryRequest(undefined, undefined)).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, "not an object")).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: "</block>" })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: [42, null] })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, tools: null })).toBe(true)
+  })
+})
+
+describe("claudeCodeAdapter.isAuxiliaryRequest", () => {
+  type AdapterContext = Parameters<typeof claudeCodeAdapter.getSessionId>[0]
+  const contextWith = (headers: Record<string, string>): AdapterContext =>
+    ({ req: { header: (name: string) => headers[name.toLowerCase()] } }) as unknown as AdapterContext
+  const body = {
+    stream: false,
+    stop_sequences: ["</block>"],
+    messages: [{ role: "user", content: "x" }],
+    metadata: { user_id: JSON.stringify({ session_id: "conv-1" }) },
+  }
+
+  it("reads the request-class header from the context", () => {
+    expect(claudeCodeAdapter.isAuxiliaryRequest?.(contextWith({}), body)).toBe(true)
+    expect(claudeCodeAdapter.isAuxiliaryRequest?.(
+      contextWith({ "x-claude-code-request-class": "main" }), body,
+    )).toBe(false)
   })
 })
