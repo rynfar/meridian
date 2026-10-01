@@ -347,6 +347,16 @@ therefore appends the agent name for non-primary agents (`ses_x#title`), leaving
 the primary agent's key byte-identical to the header. An adapter whose client
 multiplexes agents over one session id needs the same treatment.
 
+Claude Code is the second such client: its Agent-tool subagents send the
+conversation's own `metadata.user_id` session id, so `claudeCodeAdapter`
+keys a request carrying `x-claude-code-agent-id` as `<sid>:agent:<agentId>`
+and leaves the main conversation on the bare `<sid>`. `getRootSessionId`
+keeps those subagents on the conversation's account under sticky and
+priority routing. Known limitation: a backgrounded main session (and a
+fork-of-main subagent) gets a fresh agent id but carries the whole
+transcript, so its first request under the new key is one full-history
+replay; later turns resume normally.
+
 **A session header is identity, never authentication.** Polytoken's native
 `X-Polytoken-Session` header is the cleanest example: the trimmed header value
 IS the conversation identity — no agent-mode scoping, no lineage

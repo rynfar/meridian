@@ -141,6 +141,10 @@ const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
  * `<sid>:agent:<agentId>`. The main conversation, and any request whose agent
  * id is missing or malformed, keeps the bare session id. An agent id never
  * creates a key on its own: without a metadata session id there is none.
+ *
+ * A backgrounded main session (and a fork-of-main subagent) also gets a fresh
+ * agent id but carries the whole transcript, so its first request under the
+ * new key is one full-history replay; later turns resume on that key.
  */
 export function claudeCodeSessionKey(agentId: string | undefined, body: unknown): string | undefined {
   const sessionId = extractClaudeCodeSessionId(body)
