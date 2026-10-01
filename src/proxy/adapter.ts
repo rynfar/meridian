@@ -70,9 +70,9 @@ export interface AgentIdentity {
    * True when this request is a client side call that carries the
    * conversation's session key without being a turn of that conversation.
    *
-   * Such a request never reads, publishes, evicts or recovers the session
-   * mapping, and never takes the session turn lease: it has no turn to
-   * serialize. Undefined or false keeps normal session handling, which is
+   * Such a request skips lineage lookup and never publishes, evicts or
+   * recovers the session mapping, and never takes the session turn lease: it
+   * has no turn to serialize. Undefined or false keeps normal session handling, which is
    * what every client that separates its side calls by key already gets.
    */
   isAuxiliaryRequest?(c: Context, body?: unknown): boolean
