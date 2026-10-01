@@ -222,6 +222,7 @@ src/
 │   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
 │   ├── profiles.ts            ← Multi-profile support: resolve, list, switch auth contexts (leaf)
 │   ├── profileCli.ts          ← CLI commands for profile management (leaf, I/O)
+│   ├── profileConfigStore.ts  ← cross-process profile writer lock and atomic snapshots (leaf, I/O)
 │   ├── profileLogin.ts        ← Browser re-authentication state, redirect/paste completion and status
 │   ├── profileAdd.ts          ← Browser profile creation and isolated credential persistence
 │   ├── profileOAuthBody.ts    ← Runtime schemas for browser OAuth request bodies (pure)
