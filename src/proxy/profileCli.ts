@@ -31,6 +31,7 @@ import {
   saveProfileConfigTo,
 } from "./profileRename"
 import { getSetting, setSetting } from "../settings"
+import { publishProfileConfig, readProfileConfigForUpdate, withProfileConfigLock, withProfileConfigLockSync } from "./profileConfigStore"
 import { createPlatformCredentialStore, type CredentialsFile } from "./tokenRefresh"
 
 const OAUTH_AUTHORIZE_URL = "https://claude.com/cai/oauth/authorize"
@@ -238,7 +239,7 @@ export function loadProfileIds(): string[] {
 
 function saveProfileConfig(profiles: ProfileConfig[]): void {
   ensureProfilesDir()
-  writeFileSync(profilesConfigFile(), `${JSON.stringify(profiles, null, 2)}\n`, { mode: 0o600 })
+  publishProfileConfig(profilesConfigFile(), profiles)
 }
 
 function getAuthStatus(configDir: string): { loggedIn: boolean; email?: string; subscriptionType?: string } {
@@ -491,10 +492,18 @@ export type CreateProfileSlotResult =
  * CLI's `~/.claude` import. Omitted, the profile gets a fresh directory of its
  * own under `profiles/<id>`.
  */
-export function createProfileSlot(
-  id: string,
-  options: { claudeConfigDir?: string } = {},
-): CreateProfileSlotResult {
+export function createProfileSlot(id: string, options: { claudeConfigDir?: string } = {}): CreateProfileSlotResult {
+  try { return withProfileConfigLockSync(profilesConfigFile(), () => createProfileSlotLocked(id, options)) }
+  catch (error) { return { ok: false, reason: "write_failed", message: error instanceof Error ? error.message : String(error) } }
+}
+
+/** HTTP callers await competing writers without blocking model/health traffic. */
+export async function createProfileSlotAsync(id: string, options: { claudeConfigDir?: string } = {}): Promise<CreateProfileSlotResult> {
+  try { return await withProfileConfigLock(profilesConfigFile(), () => createProfileSlotLocked(id, options)) }
+  catch (error) { return { ok: false, reason: "write_failed", message: error instanceof Error ? error.message : String(error) } }
+}
+
+function createProfileSlotLocked(id: string, options: { claudeConfigDir?: string }): CreateProfileSlotResult {
   if (!isValidProfileId(id)) {
     return {
       ok: false,
@@ -503,7 +512,7 @@ export function createProfileSlot(
     }
   }
 
-  const profiles = loadProfileConfig()
+  const profiles = readProfileConfigForUpdate(profilesConfigFile())
   if (profiles.some(p => p.id === id)) {
     return { ok: false, reason: "already_exists", message: `Profile "${id}" already exists.` }
   }
@@ -664,8 +673,14 @@ export async function profileAddOauthToken(id: string, tokenArg: string | undefi
     process.exit(1)
   }
 
-  profiles.push({ id, type: "oauth-token", oauthToken: token })
-  saveProfileConfig(profiles)
+  profiles = withProfileConfigLockSync(profilesConfigFile(), () => {
+    const current = readProfileConfigForUpdate(profilesConfigFile())
+    if (current.some(p => p.id === id)) throw new Error(`Profile "${id}" was created while the token was being entered`)
+    const next = reclaimAlias(current, id)
+    next.push({ id, type: "oauth-token", oauthToken: token })
+    saveProfileConfig(next)
+    return next
+  })
   console.log(`\x1b[32m✓ Profile "${id}" added (OAuth token).\x1b[0m`)
   printEnvHint(profiles)
 }
@@ -719,17 +734,23 @@ export function dirsToRemoveOnProfileRemove(profile: ProfileConfig, profilesDir:
 }
 
 export function profileRemove(id: string): void {
-  const profiles = loadProfileConfig()
+  try { withProfileConfigLockSync(profilesConfigFile(), () => profileRemoveLocked(id)) }
+  catch (error) {
+    console.error(`✗ ${error instanceof Error ? error.message : String(error)}`)
+    process.exit(1)
+  }
+}
+
+function profileRemoveLocked(id: string): void {
+  const profiles = readProfileConfigForUpdate(profilesConfigFile())
   const idx = profiles.findIndex(p => p.id === id)
   if (idx === -1) {
-    console.error(`\x1b[31m✗ Profile "${id}" not found.\x1b[0m`)
-    process.exit(1)
+    throw new Error(`Profile "${id}" not found.`)
   }
 
   const removed = profiles[idx]
   if (!removed) {
-    console.error(`\x1b[31m✗ Profile "${id}" not found.\x1b[0m`)
-    process.exit(1)
+    throw new Error(`Profile "${id}" not found.`)
   }
   const dirsToRemove = dirsToRemoveOnProfileRemove(removed, configPath("profiles"))
   profiles.splice(idx, 1)

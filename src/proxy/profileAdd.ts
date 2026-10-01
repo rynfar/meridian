@@ -25,7 +25,7 @@ import { dirname, join } from "node:path"
 import { envBool } from "../env"
 import {
   createManualOAuthSession,
-  createProfileSlot,
+  createProfileSlotAsync,
   exchangeAuthorizationCodeForCredentials,
   isValidProfileId,
   parseAuthorizationCodeInput,
@@ -308,7 +308,7 @@ export async function completeProfileAdd(params: CompleteAddParams): Promise<Com
     }
   }
 
-  const created = createProfileSlot(pending.profileId, { claudeConfigDir })
+  const created = await createProfileSlotAsync(pending.profileId, { claudeConfigDir })
   if (!created.ok) {
     // File credentials are discarded with our own directory only. The current
     // store API cannot delete a macOS Keychain item; a rejected add may leave an
