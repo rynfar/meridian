@@ -217,6 +217,14 @@ export const claudeCodeAdapter: AgentAdapter = {
     return extractClaudeCodeParentSessionId(body)
   },
 
+  /**
+   * The conversation's own `metadata.user_id` session id. Agent-tool
+   * subagents send it too, so this is the root they share with their parent.
+   */
+  getRootSessionId(_c: Context, body?: unknown): string | undefined {
+    return extractClaudeCodeSessionId(body)
+  },
+
   /** See `isClaudeCodeAuxiliaryRequest`. */
   isAuxiliaryRequest(c: Context, body?: unknown): boolean {
     return isClaudeCodeAuxiliaryRequest(c.req.header(CLAUDE_CODE_REQUEST_CLASS_HEADER), body)
