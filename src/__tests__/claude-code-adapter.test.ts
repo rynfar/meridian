@@ -10,6 +10,7 @@
  *    OpenCode uses.
  */
 import { describe, it, expect } from "bun:test"
+import type { Context } from "hono"
 import { CLAUDE_CODE_AGENT_ID_HEADER, claudeCodeAdapter, claudeCodeSessionKey, isClaudeCodeAuxiliaryRequest } from "../proxy/adapters/claudecode"
 
 describe("claudeCodeAdapter — identity", () => {
@@ -84,44 +85,45 @@ describe("claudeCodeAdapter.getSessionId", () => {
 
 describe("Claude Code subagent session keys", () => {
   const body = { metadata: { user_id: JSON.stringify({ session_id: "parent-sid" }) } }
-  const withAgent = (agentId?: string) => ({
-    req: { header: (name: string) => (name === CLAUDE_CODE_AGENT_ID_HEADER ? agentId : undefined) },
-  })
+  const withAgent = (agentId?: string): Context => {
+    const ctx = { req: { header: (name: string) => (name === CLAUDE_CODE_AGENT_ID_HEADER ? agentId : undefined) } }
+    return ctx as unknown as Context
+  }
 
   it("keys the main conversation by its bare session id", () => {
-    expect(claudeCodeAdapter.getSessionId(withAgent() as any, body)).toBe("parent-sid")
+    expect(claudeCodeAdapter.getSessionId(withAgent(), body)).toBe("parent-sid")
   })
 
   it("keys an Agent-tool subagent by session id and agent id", () => {
-    expect(claudeCodeAdapter.getSessionId(withAgent("a4a81dc1bbf7ee837") as any, body))
+    expect(claudeCodeAdapter.getSessionId(withAgent("a4a81dc1bbf7ee837"), body))
       .toBe("parent-sid:agent:a4a81dc1bbf7ee837")
   })
 
   it("gives parallel subagents distinct keys", () => {
-    const first = claudeCodeAdapter.getSessionId(withAgent("a9b1a8c1cf8639b90") as any, body)
-    const second = claudeCodeAdapter.getSessionId(withAgent("a974a04cc37ab3ce8") as any, body)
+    const first = claudeCodeAdapter.getSessionId(withAgent("a9b1a8c1cf8639b90"), body)
+    const second = claudeCodeAdapter.getSessionId(withAgent("a974a04cc37ab3ce8"), body)
     expect(first).not.toBe(second)
   })
 
   it("ignores a malformed or oversized agent id", () => {
     for (const agentId of ["", "has space", "a/b", "é", "x".repeat(129)]) {
-      expect(claudeCodeAdapter.getSessionId(withAgent(agentId) as any, body)).toBe("parent-sid")
+      expect(claudeCodeAdapter.getSessionId(withAgent(agentId), body)).toBe("parent-sid")
     }
     expect(claudeCodeSessionKey("x".repeat(128), body)).toBe(`parent-sid:agent:${"x".repeat(128)}`)
   })
 
   it("never manufactures a key from an agent id alone", () => {
-    expect(claudeCodeAdapter.getSessionId(withAgent("a4a81dc1bbf7ee837") as any, {})).toBeUndefined()
+    expect(claudeCodeAdapter.getSessionId(withAgent("a4a81dc1bbf7ee837"), {})).toBeUndefined()
     expect(claudeCodeSessionKey("a4a81dc1bbf7ee837", { metadata: { user_id: "not-json" } })).toBeUndefined()
   })
 
   it("roots main and subagent requests at the bare session id", () => {
-    expect(claudeCodeAdapter.getRootSessionId!(withAgent() as any, body)).toBe("parent-sid")
-    expect(claudeCodeAdapter.getRootSessionId!(withAgent("a4a81dc1bbf7ee837") as any, body)).toBe("parent-sid")
+    expect(claudeCodeAdapter.getRootSessionId!(withAgent(), body)).toBe("parent-sid")
+    expect(claudeCodeAdapter.getRootSessionId!(withAgent("a4a81dc1bbf7ee837"), body)).toBe("parent-sid")
   })
 
   it("declares no parent lineage for a subagent", () => {
-    expect(claudeCodeAdapter.getParentSessionId!(withAgent("a4a81dc1bbf7ee837") as any, body)).toBeUndefined()
+    expect(claudeCodeAdapter.getParentSessionId!(withAgent("a4a81dc1bbf7ee837"), body)).toBeUndefined()
   })
 })
 
