@@ -10,6 +10,21 @@ export const PASSTHROUGH_DENY_REASON =
   "The result will be delivered in a future turn. " +
   "Do not retry, do not call additional tools, and do not generate further text — end your turn now."
 
+/** Hook block for a call already answered by the client-facing turn, or raised
+ * by the hidden digest after the checkpoint settled. */
+export const PASSTHROUGH_HANDLED_REASON =
+  "This tool call has already been handled by the client-facing turn — do not repeat it. " +
+  "Do not call additional tools and do not generate further text — end your turn now."
+
+/** Hook block for a same-tool repeat or a forced single tool beyond the first. */
+export const PASSTHROUGH_NOT_FORWARDED_REASON =
+  "This tool call was NOT executed and was not forwarded. Your earlier tool call(s) " +
+  "are being returned to the client now; their results arrive next turn. Re-issue this " +
+  "call after that if it is still needed. Do not call additional tools and do not " +
+  "generate further text — end your turn now."
+
+const HOOK_BLOCK_REASONS = [PASSTHROUGH_DENY_REASON, PASSTHROUGH_HANDLED_REASON, PASSTHROUGH_NOT_FORWARDED_REASON]
+
 interface ContentTextBlock {
   text?: unknown
 }
@@ -38,4 +53,12 @@ export function isForwardedDenial(block: ToolResultLike | undefined): boolean {
   return block?.type === "tool_result" &&
     block.is_error === true &&
     blockText(block).includes(PASSTHROUGH_DENY_REASON)
+}
+
+/** True for any synthetic error result Meridian's passthrough hook writes. None of
+ * them is a client tool result; the client answers those calls in a later turn. */
+export function isPassthroughHookBlock(block: ToolResultLike | undefined): boolean {
+  if (block?.type !== "tool_result" || block.is_error !== true) return false
+  const text = blockText(block)
+  return HOOK_BLOCK_REASONS.some(reason => text.includes(reason))
 }

@@ -75,8 +75,9 @@ mock.module("../proxy/models", () => ({
   resolveSdkModelDefaults,
   getClaudeAuthStatusAsync: async () => ({ loggedIn: true, email: "test@test.com", subscriptionType: "max" }),
   getAuthCacheInfo: () => ({ lastCheckedAt: 0, lastSuccessAt: 0, isFailure: false }),
-  hasExtendedContext: () => false,
-  stripExtendedContext: (m: string) => m,
+  // Faithful: mock.module is process-global, so a stub here leaks into other files.
+  hasExtendedContext: (m: string) => m.endsWith("[1m]"),
+  stripExtendedContext: (m: string) => m.replace("[1m]", ""),
   isClosedControllerError: (e: unknown) => e instanceof Error && e.message.includes("controller is closed"),
   recordExtendedContextUnavailable: () => {},
   isExtendedContextKnownUnavailable: () => false,

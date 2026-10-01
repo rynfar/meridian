@@ -8,12 +8,15 @@
  * what the running proxy is actually doing" — a UI that cannot tell those
  * apart is one that quietly claims a change already landed.
  */
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
+import { installLoggerMock } from "./loggerMock"
 
-mock.module("../logger", () => ({
+// The shared registration (see ./loggerMock): a file-level mock.module of the
+// logger wins process-wide and silences every other file's installed logger.
+installLoggerMock(() => ({
   claudeLog: () => {},
   withClaudeLogContext: (_ctx: unknown, fn: () => unknown) => fn(),
 }))
