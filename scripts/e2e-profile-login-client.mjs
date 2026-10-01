@@ -5,7 +5,7 @@
 // Credentials are read from their native store; never print or copy them.
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
@@ -16,6 +16,8 @@ const credentialDir = realpathSync(process.env.E2E_PROFILE_CLAUDE_DIR)
 const scrub = realpathSync(process.env.E2E_PLUGIN_PATH)
 const client = process.env.E2E_OPENCODE_BIN ?? 'opencode'
 const model = process.env.E2E_MODEL ?? 'claude-opus-5-5'
+const sdkVersion = JSON.parse(readFileSync(new URL('../node_modules/@anthropic-ai/claude-agent-sdk/package.json', import.meta.url), 'utf8')).version
+const cliVersion = JSON.parse(readFileSync(new URL('../node_modules/@anthropic-ai/claude-code/package.json', import.meta.url), 'utf8')).version
 const version = spawnSync(client, ['--version'], { encoding: 'utf8' })
 assert.equal(version.status, 0, 'Cannot determine actual client version')
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'meridian-browser-account-client-')))
@@ -64,7 +66,7 @@ try {
   const firstText=first.events.filter(event=>event.type==='text').map(event=>event.part?.text??'').join('')
   const continued=first.session?await run('continued',['run','--format','json','--session',first.session,'Without tools, repeat the exact account receipt from the previous turn.'],env):null
   const continuedText=continued?.events.filter(event=>event.type==='text').map(event=>event.part?.text??'').join('')??''
-  const summary={result:'FAIL',platform:`${process.platform}/${process.arch}`,bun:Bun.version,opencode:version.stdout.trim(),model,
+  const summary={result:'FAIL',platform:`${process.platform}/${process.arch}`,bun:Bun.version,opencode:version.stdout.trim(),sdk:sdkVersion,claudeCode:cliVersion,model,
     firstExit:first.exit,continuedExit:continued?.exit,firstHasSession:!!first.session,
     toolCalls:first.events.filter(event=>event.type==='tool_use').length,firstReceipt:firstText.includes(receipt),continuedReceipt:continuedText.includes(receipt),
     allQueriesUseNewAccount:queries.length>0&&queries.every(query=>query.credentialDirectoryMatched),realSdkQueries:queries.length,
