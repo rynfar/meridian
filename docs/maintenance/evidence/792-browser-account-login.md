@@ -1,7 +1,7 @@
 # Browser account login incorporation (#792)
 
-Status: implementation and independent regressions verified; real account
-completion, headless account use, final-head CI and integration still pending.
+Status: real new-account OAuth and actual headless use verified; existing-account
+re-authentication, final-head CI and integration remain acceptance gates.
 Tracked API scope: [#1215](https://github.com/rynfar/meridian/issues/1215).
 Source head: `47160ffe9a19cdf9fc38a2399d64f56210b0d1f6`. The four Nowaker
 commits were cherry-picked with Author/AuthorDate intact; maintainer fixes are
@@ -49,7 +49,7 @@ changes authentication flows, not merely usage accounting.
    with an empty code field. Expired, malformed-name and unsafe-URL controls
    are discarded; disabled-storage browsers keep a usable live form and see
    a notice to retain that page. The initial real grant was not exchanged; a
-   fresh grant remains required, and no account/model success is inferred.
+   fresh grant was subsequently completed as described below.
 
 ## Verification recorded so far
 
@@ -66,11 +66,23 @@ changes authentication flows, not merely usage accounting.
   5,130 pass, zero failures, 35 platform skips. Final full repetition after
   the navigation correction: 5,135 pass, zero failures, 35 platform skips.
   Standalone typecheck and build also pass.
-- Collaborative browser's navigate/evaluate tools work. Snapshot/screenshot
-  attempts fail with PreviewAutomationExecutionError; no video or saved
-  screenshot is claimed. DOM before/after measurements are retained here.
-- Real browser sign-in is in progress in the isolated live harness. No real
-  OAuth completion or headless use is claimed yet.
+- Actual browser authorization completed new-account creation after a page
+  reload. The returned code/state matched the retained form and was transferred
+  directly in the browser, without appearing in chat. The isolated account was
+  published and its credentials stored in its own macOS Keychain service.
+- Maintained `scripts/e2e-profile-login-client.mjs` passed twice using that actual
+  newly created account: macOS arm64, OpenCode 1.18.34, Opus 5.5, SDK 0.2.141,
+  Claude Code 2.1.284, Bun 1.3.11, independently installed scrub 0.2.3. A real
+  client tool reads a unique receipt, then the same session recalls it without
+  tools. Both client invocations exit zero; all four real SDK queries use the
+  new account directory and a query resumes. The second run observes actual
+  upstream assistant messages confirming `claude-opus-5-5`.
+- Snapshot support recovered after earlier automation errors. No saved visual
+  evidence of real credentials or authorization codes is captured. DOM
+  before/after measurements establish the synthetic page regression.
+- Existing-account re-authentication is still pending. An expired attempt and
+  an authorization request containing `code=true` are not completed grants.
+  The automatic loopback redirect has not been observed; no success is claimed.
 
 Reproduction scripts and commands are retained in the repository and E2E.md.
 Private temporary logs are supporting local artifacts, not the durable proof

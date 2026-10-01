@@ -12,6 +12,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { spyOn } from 'bun:test'
 import * as sdk from '@anthropic-ai/claude-agent-sdk'
+import { observeSdkModels } from './lib/observe-sdk-models.mjs'
 const credentialDir = realpathSync(process.env.E2E_PROFILE_CLAUDE_DIR)
 const scrub = realpathSync(process.env.E2E_PLUGIN_PATH)
 const client = process.env.E2E_OPENCODE_BIN ?? 'opencode'
@@ -29,10 +30,10 @@ for (const key of Object.keys(process.env)) if (/^(MERIDIAN_|CLAUDE_PROXY_|CLAUD
 Object.assign(process.env, { MERIDIAN_CONFIG_DIR: join(root, 'proxy-config'), MERIDIAN_SESSION_DIR: join(root, 'sessions'),
   MERIDIAN_WORKDIR: project, MERIDIAN_TELEMETRY_PERSIST: '0', MERIDIAN_NO_UPDATE_CHECK: '1',
   MERIDIAN_CREDENTIALS_READONLY: '1', MERIDIAN_PASSTHROUGH: '1' })
-const queries = [], realQuery = sdk.query
+const queries = [], servedModels = new Set(), realQuery = sdk.query
 const observer = spyOn(sdk, 'query').mockImplementation(input => {
   queries.push({credentialDirectoryMatched:input.options?.env?.CLAUDE_CONFIG_DIR === credentialDir, resume:!!input.options?.resume})
-  return realQuery(input)
+  return observeSdkModels(realQuery(input), servedModels)
 })
 const pluginConfigPath = join(root, 'plugins.json')
 writeFileSync(pluginConfigPath, JSON.stringify({plugins:[{path:scrub,enabled:true}]}), {mode:0o600})
@@ -69,12 +70,13 @@ try {
   const summary={result:'FAIL',platform:`${process.platform}/${process.arch}`,bun:Bun.version,opencode:version.stdout.trim(),sdk:sdkVersion,claudeCode:cliVersion,model,
     firstExit:first.exit,continuedExit:continued?.exit,firstHasSession:!!first.session,
     toolCalls:first.events.filter(event=>event.type==='tool_use').length,firstReceipt:firstText.includes(receipt),continuedReceipt:continuedText.includes(receipt),
-    allQueriesUseNewAccount:queries.length>0&&queries.every(query=>query.credentialDirectoryMatched),realSdkQueries:queries.length,
+    allQueriesUseNewAccount:queries.length>0&&queries.every(query=>query.credentialDirectoryMatched),servedModels:[...servedModels],realSdkQueries:queries.length,
     resumed:queries.some(query=>query.resume),scrub:plugins.plugins.find(plugin=>plugin.name==='opencode-scrub')?.version,privateArtifacts:root}
   writeFileSync(join(root,'summary.json'),JSON.stringify(summary,null,2),{mode:0o600})
   assert.equal(first.exit,0,`First client failed; private artifacts: ${root}`)
   assert.equal(continued?.exit,0,`Continuation failed; private artifacts: ${root}`)
   assert(summary.toolCalls>0&&summary.firstReceipt&&summary.continuedReceipt,'Actual tool receipt or continuation missing')
   assert(summary.allQueriesUseNewAccount&&summary.resumed,'The new account was not used for all real SDK queries and resume')
+  assert(servedModels.size>0&&[...servedModels].every(value=>value===model||value.startsWith(model+'-')),'Upstream response did not confirm the implicated model')
   summary.result='PASS';writeFileSync(join(root,'summary.json'),JSON.stringify(summary,null,2),{mode:0o600});console.log(JSON.stringify(summary))
 } finally {await proxy?.close();observer.mockRestore()}
