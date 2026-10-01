@@ -11,6 +11,7 @@ External plugins depend on these interfaces. **Changes require project owner app
 | `ProxyConfig` type | `types.ts` | Plugin configuration |
 | `x-opencode-session` header | `adapters/opencode.ts` | Session tracking from agent plugins |
 | `x-meridian-profile` header | `server.ts`, `profiles.ts` | Per-request profile selection |
+| `x-meridian-cache-keepalive` header | `server.ts`, `cacheKeepalive.ts` | Opt-in prompt-cache keepalive window, in seconds |
 | `GET /health` response shape | `server.ts` | Plugin health checks |
 | `/health` `backend` field | `server.ts` / `backends/antigravity.ts` | Desktop provider compatibility check (#1073) |
 | Antigravity `/v1/responses` and `/v1/responses/:id` | `backends/antigravityOpenai.ts`, `backends/antigravityResponses.ts` | OpenAI clients; bounded continuation/retrieval/deletion, optional durable state, background cancellation/event replay/input listing and input-token estimates (#1073) |

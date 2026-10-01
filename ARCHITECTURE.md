@@ -185,6 +185,8 @@ src/
 │   ├── concurrency.ts         ← Abortable SDK query semaphore and concurrency config parsing
 │   ├── requestAbort.ts        ← HTTP request abort → SDK query abort bridge
 │   ├── sessionTree.ts         ← Live parent→child request registry; subtree cancellation (PURE bookkeeping)
+│   ├── cacheKeepalive.ts      ← Opt-in prompt-cache keepalive schedule (PURE)
+│   ├── cacheKeepaliveRunner.ts ← Sends one keepalive against a session's published transcript, never persisted
 │   ├── shutdown.ts            ← Bounded HTTP drain and connection tracking
 │   ├── adapter.ts             ← AgentAdapter interface (extensibility point for multi-agent support)
 │   ├── adapters/

@@ -118,6 +118,8 @@ export interface ProxyServer {
   getInFlightCount?(): number
   /** Run one fail-closed transcript maintenance sweep. */
   sweepSessionGc?(): Promise<void>
+  /** Start any opted-in prompt-cache keepalives that are due. */
+  tickCacheKeepalive?(): void
 }
 
 export const DEFAULT_PROXY_CONFIG: ProxyConfig = {

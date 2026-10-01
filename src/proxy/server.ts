@@ -15,6 +15,13 @@ import { guardUpstreamIdle, UpstreamIdleError } from "./streamIdleGuard"
 import { IdleStallCeilingError, IdleStallTracker, idleStallRequestKey } from "./idleStallCeiling"
 import { linkRequestAbort, type RequestAbortLink } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
+import { CACHE_KEEPALIVE_HEADER, CacheKeepaliveScheduler, parseCacheKeepaliveWindow } from "./cacheKeepalive"
+import {
+  cacheKeepaliveOptions,
+  createCacheKeepaliveRunner,
+  currentCacheKeepaliveSessionId,
+  type CacheKeepaliveRecipe,
+} from "./cacheKeepaliveRunner"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry, peekOAuthUsage } from "./oauthUsage"
@@ -317,6 +324,14 @@ interface RequestMeta {
    * where in the chain a hop sits, and that it is one at all.
    */
   routeAttempt?: number
+  /** Set on a keyed passthrough turn whose client opted into cache keepalive. */
+  cacheKeepalive?: CacheKeepaliveRegistration
+}
+
+interface CacheKeepaliveRegistration {
+  key: string
+  windowMs: number
+  recipe: Omit<CacheKeepaliveRecipe, "options">
 }
 
 interface PriorityAttemptExposure {
@@ -663,7 +678,12 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // across turns (when the tool set is unchanged) avoids subtle prompt-cache
   // invalidation from MCP server re-creation. Key hashes tool name + schema
   // so silently-updated tool definitions force a rebuild.
-  const sessionMcpCache = new LRUMap<string, { key: string; mcp: ReturnType<typeof createPassthroughMcpServer> }>(getMaxSessionsLimit())
+  const sessionMcpCache = new LRUMap<string, {
+    key: string
+    mcp: ReturnType<typeof createPassthroughMcpServer>
+    /** Builds an identical server, for a query that cannot share this one. */
+    create: () => ReturnType<typeof createPassthroughMcpServer>
+  }>(getMaxSessionsLimit())
 
   // The auto-defer decision, pinned for the session's lifetime (#861).
   //
@@ -945,6 +965,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         params.options.spawnClaudeCodeProcess = processGate.spawnClaudeCodeProcess
       }
       signal.throwIfAborted()
+      const keepalive = requestMeta.cacheKeepalive
+      if (keepalive && params.options) {
+        cacheKeepalive.noteRequest(
+          keepalive.key,
+          { ...keepalive.recipe, options: cacheKeepaliveOptions(params.options) },
+          keepalive.windowMs,
+          startedAt,
+        )
+      }
       sdkQuery = query(params)
       yield* guardUpstreamIdle(sdkQuery, UPSTREAM_IDLE_MS, (sinceLastMs) =>
         claudeLog("upstream.stalled", { mode, sinceLastMs }))
@@ -967,6 +996,16 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       }
     }
   }
+
+  const cacheKeepalive = new CacheKeepaliveScheduler<CacheKeepaliveRecipe>({
+    currentSessionId: currentCacheKeepaliveSessionId,
+    beat: createCacheKeepaliveRunner({
+      semaphore: sdkSemaphore,
+      pinTranscript: (locator) => pinActiveSessionGcLocators(locator),
+      isDraining: () => draining,
+    }),
+  })
+  const cacheKeepaliveMaxSeconds = Math.max(0, envInt("CACHE_KEEPALIVE_MAX_SECONDS", 3600))
 
   const pluginDir = finalConfig.pluginDir ?? join(homedir(), ".config", "meridian", "plugins")
   const pluginConfigPath = finalConfig.pluginConfigPath ?? join(homedir(), ".config", "meridian", "plugins.json")
@@ -3458,6 +3497,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // Tool cache: if the client omits tools on a continuation request but
       // previously sent them, reuse the cached set to preserve prompt cache.
       let passthroughMcp: ReturnType<typeof createPassthroughMcpServer> | undefined
+      let createPassthroughMcp: (() => ReturnType<typeof createPassthroughMcpServer>) | undefined
       if (passthrough && requestTools.length > 0) {
         const toolSetKey = computeToolSetKey(requestTools)
         const cachedMcp = profileSessionId ? sessionMcpCache.get(profileSessionId) : undefined
@@ -3475,10 +3515,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
         if (cachedMcp && cachedMcp.key === toolSetKey) {
           passthroughMcp = cachedMcp.mcp
+          createPassthroughMcp = cachedMcp.create
         } else {
-          passthroughMcp = createPassthroughMcpServer(requestTools, coreNamesForDefer, passthroughMcpName, pinnedDefer)
+          createPassthroughMcp = () =>
+            createPassthroughMcpServer(requestTools, coreNamesForDefer, passthroughMcpName, pinnedDefer)
+          passthroughMcp = createPassthroughMcp()
           if (profileSessionId) {
-            sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp })
+            sessionMcpCache.set(profileSessionId, { key: toolSetKey, mcp: passthroughMcp, create: createPassthroughMcp })
             if (cachedMcp) {
               plog(`[PROXY] ${requestMeta.requestId} tools_changed: MCP server recreated (prompt cache likely invalidates)`)
             }
@@ -3490,6 +3533,35 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         }
       }
       const hasDeferredTools = passthroughMcp?.hasDeferredTools ?? false
+      // Opt-in cache keepalive (see cacheKeepalive.ts). Limited to keyed
+      // passthrough sessions: keepalives resume the stored mapping, and in
+      // passthrough every tool is a client stub, so nothing can execute here.
+      const cacheKeepaliveWindowMs = parseCacheKeepaliveWindow(
+        c.req.header(CACHE_KEEPALIVE_HEADER),
+        cacheKeepaliveMaxSeconds,
+      )
+      const cacheKeepaliveKey = agentSessionId ? `${adapter.name}:${agentSessionId}` : undefined
+      // The latest turn decides: one sent without the header opts the session out.
+      if (cacheKeepaliveKey && cacheKeepaliveWindowMs === undefined) cacheKeepalive.forget(cacheKeepaliveKey)
+      if (cacheKeepaliveKey && cacheKeepaliveWindowMs !== undefined && passthrough && profileSessionId && !isIndependentSession) {
+        const createMcp = createPassthroughMcp
+        requestMeta.cacheKeepalive = {
+          key: cacheKeepaliveKey,
+          windowMs: cacheKeepaliveWindowMs,
+          recipe: {
+            mappingKey: profileSessionId,
+            createMcpServers: () => {
+              if (!createMcp) return {}
+              const mcp = createMcp()
+              return { [mcp.serverName]: mcp.server }
+            },
+            adapterName: adapter.name,
+            profileId: profile.id,
+            model,
+            requestModel: body.model || undefined,
+          },
+        }
+      }
       // Count deferred tools: when auto-defer is active, non-core tools are deferred
       const coreNames = pipelineCtx.coreToolNames ? [...pipelineCtx.coreToolNames] : undefined
       const coreSet = coreNames ? new Set(coreNames.map(n => n.toLowerCase())) : undefined
@@ -9352,7 +9424,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     config: finalConfig,
     initPlugins: initPluginsAsync,
     closeBackend: antigravity?.closeBackend,
-    beginDrain: () => { draining = true; antigravity?.beginDrain?.() },
+    beginDrain: () => {
+      draining = true
+      cacheKeepalive.stop()
+      antigravity?.beginDrain?.()
+    },
     forceAbortInFlight: () => {
       antigravity?.forceAbortInFlight?.()
       durableWritesRevoked = true
@@ -9363,8 +9439,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         controller.abort(new Error("Proxy shutdown grace period elapsed"))
       }
     },
-    getInFlightCount: () => inFlightRequests + (antigravity?.getInFlightCount?.() ?? 0),
+    getInFlightCount: () => inFlightRequests + cacheKeepalive.inFlight + (antigravity?.getInFlightCount?.() ?? 0),
     sweepSessionGc,
+    tickCacheKeepalive: () => cacheKeepalive.tick(),
   }
 }
 
@@ -9469,6 +9546,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     forceAbortInFlight,
     getInFlightCount,
     sweepSessionGc,
+    tickCacheKeepalive,
     closeBackend,
   } = createProxyServer(config)
   if (initPlugins) await initPlugins()
@@ -9482,6 +9560,14 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     : undefined
   sessionGcInterval?.unref?.()
   if (sweepSessionGc) void sweepSessionGc()
+
+  // Same ownership rule as the GC sweep: only the owned server runs the timer.
+  // The tick only compares timestamps, so a short period costs little and
+  // keeps each keepalive well inside its lead before expiry.
+  const cacheKeepaliveInterval = tickCacheKeepalive
+    ? setInterval(tickCacheKeepalive, 10_000)
+    : undefined
+  cacheKeepaliveInterval?.unref?.()
 
   // Cached, once a day, never on the request path. Opt out with
   // MERIDIAN_NO_UPDATE_CHECK=1. The banner below reports build-source drift
@@ -9639,6 +9725,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
         if (profileTokenRefreshInterval) clearInterval(profileTokenRefreshInterval)
         if (authKeepaliveInterval) clearInterval(authKeepaliveInterval)
         if (sessionGcInterval) clearInterval(sessionGcInterval)
+        if (cacheKeepaliveInterval) clearInterval(cacheKeepaliveInterval)
         // Refuse new work before potentially waiting for a deletion child.
         beginDrain?.()
         stopFollowPolling()
