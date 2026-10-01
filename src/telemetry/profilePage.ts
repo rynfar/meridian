@@ -678,7 +678,7 @@ function render(data, quotaData) {
   // or have errored — in that case quotaById is empty and the per-card
   // renderer simply hides its usage section.
   const quotaProfiles = (quotaData && Array.isArray(quotaData.profiles)) ? quotaData.profiles : [];
-  const quotaById = {};
+  const quotaById = Object.create(null);
   for (var qi = 0; qi < quotaProfiles.length; qi++) {
     quotaById[quotaProfiles[qi].id] = quotaProfiles[qi];
   }
@@ -952,7 +952,7 @@ function setLoginMsg(text, kind) {
 // Sign-in links, minted server-side and held per profile so the anchor has a
 // real href before anyone clicks it. Nothing secret lives here: the authorize
 // URL is public by design, and the PKCE verifier never leaves the server.
-var loginLinks = {};
+var loginLinks = Object.create(null);
 // Whether this browser can reach Meridian on loopback. A fact about the
 // BROWSER, not about any one profile, so it is answered once for the page.
 var loopbackOk = null;
@@ -960,7 +960,7 @@ var loopbackOk = null;
 var loginBlocked = null;
 // Cards whose link is being minted right now, so a render landing mid-mint
 // does not start a second login for the same card.
-var mintingLinks = {};
+var mintingLinks = Object.create(null);
 
 // A card's link names ONE pending login. Once a panel has opened it, that
 // login may be spent - completed, failed, or finished in the sign-in tab
