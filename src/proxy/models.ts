@@ -276,7 +276,7 @@ export function mapModelToClaudeModel(model: string, subscriptionType?: string |
   // sonnet (200k) to avoid unexpected charges. Users opt in via
   // MERIDIAN_SONNET_MODEL=sonnet[1m]. Sonnet 5+ (the canonical pin) serves
   // its native 1M window on plain `sonnet` with no Extra Usage, so the [1m]
-  // tier is a no-op there; see hasNativeExtendedContext (#1212).
+  // tier is a no-op there; see sonnetHasNative1mContext (#1212).
   const sonnetOverride = process.env.MERIDIAN_SONNET_MODEL ?? process.env.CLAUDE_PROXY_SONNET_MODEL
   if (sonnetOverride === "sonnet[1m]") {
     if (!use1m || isSubagent || isExtendedContextKnownUnavailable(profileId, sessionKey)) return "sonnet"
@@ -470,15 +470,16 @@ export function hasExtendedContext(model: ClaudeModel): boolean {
 }
 
 /**
- * Whether a concrete model id runs with a native 1M window on every plan,
- * with no [1m] variant and no Extra Usage (#1212). Sonnet 5 and later do,
- * per https://code.claude.com/docs/en/model-config#extended-context; Sonnet
- * 4.x keeps the MERIDIAN_SONNET_MODEL=sonnet[1m] opt-in. `resolvedModel` is
- * what the tier alias resolves to (ANTHROPIC_DEFAULT_SONNET_MODEL), since the
- * "sonnet" alias alone does not say which generation is served.
+ * Whether the concrete Sonnet id behind the `sonnet` alias runs with a native
+ * 1M window on every plan, with no [1m] variant and no Extra Usage (#1212).
+ * Sonnet 5 and later do, per
+ * https://code.claude.com/docs/en/model-config#extended-context; Sonnet 4.x
+ * keeps the MERIDIAN_SONNET_MODEL=sonnet[1m] opt-in. `sonnetModel` is what
+ * ANTHROPIC_DEFAULT_SONNET_MODEL resolves to, since the alias alone does not
+ * say which generation is served. Any non-Sonnet id returns false.
  */
-export function hasNativeExtendedContext(resolvedModel?: string): boolean {
-  const match = /^claude-sonnet-(\d+)(?:[-.[]|$)/.exec(resolvedModel?.trim().toLowerCase() ?? "")
+export function sonnetHasNative1mContext(sonnetModel?: string): boolean {
+  const match = /^claude-sonnet-(\d+)(?:[-.[]|$)/.exec(sonnetModel?.trim().toLowerCase() ?? "")
   return match !== null && Number(match[1]) >= 5
 }
 
