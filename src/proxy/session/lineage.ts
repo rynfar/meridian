@@ -395,7 +395,7 @@ export function formatLineageMismatch(mismatch: LineageMismatch): string | undef
  * Why a request skipped session lookup entirely.
  *
  * `independent-request` is assigned in server.ts before `classifyLineage` runs,
- * so it is the one divergence that emits no diagnostic at all — and four
+ * so it is the one divergence that emits no diagnostic at all — and several
  * unrelated causes collapse into that single silent outcome. #820 was a log
  * full of `lineage=new` with zero explanatory lines; the reporter could only
  * identify the bypass by reading server.ts.
@@ -405,6 +405,7 @@ export function formatLineageMismatch(mismatch: LineageMismatch): string | undef
  * unaffected.
  */
 export type IndependentRequestCause =
+  | "auxiliary-request"
   | "fork-source"
   | "subagent"
   | "headerless-tool-result"
@@ -430,7 +431,12 @@ export function independentRequestCause(input: {
   /** Whether a session key or a conversation fingerprint could be derived.
    *  Image-only and otherwise text-free headerless requests have neither. */
   hasDurableKey: boolean
+  /** The adapter declared a side call that shares the conversation's key by
+   *  protocol without being a turn of it. The key-override rule above cannot
+   *  apply: here the shared key is the collision, not proof against one. */
+  isAuxiliary: boolean
 }): IndependentRequestCause | undefined {
+  if (input.isAuxiliary) return "auxiliary-request"
   if (!input.hasSessionKey && input.forkSource) return "fork-source"
   if (!input.hasSessionKey && input.isSubagent) return "subagent"
   if (input.clientDrivenLoop) return "headerless-tool-result"

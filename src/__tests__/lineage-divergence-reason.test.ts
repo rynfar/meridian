@@ -36,6 +36,7 @@ describe("independentRequestCause", () => {
     isSubagent: false,
     clientDrivenLoop: false,
     hasDurableKey: true,
+    isAuxiliary: false,
   }
 
   it("returns no cause for an ordinary keyed request", () => {
@@ -61,14 +62,34 @@ describe("independentRequestCause", () => {
       .toBe("no-cache-identity")
   })
 
-  // The invariant the guard is built on: an explicit key cannot collide, so a
-  // keyed fork or subagent resumes normally. Losing this re-broke pylon's
-  // long-lived workers once already (they fresh-replayed every turn).
+  // A keyed fork or subagent resumes normally: distinct flows carry distinct
+  // keys, so the key alone proves the request cannot collide. Losing this
+  // re-broke pylon's long-lived workers once already (they fresh-replayed
+  // every turn).
   it("lets an explicit key override the fork and subagent guards", () => {
     expect(independentRequestCause({ ...base, hasSessionKey: true, forkSource: true }))
       .toBeUndefined()
     expect(independentRequestCause({ ...base, hasSessionKey: true, isSubagent: true }))
       .toBeUndefined()
+  })
+
+  // The one exception. An adapter-declared auxiliary request shares the main
+  // conversation's key BY PROTOCOL (Claude Code's auto-mode classifier sends
+  // the conversation's own session id), so the key cannot vouch for it.
+  it("does not let a session key override an auxiliary request", () => {
+    expect(independentRequestCause({ ...base, hasSessionKey: true, isAuxiliary: true }))
+      .toBe("auxiliary-request")
+  })
+
+  it("reports auxiliary-request ahead of every other cause", () => {
+    expect(independentRequestCause({
+      ...base,
+      isAuxiliary: true,
+      forkSource: true,
+      isSubagent: true,
+      clientDrivenLoop: true,
+      hasDurableKey: false,
+    })).toBe("auxiliary-request")
   })
 
   // `isClientDrivenLoop` already requires a headerless request, so a session
@@ -105,6 +126,8 @@ describe("formatDivergence", () => {
       .toBe("independent-request:headerless-tool-result")
     expect(formatDivergence({ type: "diverged", reason: "modified-history" }, "headerless-tool-result"))
       .toBe("modified-history")
+    expect(formatDivergence({ type: "diverged", reason: "independent-request" }, "auxiliary-request"))
+      .toBe("independent-request:auxiliary-request")
   })
 
   it("still names independent-request when no cause was supplied", () => {
