@@ -1147,6 +1147,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E67 | [OpenCode V2 interrupted tool turn](#e67-opencode-v2-interrupted-tool-turn) | **Actual OpenCode 2.0.16 client and Meridian V2 plugin, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-checkpoint-fault.mjs`. Inject one partial SSE failure after the real client tool call; require the client's exact retry shape and SDK resume, plus a same-session recovery. **Run before releases touching keyed checkpoint recovery** | 2026-09-26 |
 | E68 | [OpenCode V2 user-invoked skill](#e68-opencode-v2-user-invoked-skill) | **Actual OpenCode V2 server, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-skill-content.mjs`. A skill invoked with no typed text must reach the SDK prompt inside `<skill_content>` and drive the reply. **Run before releases touching user-text sanitization** | 2026-09-27 |
 | E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Prepared native Linux x64 gate**, explicit target/client/SDK, separate requested/served main and classifier pins, and owned read-only grant: `bun scripts/e2e-claude-code-auto-mode.mjs` with the required E71 options below. Actual Claude Code CLI in `--permission-mode auto`; synthetic controls and historical contributor observations do not establish current acceptance. Exact request witnesses bind each SDK query to its classified wire request. Requires shape and header isolation, later main resume, no collisions/refusals, and the selected single classifier arm; selector changes and internal retries remain qualified separately. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
+| E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-subagent-session.mjs` — real proxy + SDK, the REAL Claude Code CLI spawning two parallel Agent-tool subagents. Asserts each subagent resumes its own session, the parent keeps resuming across subagent activity, nothing collides, and no flow waits on another's session lease. **Run before releases touching session keys, the turn lease, account routing, or Claude Code detection** | 2026-10-01 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -6223,6 +6224,60 @@ installed 1.79.0 at 20:30:29 local; counts below are from the proxy journal,
 The two branch requests that did not resume: the first after the restart
 (`not-found`, because earlier classifier calls had already overwritten the
 mapping), and one `modified-history` from an interrupted turn.
+
+## E72: Claude Code Agent-tool subagent session isolation
+
+**What it proves:** Claude Code's Agent-tool subagents no longer break the
+parent conversation's session resume, and each subagent resumes its own.
+
+A subagent sends its parent's own `metadata.user_id` session id while running
+a multi-turn conversation of its own; background subagents even overlap the
+parent's turns. Under one key, parent and subagents read as
+`unrelated-history` to one another, so none of them resumed, and they queued
+on one session turn lease (3.9–189s observed live). The CLI stamps
+`x-claude-code-agent-id` on every subagent request — stable across that
+subagent's turns, distinct between subagents, sent without
+`CLAUDE_CODE_GATEWAY_HINT_HEADERS` — and the adapter keys a subagent
+`<sid>:agent:<agentId>`. Account routing (sticky and priority assignment)
+still follows the root `<sid>`, so subagents stay on the parent's account.
+
+```bash
+bun scripts/e2e-claude-code-subagent-session.mjs
+```
+
+Direct claude-code adapter, isolated `CLAUDE_CONFIG_DIR`, scrubbed `CLAUDE*`
+environment and a dummy bearer token; the proxy keeps its real Claude Max
+authentication. Main model defaults to `sonnet` (`PROBE_MODEL`). Default
+permission mode with `Bash(echo:*)` and `Agent` pre-allowed, so no auto-mode
+classifier runs (E71 covers it). Turn 1 asks for two parallel foreground
+subagents with two Bash calls each; turn 2 is a `--resume` follow-up. The
+client talks to a recording relay that stamps each request's `x-request-id`
+and records its agent id, because the proxy log never prints headers.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- Both invocations exit 0 and answer correctly; every proxy request line maps
+  to a relayed request.
+- At least two distinct agent ids each made two or more requests. A run where
+  the model never spawns subagents fails rather than passing vacuously.
+- Every subagent request after that subagent's first logs
+  `lineage=continuation`.
+- Every main request after the conversation's first logs
+  `lineage=continuation`.
+- No request logs `unrelated-history` or `concurrent-race`; no main or
+  subagent request waits over 1000ms on a session lease; no invocation is
+  refused with a 4xx.
+
+**Before/after (2026-10-01, Linux x86_64, Bun 1.3.11, Agent SDK 0.2.141,
+Claude Code 2.1.287, `sonnet`).** Baseline `55b3110`: FAIL, 4 checks. Two
+subagents ran three requests each (`tools=19`, msgCount 2/5/8); all six
+classified `unrelated-history`, so 0 of 4 later subagent turns resumed, and
+the parent's request after them (msgCount 5) diverged `unrelated-history` too.
+Subagent session-lease waits were 1.7–8.9s. Branch: PASS. Two subagents, three
+requests each: 4 of 4 later subagent turns and 2 of 2 later main requests
+logged `lineage=continuation`, no request collided, and the longest
+session-lease wait across all 9 requests was 1ms. The gate imports `src/`
+directly rather than the built bundle.
 
 ## E73: Unknown thinking display values
 
