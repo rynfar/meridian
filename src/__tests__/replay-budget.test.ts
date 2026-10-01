@@ -80,6 +80,20 @@ describe("replay budget", () => {
     expect(replayBudgetFor("sonnet")).toBe(160_000)
   })
 
+  it("budgets plain sonnet at 1M when it resolves to Sonnet 5+ (#1212)", () => {
+    expect(contextWindowFor("sonnet", "claude-sonnet-5-5")).toBe(1_000_000)
+    expect(contextWindowFor("sonnet", "claude-sonnet-5")).toBe(1_000_000)
+    expect(replayBudgetFor("sonnet", "claude-sonnet-5-5")).toBe(replayBudgetFor("opus[1m]"))
+    expect(replayReserveFor("sonnet", "claude-sonnet-5-5")).toBe(64_000)
+    // Sonnet 4.x keeps 200k unless the [1m] tier was selected.
+    expect(contextWindowFor("sonnet", "claude-sonnet-4-6")).toBe(200_000)
+    expect(replayBudgetFor("sonnet", "claude-sonnet-4-6")).toBe(160_000)
+    expect(contextWindowFor("sonnet[1m]", "claude-sonnet-4-6")).toBe(1_000_000)
+    // The resolved id only speaks for the sonnet tier.
+    expect(contextWindowFor("opus", "claude-sonnet-5-5")).toBe(200_000)
+    expect(contextWindowFor("haiku", "claude-sonnet-5-5")).toBe(200_000)
+  })
+
   it("keeps the reserve proportionate to the window", () => {
     expect(replayReserveFor("opus[1m]")).toBe(64_000)
     expect(replayReserveFor("sonnet")).toBe(20_000)

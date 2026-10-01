@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, it, expect, mock } from "bun:test"
 
-import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
+import { mapModelToClaudeModel, isClosedControllerError, resetCachedClaudeAuthStatus, stripExtendedContext, hasExtendedContext, hasNativeExtendedContext, recordExtendedContextUnavailable, recordExtendedContextRateLimited, isExtendedContextKnownUnavailable, resetExtendedContextUnavailable, resetWarnedTierOverrides, resolveSdkModelDefaults, subscriptionIncludesExtendedContext, CANONICAL_FABLE_MODEL, CANONICAL_OPUS_MODEL, CANONICAL_SONNET_MODEL, CANONICAL_HAIKU_MODEL } from "../proxy/models"
 
 describe("mapModelToClaudeModel", () => {
   const originalSonnetModel = process.env.CLAUDE_PROXY_SONNET_MODEL
@@ -415,6 +415,26 @@ describe("hasExtendedContext", () => {
     expect(hasExtendedContext("opus")).toBe(false)
     expect(hasExtendedContext("sonnet")).toBe(false)
     expect(hasExtendedContext("haiku")).toBe(false)
+  })
+})
+
+describe("hasNativeExtendedContext (#1212)", () => {
+  it("is true for Sonnet 5 and later, including the canonical pin", () => {
+    expect(hasNativeExtendedContext(CANONICAL_SONNET_MODEL)).toBe(true)
+    expect(hasNativeExtendedContext("claude-sonnet-5-5")).toBe(true)
+    expect(hasNativeExtendedContext("claude-sonnet-5")).toBe(true)
+    expect(hasNativeExtendedContext("claude-sonnet-5[1m]")).toBe(true)
+    expect(hasNativeExtendedContext(" Claude-Sonnet-6-0 ")).toBe(true)
+  })
+
+  it("is false for Sonnet 4.x, other tiers, aliases and unknown ids", () => {
+    expect(hasNativeExtendedContext("claude-sonnet-4-6")).toBe(false)
+    expect(hasNativeExtendedContext("claude-sonnet-4-5-20250929")).toBe(false)
+    expect(hasNativeExtendedContext("claude-sonnet-4-20250514")).toBe(false)
+    expect(hasNativeExtendedContext("claude-opus-5-5")).toBe(false)
+    expect(hasNativeExtendedContext("sonnet")).toBe(false)
+    expect(hasNativeExtendedContext("")).toBe(false)
+    expect(hasNativeExtendedContext(undefined)).toBe(false)
   })
 })
 
