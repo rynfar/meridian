@@ -121,6 +121,42 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi
   return extractClaudeCodeSessionIdentity(body)?.parentSessionId
 }
 
+/** Claude Code's own request classification (`main`, `auxiliary`, `compaction`, …). */
+export const CLAUDE_CODE_REQUEST_CLASS_HEADER = "x-claude-code-request-class"
+
+/** The auto-mode classifier's XML verdicts end at these tags. */
+const CLASSIFIER_STOP_SEQUENCES = new Set(["</block>", "</severity>"])
+
+/**
+ * Is this a Claude Code side call under the conversation's session id?
+ *
+ * NOTE: agent-specific (claude-code). The auto-mode permission classifier
+ * sends the conversation's own `metadata.user_id` session id with a two-message
+ * transcript of its own. Read as a turn, it classifies `unrelated-history` and
+ * overwrites the conversation's mapping, so the next real turn cannot resume.
+ *
+ * The CLI names its request class in `x-claude-code-request-class`, but sends
+ * it only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL,
+ * or under a remote flag — through Meridian it is normally absent. When present
+ * it decides outright. Otherwise the classifier's shape does: a session key,
+ * no tools, not streamed, and a stop sequence closing its verdict tag. The
+ * streamed session-start request, compaction and main turns all fall outside
+ * it. If a future CLI changes those stop sequences, detection falls back to
+ * today's behavior rather than isolating a real turn.
+ */
+export function isClaudeCodeAuxiliaryRequest(requestClass: string | undefined, body: unknown): boolean {
+  if (requestClass !== undefined) return requestClass === "auxiliary"
+  if (!body || typeof body !== "object") return false
+  const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown }
+  if (Array.isArray(request.tools) && request.tools.length > 0) return false
+  if (request.stream === true) return false
+  if (!Array.isArray(request.stop_sequences)) return false
+  if (!request.stop_sequences.some(stop => typeof stop === "string" && CLASSIFIER_STOP_SEQUENCES.has(stop))) {
+    return false
+  }
+  return extractClaudeCodeSessionId(body) !== undefined
+}
+
 /**
  * Is this request from the Claude Code CLI, whatever adapter is handling it?
  *
@@ -179,6 +215,11 @@ export const claudeCodeAdapter: AgentAdapter = {
    */
   getParentSessionId(_c: Context, body?: unknown): string | undefined {
     return extractClaudeCodeParentSessionId(body)
+  },
+
+  /** See `isClaudeCodeAuxiliaryRequest`. */
+  isAuxiliaryRequest(c: Context, body?: unknown): boolean {
+    return isClaudeCodeAuxiliaryRequest(c.req.header(CLAUDE_CODE_REQUEST_CLASS_HEADER), body)
   },
 
   /**
