@@ -1318,6 +1318,45 @@ var activeAdd = null;
 
 function addSlot() { return document.getElementById('add-slot'); }
 
+// Returning from the provider may reload this page. Retain only the pending
+// handle and public authorize URL in this tab, never the pasted code or tokens.
+function savePendingAdd(add) {
+  try {
+    if (add) sessionStorage.setItem('meridian.pendingAdd', JSON.stringify(add));
+    else sessionStorage.removeItem('meridian.pendingAdd');
+    return true;
+  } catch (error) {
+    // Storage can be disabled; the live form still works while it stays open.
+    return false;
+  }
+}
+
+function restorePendingAdd() {
+  try {
+    var raw = sessionStorage.getItem('meridian.pendingAdd');
+    if (!raw) return false;
+    if (raw.length > 8192) throw new Error('Invalid pending sign-in');
+    var add = JSON.parse(raw);
+    if (!add || typeof add.profile !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(add.profile)
+      || typeof add.addId !== 'string' || !add.addId || typeof add.authorizeUrl !== 'string'
+      || typeof add.expiresAt !== 'number' || !Number.isFinite(add.expiresAt)
+      || add.expiresAt <= Date.now()) throw new Error('Invalid pending sign-in');
+    var url = new URL(add.authorizeUrl);
+    if (url.origin !== 'https://claude.com' || url.pathname !== '/cai/oauth/authorize')
+      throw new Error('Invalid authorization URL');
+    var slot = addSlot();
+    if (!slot) return false;
+    activeAdd = { profile: add.profile, addId: add.addId, authorizeUrl: add.authorizeUrl, expiresAt: add.expiresAt };
+    slot.innerHTML = renderAddPanel(activeAdd.profile, activeAdd.authorizeUrl);
+    var input = slot.querySelector('.login-input');
+    if (input) input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitAdd(); });
+    return true;
+  } catch (error) {
+    savePendingAdd(null);
+    return false;
+  }
+}
+
 function renderAddForm(prefill) {
   return '<div class="add-intro">Sign in to another Claude account and keep it here alongside the others.</div>'
     + '<div class="login-row">'
@@ -1331,6 +1370,7 @@ function renderAddForm(prefill) {
 
 function resetAddForm(prefill) {
   activeAdd = null;
+  savePendingAdd(null);
   var slot = addSlot();
   if (!slot) return;
   slot.innerHTML = renderAddForm(prefill);
@@ -1376,8 +1416,10 @@ async function startAdd() {
   // is about the name, and retyping it to fix a typo is the wrong ask.
   if (!res.ok) { setPanelMsg(slot, data.error || 'Could not start.', 'err'); return; }
 
-  activeAdd = { profile: name, addId: data.addId };
+  activeAdd = { profile: name, addId: data.addId, authorizeUrl: data.authorizeUrl, expiresAt: data.expiresAt };
+  var retained = savePendingAdd(activeAdd);
   slot.innerHTML = renderAddPanel(name, data.authorizeUrl);
+  if (!retained) setPanelMsg(slot, 'Keep this page open while signing in; this browser cannot retain the pending form.', 'err');
   var codeInput = slot.querySelector('.login-input');
   if (codeInput) {
     codeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitAdd(); });
@@ -1423,6 +1465,7 @@ async function submitAdd() {
       // The code is spent. Keep the panel so the reason stays readable —
       // Cancel is the way back to the form.
       activeAdd.spent = true;
+      savePendingAdd(null);
     }
     return;
   }
@@ -1440,7 +1483,7 @@ function cancelAdd() {
 
 meridianReorder.init({ onSaved: refresh });
 refresh();
-resetAddForm('');
+if (!restorePendingAdd()) resetAddForm('');
 setInterval(function () { if (!activeLogin && !meridianReorder.dragging()) refresh(); }, 10000);
 ` + profileBarJs + `
 </script>
