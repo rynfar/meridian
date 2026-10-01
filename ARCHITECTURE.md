@@ -341,6 +341,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 |--------|-------------|
 | `getSessionId(c)` | Extract session ID from request headers |
 | `getAgentMode(c, body)` | Normalize an adapter-specific primary/subagent declaration |
+| `getRootSessionId(c, body)` | Optional conversation root for account routing (sticky and priority assignment): a subagent with a session key of its own stays on its parent's account (Claude Code's Agent tool) |
 | `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips mapping lookup/publication and the turn lease; priority placement is read-only and cancellation uses a private leaf (Claude Code's auto-mode classifier) |
 | `extractWorkingDirectory(body)` | Parse working directory from request body |
 | `normalizeContent(content)` | Normalize message content for hashing |
