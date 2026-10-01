@@ -331,6 +331,26 @@ async function postStream(app: TestApp, options: Omit<PostMessagesOptions, "stre
   return postMessages(app, { ...options, stream: true })
 }
 
+async function postClaudeCode(app: TestApp, sessionId: string, content: string, agentId?: string): Promise<number> {
+  const response = await app.fetch(new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-agent": "claude-cli/2.1.287",
+      ...(agentId ? { "x-claude-code-agent-id": agentId } : {}),
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5",
+      max_tokens: 128,
+      stream: false,
+      messages: [{ role: "user", content }],
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    }),
+  }))
+  await response.text()
+  return response.status
+}
+
 const OPENING_MESSAGE = "shared opening"
 const CONTINUED_AFTER_PERSONAL: readonly TestMessage[] = [
   { role: "user", content: OPENING_MESSAGE },
@@ -691,6 +711,24 @@ describe("priority routing", () => {
       Date.now = originalNow
       failingDirs.clear()
     }
+  })
+
+  it("keeps a Claude Code subagent on its conversation's assigned account", async () => {
+    const app = createTestApp()
+    const sessionId = `cc-priority-${crypto.randomUUID()}`
+    // The conversation is assigned to personal while personal is preferred.
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+    expect(await postClaudeCode(app, sessionId, "cc opening")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    capturedEnvs = []
+
+    // A brand-new conversation drains back to the preferred account...
+    expect(await postClaudeCode(app, `cc-priority-new-${crypto.randomUUID()}`, "cc unrelated")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-work")
+    // ...while a subagent of the assigned conversation stays with it.
+    expect(await postClaudeCode(app, sessionId, "cc subagent task", "a4a81dc1bbf7ee837")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
   })
 
   it("defaults an unset priority failback policy to new-conversation affinity", async () => {

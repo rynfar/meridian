@@ -121,6 +121,34 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi
   return extractClaudeCodeSessionIdentity(body)?.parentSessionId
 }
 
+/** The agent context Claude Code runs a request under; absent on the main conversation. */
+export const CLAUDE_CODE_AGENT_ID_HEADER = "x-claude-code-agent-id"
+
+/** Agent ids are short opaque tokens. Anything else is ignored, never keyed. */
+const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
+
+/**
+ * The session key for one Claude Code request.
+ *
+ * NOTE: agent-specific (claude-code). An Agent-tool subagent sends its parent
+ * conversation's `metadata.user_id` session id while running a multi-turn
+ * conversation of its own, and background subagents overlap the parent's
+ * turns. Under one key each history read as `unrelated-history` to the other,
+ * so neither resumed, and both queued on one turn lease. The CLI stamps
+ * `x-claude-code-agent-id` on every subagent request — stable across that
+ * subagent's turns, distinct between subagents, and sent without gateway hint
+ * headers (verified against 2.1.287) — so a subagent is keyed
+ * `<sid>:agent:<agentId>`. The main conversation, and any request whose agent
+ * id is missing or malformed, keeps the bare session id. An agent id never
+ * creates a key on its own: without a metadata session id there is none.
+ */
+export function claudeCodeSessionKey(agentId: string | undefined, body: unknown): string | undefined {
+  const sessionId = extractClaudeCodeSessionId(body)
+  if (sessionId === undefined) return undefined
+  if (agentId === undefined || !CLAUDE_CODE_AGENT_ID.test(agentId)) return sessionId
+  return `${sessionId}:agent:${agentId}`
+}
+
 /** Claude Code's own request classification (`main`, `auxiliary`, `compaction`, …). */
 export const CLAUDE_CODE_REQUEST_CLASS_HEADER = "x-claude-code-request-class"
 
@@ -239,10 +267,11 @@ export const claudeCodeAdapter: AgentAdapter = {
 
   /**
    * Claude Code embeds its conversation ID in metadata.user_id rather than a
-   * session-affinity header. Fall back to fingerprint resume when absent.
+   * session-affinity header; an Agent-tool subagent adds its agent id (see
+   * `claudeCodeSessionKey`). Fall back to fingerprint resume when absent.
    */
-  getSessionId(_c: Context, body?: unknown): string | undefined {
-    return extractClaudeCodeSessionId(body)
+  getSessionId(c: Context, body?: unknown): string | undefined {
+    return claudeCodeSessionKey(c.req.header(CLAUDE_CODE_AGENT_ID_HEADER), body)
   },
 
   /**
@@ -254,8 +283,9 @@ export const claudeCodeAdapter: AgentAdapter = {
   },
 
   /**
-   * The conversation's own `metadata.user_id` session id. Agent-tool
-   * subagents send it too, so this is the root they share with their parent.
+   * The conversation's own `metadata.user_id` session id: the key its main
+   * requests use, and the root its Agent-tool subagents (keyed apart by agent
+   * id) share for account routing.
    */
   getRootSessionId(_c: Context, body?: unknown): string | undefined {
     return extractClaudeCodeSessionId(body)
