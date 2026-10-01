@@ -6109,7 +6109,25 @@ msgCount=1`, one with request class `auxiliary`) classified
 `unrelated-history`, and the main request after each one (msgCount 5, 11, 20)
 diverged `unrelated-history` too. Branch: PASS. 3 of 10 requests isolated as
 `auxiliary-request` (2 by shape, 1 by header), 6 of 6 later main requests
-resumed, no collisions, classifier `sessionWait` 0ms each.
+resumed, no collisions, classifier `sessionWait` 0ms each. The gate imports
+`src/` directly rather than the built bundle, and this run used Bun 1.2.20 (not
+the `packageManager` 1.3.11); neither affects the proxy path under test.
+
+**Live acceptance (2026-09-30, owner's working proxy, one ongoing auto-mode
+Claude Code session of ~700 messages).** The branch build replaced the
+installed 1.79.0 at 20:30:29 local; counts below are from the proxy journal,
+20:00 to 20:37, before an unrelated subagent collision began.
+
+| | 1.79.0 (20:00–20:30) | Branch (20:30–20:37) |
+|---|---|---|
+| Main requests resumed (`continuation`) | 2 of 32 | 10 of 12 |
+| Classifier requests isolated | 0 of 4 | 6 of 6 |
+| Max session-lease wait, classifier / main | 105s / 189s | 0ms / 16ms |
+| Cache hit per request (journal `usage:` lines) | 14–98%, median 64%, all requests | 100% on resumed main requests; 38–39% on classifier calls |
+
+The two branch requests that did not resume: the first after the restart
+(`not-found`, because earlier classifier calls had already overwritten the
+mapping), and one `modified-history` from an interrupted turn.
 
 ## E73: Unknown thinking display values
 
