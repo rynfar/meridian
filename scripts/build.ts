@@ -13,7 +13,7 @@ function run(command: string, args: readonly string[]): void {
 
 function build(identity?: BuildManifest["build"]): void {
   const common = ["--target", "node", "--splitting", "--external", "@anthropic-ai/claude-agent-sdk", "--external", "jsonc-parser", "--entry-naming", "[name].js"]
-  run("bun", ["build", "bin/cli.ts", "src/proxy/server.ts", "plugin/meridian-v2.ts", "--outdir", "dist", ...common, ...(identity ? ["--define", `MERIDIAN_ARTIFACT_IDENTITY=${JSON.stringify(identity)}`] : [])])
+  run("bun", ["build", "bin/cli.ts", "bin/session-bookkeeping.ts", "src/proxy/server.ts", "plugin/meridian-v2.ts", "--outdir", "dist", ...common, "--external", "libsql", ...(identity ? ["--define", `MERIDIAN_ARTIFACT_IDENTITY=${JSON.stringify(identity)}`] : [])])
   run("bun", ["build", "src/proxy/buildObservationWorker.ts", "--outdir", "dist", ...common])
   run("bun", ["build", "plugin/meridian/index.js", "--outdir", "dist/meridian", ...common])
   run("bun", ["build", "plugin/meridian-v2/index.js", "--outdir", "dist/meridian-v2", ...common])

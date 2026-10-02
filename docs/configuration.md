@@ -886,6 +886,94 @@ Clients just set their `ANTHROPIC_API_KEY` to the shared secret — since most t
 ANTHROPIC_API_KEY=your-secret-key ANTHROPIC_BASE_URL=http://meridian-host:3456 opencode
 ```
 
+## Session bookkeeping maintenance
+
+Node 22: `meridian-bookkeeping <command> --session-dir /absolute/private/session-directory [--json]`.
+The npm entry is `dist/session-bookkeeping.js`; this is not a proxy request endpoint.
+
+* `inspect` is read-only, holds a shared maintenance guard when one exists, and can run beside live proxies.
+* Stop/drain **all** writers, then `migrate --writers-stopped`. The flag is the operator's assertion,
+  not a conclusion from an empty lease table. Missing `--writers-stopped` exits **2**.
+  An already READY store returns 0 without a new transition.
+* `export-json` returns to legacy JSON, preserving current database documents, then releases its barriers.
+* `abort-migration` reverses only a pre-database BARRIERS failure; otherwise resume migration or export.
+* `recanonicalize` repairs derived mapping paths offline; resource rekeying requires export/correction/migrate.
+
+After EXPORTED or ABORTED, a new migration archives the prior cycle in
+`bookkeeping-cycles/<migration_id>/` before preparing a new cycle. An interrupted archival move resumes
+from `session-bookkeeping-cycle.json`. Never move individual files by hand. The guard database, journals,
+archived cycles, main database and WAL/SHM belong to the backup boundary.
+
+Exit codes (all commands): **0** completed/already target; **2** usage; **3** refusal before transition
+(quiescence, live/unknown candidate/gate, busy guard, capacity); **4** refusal with barriers or export already
+active; **5** corrupt/unreadable state or replaced barrier; **6** caller uid differs from directory owner.
+Code 3 permits the old binary only when the starting state was legacy; it does not undo a pre-existing READY
+transition. Code 4 means **do not start legacy writers**: resume `migrate`, use `abort-migration` before any
+database creation, or resume `export-json`. UID mismatch handling is implemented but not privilege-tested.
+
+`inspect --json` reports `phase` (`legacy`, `prepared`, `barriers`, `imported`, `ready`, `exporting`,
+`exported`, `aborted`, or `corrupt`), `migration_id`, `cycle_id`, `cycle_number`, `archived_cycles`, resource
+counts by state, mappings, main/WAL/SHM sizes, barrier ownership (`own`, `foreign`, `none`), `candidates`,
+`gates` and `temporary` residue lists, each with a relative `path` and `verdict`.
+Incarnations proven dead are `dead-incarnation`; `live` requires an OS observation of a live process.
+Darwin's second-resolution start time cannot prove incarnation equality, but an observed live process
+at that identity still refuses maintenance. Unobservable/malformed identities are `unknown`.
+Gate files do not persist an incarnation, so their verdict is `unknown`, never inferred from PID/age.
+`temporary` lists `session-gc.json.tmp-<pid>-<uuid>` and `sessions.json.tmp-<pid>-<uuid>` files,
+empty or nonempty, with byte size and SHA256 (interrupted legacy atomic writes).
+A currently live local PID from the filename yields `live` and refuses maintenance; otherwise the verdict
+is `unknown`, not a proof of a dead incarnation. Under `--writers-stopped`, these files are archived
+intact as residue, never discarded because they are temporary or empty.
+`turn-locks/` is outside bookkeeping and is neither listed nor moved.
+An empty directory candidate lacking `owner.json` is `unknown` with `kind: "incomplete-candidate"`,
+not corruption. Its original inode is captured by rename into a fresh UUID name under `residue/`, recorded
+as `archiveName` in the migration journal before the move. An adjacent `<private-name>.manifest.json`
+records source, private path, before/after device and inode, reason, and time. No source rmdir is used.
+If identity differs after capture, the directory stays private and exit 5 names its location and manifest:
+**nothing was deleted**. The operator must inspect it. There is deliberately no automatic directory rename
+back to a public name: POSIX rename could overwrite a newly occupied empty directory. A nonempty source
+observed before capture is refused without moving it.
+
+For `migrate --writers-stopped`, the operator attests that all proxies **and SDK/deletion children**
+have stopped. Under that attestation, unknown/dead residues are moved, not deleted, to
+`bookkeeping-cycles/<migration_id>/residue/<relative-path>`. The PREPARED migration journal records
+`residues` (path, verdict, SHA256, bytes, device/inode); the command returns the same list in
+`result.residues`. File archival uses no-clobber links followed by journaled private capture of the source;
+only that private name is deleted. Directory archival preserves the directory rather than copying/removing it.
+A live candidate refuses migration with its address (3 from legacy; 4 if barriers are already active).
+Other maintenance commands do not accept unknown candidates/gates. An already-ready CLI migrate is a
+no-op and does not archive newly appeared residues. The current cycle's residue directory does not count
+as an archived cycle. Inspection alone only reports residues, without applying the operator attestation.
+**Deletion invariant:** bookkeeping never calls unlink/rmdir on a public name. Every retirement first
+records a fresh private UUID name and observed identity durably, captures the public name by rename, and
+checks the captured inode. Only `PrivatePath` capabilities reach the deletion wrappers. Barrier intent
+lives in the migration journal; other file retirements have private `.deletion-intent.releasing-*` journals.
+If the captured file is foreign, restoration uses link (never overwrite): EEXIST leaves the private file
+intact and returns 5. Resume accepts the recorded identity; a missing capture with the original still public
+starts a new capture with a new UUID. The accepted POSIX limit is that another process cannot name a newly
+generated private UUID; the stop/drain attestation excludes live coordinators. Directory mismatch is
+fail-closed without automatic restoration, at the operator's explicitly accepted recovery cost.
+A foreign SQLite database without a migration journal refuses migration with 3 before guard creation.
+If it appears between preflight and guard acquisition, the operation releases its lease and retires only
+the guard inode it published itself, leaving the foreign main/WAL/SHM untouched. A pre-existing guard is
+not adopted as disposable. Ordinary durable journal publication remains the metadata-write protocol;
+the invariant above governs file retirement and restoration, not disabling journal updates.
+Inspection never repairs permissions or bootstraps a missing guard. WAL without SHM requires offline recovery
+rather than creating SHM during inspection. Without `--json`, output is indented for human reading.
+
+All JSON output includes `timings.total_ms` and `timings.phases` (`phase`, `duration_ms`); use measured
+production-size transitions to choose systemd `TimeoutStartSec`, not a guessed constant.
+
+Both permanent legacy lock files (`session-gc.json.lock`, `sessions.json.lock`) contain one JSON line:
+
+```json
+{"backend":"sqlite","migration_id":"<uuid>","format":"meridian-bookkeeping-barrier-v1","instruction":"Stop all writers; use meridian-bookkeeping export-json. Never delete this barrier manually."}
+```
+
+This deliberately lacks the legacy canonical pid/incarnation/token owner tuple. Never delete these markers
+manually. Release temporarily uses `<lock>.releasing-<migration_id>` and resumes after a crash from that name.
+Old-package negative-write probes are a separate acceptance step; this command alone is not evidence for them.
+
 ## CLI Commands
 
 | Command | Description |
@@ -1124,3 +1212,157 @@ Git output is capped at 2 MiB, metadata at 4 MiB (package metadata 1 MiB).
 Oversized or unavailable inputs report unavailable/invalid provenance rather
 than certifying a partial hash. A local certified build refuses such inputs;
 Git-less archives retain their uncertified build path.
+
+# SQLite session bookkeeping
+
+Set `MERIDIAN_BOOKKEEPING=sqlite` to explicitly use SQLite for both transcript
+lifecycle and cross-proxy session mappings. The default is `json` for existing
+installations. `MERIDIAN_SESSION_DIR` selects the shared private directory.
+Once a directory contains SQLite or active maintenance journals, JSON startup
+refuses it rather than creating a second authority. Never remove lock barriers
+by hand.
+
+SQLite uses `session-bookkeeping.sqlite`, WAL, `synchronous=FULL`, foreign keys,
+`busy_timeout=0` and disabled automatic checkpoints. Use a local filesystem
+with working SQLite locks: Linux ext2/3/4, xfs, btrfs or tmpfs; macOS APFS/HFS.
+An unverified filesystem requires the explicit
+`BOOKKEEPING_ALLOW_UNVERIFIED_FS=1` escape hatch, not an assumed safety claim.
+The directory must belong to the service uid with mode 0700; database, journal,
+WAL and SHM files are private (0600). Corruption, incompatible schema, path
+identity drift or incomplete maintenance prevents startup, without salvage or
+JSON fallback. Windows migration/crash behavior needs separate platform evidence.
+
+## Explicit migration and rollback
+
+Stop and drain **every** proxy and its SDK/deletion children first. A missing
+lock file is not proof that a writer stopped. Back up the whole directory,
+including journals and WAL, and provide sufficient free space for the database,
+source backups and migration journals. Then run:
+
+```sh
+meridian-bookkeeping inspect --session-dir /private/session-dir --json
+meridian-bookkeeping migrate --session-dir /private/session-dir --writers-stopped --json
+MERIDIAN_BOOKKEEPING=sqlite MERIDIAN_SESSION_DIR=/private/session-dir meridian
+```
+
+Starting the server or calling initialization is **not** permission to import
+legacy JSON. Fresh empty directories bootstrap READY atomically; legacy
+directories require the explicit migration command. Migration preserves source
+JSON backups and installs permanent barriers on both legacy lock names. Inspect
+phases are `legacy`, `prepared`, `barriers`, `imported`, `ready`, `exporting`,
+`exported` and `corrupt`. CLI exits: 0 success, 2 usage, 3 refusal before barriers,
+4 refusal after barriers/export, 5 corrupt/foreign authority, 6 wrong uid.
+An interrupted transition is resumed with its explicit maintenance command.
+
+To return to a legacy binary, stop/drain all writers again, then run the new
+package's command **before replacing the package**:
+
+```sh
+meridian-bookkeeping export-json --session-dir /private/session-dir --json
+```
+
+Fresh SQLite directories use the same durable migration identity and both legacy
+lock barriers as an empty-input migration. READY is inspectable/exportable;
+interrupted fresh bootstrap requires explicit `migrate --writers-stopped` (or a
+safe abort), never implicit adoption of an unjournaled database. Import planning
+executes the actual codecs/DDL in a disposable memory transaction before changing
+authority and repeats under maintenance ownership. Invalid scalar NUL, unsafe
+integers or row/constraint violations leave legacy source bytes, journals and
+barriers unchanged. Historical failed imports can be aborted only if their
+PREPARED database is provably empty: no mappings/resources/leases/history/fences
+or imported provenance. READY/nonempty authority is never discarded by abort.
+
+After successful export or abort, this same build may start with
+`MERIDIAN_BOOKKEEPING=json` only with validated terminal history, completed barrier
+release and no active SQLite main/WAL/SHM/journal. Export archives are checked;
+incomplete, substituted or foreign history does not authorize JSON fallback.
+
+Post-READY crash gates contain no incarnation proving the child dead. Ordinary
+export refuses unknown gates. After explicitly stopping/draining **all** SDK and
+deletion children, use:
+
+```sh
+meridian-bookkeeping export-json --session-dir /private/session-dir --writers-stopped --json
+```
+
+This records archive intent in the migration journal and uses the existing
+no-clobber/inode-checked residue archive. It resumes interrupted archival, including
+private captures within gate directories. A positively live or indeterminate
+ledger owner still refuses; attestation is not permission to invent process death.
+
+The published maintenance guard is permanent; refused operations never retire it.
+Historical guard-retirement intents/captures block ordinary commands **before**
+opening the guard or bootstrapping a replacement. Only after stopping every old
+runtime and maintainer (including children), the following explicit recovery can
+restore/link and exclusively lock the **original recorded inode**, then cancel
+only its private retirement intent/aliases:
+
+```sh
+meridian-bookkeeping recover-guard-retirement --session-dir /private/session-dir --writers-stopped --json
+```
+
+A different public inode, conflicting intents, missing original inode or invalid
+guard format refuses. Keep writers stopped and use an operator-approved coherent
+backup restore; never unlink/replace the public guard, change recorded dev/ino,
+or delete barriers manually. Recovery after copying an intent to a different
+filesystem is not implicit permission to rehome that identity.
+
+Run inspection through a **separate CLI process** beside a live proxy. In-process
+inspection refuses while any local SQLite owner exists (including alias paths):
+opening/closing an auxiliary descriptor for a POSIX lock-bearing inode can revoke
+the owner's OS locks even when SQLite still reports an active transaction.
+
+If a crash occurred after bootstrap's temporary-to-public hardlink but before
+private alias retirement, `inspect` reports `temporary.kind=bootstrap-alias`
+without mutating/opening that SQLite inode. This is diagnostic residue, not a
+certification that runtime can serve. Recover through the CLI only:
+
+```sh
+meridian-bookkeeping recover-bootstrap --session-dir /private/session-dir --writers-stopped --json
+meridian-bookkeeping migrate --session-dir /private/session-dir --writers-stopped --json
+```
+
+`migrate --writers-stopped` and `export-json --writers-stopped` can run this
+recovery before their normal phase checks. Recovery locks the published original
+guard exclusively, including the first-guard link window, before alias cleanup;
+it never opens/closes an auxiliary descriptor for that SQLite inode. A valid
+owner record must prove the exact bootstrap process dead; stopped attestation
+does not override live, ambiguous or missing ownership. Inode mismatch/foreign
+hardlinks refuse without deletion/adoption. Public main/guard identities stay
+unchanged. Private capture/intent/write names are bounded to filesystem NAME_MAX
+in UTF-8 bytes; legacy pending names remain readable and resumable.
+
+Use the freshly exported JSON, never the original migrated backups: those omit
+all later publications and fence advances. Do not start an old binary until
+export completes and its barriers have been released. Retain the cycle/archive
+files for recovery. A corrupt database requires an operator's restore decision,
+not automatic rollback.
+
+## Admission and embedding
+
+The SQLite async admission budget is the maximum of
+`MERIDIAN_SESSION_GC_LOCK_WAIT_MS` (default 2000 ms) and
+`MERIDIAN_SESSION_LOCK_TIMEOUT_MS` (default 10000 ms). The latter is the legacy
+store-lock setting, now a compatibility synonym in the common budget; corresponding
+`CLAUDE_PROXY_*` aliases remain accepted. Explicit library `lockWaitMs=0` means
+one BEGIN attempt, not a blocking retry. `lockRetryMs` controls asynchronous
+retry timing. Legacy `lockStaleMs` cannot recover SQLite locks. An exhausted
+budget gives typed overload; HTTP server paths answer 503, not an SDK timeout.
+Synchronous library writers outside admission can immediately throw typed busy.
+
+`startProxyServer` handles initialization and owned shutdown. For synchronous
+embedders:
+
+```js
+const handle = await initializeProxyBookkeeping()
+const proxy = createProxyServer(config)
+// Serve proxy.app.fetch, then stop admissions and drain outstanding requests.
+proxy.beginDrain?.()
+await proxy.closeBackend?.()
+handle?.close()
+```
+
+Keep the directory/backend fixed for the lifetime of these owners. Closing one
+proxy never closes another owner's connection. Unknown COMMIT outcomes are not
+replayed and do not authorize retiring a possibly published transcript. Periodic
+GC performs a PASSIVE checkpoint; physical WAL shrinking is an offline operation.

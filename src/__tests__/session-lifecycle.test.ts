@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test"
+import { legacyLifecycleOnly, sqliteLifecycleTest, setupLifecycleBackend, teardownLifecycleBackend } from "./fixtures/bookkeeping-lifecycle-backend"
+import { observeLifecycleState } from "./fixtures/bookkeeping-lifecycle-observer"
+import { injectDeletingResource } from "./fixtures/bookkeeping-lifecycle-injection"
+import type { TranscriptResource } from "../proxy/session/bookkeeping/types"
 import * as durableFileSystem from "../proxy/session/durableFileSystem"
 import {
   chmodSync,
@@ -46,26 +50,9 @@ import {
   getRecoveryClaimTombstonePath,
 } from "../proxy/session/recoveryClaim"
 
-interface StoredResource {
-  key: string
-  generation: string
-  locator: TranscriptLocator
-  state: string
-  createdAt: number
-  updatedAt: number
-  attempts: number
-  nextAttemptAt?: number
-  lastError?: string
-  deletionToken?: string
-  deletionOwner?: ProcessIncarnation
-  deletionExecutor?: ProcessIncarnation
-  deletionProcessGroupId?: number
-  activeLeases?: Record<string, unknown>
-}
-
 interface StoredSidecar {
-  version: number
-  resources: Record<string, StoredResource>
+  version?: number
+  resources: Record<string, TranscriptResource>
 }
 
 describe("session transcript lifecycle", () => {
@@ -75,6 +62,7 @@ describe("session transcript lifecycle", () => {
 
   beforeEach(() => {
     storeDir = mkdtempSync(join(tmpdir(), "meridian-session-lifecycle-"))
+    setupLifecycleBackend(storeDir)
     now = 10_000
     options = {
       storeDir,
@@ -90,6 +78,7 @@ describe("session transcript lifecycle", () => {
   })
 
   afterEach(() => {
+    teardownLifecycleBackend()
     rmSync(storeDir, { recursive: true, force: true })
   })
 
@@ -128,7 +117,7 @@ describe("session transcript lifecycle", () => {
     )
   })
 
-  it("persists a prepared intent before commit with private atomic storage", async () => {
+  legacyLifecycleOnly("reads JSON bytes and file permissions", "persists a prepared intent before commit with private atomic storage", async () => {
     const fork = locator("fork-1")
     const key = getTranscriptResourceKey(await prepareFork(fork, options))
 
@@ -144,7 +133,7 @@ describe("session transcript lifecycle", () => {
     expect(sidecar.resources[key]?.state).toBe("live")
   })
 
-  it("validates and upgrades a legacy v1 resource without unsafe shape coercion", async () => {
+  legacyLifecycleOnly("injects v1 JSON bytes", "validates and upgrades a legacy v1 resource without unsafe shape coercion", async () => {
     const legacy = locator("legacy-v1-sidecar")
     const key = getTranscriptResourceKey(legacy)
     writeFileSync(join(storeDir, "session-gc.json"), JSON.stringify({
@@ -199,7 +188,7 @@ describe("session transcript lifecycle", () => {
     const inFlightKey = getTranscriptResourceKey(await registerLiveTranscript(inFlight, options))
     const sidecar = readSidecar(storeDir)
     sidecar.resources[inFlightKey]!.state = "deleting"
-    writeFileSync(join(storeDir, "session-gc.json"), JSON.stringify(sidecar), { mode: 0o600 })
+    injectDeletingResource(storeDir, sidecar.resources[inFlightKey]!)
     await expect(registerLiveTranscript(inFlight, options)).rejects.toThrow("from state deleting")
   })
 
@@ -227,6 +216,7 @@ describe("session transcript lifecycle", () => {
     const saved = process.env.MERIDIAN_MAX_STORED_SESSIONS
     process.env.MERIDIAN_MAX_STORED_SESSIONS = "2"
     const derived = { ...options, storeDir: join(storeDir, "derived-capacity"), maxPending: 1 }
+    setupLifecycleBackend(derived.storeDir)
     try {
       // Two durable mappings can each pin current + predecessor. The smaller
       // pending budget must not deadlock those four healthy live resources.
@@ -245,6 +235,7 @@ describe("session transcript lifecycle", () => {
 
   it("never exceeds the pending bound when many live resources become unpinned", async () => {
     const bounded = { ...options, storeDir: join(storeDir, "bounded-reconcile"), maxPending: 1 }
+    setupLifecycleBackend(bounded.storeDir)
     const first = locator("unpin-first")
     const second = locator("unpin-second")
     const third = locator("unpin-third")
@@ -266,6 +257,7 @@ describe("session transcript lifecycle", () => {
 
   it("leaves admission capacity while retiring live resources after a profile switch", async () => {
     const bounded = { ...options, storeDir: join(storeDir, "retirement-headroom"), maxPending: 2 }
+    setupLifecycleBackend(bounded.storeDir)
     const firstStale = locator("first-stale-after-profile-switch")
     const secondStale = locator("second-stale-after-profile-switch")
     const fresh = locator("fresh-after-profile-switch")
@@ -281,7 +273,9 @@ describe("session transcript lifecycle", () => {
     expect(Object.values(resources).filter((resource) => resource.state === "live")).toHaveLength(1)
   })
 
-  it.each([2, 4])("continues bounded passive cleanup with a reserved admission slot (limit=%s)", async maxPending => {
+  for (const maxPending of [2, 4]) {
+  it(
+    `continues bounded passive cleanup with a reserved admission slot (limit=${maxPending})`, async () => {
     const deleted: string[] = []
     const bounded = { ...options, maxPending, maxDeletesPerRun: 1,
       deleter: async (resource: TranscriptLocator) => { deleted.push(resource.sessionId) } }
@@ -304,6 +298,7 @@ describe("session transcript lifecycle", () => {
     expect(new Set(deleted)).toEqual(new Set(stale.map(resource => resource.sessionId)))
     expect(deleted).not.toContain(active.sessionId)
   })
+  }
 
   it("defers retirement instead of refusing racing publications, without overbooking", async () => {
     const bounded = { ...options, maxPending: 2 }
@@ -501,7 +496,7 @@ describe("session transcript lifecycle", () => {
     await expect(acquireActiveTranscriptLease([fork], graceOptions)).rejects.toThrow("active SDK writer")
   })
 
-  it("releases a joined writer's lease on the next sweep when its lock is busy", async () => {
+  legacyLifecycleOnly("injects JSON lock file", "releases a joined writer's lease on the next sweep when its lock is busy", async () => {
     const fork = locator("joined-writer-busy-lock")
     await prepareFork(fork, options)
     const lease = await acquireActiveTranscriptLease([fork], options)
@@ -519,7 +514,7 @@ describe("session transcript lifecycle", () => {
     expect(deleted).toEqual(["joined-writer-busy-lock"])
   })
 
-  it("still surfaces a joined writer's release failure that retrying cannot fix", async () => {
+  legacyLifecycleOnly("corrupts JSON bytes", "still surfaces a joined writer's release failure that retrying cannot fix", async () => {
     const fork = locator("joined-writer-corrupt")
     await prepareFork(fork, options)
     const lease = await acquireActiveTranscriptLease([fork], options)
@@ -731,7 +726,7 @@ describe("session transcript lifecycle", () => {
     const sidecar = readSidecar(storeDir)
     sidecar.resources[key]!.state = "deleting"
     sidecar.resources[key]!.updatedAt = now - 1_000
-    writeFileSync(join(storeDir, "session-gc.json"), JSON.stringify(sidecar), { mode: 0o600 })
+    injectDeletingResource(storeDir, sidecar.resources[key]!)
 
     const result = await reconcile([], { ...options, deletingLeaseMs: 100 })
     expect(result.deletingRecovered).toBe(0)
@@ -748,7 +743,7 @@ describe("session transcript lifecycle", () => {
     sidecar.resources[key]!.deletionOwner = deadProcessIncarnation(999_999_998)
     sidecar.resources[key]!.deletionExecutor = deadProcessIncarnation(999_999_999)
     sidecar.resources[key]!.deletionProcessGroupId = 999_999_999
-    writeFileSync(join(storeDir, "session-gc.json"), JSON.stringify(sidecar), { mode: 0o600 })
+    injectDeletingResource(storeDir, sidecar.resources[key]!)
 
     const recovered = await reconcile([], options)
     expect(recovered.deletingRecovered).toBe(1)
@@ -768,7 +763,7 @@ describe("session transcript lifecycle", () => {
     sidecar.resources[key]!.deletionOwner = current
     sidecar.resources[key]!.deletionExecutor = current
     sidecar.resources[key]!.deletionProcessGroupId = current.pid
-    writeFileSync(join(storeDir, "session-gc.json"), JSON.stringify(sidecar), { mode: 0o600 })
+    injectDeletingResource(storeDir, sidecar.resources[key]!)
 
     expect((await reconcile([], options)).deletingRecovered).toBe(0)
     const gc = await runGc([], { ...options, deleter: async () => undefined })
@@ -776,7 +771,7 @@ describe("session transcript lifecycle", () => {
     expect(readSidecar(storeDir).resources[key]?.state).toBe("deleting")
   })
 
-  it("fails closed on a corrupt sidecar without calling the deleter", async () => {
+  legacyLifecycleOnly("corrupts JSON bytes", "fails closed on a corrupt sidecar without calling the deleter", async () => {
     const path = join(storeDir, "session-gc.json")
     writeFileSync(path, "{broken", { mode: 0o600 })
     let called = false
@@ -789,7 +784,7 @@ describe("session transcript lifecycle", () => {
     expect(readFileSync(path, "utf8")).toBe("{broken")
   })
 
-  it("recovers an abandoned stale lock without unlinking a successor", async () => {
+  legacyLifecycleOnly("injects JSON lock and recovery files", "recovers an abandoned stale lock without unlinking a successor", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     writeFileSync(lock, `${JSON.stringify({ pid: 999_999_999, hostname: hostname(), token: "stale", incarnation: deadProcessIncarnation(999_999_999) })}\n`, { mode: 0o600 })
     const stale = (Date.now() - 1_000) / 1_000
@@ -803,7 +798,7 @@ describe("session transcript lifecycle", () => {
     expect(readdirSync(storeDir)).toEqual(["session-gc.json"])
   })
 
-  it("repeatedly adopts dead lifecycle recovery claims and cleans resolved tombstones", async () => {
+  legacyLifecycleOnly("injects JSON lock and recovery files", "repeatedly adopts dead lifecycle recovery claims and cleans resolved tombstones", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     const contents = `${JSON.stringify({ pid: 999_999_999, hostname: hostname(), token: "stale-claim-generation", incarnation: deadProcessIncarnation(999_999_999) })}
 `
@@ -830,7 +825,7 @@ describe("session transcript lifecycle", () => {
     expect(readdirSync(storeDir).some((name) => name.includes(".recover-"))).toBe(false)
   })
 
-  it("fails closed for live and remote lifecycle recovery owners", async () => {
+  legacyLifecycleOnly("injects JSON lock and recovery files", "fails closed for live and remote lifecycle recovery owners", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     const contents = `${JSON.stringify({ pid: 999_999_999, hostname: hostname(), token: "blocked-claim-generation", incarnation: deadProcessIncarnation(999_999_999) })}
 `
@@ -855,7 +850,7 @@ describe("session transcript lifecycle", () => {
     }
   })
 
-  it("times out under lock contention and never proceeds unlocked", async () => {
+  legacyLifecycleOnly("injects JSON lock file", "times out under lock contention and never proceeds unlocked", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     writeFileSync(lock, "another-owner\n", { mode: 0o600 })
     chmodSync(lock, 0o600)
@@ -868,7 +863,7 @@ describe("session transcript lifecycle", () => {
     expect(readdirSync(storeDir)).not.toContain("session-gc.json")
   })
 
-  it("initialises one lock candidate per acquisition, not one per retry", async () => {
+  legacyLifecycleOnly("observes JSON lock candidates", "initialises one lock candidate per acquisition, not one per retry", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     writeFileSync(lock, "another-owner\n", { mode: 0o600 })
     const candidates = (): string[] =>
@@ -888,7 +883,7 @@ describe("session transcript lifecycle", () => {
     expect(readFileSync(lock, "utf8")).toBe("this-owner\n")
   })
 
-  it("grants the lock to one process's callers in arrival order", async () => {
+  legacyLifecycleOnly("observes JSON lock protocol", "grants the lock to one process's callers in arrival order", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     writeFileSync(lock, "another-owner\n", { mode: 0o600 })
     chmodSync(lock, 0o600)
@@ -908,7 +903,7 @@ describe("session transcript lifecycle", () => {
     expect(order).toEqual(["early", "late"])
   })
 
-  it("hands the turn on when a queued caller cancels admission", async () => {
+  legacyLifecycleOnly("observes JSON lock protocol", "hands the turn on when a queued caller cancels admission", async () => {
     const lock = join(storeDir, "session-gc.json.lock")
     writeFileSync(lock, "another-owner\n", { mode: 0o600 })
     chmodSync(lock, 0o600)
@@ -1043,5 +1038,6 @@ function locator(sessionId: string, profile = "profile"): TranscriptLocator {
 }
 
 function readSidecar(storeDir: string): StoredSidecar {
+  if (sqliteLifecycleTest) return observeLifecycleState(storeDir)
   return JSON.parse(readFileSync(join(storeDir, "session-gc.json"), "utf8")) as StoredSidecar
 }
