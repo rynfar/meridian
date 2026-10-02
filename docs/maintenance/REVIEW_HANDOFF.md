@@ -118,11 +118,11 @@ verified, original heads unchanged before closure. Durable records:
 [evidence/1190-request-activity.md](evidence/1190-request-activity.md).
 #792 draft [#1217](https://github.com/rynfar/meridian/pull/1217) proves new-account
 creation and real OpenCode use; re-authentication still awaits a completed
-human Claude authorization. #1187 remains under concurrency/client review;
-#1176 remains under official-rate/product-flow review. #1175 correction and
+human Claude authorization. #1187 is being completed in an isolated takeover branch;
+#1176 is deferred until Meridian has a supported OpenAI-serving path. #1175 correction and
 actual bundled HTTP/browser proof are recorded in
-[evidence/1175-update-setting.md](evidence/1175-update-setting.md); final-head
-CI is required before integration. No release authorized.
+[evidence/1175-update-setting.md](evidence/1175-update-setting.md); merged as #1227 at `3cb65df0c`; final-head CI and human credit were verified.
+No release authorized.
 
 Owner requested a persistent goal covering PRs/issues, authored cherry-picks,
 maintainer corrections and headless actual-client evidence. Initial paginated

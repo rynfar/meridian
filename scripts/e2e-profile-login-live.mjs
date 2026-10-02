@@ -6,12 +6,12 @@
 import { mkdtempSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-const root = realpathSync(mkdtempSync(join(tmpdir(), 'meridian-profile-login-live-')))
+const root = realpathSync(process.env.E2E_EXISTING_ROOT ?? mkdtempSync(join(tmpdir(), 'meridian-profile-login-live-')))
 for (const key of Object.keys(process.env)) if (/^(MERIDIAN_|CLAUDE_|CLAUDE_PROXY_|ANTHROPIC_|OPENAI_|OPENCODE_CLAUDE_PROVIDER_)/.test(key)) delete process.env[key]
 Object.assign(process.env, { MERIDIAN_CONFIG_DIR: join(root, 'config'), MERIDIAN_SESSION_DIR: join(root, 'sessions'),
   MERIDIAN_NO_UPDATE_CHECK: '1', MERIDIAN_TELEMETRY_PERSIST: '0', CLAUDE_CONFIG_DIR: join(root, 'unlinked-default') })
 for (const path of [process.env.MERIDIAN_CONFIG_DIR, process.env.CLAUDE_CONFIG_DIR, join(root, 'verification')]) mkdirSync(path, { recursive: true, mode: 0o700 })
-writeFileSync(join(process.env.MERIDIAN_CONFIG_DIR, 'profiles.json'), JSON.stringify([{ id: 'verification', claudeConfigDir: join(root, 'verification') }]), { mode: 0o600 })
+if (!process.env.E2E_EXISTING_ROOT) writeFileSync(join(process.env.MERIDIAN_CONFIG_DIR, 'profiles.json'), JSON.stringify([{ id: 'verification', claudeConfigDir: join(root, 'verification') }]), { mode: 0o600 })
 const { enableDiskProfileDiscovery } = await import('../src/proxy/profiles.ts')
 const { createProxyServer } = await import('../src/proxy/server.ts')
 enableDiskProfileDiscovery()

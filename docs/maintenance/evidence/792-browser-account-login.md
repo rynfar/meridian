@@ -93,3 +93,20 @@ publication fails can leave an unreferenced macOS Keychain item. The source
 store interface has no delete operation; isolated per-attempt services prevent
 changing a winner's credentials. This is not claimed to clean up orphan items.
 The native-store probe explicitly removes its own successful synthetic item.
+
+## Takeover checkpoint (2026-10-02)
+
+Integration rebased onto main `3cb65df0c`; the refreshed source
+`a9abcce8c693dae018ff73872051a9dfeabe21b6` has the same profile-login
+implementation. Existing authored commits and separate corrections remain.
+Final local gates after rebase: npm test 5,218 pass / zero failures / 35
+platform skips, standalone typecheck and build pass. The manual server can
+resume an owned fixture with `E2E_EXISTING_ROOT`, without replacing its
+profile configuration.
+
+A fresh existing-account authorization attempt reached Claude's OAuth page,
+but its Authorize control remained disabled. No completed re-authentication
+or loopback callback is claimed. This remains a draft acceptance gate;
+the successfully created isolated account still authenticates actual
+OpenCode/Opus calls in the separate profile-copy live probe. Earlier creation
+proof does not substitute for re-authentication proof.
