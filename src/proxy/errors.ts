@@ -460,6 +460,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   // raw text names absolute host paths, so only the reason reaches the client.
   if (
     (lower.includes("timed out waiting for") && lower.includes(".lock"))
+    || lower.includes("timed out waiting for lock on")
     || lower.includes("ownership backlog is full")
     || lower.includes("ownership capacity is full")
     || lower.includes("lifecycle queue capacity reached")

@@ -1,4 +1,3 @@
-import { closeSync, fsyncSync, lstatSync, openSync } from "node:fs"
 import { lstat, open } from "node:fs/promises"
 
 /**
@@ -16,17 +15,6 @@ export async function syncDirectoryDurably(path: string): Promise<void> {
     await handle.sync()
   } finally {
     await handle.close()
-  }
-}
-
-/** Synchronous form for the session store's synchronous lock protocol. */
-export function syncDirectoryDurablySync(path: string): void {
-  if (process.platform === "win32") return
-  const fd = openSync(path, "r")
-  try {
-    fsyncSync(fd)
-  } finally {
-    closeSync(fd)
   }
 }
 
@@ -56,22 +44,6 @@ export async function directoryRenameWasBlocked(
   }
   try {
     await lstat(destination)
-    return true
-  } catch (probeError) {
-    if (errorCode(probeError) === "ENOENT") return false
-    throw probeError
-  }
-}
-
-/** Synchronous form for the session store's recovery-claim protocol. */
-export function directoryRenameWasBlockedSync(error: unknown, destination: string): boolean {
-  const code = errorCode(error)
-  if (code && DIRECTORY_CONFLICT_CODES.has(code)) return true
-  if (process.platform !== "win32" || !code || !WINDOWS_DIRECTORY_CONFLICT_CODES.has(code)) {
-    return false
-  }
-  try {
-    lstatSync(destination)
     return true
   } catch (probeError) {
     if (errorCode(probeError) === "ENOENT") return false

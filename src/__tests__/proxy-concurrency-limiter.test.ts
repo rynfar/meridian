@@ -120,7 +120,7 @@ async function waitForSdkActive(n: number, ms: number) {
 const savedEnv: Record<string, string | undefined> = {}
 
 describe("SDK concurrency limiter", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     // The SDK semaphore is a process-wide singleton cached on first use, so
     // these bounds only mean anything if this file gets a fresh one. Without
     // the reset the assertions quietly measure whichever limit some earlier
@@ -129,7 +129,7 @@ describe("SDK concurrency limiter", () => {
     sdkActive = 0
     sdkPeak = 0
     sdkGate = Promise.resolve()
-    clearSessionCache()
+    await clearSessionCache()
     resetActiveProfile()
     __setFetchOAuthUsageOverride(async () => null)
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING

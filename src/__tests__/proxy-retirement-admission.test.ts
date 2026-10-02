@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { installSdkMock } from "./sdkMock"
@@ -38,7 +38,9 @@ installMcpToolsMock(() => ({ createOpencodeMcpServer: () => ({ type: "sdk", name
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetActiveProfile } = await import("../proxy/profiles")
+const { readSessionGcSnapshot } = await import("../proxy/sessionLifecycle")
 const { setSessionStoreDir, readSessionStoreSnapshot } = await import("../proxy/sessionStore")
+const { commitRawSession } = await import("./storeDatabaseHelpers")
 
 let root: string
 let proxy: ReturnType<typeof createProxyServer> | undefined
@@ -50,13 +52,13 @@ const overrides = {
   MERIDIAN_PASSTHROUGH: "0",
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-retirement-http-")))
   for (const key of [...Object.keys(overrides), "MERIDIAN_WORKDIR", "MERIDIAN_CONFIG_DIR", "MERIDIAN_SESSION_PROFILE_COPY_PRUNE", "MERIDIAN_SESSION_PROFILE_COPY_GRACE_MS", "CLAUDE_PROXY_SESSION_PROFILE_COPY_PRUNE"]) savedEnv[key] = process.env[key]
   Object.assign(process.env, overrides, { MERIDIAN_WORKDIR: root, MERIDIAN_CONFIG_DIR: join(root, "config") })
   setSessionStoreDir(join(root, "sessions"))
   resetActiveProfile()
-  clearSessionCache()
+  await clearSessionCache()
   queryProfiles.length = 0
   for (const id of ["personal", "work"]) mkdirSync(join(root, id))
   proxy = createProxyServer({
@@ -68,7 +70,7 @@ beforeEach(() => {
 afterEach(async () => {
   await proxy?.sweepSessionGc?.()
   proxy = undefined
-  clearSessionCache()
+  await clearSessionCache()
   resetActiveProfile()
   setSessionStoreDir(null)
   for (const [key, value] of Object.entries(savedEnv)) {
@@ -108,10 +110,10 @@ describe("profile switch admission with bounded retirement", () => {
     // A switch keeps profile-scoped mappings; losing them all is what leaves
     // every old transcript pending retirement at the bound.
     expect(Object.values(readSessionStoreSnapshot())).toHaveLength(2)
-    clearSessionCache()
+    await clearSessionCache()
     expect(Object.values(readSessionStoreSnapshot())).toHaveLength(0)
     await sweep()
-    const sidecar = JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")) as {
+    const sidecar = readSessionGcSnapshot(join(root, "sessions")) as {
       resources: Record<string, { state: string }>
     }
     expect(Object.values(sidecar.resources).some(resource => resource.state === "retired")).toBe(true)
@@ -137,9 +139,9 @@ describe("profile switch admission with bounded retirement", () => {
       expect(response.status, await response.clone().text()).toBe(200)
     }
     await sweep()
-    clearSessionCache()
+    await clearSessionCache()
     await sweep()
-    const retired = () => Object.values((JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")) as {
+    const retired = () => Object.values((readSessionGcSnapshot(join(root, "sessions")) as {
       resources: Record<string, { state: string }>
     }).resources).filter(resource => resource.state === "retired").length
     expect(retired()).toBe(1)
@@ -176,8 +178,8 @@ describe("profile-copy pruning consent", () => {
         "personal:policy": { claudeSessionId: "older", createdAt: 1, lastUsedAt: 1, messageCount: 1 },
         "work:policy": { claudeSessionId: "newer", createdAt: 2, lastUsedAt: 2, messageCount: 1 },
       }
-      mkdirSync(join(root, "sessions"), { recursive: true })
-      writeFileSync(join(root, "sessions", "sessions.json"), JSON.stringify(document))
+      readSessionStoreSnapshot()
+      for (const [key, entry] of Object.entries(document)) commitRawSession(join(root, "sessions"), key, entry)
       proxy = createProxyServer({ port: 0, host: "127.0.0.1", profiles: ["personal", "work"].map(id => ({ id, claudeConfigDir: join(root, id) })) })
       await proxy.sweepSessionGc?.()
       expect(Object.keys(readSessionStoreSnapshot()).sort()).toEqual(enabled === "1"

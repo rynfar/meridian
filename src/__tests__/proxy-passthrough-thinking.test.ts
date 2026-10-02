@@ -154,8 +154,8 @@ function thinkingDelta(index: number, text: string): SDKMessage {
   } as SDKMessage
 }
 
-beforeEach(() => {
-  clearSessionCache()
+beforeEach(async () => {
+  await clearSessionCache()
   mockMessages = []
 })
 

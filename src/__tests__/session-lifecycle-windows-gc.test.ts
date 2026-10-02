@@ -10,11 +10,13 @@ import {
   getSessionGcNodeExecutable,
   getTranscriptResourceKey,
   prepareFork,
+  readSessionGcSnapshot,
   reconcile,
   runGc,
   type TranscriptLocator,
 } from "../proxy/sessionLifecycle"
 import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
+import { releaseStoreDatabase } from "./storeDatabaseHelpers"
 
 // Regression coverage for the Windows session-GC stall: runGc used to no-op on
 // win32 whenever no custom deleter was injected (the production configuration),
@@ -43,7 +45,10 @@ interface StoredSidecar {
 const tempRoots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })))
+  await Promise.all(tempRoots.splice(0).map(async (path) => {
+    await releaseStoreDatabase(join(path, "store"))
+    await rm(path, { recursive: true, force: true })
+  }))
 })
 
 // A stand-in for @anthropic-ai/claude-agent-sdk. deleteSession records the
@@ -101,7 +106,7 @@ function gcOptions(fixture: Awaited<ReturnType<typeof makeFixture>>) {
 }
 
 function readSidecar(storeDir: string): StoredSidecar {
-  return JSON.parse(readFileSync(join(storeDir, "session-gc.json"), "utf8")) as StoredSidecar
+  return readSessionGcSnapshot(storeDir) as StoredSidecar
 }
 
 describe("session GC deletes retired transcripts on every platform", () => {
@@ -236,7 +241,7 @@ console.log(JSON.stringify({ pid: process.pid, bun: process.versions.bun ?? null
       // local host: a provably dead incarnation on a provably live pid.
       const reusedPidExecutor = { ...current, bootId: "00000000-0000-4000-8000-000000000000" }
       const sidecarPath = join(fixture.storeDir, "session-gc.json")
-      const sidecar = JSON.parse(await readFile(sidecarPath, "utf8")) as StoredSidecar
+      const sidecar = readSidecar(fixture.storeDir)
       const resource = sidecar.resources[key]
       if (!resource) throw new Error("expected sidecar resource for fixture locator")
       resource.state = "deleting"

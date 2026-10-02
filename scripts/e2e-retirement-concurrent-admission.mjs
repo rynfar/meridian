@@ -5,7 +5,7 @@
 // publication slot, which is exactly the reported multi-session workload.
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
-import { mkdtempSync, readFileSync, realpathSync } from "node:fs"
+import { mkdtempSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import * as sdk from "@anthropic-ai/claude-agent-sdk"
@@ -29,6 +29,7 @@ Object.assign(process.env, {
 })
 const { createProxyServer, clearSessionCache } = await import("../src/proxy/server.ts")
 const { readSessionStoreSnapshot } = await import("../src/proxy/sessionStore.ts")
+const { readSessionGcSnapshot } = await import("../src/proxy/sessionLifecycle.ts")
 const proxy = createProxyServer({
   port: 0, host: "127.0.0.1", defaultProfile: "personal", silent: true,
   profiles: [{ id: "personal", claudeConfigDir: authDir }],
@@ -37,7 +38,7 @@ const server = Bun.serve({ hostname: "127.0.0.1", port: 0, idleTimeout: 120, fet
 const base = `http://127.0.0.1:${server.port}`
 function mappings() { return Object.values(readSessionStoreSnapshot()) }
 function resources() {
-  return Object.values(JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")).resources)
+  return Object.values(readSessionGcSnapshot(join(root, "sessions")).resources)
 }
 function pending() {
   return resources().filter(row => ["prepared", "retired", "deleting"].includes(row.state)).length
@@ -90,7 +91,7 @@ try {
   const sources = await Promise.all(mappings().map(async row =>
     ({ id: row.claudeSessionId, rows: await history(row.claudeSessionId) })))
   await proxy.sweepSessionGc()
-  clearSessionCache()
+  await clearSessionCache()
   await proxy.sweepSessionGc()
   // Passive retirement deliberately stops one slot short of the budget, so the
   // backlog parks MAX_PENDING - 1 transcripts awaiting a real SDK deletion.

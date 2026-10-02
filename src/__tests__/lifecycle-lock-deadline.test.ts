@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import * as fsPromises from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import * as durable from "../proxy/session/durableFileSystem"
 import { registerLiveTranscript, SessionLifecycleLockError } from "../proxy/sessionLifecycle"
+import { holdStoreWrites } from "./storeDatabaseHelpers"
 
 it.each([true, false])("starts a fresh external budget after long local waiting (external owner releases=%s)", async releases => {
   const storeDir = mkdtempSync(join(tmpdir(), "meridian-lock-deadline-"))
@@ -15,11 +15,7 @@ it.each([true, false])("starts a fresh external budget after long local waiting 
   let externalInstalled = false
   let failedAttempts = 0
   const nowSpy = spyOn(performance, "now").mockImplementation(() => clock)
-  const sync = durable.syncDirectoryDurably
-  const syncSpy = spyOn(durable, "syncDirectoryDurably").mockImplementation(async path => {
-    if (path === storeDir) { entered.resolve(); await release.promise }
-    await sync(path)
-  })
+  const syncSpy = holdStoreWrites(storeDir, entered.resolve, release.promise)
   const unlink = fsPromises.unlink
   const unlinkSpy = spyOn(fsPromises, "unlink").mockImplementation(async path => {
     await unlink(path)

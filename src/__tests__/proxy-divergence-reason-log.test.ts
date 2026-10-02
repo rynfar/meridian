@@ -79,18 +79,18 @@ describe("divergence reason on the request line", () => {
   let errSpy: ReturnType<typeof spyOn>
   let warnSpy: ReturnType<typeof spyOn>
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
-    clearSessionCache()
+    await clearSessionCache()
     resetHeaderlessToolLoopWarningForTests()
     errSpy = spyOn(console, "error")
     warnSpy = spyOn(console, "warn")
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     errSpy.mockRestore()
     warnSpy.mockRestore()
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   const requestLines = (): string[] => errSpy.mock.calls

@@ -29,7 +29,7 @@ const hook = (value: unknown) => text(`<user-prompt-submit-hook>${JSON.stringify
 const result = { type: "tool_result", tool_use_id: "read-1", content: "ALREADY_DELIVERED" }
 
 describe("block continuations through HTTP", () => {
-  beforeEach(() => { captured = []; clearSessionCache() })
+  beforeEach(async () => { captured = []; await clearSessionCache() })
   for (const stream of [false, true]) {
     async function post(app: ReturnType<typeof createProxyServer>["app"], key: string, messages: Message[], agent = "opencode") {
       const response = await app.fetch(new Request("http://localhost/v1/messages", {
@@ -45,7 +45,7 @@ describe("block continuations through HTTP", () => {
     for (const image of [false, true]) {
       it(`sends only appended content despite an intervening hook (stream=${stream}, image=${image})`, async () => {
         const key = crypto.randomUUID()
-        expect(storeSession(key, [{ role: "user", content: [result] }], "source")).not.toBe(false)
+        expect(await storeSession(key, [{ role: "user", content: [result] }], "source")).not.toBe(false)
         const media = { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }
         const { app } = createProxyServer({ silent: true })
         await post(app, key, [{ role: "user", content: [result, hook({ continue: true }), text("APPENDED_TEXT"), ...(image ? [media] : [])] }])
@@ -59,7 +59,7 @@ describe("block continuations through HTTP", () => {
 
     it(`delivers appended media and a later user question in one SDK input (stream=${stream})`, async () => {
       const key = crypto.randomUUID()
-      storeSession(key, [{ role: "user", content: [result] }], "source")
+      await storeSession(key, [{ role: "user", content: [result] }], "source")
       const { app } = createProxyServer({ silent: true })
       await post(app, key, [{ role: "user", content: [result, text("APPENDED_TEXT"),
         { type: "image", source: { type: "base64", media_type: "image/png", data: "NEW_IMAGE" } }] },
@@ -74,7 +74,7 @@ describe("block continuations through HTTP", () => {
 
     it(`replays a repeated result even after appended text (stream=${stream})`, async () => {
       const key = crypto.randomUUID()
-      storeSession(key, [{ role: "user", content: [result] }], "source")
+      await storeSession(key, [{ role: "user", content: [result] }], "source")
       const { app } = createProxyServer({ silent: true })
       await post(app, key, [{ role: "user", content: [result, text("APPENDED_TEXT"), { ...result, content: "DUPLICATED_RESULT" }] }])
       expect(captured[0]!.options?.resume).toBeUndefined()
@@ -83,7 +83,7 @@ describe("block continuations through HTTP", () => {
 
     it(`replays an ordinary user message edit (stream=${stream})`, async () => {
       const key = crypto.randomUUID()
-      storeSession(key, [{ role: "user", content: [text("ORIGINAL_TEXT")] }], "source")
+      await storeSession(key, [{ role: "user", content: [text("ORIGINAL_TEXT")] }], "source")
       const { app } = createProxyServer({ silent: true })
       await post(app, key, [{ role: "user", content: [text("ORIGINAL_TEXT"), text("APPENDED_TEXT")] }])
       expect(captured[0]!.options?.resume).toBeUndefined()
@@ -93,7 +93,7 @@ describe("block continuations through HTTP", () => {
 
     it(`removes revoked meaningful content from the replayed input (stream=${stream})`, async () => {
       const key = crypto.randomUUID()
-      storeSession(key, [{ role: "user", content: [text("ALPHA"), text("REMOVED_OVERRIDE")] }], "source")
+      await storeSession(key, [{ role: "user", content: [text("ALPHA"), text("REMOVED_OVERRIDE")] }], "source")
       const { app } = createProxyServer({ silent: true })
       await post(app, key, [{ role: "user", content: [text("ALPHA")] }, { role: "assistant", content: "ok" }, { role: "user", content: "Explain." }])
       expect(captured[0]!.options?.resume).toBeUndefined()

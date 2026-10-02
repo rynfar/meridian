@@ -3,9 +3,9 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "n
 import * as fsPromises from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import * as durable from "../proxy/session/durableFileSystem"
+import { holdStoreWrites } from "./storeDatabaseHelpers"
 import {
-  getTranscriptResourceKey, prepareFork, publishPinnedTranscript, registerLiveTranscript,
+  getTranscriptResourceKey, prepareFork, publishPinnedTranscript, readSessionGcSnapshot, registerLiveTranscript,
   SessionLifecycleLockError, SessionLifecycleReentrancyError,
 } from "../proxy/sessionLifecycle"
 
@@ -22,11 +22,7 @@ it("does not execute a queued registration after admission cancellation", async 
   const first = fixture()
   const entered = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
-  const sync = durable.syncDirectoryDurably
-  const spy = spyOn(durable, "syncDirectoryDurably").mockImplementation(async path => {
-    if (path === first.storeDir) { entered.resolve(); await release.promise }
-    await sync(path)
-  })
+  const spy = holdStoreWrites(first.storeDir, entered.resolve, release.promise)
   const controller = new AbortController()
   try {
     const active = registerLiveTranscript(first, first)
@@ -38,7 +34,7 @@ it("does not execute a queued registration after admission cancellation", async 
     release.resolve()
     await active
     expect(await outcome).toEqual(new Error("cancelled admission"))
-    const persisted: unknown = JSON.parse(readFileSync(join(first.storeDir, "session-gc.json"), "utf8"))
+    const persisted: unknown = readSessionGcSnapshot(first.storeDir)
     expect(persisted).not.toHaveProperty(`resources.${getTranscriptResourceKey(second)}`)
   } finally {
     release.resolve()
@@ -46,18 +42,13 @@ it("does not execute a queued registration after admission cancellation", async 
   }
 })
 
-it("finishes directory durability and returns ownership when cancellation arrives during a transaction", async () => {
+it("finishes the durable write and returns ownership when cancellation arrives during a transaction", async () => {
   const target = fixture()
   const entered = Promise.withResolvers<void>()
   const release = Promise.withResolvers<void>()
-  const sync = durable.syncDirectoryDurably
-  let directorySynced = false
+  let committed = false
   let acknowledged = false
-  const spy = spyOn(durable, "syncDirectoryDurably").mockImplementation(async path => {
-    if (path === target.storeDir) { entered.resolve(); await release.promise }
-    await sync(path)
-    directorySynced = true
-  })
+  const spy = holdStoreWrites(target.storeDir, entered.resolve, release.promise, () => { committed = true })
   const controller = new AbortController()
   try {
     const operation = registerLiveTranscript(target, { ...target, admissionSignal: controller.signal })
@@ -66,12 +57,12 @@ it("finishes directory durability and returns ownership when cancellation arrive
     controller.abort()
     await Promise.resolve()
     expect(acknowledged).toBe(false)
-    expect(directorySynced).toBe(false)
+    expect(committed).toBe(false)
     release.resolve()
     const result = await operation
-    expect(directorySynced).toBe(true)
+    expect(committed).toBe(true)
     expect(result.lifecycleGeneration).toBeDefined()
-    const persisted: unknown = JSON.parse(readFileSync(join(target.storeDir, "session-gc.json"), "utf8"))
+    const persisted: unknown = readSessionGcSnapshot(target.storeDir)
     expect(persisted).toHaveProperty(`resources.${getTranscriptResourceKey(target)}.generation`, result.lifecycleGeneration)
   } finally {
     release.resolve()
@@ -148,6 +139,6 @@ it("rejects lifecycle reentrancy from a synchronous publication callback and pre
     return false
   }, target)).toBe(false)
   expect(await nested).toBeInstanceOf(SessionLifecycleReentrancyError)
-  const persisted: unknown = JSON.parse(readFileSync(join(target.storeDir, "session-gc.json"), "utf8"))
+  const persisted: unknown = readSessionGcSnapshot(target.storeDir)
   expect(persisted).toHaveProperty(`resources.${getTranscriptResourceKey(target)}.state`, "prepared")
 })

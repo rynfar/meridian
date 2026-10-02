@@ -131,11 +131,11 @@ function switchTo(profile: string): Request {
 describe("profile switch during an in-flight turn", () => {
   let sessionDir = ""
 
-  beforeEach(() => {
+  beforeEach(async () => {
     sessionDir = mkdtempSync(join(tmpdir(), "meridian-switch-inflight-"))
     setSessionStoreDir(sessionDir)
     resetActiveProfile()
-    clearSessionCache()
+    await clearSessionCache()
     queryCalls = 0
     armTurn()
   })

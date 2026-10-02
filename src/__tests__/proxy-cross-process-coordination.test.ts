@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
+import { readCommittedSession } from "./storeDatabaseHelpers"
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const serverModule = pathToFileURL(resolve(testDir, "../proxy/server.ts")).href
@@ -459,8 +460,7 @@ describe("proxy coordination across OS processes", () => {
 
     await release(waiter)
     expect((await result(paths, waiter)).status).toBe(200)
-    const durable = JSON.parse(await readFile(join(paths.sessions, "sessions.json"), "utf8"))
-    expect(durable["shared-refresh"]).toMatchObject({
+    expect(readCommittedSession(paths.sessions, "shared-refresh")).toMatchObject({
       claudeSessionId: waiterSdk.sdkSessionId,
       previousClaudeSessionId: ownerSdk.sdkSessionId,
       revision: 2,

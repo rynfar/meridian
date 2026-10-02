@@ -77,14 +77,14 @@ try {
     const key = `${mode}-${randomUUID()}`
     if (mode === "legacy-hashes") {
       const strings = history.map(message => `${message.role}:${normalizeContent(message.content)}`)
-      assert(storeSharedSession(key, source.claudeSessionId, history.length, digest(strings.join("\n")),
+      assert(await storeSharedSession(key, source.claudeSessionId, history.length, digest(strings.join("\n")),
         strings.map(digest), source.sdkMessageUuids, undefined,
         history.map(message => (Array.isArray(message.content) ? message.content : [message.content])
           .filter(block => !["thinking", "redacted_thinking"].includes(block?.type))
           .map(block => digest(normalizeContent([block])))),
         source.passthroughToolCallAssistantUuid, source.passthroughToolCallIds, source.currentTranscript))
     } else {
-      assert(storeSession(key, history, source.claudeSessionId, root, source.sdkMessageUuids, undefined,
+      assert(await storeSession(key, history, source.claudeSessionId, root, source.sdkMessageUuids, undefined,
         source.passthroughToolCallAssistantUuid, source.passthroughToolCallIds, source.currentTranscript))
     }
     const changed = mode === "changed-error-status"

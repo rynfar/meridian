@@ -85,8 +85,8 @@ function makeTools(count: number) {
 let savedPassthrough: string | undefined
 let savedThreshold: string | undefined
 
-beforeEach(() => {
-  clearSessionCache()
+beforeEach(async () => {
+  await clearSessionCache()
   mockMessages = []
   capturedQueryParams = {}
   savedPassthrough = process.env.MERIDIAN_PASSTHROUGH

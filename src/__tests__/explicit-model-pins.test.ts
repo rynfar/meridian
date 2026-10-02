@@ -123,8 +123,8 @@ function post(app: any, model: string) {
 }
 
 describe("explicit model pins reach the subprocess env (#631)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryEnvs = []
   })
 

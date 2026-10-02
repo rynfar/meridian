@@ -75,9 +75,9 @@ const BASIC_REQUEST = {
 }
 
 describe("Environment variable stripping", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedQueryOptions = null
-    clearSessionCache()
+    await clearSessionCache()
     // Save current env
     for (const key of ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]) {
       savedEnv[key] = process.env[key]
@@ -203,9 +203,9 @@ describe("SDK model pin injection (fixes #419)", () => {
   ]
   const savedModelEnv: Record<string, string | undefined> = {}
 
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedQueryOptions = null
-    clearSessionCache()
+    await clearSessionCache()
     for (const k of modelEnvKeys) {
       savedModelEnv[k] = process.env[k]
       delete process.env[k]
@@ -335,7 +335,7 @@ describe("SDK model pin injection (fixes #419)", () => {
 
     // Now add a shell env — it wins over MERIDIAN_ too.
     process.env.ANTHROPIC_DEFAULT_OPUS_MODEL = "claude-opus-shell-wins"
-    clearSessionCache()
+    await clearSessionCache()
     const app2 = createTestApp()
     await post(app2, BASIC_REQUEST)
     expect(capturedQueryOptions.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe("claude-opus-shell-wins")

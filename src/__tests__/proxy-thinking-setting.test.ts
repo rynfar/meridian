@@ -98,12 +98,12 @@ const BASE_BODY = {
 }
 
 describe("per-adapter thinking setting — explicit \"disabled\" is authoritative", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedOptions = {}
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     explicitThinking = undefined
     defaultThinking = "disabled"
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("overrides client body.thinking when explicitly disabled", async () => {

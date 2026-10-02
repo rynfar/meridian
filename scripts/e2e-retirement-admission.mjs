@@ -2,7 +2,7 @@
 // Real HTTP/profile-switch/SDK gate. Both aliases use existing authentication.
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
-import { mkdtempSync, readFileSync, realpathSync } from "node:fs"
+import { mkdtempSync, realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import * as sdk from "@anthropic-ai/claude-agent-sdk"
@@ -22,6 +22,7 @@ Object.assign(process.env, {
 })
 const { createProxyServer, clearSessionCache } = await import("../src/proxy/server.ts")
 const { readSessionStoreSnapshot } = await import("../src/proxy/sessionStore.ts")
+const { readSessionGcSnapshot } = await import("../src/proxy/sessionLifecycle.ts")
 const proxy = createProxyServer({
   port: 0, host: "127.0.0.1", defaultProfile: "personal", silent: true,
   profiles: ["personal", "work"].map(id => ({ id, claudeConfigDir: authDir })),
@@ -30,7 +31,7 @@ const server = Bun.serve({ hostname: "127.0.0.1", port: 0, idleTimeout: 120, fet
 const base = `http://127.0.0.1:${server.port}`
 function mappings() { return Object.values(readSessionStoreSnapshot()) }
 function resources() {
-  return Object.values(JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")).resources)
+  return Object.values(readSessionGcSnapshot(join(root, "sessions")).resources)
 }
 async function request(key, messages) {
   const response = await fetch(`${base}/v1/messages`, {
@@ -80,7 +81,7 @@ try {
   // publication (6ecfbaa7). Retirement therefore needs the mappings actually
   // dropped, which cache eviction under session pressure and a proxy restart
   // both do, so unpin them explicitly instead of assuming the switch did it.
-  clearSessionCache()
+  await clearSessionCache()
   assert.equal(mappings().length, 0)
   await proxy.sweepSessionGc()
   const retired = resources().filter(row => row.state === "retired").length

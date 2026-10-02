@@ -218,8 +218,9 @@ src/
 │   │   ├── turnCoordinator.ts ← Process-wide serialization for reliable session IDs
 │   │   ├── crossProcessTurnCoordinator.ts ← Durable coordination across proxy processes
 │   │   ├── processIncarnation.ts ← Process/host identity for lock ownership
+│   │   ├── storeDatabase.ts   ← SQLite database behind the session store and lifecycle journal (WAL, off-loop commits)
 │   │   └── durableFileSystem.ts ← Durable file operations
-│   ├── sessionStore.ts        ← Shared file store (cross-proxy session resume)
+│   ├── sessionStore.ts        ← Shared session store (cross-proxy session resume)
 │   ├── profiles.ts            ← Multi-profile support: resolve, list, switch auth contexts (leaf)
 │   ├── profileCli.ts          ← CLI commands for profile management (leaf, I/O)
 │   ├── statusProbe.ts         ← Asks a busy port whether it is Meridian, and collects what / shows
@@ -488,7 +489,7 @@ E2E tests (`E2E.md`) should be run before releases or after major refactors.
 
 ## Transcript publication lifetime
 
-`sessionLifecycle.ts` persists a publication lease atomically with each new request target before SDK launch. The lease survives physical SDK writer shutdown and commit until the synchronous durable mapping CAS succeeds, or the request abandons its target. Failed publication restores the lease. Collectors in other processes cannot depend on a proxy instance's private request pins, so they consult these durable leases as well as durable mappings.
+`sessionLifecycle.ts` persists a publication lease atomically with each new request target before SDK launch. The lease survives physical SDK writer shutdown and commit until the durable mapping CAS succeeds, or the request abandons its target. Failed publication restores the lease. Collectors in other processes cannot depend on a proxy instance's private request pins, so they consult these durable leases as well as durable mappings.
 
 Publication leases use the existing unarmed active-lease representation with `purpose: "publication"`. Older collectors also retain them while the owner process is alive; exact process-incarnation death permits recovery. They do not count as exclusive SDK writers, and abandoning publication never removes an actual writer lease. Published transcripts are retained by their durable mappings and become collectible after eviction.
 
@@ -507,7 +508,7 @@ remain synchronous; same-context recursive acquisition is rejected explicitly.
 
 ## Session store write cost
 
-`sessionStore.ts` mutations are synchronous and run on the event loop, so their cost is lag for every request. The parsed document is cached by file identity (device, inode, size, mtime, ctime); every writer publishes by rename while holding the store lock, so a locked mutation that finds the cache current builds on it without re-parsing. Mutators receive a copy-on-write draft and replace entries rather than editing them. New entries own a deep copy of caller data before serialization. Cached entries/maps and metadata are frozen; privately parsed nested arrays are frozen before a lookup or snapshot exposes them, avoiding a full nested walk for a single cold lookup. Each entry's serialized UTF-8 bytes are memoized, so a write encodes only the entries it changed. Unchanged entries keep their identity and serialized bytes. The file format, lock, fsync and rename are unchanged.
+`sessionStore.ts` keeps the store in `sessions.db` (`session/storeDatabase.ts`), and a mutation writes only the rows it changes; the database waits for locks and the disk off the event loop, while building the change runs on it, so that CPU is lag for every request. Each process caches the store as of the last commit it read: while nothing changed a read costs one row lookup, and after another process commits only the rows it wrote are parsed again. Mutators receive a copy-on-write draft and replace entries rather than editing them. New entries own a deep copy of caller data before serialization. Cached entries are frozen; privately parsed nested arrays are frozen before a lookup or snapshot exposes them, avoiding a full nested walk for a single cold lookup. Unchanged entries keep their identity and are never serialized again.
 
 A conversation that has run under several profiles has one mapping per profile (`<profile>:<session>`), each holding full per-message hashes and pinning its own transcript. With explicit `MERIDIAN_SESSION_PROFILE_COPY_PRUNE=1`, before each GC sweep mappings superseded by a newer copy under another profile and unused for `MERIDIAN_SESSION_PROFILE_COPY_GRACE_MS` (default 24 hours, `DEFAULT_PROFILE_COPY_GRACE_MS`) are removed. Priority route and rollback mappings and conversations with a turn registered in this process are exempt. Removal only unpins transcripts; reconciliation retires them through the normal lifecycle backlog, and `releaseSupersededProfileCopies` limits the transcripts it unpins so that at least half of the pending budget stays free and admission never has to return the prune's retirements to live. A conversation returning to a pruned profile replays instead of resuming. Pruning is off by default to preserve native resume history, including SDK thinking that flattened replay cannot restore. Maintenance acquires nonwaiting conversation leases and reserves retirement capacity while holding the lifecycle lock; held or stale turn locks defer pruning.
 
