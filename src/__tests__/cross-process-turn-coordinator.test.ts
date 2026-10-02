@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { createHash } from "node:crypto"
 import { mkdir, mkdtemp, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises"
-import { hostname, tmpdir } from "node:os"
+import { hostname, tmpdir, uptime } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
@@ -385,5 +385,109 @@ describe("cross-process turn coordinator", () => {
     await expectSuccess(owner)
     const hash = createHash("sha256").update("logical-session").digest("hex")
     expect(await Bun.file(join(paths.locks, `${hash}.lock`, "owner.json")).exists()).toBe(true)
+  })
+})
+
+describe("cross-process turn coordinator: locks without a readable owner", () => {
+  const key = "logical-session"
+  // What a host crash left behind: owner.json kept its 338-byte size and lost
+  // its data, so it reads back as NUL bytes.
+  const tornOwners: Record<string, string | undefined> = {
+    "NUL-filled": "\0".repeat(338),
+    "empty": "",
+    "unparseable": "{\"token\":\"cut-off",
+    "missing": undefined,
+  }
+
+  async function seedOwnerless(
+    locks: string,
+    owner: string | undefined,
+    activityAt: number,
+  ): Promise<string> {
+    const lockPath = join(locks, `${createHash("sha256").update(key).digest("hex")}.lock`)
+    await mkdir(lockPath, { recursive: true })
+    const heartbeat = join(lockPath, "heartbeat-7c22780d-a10d-473f-968c-6277b68fe678")
+    await writeFile(heartbeat, "")
+    await utimes(heartbeat, new Date(activityAt), new Date(activityAt))
+    if (owner !== undefined) {
+      await writeFile(join(lockPath, "owner.json"), owner)
+      await utimes(join(lockPath, "owner.json"), new Date(activityAt), new Date(activityAt))
+    }
+    // Last, because adding entries moves the directory's own mtime.
+    await utimes(lockPath, new Date(activityAt), new Date(activityAt))
+    return lockPath
+  }
+
+  async function coordinator(options: Record<string, unknown> = {}) {
+    const { CrossProcessTurnCoordinator } = await import(coordinatorModule)
+    const { locks } = await makeFiles()
+    const turns = new CrossProcessTurnCoordinator(locks, {
+      acquireTimeoutMs: 400,
+      staleAfterMs: 100,
+      heartbeatIntervalMs: 25,
+      retryDelayMs: 10,
+      ...options,
+    })
+    return { turns, locks }
+  }
+
+  test("reclaims a lock whose owner record predates the current boot", async () => {
+    const bootTimeMs = Date.now() - uptime() * 1000
+    for (const [label, owner] of Object.entries(tornOwners)) {
+      const { turns, locks } = await coordinator()
+      const lockPath = await seedOwnerless(locks, owner, bootTimeMs - 3_600_000)
+      const lease = await turns.acquire(key)
+      expect(JSON.parse(await readFile(join(lockPath, "owner.json"), "utf8")).pid, label)
+        .toBe(process.pid)
+      await lease.release()
+    }
+  })
+
+  test("keeps a fresh ownerless lock inside its grace period", async () => {
+    for (const [label, owner] of Object.entries(tornOwners)) {
+      const { turns, locks } = await coordinator()
+      const lockPath = await seedOwnerless(locks, owner, Date.now())
+      await expect(turns.acquire(key), label).rejects.toThrow("Timed out acquiring")
+      expect(await Bun.file(join(lockPath, "heartbeat-7c22780d-a10d-473f-968c-6277b68fe678")).exists())
+        .toBe(true)
+    }
+  })
+
+  test("reclaims an ownerless lock from this boot once its grace period expires", async () => {
+    const { turns, locks } = await coordinator({
+      ownerlessGraceMs: 1_000,
+      bootTimeMs: () => Date.now() - 3_600_000,
+    })
+    await seedOwnerless(locks, "\0".repeat(338), Date.now() - 5_000)
+    const lease = await turns.acquire(key)
+    await lease.release()
+  })
+
+  test("keeps an ownerless lock from an earlier boot while any heartbeat is fresh", async () => {
+    const { turns, locks } = await coordinator()
+    const lockPath = await seedOwnerless(locks, "\0".repeat(338), Date.now() - 3_600_000)
+    await writeFile(join(lockPath, "heartbeat-still-running"), "")
+    await expect(turns.acquire(key)).rejects.toThrow("Timed out acquiring")
+  })
+
+  test("keeps a stale lock whose owner process is alive", async () => {
+    const { turns, locks } = await coordinator()
+    const lockPath = join(locks, `${createHash("sha256").update(key).digest("hex")}.lock`)
+    await mkdir(lockPath, { recursive: true })
+    const token = "live-owner"
+    await writeFile(join(lockPath, "owner.json"), JSON.stringify({
+      token,
+      pid: process.pid,
+      hostname: hostname(),
+      createdAt: 1,
+      incarnation: captureProcessIncarnation(),
+    }))
+    const heartbeat = join(lockPath, `heartbeat-${token}`)
+    await writeFile(heartbeat, "")
+    await utimes(heartbeat, new Date(1), new Date(1))
+    await utimes(lockPath, new Date(1), new Date(1))
+
+    await expect(turns.acquire(key)).rejects.toThrow("Timed out acquiring")
+    expect(JSON.parse(await readFile(join(lockPath, "owner.json"), "utf8")).token).toBe(token)
   })
 })
