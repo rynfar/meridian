@@ -11,6 +11,7 @@
  */
 
 import { buildDriftView, buildIdentityView } from "./buildBadge"
+import { statusPillView } from "./statusPill"
 
 /**
  * Canonical Meridian theme.
@@ -202,6 +203,20 @@ export const profileBarCss = `
   .meridian-header .mh-dot.healthy { background: var(--green, #3fb950); box-shadow: 0 0 6px rgba(63,185,80,0.5); }
   .meridian-header .mh-dot.degraded { background: var(--yellow, #d29922); }
   .meridian-header .mh-dot.unhealthy { background: var(--red, #f85149); }
+  .meridian-header .mh-status.outage,
+  .meridian-header .mh-status.recovering {
+    font-weight: 500; line-height: 16px; padding: 3px 10px; border-radius: 12px; cursor: help;
+  }
+  .meridian-header .mh-status.outage {
+    color: var(--red, #f85149);
+    background: rgba(248,81,73,0.12);
+    border: 1px solid rgba(248,81,73,0.35);
+  }
+  .meridian-header .mh-status.recovering {
+    color: var(--yellow, #d29922);
+    background: rgba(210,153,34,0.12);
+    border: 1px solid rgba(210,153,34,0.35);
+  }
   @media (max-width: 720px) {
     .meridian-header { gap: 10px; padding: 10px 16px; }
     .meridian-header .mh-right { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; min-width: 0; }
@@ -211,6 +226,8 @@ export const profileBarCss = `
     .meridian-header .mh-nav a { flex-shrink: 0; }
     .meridian-header .mh-right { flex: 1 1 0; }
     .meridian-header .mh-status .mh-status-text { display: none; }
+    .meridian-header .mh-status.outage .mh-status-text,
+    .meridian-header .mh-status.recovering .mh-status-text { display: inline; }
   }
 `
 
@@ -244,6 +261,7 @@ export const profileBarJs = `
   var profileChip = document.getElementById('mhProfile');
   var buildChip = document.getElementById('mhBuild');
   var updateChip = document.getElementById('mhUpdate');
+  var statusPill = document.getElementById('mhStatus');
   var statusDot = document.getElementById('mhDot');
   var statusText = document.getElementById('mhStatusText');
 
@@ -261,6 +279,17 @@ export const profileBarJs = `
   // Inlined from src/telemetry/buildBadge.ts, unit-tested in build-badge.test.ts.
   var buildIdentityView = ${buildIdentityView.toString()};
   var buildDriftView = ${buildDriftView.toString()};
+  // Inlined from src/telemetry/statusPill.ts, unit-tested in status-pill.test.ts.
+  var statusPillView = ${statusPillView.toString()};
+
+  function renderStatus(view) {
+    statusPill.className = 'mh-status' + (view.alert ? ' ' + view.alert : '');
+    statusDot.className = 'mh-dot ' + view.tone;
+    statusText.textContent = view.text;
+    if (view.title) statusPill.title = view.title;
+    else statusPill.removeAttribute('title');
+  }
+
   var provChip = document.getElementById('mhProv');
   var driftChip = document.getElementById('mhDrift');
   var provKey = '';
@@ -362,17 +391,14 @@ export const profileBarJs = `
 
   function loadHeader() {
     fetch('/health').then(function(r) { return r.json(); }).then(function(h) {
-      var st = h.status === 'healthy' ? 'healthy' : h.status === 'degraded' ? 'degraded' : 'unhealthy';
-      statusDot.className = 'mh-dot ' + st;
-      statusText.textContent = st === 'healthy' ? 'Operational' : st === 'degraded' ? 'Degraded' : 'Offline';
+      renderStatus(statusPillView(h));
       renderBuild(h.build);
       if (h.backend === 'antigravity') {
         ['nav-telemetry','nav-profiles','nav-settings','nav-plugins'].forEach(function(id) { document.getElementById(id).hidden = true; });
         profileChip.removeAttribute('href');
       }
     }).catch(function() {
-      statusDot.className = 'mh-dot unhealthy';
-      statusText.textContent = 'Offline';
+      renderStatus(statusPillView(null));
     });
 
     fetch('/profiles/list').then(function(r) { return r.json(); }).then(function(data) {

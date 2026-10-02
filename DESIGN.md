@@ -95,7 +95,10 @@ green `rgba(63,185,80,α)`, yellow `rgba(210,153,34,α)`, red
 
 Usage bars and percentage readouts color by value: `< 60%` green,
 `≥ 60%` yellow, `≥ 85%` red. Health dot: healthy green (with soft glow),
-degraded yellow, offline red.
+degraded yellow, offline red. When Anthropic is unreachable from the host the
+whole health pill becomes a red tinted pill ("Can't reach Anthropic", details on
+hover), and a yellow one ("Rechecking Anthropic") while traffic is let back in;
+both keep their text at phone width, where the plain status shows only its dot.
 
 ## 3. The backsplash
 

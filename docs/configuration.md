@@ -47,6 +47,9 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_SILENT_TURN_RECOVERY` | `CLAUDE_PROXY_SILENT_TURN_RECOVERY` | `1` | Set to `0` to stop spending a recovery turn on a [silent turn](#silent-turns). Detection and telemetry stay on either way |
 | `MERIDIAN_UPSTREAM_IDLE_MS` | `CLAUDE_PROXY_UPSTREAM_IDLE_MS` | `90000` | Milliseconds the upstream stream may go quiet before the turn is treated as stalled. Raise it for long-thinking turns that were being killed mid-flight; `0` disables the guard entirely. Applies to the recovery turn too. |
 | `MERIDIAN_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `CLAUDE_PROXY_UPSTREAM_IDLE_MAX_CONSECUTIVE` | `3` | Consecutive idle stalls for the same request and session before returning a terminal error. Identical retries are then rejected before another SDK query for one idle window (at least 60 seconds). A changed request or completed turn resets the streak; rejected retries do not extend the pause. `0` disables this ceiling. Tracking is bounded and local to the proxy instance; requests without a correlatable session are not pooled. |
+| `MERIDIAN_UPSTREAM_UNREACHABLE_AFTER_MS` | — | `120000` | How long connection failures must keep arriving, with no answer from Anthropic in between, before `/readyz` reports Anthropic unreachable from this host. See [Readiness and upstream reachability](#readiness-and-upstream-reachability). Wins over `upstreamUnreachableAfterMs` in `settings.json`. |
+| `MERIDIAN_UPSTREAM_UNREACHABLE_HOLD_MS` | — | `300000` | How long `/readyz` keeps failing after the latest connection failure before it lets traffic back in to test whether Anthropic is back. `0` never fails readiness. Wins over `upstreamUnreachableHoldMs`. |
+| `MERIDIAN_UPSTREAM_UNREACHABLE_MIN_FAILURES` | — | `3` | Connection failures a run needs before it counts, however long it lasted. Wins over `upstreamUnreachableMinFailures`. |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD` | — | `1` | Set to `0` to disable prompt-level scratchpad suppression in passthrough mode (#627, #1049) |
 | `MERIDIAN_SUPPRESS_SCRATCHPAD_ENV` | — | `0` | Set to `1` to also pass `CLAUDE_CODE_SESSION_KIND=bg` to the SDK subprocess. Disabled by default to prevent CLI 2.1.274+ from registering persistent phantom background jobs under `~/.claude/jobs/` (#1049) |
 | `MERIDIAN_SUPPRESS_IMPLICIT_ATTACHMENTS` | — | `1` | Set to `0` to stop defaulting `CLAUDE_CODE_DISABLE_ATTACHMENTS=1` in passthrough mode. Does not clear an explicitly inherited CLI setting. See [known limitations](#known-limitations). |
@@ -282,7 +285,10 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `POST /v1/sessions/:key/cancel` | Cancel live requests in a session subtree |
 | `GET/POST /v1/design/*` | Claude Design MCP proxy (see [Claude Design MCP](agents.md#claude-design-mcp)) |
 | `GET/POST /design-login` | OAuth flow for the design scopes |
-| `GET /health` | Auth status, mode, plugin status |
+| `GET /health` | Auth status, mode, plugin status, upstream reachability |
+| `GET /livez` | `ok` while the process is turning; for restart supervisors |
+| `GET /readyz` | `ok`, or `503` naming the failed checks: whether traffic should come to this instance. See [Readiness and upstream reachability](#readiness-and-upstream-reachability) |
+| `PUT /upstream-reachability` | Force or clear the upstream reachability state, to test a load balancer; loopback clients only |
 | `GET /inflight` | Client requests in flight per upstream; loopback clients only. See [Restarting when idle](#restarting-when-idle) |
 | `POST /auth/refresh` | Manually refresh the OAuth token |
 | `GET /telemetry` | Performance dashboard |
@@ -313,6 +319,8 @@ Illustrative health response excerpt (versions and status vary by installation):
 ```
 
 `plugin.opencode` is `"configured"` when `meridian setup` has been run, `"not-configured"` otherwise.
+Every answer also carries `upstream.claude`, described under
+[Readiness and upstream reachability](#readiness-and-upstream-reachability).
 
 ## Error reporting
 
@@ -499,6 +507,90 @@ Restart=no
 ```
 
 The idle exit setting is optional. It starts a graceful shutdown after the configured period without a model request; the socket unit starts a new process on the next connection. The inherited fd is not passed on to the SDK subprocess. [E59](../E2E.md#e59-node-socket-activation-and-idle-exit) describes the process-level probe.
+
+## Readiness and upstream reachability
+
+Two probes for whatever sits in front of Meridian, shaped like
+kube-apiserver's: plain text `ok` when everything passes, and with `?verbose`
+one `[+]name ok` / `[-]name failed: reason` line per check.
+
+- `GET /livez` answers whether a restart would help. It has no checks: reaching
+  it means the process is turning. Point a restart supervisor here.
+- `GET /readyz` answers whether traffic should come to this instance rather
+  than another one. It answers `503` naming the failed checks: `profiles` (no
+  account configured), `claude-executable` (no CLI resolved) and
+  `upstream-claude` (Anthropic cannot be reached from this host).
+
+Neither needs the API key: a load balancer reads a `401` as "down".
+
+`upstream-claude` exists for a host whose network still serves HTTP while it
+cannot reach Anthropic: a dead resolver, a broken route, a firewall. Without it
+such an instance looks ready, keeps its share of traffic, and every request
+spends the CLI's whole retry budget before failing with "API Error: Can't reach
+the API server".
+
+- **Only connection failures count**: DNS (`ENOTFOUND`, `EAI_AGAIN`), refused,
+  reset, no route, connect timeouts, TLS and proxy-tunnel failures, read from
+  the CLI's retry notices and API errors on real requests. A rate limit, an
+  auth or billing refusal and a model error never count. Any answer from
+  Anthropic, from any account, keeps the check passing: a response, a quota or
+  billing refusal, or any API error that carries an HTTP status.
+- **When it fails**: after at least 3 connection failures spanning 2 minutes
+  with no answer in between.
+- **For how long**: until 5 minutes after the latest failure. Then the check
+  passes again, so real traffic can show whether Anthropic is back: the first
+  answer clears it, and the first failure fails it again at once.
+- **Passive**: Meridian never sends a request just to test reachability.
+
+```text
+[-]upstream-claude failed: Anthropic unreachable since 2026-10-01T21:00:00.000Z (last error: dns, 7 connection failures, last answered 2026-10-01T20:59:58.000Z)
+readyz check failed
+```
+
+The thresholds are `upstreamUnreachableAfterMs`, `upstreamUnreachableHoldMs`
+and `upstreamUnreachableMinFailures` in `settings.json`, or the
+`MERIDIAN_UPSTREAM_UNREACHABLE_*` variables in the
+[environment table](#configuration), which win. They are re-read on every
+evaluation. A hold of `0` keeps reporting the state without ever failing
+readiness.
+
+`/health` reports the state as `upstream.claude` (timestamps ISO-8601 or `null`;
+no error text, account or token):
+
+```json
+"upstream": {
+  "claude": {
+    "state": "unreachable",
+    "since": "2026-10-01T21:02:00.000Z",
+    "failingSince": "2026-10-01T21:00:00.000Z",
+    "consecutiveFailures": 7,
+    "lastReachedAt": "2026-10-01T20:59:58.000Z",
+    "lastFailureAt": "2026-10-01T21:03:10.000Z",
+    "lastErrorKind": "dns",
+    "holdUntil": "2026-10-01T21:08:10.000Z",
+    "override": null
+  }
+}
+```
+
+`state` is `ok`, `unreachable` or `probing` (the hold has expired and traffic is
+let back in). The site header shows it too: a red "Can't reach Anthropic" pill,
+with the details on hover, and a yellow "Rechecking Anthropic" one while probing.
+
+To test a load balancer's failover without breaking a host's DNS, force the
+state from the host itself:
+
+```bash
+curl -X PUT http://127.0.0.1:3456/upstream-reachability \
+  -H 'content-type: application/json' -d '{"state": "unreachable", "ttlMs": 300000}'
+curl -X PUT http://127.0.0.1:3456/upstream-reachability \
+  -H 'content-type: application/json' -d '{"state": null}'
+```
+
+`state` is `"unreachable"`, `"ok"` or `null` to clear; `ttlMs` defaults to ten
+minutes and is capped at a day, so a forgotten override expires. Like
+`/inflight`, only a loopback peer without forwarding headers gets an answer;
+when `MERIDIAN_API_KEY` is set the key is required as well.
 
 ## Restarting when idle
 

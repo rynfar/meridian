@@ -72,6 +72,19 @@ export interface MeridianSettings {
    *  because someone asked it to. The header shows the running version either
    *  way. MERIDIAN_NO_UPDATE_CHECK=1 forces it off regardless. */
   checkForUpdates?: boolean
+
+  /**
+   * When `/readyz` concludes Anthropic is unreachable from this host: after at
+   * least `upstreamUnreachableMinFailures` connection failures (default 3)
+   * spanning `upstreamUnreachableAfterMs` (default 120000) with no answer from
+   * Anthropic in between. It then holds for `upstreamUnreachableHoldMs` after
+   * the latest failure (default 300000; 0 never fails readiness) before letting
+   * traffic back in. MERIDIAN_UPSTREAM_UNREACHABLE_AFTER_MS / _HOLD_MS /
+   * _MIN_FAILURES win. Re-read on every evaluation.
+   */
+  upstreamUnreachableAfterMs?: number
+  upstreamUnreachableHoldMs?: number
+  upstreamUnreachableMinFailures?: number
 }
 
 /**

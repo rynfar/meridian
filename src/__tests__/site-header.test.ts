@@ -46,6 +46,16 @@ describe("shared site header", () => {
     expect(profileBarJs).toContain("/health")
   })
 
+  // An unreachable upstream renders as an alert pill, and keeps its text at
+  // phone width where the plain status shows only its dot.
+  test("status pill can render an upstream outage", () => {
+    expect(profileBarJs).toContain("statusPillView")
+    expect(profileBarJs).toContain("Can't reach Anthropic")
+    expect(profileBarCss).toContain(".mh-status.outage")
+    expect(profileBarCss).toContain(".mh-status.recovering")
+    expect(profileBarCss).toMatch(/@media \(max-width: 720px\)[\s\S]*\.mh-status\.outage \.mh-status-text[\s\S]*display: inline/)
+  })
+
   test("header shows active profile chip, not a dropdown", () => {
     expect(profileBarHtml).not.toContain("meridianProfileSelect")
     expect(profileBarHtml).not.toContain("<select")
