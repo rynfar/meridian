@@ -9,10 +9,12 @@
  * is byte-identical to today's behavior.
  */
 import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
+import { createAdaptorServer } from "@hono/node-server"
+import type { AddressInfo } from "node:net"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
-import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId } from "./helpers"
+import { assistantMessage, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop, resolveMockSdkSessionId, streamEvent } from "./helpers"
 import { createPriorityAttestation } from "../../plugin/priority-attestation"
 import type { PriorityFailbackPolicy } from "../proxy/routing"
 import type { DurablePriorityAssignment } from "../proxy/sessionStore"
@@ -67,6 +69,21 @@ let failingDirs = new Set<string>()
 // Accounts that fail only AFTER streaming some content — the error frame then
 // lands behind message_start, where the sniffer must not touch it.
 let failAfterContentDirs = new Set<string>()
+// SDK pings before an account error/success are discarded by the idle guard.
+// They must not turn a pending account into an accepted stream. The proxy's
+// independent 15s downstream heartbeat is exercised separately below.
+let preludePingDirs = new Set<string>()
+let preludePingSucceedDirs = new Set<string>()
+// Accounts that sleep this long before refusing — long enough for the proxy
+// heartbeat to emit `: ping` into the stream first. Scoped per account so a
+// failover target serves immediately.
+let preludeHeartbeatDirs = new Map<string, number>()
+// Accounts that neither answer nor refuse: the client is held on keepalives
+// alone until it cancels.
+let silentForeverDirs = new Set<string>()
+let activeSilentCalls = 0
+let signalAccountPending = (): void => {}
+let delayedRefusals = 0
 type ExposureBeforeFailureKind = "tool" | "structured"
 let exposureBeforeFailureDirs = new Map<string, ExposureBeforeFailureKind>()
 let noncanonicalToolFailureDirs = new Set<string>()
@@ -165,6 +182,40 @@ installSdkMock(() => ({
           // must return a replayable error body without trying another profile.
           throw new Error(failureMessage)
         }
+        if ([...silentForeverDirs].some((f) => dir.includes(f))) {
+          // A pending account that only yields keepalives until SDK abort.
+          activeSilentCalls++
+          try {
+            yield withReturnedSessionId(streamEvent({ type: "ping" }))
+            const signal: AbortSignal | undefined = params.options?.abortController?.signal
+            if (!signal) throw new Error("silent fixture requires SDK abort signal")
+            await new Promise<void>((_resolve, reject) => {
+              if (signal.aborted) reject(new Error("aborted"))
+              else signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true })
+            })
+          } finally {
+            activeSilentCalls--
+          }
+          return
+        }
+        const heartbeatDelay = [...preludeHeartbeatDirs.entries()]
+          .find(([fragment]) => dir.includes(fragment))?.[1] ?? 0
+        if (heartbeatDelay > 0) {
+          // The proxy's heartbeat interval (15s) fires while this account is
+          // still deciding, so the error frame lands BEHIND the comment.
+          signalAccountPending()
+          await new Promise(resolve => setTimeout(resolve, heartbeatDelay))
+          delayedRefusals++
+          throw new Error(failureMessage)
+        }
+        if ([...preludePingDirs].some((f) => dir.includes(f))) {
+          if (streaming) {
+            signalAccountPending()
+            yield withReturnedSessionId(streamEvent({ type: "ping" }))
+            await new Promise(resolve => setTimeout(resolve, 300))
+          }
+          throw new Error(failureMessage)
+        }
         if ([...failingDirs].some((f) => dir.includes(f))) {
           throw new Error(failureMessage)
         }
@@ -177,6 +228,9 @@ installSdkMock(() => ({
           throw new Error(failureMessage)
         }
         if (streaming) {
+          if ([...preludePingSucceedDirs].some((f) => dir.includes(f))) {
+            yield withReturnedSessionId(streamEvent({ type: "ping" }))
+          }
           yield withReturnedSessionId(messageStart("msg-1"))
           const completionGate = streamCompletionGate
           if (completionGate !== null && completionGate.phase === phase) {
@@ -388,6 +442,12 @@ let savedPriorityFailbackSetting: PriorityFailbackPolicy | undefined
 beforeEach(() => {
   failureMessage = DEFAULT_FAILURE
   failAfterContentDirs = new Set()
+  preludePingDirs = new Set()
+  preludePingSucceedDirs = new Set()
+  preludeHeartbeatDirs = new Map()
+  silentForeverDirs = new Set()
+  signalAccountPending = () => {}
+  delayedRefusals = 0
   exposureBeforeFailureDirs = new Map()
   noncanonicalToolFailureDirs = new Set()
   promotionConcurrencyGate = null
@@ -453,6 +513,7 @@ describe("priority routing", () => {
     const app = createTestApp()
     const res = await post(app, {}, "priority routes preferred unique message")
     expect(res.status).toBe(200)
+    expect(res.headers.get("x-claude-session-id")).not.toBeNull()
     expect(capturedEnvs).toHaveLength(1)
     expect(capturedEnvs[0]).toContain("prof-work")
   })
@@ -1219,6 +1280,12 @@ describe("priority routing", () => {
         expect(response.status).toBe(stream ? 200 : 402)
         expect(body).toContain("billing_error")
         expect(body).toContain("subscription")
+        if (stream) {
+          // The withheld attempt's own error frame relays verbatim — never a
+          // substituted api_error envelope (that substitution is how a
+          // locked-body copy bug would show up here).
+          expect(body).not.toContain("api_error")
+        }
         expect(capturedEnvs).toHaveLength(1)
         expect(capturedSdkCalls).toHaveLength(1)
         expect(capturedEnvs[0]).toContain("prof-work")
@@ -1664,6 +1731,250 @@ describe("priority routing", () => {
     const text = await res.text()
     expect(text).toContain("prof-personal")
     expect(text.split("event: message_start").length - 1).toBe(1)
+  }, 20_000)
+
+  it("keeps a pre-stream refusal's own HTTP status on a streaming request", async () => {
+    const gate = createStreamCompletionGate(++capturePhase)
+    streamCompletionGate = gate
+    const app = createTestApp()
+    const headers = { "x-opencode-session": "stream-conflict-session" }
+    const first = await postStream(app, { headers, content: "same request" })
+    await gate.entered
+    const second = postStream(app, { headers, content: "same request" })
+    await Bun.sleep(10)
+    gate.open()
+    await first.text()
+    const refused = await second
+    expect(refused.status).toBe(400)
+    expect(refused.headers.get("content-type")).toContain("application/json")
+    const body = await refused.json() as { error: { type: string } }
+    expect(body.error.type).toBe("invalid_request_error")
+  }, 20_000)
+
+  it("lets a compat route relay a pre-stream refusal with its status", async () => {
+    const gate = createStreamCompletionGate(++capturePhase)
+    streamCompletionGate = gate
+    const app = createTestApp()
+    const completion = () => app.fetch(new Request("http://localhost/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-opencode-session": "compat-conflict-session" },
+      body: JSON.stringify({ model: "claude-sonnet-4-5", stream: true, messages: [{ role: "user", content: "same request" }] }),
+    }))
+    const first = await completion()
+    await gate.entered
+    const second = completion()
+    await Bun.sleep(10)
+    gate.open()
+    await first.text()
+    expect((await second).status).toBe(400)
+  }, 20_000)
+
+  const STREAM_BODY = JSON.stringify({
+    model: "claude-sonnet-4-5",
+    max_tokens: 128,
+    stream: true,
+    messages: [{ role: "user", content: "hello" }],
+  })
+
+  it("streams fail over when a keepalive ping precedes the account error", async () => {
+    // A ping frame carries no content, so the quota refusal behind it must
+    // still reach the sniffer and fail over.
+    preludePingDirs.add("prof-work")
+    const app = createTestApp()
+    const res = await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: STREAM_BODY,
+    }))
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).toContain("prof-personal")
+    expect(text.split("event: message_start").length - 1).toBe(1)
+    expect(text).not.toContain("rate_limit_error")
+  }, 20_000)
+
+  it("discards SDK transport pings without suppressing successful content", async () => {
+    // SDK pings do not represent model progress. Raw downstream SSE keepalives
+    // remain covered by the relay/framing tests and the delayed socket case.
+    preludePingSucceedDirs.add("prof-work")
+    const app = createTestApp()
+    const res = await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: STREAM_BODY,
+    }))
+    expect(res.status).toBe(200)
+    // Streaming already omits speculative SDK IDs: do not invent one on the
+    // outer response while account selection is still pending.
+    expect(res.headers.get("x-claude-session-id")).toBeNull()
+    const text = await res.text()
+    expect(text).not.toContain("event: ping")
+    expect(text).toContain("event: message_start")
+    expect(text).toContain("ok from /tmp/meridian-test-prof-work")
+    expect(text.split("event: message_start").length - 1).toBe(1)
+  }, 20_000)
+
+  it("streams fail over when the service heartbeat precedes the account error", async () => {
+    // The proxy heartbeats `: ping`
+    // every 15s while the spent account is still deciding, and the refusal
+    // arrives AFTER that comment. Shipped behavior answered the client with
+    // the error and never tried the healthy account. The billing refusal
+    // keeps the work account to a single attempt — a quota refusal here
+    // would re-enter the in-stream retry ladder and re-sleep per attempt
+    // (rate_limit_error behind a keepalive is covered by the ping test and
+    // the scanner unit tests). The account decision runs inside the
+    // client-facing stream, so the heartbeat itself is now observable on the
+    // wire instead of buffered by a pending verdict.
+    failureMessage = SUBSCRIPTION_REFUSAL
+    preludeHeartbeatDirs.set("prof-work", 16_000)
+    const app = createTestApp()
+    const res = await app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: STREAM_BODY,
+    }))
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).toContain(": ping")
+    expect(text).toContain("prof-personal")
+    expect(text.split("event: message_start").length - 1).toBe(1)
+    expect(text).not.toContain("billing_error")
+  }, 35_000)
+
+  it("delivers headers and the first keepalive before a delayed refusal, then fails over exactly once", async () => {
+    // Exercise response-header and heartbeat delivery on a real socket.
+    // The account decision runs INSIDE the client-facing stream: response
+    // headers and the downstream heartbeat reach the client while the spent
+    // account is still deciding — never held until the verdict — and the
+    // healthy fallback then serves exactly once.
+    failureMessage = SUBSCRIPTION_REFUSAL
+    preludeHeartbeatDirs.set("prof-work", 16_000)
+    const app = createTestApp()
+    const server = createAdaptorServer({ fetch: app.fetch })
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve))
+    try {
+      const { port } = server.address() as AddressInfo
+      const accountPending = new Promise<void>(resolve => { signalAccountPending = resolve })
+      const pending = fetch(`http://127.0.0.1:${port}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: STREAM_BODY,
+      })
+      await accountPending
+      const first = await Promise.race([
+        pending.then(() => "headers" as const),
+        new Promise<"deadline">(resolve => setTimeout(() => resolve("deadline"), 100)),
+      ])
+      // The withheld-headers regression: a pending account verdict must not
+      // hold the client's response headers.
+      expect(first).toBe("headers")
+      expect(delayedRefusals).toBe(0)
+      const res = await pending
+      expect(res.status).toBe(200)
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      // The FIRST wire bytes are the content-free keepalive, not a decision.
+      const firstChunk = await reader.read()
+      const firstText = decoder.decode(firstChunk.value)
+      expect(firstText).toContain(": ping\n\n")
+      expect(delayedRefusals).toBe(0)
+      let body = firstText
+      while (true) {
+        const next = await reader.read()
+        if (next.done) break
+        body += decoder.decode(next.value)
+      }
+      expect(body).toContain("prof-personal")
+      expect(body.split("event: message_start").length - 1).toBe(1)
+      expect(body).not.toContain("billing_error")
+      expect(capturedEnvs.filter(e => e.includes("prof-personal"))).toHaveLength(1)
+      expect(delayedRefusals).toBe(1)
+    } finally {
+      ;(server as unknown as { closeAllConnections?: () => void }).closeAllConnections?.()
+      server.close()
+    }
+  }, 35_000)
+
+  it("cancelling before the inner response exists never starts SDK work", async () => {
+    silentForeverDirs.add("prof-work")
+    const app = createTestApp()
+    const res = await postStream(app, {})
+    await res.body!.cancel("cancel before reader registration")
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(capturedEnvs).toHaveLength(0)
+  }, 5_000)
+
+  it("releases the exact durable turn claim after pre-response cancellation", async () => {
+    const app = createTestApp()
+    const sessionId = "pre-response-cancel-claim"
+    await assignToFallback(app, sessionId)
+    const headers = trustedOpenCodeTurnHeaders(sessionId, "cancelled-turn")
+    capturedEnvs = []
+    const res = await postStream(app, { headers, content: CONTINUED_AFTER_PERSONAL })
+    await res.body!.cancel("cancel pending preparation")
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(capturedEnvs).toHaveLength(0)
+    const retried = await postStream(app, { headers, content: CONTINUED_AFTER_PERSONAL })
+    const text = await retried.text()
+    expect(text).not.toContain("Durable priority attempt state is unavailable")
+    expect(text).toContain("message_start")
+  }, 10_000)
+
+  it("releases the exact durable turn claim after the entire stream pool refuses", async () => {
+    const app = createTestApp()
+    const sessionId = "refused-pool-claim"
+    await assignToFallback(app, sessionId)
+    const headers = trustedOpenCodeTurnHeaders(sessionId, "refused-turn")
+    failureMessage = SUBSCRIPTION_REFUSAL
+    failingDirs.add("prof-work")
+    failingDirs.add("prof-personal")
+    const refused = await postStream(app, { headers, content: CONTINUED_AFTER_PERSONAL })
+    expect((await refused.text()).split("event: error").length - 1).toBe(1)
+    failingDirs.clear()
+    // A new instance has a fresh process-local exhaustion map, but shares the
+    // durable claim table. Retry the exact same authenticated logical turn.
+    const retried = await postStream(createTestApp(), { headers, content: CONTINUED_AFTER_PERSONAL })
+    const text = await retried.text()
+    expect(text).not.toContain("Durable priority attempt state is unavailable")
+    expect(text).toContain("message_start")
+  }, 15_000)
+
+  it("cancelling a keepalive-only pending stream stops promptly without a fallback", async () => {
+    silentForeverDirs.add("prof-work")
+    const app = createTestApp()
+    const pending = postStream(app, {})
+    const res = await pending
+    expect(res.status).toBe(200)
+    const reader = res.body!.getReader()
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain(": ping\n\n")
+    expect(activeSilentCalls).toBe(1)
+    // Cancel after a real keepalive, but before meaningful output.
+    await reader.cancel()
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(activeSilentCalls).toBe(0)
+    expect(capturedEnvs.some(e => e.includes("prof-personal"))).toBe(false)
+    // A cancelled stream must not wedge the dispatcher: a fresh request
+    // still answers from the pool.
+    silentForeverDirs.clear()
+    const fresh = await postStream(app, { content: "post-cancel unique message" })
+    expect(fresh.status).toBe(200)
+    expect(await fresh.text()).toContain("message_start")
+  }, 25_000)
+
+  it("emits the pool's terminal error exactly once once headers are out", async () => {
+    failureMessage = SUBSCRIPTION_REFUSAL
+    failingDirs.add("prof-work")
+    failingDirs.add("prof-personal")
+    const app = createTestApp()
+    const res = await postStream(app, {})
+    // Headers go out before any verdict, so the pool's terminal refusal can
+    // only travel inside the stream — one coherent error frame, not one per
+    // refused account.
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text.split("event: error").length - 1).toBe(1)
+    expect(text).toContain("billing_error")
+    expect(text).not.toContain("message_start")
   }, 20_000)
 
   it("surfaces the refusal's own status when every account is refused", async () => {

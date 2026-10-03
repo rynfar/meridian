@@ -194,6 +194,7 @@ src/
 │   ├── query.ts               ← SDK query options builder (shared between stream/non-stream paths)
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── retryAfter.ts          ← Retry-After computation for 429/503/529 (PURE)
+│   ├── sseFailureSniff.ts     ← SSE framing/classification and bounded priority stream transport (leaf)
 │   ├── models.ts              ← Model mapping, Claude executable resolution
 │   ├── buildInfo.ts           ← Build provenance: source detection, semver compare (PURE)
 │   ├── localBuildInfo.ts      ← Local build comparisons and public forge links (PURE)
@@ -290,7 +291,7 @@ server.ts (HTTP layer)
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 
-3. **`errors.ts`, `retryAfter.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts` and `retryAfter.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` instead.
+3. **`errors.ts`, `retryAfter.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `sseFailureSniff.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts` and `retryAfter.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
 
 4. **`server.ts` is the only module that imports from Hono** or touches HTTP concerns.
 
@@ -401,6 +402,22 @@ it as a real `Retry-After` header; SSE turns carry it as `error.retry_after` in
 the error frame, because a stream's headers went out with `message_start` long
 before the failure existed. Under priority routing the wait names the *pool's*
 earliest opening, not the last account tried.
+
+**Failover runs inside the client-facing stream.** Under priority routing a
+streaming request is decided like a non-stream one until an account answers
+with SSE: a non-SSE answer (such as a session-conflict 400) keeps its HTTP
+status, and an account-failover refusal moves to the next candidate. Once an
+account streams, the outer SSE response goes out and the remaining candidates
+run inside it (`streamPriorityDispatch`, framing in `sseFailureSniff.ts`).
+Content-free keepalives (`: ping`, every 15s) reach the client while the
+account decides; SDK transport pings stay non-progress for the idle guard. An
+account-failover `event: error` before any real frame suppresses that account
+and starts the next — never on a cancelled request. The first real frame
+relays byte-exact, an exposure-committed attempt relays its error instead of
+failing over, and a pool exhausted after headers emits one SSE error frame.
+
+The relay is bounded: the outer queue holds 64 KiB, and an incomplete prelude
+reaching 64 KiB ends sniffing and relays the attempt unchanged.
 
 **A `[1m]` bench is scoped to whatever actually failed.** Extra Usage exhaustion
 is an entitlement fact about the account, so it benches the whole profile. A
