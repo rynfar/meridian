@@ -186,7 +186,8 @@ ${profileBarHtml}
     <div class="pricing-note">
       Cache read and cache write are optional; when left blank they default to 0.1x and 1.25x of the
       input rate (the 5-minute cache TTL multipliers). Verify current list prices at
-      <a href="https://claude.com/pricing" target="_blank" rel="noreferrer" style="color:var(--accent)">claude.com/pricing</a>.
+      <a href="https://claude.com/pricing" target="_blank" rel="noreferrer" style="color:var(--accent)">claude.com/pricing</a>
+      and <a href="https://developers.openai.com/api/docs/pricing" target="_blank" rel="noreferrer" style="color:var(--accent)">OpenAI pricing</a>.
     </div>
   </div>
 

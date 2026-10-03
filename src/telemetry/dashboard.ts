@@ -472,8 +472,8 @@ function render(s, reqs, logs, routes, health) {
         + '</tr>';
     }
     html += '</tbody></table>'
-      + '<div class="usage-note" style="margin-top:8px">Estimated at static Anthropic API list prices'
-      + ' (cache writes at the 5-minute TTL rate). Claude Max usage is covered by your subscription'
+      + '<div class="usage-note" style="margin-top:8px">Estimated at static Anthropic and OpenAI API list prices'
+      + ' (cache writes at the 5-minute TTL rate). Subscription usage is covered by your subscription'
       + ' (equivalent API cost, not a charge).'
       + (ce.unpricedRequestCount > 0
           ? ' ' + ce.unpricedRequestCount + ' request' + (ce.unpricedRequestCount === 1 ? '' : 's') + ' from unrecognized models excluded.'

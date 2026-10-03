@@ -244,6 +244,9 @@ src/
 │   ├── dashboard.ts           ← HTML dashboard
 │   ├── pricing.ts             ← Static API list prices + cost estimation (pure)
 │   ├── pricingStore.ts        ← User pricing overrides (persisted JSON)
+│   ├── openaiPricingData.ts   ← Generated OpenAI list prices (scripts/update-openai-pricing.ts)
+│   ├── openaiPricingUpdate.ts ← Builds/validates that table from models.dev + LiteLLM (pure)
+│   ├── openaiOfficialPricing.ts ← Hand-kept official OpenAI rates guarding the update
 │   ├── profileBar.ts          ← Shared profile switcher bar (injected into HTML pages)
 │   ├── profilePage.ts         ← Profile management page HTML
 │   ├── cliDashboard.ts        ← The landing page rendered for a terminal (pure)

@@ -96,4 +96,8 @@ The dashboard and `/telemetry/summary` expose `costEstimate`: an **API-equivalen
 
 Rates come from [`src/telemetry/pricing.ts`](src/telemetry/pricing.ts), plus local overrides. They are not fetched live. Models without a pricing entry are excluded from the total and shown as unpriced; totals can therefore be incomplete.
 
+OpenAI (GPT/Codex) rates live in the generated [`src/telemetry/openaiPricingData.ts`](src/telemetry/openaiPricingData.ts): Standard tier, short context, so long-context and Fast mode requests are underestimated. They apply only to requests an OpenAI model served. A GPT model id sent to the OpenAI-compatible endpoints is still answered by Claude, so it stays unpriced unless you add an override for that id. Effort and date suffixes (`gpt-6-sol-high`, `gpt-5.5-2026-04-23`) price as the base model.
+
+`bun scripts/update-openai-pricing.ts` regenerates that table from [models.dev](https://models.dev), cross-checked against LiteLLM, and checks it against the official rates kept by hand in [`src/telemetry/openaiOfficialPricing.ts`](src/telemetry/openaiOfficialPricing.ts). It changes nothing and exits 1 when a model has no cached-input price, a known model disappears, or two sources differ by more than 1%. `--check` exits 2 when the table would change. The `Update OpenAI pricing` workflow runs it daily and opens a PR when rates change.
+
 Edit rates under **Model Pricing** at `/settings`. Overrides persist to `~/.config/meridian/model-pricing.json` (`MERIDIAN_PRICING_CONFIG` overrides the path), and apply on the next refresh. The API is `GET /settings/api/pricing`, `PUT /settings/api/pricing/:model`, and `DELETE /settings/api/pricing/:model`.

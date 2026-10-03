@@ -1,0 +1,44 @@
+name: Update OpenAI pricing
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      # Fails without touching the table when a source drops a known model,
+      # lacks a cached-input price, or disagrees with the official rates in
+      # src/telemetry/openaiOfficialPricing.ts. A failed run is the signal to
+      # check OpenAI's pricing page and update those rates by hand.
+      - name: Regenerate the OpenAI pricing table
+        run: bun scripts/update-openai-pricing.ts
+
+      - run: bun install
+      - name: Check the regenerated table
+        run: bun test src/__tests__/openai-pricing.test.ts src/__tests__/pricing-unit.test.ts
+
+      # All changes reach main through PRs. Re-runs update the same branch.
+      # A PR opened by GITHUB_TOKEN does not trigger CI automatically, so a
+      # maintainer must trigger the required final-head checks before merge.
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: update OpenAI pricing"
+          title: "chore: update OpenAI pricing"
+          body: |
+            Automated refresh of the OpenAI list prices used by the telemetry
+            cost estimate, from models.dev with a LiteLLM cross-check.
+            Every rate listed in `src/telemetry/openaiOfficialPricing.ts` was
+            confirmed by the catalogs before this PR was opened; a disagreement
+            fails the run instead.
+          branch: chore/update-openai-pricing
+          add-paths: src/telemetry/openaiPricingData.ts
+          delete-branch: true

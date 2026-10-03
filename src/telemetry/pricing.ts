@@ -1,5 +1,5 @@
 /**
- * Static Anthropic API list pricing and cost estimation (PURE, no I/O).
+ * Static Anthropic and OpenAI API list pricing and cost estimation (PURE, no I/O).
  *
  * Meridian proxies Claude Max, so requests are covered by the subscription
  * and never billed per token. The numbers produced here answer a different
@@ -17,11 +17,21 @@
  *     MONITORING.md; 1-hour TTL writes bill at 2×, so if a client opted into
  *     the long TTL this estimate is a floor)
  *
+ * OpenAI (GPT/Codex) list prices live in the generated openaiPricingData.ts
+ * (refreshed by scripts/update-openai-pricing.ts) and join the same table.
+ * They are priced through the same formula: telemetry records OpenAI usage
+ * in the Claude-shaped fields, with inputTokens already excluding cached
+ * tokens, cacheReadInputTokens holding the cached tokens, and outputTokens
+ * including reasoning tokens, so every token is valued exactly once.
+ * OpenAI rates are the Standard tier at short context; long-context and Fast
+ * mode requests bill higher, so for those the estimate is a floor.
+ *
  * Models without a table entry are excluded from the total and surfaced via
  * `unpricedRequestCount` instead of silently costing $0.
  */
 
 import type { RequestMetric, CostEstimate, ModelCostBreakdown } from "./types"
+import { OPENAI_MODEL_PRICING } from "./openaiPricingData"
 
 export interface ModelPricing {
   /** USD per 1M uncached input tokens */
@@ -100,13 +110,22 @@ export const BUILTIN_MODEL_PRICING: Record<string, ModelPricing> = {
   "claude-haiku-4-5": HAIKU,
   "claude-3-5-haiku-20241022": HAIKU_35,
   "claude-3-haiku-20240307": HAIKU_3,
+  ...OPENAI_MODEL_PRICING,
 }
+
+/**
+ * Codex model selectors carry a reasoning-effort suffix (gpt-6-sol-high) or a
+ * dated snapshot (gpt-5.5-2026-04-23); both bill at the base model's rate.
+ */
+const OPENAI_SELECTOR_SUFFIX = /-(none|minimal|low|medium|high|xhigh|max|ultra|\d{4}-\d{2}-\d{2}|\d{8})$/
 
 /**
  * Resolve a model string to pricing. User-defined overrides win, then the
  * exact built-in table, then family fallback so versioned/dated IDs
  * (claude-opus-4-8, claude-haiku-4-5-20251001) and future releases still
- * price at their family's current rate.
+ * price at their family's current rate. GPT ids fall back to their base
+ * model after dropping an effort or snapshot suffix; unknown GPT models stay
+ * unpriced because OpenAI tiers do not share one family rate.
  * Returns null for unrecognized models; callers must not treat that as $0.
  */
 export function resolveModelPricing(
@@ -122,6 +141,11 @@ export function resolveModelPricing(
 
   const exact = BUILTIN_MODEL_PRICING[normalized]
   if (exact) return exact
+
+  if (normalized.startsWith("gpt-")) {
+    const base = normalized.replace(OPENAI_SELECTOR_SUFFIX, "")
+    return overrides?.[base] ?? BUILTIN_MODEL_PRICING[base] ?? null
+  }
 
   if (normalized.includes("fable") || normalized.includes("mythos")) return FABLE
   if (normalized.includes("haiku")) {
@@ -153,9 +177,33 @@ function roundUsd(value: number): number {
   return Math.round(value * 1e6) / 1e6
 }
 
+function isOpenAiModel(model: string): boolean {
+  return normalizeModelKey(model).startsWith("gpt-")
+}
+
+/**
+ * Pricing for one recorded request. Claude requests are priced by the
+ * client's id, which names an exact version where `model` is only the SDK
+ * tier alias. OpenAI rates follow the model that did the work instead: a
+ * request an OpenAI model served is priced as that model, and a GPT id that
+ * Claude answered (the OpenAI-compatible endpoints accept them and record the
+ * Claude tier as `model`) gets no built-in OpenAI rate, only a user override.
+ */
+function resolveRequestPricing(
+  metric: RequestMetric,
+  overrides?: Record<string, ModelPricing>,
+): ModelPricing | null {
+  if (isOpenAiModel(metric.model)) return resolveModelPricing(metric.model, overrides)
+  const requested = metric.requestModel || metric.model
+  if (!isOpenAiModel(requested)) return resolveModelPricing(requested, overrides)
+  const key = normalizeModelKey(requested)
+  return overrides?.[key] ?? overrides?.[key.replace(OPENAI_SELECTOR_SUFFIX, "")] ?? null
+}
+
 /**
  * Aggregate estimated cost per model across a set of metrics.
- * Grouping key is requestModel || model, matching computeSummary's byModel.
+ * Grouping key is requestModel || model, matching computeSummary's byModel;
+ * resolveRequestPricing decides the rate each request is valued at.
  * Pass overrides (from pricingStore) to apply user-defined rates.
  */
 export function computeCostEstimate(
@@ -169,7 +217,7 @@ export function computeCostEstimate(
 
   for (const metric of metrics) {
     const modelKey = metric.requestModel || metric.model
-    const pricing = resolveModelPricing(modelKey, overrides)
+    const pricing = resolveRequestPricing(metric, overrides)
     const profileEntry = byProfile[metric.profileId ?? "default"] ??= { requests: 0, estimatedUsd: 0 }
     profileEntry.requests++
     const entry = byModel[modelKey] ??= {

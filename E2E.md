@@ -6957,6 +6957,26 @@ This validates macOS text and client tool use, not Windows/Linux runtime behavio
 Model ID, capability and pricing source:
 https://platform.claude.com/docs/en/models/sonnet-5-5/overview .
 
+## OpenAI pricing and Claude-answered GPT ids
+
+Start an isolated proxy (`MERIDIAN_CONFIG_DIR`, `MERIDIAN_SESSION_DIR` in a
+scratch directory, `MERIDIAN_CREDENTIALS_READONLY=1`) and point Codex CLI at
+it with a throwaway `CODEX_HOME` whose `config.toml` sets `model = "gpt-5.5"`
+and the Meridian provider from [docs/agents.md](docs/agents.md). Run
+`codex exec --skip-git-repo-check "Reply with exactly the word: pong"`, then:
+
+- The proxy log shows `adapter=codex model=sonnet`: Claude answered the GPT id.
+- `/telemetry/summary` `costEstimate.byModel["gpt-5.5"].estimatedUsd` is `null`
+  and `unpricedRequestCount` is 1; the request is not valued at GPT rates.
+- `/settings/api/pricing` lists the generated `gpt-*` built-ins.
+- After `PUT /settings/api/pricing/gpt-5.5` the same request is priced at the
+  override.
+
+Verified 2026-09-27 on Linux x64, Codex CLI 0.151.0, Agent SDK 0.2.141: all
+four checks passed (override `3/15` valued the turn at $0.052142, dominated by
+13,887 cache-write tokens). Requests actually served by an OpenAI model need
+the ChatGPT gateway, which is not part of this flow.
+
 ## Scrub plugin headless acceptance
 
 These opt-in harnesses preserve the actual client paths used for the 2026-09-24
