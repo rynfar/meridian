@@ -104,9 +104,24 @@ platform skips, standalone typecheck and build pass. The manual server can
 resume an owned fixture with `E2E_EXISTING_ROOT`, without replacing its
 profile configuration.
 
-A fresh existing-account authorization attempt reached Claude's OAuth page,
-but its Authorize control remained disabled. No completed re-authentication
-or loopback callback is claimed. This remains a draft acceptance gate;
-the successfully created isolated account still authenticates actual
-OpenCode/Opus calls in the separate profile-copy live probe. Earlier creation
-proof does not substitute for re-authentication proof.
+The earlier disabled Authorize attempt is superseded: the user enabled and
+clicked Authorize; the preview showed a white page / HTTP 431 at the loopback
+handoff. Delivering the recovered original callback privately to that same
+live backend completed exchange, changed the native grant and kept the same
+profile mapping. Subsequent Mac/Linux OpenCode/SDK/model probes used that
+recovered account. This establishes assisted existing-account re-authentication
+while leaving automatic loopback callback proof explicitly open. No code or
+credential is published. The temporary login fixture has since been removed;
+the persistent owned native credential fixture supports later probes.
+
+
+## Fresh-main incorporation — 2026-10-03 UTC
+
+Recovered all four authored source commits and prior maintainer corrections
+onto main `928bddc42b684680bc58f31a0aab18034197e8f3`. Current authored SHAs are
+`13e8e349`, `fa431b65`, `fb6e2ae3`, `072669a9`, with original Nowaker
+Author/AuthorDate preserved. The source head is still `a9abcce8`.
+Documentation conflicts retained current main's flows and the browser E2E
+workflow. The existing draft #1217 remains the delivery vehicle. Fresh full
+local checks, affected-client verification and exact-head CI are required
+before merge. The automatic browser callback has not yet been demonstrated.
