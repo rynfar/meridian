@@ -14,10 +14,8 @@ import {
   chmodSync,
   closeSync,
   existsSync,
-  fchmodSync,
   fstatSync,
   fsyncSync,
-  linkSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -29,11 +27,14 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs"
+import { link, open, readFile, rename, unlink, type FileHandle } from "node:fs/promises"
+import { setTimeout as waitForLockRetry } from "node:timers/promises"
 import { createHash, randomUUID } from "node:crypto"
 import { homedir, hostname } from "node:os"
 import { basename, dirname, isAbsolute, join } from "node:path"
 import {
   directoryRenameWasBlockedSync,
+  syncDirectoryDurably,
   syncDirectoryDurablySync,
 } from "./session/durableFileSystem"
 import type { TokenUsage } from "./session/lineage"
@@ -236,7 +237,6 @@ const DEFAULT_MAX_PRIORITY_ATTEMPTS = 5_000
 const STALE_LOCK_THRESHOLD_MS = 30_000
 const DEFAULT_LOCK_WAIT_MS = 10_000
 const LOCK_RETRY_MS = 10
-const lockWaitBuffer = new Int32Array(new SharedArrayBuffer(4))
 
 export function getMaxStoredSessionsLimit(): number {
   const raw = process.env.MERIDIAN_MAX_STORED_SESSIONS ?? process.env.CLAUDE_PROXY_MAX_STORED_SESSIONS
@@ -276,39 +276,61 @@ interface StoreLock {
   token: string
 }
 
-function sleepSync(milliseconds: number): void {
-  Atomics.wait(lockWaitBuffer, 0, 0, milliseconds)
+interface StoreLockCandidate {
+  /** Become the lock with an atomic no-replace hard link. False: it is held. */
+  publish: () => Promise<boolean>
+  /** Drop the staging name. A published candidate stays linked as the lock. */
+  discard: () => Promise<void>
 }
 
-/** Publish fully initialized lock metadata with an atomic no-replace hard link. */
-function publishInitializedLockFile(path: string, contents: string): boolean {
+/** Initialise fully written lock metadata once per acquisition, off the event
+ *  loop, and re-link it on every attempt.
+ *
+ *  The fsync is load-bearing: stale-lock recovery retires only a lock whose
+ *  owner it can parse and prove dead, so a crash must never leave the lock
+ *  linked to an unwritten inode. One fsync per attempt does not follow from
+ *  that, and on a slow disk it made every retry cost a journal commit on the
+ *  directory the holder is about to fsync. This is the same protocol as the
+ *  session lifecycle sidecar lock. */
+async function createInitializedLockCandidate(path: string, contents: string): Promise<StoreLockCandidate> {
   const staging = `${path}.candidate-${process.pid}-${randomUUID()}`
-  let fd: number | undefined
-  try {
-    fd = openSync(staging, "wx", 0o600)
-    fchmodSync(fd, 0o600)
-    writeFileSync(fd, contents, "utf8")
-    fsyncSync(fd)
-    closeSync(fd)
-    fd = undefined
+  const discard = async (): Promise<void> => {
     try {
-      linkSync(staging, path)
-      return true
+      await unlink(staging)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST") return false
-      throw error
-    }
-  } finally {
-    if (fd !== undefined) {
-      try { closeSync(fd) } catch (error) {
-        console.error("[sessionStore] lock staging close failed:", (error as Error).message)
-      }
-    }
-    try { unlinkSync(staging) } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         console.error("[sessionStore] lock staging cleanup failed:", (error as Error).message)
       }
     }
+  }
+  let handle: FileHandle | undefined
+  try {
+    handle = await open(staging, "wx", 0o600)
+    await handle.chmod(0o600)
+    await handle.writeFile(contents, "utf8")
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+  } catch (error) {
+    if (handle) {
+      await handle.close().catch((closeError: unknown) => {
+        console.error("[sessionStore] lock staging close failed:", (closeError as Error).message)
+      })
+    }
+    await discard()
+    throw error
+  }
+  return {
+    publish: async () => {
+      try {
+        await link(staging, path)
+        return true
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") return false
+        throw error
+      }
+    },
+    discard,
   }
 }
 
@@ -576,7 +598,7 @@ function retireStaleLock(lockPath: string): boolean {
   }
 }
 
-function acquireLock(lockPath: string): StoreLock {
+async function acquireLock(lockPath: string): Promise<StoreLock> {
   const incarnation = captureProcessIncarnation()
   if (!incarnation) throw new Error("[sessionStore] cannot capture lock owner process incarnation")
   const token = JSON.stringify({
@@ -587,38 +609,71 @@ function acquireLock(lockPath: string): StoreLock {
   })
   const deadline = performance.now() + getLockWaitMs()
 
-  while (true) {
-    try {
-      if (publishInitializedLockFile(lockPath, token)) return { path: lockPath, token }
-    } catch (error) {
-      throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
-    }
+  let candidate: StoreLockCandidate
+  try {
+    candidate = await createInitializedLockCandidate(lockPath, token)
+  } catch (error) {
+    throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
+  }
+  try {
+    while (true) {
+      try {
+        if (await candidate.publish()) return { path: lockPath, token }
+      } catch (error) {
+        throw new Error(`[sessionStore] lock acquire failed: ${(error as Error).message}`, { cause: error })
+      }
 
-    if (deadline - performance.now() <= 0) {
-      throw new Error(`[sessionStore] timed out waiting for lock ${lockPath}`)
+      if (deadline - performance.now() <= 0) {
+        throw new Error(`[sessionStore] timed out waiting for lock ${lockPath}`)
+      }
+      if (retireStaleLock(lockPath)) continue
+      const remaining = deadline - performance.now()
+      if (remaining <= 0) {
+        throw new Error(`[sessionStore] timed out waiting for lock ${lockPath}`)
+      }
+      await waitForLockRetry(Math.min(LOCK_RETRY_MS, remaining))
     }
-    if (retireStaleLock(lockPath)) continue
-    const remaining = deadline - performance.now()
-    if (remaining <= 0) {
-      throw new Error(`[sessionStore] timed out waiting for lock ${lockPath}`)
-    }
-    sleepSync(Math.min(LOCK_RETRY_MS, remaining))
+  } finally {
+    await candidate.discard()
   }
 }
 
-function releaseLock(lock: StoreLock): void {
+async function releaseLock(lock: StoreLock): Promise<void> {
   try {
-    if (readFileSync(lock.path, "utf8") !== lock.token) {
+    if (await readFile(lock.path, "utf8") !== lock.token) {
       console.error("[sessionStore] lock ownership changed before release")
       return
     }
-    unlinkSync(lock.path)
+    await unlink(lock.path)
   } catch (error) {
     const err = error as NodeJS.ErrnoException
     if (err.code !== "ENOENT") {
       console.error("[sessionStore] lock release failed:", err.message)
     }
   }
+}
+
+// One store's mutations run one at a time within this process, in call order.
+// The lock file arbitrates between processes; this queue keeps a process's own
+// writers from polling that lock against each other, which would let a later
+// caller's write land before an earlier one's.
+const storeMutationQueues = new Map<string, Promise<void>>()
+
+function runStoreMutationInOrder(lockPath: string, mutation: () => Promise<void>): Promise<void> {
+  const previous = storeMutationQueues.get(lockPath) ?? Promise.resolve()
+  const current = previous.then(mutation)
+  const tail = current.catch(() => undefined)
+  storeMutationQueues.set(lockPath, tail)
+  void tail.then(() => {
+    if (storeMutationQueues.get(lockPath) === tail) storeMutationQueues.delete(lockPath)
+  })
+  return current
+}
+
+/** Settles, never rejecting, once every store mutation this process has
+ *  already started has landed. Mutations started later are not waited for. */
+export function sessionStoreWritesSettled(): Promise<void> {
+  return storeMutationQueues.get(`${getStorePath()}.lock`) ?? Promise.resolve()
 }
 
 /** Override for testing — avoids env var race when test files run in parallel */
@@ -984,7 +1039,7 @@ function sameStoreFile(cached: StoreDocumentCache | undefined, path: string, inf
 // Takes the synchronous full-file parse — well over a hundred milliseconds on a
 // long-lived store — off every lookup and every locked mutation. Identity
 // keying is exact because every writer, this process or a foreign one,
-// publishes through renameSync and therefore a new inode with fresh times.
+// publishes through rename and therefore a new inode with fresh times.
 // The document and its sessions are immutable: mutateStore hands mutators a
 // copy-on-write view, and entries are replaced rather than edited in place.
 let storeDocumentCache: StoreDocumentCache | undefined
@@ -1136,9 +1191,9 @@ function readStore(): Record<string, StoredSession> {
   }
 }
 
-function fsyncParentDirectory(path: string): void {
+async function fsyncParentDirectory(path: string): Promise<void> {
   try {
-    syncDirectoryDurablySync(dirname(path))
+    await syncDirectoryDurably(dirname(path))
   } catch (error) {
     // Preserve the store's legacy best-effort parent flush on supported filesystems.
     void error
@@ -1166,28 +1221,32 @@ function serializeStoreDocument(document: SessionStoreDocument): Buffer {
   return Buffer.concat(chunks)
 }
 
-function writeStore(path: string, document: SessionStoreDocument): void {
+/** Write the document to a temporary file, fsync it, then rename it over the
+ *  store. Every step is awaited on a file handle: on a busy filesystem one
+ *  fsync of the store can take seconds, and doing it synchronously stopped the
+ *  whole proxy for that long. */
+async function writeStore(path: string, document: SessionStoreDocument, beforePublish?: () => void): Promise<void> {
   const tmp = `${path}.tmp-${process.pid}-${randomUUID()}`
-  let fd: number | undefined
+  let handle: FileHandle | undefined
   try {
-    fd = openSync(tmp, "wx", 0o600)
-    fchmodSync(fd, 0o600)
-    writeFileSync(fd, serializeStoreDocument(document))
-    fsyncSync(fd)
-    closeSync(fd)
-    fd = undefined
-    renameSync(tmp, path)
-    fsyncParentDirectory(path)
+    handle = await open(tmp, "wx", 0o600)
+    await handle.chmod(0o600)
+    await handle.writeFile(serializeStoreDocument(document))
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+    // Disk waits yield to cancellation and forced shutdown. Recheck authority
+    // at the publication boundary, without yielding before dispatching rename.
+    beforePublish?.()
+    await rename(tmp, path)
   } catch (error) {
-    if (fd !== undefined) {
-      try {
-        closeSync(fd)
-      } catch (closeError) {
+    if (handle) {
+      await handle.close().catch((closeError: unknown) => {
         console.error("[sessionStore] temp close failed:", (closeError as Error).message)
-      }
+      })
     }
     try {
-      unlinkSync(tmp)
+      await unlink(tmp)
     } catch (cleanupError) {
       if ((cleanupError as NodeJS.ErrnoException).code !== "ENOENT") {
         console.error("[sessionStore] temp cleanup failed:", (cleanupError as Error).message)
@@ -1197,37 +1256,44 @@ function writeStore(path: string, document: SessionStoreDocument): void {
   }
 }
 
-function mutateStore(mutator: (document: SessionStoreDocument) => boolean): void {
+async function mutateStore(mutator: (document: SessionStoreDocument) => boolean, beforePublish?: () => void): Promise<void> {
   const path = getStorePath()
-  const lock = acquireLock(`${path}.lock`)
-  try {
-    // Every writer publishes while holding this lock, so the file identity
-    // checked here cannot change before our own rename: a cache hit is the
-    // current durable document without a re-parse. The draft shares entries
-    // with it; mutators replace entries and never edit them in place.
-    const current = readStoreDocumentCached(path)
-    const draft: SessionStoreDocument = {
-      sessions: { ...current.sessions },
-      meta: structuredClone(current.meta),
-    }
-    if (mutator(draft)) {
-      // A new entry may still reference caller-owned arrays or usage objects.
-      // Own and freeze those values before memoizing bytes; otherwise later
-      // caller/lookup edits make memory disagree with the durable serialization.
-      // Unchanged entries are already deeply frozen and retain their memo keys.
-      for (const [key, session] of Object.entries(draft.sessions)) {
-        if (!Object.isFrozen(session)) {
-          const owned = structuredClone(session)
-          freezeStoreValue(owned)
-          draft.sessions[key] = owned
-        }
+  const lockPath = `${path}.lock`
+  await runStoreMutationInOrder(lockPath, async () => {
+    const lock = await acquireLock(lockPath)
+    try {
+      // Every writer publishes while holding this lock, so the file identity
+      // checked here cannot change before our own rename: a cache hit is the
+      // current durable document without a re-parse. The draft shares entries
+      // with it; mutators replace entries and never edit them in place.
+      const current = readStoreDocumentCached(path)
+      const draft: SessionStoreDocument = {
+        sessions: { ...current.sessions },
+        meta: structuredClone(current.meta),
       }
-      writeStore(path, draft)
-      publishStoreCache(path, draft)
+      if (mutator(draft)) {
+        // A new entry may still reference caller-owned arrays or usage objects.
+        // Own and freeze those values before memoizing bytes; otherwise later
+        // caller/lookup edits make memory disagree with the durable serialization.
+        // Unchanged entries are already deeply frozen and retain their memo keys.
+        for (const [key, session] of Object.entries(draft.sessions)) {
+          if (!Object.isFrozen(session)) {
+            const owned = structuredClone(session)
+            freezeStoreValue(owned)
+            draft.sessions[key] = owned
+          }
+        }
+        await writeStore(path, draft, beforePublish)
+        // Readers see the renamed file from here on whether or not the
+        // directory flush below has finished; publishing now spares them a
+        // re-parse of the whole store while that flush waits on the disk.
+        publishStoreCache(path, draft)
+        await fsyncParentDirectory(path)
+      }
+    } finally {
+      await releaseLock(lock)
     }
-  } finally {
-    releaseLock(lock)
-  }
+  })
 }
 
 function hasLegacyUserDenialBoundary(session: StoredSession): boolean {
@@ -1344,7 +1410,7 @@ function isPriorityRollbackMapping(meta: SessionStoreMeta, key: string): boolean
     && Object.values(meta.priorityRollbackMappings).some((rollback) => rollback.mappingKey === key)
 }
 
-export function storeSharedSession(
+export async function storeSharedSession(
   key: string,
   claudeSessionId: string,
   messageCount?: number,
@@ -1358,7 +1424,18 @@ export function storeSharedSession(
   currentTranscript?: TranscriptLocator,
   sourceTranscript?: TranscriptLocator,
   expectedGeneration?: StoredSessionGeneration | null,
-): StoredSessionGeneration | false {
+  beforePublish?: () => void,
+): Promise<StoredSessionGeneration | false> {
+  // Capture caller-owned history before the queue or disk yields. Validation
+  // and publication must refer to the same values even if the caller reuses
+  // its arrays or locators while this transaction waits.
+  messageHashes = messageHashes?.slice()
+  sdkMessageUuids = sdkMessageUuids?.slice()
+  contextUsage = contextUsage === undefined ? undefined : structuredClone(contextUsage)
+  messageBlockHashes = messageBlockHashes?.map(blocks => blocks.slice())
+  passthroughToolCallIds = passthroughToolCallIds?.slice() ?? passthroughToolCallIds
+  currentTranscript = currentTranscript === undefined ? undefined : { ...currentTranscript }
+  sourceTranscript = sourceTranscript === undefined ? undefined : { ...sourceTranscript }
   if (currentTranscript !== undefined) {
     validateTranscriptLocator(currentTranscript, claudeSessionId)
   }
@@ -1372,7 +1449,7 @@ export function storeSharedSession(
   }
 
   let storedGeneration: StoredSessionGeneration | false = false
-  mutateStore(({ sessions: store, meta }) => {
+  await mutateStore(({ sessions: store, meta }) => {
     if (isPriorityRollbackMapping(meta, key)) return false
     const existing = store[key]
     if (expectedGeneration !== undefined) {
@@ -1459,7 +1536,7 @@ export function storeSharedSession(
       }
     }
     return true
-  })
+  }, beforePublish)
   return storedGeneration
 }
 
@@ -1486,18 +1563,19 @@ function validatePriorityAttemptTurn(turn: PriorityAttemptTurn | undefined): voi
  * A blocked/crashed attempt can be superseded only by a strictly newer trusted
  * human turn. The prior blocker remains until the newer turn publishes.
  */
-export function claimPriorityAttempt(options: {
+export async function claimPriorityAttempt(options: {
   routeKey: string
   expectedAssignmentGeneration: PriorityAssignmentGeneration
   turn?: PriorityAttemptTurn
-}): PriorityAttemptClaim | false {
+}): Promise<PriorityAttemptClaim | false> {
+  options = structuredClone(options)
   if (!options.routeKey || options.routeKey.length > 512) {
     throw new Error("priority attempt requires a bounded route key")
   }
   validatePriorityAttemptTurn(options.turn)
   const ownerToken = randomUUID()
   let claimed = false
-  mutateStore((document) => {
+  await mutateStore((document) => {
     const assignment = document.meta.version === PRIORITY_STORE_META_VERSION
       ? document.meta.priorityAssignments[options.routeKey]
       : undefined
@@ -1557,14 +1635,14 @@ export function claimPriorityAttempt(options: {
   return claimed ? { ownerToken } : false
 }
 
-function settlePriorityAttempt(
+async function settlePriorityAttempt(
   routeKey: string,
   ownerToken: string,
   disposition: "release" | "block",
-): boolean {
+): Promise<boolean> {
   if (!routeKey || routeKey.length > 512 || !UUID_PATTERN.test(ownerToken)) return false
   let settled = false
-  mutateStore((document) => {
+  await mutateStore((document) => {
     if (document.meta.version !== PRIORITY_STORE_META_VERSION) return false
     const attempt = document.meta.priorityAttempts[routeKey]
     if (!attempt || attempt.ownerToken !== ownerToken) return false
@@ -1597,12 +1675,12 @@ function settlePriorityAttempt(
 }
 
 /** Release an unexposed attempt; an older blocker remains intact. */
-export function releasePriorityAttempt(routeKey: string, ownerToken: string): boolean {
+export function releasePriorityAttempt(routeKey: string, ownerToken: string): Promise<boolean> {
   return settlePriorityAttempt(routeKey, ownerToken, "release")
 }
 
 /** Persist exposure before returning an account-shaped error or cancellation. */
-export function blockPriorityAttempt(routeKey: string, ownerToken: string): boolean {
+export function blockPriorityAttempt(routeKey: string, ownerToken: string): Promise<boolean> {
   return settlePriorityAttempt(routeKey, ownerToken, "block")
 }
 
@@ -1680,12 +1758,14 @@ function validatePriorityPublicationInput(options: SharedSessionAndPriorityAssig
  * durable compare-and-swap. A v1 document upgrades only when this transaction
  * wins; all ordinary mapping writes preserve either input version.
  */
-export function storeSharedSessionAndPriorityAssignment(
+export async function storeSharedSessionAndPriorityAssignment(
   options: SharedSessionAndPriorityAssignmentOptions,
-): SharedSessionAndPriorityAssignmentResult | false {
+  beforePublish?: () => void,
+): Promise<SharedSessionAndPriorityAssignmentResult | false> {
+  options = structuredClone(options)
   validatePriorityPublicationInput(options)
   let result: SharedSessionAndPriorityAssignmentResult | false = false
-  mutateStore((document) => {
+  await mutateStore((document) => {
     const existing = document.sessions[options.key]
     const actualMappingGeneration = keyGeneration(options.key, existing, document.meta)
     if (actualMappingGeneration !== options.expectedMappingGeneration) return false
@@ -1852,7 +1932,7 @@ export function storeSharedSessionAndPriorityAssignment(
       previousAssignment: existingAssignment ? structuredClone(existingAssignment) : null,
     }
     return true
-  })
+  }, beforePublish)
   return result
 }
 
@@ -1869,11 +1949,13 @@ export interface FinalizeSharedSessionAndPriorityAssignmentOptions {
  * Make a successful publication irrevocable and prune its rollback backlog.
  * Exact route+mapping CAS prevents a late finalizer from touching newer work.
  */
-export function finalizeSharedSessionAndPriorityAssignment(
+export async function finalizeSharedSessionAndPriorityAssignment(
   options: FinalizeSharedSessionAndPriorityAssignmentOptions,
-): boolean {
+  beforePublish?: () => void,
+): Promise<boolean> {
+  options = structuredClone(options)
   let finalized = false
-  mutateStore((document) => {
+  await mutateStore((document) => {
     if (document.meta.version !== PRIORITY_STORE_META_VERSION) return false
     const mapping = document.sessions[options.key]
     if (keyGeneration(options.key, mapping, document.meta) !== options.expectedMappingGeneration) return false
@@ -1918,7 +2000,7 @@ export function finalizeSharedSessionAndPriorityAssignment(
     }
     finalized = true
     return true
-  })
+  }, beforePublish)
   return finalized
 }
 
@@ -1940,11 +2022,12 @@ export interface RollbackSharedSessionAndPriorityAssignmentResult {
 }
 
 /** Restore the exact pre-request authorities after a canceled late publication. */
-export function rollbackSharedSessionAndPriorityAssignment(
+export async function rollbackSharedSessionAndPriorityAssignment(
   options: RollbackSharedSessionAndPriorityAssignmentOptions,
-): RollbackSharedSessionAndPriorityAssignmentResult | false {
+): Promise<RollbackSharedSessionAndPriorityAssignmentResult | false> {
+  options = structuredClone(options)
   let result: RollbackSharedSessionAndPriorityAssignmentResult | false = false
-  mutateStore((document) => {
+  await mutateStore((document) => {
     if (document.meta.version !== PRIORITY_STORE_META_VERSION) return false
     const currentMapping = document.sessions[options.key]
     if (keyGeneration(options.key, currentMapping, document.meta) !== options.expectedMappingGeneration) return false
@@ -2025,15 +2108,17 @@ function sameTranscriptLocator(left: TranscriptLocator | undefined, right: Trans
 
 /** Attach an exact transcript locator without changing lineage or SDK identity.
  * The durable revision advances so concurrent readers cannot miss the mutation. */
-export function attachSharedTranscriptLocator(
+export async function attachSharedTranscriptLocator(
   key: string,
   expectedClaudeSessionId: string,
   locator: TranscriptLocator,
   expectedGeneration?: StoredSessionGeneration,
-): StoredSessionGeneration | false {
+  beforePublish?: () => void,
+): Promise<StoredSessionGeneration | false> {
+  locator = { ...locator }
   validateTranscriptLocator(locator, expectedClaudeSessionId)
   let attachedGeneration: StoredSessionGeneration | false = false
-  mutateStore(({ sessions: store, meta }) => {
+  await mutateStore(({ sessions: store, meta }) => {
     if (isPriorityRollbackMapping(meta, key)) return false
     const existing = store[key]
     if (!existing || existing.claudeSessionId !== expectedClaudeSessionId) return false
@@ -2062,7 +2147,7 @@ export function attachSharedTranscriptLocator(
       attachedGeneration = getStoredSessionGeneration(existing, key)
     }
     return true
-  })
+  }, beforePublish)
   return attachedGeneration
 }
 
@@ -2070,12 +2155,12 @@ export function attachSharedTranscriptLocator(
  *  Used when a session is detected as stale (e.g. expired upstream).
  *  Absence is an idempotent success; false is reserved for a present mapping
  *  whose exact expected generation no longer matches. */
-export function evictSharedSession(
+export async function evictSharedSession(
   key: string,
   expectedGeneration?: StoredSessionGeneration,
-): boolean {
+): Promise<boolean> {
   let evicted = false
-  mutateStore(({ sessions: store, meta }) => {
+  await mutateStore(({ sessions: store, meta }) => {
     const existing = store[key]
     if (!existing) {
       evicted = true
@@ -2184,14 +2269,15 @@ export function listSupersededProfileConversations(options: ProfileCopyPruneOpti
  * reconciliation retires them through the normal bounded backlog.
  * Returns the number of mappings removed.
  */
-export function pruneSupersededProfileCopies(options: ProfileCopyPruneOptions): number {
+export async function pruneSupersededProfileCopies(options: ProfileCopyPruneOptions): Promise<number> {
+  options = { ...options, profileIds: new Set(options.profileIds) }
   // Select from the cached document first so the common no-op sweep takes no
   // lock and writes nothing.
   if (selectSupersededProfileCopies(readStoreDocumentCached(getStorePath()), options, Date.now()).length === 0) {
     return 0
   }
   let pruned = 0
-  mutateStore(({ sessions, meta }) => {
+  await mutateStore(({ sessions, meta }) => {
     const victims = selectSupersededProfileCopies({ sessions, meta }, options, Date.now())
     for (const key of victims) {
       delete sessions[key]
@@ -2246,8 +2332,8 @@ export function listStoredSessions(): Array<{
   }))
 }
 
-export function clearSharedSessions(): void {
-  mutateStore(({ sessions: store, meta }) => {
+export async function clearSharedSessions(): Promise<void> {
+  await mutateStore(({ sessions: store, meta }) => {
     for (const key of Object.keys(store)) {
       delete store[key]
       advanceKeySlot(key, meta)

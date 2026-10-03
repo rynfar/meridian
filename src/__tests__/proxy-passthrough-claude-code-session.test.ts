@@ -101,14 +101,14 @@ const TURN_3 = {
 describe("gateway-fronted Claude Code session identity", () => {
   const gateway = { "x-meridian-agent": "passthrough", "x-claude-code-session-id": CC_SESSION }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedOptions = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
-  afterEach(() => {
-    clearSessionCache()
+  afterEach(async () => {
+    await clearSessionCache()
   })
 
   // THE REPORTED CASE. The tool round used to take the bypass, which skips the

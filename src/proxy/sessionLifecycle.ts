@@ -511,14 +511,15 @@ export async function commitFork(
 
 /**
  * Fence durable mapping publication against GC's final claim transaction.
- * The callback must be synchronous and must perform the session-store CAS.
+ * The callback must perform the session-store CAS; the lifecycle lock is held
+ * until it settles.
  * A normal publisher must refer to an already journaled resource. This makes
  * tombstone pruning safe: a delayed old publisher cannot recreate a locator
  * that GC already deleted.
  */
 export async function publishPinnedTranscript<T extends boolean | string>(
   locator: TranscriptLocator,
-  publish: () => T,
+  publish: () => T | Promise<T>,
   options: SessionLifecycleOptions = {},
 ): Promise<T> {
   return updatePinnedTranscript(locator, publish, options, false)
@@ -531,7 +532,7 @@ export async function publishPinnedTranscript<T extends boolean | string>(
  */
 export async function attachPinnedTranscript<T extends boolean | string>(
   locator: TranscriptLocator,
-  publish: () => T,
+  publish: () => T | Promise<T>,
   options: SessionLifecycleOptions = {},
 ): Promise<T> {
   return updatePinnedTranscript(locator, publish, options, true)
@@ -539,7 +540,7 @@ export async function attachPinnedTranscript<T extends boolean | string>(
 
 async function updatePinnedTranscript<T extends boolean | string>(
   locator: TranscriptLocator,
-  publish: () => T,
+  publish: () => T | Promise<T>,
   options: SessionLifecycleOptions,
   allowMissing: boolean,
 ): Promise<T> {
@@ -584,16 +585,16 @@ async function updatePinnedTranscript<T extends boolean | string>(
       }
     }
     // Release publication ownership in the same locked transaction as the
-    // synchronous mapping CAS. A failed CAS restores the complete lease record.
+    // mapping CAS. A failed CAS restores the complete lease record.
     if (releasePublicationLease(resource)) changed = true
     if (changed) {
       pruneTombstones(sidecar, options)
       await writeSidecar(paths.sidecar, sidecar)
     }
-    // Keep the lifecycle lock held across the synchronous session-store CAS.
+    // Keep the lifecycle lock held across the session-store CAS.
     locator.lifecycleGeneration = resource.generation
     try {
-      const result = publish()
+      const result = await publish()
       if (result === false) {
         if (changed) await writeSidecar(paths.sidecar, beforeMutation)
         if (originalGeneration === undefined) delete locator.lifecycleGeneration
@@ -799,7 +800,7 @@ export async function releaseSupersededProfileCopies(
         leases.push(lease)
         fenced.add(conversation)
       }
-      const removed = pruneSupersededProfileCopies({ ...selection,
+      const removed = await pruneSupersededProfileCopies({ ...selection,
         isConversationActive: id => !fenced.has(id) || copies.isConversationActive(id),
       })
       if (removed) await reconcileUnderLock([], options, paths)

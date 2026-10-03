@@ -241,10 +241,10 @@ describe("Integration: passthrough early stop", () => {
     mockOmitReturnedSessionId = false
   })
 
-  afterEach(() => {
-    for (const key of usedSessionKeys) evictSharedSession(key)
+  afterEach(async () => {
+    for (const key of usedSessionKeys) await evictSharedSession(key)
     usedSessionKeys.clear()
-    clearSessionCache()
+    await clearSessionCache()
     if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
     else delete process.env.MERIDIAN_PASSTHROUGH
     if (savedEarlyStop !== undefined) process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = savedEarlyStop

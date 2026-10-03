@@ -1,0 +1,412 @@
+{
+  "controlledDiskWaits": [
+    {
+      "result": "PASS",
+      "expectResponsive": false,
+      "delayMs": 400,
+      "worstTimerLagMs": 406.0776250000017,
+      "heldPublications": 6,
+      "responsiveProbes": 0,
+      "failedProbes": 0,
+      "platform": "darwin/arm64",
+      "bun": "1.3.14",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 4,
+      "resumed": true,
+      "scrub": "0.2.3",
+      "case": "mac-baseline-client"
+    },
+    {
+      "result": "PASS",
+      "expectResponsive": true,
+      "delayMs": 400,
+      "worstTimerLagMs": 0,
+      "heldPublications": 6,
+      "responsiveProbes": 213,
+      "failedProbes": 0,
+      "platform": "darwin/arm64",
+      "bun": "1.3.14",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 4,
+      "resumed": true,
+      "scrub": "0.2.3",
+      "case": "mac-fixed-client"
+    },
+    {
+      "result": "PASS",
+      "expectResponsive": false,
+      "delayMs": 400,
+      "worstTimerLagMs": 409.31590100000176,
+      "heldPublications": 6,
+      "responsiveProbes": 0,
+      "failedProbes": 0,
+      "platform": "linux/arm64",
+      "bun": "1.4.2",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 4,
+      "resumed": true,
+      "scrub": "0.2.3",
+      "case": "linux-baseline-client"
+    },
+    {
+      "result": "PASS",
+      "expectResponsive": true,
+      "delayMs": 400,
+      "worstTimerLagMs": 0,
+      "heldPublications": 6,
+      "responsiveProbes": 208,
+      "failedProbes": 0,
+      "platform": "linux/arm64",
+      "bun": "1.4.2",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 4,
+      "resumed": true,
+      "scrub": "0.2.3",
+      "case": "linux-fixed-client"
+    }
+  ],
+  "inputCaptureRegression": {
+    "source": "9 pass / 1 fail; modified caller values were written",
+    "corrected": "10 pass / 0 fail"
+  },
+  "revokedPublicationRegression": {
+    "source": "canceled mapping renamed, then compensating eviction: 2 publications",
+    "corrected": "request-cancel and forced-shutdown: 0 publications"
+  },
+  "unresolvedE41": {
+    "mode": "chain/nonstream",
+    "previousCacheRead": 3132,
+    "previousCacheCreate": 3461,
+    "nextCacheRead": 3132,
+    "minimumRead": 6263.35,
+    "toolHistory": "exactly one real answer per delivered call",
+    "laterFourModes": "PASS",
+    "unchangedMainControls": "two PASS; failed-before cache case not reproduced on main",
+    "disposition": "unexplained; acceptance gate remains open",
+    "thinkingBudgetControl": {
+      "budget": 1024,
+      "main": "PASS",
+      "source": "PASS",
+      "nativeThinkingBlocks": 0,
+      "causality": "not reproduced; original failure remains unresolved"
+    },
+    "publishedThinkingMessage": {
+      "cacheRead": 0,
+      "cacheCreation": 3332,
+      "nextCacheRead": 3132,
+      "difference": 200,
+      "minimumReadAtUnchanged95PercentFloor": 3165.4
+    },
+    "accountingFinding": "HTTP aggregate prefix 6593 exceeds published assistant prefix 3332; aggregation explains the large overstatement but not the remaining 200-token difference",
+    "maxEffortControls": {
+      "budget": 8192,
+      "effort": "max",
+      "main": "PASS, native thinking present",
+      "source": "PASS, native thinking present",
+      "lateThinkingSource": "PASS, native thinking on third read",
+      "causality": "no retry/usage inflation reproduced; acceptance remains open"
+    }
+  },
+  "finalRealClientCancellation": [
+    {
+      "result": "PASS",
+      "testCancellation": true,
+      "cancellationTriggered": true,
+      "canceledRenames": 0,
+      "canceledExit": null,
+      "canceledSdkAborts": 2,
+      "closedDuringWait": 2,
+      "socketClosedDuringWait": 2,
+      "closeFinishedDuringWait": 0,
+      "expectResponsive": true,
+      "delayMs": 400,
+      "worstTimerLagMs": 0,
+      "heldPublications": 7,
+      "responsiveProbes": 256,
+      "failedProbes": 0,
+      "platform": "darwin/arm64",
+      "bun": "1.4.2",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 6,
+      "resumed": true,
+      "scrub": "0.2.3",
+      "case": "mac-bun142-client"
+    },
+    {
+      "result": "PASS",
+      "testCancellation": true,
+      "cancellationTriggered": true,
+      "canceledRenames": 0,
+      "canceledExit": null,
+      "expectResponsive": true,
+      "delayMs": 400,
+      "worstTimerLagMs": 0,
+      "heldPublications": 7,
+      "responsiveProbes": 251,
+      "failedProbes": 0,
+      "platform": "linux/arm64",
+      "bun": "1.4.2",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 6,
+      "resumed": true,
+      "scrub": "0.2.3",
+      "case": "linux-fixed-final-client-joined"
+    }
+  ],
+  "macBun1314Failure": {
+    "canceledRenames": 2,
+    "sdkAbortsDuringHold": 0,
+    "httpCloseEventsDuringHold": 0,
+    "socketCloseEventsDuringHold": 0,
+    "plainHttpControl": "also misses disconnect; Node 22 and Bun 1.4.2 observe it",
+    "disposition": "runtime limitation retained; original implicated Bun 1.4.2 passes"
+  },
+  "finalLocal": {
+    "pass": 5138,
+    "fail": 0,
+    "skip": 4,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "linuxFocusedPass": 42
+  },
+  "ownerContractApproval": {
+    "issue": 1244,
+    "date": "2026-10-02",
+    "decision": "Approve asynchronous cleanup",
+    "signature": "clearSessionCache(): Promise<void>"
+  },
+  "desktopTimeoutFinding": {
+    "ciRun": 37066762917,
+    "failure": "first lifecycle test killed by default 5000ms test deadline",
+    "slowRealChildMs": 6000,
+    "before": "FAIL: 5000ms timeout",
+    "after": "PASS: 12312.73ms with explicit 20000ms deadline",
+    "desktopSuite": "21 pass / 0 fail"
+  },
+  "cleanupQueueRace": {
+    "beforeHead": "9805a769",
+    "before": "cleared durable session revived from old queued local fallback; 4 pass / 1 fail",
+    "correction": "6ca53629",
+    "after": "keyed/fingerprint old writes cleared and later writes preserved; 8 pass / 0 fail"
+  },
+  "afterCleanupEpochRealClient": [
+    {
+      "result": "PASS",
+      "testCancellation": true,
+      "cancellationTriggered": true,
+      "canceledRenames": 0,
+      "canceledExit": null,
+      "canceledSdkAborts": 2,
+      "closedDuringWait": 2,
+      "socketClosedDuringWait": 2,
+      "closeFinishedDuringWait": 0,
+      "expectResponsive": true,
+      "delayMs": 400,
+      "worstTimerLagMs": 0,
+      "heldPublications": 7,
+      "responsiveProbes": 259,
+      "failedProbes": 0,
+      "platform": "darwin/arm64",
+      "bun": "1.4.2",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 6,
+      "resumed": true,
+      "scrub": "0.2.3"
+    },
+    {
+      "result": "PASS",
+      "testCancellation": true,
+      "cancellationTriggered": true,
+      "canceledRenames": 0,
+      "canceledExit": null,
+      "canceledSdkAborts": 2,
+      "closedDuringWait": 2,
+      "socketClosedDuringWait": 2,
+      "closeFinishedDuringWait": 0,
+      "expectResponsive": true,
+      "delayMs": 400,
+      "worstTimerLagMs": 0,
+      "heldPublications": 7,
+      "responsiveProbes": 241,
+      "failedProbes": 0,
+      "platform": "linux/arm64",
+      "bun": "1.4.2",
+      "opencode": "1.18.34",
+      "sdk": "0.2.141",
+      "claudeCode": "2.1.284",
+      "model": "claude-opus-5-5",
+      "firstExit": 0,
+      "continuedExit": 0,
+      "firstHasSession": true,
+      "toolCalls": 1,
+      "firstReceipt": true,
+      "continuedReceipt": true,
+      "allQueriesUseNewAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "realSdkQueries": 6,
+      "resumed": true,
+      "scrub": "0.2.3"
+    }
+  ],
+  "linuxCredentialControl": {
+    "initial": "APIError 500, not retryable; mentions refresh; no write/cancellation proof",
+    "correction": "replace only owned mirror from still-valid native profile grant",
+    "after": "real OpenCode/model/receipt/resume/cancellation PASS",
+    "newAuthentication": false
+  },
+  "afterCleanupEpochE41": [
+    {
+      "result": "PASS",
+      "writes": 9,
+      "ticksDuringWrites": 163,
+      "queries": 5,
+      "allQueriesUseOwnedAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "platform": "darwin/arm64",
+      "bun": "1.4.2",
+      "stream": false,
+      "parallel": false,
+      "case": "e41-cleanup-chain-json"
+    },
+    {
+      "result": "PASS",
+      "writes": 9,
+      "ticksDuringWrites": 164,
+      "queries": 5,
+      "allQueriesUseOwnedAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "platform": "darwin/arm64",
+      "bun": "1.4.2",
+      "stream": true,
+      "parallel": false,
+      "case": "e41-cleanup-chain-stream"
+    },
+    {
+      "result": "PASS",
+      "writes": 5,
+      "ticksDuringWrites": 91,
+      "queries": 3,
+      "allQueriesUseOwnedAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "platform": "darwin/arm64",
+      "bun": "1.4.2",
+      "stream": false,
+      "parallel": true,
+      "case": "e41-cleanup-parallel-json"
+    },
+    {
+      "result": "PASS",
+      "writes": 5,
+      "ticksDuringWrites": 92,
+      "queries": 3,
+      "allQueriesUseOwnedAccount": true,
+      "servedModels": [
+        "claude-opus-5-5"
+      ],
+      "platform": "darwin/arm64",
+      "bun": "1.4.2",
+      "stream": true,
+      "parallel": true,
+      "case": "e41-cleanup-parallel-stream"
+    }
+  ]
+}

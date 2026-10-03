@@ -101,6 +101,12 @@ const instance = await startProxyServer({
 await instance.close()
 ```
 
+`clearSessionCache()` is also exported. Its cleanup now returns `Promise<void>`:
+use `await clearSessionCache()` before depending on cleared durable sessions.
+The in-memory reset starts immediately; the promise waits for ordered durable
+cleanup and retains the existing best-effort error policy. This completion
+contract was approved in [#1244](https://github.com/rynfar/meridian/issues/1244).
+
 ## Desktop development and releases
 
 The optional Electron app has its own dependencies and build in `apps/desktop`.

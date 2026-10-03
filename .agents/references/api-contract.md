@@ -7,6 +7,7 @@ External plugins depend on these interfaces. **Changes require project owner app
 | Interface | Location | Used by |
 |-----------|----------|---------|
 | `startProxyServer(config)` → `ProxyInstance` | `server.ts` | Plugins that spawn proxy instances |
+| `clearSessionCache(): Promise<void>` | `server.ts` / `session/cache.ts` | Exported cache cleanup; await ordered durable cleanup (owner approved #1244 on 2026-10-02) |
 | `ProxyInstance.close()` | `types.ts` | Plugins for graceful shutdown |
 | `ProxyConfig` type | `types.ts` | Plugin configuration |
 | `x-opencode-session` header | `adapters/opencode.ts` | Session tracking from agent plugins |
@@ -62,3 +63,10 @@ unresolved guard. This is not active-process restoration or client-tool executio
 journaling. Failed official read-only probes impose a five-second readiness
 cooldown with HTTP 503 and Retry-After. Both changes are within #1073's recovery
 and failure-handling scope.
+
+The owner approved asynchronous `clearSessionCache()` completion in #1244 on
+2026-10-02. Callers must migrate from `clearSessionCache(); next()` to
+`await clearSessionCache(); next()` before depending on durable cleanup.
+The in-memory reset starts immediately; the promise joins ordered store cleanup.
+The existing best-effort cleanup error policy remains. This approval covers this
+completion contract only.

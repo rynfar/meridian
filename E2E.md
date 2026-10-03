@@ -7146,3 +7146,25 @@ runs. Require liveness answers during those holds, a random tool receipt and
 same-session recall, actual served-model confirmation and zero client exits.
 The direct gate regression additionally requires bounded join and eventual
 sensitive-file cleanup if disk publication remains stuck after child exit.
+
+
+## Async session-store disk waits (#1220)
+
+The maintained `scripts/e2e-session-store-client.mjs` runs actual
+OpenCode/SDK/Opus with a 400 ms wait at Meridian's temporary store-file fsync.
+Use an owned `E2E_PROFILE_CLAUDE_DIR`, independently installed
+`E2E_PLUGIN_PATH` and `E2E_OPENCODE_BIN` after build. From a built unchanged
+main, run the same script with `E2E_EXPECT_RESPONSIVE=0` to assert the timer
+freeze and absence of HTTP progress during the synchronous disk wait. Both
+cases still require a real read receipt, continuation, owned-account affinity
+and actual served-model IDs. `E2E_CANCEL_DURING_WRITE=1` additionally joins
+earlier turns before killing the owned third client during its write, then
+requires joined cleanup and zero canceled mapping publication.
+
+Run `scripts/e2e-session-store-turns.mjs` in all four E41 modes with
+`E2E_PROFILE_CLAUDE_DIR` and an isolated `PROBE_PORT`; add `--stream`,
+`PROBE_PARALLEL=1`, then both. It retains E41's exact history/fork/cache checks
+while holding store fsyncs asynchronously and proving timer progress.
+[Evidence and unresolved cache-prefix gate](docs/maintenance/evidence/1220-async-session-store.md)
+record before/after assertions, probe corrections and the exported cleanup
+contract decision. Green reruns do not resolve the retained cache failure.

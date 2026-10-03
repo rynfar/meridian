@@ -139,13 +139,13 @@ async function postNoSession(
   }
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
   capturedQueryParams = null
   queuedSessionLabels = []
   callerSelectedSessionIds = new Map()
-  clearSessionCache()
-  clearSharedSessions()
+  await clearSessionCache()
+  await clearSharedSessions()
 })
 
 describe("Fingerprint resume: stable across dynamic systemContext", () => {

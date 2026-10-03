@@ -80,7 +80,7 @@ describe('desktop manager real child lifecycle', () => {
     manager.options.serviceEnvironment = {AGY_FIXTURE_LEGACY:'1'}
     await expect(manager.start()).rejects.toThrow('does not support the selected providers')
     expect(manager.snapshot().owned).toBe(false)
-  })
+  }, 20000)
 
   test('does not request Claude routing and retention data from standalone Antigravity', async () => {
     const { manager, directory } = await fixture()

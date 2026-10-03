@@ -1,5 +1,59 @@
 # Upstream review handoff
 
+## Active Nowaker integration — #1220 (2026-10-02)
+
+Owner said to keep going. Refreshed source is now `c159bf9be`, based on current
+main `d57388724`; the old `edf29520` pruning integration concern is superseded
+by the contributor's rebase. Preserved Author/AuthorDate through cherry
+`2278ddb88`; separate correction `a58e9871` captures inputs before yielding
+and fences cancellation/shutdown immediately before publication rename.
+[Draft integration #1245](https://github.com/rynfar/meridian/pull/1245) and
+[durable proof](evidence/1220-async-session-store.md). Worktree
+`/Users/rynfar/repos/meridian-session-store-1220`, branch
+`codex/nowaker-session-store-1220-20261002`; owner checkout remains untouched.
+
+Final local code gates pass after cache-epoch correction: 5,138 tests / 0 failures / 4 skips, standalone
+typecheck/build; Linux focused checks 42 pass. Actual OpenCode 1.18.34 /
+Opus 5.5 / SDK 0.2.141 / CLI 2.1.284 / installed scrub 0.2.3 proves controlled
+store-disk wait responsiveness and receipt/resume on macOS/Linux. Four E41 modes
+pass under disk waits after correction. Actual kill-during-write control passes
+on both platforms with Bun 1.4.2. macOS Bun 1.3.14 does not observe premature
+HTTP/socket closure during the held write; a plain server without Meridian
+reproduces it, while Node 22 and Bun 1.4.2 observe close. Keep that older-runtime
+limitation explicit; do not claim to have fixed it or upgraded the owner's Bun.
+
+Owner explicitly approved the exported asynchronous
+`clearSessionCache(): Promise<void>` completion contract on 2026-10-02:
+“Approve asynchronous cleanup”, tracked in
+[#1244](https://github.com/rynfar/meridian/issues/1244). Acceptance gates remain:
+unexplained cache-prefix failure from an earlier sequential E41 thinking/tool
+turn and exact final-head CI. Two ordinary main controls passed, which does not resolve the cache
+failure. Native usage tracing and an explicit-thinking-budget main/source control passed,
+but produced no thinking block and did not reproduce the cache failure. Retain
+those limits and do not waive or weaken the cache check.
+Recovered the original published thinking message through supported SDK history:
+cache read 0 / creation 3,332 versus HTTP aggregate read 3,132 / creation 3,461.
+This explains the large accounting overstatement, but the next read 3,132 still
+falls 200 tokens below the published prefix and below its unchanged 95% floor.
+Max-effort main/source and late-third-read thinking controls passed with native
+thinking; inflated accounting was not reproduced. New maintained history-usage
+probe and retry/message-start tracing preserve the causal investigation.
+Final-head Ubuntu desktop CI hit a five-second real-child test timeout; a
+six-second child control reproduces it. Explicit 20-second budget (matching
+neighboring lifecycle tests) passes the same two-start control in 12.3 seconds,
+and the normal desktop suite passes 21/0. No product startup deadline changed.
+Additional reproduced async-cleanup race: a preceding queued publication could
+repopulate cleared local fallback. `6ca53629` fences memory publication/rollback
+by cache epoch; keyed/fingerprint old-write and later-write controls pass 8/0.
+Final local suite is 5,138/0/4; typecheck/build pass. Actual Mac/Linux OpenCode /
+Opus receipt/resume/kill-during-write pass again, with zero canceled renames and
+259/241 probes. The failed initial Linux auth run is retained; updating only the
+owned Linux mirror from the still-valid native grant restored it. Early receipt
+assertions now precede cancellation. Cache accounting acceptance remains open.
+All six executed checks passed on proof head `b5dc3fb0`; later proof/handoff
+commits require their own final-head CI. #1220 remains open, #1245 stays draft.
+No merge, source closure, release or community comments in this ticket.
+
 ## Additional Nowaker work (2026-10-02)
 
 Owner authorized continuing more Nowaker work. #1222 source `1bffa43fe` is
@@ -3447,3 +3501,8 @@ reproduce, retain contributor authorship, correct separately, run real affected-
 E2E plus npm test/typecheck/build, inspect exact-head CI and finish only within the
 owner's authorized scope. If the required model/platform/environment or product
 decision is missing, record the precise blocker and leave that item incomplete.
+
+After `6ca53629`, all four E41 sequential/parallel × JSON/stream modes pass
+again on macOS Bun 1.4.2 / actual Opus 5.5: 9/9/5/5 held writes,
+5/5/3/3 native queries, owned-account affinity and active history. This does not
+resolve the original accounting discrepancy. Final proof head needs its own CI.
