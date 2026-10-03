@@ -5,6 +5,7 @@ import { agOpenai } from "./antigravityOpenai"
 import { AgResponseStore, agResponseScope } from "./antigravityResponses"
 import { AgTextStops } from "./antigravityStops"
 import { providerPageHtml } from '../../telemetry/providerPage'
+import { withSavedLayout } from '../../telemetry/pageLayout'
 import { ICON_PATH, iconResponse } from '../../telemetry/icon'
 import { providerOverview, type ProviderUsage } from '../../telemetry/providerView'
 import { providerSnapshot, disabledProvider } from './providerStatus'
@@ -292,7 +293,7 @@ export function createAntigravityServer(config: ProxyConfig, runtime = new Antig
       const path = new URL(request.url).pathname
       if (!["/health", "/readyz", "/livez"].includes(path) && !hasValidApiKey(request.headers)) throw new AntigravityError("Invalid or missing API key", 401, "authentication_error")
       if (request.method === "GET" && path === "/build-status") return buildRuntime.local ? Response.json(buildRuntime.status(), { headers: { "Cache-Control": "no-store" } }) : new Response("Not found", { status: 404 })
-      if (request.method === 'GET' && ['/', '/providers'].includes(path)) return new Response(providerPageHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } })
+      if (request.method === 'GET' && ['/', '/providers'].includes(path)) return new Response(withSavedLayout(providerPageHtml), { headers: { 'content-type': 'text/html; charset=utf-8' } })
       if (request.method === 'GET' && path === ICON_PATH) { const icon = iconResponse(); if (icon) return icon }
       if (request.method === 'GET' && ['/providers/status', '/providers/view'].includes(path)) {
         const data = providerSnapshot([disabledProvider('claude'), await providerStatus()])

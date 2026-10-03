@@ -52,6 +52,14 @@ export const profilePageHtml = `<!DOCTYPE html>
     padding: 20px; margin-bottom: 12px; transition: border-color 0.2s;
   }
   .profile-card[hidden] { display: none; }
+  /* Wide layout: the stack becomes a grid of larger cards, two to four to a
+     row on a desktop monitor. The order note, the empty state and the loading
+     line take a whole row rather than a card's slot. */
+  html[data-layout="wide"] #content {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr)); gap: 16px;
+  }
+  html[data-layout="wide"] #content > :not(.profile-card) { grid-column: 1 / -1; }
+  html[data-layout="wide"] #content > .profile-card { margin-bottom: 0; }
   /* Arriving from a /profiles#<name> link: one short pulse says which card. */
   .profile-card.anchor-flash { animation: profile-anchor-flash 0.5s ease-out; }
   @keyframes profile-anchor-flash {

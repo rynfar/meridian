@@ -20,6 +20,7 @@ export const dashboardHtml = `<!DOCTYPE html>
          color: var(--text); padding: 0; line-height: 1.5; }
   h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
   .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .container { padding: 24px; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
   .card-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
@@ -83,7 +84,7 @@ export const dashboardHtml = `<!DOCTYPE html>
 </head>
 <body>
 ` + profileBarHtml + `
-<div style="padding:24px">
+<div class="container">
 <h1>Telemetry</h1>
 <div class="subtitle">Request performance, cost, and wire-contract integrity</div>
 

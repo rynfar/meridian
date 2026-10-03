@@ -44,6 +44,11 @@ export const landingHtml = `<!DOCTYPE html>
   /* min() lets a single column shrink below 300px: a phone at 320px has only
      272px inside the container, and a fixed 300px track scrolled the page. */
   .profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; margin-bottom: 24px; }
+  /* Wide layout: a card stays about as wide as in the contained column, where
+     a 960px row holds two of about 448px, and a row takes as many as fit.
+     auto-fill keeps empty tracks, so a short list keeps its card size instead
+     of stretching across the window. */
+  html[data-layout="wide"] .profile-grid { grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); }
   .profile-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
     padding: 18px 20px; position: relative; transition: border-color 0.15s; }
   .profile-card.switchable { cursor: pointer; }

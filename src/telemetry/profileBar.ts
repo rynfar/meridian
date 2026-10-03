@@ -212,6 +212,15 @@ export const profileBarCss = `
     .meridian-header .mh-right { flex: 1 1 0; }
     .meridian-header .mh-status .mh-status-text { display: none; }
   }
+  /* Wide layout (Settings, Layout): every page drops its centered column and
+     spans the window, keeping an edge margin that grows with the screen. The
+     header takes the same margin so its edges line up with the page's. Pages
+     that lay out cards choose their own column widths under this attribute. */
+  html[data-layout="wide"] { --page-gutter: clamp(16px, 3vw, 48px); }
+  html[data-layout="wide"] .container {
+    max-width: none; padding-left: var(--page-gutter); padding-right: var(--page-gutter);
+  }
+  html[data-layout="wide"] .meridian-header { padding-left: var(--page-gutter); padding-right: var(--page-gutter); }
 `
 
 export const profileBarHtml = `

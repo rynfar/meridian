@@ -11,6 +11,7 @@ import { Hono } from "hono"
 import { telemetryStore, diagnosticLog } from "./index"
 import { dashboardHtml } from "./dashboard"
 import { iconResponse } from "./icon"
+import { withSavedLayout } from "./pageLayout"
 import type { SessionTreeSummary } from "./types"
 import { collapseRouteChains, summarizeRoutes } from "./routeChain"
 
@@ -32,7 +33,7 @@ export function createTelemetryRoutes(deps: TelemetryRouteDeps = {}) {
 
   // Dashboard
   routes.get("/", (c) => {
-    return c.html(dashboardHtml)
+    return c.html(withSavedLayout(dashboardHtml))
   })
 
   // Favicon

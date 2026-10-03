@@ -1,5 +1,6 @@
 import { providerPageHtml } from '../telemetry/providerPage'
 import { providerOverview } from '../telemetry/providerView'
+import { PAGE_LAYOUTS, isPageLayout, resolvePageLayout, withSavedLayout } from '../telemetry/pageLayout'
 import { ClaudeProviderFacts, disabledProvider, providerSnapshot } from './backends/providerStatus'
 import { Hono } from "hono"
 import { cors } from "hono/cors"
@@ -1083,7 +1084,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       throw error
     }
   })
-  app.get('/providers', c => c.html(providerPageHtml))
+  app.get('/providers', c => c.html(withSavedLayout(providerPageHtml)))
   for (const route of ['/providers/status', '/providers/view']) app.get(route, async c => {
     const read = async (path: string) => {
       try { const response = await app.fetch(new Request(new URL(path, c.req.url).toString(), { headers: c.req.raw.headers })); return await response.json() }
@@ -1564,7 +1565,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         endpoints: ["/v1/messages", "/messages", "/v1/chat/completions", "/v1/responses", "/v1/models", "/v1/sessions/:key/cancel", "/v1/design/*", "/design-login", "/telemetry", "/metrics", "/health"]
       })
     }
-    return c.html(landingHtml)
+    return c.html(withSavedLayout(landingHtml))
   })
 
   const handleMessages = async (
@@ -8045,7 +8046,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // SDK Features settings page and API
   app.get("/settings", (c) => {
     const { settingsPageHtml } = require("../telemetry/settingsPage") as typeof import("../telemetry/settingsPage")
-    return c.html(settingsPageHtml)
+    return c.html(withSavedLayout(settingsPageHtml))
   })
   app.get("/settings/api/features", (c) => {
     const { getAllFeatureConfigs } = require("./sdkFeatures") as typeof import("./sdkFeatures")
@@ -8231,6 +8232,25 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     else stopUpdateCheck()
 
     return c.json(updateSettingsState())
+  })
+
+  // Every page reads this as it is served, so a change shows on the next page
+  // load; nothing has to restart.
+  const layoutSettingsState = () => ({ layout: resolvePageLayout(getSetting("layout")), layouts: PAGE_LAYOUTS })
+  app.get("/settings/api/layout", (c) => c.json(layoutSettingsState()))
+  app.put("/settings/api/layout", async (c) => {
+    let input: unknown
+    try { input = await c.req.json() } catch { return c.json({ error: "Invalid JSON" }, 400) }
+    if (typeof input !== "object" || input === null || Array.isArray(input)) {
+      return c.json({ error: "Settings must be a JSON object" }, 400)
+    }
+    const { layout } = input as Record<string, unknown>
+    if (layout === null) setSetting("layout", undefined)
+    else if (isPageLayout(layout)) setSetting("layout", layout)
+    else if (layout !== undefined) {
+      return c.json({ error: `layout must be one of: ${PAGE_LAYOUTS.join(", ")}, or null to unset` }, 400)
+    }
+    return c.json(layoutSettingsState())
   })
 
   app.get("/settings/api/pricing", (c) => {
@@ -8586,7 +8606,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   app.get("/profiles", async (c) => {
     const { profilePageHtml } = await import("../telemetry/profilePage")
-    return c.html(profilePageHtml)
+    return c.html(withSavedLayout(profilePageHtml))
   })
 
   app.post("/profiles/active", async (c) => {
@@ -8723,7 +8743,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 
   app.get("/plugins", async (c) => {
     const { pluginPageHtml } = await import("./plugins/pluginPage")
-    return c.html(pluginPageHtml)
+    return c.html(withSavedLayout(pluginPageHtml))
   })
 
   app.post("/auth/refresh", async (c) => {

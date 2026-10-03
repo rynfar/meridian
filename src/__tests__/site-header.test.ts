@@ -275,6 +275,60 @@ describe("settings page layout", () => {
     expect(settingsPageHtml).toMatch(/\.pricing-scroll \{[^}]*overflow-x: auto/)
     expect(settingsPageHtml).toMatch(/<div class="pricing-scroll">\s*<table class="pricing-table">/)
   })
+
+  test("offers the page layout setting", () => {
+    expect(settingsPageHtml).toContain('id="layout-body"')
+    expect(settingsPageHtml).toContain("fetch('/settings/api/layout'")
+  })
+})
+
+describe("wide page layout", () => {
+  const ruleIn = (css: string, selector: string) => {
+    const start = css.indexOf(`${selector} {`)
+    expect(start, `${selector} rule`).toBeGreaterThanOrEqual(0)
+    return css.slice(start, css.indexOf("}", start))
+  }
+
+  test("every page wraps its content in the shared .container, so the wide rule reaches it", () => {
+    for (const [name, html] of allPages) {
+      expect(html, `${name} page content wrapper`).toMatch(/<(div|main) class="container">/)
+    }
+  })
+
+  test("wide drops the centered column and keeps an edge margin, header included", () => {
+    expect(profileBarCss).toContain('html[data-layout="wide"] { --page-gutter: clamp(16px, 3vw, 48px); }')
+    const container = ruleIn(profileBarCss, 'html[data-layout="wide"] .container')
+    expect(container).toContain("max-width: none")
+    expect(container).toContain("padding-left: var(--page-gutter)")
+    expect(container).toContain("padding-right: var(--page-gutter)")
+    expect(ruleIn(profileBarCss, 'html[data-layout="wide"] .meridian-header')).toContain("padding-left: var(--page-gutter)")
+  })
+
+  test("contained pages keep their column", () => {
+    expect(landingHtml).toContain(".container { max-width: 960px;")
+    expect(profilePageHtml).toContain(".container { max-width: 800px;")
+    expect(settingsPageHtml).toContain(".container { max-width: 900px;")
+    expect(pluginPageHtml).toContain(".container { max-width: 960px;")
+    expect(providerPageHtml).toContain(".container{max-width:1040px;")
+  })
+
+  test("home cards keep their size and gain columns; profile cards grow, phones get one column", () => {
+    // min(…, 100%) is what lets a single column shrink to a phone instead of
+    // scrolling the page sideways.
+    expect(ruleIn(landingHtml, 'html[data-layout="wide"] .profile-grid'))
+      .toContain("grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr))")
+    expect(ruleIn(profilePageHtml, 'html[data-layout="wide"] #content'))
+      .toContain("grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr))")
+    expect(ruleIn(profilePageHtml, 'html[data-layout="wide"] #content > :not(.profile-card)')).toContain("grid-column: 1 / -1")
+  })
+
+  test("settings toggles, pricing rows and provider cards keep their values near their labels", () => {
+    expect(ruleIn(settingsPageHtml, 'html[data-layout="wide"] .feature-grid'))
+      .toContain("grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr))")
+    expect(ruleIn(settingsPageHtml, 'html[data-layout="wide"] .pricing-table')).toContain("width: auto")
+    expect(providerPageHtml)
+      .toContain('html[data-layout="wide"] .provider-grid{grid-template-columns:repeat(auto-fill,minmax(min(480px,100%),1fr))}')
+  })
 })
 
 describe("per-page titles do not repeat the brand", () => {

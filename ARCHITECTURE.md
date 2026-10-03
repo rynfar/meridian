@@ -246,6 +246,7 @@ src/
 │   ├── pricingStore.ts        ← User pricing overrides (persisted JSON)
 │   ├── profileBar.ts          ← Shared profile switcher bar (injected into HTML pages)
 │   ├── profilePage.ts         ← Profile management page HTML
+│   ├── pageLayout.ts          ← Contained/wide layout setting, stamped on each page as it is served
 │   ├── cliDashboard.ts        ← The landing page rendered for a terminal (pure)
 │   └── types.ts               ← Telemetry types
 
