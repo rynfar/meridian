@@ -11,6 +11,7 @@
  */
 
 import { buildDriftView, buildIdentityView } from "./buildBadge"
+import { hostLabelView } from "./hostLabel"
 
 /**
  * Canonical Meridian theme.
@@ -202,6 +203,12 @@ export const profileBarCss = `
   .meridian-header .mh-dot.healthy { background: var(--green, #3fb950); box-shadow: 0 0 6px rgba(63,185,80,0.5); }
   .meridian-header .mh-dot.degraded { background: var(--yellow, #d29922); }
   .meridian-header .mh-dot.unhealthy { background: var(--red, #f85149); }
+  .meridian-header .mh-host {
+    display: inline-block; min-width: 0; max-width: 24ch;
+    overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;
+  }
+  .meridian-header .mh-host[hidden] { display: none; }
+  .meridian-header .mh-host::before { content: "·"; margin-right: 6px; }
   @media (max-width: 720px) {
     .meridian-header { gap: 10px; padding: 10px 16px; }
     .meridian-header .mh-right { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; min-width: 0; }
@@ -211,6 +218,8 @@ export const profileBarCss = `
     .meridian-header .mh-nav a { flex-shrink: 0; }
     .meridian-header .mh-right { flex: 1 1 0; }
     .meridian-header .mh-status .mh-status-text { display: none; }
+    .meridian-header .mh-host { max-width: 14ch; }
+    .meridian-header .mh-host::before { content: none; }
   }
 `
 
@@ -232,7 +241,7 @@ export const profileBarHtml = `
     <span class="mh-prov" id="mhProv" role="group"></span>
     <span class="mh-drift" id="mhDrift" role="status" hidden></span>
     <a class="mh-profile" id="mhProfile" href="/" title="Active profile — switch from the home page"></a>
-    <span class="mh-status" id="mhStatus"><span class="mh-dot" id="mhDot"></span><span class="mh-status-text" id="mhStatusText"></span></span>
+    <span class="mh-status" id="mhStatus"><span class="mh-dot" id="mhDot"></span><span class="mh-status-text" id="mhStatusText"></span><span class="mh-host" id="mhHost" hidden></span></span>
     <span class="mh-build" id="mhBuild"></span>
     <a class="mh-update" id="mhUpdate" href="https://github.com/rynfar/meridian/releases" target="_blank" rel="noopener"></a>
   </div>
@@ -246,6 +255,7 @@ export const profileBarJs = `
   var updateChip = document.getElementById('mhUpdate');
   var statusDot = document.getElementById('mhDot');
   var statusText = document.getElementById('mhStatusText');
+  var hostChip = document.getElementById('mhHost');
 
   // Highlight active nav link
   var path = location.pathname;
@@ -261,6 +271,17 @@ export const profileBarJs = `
   // Inlined from src/telemetry/buildBadge.ts, unit-tested in build-badge.test.ts.
   var buildIdentityView = ${buildIdentityView.toString()};
   var buildDriftView = ${buildDriftView.toString()};
+  // Inlined from src/telemetry/hostLabel.ts, unit-tested in host-label.test.ts.
+  var hostLabelView = ${hostLabelView.toString()};
+
+  function renderHost(name) {
+    var view = hostLabelView(name);
+    hostChip.hidden = !view;
+    hostChip.textContent = view ? view.text : '';
+    if (view) hostChip.title = view.title;
+    else hostChip.removeAttribute('title');
+  }
+
   var provChip = document.getElementById('mhProv');
   var driftChip = document.getElementById('mhDrift');
   var provKey = '';
@@ -365,6 +386,7 @@ export const profileBarJs = `
       var st = h.status === 'healthy' ? 'healthy' : h.status === 'degraded' ? 'degraded' : 'unhealthy';
       statusDot.className = 'mh-dot ' + st;
       statusText.textContent = st === 'healthy' ? 'Operational' : st === 'degraded' ? 'Degraded' : 'Offline';
+      renderHost(h.hostname);
       renderBuild(h.build);
       if (h.backend === 'antigravity') {
         ['nav-telemetry','nav-profiles','nav-settings','nav-plugins'].forEach(function(id) { document.getElementById(id).hidden = true; });

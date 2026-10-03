@@ -213,6 +213,16 @@ ${profileBarHtml}
   <div class="adapter-card" id="updates-card">
     <div id="updates-body">Loading…</div>
   </div>
+
+  <h1 style="margin-top:40px">Site Header</h1>
+  <p class="subtitle" style="max-width:720px;line-height:1.6">
+    With several Meridian instances open in tabs, they all look the same. Switch this on and the header names
+    the machine this one runs on, beside its status. Off unless you turn it on, because the hostname is then
+    also reported by <code>/health</code>, which answers without the API key.
+  </p>
+  <div class="adapter-card" id="header-card">
+    <div id="header-body">Loading…</div>
+  </div>
 </div>
 
 <div class="save-indicator" id="saveIndicator">Saved</div>
@@ -714,11 +724,37 @@ async function putUpdates(checkForUpdates) {
   await loadUpdates();
 }
 
+async function loadHeaderSettings() {
+  const cfg = await (await fetch('/settings/api/header')).json();
+  document.getElementById('header-body').innerHTML = telemetryRow('Show hostname',
+    '<input type="checkbox" id="hdr-hostname"' + (cfg.showHostname ? ' checked' : '') + '>',
+    cfg.showHostname ? 'shown' : 'hidden',
+    ' <span style="font-size:12px;color:var(--muted)">This machine: <code>' + telemetryEsc(cfg.hostname || 'unknown') + '</code></span>');
+  document.getElementById('hdr-hostname').addEventListener('change', (e) => putHeaderSettings(e.target.checked));
+}
+
+async function putHeaderSettings(showHostname) {
+  const res = await fetch('/settings/api/header', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ showHostname }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Failed to save header settings');
+  } else {
+    showSaved();
+    if (window.meridianHeaderRefresh) window.meridianHeaderRefresh();
+  }
+  await loadHeaderSettings();
+}
+
 loadConfig();
 loadPricing();
 loadRouting();
 loadTelemetry();
 loadUpdates();
+loadHeaderSettings();
 ${profileBarJs}
 </script>
 </body>

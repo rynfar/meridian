@@ -46,6 +46,13 @@ describe("shared site header", () => {
     expect(profileBarJs).toContain("/health")
   })
 
+  test("status pill can name the machine, hidden until /health reports one", () => {
+    expect(profileBarHtml).toContain('<span class="mh-host" id="mhHost" hidden></span>')
+    expect(profileBarJs).toContain("hostLabelView")
+    expect(profileBarJs).toContain("renderHost(h.hostname)")
+    expect(settingsPageHtml).toContain("/settings/api/header")
+  })
+
   test("header shows active profile chip, not a dropdown", () => {
     expect(profileBarHtml).not.toContain("meridianProfileSelect")
     expect(profileBarHtml).not.toContain("<select")
