@@ -239,6 +239,8 @@ export function coalesceCompleteToolResultContinuation(
   let sawTrailingSystem = false
   const systemTextBlocks: unknown[] = []
   let echoMessages = 0
+  // Set by a mid-batch echo: the next user message continues the same batch.
+  let continuesBatch = false
 
   for (const message of messages) {
     if (isMidConvoEffortSystemMessage(message)) {
@@ -285,10 +287,30 @@ export function coalesceCompleteToolResultContinuation(
       echoMessages++
       continue
     }
+    // NOTE: a Responses-API client that records each tool output right after
+    // its own call (Meowbert did) reaches us as one assistant/user pair per
+    // call: [assistant A, user A, assistant B, user B]. Every later pair still
+    // belongs to the checkpoint batch, so accept it while the batch is unsettled,
+    // only results have been seen, and the echo names only unseen batch calls.
+    if (message.role === "assistant") {
+      if (echoMessages === 0 || sawNonToolResult || actual.size === expected.size) return undefined
+      if (!Array.isArray(message.content) || message.content.length === 0) return undefined
+      for (const rawBlock of message.content) {
+        const block = rawBlock as { type?: unknown; id?: unknown } | null | undefined
+        if (block?.type !== "tool_use") return undefined
+        if (typeof block.id !== "string" || !expected.has(block.id) || echoedCalls.has(block.id)) return undefined
+        echoedCalls.add(block.id)
+      }
+      echoMessages++
+      continuesBatch = true
+      continue
+    }
     if (message.role !== "user") return undefined
     // A queued user turn may follow only after the first turn settled the full
-    // checkpoint batch. Splitting results across turns is not a valid resume.
-    if (sawUser && actual.size !== expected.size) return undefined
+    // checkpoint batch. Splitting results across turns is not a valid resume,
+    // except across the per-call echoes accepted above.
+    if (sawUser && actual.size !== expected.size && !continuesBatch) return undefined
+    continuesBatch = false
     const userContent = Array.isArray(message.content)
       ? message.content
       : typeof message.content === "string"
@@ -301,6 +323,8 @@ export function coalesceCompleteToolResultContinuation(
       if (block?.type === "tool_result") {
         if (sawNonToolResult || typeof block.tool_use_id !== "string") return undefined
         if (!expected.has(block.tool_use_id) || actual.has(block.tool_use_id)) return undefined
+        // Once the client echoes calls, each result must follow its own echo.
+        if (echoedCalls.size > 0 && !echoedCalls.has(block.tool_use_id)) return undefined
         actual.add(block.tool_use_id)
       } else {
         sawNonToolResult = true
