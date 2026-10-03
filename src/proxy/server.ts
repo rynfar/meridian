@@ -18,6 +18,7 @@ import { linkRequestAbort, type RequestAbortLink } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { InflightRegistry, isLoopbackPeer, onResponseDone, type InflightHandle } from "./inflight"
+import { AdmissionHold, parseDrainOptions } from "./admissionHold"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry, peekOAuthUsage } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
@@ -878,6 +879,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   let inFlightRequests = 0
   /** The same requests as inFlightRequests, broken down for GET /inflight. */
   const inflight = new InflightRegistry()
+  /** Restart drain (POST /drain): new requests wait here so in-flight can reach 0. */
+  const admissionHold = new AdmissionHold((reason, final) => {
+    claudeLog("drain.end", { reason, held: final.held, admittedAtCap: final.admittedAtCap })
+    plog(`[PROXY] drain ended (${reason}); ${final.held} held request(s) admitted, ${final.admittedAtCap} admitted earlier at the hold cap`)
+  })
   const activeRequestAborts = new Set<AbortController>()
   /** Cause-aware shutdown aborts: each entry labels its request's registry
    * before the controller fires, because the shutdown producer aborts the
@@ -919,6 +925,17 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
         ...TRANSIENT_RETRY_AFTER_HEADERS,
       },
     })
+
+  /**
+   * Hold a new request from the wire while a restart drain is active. The
+   * drain only ever delays; the one refusal is the shutdown 503 above, for a
+   * request whose hold ended because this process began shutting down.
+   */
+  const awaitAdmission = async (c: Context, shape: ErrorShape = "anthropic"): Promise<Response | undefined> => {
+    if (!admissionHold.active) return undefined
+    await admissionHold.admit(c.req.raw.signal)
+    return draining ? drainingResponse(shape) : undefined
+  }
 
   /**
    * Relay what the internal /v1/messages hop actually said.
@@ -1072,6 +1089,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     if (!antigravity) return c.json({ error: { type: 'not_found_error', message: 'Antigravity is not enabled' } }, 404)
     const url = new URL(c.req.url); url.pathname = url.pathname.slice('/antigravity'.length)
     // Model work arrives as POST; reads and polls are not in-flight work.
+    if (c.req.method === 'POST') await admissionHold.admit(c.req.raw.signal)
     const entry = c.req.method === 'POST' ? inflight.begin('antigravity') : undefined
     try {
       const response = await antigravity.app.fetch(new Request(url.toString(), c.req.raw))
@@ -7689,8 +7707,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     // An internal hop carries a request the public route already admitted;
     // re-checking the gate here would refuse work that is legitimately in
     // flight. Everything arriving from the wire is gated normally.
-    if (draining && c.req.header("x-meridian-internal-hop") !== internalHopToken) {
+    const fromWire = c.req.header("x-meridian-internal-hop") !== internalHopToken
+    if (draining && fromWire) {
       return drainingResponse()
+    }
+    if (fromWire) {
+      const refused = await awaitAdmission(c)
+      if (refused) return refused
     }
     const requestId = c.req.header("x-request-id") || randomUUID()
     const queueEnteredAt = Date.now()
@@ -8273,7 +8296,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // Background jobs and pending backend continuations are outside this scope. Open like
   // /health (no API key), but answered only to a loopback peer: the counts say
   // when this machine is being used, which nobody off the host needs to know.
-  app.get("/inflight", (c) => {
+  const refuseUnlessLoopback = (c: Context, route: string): Response | undefined => {
     let remoteAddress: string | undefined
     try {
       remoteAddress = getConnInfo(c).remote.address
@@ -8281,11 +8304,62 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
       // Served by something other than @hono/node-server: no peer to trust.
       remoteAddress = undefined
     }
-    if (!isLoopbackPeer(remoteAddress, c.req.raw.headers)) {
-      return c.json({ error: { type: "forbidden", message: "/inflight is answered only to loopback clients" } }, 403)
+    if (isLoopbackPeer(remoteAddress, c.req.raw.headers)) return undefined
+    return c.json({ error: { type: "forbidden", message: `${route} is answered only to loopback clients` } }, 403)
+  }
+  app.get("/inflight", (c) => {
+    const refused = refuseUnlessLoopback(c, "/inflight")
+    if (refused) return refused
+    c.header("Cache-Control", "no-store")
+    return c.json({
+      ...inflight.snapshot(antigravity ? ["claude", "antigravity"] : ["claude"]),
+      draining: admissionHold.active,
+      drain: admissionHold.snapshot(),
+    })
+  })
+
+  // Restart drain: hold NEW requests (never refuse them) so the ones running
+  // can finish and /inflight can reach 0 under steady traffic. Loopback only,
+  // like /inflight, and never from a browser page: cors() answers every
+  // origin, and a page on this host must not be able to slow its clients.
+  const refuseDrainCaller = (c: Context): Response | undefined => {
+    const refused = refuseUnlessLoopback(c, "/drain")
+    if (refused) return refused
+    if (c.req.header("origin") !== undefined) {
+      return c.json({ error: { type: "forbidden", message: "/drain is not answered to browser pages" } }, 403)
+    }
+    return undefined
+  }
+  app.post("/drain", async (c) => {
+    const refused = refuseDrainCaller(c)
+    if (refused) return refused
+    if (draining) return drainingResponse()
+    const text = await c.req.text()
+    let body: unknown
+    try {
+      body = text.trim() === "" ? undefined : JSON.parse(text)
+    } catch {
+      return c.json({ error: { type: "invalid_request_error", message: "body must be JSON" } }, 400)
+    }
+    const options = parseDrainOptions(body)
+    if (typeof options === "string") {
+      return c.json({ error: { type: "invalid_request_error", message: options } }, 400)
+    }
+    const started = !admissionHold.active
+    const drain = admissionHold.start(options)
+    if (started) {
+      claudeLog("drain.start", { holdMs: drain.holdMs, endsAt: drain.endsAt })
+      plog(`[PROXY] drain started: new requests held up to ${drain.holdMs}ms each, ends by ${drain.endsAt}`)
     }
     c.header("Cache-Control", "no-store")
-    return c.json(inflight.snapshot(antigravity ? ["claude", "antigravity"] : ["claude"]))
+    return c.json({ started, drain })
+  })
+  app.delete("/drain", (c) => {
+    const refused = refuseDrainCaller(c)
+    if (refused) return refused
+    const ended = admissionHold.end("cancelled")
+    c.header("Cache-Control", "no-store")
+    return c.json({ ended, drain: admissionHold.snapshot() })
   })
 
   // Liveness — would restarting this process help? Answered without touching
@@ -8755,6 +8829,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // See src/proxy/openai.ts for the translation logic and design rationale.
   app.post("/v1/chat/completions", async (c) => {
     if (draining) return drainingResponse()
+    const refused = await awaitAdmission(c)
+    if (refused) return refused
     const rawBody = await c.req.json() as Record<string, unknown>
     const userAgent = c.req.header("user-agent") ?? ""
     const jcodeSessionId = userAgent.startsWith("jcode/")
@@ -8998,6 +9074,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
   // See src/proxy/openaiResponses.ts for the translation logic.
   app.post("/v1/responses", async (c) => {
     if (draining) return drainingResponse("openai")
+    const refused = await awaitAdmission(c, "openai")
+    if (refused) return refused
     const rawBody = await c.req.json() as ResponsesRequest
     const anthropicBody = translateResponsesToAnthropic(rawBody)
 
@@ -9514,7 +9592,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
     config: finalConfig,
     initPlugins: initPluginsAsync,
     closeBackend: antigravity?.closeBackend,
-    beginDrain: () => { draining = true; antigravity?.beginDrain?.() },
+    beginDrain: () => {
+      draining = true
+      // Held requests are released into the shutdown 503 rather than left
+      // hanging until the grace period cuts their connections.
+      admissionHold.end("shutdown")
+      antigravity?.beginDrain?.()
+    },
     forceAbortInFlight: () => {
       antigravity?.forceAbortInFlight?.()
       durableWritesRevoked = true
