@@ -122,7 +122,7 @@ describe("modified-history conflict downgrade", () => {
   const originalHold = process.env.MERIDIAN_SESSION_TURN_MAX_HOLD_MS
   const originalPassthrough = process.env.MERIDIAN_PASSTHROUGH
 
-  beforeEach(() => {
+  beforeEach(async () => {
     sessionDir = mkdtempSync(join(tmpdir(), "meridian-modified-conflict-"))
     setSessionStoreDir(sessionDir)
     process.env.MERIDIAN_MAX_CONCURRENT = "1"
@@ -133,7 +133,7 @@ describe("modified-history conflict downgrade", () => {
     controls = []
     capturedParams = []
     capturedPrompts = []
-    clearSessionCache()
+    await clearSessionCache()
     resetProcessSdkSemaphoreForTests()
     telemetryStore.clear()
   })

@@ -149,11 +149,11 @@ async function postStream(app: any, body: any) {
 describe("File change visibility: PostToolUse hook registration", () => {
   let savedPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "Done" }])]
     capturedQueryParams = null
     firePreToolUseHooks = false
-    clearSessionCache()
+    await clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
   })
@@ -233,10 +233,10 @@ describe("File change visibility: PostToolUse hook registration", () => {
 describe("File change visibility: non-streaming response", () => {
   let savedPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
   })
@@ -356,10 +356,10 @@ describe("File change visibility: non-streaming response", () => {
 describe("File change visibility: streaming response", () => {
   let savedPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
   })
@@ -481,10 +481,10 @@ describe("File change visibility: MERIDIAN_NO_FILE_CHANGES opt-out", () => {
   let origClaude: string | undefined
   let savedPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     capturedQueryParams = null
-    clearSessionCache()
+    await clearSessionCache()
     origMeridian = process.env.MERIDIAN_NO_FILE_CHANGES
     origClaude = process.env.CLAUDE_PROXY_NO_FILE_CHANGES
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
@@ -612,11 +612,11 @@ describe("File change visibility: MERIDIAN_NO_FILE_CHANGES opt-out", () => {
 describe("File change visibility: other adapters still track", () => {
   let savedPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     capturedQueryParams = null
     firePreToolUseHooks = false
-    clearSessionCache()
+    await clearSessionCache()
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "0"
   })

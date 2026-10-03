@@ -50,13 +50,13 @@ const overrides = {
   MERIDIAN_PASSTHROUGH: "0",
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "meridian-retirement-http-")))
   for (const key of [...Object.keys(overrides), "MERIDIAN_WORKDIR", "MERIDIAN_CONFIG_DIR", "MERIDIAN_SESSION_PROFILE_COPY_PRUNE", "MERIDIAN_SESSION_PROFILE_COPY_GRACE_MS", "CLAUDE_PROXY_SESSION_PROFILE_COPY_PRUNE"]) savedEnv[key] = process.env[key]
   Object.assign(process.env, overrides, { MERIDIAN_WORKDIR: root, MERIDIAN_CONFIG_DIR: join(root, "config") })
   setSessionStoreDir(join(root, "sessions"))
   resetActiveProfile()
-  clearSessionCache()
+  await clearSessionCache()
   queryProfiles.length = 0
   for (const id of ["personal", "work"]) mkdirSync(join(root, id))
   proxy = createProxyServer({
@@ -68,7 +68,7 @@ beforeEach(() => {
 afterEach(async () => {
   await proxy?.sweepSessionGc?.()
   proxy = undefined
-  clearSessionCache()
+  await clearSessionCache()
   resetActiveProfile()
   setSessionStoreDir(null)
   for (const [key, value] of Object.entries(savedEnv)) {
@@ -108,7 +108,7 @@ describe("profile switch admission with bounded retirement", () => {
     // A switch keeps profile-scoped mappings; losing them all is what leaves
     // every old transcript pending retirement at the bound.
     expect(Object.values(readSessionStoreSnapshot())).toHaveLength(2)
-    clearSessionCache()
+    await clearSessionCache()
     expect(Object.values(readSessionStoreSnapshot())).toHaveLength(0)
     await sweep()
     const sidecar = JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")) as {
@@ -137,7 +137,7 @@ describe("profile switch admission with bounded retirement", () => {
       expect(response.status, await response.clone().text()).toBe(200)
     }
     await sweep()
-    clearSessionCache()
+    await clearSessionCache()
     await sweep()
     const retired = () => Object.values((JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")) as {
       resources: Record<string, { state: string }>

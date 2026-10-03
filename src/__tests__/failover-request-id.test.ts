@@ -53,9 +53,9 @@ const PROFILES = [
 const savedEnv: Record<string, string | undefined> = {}
 
 describe("request id stability across priority failover", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetProcessSdkSemaphoreForTests()
-    clearSessionCache()
+    await clearSessionCache()
     resetActiveProfile()
     rateLimitStore.clear?.()
     failingDirs = new Set()

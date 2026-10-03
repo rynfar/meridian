@@ -87,8 +87,8 @@ function resultMessage(usage: Record<string, unknown>): unknown {
 }
 
 describe("non-stream output_tokens uses SDK `result` message (regression #449)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     mockMessages = []
   })
 

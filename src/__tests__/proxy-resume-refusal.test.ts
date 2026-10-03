@@ -136,8 +136,8 @@ const priorMessages = [
 const continuation = [...priorMessages, { role: "user", content: "and now continue" }]
 
 describe("Resume refusal", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryCalls = []
     queryCallCount = 0
     refuseAttempts = 1
@@ -148,7 +148,7 @@ describe("Resume refusal", () => {
   it("retries the same resume instead of evicting the session (non-streaming)", async () => {
     const app = createTestApp()
     const sessionId = "sess-transient-refusal"
-    storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
+    await storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
 
     const response = await post(app, { model: "sonnet", stream: false, messages: continuation }, { "x-opencode-session": sessionId })
     expect(response.status).toBe(200)
@@ -165,7 +165,7 @@ describe("Resume refusal", () => {
   it("retries the same resume instead of evicting the session (streaming)", async () => {
     const app = createTestApp()
     const sessionId = "sess-transient-refusal-stream"
-    storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
+    await storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
 
     const response = await post(app, { model: "sonnet", stream: true, messages: continuation }, { "x-opencode-session": sessionId })
     expect(response.status).toBe(200)
@@ -179,7 +179,7 @@ describe("Resume refusal", () => {
     const app = createTestApp()
     const sessionId = "sess-gone-for-good"
     refuseAttempts = Number.MAX_SAFE_INTEGER
-    storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
+    await storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
 
     const response = await post(app, { model: "sonnet", stream: false, messages: continuation }, { "x-opencode-session": sessionId })
     expect(response.status).toBe(200)
@@ -202,7 +202,7 @@ describe("Resume refusal", () => {
     // spent retry budget must still reach the replay — the alternation cannot
     // hand the client a refusal the same session would have recovered from.
     refusalScript = ["unresumable", "unresumable", "unresumable", "busy", "busy"]
-    storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
+    await storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
 
     const response = await post(app, { model: "sonnet", stream: false, messages: continuation }, { "x-opencode-session": sessionId })
     expect(response.status).toBe(200)
@@ -217,7 +217,7 @@ describe("Resume refusal", () => {
     const app = createTestApp()
     const sessionId = "sess-missing-message"
     missingMessage = true
-    storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
+    await storeSession(sessionId, priorMessages, "sdk-original", "/tmp/test")
 
     const response = await post(app, { model: "sonnet", stream: false, messages: continuation }, { "x-opencode-session": sessionId })
     expect(response.status).toBe(200)

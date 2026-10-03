@@ -26,10 +26,10 @@ import { tmpdir } from "node:os"
 describe("Shared session store", () => {
   let tmpDir: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "session-store-basic-"))
     setSessionStoreDir(tmpDir)
-    clearSharedSessions()
+    await clearSharedSessions()
   })
 
   afterEach(() => {
@@ -37,8 +37,8 @@ describe("Shared session store", () => {
     try { rmSync(tmpDir, { recursive: true }) } catch {}
   })
 
-  it("should store and retrieve a session", () => {
-    storeSharedSession("session-123", "claude-sess-abc")
+  it("should store and retrieve a session", async () => {
+    await storeSharedSession("session-123", "claude-sess-abc")
     const result = lookupSharedSession("session-123")
     expect(result).toBeDefined()
     expect(result!.claudeSessionId).toBe("claude-sess-abc")
@@ -49,49 +49,49 @@ describe("Shared session store", () => {
     expect(result).toBeUndefined()
   })
 
-  it("should update lastUsedAt on store", () => {
-    storeSharedSession("session-123", "claude-sess-abc")
+  it("should update lastUsedAt on store", async () => {
+    await storeSharedSession("session-123", "claude-sess-abc")
     const first = lookupSharedSession("session-123")!.lastUsedAt
 
     // Small delay
     const start = Date.now()
     while (Date.now() - start < 10) {} // busy wait 10ms
 
-    storeSharedSession("session-123", "claude-sess-abc")
+    await storeSharedSession("session-123", "claude-sess-abc")
     const second = lookupSharedSession("session-123")!.lastUsedAt
     expect(second).toBeGreaterThanOrEqual(first)
   })
 
-  it("should preserve createdAt on update", () => {
-    storeSharedSession("session-123", "claude-sess-abc")
+  it("should preserve createdAt on update", async () => {
+    await storeSharedSession("session-123", "claude-sess-abc")
     const created = lookupSharedSession("session-123")!.createdAt
 
-    storeSharedSession("session-123", "claude-sess-def")
+    await storeSharedSession("session-123", "claude-sess-def")
     const result = lookupSharedSession("session-123")!
     expect(result.createdAt).toBe(created)
     expect(result.claudeSessionId).toBe("claude-sess-def")
   })
 
-  it("should handle multiple sessions", () => {
-    storeSharedSession("sess-1", "claude-1")
-    storeSharedSession("sess-2", "claude-2")
-    storeSharedSession("sess-3", "claude-3")
+  it("should handle multiple sessions", async () => {
+    await storeSharedSession("sess-1", "claude-1")
+    await storeSharedSession("sess-2", "claude-2")
+    await storeSharedSession("sess-3", "claude-3")
 
     expect(lookupSharedSession("sess-1")!.claudeSessionId).toBe("claude-1")
     expect(lookupSharedSession("sess-2")!.claudeSessionId).toBe("claude-2")
     expect(lookupSharedSession("sess-3")!.claudeSessionId).toBe("claude-3")
   })
 
-  it("should clear all sessions", () => {
-    storeSharedSession("sess-1", "claude-1")
-    storeSharedSession("sess-2", "claude-2")
-    clearSharedSessions()
+  it("should clear all sessions", async () => {
+    await storeSharedSession("sess-1", "claude-1")
+    await storeSharedSession("sess-2", "claude-2")
+    await clearSharedSessions()
     expect(lookupSharedSession("sess-1")).toBeUndefined()
     expect(lookupSharedSession("sess-2")).toBeUndefined()
   })
 
-  it("should serve consecutive reads from the identity cache", () => {
-    storeSharedSession("session-123", "claude-sess-abc")
+  it("should serve consecutive reads from the identity cache", async () => {
+    await storeSharedSession("session-123", "claude-sess-abc")
     const first = lookupSharedSessionResult("session-123")
     const second = lookupSharedSessionResult("session-123")
     if (first.status !== "found" || second.status !== "found") throw new Error("lookup failed")
@@ -100,16 +100,16 @@ describe("Shared session store", () => {
     expect(second.generation).toBe(first.generation)
   })
 
-  it("should reflect an in-process write after a cached read", () => {
-    storeSharedSession("session-123", "claude-sess-abc")
+  it("should reflect an in-process write after a cached read", async () => {
+    await storeSharedSession("session-123", "claude-sess-abc")
     expect(lookupSharedSession("session-123")!.claudeSessionId).toBe("claude-sess-abc")
 
-    storeSharedSession("session-123", "claude-sess-def")
+    await storeSharedSession("session-123", "claude-sess-def")
     expect(lookupSharedSession("session-123")!.claudeSessionId).toBe("claude-sess-def")
   })
 
-  it("should pick up a store replaced out of band by another process", () => {
-    storeSharedSession("session-123", "claude-sess-abc")
+  it("should pick up a store replaced out of band by another process", async () => {
+    await storeSharedSession("session-123", "claude-sess-abc")
     expect(lookupSharedSession("session-123")!.claudeSessionId).toBe("claude-sess-abc")
 
     // Imitate a foreign proxy: a different valid document renamed over the
@@ -124,20 +124,20 @@ describe("Shared session store", () => {
     expect(lookupSharedSession("session-456")!.claudeSessionId).toBe("claude-sess-xyz")
   })
 
-  it("should treat a deleted store as missing instead of serving the stale cache", () => {
-    storeSharedSession("session-123", "claude-sess-abc")
+  it("should treat a deleted store as missing instead of serving the stale cache", async () => {
+    await storeSharedSession("session-123", "claude-sess-abc")
     expect(lookupSharedSession("session-123")!.claudeSessionId).toBe("claude-sess-abc")
 
     unlinkSync(join(getSessionStoreDir(), "sessions.json"))
     expect(lookupSharedSessionResult("session-123").status).toBe("missing")
   })
 
-  it("never aliases a caller-owned locator into the cached document", () => {
+  it("never aliases a caller-owned locator into the cached document", async () => {
     // A shared locator object would let a later caller-side mutation diverge the
     // read cache from the file on disk.
     const callerLocator: { sessionId: string; configDir: string; projectDir?: string } =
       { sessionId: "claude-sess-alias", configDir: "/config" }
-    storeSharedSession(
+    await storeSharedSession(
       "alias-session", "claude-sess-alias", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, callerLocator
     )
@@ -150,13 +150,13 @@ describe("Shared session store", () => {
 
     const attachedLocator: { sessionId: string; configDir: string; lifecycleGeneration?: string } =
       { sessionId: "claude-sess-alias", configDir: "/config-2" }
-    expect(attachSharedTranscriptLocator("alias-session", "claude-sess-alias", attachedLocator)).not.toBe(false)
+    expect(await attachSharedTranscriptLocator("alias-session", "claude-sess-alias", attachedLocator)).not.toBe(false)
     attachedLocator.lifecycleGeneration = "r:forged:1"
     expect(lookupSharedSession("alias-session")!.currentTranscript).not.toHaveProperty("lifecycleGeneration")
   })
 
-  it("should persist context usage and find it by Claude session ID", () => {
-    storeSharedSession(
+  it("should persist context usage and find it by Claude session ID", async () => {
+    await storeSharedSession(
       "session-usage",
       "claude-sess-usage",
       1,
@@ -176,8 +176,8 @@ describe("Shared session store", () => {
     expect(byClaudeId?.messageBlockHashes).toEqual([["block-hash-a", "block-hash-b"]])
   })
 
-  it("should persist and clear the passthrough assistant resume checkpoint", () => {
-    storeSharedSession(
+  it("should persist and clear the passthrough assistant resume checkpoint", async () => {
+    await storeSharedSession(
       "session-boundary",
       "claude-sess-boundary",
       1,
@@ -192,7 +192,7 @@ describe("Shared session store", () => {
     expect(lookupSharedSession("session-boundary")?.passthroughToolCallAssistantUuid).toBe("assistant-uuid")
     expect(lookupSharedSession("session-boundary")?.passthroughToolCallIds).toEqual(["tool-1", "tool-2"])
 
-    storeSharedSession(
+    await storeSharedSession(
       "session-boundary",
       "claude-sess-boundary",
       2,
@@ -224,14 +224,14 @@ describe("Shared session store", () => {
     expect(lookupSharedSessionByClaudeId("claude-legacy")).toBeUndefined()
   })
 
-  it("should return the freshest match when multiple keys share a Claude session ID", () => {
-    storeSharedSession("session-old", "claude-shared")
+  it("should return the freshest match when multiple keys share a Claude session ID", async () => {
+    await storeSharedSession("session-old", "claude-shared")
     const first = lookupSharedSessionByClaudeId("claude-shared")
 
     const start = Date.now()
     while (Date.now() - start < 10) {} // busy wait 10ms
 
-    storeSharedSession("session-new", "claude-shared", 2, undefined, undefined, undefined, {
+    await storeSharedSession("session-new", "claude-shared", 2, undefined, undefined, undefined, {
       input_tokens: 20,
       output_tokens: 8,
     })
@@ -257,14 +257,14 @@ describe("Shared session store", () => {
     }
   })
 
-  it("keeps tolerant lookups but rejects strict reads and mutations on corruption", () => {
+  it("keeps tolerant lookups but rejects strict reads and mutations on corruption", async () => {
     const sessionsPath = join(tmpDir, "sessions.json")
     writeFileSync(sessionsPath, "not json{{{")
 
     expect(lookupSharedSession("anything")).toBeUndefined()
     expect(() => readSessionStoreSnapshot()).toThrow()
-    expect(() => storeSharedSession("new-sess", "claude-new")).toThrow()
-    expect(() => clearSharedSessions()).toThrow()
+    await expect(storeSharedSession("new-sess", "claude-new")).rejects.toThrow()
+    await expect(clearSharedSessions()).rejects.toThrow()
     expect(readFileSync(sessionsPath, "utf8")).toBe("not json{{{")
   })
 
@@ -272,15 +272,15 @@ describe("Shared session store", () => {
     expect(getSessionStoreDir()).toBe(tmpDir)
   })
 
-  it("moves the exact transcript locator when the Claude session ID changes", () => {
+  it("moves the exact transcript locator when the Claude session ID changes", async () => {
     const original = { sessionId: "claude-old", configDir: "/config-a", projectDir: "/project-a" }
     const replacement = { sessionId: "claude-new", configDir: "/config-b" }
-    storeSharedSession(
+    await storeSharedSession(
       "located-session", "claude-old", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, original
     )
 
-    storeSharedSession(
+    await storeSharedSession(
       "located-session", "claude-new", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, replacement,
       { sessionId: "claude-old", configDir: "/fallback-must-not-win" }
@@ -293,26 +293,26 @@ describe("Shared session store", () => {
     })
 
     // Updating the same ID without another locator preserves both locations.
-    storeSharedSession("located-session", "claude-new", 3)
+    await storeSharedSession("located-session", "claude-new", 3)
     expect(lookupSharedSession("located-session")).toMatchObject({
       currentTranscript: replacement,
       previousTranscript: original,
     })
 
-    storeSharedSession("located-session", "claude-third")
+    await storeSharedSession("located-session", "claude-third")
     expect(lookupSharedSession("located-session")?.currentTranscript).toBeUndefined()
     expect(lookupSharedSession("located-session")?.previousTranscript).toEqual(replacement)
 
     // Never reuse a locator that belongs to an older, non-immediate ID.
-    storeSharedSession("located-session", "claude-fourth")
+    await storeSharedSession("located-session", "claude-fourth")
     expect(lookupSharedSession("located-session")?.previousTranscript).toBeUndefined()
   })
 
-  it("uses a validated legacy source locator for the first managed fork", () => {
+  it("uses a validated legacy source locator for the first managed fork", async () => {
     const source = { sessionId: "claude-legacy", configDir: "/legacy-config", projectDir: "/legacy-project" }
     const current = { sessionId: "claude-managed", configDir: "/managed-config" }
-    storeSharedSession("legacy-fork", "claude-legacy")
-    storeSharedSession(
+    await storeSharedSession("legacy-fork", "claude-legacy")
+    await storeSharedSession(
       "legacy-fork", "claude-managed", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, current, source
     )
@@ -324,58 +324,58 @@ describe("Shared session store", () => {
     })
   })
 
-  it("validates transcript locators before changing the stored mapping", () => {
-    storeSharedSession("validated", "claude-original")
+  it("validates transcript locators before changing the stored mapping", async () => {
+    await storeSharedSession("validated", "claude-original")
     const before = readSessionStoreSnapshot()
 
-    expect(() => storeSharedSession(
+    await expect(storeSharedSession(
       "validated", "claude-new", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined,
       { sessionId: "wrong-id", configDir: "/config" }
-    )).toThrow("currentTranscript.sessionId")
-    expect(() => storeSharedSession(
+    )).rejects.toThrow("currentTranscript.sessionId")
+    await expect(storeSharedSession(
       "validated", "claude-new", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined,
       { sessionId: "claude-new", configDir: "relative/config" }
-    )).toThrow("currentTranscript.configDir")
-    expect(() => storeSharedSession(
+    )).rejects.toThrow("currentTranscript.configDir")
+    await expect(storeSharedSession(
       "validated", "claude-new", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined,
       { sessionId: "claude-new", configDir: "/config", projectDir: "relative/project" }
-    )).toThrow("currentTranscript.projectDir")
-    expect(() => storeSharedSession(
+    )).rejects.toThrow("currentTranscript.projectDir")
+    await expect(storeSharedSession(
       "validated", "claude-new", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, undefined,
       { sessionId: "not-claude-original", configDir: "/legacy-config" }
-    )).toThrow("sourceTranscript.sessionId")
-    expect(() => storeSharedSession(
+    )).rejects.toThrow("sourceTranscript.sessionId")
+    await expect(storeSharedSession(
       "validated", "claude-new", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, undefined,
       { sessionId: "claude-original", configDir: "relative/legacy-config" }
-    )).toThrow("sourceTranscript.configDir")
-    expect(() => storeSharedSession(
+    )).rejects.toThrow("sourceTranscript.configDir")
+    await expect(storeSharedSession(
       "validated", "claude-new", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, undefined,
       { sessionId: "claude-original", configDir: "/legacy-config", projectDir: "relative/project" }
-    )).toThrow("sourceTranscript.projectDir")
+    )).rejects.toThrow("sourceTranscript.projectDir")
 
     expect(readSessionStoreSnapshot()).toEqual(before)
   })
 
-  it("uses a key-bound expected-generation CAS and increments durable revisions", () => {
-    const first = storeSharedSession("cas", "sdk-a")
+  it("uses a key-bound expected-generation CAS and increments durable revisions", async () => {
+    const first = await storeSharedSession("cas", "sdk-a")
     expect(typeof first).toBe("string")
     expect(String(first)).toStartWith("p:")
     expect(lookupSharedSession("cas")?.revision).toBe(1)
 
-    expect(storeSharedSession(
+    expect(await storeSharedSession(
       "cas", "sdk-stale", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, "wrong-source",
     )).toBe(false)
     expect(lookupSharedSession("cas")?.claudeSessionId).toBe("sdk-a")
     expect(lookupSharedSession("cas")?.revision).toBe(1)
 
-    const second = storeSharedSession(
+    const second = await storeSharedSession(
       "cas", "sdk-b", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, first || undefined,
     )
@@ -393,34 +393,34 @@ describe("Shared session store", () => {
     expect(new Set(Object.values(snapshot))).toHaveLength(3)
   })
 
-  it("rejects replacement, delete/recreate, and absent-key ABA by exact generation", () => {
-    const first = storeSharedSession("aba", "sdk-a")
+  it("rejects replacement, delete/recreate, and absent-key ABA by exact generation", async () => {
+    const first = await storeSharedSession("aba", "sdk-a")
     expect(typeof first).toBe("string")
-    const second = storeSharedSession(
+    const second = await storeSharedSession(
       "aba", "sdk-b", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, first || undefined,
     )
-    const third = storeSharedSession(
+    const third = await storeSharedSession(
       "aba", "sdk-a", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, second || undefined,
     )
     expect(typeof third).toBe("string")
-    expect(storeSharedSession(
+    expect(await storeSharedSession(
       "aba", "sdk-stale", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, first || undefined,
     )).toBe(false)
-    expect(evictSharedSession("aba", first || undefined)).toBe(false)
-    expect(evictSharedSession("aba", third || undefined)).toBe(true)
+    expect(await evictSharedSession("aba", first || undefined)).toBe(false)
+    expect(await evictSharedSession("aba", third || undefined)).toBe(true)
 
     const absentAfterDelete = lookupSharedSessionResult("aba")
     expect(absentAfterDelete.status).toBe("missing")
-    const recreated = storeSharedSession(
+    const recreated = await storeSharedSession(
       "aba", "sdk-recreated", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined,
       absentAfterDelete.status === "missing" ? absentAfterDelete.generation : undefined,
     )
     expect(typeof recreated).toBe("string")
-    expect(storeSharedSession(
+    expect(await storeSharedSession(
       "aba", "sdk-stale-after-recreate", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, third || undefined,
     )).toBe(false)
@@ -428,19 +428,19 @@ describe("Shared session store", () => {
     const neverSeen = lookupSharedSessionResult("never-seen")
     expect(neverSeen.status).toBe("missing")
     const initialAbsence = neverSeen.status === "missing" ? neverSeen.generation : undefined
-    const created = storeSharedSession(
+    const created = await storeSharedSession(
       "never-seen", "sdk-created", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, initialAbsence,
     )
     expect(typeof created).toBe("string")
-    expect(evictSharedSession("never-seen", created || undefined)).toBe(true)
+    expect(await evictSharedSession("never-seen", created || undefined)).toBe(true)
     const alreadyAbsent = lookupSharedSessionResult("never-seen")
     expect(alreadyAbsent.status).toBe("missing")
-    expect(evictSharedSession(
+    expect(await evictSharedSession(
       "never-seen",
       alreadyAbsent.status === "missing" ? alreadyAbsent.generation : undefined,
     )).toBe(true)
-    expect(storeSharedSession(
+    expect(await storeSharedSession(
       "never-seen", "sdk-stale-absence", undefined, undefined, undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, initialAbsence,
     )).toBe(false)

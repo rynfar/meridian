@@ -90,22 +90,22 @@ function toolsReachedTheSdk(): boolean {
 describe("session tool cache is bounded", () => {
   const saved: Record<string, string | undefined> = {}
 
-  beforeEach(() => {
+  beforeEach(async () => {
     saved.passthrough = process.env.MERIDIAN_PASSTHROUGH
     saved.maxSessions = process.env.MERIDIAN_MAX_SESSIONS
     process.env.MERIDIAN_PASSTHROUGH = "1"
     // Small enough that a third session must evict the first.
     process.env.MERIDIAN_MAX_SESSIONS = "2"
-    clearSessionCache()
+    await clearSessionCache()
     capturedQueryParams = {}
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     if (saved.passthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = saved.passthrough
     else delete process.env.MERIDIAN_PASSTHROUGH
     if (saved.maxSessions !== undefined) process.env.MERIDIAN_MAX_SESSIONS = saved.maxSessions
     else delete process.env.MERIDIAN_MAX_SESSIONS
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("restores a still-cached session's tools when the client omits them", async () => {

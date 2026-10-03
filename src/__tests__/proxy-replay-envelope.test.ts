@@ -101,8 +101,8 @@ function post(app: any, messages: any[], headers: Record<string, string> = {}, s
 }
 
 describe("bounded fresh replay", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedPrompts = []
     overflowFailures = 0
     overflowMessage = "Claude Code returned an error result: Prompt is too long"
@@ -166,7 +166,7 @@ describe("bounded fresh replay", () => {
 
     it(`budgets the fresh fallback after a refused resume (stream=${streaming})`, async () => {
       const prior = [...history(), { role: "assistant", content: "prior answer" }]
-      storeSession("sess-budget-refusal", prior, "sdk-budget-refusal", "/tmp/test", prior.map(() => null))
+      await storeSession("sess-budget-refusal", prior, "sdk-budget-refusal", "/tmp/test", prior.map(() => null))
       overflowFailures = 1
       overflowMessage = "No message found with message.uuid of: 6f1c0f4e-0a1e-4d61-9a2f-7b0c1d2e3f40"
       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
@@ -182,7 +182,7 @@ describe("bounded fresh replay", () => {
 
     it(`budgets undo without a rollback point (stream=${streaming})`, async () => {
       const prior = [...history(), { role: "assistant", content: "prior answer" }, { role: "user", content: "later" }]
-      storeSession("sess-budget-undo", prior, "sdk-budget-undo", "/tmp/test", prior.map(() => null))
+      await storeSession("sess-budget-undo", prior, "sdk-budget-undo", "/tmp/test", prior.map(() => null))
       diagnosticLog.clear()
       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
       const res = await post(app, [...prior.slice(0, -3), { role: "user", content: "replacement question" }], { "x-opencode-session": "sess-budget-undo" }, streaming)
@@ -210,7 +210,7 @@ describe("bounded fresh replay", () => {
     it(`does not retry resumed overflow (stream=${streaming})`, async () => {
       const { app } = createProxyServer({ port: 0, host: "127.0.0.1" })
       const prior = [{ role: "user", content: "hello" }, { role: "assistant", content: "hi there" }]
-      storeSession("sess-overflow", prior, "sdk-overflow", "/tmp/test", [null, "uuid-1"])
+      await storeSession("sess-overflow", prior, "sdk-overflow", "/tmp/test", [null, "uuid-1"])
       overflowFailures = 1
       const res = await post(app, [...prior, { role: "user", content: "follow up" }], { "x-opencode-session": "sess-overflow" }, streaming)
       const body = await res.text()
@@ -258,8 +258,8 @@ describe("bounded fresh replay", () => {
 })
 
 describe("fresh-session replay envelope (#619)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedPrompts = []
   })
 
@@ -301,7 +301,7 @@ describe("fresh-session replay envelope (#619)", () => {
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi there" },
     ]
-    storeSession("sess-env-1", prior, "sdk-prior", "/tmp/test", [null, "uuid-1"])
+    await storeSession("sess-env-1", prior, "sdk-prior", "/tmp/test", [null, "uuid-1"])
 
     const res = await post(
       app,
@@ -336,8 +336,8 @@ describe("stateless client with a trailing injected block (#712)", () => {
   const INJECTED_ASSISTANT = { role: "assistant", content: "[post-history instructions]" }
   const PREFILL = { role: "user", content: "思考已结束。" }
 
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedPrompts = []
   })
 
@@ -353,7 +353,7 @@ describe("stateless client with a trailing injected block (#712)", () => {
       INJECTED_ASSISTANT,
       PREFILL,
     ]
-    storeSession("sess-712", prior, "sdk-712", "/tmp/test", prior.map(() => null))
+    await storeSession("sess-712", prior, "sdk-712", "/tmp/test", prior.map(() => null))
 
     // Next turn: the assistant replied, the user typed something new, and the
     // client re-appended its constant block.
@@ -389,8 +389,8 @@ describe("stateless client with a trailing injected block (#712)", () => {
  * to user content, which is why this went unnoticed.
  */
 describe("user-authored <thinking> survives (#720)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedPrompts = []
   })
 
@@ -426,7 +426,7 @@ describe("user-authored <thinking> survives (#720)", () => {
       { role: "user", content: "hello" },
       { role: "assistant", content: "hi there" },
     ]
-    storeSession("sess-720-resume", prior, "sdk-720-resume", "/tmp/test", [null, "uuid-1"])
+    await storeSession("sess-720-resume", prior, "sdk-720-resume", "/tmp/test", [null, "uuid-1"])
 
     const res = await post(
       app,
@@ -444,8 +444,8 @@ describe("user-authored <thinking> survives (#720)", () => {
 })
 
 describe("assistant content: Meridian's own markers stripped on replay (#724)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedPrompts = []
   })
 
@@ -508,8 +508,8 @@ describe("MERIDIAN_STRIP_THINKING env escape hatch", () => {
   const priorMeridian = process.env.MERIDIAN_STRIP_THINKING
   const priorClaudeProxy = process.env.CLAUDE_PROXY_STRIP_THINKING
 
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedPrompts = []
   })
 

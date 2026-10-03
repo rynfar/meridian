@@ -129,13 +129,13 @@ describe("Passthrough non-streaming: client-driven single-step semantics", () =>
   // "parallel same-tool calls" describe for the current-default coverage.
   // The legacy path stays reachable via MERIDIAN_PASSTHROUGH_EARLY_STOP=0
   // and must keep working.
-  beforeEach(() => {
+  beforeEach(async () => {
     mockTurns = []
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
     process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = "0"
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {

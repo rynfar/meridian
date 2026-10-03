@@ -74,8 +74,8 @@ async function post(app: any, body: any, sessionId = SESSION_ID) {
 }
 
 describe("Session tool cache", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     capturedQueryParams = null
     mockQueryError = undefined
     mockMessages = [
