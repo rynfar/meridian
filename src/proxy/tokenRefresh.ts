@@ -200,7 +200,15 @@ function buildMacosStore(serviceName: string): CredentialStore {
         )
         return true
       } catch (err) {
-        claudeLog("token_refresh.keychain_write_failed", { service: serviceName, error: String(err) })
+        // execFile errors include command arguments, including the credential
+        // passed to security's -w flag. Keep only non-secret failure metadata.
+        claudeLog("token_refresh.keychain_write_failed", {
+          service: serviceName,
+          reason: "command_failed",
+          exitCode: err instanceof Error && "code" in err && typeof err.code === "number"
+            ? err.code
+            : undefined,
+        })
         return false
       }
     },

@@ -7146,3 +7146,39 @@ runs. Require liveness answers during those holds, a random tool receipt and
 same-session recall, actual served-model confirmation and zero client exits.
 The direct gate regression additionally requires bounded join and eventual
 sensitive-file cleanup if disk publication remains stuck after child exit.
+
+## Browser account login (#792)
+
+Run `bun scripts/e2e-profile-login-live.mjs`, open its loopback `/profiles`
+page, and complete **Add a profile** with a real Claude account. Keep the
+returned code in the page, never in command arguments, logs or the evidence
+record. The harness uses isolated Meridian/session/credential directories
+and intentionally starts the HTTP application without the host default
+credential-refresh scheduler. After building, run `E2E_PROFILE_CLAUDE_DIR=<published directory>
+E2E_PLUGIN_PATH=<independent installed scrub entrypoint> bun
+scripts/e2e-profile-login-client.mjs` to verify the new account through an
+actual headless client, then
+re-authenticate that account from its card. A synthetic grant does not satisfy
+this live gate.
+
+Independent regressions require no live account:
+
+- `bun scripts/e2e-profile-native-store.mjs`: synthetic-grant round trip through
+  actual macOS Keychain or Linux credential-file storage; cleans its own item.
+- Build `src/proxy/profileCli.ts` for Node, set `E2E_PROFILE_CLI_BUNDLE` to that
+  bundle, then run `node scripts/e2e-profile-creation-concurrent.mjs`. Repeat
+  with `E2E_PROFILE_RACE_MODE=same`. Two independent processes must preserve
+  both distinct accounts, and only one may create a shared name.
+- Build `src/proxy/tokenRefresh.ts` for Node, set
+  `E2E_CREDENTIAL_STORE_BUNDLE` to that bundle, then run
+  `node scripts/e2e-keychain-write-log.mjs`. The controlled failed command must
+  report failure without logging its synthetic password arguments.
+- `bun scripts/e2e-profile-login-page.mjs` serves the actual profile page with
+  synthetic API replies for browser inspection, including valid IDs
+  `__proto__` and `constructor`. `E2E_PAGE_ROOT` selects an older source tree
+  for the before control. This fixture is not OAuth or live-model evidence.
+
+Profile add/remove/rename writers now share `profiles.json.lock` and atomically
+publish mode-0600 snapshots. An interrupted writer leaves its lock in place:
+stop every writer before manually removing that specific lock. Never recover
+it solely because it is old; an active slow writer still owns its snapshot.

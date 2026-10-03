@@ -34,12 +34,12 @@ large-replay evidence gate remains and draft status is no longer a blocker.
   validated head and its human co-author trailer is verified. Unchanged source
   #1240 is closed; #1239 closed through the validated integration.
   [Durable evidence](evidence/1240-replay-budget-isolation.md).
-- **#1242:** accept with narrowing correction, pending remaining gates.
+- **#1242:** delivered with narrowing correction.
   Source `a2408b82ca4c05e8ed1c770b1ac72615ef1bdd85` → authored cherry
   `6912ec9f`, now rebased as `37ade6ab` (Nowaker / original authored date
   retained). Maintainer correction `f11c355b`, now `a42c696e`, preserves recovery wording before a tool result or beside meaningful
   user text; recognize only the actual synthetic tail. Source regression control
-  16 pass / 1 fail → corrected 18/18. Draft integration
+  16 pass / 1 fail → corrected 18/18. Merged integration
   [#1248](https://github.com/rynfar/meridian/pull/1248), worktree
   `/Users/rynfar/repos/meridian-prefill-lineage-1242`, branch
   `codex/opencode-prefill-lineage-1242-20261002`. Real OpenCode 1.18.34 + released
@@ -52,7 +52,11 @@ large-replay evidence gate remains and draft status is no longer a blocker.
   unchanged cache/history assertions. Final client harness also passes joined
   cleanup with four observed recovery rounds / zero replays. Rebased onto
   test-only main `802d9398f`; product code equals the live-tested tree. Fresh
-  full local gates and exact final-head CI remain pending before landing.
+  full local gates pass 5,130 / 0 fail / 4 skips across 17 stages,
+  standalone typecheck/build pass, and all six executed final-head CI checks
+  pass. Final head `ae5eb07cf5e2f1284903e73086f4baec8bb61f17` merged as
+  `928bddc42b684680bc58f31a0aab18034197e8f3`, with exact merged-tree and
+  Nowaker human co-author verification. Unchanged source #1242 is closed.
   [Durable evidence and maintained harness](evidence/1242-opencode-prefill-lineage.md).
 - **#1243 `6558c209f8bddf8e59b554d16c9834381c7817c2`:** queued, not yet fully
   reviewed; contributor explicitly stacks its SQLite store/journal migration
@@ -70,6 +74,31 @@ large-replay evidence gate remains and draft status is no longer a blocker.
   result. Latest facts live in #1245's PR body. Persistent valid owned native
   fixture is available; the earlier temporary re-authentication directory has
   been removed. Never print grant values or authorization codes.
+
+- **#1217 / #792 — next active delivery:** recovered the existing integration
+  into a fresh isolated branch from main `928bddc42`, preserving all four
+  authored Nowaker commits and separate prior corrections. Current authored
+  SHAs: `13e8e349`, `fa431b65`, `fb6e2ae3`, `072669a9`; refreshed source remains
+  `a9abcce8c693dae018ff73872051a9dfeabe21b6`. Worktree
+  `/Users/rynfar/repos/meridian-browser-login-finalize-792`, local branch
+  `codex/browser-login-finalize-792-20261003`; the existing draft #1217 is reused,
+  not duplicated. Documentation conflicts retained both E2E flows and the
+  current main handoff. Old detached recovery worktree is left intact.
+  Standalone typecheck/build passed before the final test-only/main-adapter
+  rebase; fresh full gates are next. Assisted re-authentication completed as
+  recorded below and in the corrected PR body. Automatic browser callback is
+  still an explicit gate. Product-native preview tab `tab_4` is available,
+  currently hidden/about:blank; its first open returned not-yet-ready and a
+  corrected status call confirmed availability. No alternate browser was used.
+  Prior scoped owner authorization covers these selected profile contracts.
+  Keep all authorization URLs/codes/grants private. The persistent owned native
+  credential fixture is available; do not depend on removed temporary roots.
+- **New issues:** #1246 requests PATH Claude precedence in Linux x86_64 /
+  OpenCode 1.18.34 / opencode-with-claude 1.10.1, with an older cached 2.1.268
+  CLI hiding a newer mise 2.1.288 install. #1238 requests relaxing Antigravity's
+  128-tool cap with actual OpenCode 1.18.30 / agy 1.2.7 / Gemini 3.8 Flash-high.
+  Their bodies are read and retained as queued issues; no delivered fix is
+  claimed. Match the exact affected platform/client/model when reaching them.
 
 Remaining earlier dispositions below are dated leads. Refresh live heads before
 acting, continue independently actionable PRs while these wait, and use exact
@@ -118,11 +147,11 @@ verified, original heads unchanged before closure. Durable records:
 [evidence/1190-request-activity.md](evidence/1190-request-activity.md).
 #792 draft [#1217](https://github.com/rynfar/meridian/pull/1217) proves new-account
 creation and real OpenCode use; re-authentication still awaits a completed
-human Claude authorization. #1187 remains under concurrency/client review;
-#1176 remains under official-rate/product-flow review. #1175 correction and
+human Claude authorization. #1187 is being completed in an isolated takeover branch;
+#1176 is deferred until Meridian has a supported OpenAI-serving path. #1175 correction and
 actual bundled HTTP/browser proof are recorded in
-[evidence/1175-update-setting.md](evidence/1175-update-setting.md); final-head
-CI is required before integration. No release authorized.
+[evidence/1175-update-setting.md](evidence/1175-update-setting.md); merged as #1227 at `3cb65df0c`; final-head CI and human credit were verified.
+No release authorized.
 
 Owner requested a persistent goal covering PRs/issues, authored cherry-picks,
 maintainer corrections and headless actual-client evidence. Initial paginated
