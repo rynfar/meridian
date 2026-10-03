@@ -1,4 +1,4 @@
-import { hasExtendedContext, type ClaudeModel } from "./models"
+import { hasExtendedContext, sonnetHasNative1mContext, type ClaudeModel } from "./models"
 
 /** Approximate replay estimate: overestimates Cyrillic-like scripts, but can
  * underestimate CJK, base64, and multi-page documents. Reactive overflow
@@ -22,8 +22,12 @@ export function estimateTokens(content: unknown): number {
   }, 0)
 }
 
-export function contextWindowFor(model: string): number {
-  return hasExtendedContext(model as ClaudeModel) ? 1_000_000 : 200_000
+/** `resolvedSonnetModel` is the concrete id the `sonnet` alias resolves to,
+ *  when known: plain `sonnet` on Sonnet 5+ already runs with a 1M window
+ *  (#1212). It is ignored for every other tier. */
+export function contextWindowFor(model: string, resolvedSonnetModel?: string): number {
+  if (hasExtendedContext(model as ClaudeModel)) return 1_000_000
+  return model === "sonnet" && sonnetHasNative1mContext(resolvedSonnetModel) ? 1_000_000 : 200_000
 }
 
 // Leave space for system instructions, tool schemas, and the generated answer.
@@ -36,14 +40,14 @@ export const REPLAY_RESERVE_TOKENS = 64_000
  *  English tokens, roughly half the window, for conversations that used to fit.
  *  Capping keeps the 1M budget byte-for-byte unchanged and lifts 200k models to
  *  the same ~80% share. Underestimates are still covered by the overflow retry. */
-export function replayReserveFor(model: string): number {
-  return Math.min(REPLAY_RESERVE_TOKENS, Math.floor(contextWindowFor(model) * 0.1))
+export function replayReserveFor(model: string, resolvedSonnetModel?: string): number {
+  return Math.min(REPLAY_RESERVE_TOKENS, Math.floor(contextWindowFor(model, resolvedSonnetModel) * 0.1))
 }
 
-export function replayBudgetFor(model: string): number {
+export function replayBudgetFor(model: string, resolvedSonnetModel?: string): number {
   const configured = replayBudgetOverride()
   if (configured !== undefined) return configured
-  return Math.floor(contextWindowFor(model) * 0.9) - replayReserveFor(model)
+  return Math.floor(contextWindowFor(model, resolvedSonnetModel) * 0.9) - replayReserveFor(model, resolvedSonnetModel)
 }
 
 /** Test-only override. Proving the trim against a real model otherwise needs a

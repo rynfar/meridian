@@ -142,8 +142,9 @@ input are unchanged.
 The V2 plugin also reads `GET /v1/models` from the configured Meridian base URL
 and writes what it finds into V2's model catalog: the context window your
 subscription actually gets, and one model variant per effort level the proxy
-accepts. This corrects OpenCode's built-in models.dev entries, which advertise a
-1M Sonnet that Meridian deliberately serves at 200k. Select an effort with
+accepts. This corrects OpenCode's built-in models.dev entries where they differ
+from what Meridian serves, such as a 1M Sonnet 4.6 that Meridian deliberately
+serves at 200k. Select an effort with
 `provider/model#variant`, for example `anthropic/claude-opus-5#high`. Discovery
 never blocks startup: if Meridian is unreachable or answers with anything
 unexpected, and nothing has been discovered before, the catalog is left exactly
@@ -171,7 +172,7 @@ For either generation, the plugin enables:
 
 - **Session tracking** — reliable conversation continuity across requests
 - **Safe hidden-agent concurrency** — title and summary work cannot advance the primary lineage
-- **Model defaults** — Opus requests 1M context; Sonnet uses 200k by default ([defaults and account eligibility](configuration.md#configuration))
+- **Model defaults** — Opus requests 1M context; Sonnet 5+ has a native 1M window, while Sonnet 4.x uses 200k by default ([defaults and account eligibility](configuration.md#configuration))
 - **Subagent model selection** — subagents use the 200k tier, preserving rate-limit budget
 
 If the plugin is missing, Meridian warns at request time. Restart OpenCode after
