@@ -20,6 +20,8 @@ export interface BuildBadgePart {
   /** Only ever an `https:` URL without credentials. */
   readonly href?: string
   readonly title: string
+  /** A run part's abbreviation, for the header's compact form ("v1.77.1-src"). */
+  readonly short?: string
 }
 
 export type BuildIdentityView =
@@ -78,13 +80,14 @@ export function buildIdentityView(build: unknown): BuildIdentityView {
 
   const counter = build.counter
   if (build.kind === "artifact" && typeof counter === "number" && Number.isSafeInteger(counter) && counter > 0) {
-    parts.push({ kind: "run", text: "local #" + counter, title: "Local build number " + counter })
+    parts.push({ kind: "run", text: "local #" + counter, short: "#" + counter, title: "Local build number " + counter })
   } else if (build.kind === "artifact") {
-    parts.push({ kind: "run", text: "unnumbered", title: "Built artifact without a verified build number" })
+    parts.push({ kind: "run", text: "unnumbered", short: "local", title: "Built artifact without a verified build number" })
   } else if (build.kind === "source") {
-    parts.push({ kind: "run", text: "source run", title: "Running directly from source; no build number" })
+    parts.push({ kind: "run", text: "source run", short: "src", title: "Running directly from source; no build number" })
   } else {
-    parts.push({ kind: "run", text: build.source === "dev" ? "dev build" : "local build", title: "No build record" })
+    const dev = build.source === "dev"
+    parts.push({ kind: "run", text: dev ? "dev build" : "local build", short: dev ? "dev" : "local", title: "No build record" })
   }
 
   const branch = text(build.branch)

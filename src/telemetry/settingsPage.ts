@@ -102,18 +102,24 @@ export const settingsPageHtml = `<!DOCTYPE html>
   }
   .reset-btn:hover { border-color: var(--red); color: var(--red); }
 
-  /* Model pricing. Four fixed-width rate inputs cannot shrink to a phone
-     viewport, so the table scrolls inside its card instead of the page. */
+  /* Model pricing. Four rate inputs cannot shrink to a phone viewport, so
+     the table scrolls inside its card instead of the page, and a model id
+     stays on one line rather than breaking into a column of fragments.
+     A rate is a few digits ($/Mtok such as 123.45), so its input is sized
+     to that; the spinner, useless at a 0.01 step, would cover the digits. */
   .pricing-scroll { overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
   .pricing-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .pricing-table th { text-align: left; padding: 8px 10px; color: var(--muted); font-weight: 500;
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
   .pricing-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
   .pricing-table tr:last-child td { border-bottom: none; }
-  .pricing-model { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px; word-break: break-all; }
+  .pricing-model { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 12px; white-space: nowrap; }
   .pricing-input { background: var(--bg); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 8px; font-size: 12px; width: 84px; text-align: right;
     font-variant-numeric: tabular-nums; }
+  .pricing-table .pricing-input { width: calc(7ch + 18px); -moz-appearance: textfield; appearance: textfield; }
+  .pricing-table .pricing-input::-webkit-inner-spin-button,
+  .pricing-table .pricing-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .pricing-input:focus { border-color: var(--accent); outline: none; }
   .pricing-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px;
     text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }

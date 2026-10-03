@@ -137,6 +137,12 @@ export const landingHtml = `<!DOCTYPE html>
     .prof-info { position: static; }
     .prof-pop { left: 0; right: 0; min-width: 0; }
   }
+  /* A phone shows one card per row, each packed with usage rows and chips,
+     so the page edge and the card's own padding give that room back. */
+  @media (max-width: 720px) {
+    .container { padding-left: 8px; padding-right: 8px; }
+    .profile-card { padding: 9px 10px; }
+  }
   .profile-sub { font-size: 11px; color: var(--muted); text-align: right; margin-bottom: 12px; }
   .usage-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 4px 0; }
   .usage-row .w-label { color: var(--muted); width: 64px; flex-shrink: 0; }

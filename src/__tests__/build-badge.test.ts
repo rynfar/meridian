@@ -78,6 +78,15 @@ describe("buildIdentityView", () => {
     expect(view.map((part) => part.text)).toEqual(["v1.77.1", "source run", "8d4c88c"])
   })
 
+  test("each run kind carries the abbreviation the compact header shows", () => {
+    const run = (build: object) => parts(build).find((part) => part.kind === "run")?.short
+    expect(run(artifact)).toBe("#3")
+    expect(run({ source: "local", kind: "source", version: "1.77.1" })).toBe("src")
+    expect(run({ source: "local", kind: "artifact", version: "1.77.1" })).toBe("local")
+    expect(run({ source: "dev", version: "1.77.1" })).toBe("dev")
+    expect(run({ source: "local", version: "1.77.1" })).toBe("local")
+  })
+
   test("an uncertified artifact is not assigned a build number", () => {
     const view = parts({ source: "local", kind: "artifact", version: "1.77.1", certification: "unknown" })
     expect(view.map((part) => part.text)).toEqual(["package 1.77.1", "unnumbered"])

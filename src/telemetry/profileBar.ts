@@ -164,6 +164,25 @@ export const profileBarCss = `
   .meridian-header a.mh-prov-part { color: var(--accent, #58a6ff); text-decoration: none; }
   .meridian-header a.mh-prov-part:hover { text-decoration: underline; }
   .meridian-header a.mh-prov-part:focus-visible { outline: 2px solid var(--accent, #58a6ff); outline-offset: 1px; border-radius: 3px; }
+  /* When the header runs out of room, fitBuildChip() steps the build info
+     down: the calm "current" drift chip goes first, then the pill shrinks
+     to v1.77.1-3255c91, v1.77.1-src and finally v1.77.1. The full details
+     stay in the pill's tooltip in every form. */
+  .meridian-header[data-prov-calm="hidden"] .mh-drift.calm { display: none; }
+  .meridian-header .mh-prov-short,
+  .meridian-header .mh-prov-short-commit,
+  .meridian-header .mh-prov-short-run { display: none; white-space: nowrap; }
+  .meridian-header[data-prov-form="commit"] .mh-prov-part,
+  .meridian-header[data-prov-form="run"] .mh-prov-part,
+  .meridian-header[data-prov-form="version"] .mh-prov-part { display: none; }
+  .meridian-header[data-prov-form="commit"] .mh-prov-short,
+  .meridian-header[data-prov-form="run"] .mh-prov-short,
+  .meridian-header[data-prov-form="commit"] .mh-prov-short-commit,
+  .meridian-header[data-prov-form="run"] .mh-prov-short-run,
+  .meridian-header[data-prov-form="version"] .mh-prov-short { display: inline; }
+  .meridian-header .mh-prov-short a { color: var(--accent, #58a6ff); text-decoration: none; }
+  .meridian-header .mh-prov-short a:hover { text-decoration: underline; }
+  .meridian-header .mh-prov-short a:focus-visible { outline: 2px solid var(--accent, #58a6ff); outline-offset: 1px; border-radius: 3px; }
   .meridian-header .mh-drift {
     display: inline-flex; align-items: center; white-space: nowrap;
     font-size: 11px; font-weight: 500; line-height: 16px;
@@ -265,6 +284,97 @@ export const profileBarJs = `
   var driftChip = document.getElementById('mhDrift');
   var provKey = '';
   var driftKey = '';
+  var provForms = [];
+  var headerEl = document.getElementById('meridianHeader');
+  var brandEl = headerEl.querySelector('.mh-brand');
+  var rightEl = headerEl.querySelector('.mh-right');
+
+  // The compact forms of the pill, rendered once beside the full parts so
+  // that switching between them is a CSS attribute flip and never replaces
+  // a link under the pointer. Returns the forms this build can show.
+  function appendShortForms(parts) {
+    function kind(k) { return parts.find(function(part) { return part.kind === k; }); }
+    var version = kind('version'), run = kind('run'), commit = kind('commit');
+    if (!version) return [];
+    var forms = [];
+    var short = document.createElement('span');
+    short.className = 'mh-prov-short';
+    short.appendChild(document.createTextNode(version.text));
+    if (commit) {
+      var commitWrap = document.createElement('span');
+      commitWrap.className = 'mh-prov-short-commit';
+      var sha = document.createElement(commit.href ? 'a' : 'span');
+      sha.className = 'mh-prov-commit';
+      sha.textContent = commit.text;
+      sha.title = commit.title;
+      if (commit.href) { sha.href = commit.href; sha.target = '_blank'; sha.rel = 'noopener noreferrer'; }
+      commitWrap.append('-', sha);
+      short.appendChild(commitWrap);
+      forms.push('commit');
+    }
+    if (run && run.short) {
+      var runWrap = document.createElement('span');
+      runWrap.className = 'mh-prov-short-run';
+      runWrap.textContent = '-' + run.short;
+      runWrap.title = run.title;
+      short.appendChild(runWrap);
+      forms.push('run');
+    }
+    forms.push('version');
+    provChip.appendChild(short);
+    return forms;
+  }
+
+  // Picks the largest build-info form the header has room for. Room means
+  // the right-hand group stays on one line beside the brand; a header too
+  // narrow for even the smallest form on that row (a tablet whose nav fills
+  // it) settles for the largest form that fits on one line of its own.
+  function rightFits(besideBrand) {
+    if (rightEl.scrollWidth > rightEl.clientWidth + 1) return false;
+    if (besideBrand && rightEl.getBoundingClientRect().top >= brandEl.getBoundingClientRect().bottom) return false;
+    var first = null;
+    for (var i = 0; i < rightEl.children.length; i++) {
+      var box = rightEl.children[i].getBoundingClientRect();
+      if (!box.width) continue;
+      if (!first) { first = box; continue; }
+      if (box.top >= first.bottom || box.bottom <= first.top) return false;
+    }
+    return true;
+  }
+
+  function fitBuildChip() {
+    var steps = [['shown', 'full'], ['hidden', 'full']].concat(provForms.map(function(form) { return ['hidden', form]; }));
+    function apply(step) { headerEl.setAttribute('data-prov-calm', step[0]); headerEl.setAttribute('data-prov-form', step[1]); }
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < steps.length; i++) {
+        apply(steps[i]);
+        if (rightFits(pass === 0)) return;
+      }
+    }
+  }
+
+  var fitQueued = false;
+  function queueFit() {
+    if (fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(function() { fitQueued = false; fitBuildChip(); });
+  }
+  // Header content changes with every poll (status, profile, drift), so the
+  // fit follows it. Fitting only writes data-prov-* on the header, which
+  // this observer ignores, so it cannot retrigger itself.
+  new MutationObserver(queueFit).observe(headerEl, {
+    subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden'],
+  });
+  var fitWidth = 0;
+  if (window.ResizeObserver) {
+    new ResizeObserver(function(entries) {
+      var width = entries[0].contentRect.width;
+      if (width !== fitWidth) { fitWidth = width; queueFit(); }
+    }).observe(headerEl);
+  } else {
+    window.addEventListener('resize', queueFit);
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(queueFit);
 
   // Build chips. Hidden entirely for a current npm install, which is the case
   // that needs no comment. Rebuilt only when the view changes, so a poll never
@@ -296,10 +406,12 @@ export const profileBarJs = `
           if (part.href) { piece.href = part.href; piece.target = '_blank'; piece.rel = 'noopener noreferrer'; }
           return piece;
         }));
+        provForms = appendShortForms(view.parts);
         provChip.title = view.title;
         provChip.setAttribute('aria-label', view.label);
         provChip.className = 'mh-prov visible';
       } else {
+        provForms = [];
         provChip.replaceChildren();
         provChip.removeAttribute('title');
         provChip.removeAttribute('aria-label');

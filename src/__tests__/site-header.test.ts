@@ -275,6 +275,48 @@ describe("settings page layout", () => {
     expect(settingsPageHtml).toMatch(/\.pricing-scroll \{[^}]*overflow-x: auto/)
     expect(settingsPageHtml).toMatch(/<div class="pricing-scroll">\s*<table class="pricing-table">/)
   })
+
+  test("a model id stays on one line and a rate input is sized to a rate", () => {
+    const model = settingsPageHtml.match(/\.pricing-model \{[^}]*\}/)?.[0] ?? ""
+    expect(model).toContain("white-space: nowrap")
+    expect(model).not.toContain("word-break")
+    // 7 characters of content (123.45, 0.0375) plus the input's padding and
+    // border, which border-box sizing would otherwise take out of the text.
+    expect(settingsPageHtml).toMatch(/\.pricing-table \.pricing-input \{[^}]*width: calc\(7ch \+ 18px\)/)
+  })
+})
+
+describe("home page spacing on a phone", () => {
+  test("the page edge is a third and a card's padding half of the desktop values", () => {
+    expect(landingHtml).toContain(".container { max-width: 960px; margin: 0 auto; padding: 28px 24px; }")
+    expect(landingHtml).toMatch(/\.profile-card \{[^}]*padding: 18px 20px;/)
+    expect(landingHtml).toMatch(/@media \(max-width: 720px\) \{\s*\.container \{ padding-left: 8px; padding-right: 8px; \}\s*\.profile-card \{ padding: 9px 10px; \}\s*\}/)
+  })
+})
+
+describe("header build info collapses to the room it has", () => {
+  test("the calm drift chip goes first, warnings never", () => {
+    expect(profileBarCss).toContain('.meridian-header[data-prov-calm="hidden"] .mh-drift.calm { display: none; }')
+    expect(profileBarCss).not.toMatch(/data-prov-calm[^{]*\.mh-drift\.(warning|neutral)/)
+    expect(profileBarCss).not.toMatch(/data-prov-[a-z]+="[a-z]+"\][^{]*\.mh-update/)
+  })
+
+  test("each compact form shows only its own pieces", () => {
+    const shown = (form: string) => profileBarCss.match(new RegExp(`\\[data-prov-form="${form}"\\] (\\.[a-z-]+)[,\\s]`, "g")) ?? []
+    expect(shown("commit").join(" ")).toContain(".mh-prov-short-commit")
+    expect(shown("run").join(" ")).toContain(".mh-prov-short-run")
+    expect(shown("version").join(" ")).not.toMatch(/short-(commit|run)/)
+  })
+
+  test("the fit follows the header's width and content, largest form first", () => {
+    expect(profileBarJs).toContain("[['shown', 'full'], ['hidden', 'full']].concat(provForms.map(")
+    expect(profileBarJs).toContain("new ResizeObserver(")
+    expect(profileBarJs).toContain("new MutationObserver(queueFit)")
+    expect(profileBarJs).toContain("attributeFilter: ['class', 'hidden']")
+    // The short forms are appended beside the full parts, so the full pill's
+    // tooltip and links are untouched and switching never rebuilds a link.
+    expect(profileBarJs).toContain("provForms = appendShortForms(view.parts);")
+  })
 })
 
 describe("per-page titles do not repeat the brand", () => {
