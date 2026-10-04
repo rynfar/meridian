@@ -6,6 +6,7 @@
 import assert from "node:assert/strict"
 import * as childProcess from "node:child_process"
 import { mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -51,6 +52,10 @@ if (!scenario) {
     MERIDIAN_NO_UPDATE_CHECK: "1", MERIDIAN_TELEMETRY_PERSIST: "0",
     MERIDIAN_TEST_DISABLE_SDK_PROCESS_GATE: "1",
   })
+  // libsql chooses its native binary on import. Load the selected checkout's
+  // dependency on the real host before emulating Darwin for this narrow gate.
+  const sourceRequire = createRequire(join(sourceRoot, "src/telemetry/sqlite.ts"))
+  await import(pathToFileURL(sourceRequire.resolve("libsql")).href)
   Object.defineProperty(process, "platform", { value: "darwin" })
   let allowProbe = false
   let probeSpawnCalls = 0
