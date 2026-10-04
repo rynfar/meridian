@@ -114,6 +114,31 @@ describe("Session tool cache", () => {
     expect(opts2?.mcpServers).toBeDefined()
   })
 
+  it("gives every query of a session its own MCP server", async () => {
+    const app = createTestApp()
+    await post(app, makeRequest({
+      stream: false,
+      tools: [TOOL_A],
+      messages: [{ role: "user", content: "hello" }],
+    }))
+    const first = capturedQueryParams?.options?.mcpServers?.oc
+
+    await post(app, makeRequest({
+      stream: false,
+      tools: [TOOL_A],
+      messages: [
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "Done." },
+        { role: "user", content: "continue" },
+      ],
+    }))
+    const second = capturedQueryParams?.options?.mcpServers?.oc
+
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(second).not.toBe(first)
+  })
+
   for (const stream of [false, true]) {
     it(`keeps a fresh side conversation and its continuation free of the main tools, stream=${stream}`, async () => {
       const app = createTestApp()

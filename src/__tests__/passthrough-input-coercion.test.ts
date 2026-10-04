@@ -40,7 +40,7 @@ const BROWSER_SCHEMA = {
 function registerBrowser() {
   createPassthroughMcpServer([
     { name: "browser", description: "Drives a real Chromium tab", input_schema: BROWSER_SCHEMA },
-  ])
+  ]).createServer()
   const tool = registeredTools.find(entry => entry.name === "browser")
   if (!tool) throw new Error("browser tool was not registered")
   return z.object(tool.inputSchema)
@@ -66,7 +66,7 @@ describe("passthrough tool input coercion", () => {
         label: { type: "string", description: "Optional label" },
       };
       const required = ["count", "timeout", "enabled", "names", "app"];
-      const { server } = createPassthroughMcpServer([{ name: "test", input_schema: { type: "object", properties, required } }]);
+      const server = createPassthroughMcpServer([{ name: "test", input_schema: { type: "object", properties, required } }]).createServer();
       const client = new Client({ name: "test", version: "1" });
       const [a, b] = InMemoryTransport.createLinkedPair();
       await server.instance.connect(b); await client.connect(a);
@@ -95,7 +95,7 @@ describe("passthrough tool input coercion", () => {
         app: { ...BROWSER_SCHEMA.properties.app, required: ["relay"] },
       },
       required: Object.keys(BROWSER_SCHEMA.properties),
-    } }])
+    } }]).createServer()
     const tool = registeredTools.find(entry => entry.name === "required")
     if (!tool) throw new Error("required tool missing")
     const advertised = z.toJSONSchema(z.object(tool.inputSchema), { io: "input" })

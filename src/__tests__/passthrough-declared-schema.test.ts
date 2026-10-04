@@ -64,7 +64,7 @@ const DECLARED = `
 
 function listed(tool: string) {
   return `
-    const { server } = createPassthroughMcpServer([${tool}]);
+    const server = createPassthroughMcpServer([${tool}]).createServer();
     const client = new Client({ name: "test", version: "1" });
     const [a, b] = InMemoryTransport.createLinkedPair();
     await server.instance.connect(b); await client.connect(a);

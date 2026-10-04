@@ -264,7 +264,8 @@ export function autoDeferDecision(
 }
 
 /**
- * Create an MCP server with tool definitions matching OpenCode's request.
+ * Build MCP tool definitions matching OpenCode's request, and a factory for
+ * the server that serves them.
  *
  * Auto-defer: when the tool count exceeds the threshold and coreToolNames
  * is provided, non-core tools are registered without alwaysLoad so the SDK
@@ -320,10 +321,18 @@ export function createPassthroughMcpServer(
     }
   })
 
-  const server = createSdkMcpServer({ name: serverName, tools: definitions })
   const prefix = passthroughMcpPrefix(serverName)
   return {
-    server,
+    /**
+     * A new server for ONE query. A server instance takes a single transport
+     * connection: the SDK connects it when `query()` starts and releases it
+     * only when that query closes. A second `query()` handed the same instance
+     * in the meantime cannot connect it ("Already connected to a transport"),
+     * the CLI reports the server as failed, and that turn runs with none of
+     * the client's tools. Every instance registers the same definitions, so
+     * the advertised tool set does not change between queries.
+     */
+    createServer: () => createSdkMcpServer({ name: serverName, tools: definitions }),
     serverName,
     prefix,
     toolNames: definitions.map(definition => `${prefix}${definition.name}`),
