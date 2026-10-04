@@ -457,8 +457,14 @@ export class CrossProcessTurnCoordinator {
     lockPath: string,
     arrivedAt: number,
   ): Promise<CrossProcessTurnLease | undefined> {
-    const incarnation = captureProcessIncarnation()
-    if (!incarnation) throw new Error("cannot capture turn-lock owner process incarnation")
+    let probeDiagnostic = ""
+    const incarnation = captureProcessIncarnation(process.pid, diagnostic => {
+      probeDiagnostic = diagnostic
+    })
+    if (!incarnation) {
+      throw new Error("cannot capture turn-lock owner process incarnation"
+        + (probeDiagnostic ? `: ${probeDiagnostic}` : ""))
+    }
     const owner: OwnerRecord = {
       token: randomUUID(),
       pid: process.pid,
