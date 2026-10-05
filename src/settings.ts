@@ -19,6 +19,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs"
 import { dirname } from "node:path"
 import { configPath } from "./configDir"
 import type { PriorityFailbackPolicy } from "./proxy/routing"
+import type { ClaudeExecutableMode } from "./proxy/claudeExecutablePreference"
 import type { PageLayout } from "./telemetry/pageLayout"
 
 /**
@@ -81,6 +82,14 @@ export interface MeridianSettings {
    *  them in a centered column, "wide" spans the window. Read on every page
    *  load, so a change shows on the next reload. */
   layout?: PageLayout
+  /** Which Claude Code executable runs each turn: "system" (default) prefers
+   *  the `claude` on PATH, "bundled" the copy Meridian ships with, "custom"
+   *  `claudeExecutablePath`. MERIDIAN_CLAUDE_PATH wins over all three. Read
+   *  whenever the executable is resolved, so a change applies to the next turn. */
+  claudeExecutable?: ClaudeExecutableMode
+  /** The absolute path custom mode runs. Kept when another mode is chosen, so
+   *  switching back does not mean typing it again. */
+  claudeExecutablePath?: string
 }
 
 /**

@@ -493,6 +493,89 @@ describe("resolveClaudeExecutable: priority ordering", () => {
 })
 
 // ---------------------------------------------------------------------------
+// The operator's executable preference (Settings, Claude Code Executable).
+// System is the order above; bundled puts the packaged copy first; custom
+// runs a chosen path. Both resolvers must agree, so the profile CLI and the
+// server run the same binary.
+// ---------------------------------------------------------------------------
+
+describe("resolveClaudeExecutable: executable preference", () => {
+  const bundledPkg = "/m/cc/package.json"
+  const bundledBin = BIN(bundledPkg, "bin", "claude.exe")
+  const onPath = "/usr/local/bin/claude"
+  /** A real bundled binary and a usable `claude` on PATH, so only the preference decides. */
+  const bothAvailable = (overrides: Partial<NonNullable<Deps>> = {}) => makeDeps({
+    resolvePackage: (s) => {
+      if (s === "@anthropic-ai/claude-code/package.json") return bundledPkg
+      throw new Error("not configured")
+    },
+    existsSync: () => true,
+    statSync: () => ({ size: 213_404_000 }),
+    exec: async () => ({ stdout: `${onPath}\n` }),
+    execLookupSync: () => `${onPath}\n`,
+    ...overrides,
+  })
+
+  it("system, the default, prefers the PATH installation", async () => {
+    const expected = { path: onPath, source: "path-lookup" as const }
+    for (const deps of [bothAvailable(), bothAvailable({ preference: () => ({ mode: "system" }) })]) {
+      expect(await resolveClaudeExecutableWithSource(deps)).toEqual(expected)
+      expect(resolveClaudeExecutableSync(deps)).toEqual(expected)
+    }
+  })
+
+  it("bundled prefers the packaged copy over a usable PATH installation", async () => {
+    const deps = bothAvailable({ preference: () => ({ mode: "bundled" }) })
+    const expected = { path: bundledBin, source: "bundled" as const }
+    expect(await resolveClaudeExecutableWithSource(deps)).toEqual(expected)
+    expect(resolveClaudeExecutableSync(deps)).toEqual(expected)
+  })
+
+  it("bundled falls back to PATH when no packaged copy is installed", async () => {
+    const deps = bothAvailable({
+      preference: () => ({ mode: "bundled" }),
+      resolvePackage: () => { throw new Error("not installed") },
+    })
+    const expected = { path: onPath, source: "path-lookup" as const }
+    expect(await resolveClaudeExecutableWithSource(deps)).toEqual(expected)
+    expect(resolveClaudeExecutableSync(deps)).toEqual(expected)
+  })
+
+  it("custom runs the chosen path ahead of PATH and the packaged copy", async () => {
+    const deps = bothAvailable({ preference: () => ({ mode: "custom", customPath: "/opt/claude-next/claude" }) })
+    const expected = { path: "/opt/claude-next/claude", source: "custom" as const }
+    expect(await resolveClaudeExecutableWithSource(deps)).toEqual(expected)
+    expect(resolveClaudeExecutableSync(deps)).toEqual(expected)
+  })
+
+  it("a custom path that has gone falls back to the system order, and says so", async () => {
+    const warnings: string[] = []
+    const deps = bothAvailable({
+      preference: () => ({ mode: "custom", customPath: "/opt/removed/claude" }),
+      existsSync: p => p !== "/opt/removed/claude",
+      warn: message => warnings.push(message),
+    })
+    const expected = { path: onPath, source: "path-lookup" as const }
+    expect(await resolveClaudeExecutableWithSource(deps)).toEqual(expected)
+    expect(resolveClaudeExecutableSync(deps)).toEqual(expected)
+    expect(warnings).toHaveLength(2)
+    expect(warnings[0]).toContain("/opt/removed/claude")
+  })
+
+  it("MERIDIAN_CLAUDE_PATH outranks every preference", async () => {
+    for (const preference of [{ mode: "bundled" as const }, { mode: "custom" as const, customPath: "/opt/claude-next/claude" }]) {
+      const deps = bothAvailable({
+        preference: () => preference,
+        envGet: n => (n === "MERIDIAN_CLAUDE_PATH" ? "/explicit/claude" : undefined),
+      })
+      const expected = { path: "/explicit/claude", source: "env" as const }
+      expect(await resolveClaudeExecutableWithSource(deps)).toEqual(expected)
+      expect(resolveClaudeExecutableSync(deps)).toEqual(expected)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
 // resolveClaudeExecutableWithSource — same resolver, but the result also
 // reports which step produced the hit. Used at startup logging and in /health
 // so users can self-diagnose "wrong claude got picked" without playing

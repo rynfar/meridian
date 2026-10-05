@@ -1,5 +1,6 @@
 /** Shared hostname consent policy; no dependency on a proxy or provider. */
 import { hostname } from "node:os"
+import { isSameOriginRequest } from "./sameOrigin"
 import { loadSettings, setSetting } from "./settings"
 
 function hostnameEnabled(): boolean {
@@ -22,21 +23,8 @@ export async function headerSettingsResponse(request: Request): Promise<Response
   if (request.method === "GET") return Response.json(headerSettingsState(), { headers })
 
   // The optional API key does not prevent a foreign site from opting an
-  // unkeyed local server into public disclosure. Browser mutations must come
-  // from this server; CLI requests without Origin retain their existing use.
-  // Node sees HTTP behind a TLS terminator. Permit its HTTPS public origin
-  // only when Host/port match; never trust arbitrary forwarding headers.
-  const origin = request.headers.get("origin")
-  let permitted = origin === null
-  if (origin !== null) {
-    try {
-      const source = new URL(origin), target = new URL(request.url)
-      permitted = source.origin === origin && (source.origin === target.origin
-        || (source.protocol === "https:" && target.protocol === "http:" && source.hostname === target.hostname
-          && (source.port === target.port || (source.port === "" && target.port === "443"))))
-    } catch { permitted = false }
-  }
-  if (!permitted) {
+  // unkeyed local server into public disclosure.
+  if (!isSameOriginRequest(request)) {
     return Response.json({ error: "Header settings require a same-origin request" }, { status: 403, headers })
   }
   let input: unknown

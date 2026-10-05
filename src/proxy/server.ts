@@ -141,6 +141,7 @@ import {
 } from "./retryAfter"
 import { getSetting, setSetting, TELEMETRY_SETTING_LIMITS } from "../settings" 
 import { headerSettingsResponse, healthHostname } from "../headerSettings"
+import { claudeExecutableSettingsResponse } from "./claudeExecutableSettings"
 import { startProfileLogin, completeProfileLogin, completeProfileLoginFromCallback, getProfileLoginStatus } from "./profileLogin"
 import { startProfileAdd, completeProfileAdd } from "./profileAdd"
 import { profileStartBody, profileLoginCompleteBody, profileAddCompleteBody } from "./profileOAuthBody"
@@ -237,8 +238,6 @@ export type { LineageResult }
 
 
 const exec = promisify(execCallback)
-
-let claudeExecutable = ""
 
 // Max gap between real upstream messages before we treat the stream as stalled.
 // Must be > slowest legitimate TTFB / server-side thinking pause, and < the
@@ -3835,6 +3834,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           claudeLog("subprocess.stderr", { line: data.trimEnd() })
         }
 
+        // The Claude Code executable this turn runs. Each path resolves it once,
+        // inside its own error handling, and every attempt and recovery of the
+        // turn reuses it: a change in Settings applies to the next turn, and a
+        // turn already running keeps the binary it started with.
+        let claudeExecutable = ""
+
         if (!stream) {
           const contentBlocks: Array<Record<string, unknown>> = []
           let assistantMessages = 0
@@ -3898,10 +3903,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           }
 
           try {
-            // Lazy-resolve executable if not already set (e.g. when using createProxyServer directly)
-            if (!claudeExecutable) {
-              claudeExecutable = await resolveClaudeExecutableAsync()
-            }
+            claudeExecutable = await resolveClaudeExecutableAsync()
 
             // Wrap SDK call with transparent retry for recoverable errors.
             // Both stale-UUID and rate-limit retries happen inside the generator,
@@ -5271,6 +5273,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             }
 
             try {
+              claudeExecutable = await resolveClaudeExecutableAsync()
+
               // Same transparent retry wrapper as the non-streaming path.
               // Rate-limit retry strategy:
               //   1. Strip [1m] context (immediate, different model tier)
@@ -8415,6 +8419,11 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return c.json(layoutSettingsState())
   })
 
+  // Each turn resolves its executable as it starts, so a change applies to the
+  // next turn without a restart; see claudeExecutableSettings.ts.
+  app.get("/settings/api/claude-executable", (c) => claudeExecutableSettingsResponse(c.req.raw))
+  app.put("/settings/api/claude-executable", (c) => claudeExecutableSettingsResponse(c.req.raw))
+
   app.get("/settings/api/pricing", (c) => {
     const { BUILTIN_MODEL_PRICING } = require("../telemetry/pricing") as typeof import("../telemetry/pricing")
     const { getPricingOverrides } = require("../telemetry/pricingStore") as typeof import("../telemetry/pricingStore")
@@ -10015,7 +10024,8 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     )
   }
   logCredentialsModeBanner()
-  claudeExecutable = await resolveClaudeExecutableAsync()
+  // Resolved now, not on the first turn, so the startup line and /health name it.
+  await resolveClaudeExecutableAsync()
   const authOwner = createAuthStatusOwner()
   const getInstanceAuthStatus = (profileId?: string, envOverrides?: Record<string, string>) =>
     authOwner.run(() => getClaudeAuthStatusAsync(profileId, envOverrides))
