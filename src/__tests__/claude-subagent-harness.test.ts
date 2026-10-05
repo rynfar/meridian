@@ -1,0 +1,222 @@
+import { describe, expect, it } from 'bun:test'
+import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join, resolve } from 'node:path'
+
+const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-subagent-session.mjs')
+type Mode = { baseline?: boolean; missingAgent?: boolean; missingDecision?: boolean; duplicateDecision?: boolean; missingWait?: boolean; swappedActor?: boolean; startupChild?: boolean; pendingStartup?: boolean; wrongModel?: boolean; queryAtStartup?: boolean; hang?: boolean; missingAgentTool?: boolean; duplicateToolId?: boolean; repeatHttpToolId?: boolean; missingErrorFlag?: boolean; falseMaxTurnsFlag?: boolean; brokenTerminal?: boolean; terminalSse?: boolean; missingStart?: boolean; earlyStop?: boolean; wrongBash?: boolean; missingToolResult?: boolean; wrongRoot?: boolean; noParallel?: boolean; forked?: boolean; refusal?: boolean; overCost?: boolean; requestOverflow?: boolean; oversizedBody?: boolean; sdkCloseThrow?: boolean; sdkPrefixed?: boolean; wrongSdkNamespace?: boolean; wrongSdkName?: boolean; streamingStagger?: boolean; preissuedToolResult?: boolean; sdkAlias?: boolean; wrongPin?: boolean; missingPin?: boolean; wireWrongModel?: boolean; swappedFinalChain?: boolean; ambiguousText?: boolean }
+function fixture(mode: Mode = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'meridian-e72-controls-'))
+  const target = join(root, 'target'), sdk = join(target, 'node_modules/@anthropic-ai/claude-agent-sdk'), proof = join(root, 'proof')
+  mkdirSync(sdk, { recursive: true, mode: 0o700 }); mkdirSync(proof, { mode: 0o700 })
+  writeFileSync(join(target, 'package.json'), JSON.stringify({ name: 'meridian-harness-synthetic-fixture', version: '0.0.0', type: 'module' }))
+  writeFileSync(join(target, 'mode.json'), JSON.stringify(mode))
+  writeFileSync(join(sdk, 'package.json'), JSON.stringify({ name: '@anthropic-ai/claude-agent-sdk', version: '0.2.141', type: 'module', main: 'sdk.mjs', meridianHarnessSynthetic: true }))
+  // Marked non-auth SDK. No import of a native dependency or ambient grant.
+  writeFileSync(join(sdk, 'sdk.mjs'), `import{readFileSync,writeFileSync}from'node:fs';
+const root=new URL('../../../',import.meta.url),mode=JSON.parse(readFileSync(new URL('mode.json',root),'utf8'));let count=0;
+export function query(input){writeFileSync(new URL('query-called',root),'synthetic only');const data=JSON.parse(input.prompt);if(mode.sdkPrefixed||mode.wrongSdkNamespace||mode.wrongSdkName)for(const tool of data.tools??[])tool.name=mode.wrongSdkName?'mcp__oc__Unexpected':(mode.wrongSdkNamespace?'mcp__wrong__':'mcp__oc__')+tool.name;const session=input.options.sessionId??input.options.resume??'s'+String(++count).padStart(7,'0')+'-owned',content=data.tools?.length?data.tools:[{type:'text',text:mode.ambiguousText?'same final answer':data.actor==='main'?data.sequence>=3?'AGAIN':'DONE':data.actor+'-1 '+data.actor+'-2'}],toolTurn=content.some(block=>block.type==='tool_use');if(mode.duplicateToolId&&content[0]?.name==='Bash')content[0].id='synthetic-duplicate';return{close(){if(mode.sdkCloseThrow)throw new Error('synthetic close failure')},async *[Symbol.asyncIterator](){await new Promise(resolve=>setTimeout(resolve,mode.sdkCloseThrow?5000:mode.streamingStagger?150:40));yield{type:'assistant',session_id:session,...(mode.refusal?{error:'authentication_failed'}:{}),message:{model:mode.wrongModel?'claude-sonnet-4-6':'claude-sonnet-5-5',usage:{input_tokens:mode.refusal?0:12,output_tokens:mode.refusal?0:4},content}};yield{type:'result',session_id:session,subtype:mode.refusal?'error_during_execution':toolTurn?'error_max_turns':'success',...(mode.missingErrorFlag?{}:{is_error:toolTurn&&mode.falseMaxTurnsFlag?false:toolTurn||!!mode.refusal}),num_turns:1,total_cost_usd:mode.overCost?20:0.001}}}}
+`)
+  writeFileSync(join(target, 'server.mjs'), `import assert from'node:assert/strict';import{createServer}from'node:http';import{readFileSync,writeFileSync,statSync}from'node:fs';import{spawn}from'node:child_process';import{once}from'node:events';import{query}from'@anthropic-ai/claude-agent-sdk';
+const mode=JSON.parse(readFileSync(new URL('mode.json',import.meta.url),'utf8'));const sessions=new Map();let requests=0;const history=new Map();let previousTool;
+assert(!process.env.ANTHROPIC_API_KEY&&!process.env.ANTHROPIC_AUTH_TOKEN&&!process.env.CLAUDE_CODE_OAUTH_TOKEN&&!process.env.MERIDIAN_PROFILES&&!process.env.MERIDIAN_TELEMETRY_DB&&!process.env.CLAUDE_PROXY_CONFIG_DIR&&!process.env.AWS_PROFILE);
+export async function startProxyServer(config){
+const account=config.profiles[0].claudeConfigDir,cred=JSON.parse(readFileSync(account+'/.credentials.json','utf8'));
+assert(config.port===0&&config.host==='127.0.0.1'&&config.defaultProfile==='e72-owned'&&config.silent===false);assert(!cred.claudeAiOauth.refreshToken);assert((statSync(account+'/.credentials.json').mode&511)===256);assert(process.env.MERIDIAN_CREDENTIALS_READONLY==='1');assert(account!==process.env.CLAUDE_CONFIG_DIR);
+writeFileSync(new URL('audit.json',import.meta.url),JSON.stringify({account,work:process.env.MERIDIAN_WORKDIR,config:process.env.MERIDIAN_CONFIG_DIR,store:process.env.MERIDIAN_SESSION_DIR,plugins:config.pluginDir,home:process.env.HOME}));
+if(mode.pendingStartup)await new Promise(()=>{});
+if(mode.startupChild){const child=spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});setInterval(()=>{},1000);process.stdout.write('ready')"],{cwd:process.env.MERIDIAN_WORKDIR,stdio:['ignore','pipe','ignore']});writeFileSync(new URL('startup-child-pid',import.meta.url),String(child.pid));await once(child.stdout,'data');throw new Error('synthetic startup failure after child readiness')}
+const options={model:mode.sdkAlias?'sonnet':'claude-sonnet-5-5',maxTurns:1,env:{CLAUDE_CONFIG_DIR:account,...(mode.sdkAlias&&!mode.missingPin?{ANTHROPIC_DEFAULT_SONNET_MODEL:mode.wrongPin?'claude-sonnet-4-6':'claude-sonnet-5-5'}:{})},pathToClaudeCodeExecutable:process.env.MERIDIAN_CLAUDE_PATH,abortController:new AbortController()};if(mode.queryAtStartup)query({prompt:'{"tools":[]}',options});
+const server=createServer(async(req,res)=>{try{let text='';for await(const chunk of req)text+=chunk;const body=JSON.parse(text),actor=req.headers['x-claude-code-agent-id']??'main',prior=sessions.get(actor),sequence=(history.get(actor)??0)+1;history.set(actor,sequence);requests++;const requestNumber=requests;
+let tools=[];if(actor==='main'&&sequence===1&&!mode.missingAgentTool)tools=['alpha','beta'].map(label=>({type:'tool_use',id:'launch-'+label,name:'Agent',input:{subagent_type:'general-purpose',run_in_background:false,prompt:'Run echo '+label+'-1 then echo '+label+'-2'}}));if(actor!=='main'&&sequence<=2)tools=[{type:'tool_use',id:actor+'-'+sequence,name:'Bash',input:{command:'echo '+actor+'-'+sequence+(mode.wrongBash?' changed':'')}}];
+if(mode.streamingStagger&&actor!=='main'){res.writeHead(200,{'content-type':'text/event-stream'});res.flushHeaders()}const target=mode.forked?'f'+String(requestNumber).padStart(7,'0')+'-'+actor:undefined;let content=[];for await(const event of query({prompt:JSON.stringify({tools,actor,sequence}),options:{...options,...(!mode.baseline&&prior?{resume:mode.swappedFinalChain&&actor!=='main'&&sequence===3?sessions.get(actor==='alpha'?'beta':'alpha'):prior}:{}),...(target?{forkSession:!!prior,sessionId:target}:{})}})){if(event.session_id)sessions.set(actor,event.session_id);if(event.type==='assistant')content=event.message.content.map(tool=>tool.type==='tool_use'?({...tool,name:tool.name.replace(/^mcp__[^_]+__/,'')}):tool)}
+if(mode.repeatHttpToolId&&actor==='beta'&&sequence===2&&previousTool)content.push(previousTool);const hasTools=content.some(block=>block.type==='tool_use');if(hasTools)previousTool=content[0];
+const line='[PROXY] '+req.headers['x-request-id']+' adapter=claude-code msgCount='+body.messages.length+' tools='+(body.tools?.length??0)+' session='+(!mode.baseline&&prior?prior.slice(0,8):'new')+' lineage='+(!mode.baseline&&prior?'continuation':'diverged')+(mode.baseline?' diverged=unrelated-history':'')+(mode.missingWait?'':' sessionWait=0ms')+' private=synthetic-owner-secret';if(!mode.missingDecision||requestNumber!==2){console.log(line);if(mode.duplicateDecision&&requestNumber===2)console.log(line)}
+if((content.length||mode.streamingStagger)&&mode.terminalSse){const events=[{type:'message_start',message:{type:'message',content:[]}}];for(const[index,tool]of content.entries())events.push({type:'content_block_start',index,content_block:tool.type==='tool_use'?{type:'tool_use',id:tool.id,name:tool.name,input:{}}:{type:'text',text:''}},{type:'content_block_delta',index,delta:tool.type==='tool_use'?{type:'input_json_delta',partial_json:JSON.stringify(tool.input)}:{type:'text_delta',text:tool.text}},...(mode.brokenTerminal?[]:[{type:'content_block_stop',index}]));events.push({type:'message_delta',delta:{stop_reason:hasTools?'tool_use':'end_turn'}},{type:'message_stop'});if(mode.missingStart)events.shift();if(mode.earlyStop)events.splice(2,0,{type:'message_stop'});if(!res.headersSent)res.writeHead(200,{'content-type':'text/event-stream'});res.end(events.map(event=>'data: '+JSON.stringify(event)+String.fromCharCode(10,10)).join(''))}
+else{if(mode.brokenTerminal&&hasTools)content[0].input={changed:true};res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({type:'message',stop_reason:hasTools?'tool_use':'end_turn',content}))}
+}catch{res.writeHead(500);res.end('{}')}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));return{server,close:()=>new Promise(resolve=>server.close(resolve))}
+}
+`)
+  const client = join(target, 'client')
+  writeFileSync(client, `#!/usr/bin/env node
+import assert from'node:assert/strict';import{readFileSync,existsSync,writeFileSync}from'node:fs';
+assert(!process.env.ANTHROPIC_API_KEY&&!process.env.CLAUDE_CODE_OAUTH_TOKEN&&!process.env.MERIDIAN_CONFIG_DIR&&!process.env.MERIDIAN_SESSION_DIR&&!process.env.CLAUDE_PROXY_CONFIG_DIR&&!process.env.AWS_PROFILE);
+if(process.argv.includes('--version')){console.log('2.1.287 (Claude Code)');process.exit(0)}
+assert(process.env.ANTHROPIC_AUTH_TOKEN==='meridian-e72-local-dummy');assert(process.argv.includes('default')&&process.argv.includes('Bash(echo:*)')&&process.argv.includes('Agent'));
+const mode=JSON.parse(readFileSync(new URL('mode.json',import.meta.url),'utf8'));if(mode.hang){process.on('SIGTERM',()=>{});setInterval(()=>{},1000);await new Promise(()=>{})}
+const file=process.env.CLAUDE_CONFIG_DIR+'/turn.json',turn=existsSync(file)?Number(readFileSync(file,'utf8'))+1:1;writeFileSync(file,String(turn));
+const model=process.argv[process.argv.indexOf('--model')+1],session=process.argv[process.argv.indexOf(process.argv.includes('--resume')?'--resume':'--session-id')+1];
+const preissuedActors=new Set();let headersReady;const firstHeaders=new Promise(resolve=>headersReady=resolve);async function send(actor,results=[]){if(mode.preissuedToolResult&&!preissuedActors.has(actor)){preissuedActors.add(actor);results=[...results,...(actor==='main'?['alpha','beta'].map(label=>({type:'tool_result',tool_use_id:'launch-'+label,is_error:false,content:label+'-1 '+label+'-2'})):[{type:'tool_result',tool_use_id:actor+'-1',is_error:false,content:actor+'-1'}])]}const body={model:mode.wireWrongModel?'claude-sonnet-4-6':model,metadata:{user_id:JSON.stringify({session_id:mode.wrongRoot?'different-root':session})},stream:false,messages:[{role:'user',content:[{type:'text',text:mode.oversizedBody?'x'.repeat(3*1024*1024):'synthetic-owned-content'},...(!mode.missingToolResult?results:[])]}],tools:[{name:'Agent'},{name:'Bash'}]};const response=await fetch(process.env.ANTHROPIC_BASE_URL+'/v1/messages',{method:'POST',headers:{'content-type':'application/json',...(actor==='main'?{}:{'x-claude-code-agent-id':mode.swappedActor?'alpha':actor})},body:JSON.stringify(body)});if(actor==='alpha')headersReady();await response.text();assert(response.status===200)}
+const result=(id,text)=>({type:'tool_result',tool_use_id:id,is_error:false,content:text});
+if(turn===1){await send('main');const child=async label=>{await send(label);await send(label,[result(label+'-1',label+'-1')]);await send(label,[result(label+'-2',label+'-2')])};if(!mode.missingAgent){if(mode.noParallel){await child('alpha');await child('beta')}else if(mode.streamingStagger){const first=child('alpha');await firstHeaders;await Promise.all([first,child('beta')])}else await Promise.all([child('alpha'),child('beta')])}await send('main',[result('launch-alpha','alpha-1 alpha-2'),result('launch-beta','beta-1 beta-2')])}else{await send('main');if(mode.requestOverflow)for(let i=0;i<21;i++)await send('main')}console.log((turn===1?'DONE':'AGAIN')+' synthetic-owner-secret');
+`)
+  chmodSync(client, 0o700)
+  const native = join(target, 'native')
+  writeFileSync(native, '#!/usr/bin/env node\nconsole.log("2.1.284 (Claude Code)")\n'); chmodSync(native, 0o700)
+  const grant = join(root, 'owned-grant.json')
+  const bytes = JSON.stringify({ claudeAiOauth: { accessToken: 'synthetic-owner-secret', refreshToken: 'synthetic-refresh-never-used', expiresAt: Date.now() + 3600000, scopes: ['user:inference'] } })
+  writeFileSync(grant, bytes, { mode: 0o400 })
+  return { root, target, sdk, client, native, proof, grant, bytes }
+}
+function commandFor(f: ReturnType<typeof fixture>, extras: string[] = [], timeout = '10000') {
+  return [process.execPath, harness, '--synthetic', '--target-root', f.target, '--entry', 'server.mjs', '--client', f.client, '--client-version', '2.1.287', '--native-cli', f.native, '--native-cli-version', '2.1.284', '--sdk-version', '0.2.141', '--model', 'claude-sonnet-5-5', '--served-model', 'claude-sonnet-5-5', '--grant-file', f.grant, '--proof-dir', f.proof, '--max-queries', '20', '--max-cost-usd', '10', '--timeout-ms', timeout, ...extras]
+}
+let escrowSequence = 0
+async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
+  const f = fixture(mode)
+  let retainedSyntheticRuntime: string | undefined
+  try {
+    const child = Bun.spawn(commandFor(f, extras, timeout), { cwd: f.target, env: { ...process.env, ANTHROPIC_API_KEY: 'synthetic-ambient', ANTHROPIC_AUTH_TOKEN: 'synthetic-ambient', CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-ambient', MERIDIAN_PROFILES: 'synthetic-ambient', MERIDIAN_TELEMETRY_DB: '/synthetic-no-write', CLAUDE_PROXY_CONFIG_DIR: '/synthetic-no-read', AWS_PROFILE: 'synthetic-ambient' }, stdout: 'pipe', stderr: 'pipe' })
+    const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
+    const serialized = readFileSync(join(f.proof, 'claude-subagent-results.json'), 'utf8')
+    const escrow = process.env.E72_ESCROW_SYNTHETIC_DIR
+    if (escrow) writeFileSync(join(escrow, `control-${++escrowSequence}.json`), JSON.stringify({ mode, extras, timeout, proof: JSON.parse(serialized) }, null, 2), { flag: 'wx', mode: 0o600 })
+    const report = JSON.parse(serialized) as { result: string; acceptance: boolean; privateSnapshotCreated?: boolean; privateRuntimeRemoved: boolean; ownerGrantUnchanged: boolean; queries: unknown[]; checks: Record<string, boolean>; cleanupFailures: string[]; targetIdentityUnchanged?: boolean; failure?: string }
+    expect(serialized + out + err).not.toContain('synthetic-owner-secret')
+    expect(serialized + out + err).not.toContain('synthetic-refresh-never-used')
+    expect(report.acceptance).toBe(false)
+    expect(report.ownerGrantUnchanged).toBe(true)
+    const retained = !!mode.pendingStartup || !!mode.sdkCloseThrow
+    expect(report.privateRuntimeRemoved).toBe(!retained)
+    if (mode.pendingStartup) {
+      expect(report.cleanupFailures).toContain('proxy startup join')
+      expect(report.cleanupFailures).toContain('private runtime retained after cleanup failure')
+    } else if (mode.sdkCloseThrow) expect(report.cleanupFailures).toContain('SDK abort failure')
+    else expect(report.cleanupFailures).toEqual([])
+    expect(readFileSync(f.grant, 'utf8')).toBe(f.bytes)
+    expect(statSync(f.grant).mode & 0o777).toBe(0o400)
+    if (existsSync(join(f.target, 'audit.json'))) {
+      const audit = JSON.parse(readFileSync(join(f.target, 'audit.json'), 'utf8')) as Record<string, string>
+      expect(new Set(Object.values(audit)).size).toBe(Object.values(audit).length)
+      for (const directory of Object.values(audit)) expect(existsSync(directory)).toBe(retained)
+      if (retained) {
+        const account = audit.account
+        if (typeof account !== 'string' || account.length === 0) throw new Error('Synthetic retained-runtime audit lacks an account directory')
+        const candidate = dirname(account)
+        expect(basename(candidate).startsWith('meridian-e72-')).toBe(true)
+        expect(Object.values(audit).every(directory => dirname(directory) === candidate)).toBe(true)
+        retainedSyntheticRuntime = candidate
+      }
+    }
+    if (existsSync(join(f.target, 'startup-child-pid'))) {
+      const pid = Number(readFileSync(join(f.target, 'startup-child-pid'), 'utf8'))
+      expect(() => process.kill(pid, 0)).toThrow()
+    }
+    return { report, code, queried: existsSync(join(f.target, 'query-called')) }
+  } finally {
+    // All observable owned work has joined. The independent test controller
+    // removes deliberately retained fixtures containing only synthetic grants.
+    if (retainedSyntheticRuntime) rmSync(retainedSyntheticRuntime, { recursive: true, force: true })
+    rmSync(f.root, { recursive: true, force: true })
+  }
+}
+
+describe('E72 native harness containment and meaningful subagent receipts', () => {
+  it('reserves exclusive proof output before reading a grant or invoking SDK', async () => {
+    for (const kind of ['symlink', 'hardlink', 'regular']) {
+      const f = fixture(), resultFile = join(f.proof, 'claude-subagent-results.json'), target = kind === 'regular' ? resultFile : join(f.root, 'unrelated-owner-file')
+      const bytes = 'synthetic existing output owner bytes\n'
+      try {
+        writeFileSync(target, bytes, { mode: 0o600 })
+        if (kind === 'symlink') symlinkSync(target, resultFile)
+        if (kind === 'hardlink') linkSync(target, resultFile)
+        const before = statSync(target), child = Bun.spawn(commandFor(f), { cwd: f.target, stdout: 'pipe', stderr: 'pipe' })
+        const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
+        expect(code).toBe(1); expect(readFileSync(target, 'utf8')).toBe(bytes); expect(statSync(target).ino).toBe(before.ino); expect(statSync(target).nlink).toBe(before.nlink)
+        expect(existsSync(join(f.target, 'query-called'))).toBe(false); expect(readFileSync(f.grant, 'utf8')).toBe(f.bytes); expect(out + err).not.toContain('synthetic-owner-secret')
+      } finally { rmSync(f.root, { recursive: true, force: true }) }
+    }
+  }, 30000)
+  it('pairs two observed parallel foreground agents with exact Agent/Bash SDK, HTTP and result receipts', async () => {
+    const result = await run(); expect(result.code, JSON.stringify(result.report)).toBe(0); expect(result.report.result).toBe('PASS'); expect(result.report.queries.length).toBe(9); expect(Object.values(result.report.checks).every(Boolean)).toBe(true)
+  }, 30000)
+  it('pairs the exact supported SDK MCP namespace and rejects another namespace or tool name', async () => {
+    const valid = await run({ sdkPrefixed: true }); expect(valid.code, JSON.stringify(valid.report)).toBe(0)
+    const namespace = await run({ wrongSdkNamespace: true }); expect(namespace.code).toBe(1); expect(namespace.report.checks.nativeReceipts).toBe(false)
+    const name = await run({ wrongSdkName: true }); expect(name.code).toBe(1); expect(name.report.checks.actualAgentAndBashReceipts).toBe(false)
+  }, 30000)
+  it('measures streamed child body overlap after staggered headers and rejects serial children', async () => {
+    const parallel = await run({ terminalSse: true, streamingStagger: true }); expect(parallel.code, JSON.stringify(parallel.report)).toBe(0); expect(parallel.report.checks.foregroundParallelism).toBe(true)
+    const serial = await run({ terminalSse: true, noParallel: true }); expect(serial.code).toBe(1); expect(serial.report.checks.foregroundParallelism).toBe(false)
+  }, 30000)
+  it('accepts managed fork identities whose resume chain stays with each own actor', async () => {
+    const result = await run({ forked: true }); expect(result.code, JSON.stringify(result.report)).toBe(0); expect(result.report.checks.distinctSessionMappings).toBe(true)
+  }, 30000)
+  it('owns every tool-less final/resumed query and rejects equal-count swapped resume chains or ambiguous output', async () => {
+    for (const mode of [{ swappedFinalChain: true }, { ambiguousText: true }]) {
+      const result = await run(mode); expect(result.code).toBe(1); expect(result.report.queries.length).toBe(9); expect(result.report.checks.allQueriesCorrelated && result.report.checks.distinctSessionMappings).toBe(false)
+    }
+  }, 30000)
+  it('requires the same meaningful baseline defects and rejects a fixed expected-unfixed target', async () => {
+    const baseline = await run({ baseline: true }); expect(baseline.code).toBe(1); expect(baseline.report.checks.subagentResume).toBe(false); expect(baseline.report.checks.distinctSessionMappings).toBe(false)
+    const expected = await run({ baseline: true }, ['--expect-unfixed']); expect(expected.code, JSON.stringify(expected.report)).toBe(0); expect(expected.report.result).toBe('EXPECTED_BASELINE_FAILURE')
+    const wrong = await run({}, ['--expect-unfixed']); expect(wrong.code).toBe(1)
+  }, 30000)
+  it('refuses a client that answers successfully without real multi-turn Agent tool use and parallel wire traffic', async () => {
+    for (const mode of [{ missingAgent: true }, { missingAgentTool: true }, { noParallel: true }]) {
+      const result = await run(mode); expect(result.code).toBe(1)
+      expect(result.report.checks.twoMultiturnAgents && result.report.checks.actualAgentAndBashReceipts && result.report.checks.foregroundParallelism).toBe(false)
+    }
+  }, 30000)
+  it('requires complete one-to-one routing receipts and explicit finite lease waits', async () => {
+    for (const mode of [{ missingDecision: true }, { duplicateDecision: true }, { missingWait: true }]) {
+      const result = await run(mode); expect(result.code).toBe(1); expect(result.report.checks.requestDecisionsComplete && result.report.checks.boundedLeaseWait).toBe(false)
+    }
+  }, 30000)
+  it('rejects borrowed root identities and shared agent wire identities', async () => {
+    const root = await run({ wrongRoot: true }); expect(root.code).toBe(1); expect(root.report.checks.rootedWireIdentity).toBe(false)
+    const actors = await run({ swappedActor: true }); expect(actors.code).toBe(1); expect(actors.report.checks.twoMultiturnAgents).toBe(false)
+  }, 30000)
+  it('rejects tool claims without exact commands, returned execution results or paired terminals', async () => {
+    for (const mode of [{ wrongBash: true }, { missingToolResult: true }, { brokenTerminal: true }, { preissuedToolResult: true }]) {
+      const result = await run(mode); expect(result.code).toBe(1); expect(result.report.checks.actualAgentAndBashReceipts).toBe(false)
+    }
+  }, 30000)
+  it('rejects tool IDs reused across SDK owners or repeated HTTP terminals', async () => {
+    for (const mode of [{ duplicateToolId: true }, { repeatHttpToolId: true }]) {
+      const result = await run(mode); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
+    }
+  }, 30000)
+  it('accepts only an exact full SDK model or a Sonnet tier alias with the explicit version pin', async () => {
+    const valid = await run({ sdkAlias: true }); expect(valid.code, JSON.stringify(valid.report)).toBe(0)
+    for (const mode of [{ sdkAlias: true, missingPin: true }, { sdkAlias: true, wrongPin: true }]) {
+      const result = await run(mode); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
+    }
+    const wire = await run({ wireWrongModel: true }); expect(wire.code).toBe(1); expect(wire.report.checks.requestedModelIdentity).toBe(false)
+  }, 30000)
+  it('requires exact served model, positive real usage and canonical boolean result flags', async () => {
+    for (const mode of [{ wrongModel: true }, { refusal: true }, { missingErrorFlag: true }, { falseMaxTurnsFlag: true }]) {
+      const result = await run(mode); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
+    }
+  }, 30000)
+  it('accepts complete ordered SSE receipts and rejects partial or early terminals', async () => {
+    const good = await run({ terminalSse: true }); expect(good.code, JSON.stringify(good.report)).toBe(0)
+    for (const mode of [{ brokenTerminal: true }, { missingStart: true }, { earlyStop: true }]) {
+      const result = await run({ terminalSse: true, ...mode }); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
+    }
+  }, 30000)
+  it('enforces cost, request count and incoming body limits independently of client claims', async () => {
+    const cost = await run({ overCost: true }); expect(cost.code).toBe(1); expect(cost.report.checks.costBound).toBe(false)
+    const requests = await run({ requestOverflow: true }); expect(requests.code).toBe(1); expect(requests.report.queries.length).toBeLessThanOrEqual(20)
+    const body = await run({ oversizedBody: true }); expect(body.code).toBe(1); expect(body.report.queries).toEqual([])
+  }, 30000)
+  it('zero-query rehearsal starts and closes the private proxy without starting client generation', async () => {
+    const result = await run({}, ['--rehearsal']); expect(result.code).toBe(0); expect(result.report.result).toBe('REHEARSAL'); expect(result.report.queries).toEqual([]); expect(result.queried).toBe(false)
+  }, 30000)
+  it('rehearsal fences unexpected target startup SDK calls before invoking the fake dependency', async () => {
+    const result = await run({ queryAtStartup: true }, ['--rehearsal']); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.queries).toEqual([])
+  }, 30000)
+  it('cleans private immutable account after a post-copy failure without generation', async () => {
+    const result = await run({}, ['--fail-after-copy']); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.privateSnapshotCreated).toBe(true); expect(result.report.queries).toEqual([])
+  }, 30000)
+  it('joins hanging clients and ignored-TERM startup children on owned failure paths', async () => {
+    const hung = await run({ hang: true }, [], '500'); expect(hung.code).toBe(1); expect(hung.queried).toBe(false)
+    const startup = await run({ startupChild: true }); expect(startup.code).toBe(1); expect(startup.queried).toBe(false)
+  }, 30000)
+  it('handles a throwing SDK close without escaping joined cleanup or deleting its retained fixture', async () => {
+    const result = await run({ sdkCloseThrow: true }, [], '3000'); expect(result.queried).toBe(true); expect(result.code).toBe(1); expect(result.report.cleanupFailures).toContain('SDK abort failure')
+  }, 30000)
+  it('retains isolated runtime and closes acceptance when startup cannot be joined', async () => {
+    const result = await run({ pendingStartup: true }, [], '500'); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.queries).toEqual([])
+  }, 30000)
+})
