@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { once } from 'node:events'
-import { lstatSync, statSync, fstatSync, openSync, closeSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, readdirSync, existsSync } from 'node:fs'
+import { constants as fsConstants, lstatSync, statSync, fstatSync, openSync, closeSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -54,13 +54,28 @@ for (const key of Object.keys(saved)) console[key] = (...values) => {
   records.push({ turn, request, lineage: word('lineage'), divergence: word('diverged'), tools: Number(word('tools')), messages: Number(word('msgCount')), sessionWaitMs: Number(word('sessionWait')?.replace(/ms$/, '')), auxiliary: word('diverged') === 'independent-request:auxiliary-request' })
 }
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-function snapshot(file) {
-  const link = lstatSync(file), row = statSync(file), bytes = readFileSync(file)
+const fileIdentity = row => [row.dev, row.ino, row.uid, row.gid, row.mode, row.nlink, row.size, row.mtimeMs, row.ctimeMs]
+function snapshot(file, ownedGrant = false) {
+  const link = lstatSync(file)
   assert(link.isFile() && !link.isSymbolicLink(), 'Identity input must be a regular non-symlink file')
-  return { file, bytes, identity: [row.dev, row.ino, row.uid, row.gid, row.mode, row.nlink, row.size], hash: hash(bytes) }
+  const verifyGrant = row => {
+    if (!ownedGrant) return
+    assert((row.mode & 0o777) === 0o400 && row.nlink === 1 && row.uid === process.getuid(), 'Owned grant must be private, read-only, single-link and runtime-owned before reading content')
+  }
+  verifyGrant(link)
+  assert(Number.isInteger(fsConstants.O_NOFOLLOW) && Number.isInteger(fsConstants.O_NONBLOCK), 'No-follow nonblocking input reads unavailable')
+  const descriptor = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK)
+  try {
+    const row = fstatSync(descriptor), identity = fileIdentity(row)
+    assert(row.isFile() && JSON.stringify(identity) === JSON.stringify(fileIdentity(link)), 'Identity input changed before descriptor read')
+    verifyGrant(row)
+    const bytes = readFileSync(descriptor), after = lstatSync(file)
+    assert(after.isFile() && !after.isSymbolicLink() && JSON.stringify(fileIdentity(fstatSync(descriptor))) === JSON.stringify(identity) && JSON.stringify(fileIdentity(after)) === JSON.stringify(identity), 'Identity input changed during descriptor read')
+    return { file, bytes, identity, hash: hash(bytes), ownedGrant }
+  } finally { closeSync(descriptor) }
 }
 function unchanged(before) {
-  const after = snapshot(before.file)
+  const after = snapshot(before.file, before.ownedGrant)
   return after.hash === before.hash && JSON.stringify(after.identity) === JSON.stringify(before.identity)
 }
 function sdkPackage(entry) {
@@ -260,7 +275,7 @@ try {
     inputs.push(manifestInput)
   }
   proof.identity = { targetKind: args['source-head'] ? 'source' : 'installed-package', sourceHead: args['source-head'], packageVersion: targetPackage.version, proxyEntrySha256: inputs[0].hash, sdkVersion: installed.value.version, sdkEntrySha256: inputs[1].hash, clientSha256: inputs[3].hash, nativeCliSha256: inputs[4].hash }
-  source = snapshot(args['grant-file'])
+  source = snapshot(args['grant-file'], true)
   assert((source.identity[4] & 0o777) === 0o400 && source.identity[5] === 1, 'Owned grant must be a single-link private read-only file (0400)')
   assert(source.identity[2] === process.getuid(), 'Owned grant must belong to this runtime user')
   const credential = JSON.parse(source.bytes.toString('utf8')), grant = credential.claudeAiOauth
@@ -272,7 +287,7 @@ try {
   // Do not give a native runtime refresh authority or the immutable source file.
   const { refreshToken: _removedRefresh, ...readOnlyGrant } = grant
   writeFileSync(join(account, '.credentials.json'), JSON.stringify({ claudeAiOauth: readOnlyGrant }), { mode: 0o400, flag: 'wx' })
-  runtimeGrant = snapshot(join(account, '.credentials.json'))
+  runtimeGrant = snapshot(join(account, '.credentials.json'), true)
   proof.privateSnapshotCreated = true
   writeFileSync(join(config, 'settings.json'), JSON.stringify({ routing: 'active', updateCheck: false }), { mode: 0o600 })
   writeFileSync(join(config, 'profiles.json'), '[]', { mode: 0o600 })

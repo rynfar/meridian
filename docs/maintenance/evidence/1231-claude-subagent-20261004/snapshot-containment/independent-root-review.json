@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "independent root E72 snapshot containment source and evidence review",
+  "date": "2026-10-05T04:15:19.128913+00:00",
+  "observedHead": "f7b81ac0f0a840b5ca833780b7eb02958ae7e22d",
+  "sourceSha256": {
+    "scripts/e2e-claude-code-subagent-session.mjs": "a4abef7637160466007d51ae37642e4947ab05a2aff2927ab35041fd94e4417a",
+    "src/__tests__/claude-subagent-harness.test.ts": "a8fe98331b604562f1ced01c46082557c8b21bf21dc029e3f06953bcbdabe357"
+  },
+  "receiptSha256": "ab1b3acb5f14e511f611f8d1fcc8786f066b75a08db9b7e3dae3baf5539b4a2c",
+  "workerManifestSha256": "0a91dec979fc483a347058bf197287cd9e119c2c1cf1fa3620fff359dc9901eb",
+  "verifiedArtifacts": 74,
+  "review": {
+    "metadataBeforeContent": true,
+    "grantUid0400SingleLinkBeforeOpenAndRead": true,
+    "noFollowNonblockingFd": true,
+    "descriptorAndPathIdentityBeforeAfter": true,
+    "grantInvariantPredicateRetained": true,
+    "sameFiveControlBytesBeforeAfter": true,
+    "originalControllerAndAllExistingTestsBytePreserved": true,
+    "observedChildCloseAndBoundedKillJoin": true,
+    "allNetworkAndSdkFencedInNewControls": true
+  },
+  "focusedEvidence": {
+    "before": {
+      "pass": 0,
+      "fail": 5,
+      "assertions": 63
+    },
+    "after": {
+      "pass": 5,
+      "fail": 0,
+      "assertions": 69
+    },
+    "completeFile": {
+      "pass": 27,
+      "fail": 0,
+      "assertions": 913
+    }
+  },
+  "decision": "PASS for this narrow E72 correction, no additional material source finding. Approved selected correction/evidence commit; keep parent rebase, full local/final-head CI and actual affected-flow proof open.",
+  "limits": [
+    "Darwinarm64 synthetic input containment only, no actual blocking FIFO",
+    "zero auth/model calls in new controls",
+    "native classifier/requested/served semantics unchanged",
+    "no production change or full suite/typecheck/build performed in this review",
+    "worker74-artifact manifest remains immutable; this supplemental root receipt is separate"
+  ]
+}

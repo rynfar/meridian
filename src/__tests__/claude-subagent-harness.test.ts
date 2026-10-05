@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test'
-import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { constants as fsConstants, chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
+import { spawn } from 'node:child_process'
 
 const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-subagent-session.mjs')
 type Mode = { baseline?: boolean; missingAgent?: boolean; missingDecision?: boolean; duplicateDecision?: boolean; missingWait?: boolean; swappedActor?: boolean; startupChild?: boolean; pendingStartup?: boolean; wrongModel?: boolean; queryAtStartup?: boolean; hang?: boolean; missingAgentTool?: boolean; duplicateToolId?: boolean; repeatHttpToolId?: boolean; missingErrorFlag?: boolean; falseMaxTurnsFlag?: boolean; brokenTerminal?: boolean; terminalSse?: boolean; missingStart?: boolean; earlyStop?: boolean; wrongBash?: boolean; missingToolResult?: boolean; wrongRoot?: boolean; noParallel?: boolean; forked?: boolean; refusal?: boolean; overCost?: boolean; requestOverflow?: boolean; oversizedBody?: boolean; sdkCloseThrow?: boolean; sdkPrefixed?: boolean; wrongSdkNamespace?: boolean; wrongSdkName?: boolean; streamingStagger?: boolean; preissuedToolResult?: boolean; sdkAlias?: boolean; wrongPin?: boolean; missingPin?: boolean; wireWrongModel?: boolean; swappedFinalChain?: boolean; ambiguousText?: boolean }
@@ -62,6 +63,68 @@ function commandFor(f: ReturnType<typeof fixture>, extras: string[] = [], timeou
   return [process.execPath, harness, '--synthetic', '--target-root', f.target, '--entry', 'server.mjs', '--client', f.client, '--client-version', '2.1.287', '--native-cli', f.native, '--native-cli-version', '2.1.284', '--sdk-version', '0.2.141', '--model', 'claude-sonnet-5-5', '--served-model', 'claude-sonnet-5-5', '--grant-file', f.grant, '--proof-dir', f.proof, '--max-queries', '20', '--max-cost-usd', '10', '--timeout-ms', timeout, ...extras]
 }
 let escrowSequence = 0
+type GrantKind = 'symlink' | 'directory' | 'hardlink' | 'writable' | 'regular'
+async function grantSnapshotControl(kind: GrantKind) {
+  const f = fixture(), selected = join(f.root, 'selected-grant'), marker = join(f.root, 'grant-read-observed.json'), preload = join(f.root, 'observe-grant-reads.mjs')
+  let joined = false
+  try {
+    if (kind === 'symlink') symlinkSync(f.grant, selected)
+    else if (kind === 'directory') mkdirSync(selected, { mode: 0o700 })
+    else if (kind === 'hardlink') linkSync(f.grant, selected)
+    else writeFileSync(selected, f.bytes, { mode: kind === 'writable' ? 0o600 : 0o400 })
+    // This preload observes the actual harness, not an extracted reimplementation.
+    // All grants, targets and dependencies are marked synthetic. Any network call
+    // is recorded and refused before dispatch, including an unexpected auth probe.
+    writeFileSync(preload, `import * as fs from 'node:fs';import {spyOn} from 'bun:test';
+const selected=${JSON.stringify(selected)},marker=${JSON.stringify(marker)},read=fs.readFileSync,open=fs.openSync,close=fs.closeSync,write=fs.writeFileSync,tracked=new Set(),observed={contentReadAttempts:0,selectedOpenFlags:[],networkAttempts:0};
+spyOn(fs,'openSync').mockImplementation((file,...args)=>{if(file===selected)observed.selectedOpenFlags.push(args[0]);const fd=open(file,...args);if(file===selected)tracked.add(fd);return fd});
+spyOn(fs,'closeSync').mockImplementation(fd=>{tracked.delete(fd);return close(fd)});
+spyOn(fs,'readFileSync').mockImplementation((file,...args)=>{if(file===selected||tracked.has(file))observed.contentReadAttempts++;return read(file,...args)});
+globalThis.fetch=()=>{observed.networkAttempts++;throw new Error('Synthetic snapshot control fenced external requests')};
+process.once('exit',()=>write(marker,JSON.stringify(observed),{mode:0o600,flag:'wx'}));
+`, { mode: 0o600 })
+    const command = commandFor(f, ['--rehearsal']); command[command.indexOf('--grant-file') + 1] = selected
+    const home = join(f.root, 'empty-child-home'); mkdirSync(home, { mode: 0o700 })
+    const child = spawn(command[0]!, ['--preload', preload, ...command.slice(1)], { cwd: f.target, detached: true, env: { PATH: process.env.PATH, HOME: home, TMPDIR: f.root }, stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = '', err = ''
+    for (const [name, stream] of [['out', child.stdout], ['err', child.stderr]] as const) stream?.on('data', bytes => {
+      if (name === 'out') out += bytes.toString(); else err += bytes.toString()
+      if (Buffer.byteLength(out) + Buffer.byteLength(err) > 2 * 1024 * 1024 && child.pid) process.kill(-child.pid, 'SIGKILL')
+    })
+    const completion = new Promise<number | null>((resolveExit, reject) => {
+      child.once('error', reject)
+      child.once('close', code => { joined = true; resolveExit(code) })
+    })
+    async function waitForClose(milliseconds: number) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try { return await Promise.race([completion, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Synthetic snapshot control child did not join')), milliseconds) })]) }
+      finally { clearTimeout(timer) }
+    }
+    let code: number | null
+    try { code = await waitForClose(20000) }
+    finally {
+      if (!joined && child.pid) {
+        try { process.kill(-child.pid, 'SIGKILL') } catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) throw error }
+        await waitForClose(5000)
+      }
+    }
+    const observed = JSON.parse(readFileSync(marker, 'utf8')) as { contentReadAttempts: number; selectedOpenFlags: number[]; networkAttempts: number }
+    const report = JSON.parse(readFileSync(join(f.proof, 'claude-subagent-results.json'), 'utf8')) as { result: string; acceptance: boolean; queries: unknown[]; cleanupFailures: string[]; privateRuntimeRemoved: boolean; privateSnapshotCreated?: boolean }
+    const record = { kind, code, joined, ...observed, sdkInvoked: existsSync(join(f.target, 'query-called')), result: report.result, acceptance: report.acceptance, queryCount: report.queries.length, cleanupFailures: report.cleanupFailures, privateRuntimeRemoved: report.privateRuntimeRemoved, privateSnapshotCreated: report.privateSnapshotCreated ?? false }
+    const escrow = process.env.E72_SNAPSHOT_ESCROW_DIR
+    if (escrow) writeFileSync(join(escrow, `${kind}.json`), JSON.stringify(record, null, 2), { mode: 0o600, flag: 'wx' })
+    expect(out + err).not.toContain('synthetic-owner-secret')
+    expect(out + err).not.toContain('synthetic-refresh-never-used')
+    expect(readFileSync(f.grant, 'utf8')).toBe(f.bytes)
+    expect(record.joined).toBe(true); expect(record.networkAttempts).toBe(0); expect(record.sdkInvoked).toBe(false)
+    expect(record.acceptance).toBe(false); expect(record.queryCount).toBe(0); expect(record.cleanupFailures).toEqual([]); expect(record.privateRuntimeRemoved).toBe(true)
+    return record
+  } finally {
+    // Remove synthetic inputs only after observing the child close, or after a
+    // failed spawn with no process handle. A join failure leaves evidence intact.
+    if (joined) rmSync(f.root, { recursive: true, force: true })
+  }
+}
 async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
   const f = fixture(mode)
   let retainedSyntheticRuntime: string | undefined
@@ -112,6 +175,18 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
 }
 
 describe('E72 native harness containment and meaningful subagent receipts', () => {
+  for (const kind of ['symlink', 'directory', 'hardlink', 'writable'] as const) {
+    it(`rejects a ${kind} grant before any content read, auth request or SDK call`, async () => {
+      const record = await grantSnapshotControl(kind)
+      expect(record.code).toBe(1); expect(record.contentReadAttempts).toBe(0); expect(record.privateSnapshotCreated).toBe(false)
+    }, 30000)
+  }
+  it('reads a private regular grant through no-follow nonblocking descriptors', async () => {
+    const record = await grantSnapshotControl('regular')
+    expect(record.code).toBe(0); expect(record.result).toBe('REHEARSAL'); expect(record.privateSnapshotCreated).toBe(true)
+    expect(record.contentReadAttempts).toBe(2); expect(record.selectedOpenFlags.length).toBe(2)
+    for (const flags of record.selectedOpenFlags) expect(flags).toBe(fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK)
+  }, 30000)
   it('reserves exclusive proof output before reading a grant or invoking SDK', async () => {
     for (const kind of ['symlink', 'hardlink', 'regular']) {
       const f = fixture(), resultFile = join(f.proof, 'claude-subagent-results.json'), target = kind === 'regular' ? resultFile : join(f.root, 'unrelated-owner-file')

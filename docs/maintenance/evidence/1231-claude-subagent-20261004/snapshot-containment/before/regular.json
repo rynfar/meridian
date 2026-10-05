@@ -1,0 +1,15 @@
+{
+  "kind": "regular",
+  "code": 0,
+  "joined": true,
+  "contentReadAttempts": 2,
+  "selectedOpenFlags": [],
+  "networkAttempts": 0,
+  "sdkInvoked": false,
+  "result": "REHEARSAL",
+  "acceptance": false,
+  "queryCount": 0,
+  "cleanupFailures": [],
+  "privateRuntimeRemoved": true,
+  "privateSnapshotCreated": true
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "symlink",
+  "code": 1,
+  "joined": true,
+  "contentReadAttempts": 1,
+  "selectedOpenFlags": [],
+  "networkAttempts": 0,
+  "sdkInvoked": false,
+  "result": "FAIL",
+  "acceptance": false,
+  "queryCount": 0,
+  "cleanupFailures": [],
+  "privateRuntimeRemoved": true,
+  "privateSnapshotCreated": false
+}

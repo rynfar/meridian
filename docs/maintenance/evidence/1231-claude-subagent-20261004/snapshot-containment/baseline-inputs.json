@@ -1,0 +1,15 @@
+{
+  "baseline_head": "f7b81ac0f0a840b5ca833780b7eb02958ae7e22d",
+  "baseline_harness_sha256": "a21992f13904d810aefd73b772922af640017d7428cdc67b0765ffc7fcb3f60f",
+  "control_test_sha256": "a8fe98331b604562f1ced01c46082557c8b21bf21dc029e3f06953bcbdabe357",
+  "baseline_harness_archive_sha256": "9593e4267790be19e9f72627b0426a2e03172c2d19407d1db4ef26cf4fb4bd00",
+  "controls": [
+    "symlink",
+    "directory",
+    "hardlink",
+    "writable",
+    "regular"
+  ],
+  "native_acceptance": false,
+  "sdk_or_auth_calls_authorized": false
+}
