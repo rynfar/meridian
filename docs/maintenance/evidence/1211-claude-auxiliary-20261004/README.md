@@ -5,8 +5,9 @@
 Draft [#1279](https://github.com/rynfar/meridian/pull/1279) previously submitted
 `cd8b5063a1e001f61eb610f82c05e8bd6e20974a`. Root's fresh read records six
 executed CI checks passing and the expected changelog skip for that head only.
-The new reviewed harness/test/instruction correction below requires fresh local
-gates and new-head CI; the earlier `80d1ce81` full-suite/build proof is historical.
+The reviewed harness/test/instruction correction below passed fresh local
+gates on clean `a088de32`; new-head CI remains required. The earlier
+`80d1ce81` full-suite/build proof is historical.
 No proxy production module or public plugin interface changes in this packet.
 
 The [29-slice official selector audit](classifier-model-selection-audit/REPORT.md)
@@ -58,13 +59,22 @@ optional artifact-hash type errors; no suite ran. A separate
 retains both digest assertions after runtime string guards. Test `64f2cba2`
 passes standalone typecheck and the actual source/compiled subset (2 tests /
 72 assertions); script `e2f58e5a` and E71 instructions `f4410422` are unchanged.
-The prior 34/1,124 focus belongs to test `b58d12c7`. Fresh full gates on the
-clean correction commit remain pending.
+The prior 34/1,124 focus belongs to test `b58d12c7`.
 
-The five contributor mappings remain unchanged. A new clean source commit,
-final `npm test`, standalone typecheck/build and new-head CI remain to be
-recorded. Actual Linux E71/E55/all-four-E41 proof remains open. No source PR or
-issue is closed; no release is authorized.
+The [final local gate record](final-role-local-gates/REPORT.md) passes on clean
+`a088de329febb62b147eb4af82f570ccf3b879bc`: **5,431 pass / 36 skip / 0 fail**,
+**28,123 assertions**, all **19 npm batches**, standalone typecheck and build.
+The fresh verified build certifies that source with 409 artifact hashes checked.
+A separate current source/current certified compiled subset passes 2 tests /
+72 assertions over eight target cases; SDK/auth/executable discovery is mocked.
+Node and Bun report `darwin/arm64`; the immutable first Python freeze's x86_64
+string and separate current Python arm64 observation remain explicitly qualified.
+The old `80d1ce81` compiled receipts retain their historical source identity.
+
+The five contributor mappings remain unchanged. The delivery adds evidence and
+documentation after tested source `a088de32`, with executable bytes preserved.
+New-head CI and actual Linux E71/E55/all-four-E41 proof remain open. No source
+PR or issue is closed; no release is authorized.
 
 ## Prior production review and initial delivery
 

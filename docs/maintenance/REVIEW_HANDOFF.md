@@ -327,7 +327,14 @@ before any suite. Its raw TS2769 failures are preserved. A separate explicit
 artifact-hash string guard corrects test typing without changing digest/model/
 ownership expectations; `64f2cba2` passes standalone typecheck and the actual
 source/compiled subset (2 tests / 72 assertions). The 34/1,124 result above
-is historical `b58d12c7` proof; the clean corrected full rerun remains pending.
+is historical `b58d12c7` proof. The [final local gates](evidence/1211-claude-auxiliary-20261004/final-role-local-gates/REPORT.md)
+pass at clean `a088de329febb62b147eb4af82f570ccf3b879bc`: 5,431 pass / 36 skip /
+0 fail, 28,123 assertions, all 19 batches, standalone typecheck and fresh build.
+Verified build provenance names that exact source and 409 checked artifacts.
+The current source/current certified compiled HTTP subset also passes 2 tests /
+72 assertions over eight ownership cases with mocked SDK/auth/executable paths.
+Older compiled `80d1ce81` evidence remains historical; the ordinary full suite
+skips the opt-in compiled case, separately executed in this final subset.
 
 All five Noah Passalacqua source Author/AuthorDate/subject tuples remain exact;
 this is a separate maintainer harness correction with no production/public-API
@@ -335,8 +342,11 @@ change. Root's fresh current-main read is `74d0a499`; no rebase is needed.
 Draft [#1279](https://github.com/rynfar/meridian/pull/1279) at prior `cd8b5063`
 has all six executed checks passing plus expected changelog skip, with no
 comments/reviews. That CI and the earlier `80d1ce81` full gates apply only to
-those historical heads. The new clean commit and fresh local full test,
-standalone typecheck/build and new-head CI remain pending at this checkpoint.
+those historical heads. The final evidence-only delivery follows source-stable
+`a088de32`; new-head CI remains required. Node/Bun report macOS arm64; the first
+immutable Python freeze
+reports x86_64 and the current Python observation arm64, retained as distinct
+process observations rather than native-client proof.
 Actual Linux/client/model E71, E55 and all four E41 acceptance gates remain open,
 including selector/policy/entitlement/probe/demotion and separate retry limits.
 No native/auth/model call, source closure, release or external message is

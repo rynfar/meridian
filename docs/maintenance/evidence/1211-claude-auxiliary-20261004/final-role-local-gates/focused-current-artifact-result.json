@@ -1,0 +1,22 @@
+{
+  "head": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "command": [
+    "bun",
+    "test",
+    "src/__tests__/claude-auto-mode-harness.test.ts",
+    "--test-name-pattern",
+    "binds actual source|binds existing certified compiled"
+  ],
+  "environmentNames": [
+    "E71_COMPILED_CONTEXT_CONTROL",
+    "E71_CONTEXT_EVIDENCE_DIR"
+  ],
+  "startedUtc": "2026-10-05T04:38:06.228253+00:00",
+  "finishedUtc": "2026-10-05T04:38:09.688982+00:00",
+  "exit": 0,
+  "logSha256": "2369e0f76ac655f4826cb52d209cf2e7c6c0d46ce139b5bc614b0b0f51580c5d",
+  "cleanAfter": true,
+  "compiledCertificationHead": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "allSDKAuthExecutableResolutionMocked": true,
+  "nativeCalls": 0
+}

@@ -68,7 +68,8 @@
     },
     "direction": "Role-aware model receipts, metadata-first snapshots and joined HTTP observer cleanup; original five contributor tuples unchanged",
     "nativeAcceptance": false,
-    "freshFinalGatesRequired": true
+    "freshFinalGatesRequired": false,
+    "freshDeliveryHeadCIRequired": true
   },
   "typedArtifactGuardCorrection": {
     "parentHead": "72b766b497eaf96069c6633499ac813e58908e1d",
@@ -80,6 +81,32 @@
     "standaloneTypecheckExit": 0,
     "focusedTests": 2,
     "focusedAssertions": 72,
-    "freshFullGatePending": true
+    "freshFullGatePending": false
+  },
+  "finalSourceStableLocalGates": {
+    "head": "a088de329febb62b147eb4af82f570ccf3b879bc",
+    "tree": "f8cbaa6e8aca90a62157f68dd66a1c3134aa0cca",
+    "sourceSha256": {
+      "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+      "src/__tests__/claude-auto-mode-harness.test.ts": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+      "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+    },
+    "npmTest": {
+      "pass": 5431,
+      "skip": 36,
+      "fail": 0,
+      "assertions": 28123,
+      "batches": 19
+    },
+    "standaloneTypecheckExit": 0,
+    "buildExit": 0,
+    "buildCertification": "verified",
+    "buildArtifactCount": 409,
+    "currentSourceAndCompiledFocusedTests": 2,
+    "currentSourceAndCompiledFocusedAssertions": 72,
+    "evidence": "final-role-local-gates/result.json",
+    "evidenceOnlyDeliveryFollowsTestedSource": true,
+    "nativeAcceptance": false,
+    "freshDeliveryHeadCIRequired": true
   }
 }

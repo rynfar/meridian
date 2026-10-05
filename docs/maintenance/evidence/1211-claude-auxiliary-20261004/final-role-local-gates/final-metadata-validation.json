@@ -1,0 +1,40 @@
+{
+  "reviewedSourceHead": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "manifestFiles": 337,
+  "archiveOriginalsVerified": 152,
+  "historicalArtifactEntriesVerifiedUnchanged": 302,
+  "relativeLinksResolved": 78,
+  "fencesBalanced": true,
+  "historicalHandoffSuffixByteIdentical": true,
+  "sourceHashesUnchanged": true,
+  "sourceAuthorTuplesVerified": [
+    [
+      "b06c0aab235ee01e9b2c17715deeabbd08c22a81",
+      "65b3b7d24ba4914e42a24942b6c34add7bea4fbe",
+      "8f77580fc32c9e9f9bc3ffdf68ec4ed33f730884"
+    ],
+    [
+      "b8d2bbeeeb37fa1d797981c0da17efc1d871014d",
+      "6b7c430e822909e89a52c1353bea3a80bcce11e8",
+      "aea593ecbd2bcbcb23b7651ccd226bd78854a596"
+    ],
+    [
+      "cdb7dce8299c137f0adc677d012f99e8db412f95",
+      "43b5435d4f0f7b38747099b1700c861d73257bca",
+      "cb6c92c4a6c388c61f9e412f9809250210c0a5e7"
+    ],
+    [
+      "76d72bac5a0482dbd4e797a7ff670fb30cde6c56",
+      "2d7499f3587377cb0b9a34f3d1435e8c7ee6cee7",
+      "734f543f42c5e253048c5d56cea697d897b30479"
+    ],
+    [
+      "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+      "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+      "af0fad6318011520d54460dc2f11075e402a1009"
+    ]
+  ],
+  "eightCurrentTargetReceiptsVerified": true,
+  "diffCheck": "pass",
+  "scope": "Documentation/evidence only; no tests or native acceptance inferred from validation"
+}
