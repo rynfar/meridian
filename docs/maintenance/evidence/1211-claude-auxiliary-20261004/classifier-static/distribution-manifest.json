@@ -1,0 +1,43 @@
+{
+  "package": "@anthropic-ai/claude-code-linux-x64",
+  "version": "2.1.286",
+  "officialRegistryUrl": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/2.1.286",
+  "tarballUrl": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-2.1.286.tgz",
+  "tarballBytes": 108247300,
+  "tarballSha256": "4887d7125e6c5ae5bf4dd5b0c5ae04469a9e387acb9e1281636d83d8d9a683e0",
+  "registrySha1Matches": true,
+  "registrySha512Matches": true,
+  "registrySignaturesIndependentlyVerified": false,
+  "platformArtifact": "linux x64 GNU",
+  "scriptsOrBinaryExecuted": false,
+  "files": [
+    {
+      "path": "distribution/package/claude",
+      "packagePath": "package/claude",
+      "bytes": 241667256,
+      "sha256": "fe503f65c6289d59c23e5b21ae44f03583f997dd33a2cbfc75ab4f96fb8fc73f",
+      "permissions": "0600; intentionally not executed"
+    },
+    {
+      "path": "distribution/package/package.json",
+      "packagePath": "package/package.json",
+      "bytes": 289,
+      "sha256": "cd9c24523576ba79163c52da95421eb81cc94294f64ccf7c310e239b5915ab51",
+      "permissions": "0600; intentionally not executed"
+    },
+    {
+      "path": "distribution/package/LICENSE.md",
+      "packagePath": "package/LICENSE.md",
+      "bytes": 147,
+      "sha256": "8ce94b9478bb9868f9641f818e06cd722fbe55d4c22e2d2ed11971b20146173a",
+      "permissions": "0600; intentionally not executed"
+    },
+    {
+      "path": "distribution/package/README.md",
+      "packagePath": "package/README.md",
+      "bytes": 150,
+      "sha256": "ab4b9d72c3aa1ac7357e8eeb8b77c62e308e9af01ac0ecdb181f3bf1e57e25d5",
+      "permissions": "0600; intentionally not executed"
+    }
+  ]
+}

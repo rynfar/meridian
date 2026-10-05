@@ -99,6 +99,7 @@ const GRANDCHILD = "prime-grandchild-session"
 function messagesRequest(options: {
   sessionId: string
   parentSessionId?: string
+  requestClass?: "main" | "auxiliary"
   stream?: boolean
   messages?: Array<{ role: string; content: unknown }>
   signal?: AbortSignal
@@ -111,7 +112,8 @@ function messagesRequest(options: {
       "Content-Type": "application/json",
       // Prime Agent's User-Agent is the generic Anthropic SDK one, so the
       // adapter is selected explicitly — exactly as the provider config does.
-      "x-meridian-agent": "prime",
+      "x-meridian-agent": options.requestClass ? "claude-code" : "prime",
+      ...(options.requestClass ? { "x-claude-code-request-class": options.requestClass } : {}),
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
@@ -144,6 +146,48 @@ async function drain(response: Response): Promise<string> {
     text += decoder.decode(value, { stream: true })
   }
   return text
+}
+
+/** Bound a failed cancellation assertion without leaving its SDK turn behind. */
+async function cancellationDeadline<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("cancellation control did not settle within two seconds")), 2_000)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+interface ControlledRequest {
+  readonly abort: AbortController
+  readonly response: Promise<Response>
+}
+
+function controlledFetch(
+  app: { fetch(request: Request): Response | Promise<Response> },
+  request: Request,
+): Promise<Response> {
+  return Promise.resolve(app.fetch(request))
+}
+
+async function cleanControlledRequests(requests: readonly ControlledRequest[]): Promise<void> {
+  for (const request of requests) request.abort.abort("test cleanup")
+  // Also release the mocked SDK directly if the faulty registry missed it.
+  // This is cleanup after assertions, never the cancellation under test.
+  for (const call of calls) call.controller?.abort("test cleanup")
+  const settled = await cancellationDeadline(Promise.allSettled(requests.map(request => request.response)))
+  for (const result of settled) {
+    if (result.status === "fulfilled" && result.value.body && !result.value.body.locked) {
+      await result.value.body.cancel("test cleanup")
+    }
+  }
+  await settle()
+  expect(processSessionTree.stats().tracked).toBe(0)
 }
 
 describe("parent-to-child cancellation", () => {
@@ -468,5 +512,208 @@ describe("parent-to-child cancellation", () => {
     expect(await cancelled.json()).toMatchObject({
       cancelled: { sessions: 0, requests: 0 },
     })
+  })
+
+  for (const cancellation of ["socket", "response body"] as const) {
+    it(`cancels a same-key Claude auxiliary and declared child when the main ${cancellation} closes`, async () => {
+      const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+      const requests: ControlledRequest[] = []
+      behaviors = ["hang", "hang", "hang"]
+      try {
+        const mainAbort = new AbortController()
+        const mainStarted = queryStarted()
+        const mainResponse = controlledFetch(app, messagesRequest({
+          sessionId: PARENT,
+          requestClass: "main",
+          signal: mainAbort.signal,
+          stream: cancellation === "response body",
+        }))
+        requests.push({ abort: mainAbort, response: mainResponse })
+        await cancellationDeadline(mainStarted)
+
+        const auxiliaryAbort = new AbortController()
+        const auxiliaryStarted = queryStarted()
+        const auxiliaryResponse = controlledFetch(app, messagesRequest({
+          sessionId: PARENT,
+          requestClass: "auxiliary",
+          signal: auxiliaryAbort.signal,
+        }))
+        requests.push({ abort: auxiliaryAbort, response: auxiliaryResponse })
+        await cancellationDeadline(auxiliaryStarted)
+
+        const childAbort = new AbortController()
+        const childStarted = queryStarted()
+        const childResponse = controlledFetch(app, messagesRequest({
+          sessionId: CHILD,
+          parentSessionId: PARENT,
+          requestClass: "main",
+          signal: childAbort.signal,
+        }))
+        requests.push({ abort: childAbort, response: childResponse })
+        await cancellationDeadline(childStarted)
+
+        expect(calls).toHaveLength(3)
+        expect(calls.every(call => call.controller?.signal.aborted === false)).toBe(true)
+        if (cancellation === "socket") mainAbort.abort("main socket closed")
+        else await (await cancellationDeadline(mainResponse)).body!.cancel("main reader closed")
+        await settle()
+
+        expect(calls[0]!.controller!.signal.aborted).toBe(true)
+        expect(calls[1]!.controller!.signal.aborted).toBe(true)
+        expect(calls[2]!.controller!.signal.aborted).toBe(true)
+        // Neither child's own HTTP signal caused the cascade.
+        expect(auxiliaryAbort.signal.aborted).toBe(false)
+        expect(childAbort.signal.aborted).toBe(false)
+        expect((await cancellationDeadline(auxiliaryResponse)).status).toBe(499)
+        expect((await cancellationDeadline(childResponse)).status).toBe(499)
+      } finally {
+        await cleanControlledRequests(requests)
+      }
+    })
+
+    it(`leaves the main and its declared child alive when a same-key auxiliary ${cancellation} closes`, async () => {
+      const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+      const requests: ControlledRequest[] = []
+      behaviors = ["hang", "hang", "hang"]
+      try {
+        const mainAbort = new AbortController()
+        const mainStarted = queryStarted()
+        const mainResponse = controlledFetch(app, messagesRequest({
+          sessionId: PARENT,
+          requestClass: "main",
+          signal: mainAbort.signal,
+        }))
+        requests.push({ abort: mainAbort, response: mainResponse })
+        await cancellationDeadline(mainStarted)
+
+        const childAbort = new AbortController()
+        const childStarted = queryStarted()
+        const childResponse = controlledFetch(app, messagesRequest({
+          sessionId: CHILD,
+          parentSessionId: PARENT,
+          requestClass: "main",
+          signal: childAbort.signal,
+        }))
+        requests.push({ abort: childAbort, response: childResponse })
+        await cancellationDeadline(childStarted)
+
+        const auxiliaryAbort = new AbortController()
+        const auxiliaryStarted = queryStarted()
+        const auxiliaryResponse = controlledFetch(app, messagesRequest({
+          sessionId: PARENT,
+          requestClass: "auxiliary",
+          signal: auxiliaryAbort.signal,
+          stream: cancellation === "response body",
+        }))
+        requests.push({ abort: auxiliaryAbort, response: auxiliaryResponse })
+        await cancellationDeadline(auxiliaryStarted)
+
+        expect(calls).toHaveLength(3)
+        if (cancellation === "socket") auxiliaryAbort.abort("classifier socket closed")
+        else await (await cancellationDeadline(auxiliaryResponse)).body!.cancel("classifier reader closed")
+        await settle()
+
+        expect(calls[2]!.controller!.signal.aborted).toBe(true)
+        expect(calls[0]!.controller!.signal.aborted).toBe(false)
+        expect(calls[1]!.controller!.signal.aborted).toBe(false)
+        expect(mainAbort.signal.aborted).toBe(false)
+        expect(childAbort.signal.aborted).toBe(false)
+        if (cancellation === "socket") {
+          expect((await cancellationDeadline(auxiliaryResponse)).status).toBe(499)
+        }
+        expect(processSessionTree.stats().tracked).toBe(2)
+      } finally {
+        await cleanControlledRequests(requests)
+      }
+    })
+  }
+
+  it("cancels a declared Claude subagent and its same-key auxiliary when their ancestor aborts", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const requests: ControlledRequest[] = []
+    behaviors = ["hang", "hang", "hang"]
+    try {
+      const parentAbort = new AbortController()
+      const parentStarted = queryStarted()
+      const parentResponse = controlledFetch(app, messagesRequest({
+        sessionId: PARENT,
+        requestClass: "main",
+        signal: parentAbort.signal,
+      }))
+      requests.push({ abort: parentAbort, response: parentResponse })
+      await cancellationDeadline(parentStarted)
+
+      const childAbort = new AbortController()
+      const childStarted = queryStarted()
+      const childResponse = controlledFetch(app, messagesRequest({
+        sessionId: CHILD,
+        parentSessionId: PARENT,
+        requestClass: "main",
+        signal: childAbort.signal,
+      }))
+      requests.push({ abort: childAbort, response: childResponse })
+      await cancellationDeadline(childStarted)
+
+      const auxiliaryAbort = new AbortController()
+      const auxiliaryStarted = queryStarted()
+      const auxiliaryResponse = controlledFetch(app, messagesRequest({
+        sessionId: CHILD,
+        parentSessionId: PARENT,
+        requestClass: "auxiliary",
+        signal: auxiliaryAbort.signal,
+      }))
+      requests.push({ abort: auxiliaryAbort, response: auxiliaryResponse })
+      await cancellationDeadline(auxiliaryStarted)
+
+      parentAbort.abort("ancestor socket closed")
+      await settle()
+      expect(calls).toHaveLength(3)
+      expect(calls.every(call => call.controller?.signal.aborted === true)).toBe(true)
+      expect(childAbort.signal.aborted).toBe(false)
+      expect(auxiliaryAbort.signal.aborted).toBe(false)
+      expect((await cancellationDeadline(parentResponse)).status).toBe(499)
+      expect((await cancellationDeadline(childResponse)).status).toBe(499)
+      expect((await cancellationDeadline(auxiliaryResponse)).status).toBe(499)
+    } finally {
+      await cleanControlledRequests(requests)
+    }
+  })
+
+  it("reaches a declared subagent's auxiliary when that subagent has no main request in flight", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const requests: ControlledRequest[] = []
+    behaviors = ["hang", "hang"]
+    try {
+      const parentAbort = new AbortController()
+      const parentStarted = queryStarted()
+      const parentResponse = controlledFetch(app, messagesRequest({
+        sessionId: PARENT,
+        requestClass: "main",
+        signal: parentAbort.signal,
+      }))
+      requests.push({ abort: parentAbort, response: parentResponse })
+      await cancellationDeadline(parentStarted)
+
+      const auxiliaryAbort = new AbortController()
+      const auxiliaryStarted = queryStarted()
+      const auxiliaryResponse = controlledFetch(app, messagesRequest({
+        sessionId: CHILD,
+        parentSessionId: PARENT,
+        requestClass: "auxiliary",
+        signal: auxiliaryAbort.signal,
+      }))
+      requests.push({ abort: auxiliaryAbort, response: auxiliaryResponse })
+      await cancellationDeadline(auxiliaryStarted)
+
+      parentAbort.abort("declared ancestor socket closed")
+      await settle()
+      expect(calls).toHaveLength(2)
+      expect(calls.every(call => call.controller?.signal.aborted === true)).toBe(true)
+      expect(auxiliaryAbort.signal.aborted).toBe(false)
+      expect((await cancellationDeadline(parentResponse)).status).toBe(499)
+      expect((await cancellationDeadline(auxiliaryResponse)).status).toBe(499)
+    } finally {
+      await cleanControlledRequests(requests)
+    }
   })
 })

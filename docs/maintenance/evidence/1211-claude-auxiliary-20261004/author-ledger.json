@@ -1,0 +1,53 @@
+{
+  "sourceHead": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+  "initialBase": "8e1c8bf738d7372ded01f28e99d6ec167acaf76f",
+  "initialIncorporation": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "commits": [
+    {
+      "source": "b06c0aab235ee01e9b2c17715deeabbd08c22a81",
+      "initialIncorporation": "65b3b7d24ba4914e42a24942b6c34add7bea4fbe",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:13:30-05:00",
+      "subject": "fix(session): add an auxiliary-request independence cause",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "b8d2bbeeeb37fa1d797981c0da17efc1d871014d",
+      "initialIncorporation": "6b7c430e822909e89a52c1353bea3a80bcce11e8",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:16:40-05:00",
+      "subject": "fix(claude-code): detect auto-mode classifier side requests",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "cdb7dce8299c137f0adc677d012f99e8db412f95",
+      "initialIncorporation": "43b5435d4f0f7b38747099b1700c861d73257bca",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:20:53-05:00",
+      "subject": "fix(session): keep Claude Code classifier requests off the session mapping and lease",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "76d72bac5a0482dbd4e797a7ff670fb30cde6c56",
+      "initialIncorporation": "2d7499f3587377cb0b9a34f3d1435e8c7ee6cee7",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:37:55-05:00",
+      "subject": "test: live gate for Claude Code auto-mode session isolation",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+      "initialIncorporation": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T21:11:01-05:00",
+      "subject": "docs: record live acceptance and correct the auxiliary hook contract",
+      "authorAndDatePreserved": true
+    }
+  ],
+  "maintainerCorrectionsSeparate": true
+}

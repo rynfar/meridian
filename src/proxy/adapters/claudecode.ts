@@ -127,31 +127,67 @@ export const CLAUDE_CODE_REQUEST_CLASS_HEADER = "x-claude-code-request-class"
 /** The auto-mode classifier's XML verdicts end at these tags. */
 const CLASSIFIER_STOP_SEQUENCES = new Set(["</block>", "</severity>"])
 
+/** Classifier-specific system envelope in the official 2.1.286 client. */
+function hasAutoModePermissions(system: unknown): boolean {
+  const texts = typeof system === "string"
+    ? [system]
+    : Array.isArray(system)
+      ? system.flatMap((block: unknown) => {
+        if (!block || typeof block !== "object") return []
+        const candidate = block as { type?: unknown; text?: unknown }
+        return candidate.type === "text" && typeof candidate.text === "string" ? [candidate.text] : []
+      })
+      : []
+  // The client prepends a billing block. Both markers must belong to the same
+  // classifier block; user text and ordinary XML output confer no authority.
+  return texts.some(text => {
+    if (!text.trimStart().startsWith("You are a security monitor for autonomous AI coding agents.")) return false
+    const opening = "\n<cc_automode_permissions>\n"
+    const closing = "\n</cc_automode_permissions>"
+    const start = text.indexOf(opening)
+    if (start < 0) return false
+    // Scan the suffix once. A regex spanning every possible opening marker
+    // repeatedly rescans malformed client input with no closing marker.
+    let end = text.indexOf(closing, start + opening.length - 1)
+    while (end >= 0) {
+      const boundary = end + closing.length
+      if (boundary === text.length || text[boundary] === "\n") return true
+      end = text.indexOf(closing, boundary)
+    }
+    return false
+  })
+}
+
 /**
  * Is this a Claude Code side call under the conversation's session id?
  *
  * NOTE: agent-specific (claude-code). The auto-mode permission classifier
- * sends the conversation's own `metadata.user_id` session id with a two-message
+ * sends the conversation's own `metadata.user_id` session id with a classifier
  * transcript of its own. Read as a turn, it classifies `unrelated-history` and
  * overwrites the conversation's mapping, so the next real turn cannot resume.
  *
  * The CLI names its request class in `x-claude-code-request-class`, but sends
  * it only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL,
  * or under a remote flag — through Meridian it is normally absent. When present
- * it decides outright. Otherwise the classifier's shape does: a session key,
- * no tools, not streamed, and a stop sequence closing its verdict tag. The
+ * it decides outright. Otherwise the classifier's shape does: its specific
+ * system permissions envelope, a session key, no tools, not streamed, and one
+ * recognized verdict stop when supplied. Stage2/fast calls omit the stops
+ * while retaining the same classifier envelope. Ordinary XML conversations
+ * lack that system envelope and retain normal session handling. The
  * streamed session-start request, compaction and main turns all fall outside
- * it. If a future CLI changes those stop sequences, detection falls back to
+ * it. If a future CLI changes that envelope or those stops, detection falls back to
  * today's behavior rather than isolating a real turn.
  */
 export function isClaudeCodeAuxiliaryRequest(requestClass: string | undefined, body: unknown): boolean {
   if (requestClass !== undefined) return requestClass === "auxiliary"
   if (!body || typeof body !== "object") return false
-  const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown }
-  if (Array.isArray(request.tools) && request.tools.length > 0) return false
-  if (request.stream === true) return false
-  if (!Array.isArray(request.stop_sequences)) return false
-  if (!request.stop_sequences.some(stop => typeof stop === "string" && CLASSIFIER_STOP_SEQUENCES.has(stop))) {
+  const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown; system?: unknown }
+  if (request.tools !== undefined && (!Array.isArray(request.tools) || request.tools.length > 0)) return false
+  if ((request.stream !== undefined && request.stream !== false) || !hasAutoModePermissions(request.system)) return false
+  if (request.stop_sequences !== undefined && (
+    !Array.isArray(request.stop_sequences) || request.stop_sequences.length !== 1
+    || !request.stop_sequences.every(stop => typeof stop === "string" && CLASSIFIER_STOP_SEQUENCES.has(stop))
+  )) {
     return false
   }
   return extractClaudeCodeSessionId(body) !== undefined

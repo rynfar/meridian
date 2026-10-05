@@ -1,0 +1,194 @@
+{
+  "reviewedAt": "2026-10-04",
+  "sourceHead": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+  "incorporatedBaseline": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "reviewState": "stable production/test correction review: no remaining material findings; final harness/evidence/head review pending",
+  "coveredPaths": [
+    {
+      "path": "src/proxy/server.ts",
+      "sha256": "6ea37d4ad98454c811dba342ecddc88ef088e2089d0caa75248348eae5f742f3",
+      "lines": 10161,
+      "changedHunks": [
+        "@@ -1464,7 +1464,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -1930,7 +1930,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -1951,62 +1951,67 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -2562,8 +2567,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -2707,7 +2713,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -2902,7 +2908,11 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -4043,16 +4053,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -4107,13 +4119,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -5212,16 +5226,18 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -5272,13 +5288,15 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -7875,8 +7893,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -7885,7 +7908,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete correction diff plus priority dispatch/publication, keyed intake/tree registration/lease/cleanup, durable mapping/checkpoint classification, managed fresh/fork lifecycle, normal/exception/cache publication, recovery-grant consumption and write gates, both JSON/SSE abort/fallback and idle-accounting callers. Main mapping authority and affinity are fenced; side-call transcript journal/GC remains request-local lifecycle."
+    },
+    {
+      "path": "src/proxy/adapters/claudecode.ts",
+      "sha256": "df5a92330314c6909b1d0be775c0ea3c8fa2724231e40b8edd193d16410547e8",
+      "lines": 340,
+      "changedHunks": [
+        "@@ -127,31 +127,67 @@ export const CLAUDE_CODE_REQUEST_CLASS_HEADER = \"x-claude-code-request-class\""
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete changed hunks and identity/session-parent parser and adapter wiring. Matched prefix/tags against official 2.1.286 static call trace; confirmed separate billing block, omitted-stream/stage2 stops, malformed tools/stops exclusion, explicit header override. One robustness finding below."
+    },
+    {
+      "path": "src/proxy/sessionTree.ts",
+      "sha256": "dd3ce916a8af8fd0b109dfda23c616faa769446eac210ef5cc879ca31f2edab9",
+      "lines": 256,
+      "changedHunks": [
+        "@@ -40,10 +40,12 @@ export interface SessionTreeRegistration {",
+        "@@ -114,10 +116,10 @@ export class SessionTreeRegistry {",
+        "@@ -131,11 +133,12 @@ export class SessionTreeRegistry {",
+        "@@ -143,6 +146,7 @@ export class SessionTreeRegistry {",
+        "@@ -151,8 +155,10 @@ export class SessionTreeRegistry {",
+        "@@ -220,7 +226,7 @@ export class SessionTreeRegistry {"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete changed hunks and entire registry. Two parent indexes dedupe the same entry token; release removes each index idempotently; private leaf preserves conversation+declared ancestor reachability without exposing an outward cascade key. Existing bounded/cycle walk retained."
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "c45cb2ebcc619980d7d52315949cb643fa1b39f150cf2a0a855f833f58509724",
+      "lines": 576,
+      "changedHunks": [
+        "@@ -334,7 +334,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Entire one-hunk correction and dependency/adapter guidance. Read-only priority placement and private-leaf cancellation match implementation; pure tree adds no dependency. Internal adapter hook is not a new published package API."
+    },
+    {
+      "path": "src/__tests__/claude-code-adapter.test.ts",
+      "sha256": "564521f0dc1e108efdf0295a90824a36adc22b07ce947aacd47e81da0a4a8537",
+      "lines": 408,
+      "changedHunks": [
+        "@@ -286,6 +286,7 @@ describe(\"isClaudeCodeAuxiliaryRequest\", () => {",
+        "@@ -324,9 +325,11 @@ describe(\"isClaudeCodeAuxiliaryRequest\", () => {",
+        "@@ -341,7 +344,46 @@ describe(\"isClaudeCodeAuxiliaryRequest\", () => {",
+        "@@ -350,6 +392,7 @@ describe(\"claudeCodeAdapter.isAuxiliaryRequest\", () => {"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete changed hunks and full auxiliary-classifier section. Source-shaped system positive, billing precedes block, segmented transcript >2, string synthetic equivalent, no tools, stream omitted/false, exact stop or omission. Ordinary 1-/3-turn XML, missing identity, split markers, malformed tools/stream/stops retain normal behavior. Additional repeated-open input control recommended."
+    },
+    {
+      "path": "src/__tests__/priority-routing-integration.test.ts",
+      "sha256": "a7bacb95809c963ab7450ebb550a1a01fa28509ed700c756126480ef5211802c",
+      "lines": 2357,
+      "changedHunks": [
+        "@@ -302,6 +302,7 @@ type PostMessagesOptions = {",
+        "@@ -316,6 +317,7 @@ async function postMessages(app: TestApp, options: PostMessagesOptions): Promise",
+        "@@ -585,6 +587,112 @@ describe(\"priority routing\", () => {"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete changed hunks plus dispatch mock/HTTP helper. Restores preferred account after HTTP observed cooldown, requires main resume on original account after auxiliary succeeds on fallback. Ordinary main fallback remains assigned/resumable on fallback profile as negative control. Source baseline would poison affinity."
+    },
+    {
+      "path": "src/__tests__/proxy-concurrency-coordination.test.ts",
+      "sha256": "251dd228ee2b184e7f48b4cf0aaff1bba2a3817f21d06fa05db507de1bd02c44",
+      "lines": 930,
+      "changedHunks": [
+        "@@ -27,6 +27,8 @@ let queryCalls = 0",
+        "@@ -40,6 +42,7 @@ installSdkMock(() => ({",
+        "@@ -48,11 +51,13 @@ installSdkMock(() => ({",
+        "@@ -86,6 +91,8 @@ const { processSessionTurns } = await import(\"../proxy/session/turnCoordinator\")",
+        "@@ -140,6 +147,8 @@ function claudeCodeRequest(",
+        "@@ -151,9 +160,10 @@ function claudeCodeRequest(",
+        "@@ -174,6 +184,7 @@ function claudeCodeClassifierRequest(sessionId: string, extraHeaders: Record<str",
+        "@@ -238,6 +249,8 @@ describe(\"SDK and Session concurrency coordination\", () => {",
+        "@@ -561,6 +574,72 @@ describe(\"SDK and Session concurrency coordination\", () => {"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete changed hunks plus mock/helper/setup and existing classifier concurrency controls. Full stored-prefix/complete pending result batch JSON+SSE tests require auxiliary never SDK-resume, exact original mapping/generation retained across fresh-target refusal, and identical ordinary continuation resumes/publishes. Ordinary XML first+continuation confirms mapping/resume, while existing two-permit HTTP concurrency isolates lease behavior."
+    },
+    {
+      "path": "src/__tests__/proxy-divergence-reason-log.test.ts",
+      "sha256": "1f0cf676e59d19f6215e38582070d12042e7fb921ebea9b591c9691305f52761",
+      "lines": 201,
+      "changedHunks": [
+        "@@ -109,6 +109,7 @@ describe(\"divergence reason on the request line\", () => {"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete fixture-only hunk and auxiliary divergence expectations. System envelope now preserves intended headerless fixture classification rather than vacuously becoming normal traffic."
+    },
+    {
+      "path": "src/__tests__/proxy-session-tree-cancellation.test.ts",
+      "sha256": "13c40d3fcdcae2dd4ac3a6ad5762bb7df18ee318d285cd2304945d3032a3b038",
+      "lines": 719,
+      "changedHunks": [
+        "@@ -99,6 +99,7 @@ const GRANDCHILD = \"prime-grandchild-session\"",
+        "@@ -111,7 +112,8 @@ function messagesRequest(options: {",
+        "@@ -146,6 +148,48 @@ async function drain(response: Response): Promise<string> {",
+        "@@ -469,4 +513,207 @@ describe(\"parent-to-child cancellation\", () => {"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete changed hunks plus hang mock/HTTP identity/setup and cleanup. Main socket/body cancellation reaches same-key auxiliary+declared child without those clients aborting; auxiliary socket/body cancellation leaves main+child alive; ancestor reaches main+auxiliary, including no live child main. Assertions precede direct mocked-controller cleanup; bounded failed assertion cleanup retained."
+    },
+    {
+      "path": "src/__tests__/session-tree-unit.test.ts",
+      "sha256": "674e9da5b66b4309caebd76b53bbd36484a639ff99af44488601393fe2cc3136",
+      "lines": 313,
+      "changedHunks": [
+        "@@ -101,6 +101,27 @@ describe(\"SessionTreeRegistry \u2014 registration and settle-removal\", () => {"
+      ],
+      "fullNewFileRead": false,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete changed hunk plus relevant entire registry tests. One abort per private leaf through two ancestor paths; reachability through both keys after main release; private-leaf cannot cascade; double release clears both indexes. Existing normal traversal/cycle/depth/self-link controls unchanged."
+    },
+    {
+      "path": "src/__tests__/proxy-claude-auxiliary-recovery.test.ts",
+      "sha256": "c5e2cd33bc8bcbeb7d859a522089f6a336372c0a5f6548de4c6528cb5c4cef68",
+      "lines": 327,
+      "changedHunks": [],
+      "fullNewFileRead": true,
+      "scope": "all correction hunks read; relevant unchanged callers inspected",
+      "inspection": "Complete new 327-line file. Real server HTTP uncaptured tool dispatch recovery through mocked SDK obtains schema grant (not private-cache seeding); side success/failure/cancel with and without unrelated write schema preserves read grant. Eligible ordinary failed continuation spends grant once. JSON/SSE primary idle ceiling survives identical/different successful and repeated stalled side calls; blocked primary starts no SDK attempt; ordinary completion/revised primary resets its own streak."
+    }
+  ],
+  "findings": [
+    {
+      "id": "D1",
+      "severity": "P2",
+      "path": "src/proxy/adapters/claudecode.ts",
+      "line": 143,
+      "status": "resolved by owner; independently verified static code correction",
+      "summary": "Unanchored lazy permissions-envelope regex permits repeated suffix scans on a malformed repeated-opening input.",
+      "causalReason": "An exact monitor prefix plus many newline-delimited opening markers and no closing marker gives the engine many candidate starts. Each candidate can scan the remaining text for a close. That is avoidable potentially quadratic recognition work on client-controlled system text. Static concern; no measured timing or runtime probe was run.",
+      "requiredCorrection": "Use linear ordered marker/line-boundary scanning rather than a repeated full-suffix regex. Retain same-block and exact-prefix semantics. Add long repeated-open/no-close negative and malformed/reversed-marker controls.",
+      "resolution": "Root replaced regex with one first-opening indexOf plus monotonically advancing closing scans, preserving same-block prefix and line boundaries, including empty permissions. Added 8192 repeated-opening/no-close rejection, empty-permissions positive and closing-extra-text rejection. Read-only review verified linear total scan; malformed-shape control alone does not prove asymptotic performance and no timing benchmark was run."
+    }
+  ],
+  "nonMaterialDocumentationNote": {
+    "path": "src/proxy/adapters/claudecode.ts",
+    "line": 152,
+    "summary": "NOTE still says two-message transcript; official segmented classifier may carry more than two. Prefer classifier-specific transcript.",
+    "status": "resolved: two-message wording replaced with classifier transcript"
+  },
+  "scopeLimits": [
+    "Review is read-only and no tests, models, auth, browser, network/GitHub mutations or source edits were performed.",
+    "Pending harness script/test/E71 documentation and final evidence README/manifest are intentionally deferred until frozen delivery head.",
+    "Native Linux Claude Code/Sonnet E71 and E41 affected live flow remain runtime evidence gates, not owner/API approval decisions.",
+    "Only Claude Code currently implements auxiliary declaration; only OpenCode implements trusted routing identity. Generic combined auxiliary+trusted/durable routing branch is statically fenced but not exercised by a built-in-client control.",
+    "Primary/auxiliary independence skips conversation mapping but still journals/cleans its own SDK transcript lifecycle; this is not a claim of zero persistence or zero SDK/concurrency cost.",
+    "Current observation is an uncommitted stable production/test snapshot atop source incorporation head 4cd004cce0da93f5028a63e4a770cb10c3a278fa; do not call this final-head acceptance.",
+    "Existing cycle behavior can include an origin entry as a descendant and includeSelf cancellation may repeat it; that predates this correction and is not a new two-parent private-leaf failure.",
+    "Request-local auxiliary idle treatment uses an empty correlation key, so each side-call stall is a one-off and no main streak state is touched. It does not impose an independent cross-request auxiliary retry ceiling.",
+    "Hash comparison: only adapter and its direct test changed during review, as the owner applied D1. All other 9 reviewed production/test/architecture hashes stayed identical. Initial/final snapshots preserved; no agent source edits."
+  ],
+  "publicContractDisposition": "Internal correction preserves published proxy/API/messages/headers. Existing mistaken public-hook approval gate does not apply. Native acceptance pending does not imply owner deferral.",
+  "staticClassifierEvidence": "../aux-round1/classifier-static/classifier-static-review.json",
+  "beforeHashes": "before-hashes.json",
+  "afterHashes": "after-hashes.json",
+  "remainingMaterialFindings": []
+}

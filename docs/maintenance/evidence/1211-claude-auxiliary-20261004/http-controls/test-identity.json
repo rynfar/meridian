@@ -1,0 +1,10 @@
+{
+  "src/__tests__/proxy-session-tree-cancellation.test.ts": {
+    "sha256": "715bf1ee1586e87a03733955e94c5a216fe49ddf4a5436cc47dfbae1c0b19305",
+    "identicalBeforeAfterTests": true
+  },
+  "src/__tests__/priority-routing-integration.test.ts": {
+    "sha256": "a7bacb95809c963ab7450ebb550a1a01fa28509ed700c756126480ef5211802c",
+    "identicalBeforeAfterTests": true
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "head": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "command": [
+    "bun",
+    "test",
+    "--timeout",
+    "10000",
+    "src/__tests__/proxy-session-tree-cancellation.test.ts"
+  ],
+  "exit": 1,
+  "productionUnchanged": true
+}

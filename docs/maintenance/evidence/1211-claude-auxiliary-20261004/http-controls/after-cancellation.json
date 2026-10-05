@@ -1,0 +1,17 @@
+{
+  "head": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "command": [
+    "bun",
+    "test",
+    "--timeout",
+    "10000",
+    "src/__tests__/proxy-session-tree-cancellation.test.ts"
+  ],
+  "exit": 0,
+  "fileSha256": {
+    "src/proxy/server.ts": "b01c4dfad1cc29d2664c0d371cf6d3cc20722e0527a1a9beb163d5f1da005084",
+    "src/proxy/sessionTree.ts": "dd3ce916a8af8fd0b109dfda23c616faa769446eac210ef5cc879ca31f2edab9",
+    "src/__tests__/proxy-session-tree-cancellation.test.ts": "715bf1ee1586e87a03733955e94c5a216fe49ddf4a5436cc47dfbae1c0b19305"
+  },
+  "sourceStableDuringRun": true
+}

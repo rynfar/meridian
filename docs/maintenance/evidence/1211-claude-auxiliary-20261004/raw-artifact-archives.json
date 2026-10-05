@@ -1,0 +1,212 @@
+{
+  "archives": [
+    {
+      "path": "source-review/source-complete.diff.gz",
+      "originalName": "source-review/source-complete.diff",
+      "originalSizeBytes": 45018,
+      "originalSha256": "8ac45355055636fbfd125f427c57a313b7e8d1a1f0bf979fac75c4c74bb35d19",
+      "archiveSizeBytes": 14590,
+      "archiveSha256": "d2cca494abad7bfc8423926783b5ccffe7c90df1fa9832d3ae4c80fc1e0a00f1"
+    },
+    {
+      "path": "http-controls/after-cancellation-type-normalization.log.gz",
+      "originalName": "http-controls/after-cancellation-type-normalization.log",
+      "originalSizeBytes": 994,
+      "originalSha256": "e3752b9dd74c9976d2489903d730b0a2af752b1f49a3a50ca9ee133b00976763",
+      "archiveSizeBytes": 379,
+      "archiveSha256": "c7a7b31871d8cfdbc09f80fd7f588515ef4331e34cad62540a619f4b35966dd8"
+    },
+    {
+      "path": "http-controls/after-cancellation.log.gz",
+      "originalName": "http-controls/after-cancellation.log",
+      "originalSizeBytes": 2193,
+      "originalSha256": "a4f1f2d51720aee69ced630df76e4b7d6cc5aa3deed9843472e8f9a1c616eeea",
+      "archiveSizeBytes": 741,
+      "archiveSha256": "640662ca37cdc70c58dead2268e92899343710d9f24ea80cd59554fa053e0338"
+    },
+    {
+      "path": "http-controls/first-typecheck.log.gz",
+      "originalName": "http-controls/first-typecheck.log",
+      "originalSizeBytes": 6821,
+      "originalSha256": "caf56193a2b0b013f82bb567f3c05e3a4faa57b37a80167f4958bce976390b3e",
+      "archiveSizeBytes": 518,
+      "archiveSha256": "5ffdf55139d716161ac3ced277e51d43520d886a3d2c14e8a7a1a9773dd78371"
+    },
+    {
+      "path": "http-controls/after-priority.log.gz",
+      "originalName": "http-controls/after-priority.log",
+      "originalSizeBytes": 3024,
+      "originalSha256": "22fafe480f24058bdcf8697a6b21c3e598163c44d9046abc20e39c7eecf5bbf0",
+      "archiveSizeBytes": 826,
+      "archiveSha256": "f56be69c28ae8fabd934c4adc05f75a99c8508320b7f10f3d0829edd5e559217"
+    },
+    {
+      "path": "http-controls/before-priority.log.gz",
+      "originalName": "http-controls/before-priority.log",
+      "originalSizeBytes": 3428,
+      "originalSha256": "2019d63ed43cc52ce6c976a97e3e460b6016939855ae71b239dbaa68d29c053a",
+      "archiveSizeBytes": 1042,
+      "archiveSha256": "4707c8129d2d754c45c259f1738e0fa52c0fb241db4b4fd7fb8516943c08cf22"
+    },
+    {
+      "path": "http-controls/before-cancellation.log.gz",
+      "originalName": "http-controls/before-cancellation.log",
+      "originalSizeBytes": 4786,
+      "originalSha256": "bf7fae6e4036590f6f0fc5db68733d579983e4730109fe8ed05afd9f661bd2e2",
+      "archiveSizeBytes": 1087,
+      "archiveSha256": "c92657ff58dd82838173392e6c3b2a571275177e807a3438e383786ac012c18d"
+    },
+    {
+      "path": "root-controls/checkpoint-before.log.gz",
+      "originalName": "root-controls/checkpoint-before.log",
+      "originalSizeBytes": 3667,
+      "originalSha256": "1d66104c884465248acbc73cf9e2613227a6dee70b9bc525830e2b18a20fce1c",
+      "archiveSizeBytes": 610,
+      "archiveSha256": "e8520ebbc13868d9985cd702c8c6f277b3a1e76275e502fb24be288be34ed96b"
+    },
+    {
+      "path": "root-controls/checkpoint-before-observable-mapping.log.gz",
+      "originalName": "root-controls/checkpoint-before-observable-mapping.log",
+      "originalSizeBytes": 5689,
+      "originalSha256": "15455adba2ab6937e59d2c93b9fa48864f9bccf74c1a0e85b988aaccf0e74ace",
+      "archiveSizeBytes": 1191,
+      "archiveSha256": "74ea3b91971b1e3a5a0b850a7a9c05bc04f8c5cc4c28ab3a986567e293bad70d"
+    },
+    {
+      "path": "root-controls/detector-before.log.gz",
+      "originalName": "root-controls/detector-before.log",
+      "originalSizeBytes": 1906,
+      "originalSha256": "8a0465cc4b9f21bb662c0e7188d7a09335d826379da3241fbaf7e121488100fe",
+      "archiveSizeBytes": 588,
+      "archiveSha256": "fc6bd30db484650b8aebd991396e88eb98b4c173371488ac93b72a6f87f55d81"
+    },
+    {
+      "path": "root-controls/checkpoint-corrected-first.log.gz",
+      "originalName": "root-controls/checkpoint-corrected-first.log",
+      "originalSizeBytes": 6989,
+      "originalSha256": "31846f3b6e01a526c718883e1856b7e787d6f5bff89a5394b746b71487b73c35",
+      "archiveSizeBytes": 1860,
+      "archiveSha256": "fbc50a1045a5581bc5ee40ece577bd6212c1587567902c0be1a64f6d4abf6ccf"
+    },
+    {
+      "path": "root-controls/detector-corrected-first.log.gz",
+      "originalName": "root-controls/detector-corrected-first.log",
+      "originalSizeBytes": 15422,
+      "originalSha256": "5e2b9b6914664f76c34ff52f00ba11350ad8d399112f8fb2baf7f56db30fb908",
+      "archiveSizeBytes": 3520,
+      "archiveSha256": "f5937919acf0dd9045fecbaedceb5e13de41063ceb9ac5d6da3b52ad266d93a8"
+    },
+    {
+      "path": "root-controls/checkpoint-detector-corrected.log.gz",
+      "originalName": "root-controls/checkpoint-detector-corrected.log",
+      "originalSizeBytes": 17653,
+      "originalSha256": "a680de4c797a04d9a0320aedf80879a33e48870dee15d310aad70b205491c1e5",
+      "archiveSizeBytes": 4103,
+      "archiveSha256": "8e9ab94dc4a0ce0af0d0980383dd8622b83760c580c29e794cdb3062ce449f96"
+    },
+    {
+      "path": "root-controls/typecheck-first.log.gz",
+      "originalName": "root-controls/typecheck-first.log",
+      "originalSizeBytes": 6821,
+      "originalSha256": "caf56193a2b0b013f82bb567f3c05e3a4faa57b37a80167f4958bce976390b3e",
+      "archiveSizeBytes": 518,
+      "archiveSha256": "5ffdf55139d716161ac3ced277e51d43520d886a3d2c14e8a7a1a9773dd78371"
+    },
+    {
+      "path": "root-controls/typecheck-second.log.gz",
+      "originalName": "root-controls/typecheck-second.log",
+      "originalSizeBytes": 53,
+      "originalSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "archiveSizeBytes": 73,
+      "archiveSha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0"
+    },
+    {
+      "path": "root-controls/xml-http-before.log.gz",
+      "originalName": "root-controls/xml-http-before.log",
+      "originalSizeBytes": 940,
+      "originalSha256": "070a451dad28e725933ae97f4000701ff80eab1616f259daa2fd6c653c7fffb8",
+      "archiveSizeBytes": 547,
+      "archiveSha256": "5a392f6467ee2c2e257694f23d83df461eda434e2e652e628306316f77895059"
+    },
+    {
+      "path": "root-controls/xml-http-after-initial-capture.log.gz",
+      "originalName": "root-controls/xml-http-after-initial-capture.log",
+      "originalSizeBytes": 302,
+      "originalSha256": "71084656913b24a6756fe4d9435505e42397d22b45bb9ec92c3f9331064e4710",
+      "archiveSizeBytes": 237,
+      "archiveSha256": "659916e8fa4e72ad310760b5a0178e2c5aa06664199c0adb8433bef37d06810c"
+    },
+    {
+      "path": "root-controls/detector-before-final.log.gz",
+      "originalName": "root-controls/detector-before-final.log",
+      "originalSizeBytes": 2592,
+      "originalSha256": "807e83f0cab1e47bf92c11a083f9fa3190c0814f081de7541b2f5c67ea3e1e2d",
+      "archiveSizeBytes": 708,
+      "archiveSha256": "f12e72957afc718923a42b596a922dfd080943ae0a4b5bbe172084167c30b71d"
+    },
+    {
+      "path": "root-controls/detector-after-initial-capture.log.gz",
+      "originalName": "root-controls/detector-after-initial-capture.log",
+      "originalSizeBytes": 483,
+      "originalSha256": "2fbb42b04c5f78a96dc550b9972a87ca70947238caeb58de2c1b0527930a356e",
+      "archiveSizeBytes": 310,
+      "archiveSha256": "5210f99d3aad889c53f20666cf5b5fda756c8cc2201eba22b7c1aabb048d92a2"
+    },
+    {
+      "path": "root-controls/typecheck-third.log.gz",
+      "originalName": "root-controls/typecheck-third.log",
+      "originalSizeBytes": 53,
+      "originalSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "archiveSizeBytes": 73,
+      "archiveSha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0"
+    },
+    {
+      "path": "recovery-idle-controls/focused-schema-controls.log.gz",
+      "originalName": "recovery-idle-controls/focused-schema-controls.log",
+      "originalSizeBytes": 2357,
+      "originalSha256": "64a3716aa8d9eabea1680fae9f58ae974404cbe79296e6d7ba17fd95d06d3857",
+      "archiveSizeBytes": 596,
+      "archiveSha256": "046cd565f3220cba7da8171eef2c8ee3a860d082e1b16393f6c7d62e8c282d20"
+    },
+    {
+      "path": "recovery-idle-controls/focused-initial.log.gz",
+      "originalName": "recovery-idle-controls/focused-initial.log",
+      "originalSizeBytes": 1805,
+      "originalSha256": "646bfb614de0c957ca3d1a181745df982fbd894470d586731ed8783c2283e33f",
+      "archiveSizeBytes": 527,
+      "archiveSha256": "a7f5bea60dfa23e89179713a68fda5e61bbb7226255f4329116896295fcd1586"
+    },
+    {
+      "path": "recovery-idle-controls/focused-final.log.gz",
+      "originalName": "recovery-idle-controls/focused-final.log",
+      "originalSizeBytes": 2659,
+      "originalSha256": "9e2b9903fb1bd42ba48310f8853fa7c6df502c8ade2b17bd6fb0f1c4705784e1",
+      "archiveSizeBytes": 637,
+      "archiveSha256": "29c100dc213698dc7bd27b9fbfa4e903ca5f88662a7043c8fe352cf40d68e98d"
+    },
+    {
+      "path": "recovery-idle-controls/baseline-final-4cd004cc.log.gz",
+      "originalName": "recovery-idle-controls/baseline-final-4cd004cc.log",
+      "originalSizeBytes": 4981,
+      "originalSha256": "a8bcec6c7075ff105dc0fc7500a7a8b46b53ccd9c1d869f4d566b7c9449d9dd5",
+      "archiveSizeBytes": 1116,
+      "archiveSha256": "2efd988cc2f203bd043bd9910f9fd340001da911e9244fe2c67db509c4c39138"
+    },
+    {
+      "path": "recovery-idle-controls/baseline-4cd004cc.log.gz",
+      "originalName": "recovery-idle-controls/baseline-4cd004cc.log",
+      "originalSizeBytes": 3453,
+      "originalSha256": "fd2ebdbb40e0460123cba4fc2054dbf9d296ce31d1cefe5e0291bd34f570056c",
+      "archiveSizeBytes": 894,
+      "archiveSha256": "43a472933a3a2835810f6c7ce8103f001572539257d4987a46e558a8dc36e7d5"
+    },
+    {
+      "path": "root-controls/detection-linear-corrected.log.gz",
+      "originalName": "root-controls/detection-linear-corrected.log",
+      "originalSizeBytes": 11799,
+      "originalSha256": "ad4cc250114e2f47b0647f056087038322dbdf850f10217b727f2a2f91df1a5c",
+      "archiveSizeBytes": 2718,
+      "archiveSha256": "f090fa6f5a78ea2fc31a1779da4dd4cbcf0bd846e7c1cda6f6dcee1609fd1757"
+    }
+  ]
+}

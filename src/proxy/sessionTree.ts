@@ -40,10 +40,12 @@ export interface SessionTreeRegistration {
 export interface SessionTreeEntry {
   /** Request id, for logging and for the cancellation result. */
   readonly requestId: string
-  /** This request's client-session key, exactly as the adapter derived it. */
+  /** Conversation key, or a private request key for auxiliary work. */
   readonly sessionKey: string
   /** The IMMEDIATE parent's session key, when the client stamped linkage. */
   readonly parentKey?: string
+  /** Preserve a declared ancestor when auxiliary work has a private leaf key. */
+  readonly additionalParentKey?: string
   /**
    * Abort this request. Must route through the same abort path a client
    * disconnect uses, so the eviction, permit release, and lease release that
@@ -114,10 +116,10 @@ export class SessionTreeRegistry {
     this.entries.set(token, entry)
     // A self-link is meaningless and would make a node its own descendant, so
     // it is dropped at the index rather than defended against on every walk.
-    const indexedParent = entry.parentKey && entry.parentKey !== entry.sessionKey
-      ? entry.parentKey
-      : undefined
-    if (indexedParent) {
+    const indexedParents = new Set([entry.parentKey, entry.additionalParentKey].filter(
+      (key): key is string => Boolean(key) && key !== entry.sessionKey,
+    ))
+    for (const indexedParent of indexedParents) {
       let siblings = this.childrenByParent.get(indexedParent)
       if (!siblings) {
         siblings = new Set()
@@ -131,11 +133,12 @@ export class SessionTreeRegistry {
         if (released) return
         released = true
         this.entries.delete(token)
-        if (!indexedParent) return
-        const siblings = this.childrenByParent.get(indexedParent)
-        if (!siblings) return
-        siblings.delete(token)
-        if (siblings.size === 0) this.childrenByParent.delete(indexedParent)
+        for (const indexedParent of indexedParents) {
+          const siblings = this.childrenByParent.get(indexedParent)
+          if (!siblings) continue
+          siblings.delete(token)
+          if (siblings.size === 0) this.childrenByParent.delete(indexedParent)
+        }
       },
     }
   }
@@ -143,6 +146,7 @@ export class SessionTreeRegistry {
   /** Live requests whose ancestry chain reaches `sessionKey`, nearest first. */
   descendantsOf(sessionKey: string): SessionTreeEntry[] {
     const visitedKeys = new Set<string>([sessionKey])
+    const visitedEntries = new Set<number>()
     let frontier = [sessionKey]
     const found: SessionTreeEntry[] = []
     for (let depth = 0; depth < MAX_SUBTREE_DEPTH && frontier.length > 0; depth++) {
@@ -151,8 +155,10 @@ export class SessionTreeRegistry {
         const tokens = this.childrenByParent.get(parentKey)
         if (!tokens) continue
         for (const token of tokens) {
+          if (visitedEntries.has(token)) continue
           const entry = this.entries.get(token)
           if (!entry) continue
+          visitedEntries.add(token)
           found.push(entry)
           // Several live requests can share one child key (a queued turn behind
           // the running one). Descend through that key only once.
@@ -220,7 +226,7 @@ export class SessionTreeRegistry {
   stats(): SessionTreeStats {
     let linked = 0
     for (const entry of this.entries.values()) {
-      if (entry.parentKey) linked++
+      if (entry.parentKey || entry.additionalParentKey) linked++
     }
     return {
       tracked: this.entries.size,

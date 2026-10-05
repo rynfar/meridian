@@ -1,0 +1,26 @@
+{
+  "baselineHead": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "baselineTrackedTestDiff": [
+    "src/__tests__/claude-code-adapter.test.ts",
+    "src/__tests__/priority-routing-integration.test.ts",
+    "src/__tests__/proxy-concurrency-coordination.test.ts",
+    "src/__tests__/proxy-session-tree-cancellation.test.ts"
+  ],
+  "baselineTrackedProductionDiff": [],
+  "testSha256": "c5e2cd33bc8bcbeb7d859a522089f6a336372c0a5f6548de4c6528cb5c4cef68",
+  "baselineTestSha256": "c5e2cd33bc8bcbeb7d859a522089f6a336372c0a5f6548de4c6528cb5c4cef68",
+  "baselineServerSha256": "8ab29340e97f32f0f98f6d6735da839c3ef0a3b4ffba8877ff3bed13a48d2d45",
+  "correctedServerSha256AtReport": "b01c4dfad1cc29d2664c0d371cf6d3cc20722e0527a1a9beb163d5f1da005084",
+  "baselineResult": {
+    "pass": 9,
+    "fail": 4,
+    "assertions": 202,
+    "exit": 1
+  },
+  "correctedResult": {
+    "pass": 13,
+    "fail": 0,
+    "assertions": 230,
+    "exit": 0
+  }
+}

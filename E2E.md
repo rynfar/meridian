@@ -1146,7 +1146,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E66 | [Interrupted turn after a settled checkpoint](#e66-interrupted-turn-after-a-settled-checkpoint) | **Automated, real proxy + SDK + Claude Max**: `bun scripts/e2e-checkpoint-interrupted-turn.mjs`. An OpenCode-keyed tool round whose complete result is followed by a partial assistant turn (what a dropped stream leaves) must resume the stored session; a result for an unknown call is the negative control and must still take the fresh replay. **Run before releases touching the passthrough early-stop checkpoint or checkpoint replay** | 2026-09-26 |
 | E67 | [OpenCode V2 interrupted tool turn](#e67-opencode-v2-interrupted-tool-turn) | **Actual OpenCode 2.0.16 client and Meridian V2 plugin, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-checkpoint-fault.mjs`. Inject one partial SSE failure after the real client tool call; require the client's exact retry shape and SDK resume, plus a same-session recovery. **Run before releases touching keyed checkpoint recovery** | 2026-09-26 |
 | E68 | [OpenCode V2 user-invoked skill](#e68-opencode-v2-user-invoked-skill) | **Actual OpenCode V2 server, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-skill-content.mjs`. A skill invoked with no typed text must reach the SDK prompt inside `<skill_content>` and drive the reply. **Run before releases touching user-text sanitization** | 2026-09-27 |
-| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-auto-mode.mjs` — real proxy + SDK, the REAL Claude Code CLI in `--permission-mode auto`. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
+| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Prepared native Linux x64 gate**, explicit target/client/SDK/model and owned read-only grant: `bun scripts/e2e-claude-code-auto-mode.mjs` with the E71 options below. Actual Claude Code CLI in `--permission-mode auto`; synthetic controls and historical contributor observations do not establish current acceptance. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -6056,53 +6056,97 @@ overflow from the model. Those remain covered only by the mocked envelope tests.
 
 ## E71: Claude Code auto-mode classifier isolation
 
-**What it proves:** Claude Code's auto-mode permission classifier no longer
-breaks session resume.
+**Purpose:** prove that the actual Claude Code auto-mode classifier can run
+beside its conversation without replacing its mapping, waiting for its turn
+lease, or breaking subsequent resume. The current corrected delivery has no
+new native acceptance claim. The historical observations below concern the
+contributor's earlier implementation.
 
-The classifier sends the conversation's own `metadata.user_id` session id with
-a short transcript of its own (`tools=0 stream=false`, one or two messages).
-Read as a turn, it classified `unrelated-history`, fresh-replayed and
-overwrote the conversation's mapping, so the next real request diverged as
-well: with auto mode on, no turn resumed past a classifier call. It also
-waited behind the running turn on the session lease, which is exactly when
-the turn is waiting on it.
+The classifier shares the conversation's `metadata.user_id` session key.
+The native `x-claude-code-request-class` header is authoritative when present.
+Without that header, the fallback requires a system text block beginning
+`You are a security monitor for autonomous AI coding agents.` with paired,
+newline-delimited `<cc_automode_permissions>` markers in the same block. A
+billing block can precede it. Default or false streaming and omitted stops are
+valid; supplied stops must contain exactly one known verdict stop.
+User text or ordinary XML stop sequences do not establish a classifier.
+Official CLI distribution inspection supports this shape statically; actual
+emitted wire and model receipts still require the native gate.
 
-The CLI names its request class in `x-claude-code-request-class`, but sends it
-only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL, or
-under a remote flag. The adapter therefore uses the header when present and
-otherwise the classifier's shape: session key, no tools, not streamed, and a
-`</block>` or `</severity>` stop sequence.
+Run the committed harness unchanged against the unchanged baseline and fixed
+head. Both use four actual `--permission-mode auto` invocations: two tool
+turns, an ordinary resumed turn, and a tool turn with gateway hint headers.
+The date writes land outside the client's project so the permission classifier
+must actually run. For example, with a ready explicitly owned fixture mounted
+read-only (0400), an independently installed target and the implicated versions:
 
 ```bash
-bun scripts/e2e-claude-code-auto-mode.mjs
+bun scripts/e2e-claude-code-auto-mode.mjs \
+  --target-root /owned/installed/meridian --entry dist/server.js \
+  --client /owned/claude-code-2.1.286 --client-version 2.1.286 \
+  --native-cli /owned/sdk-claude-code-2.1.284 --native-cli-version 2.1.284 \
+  --sdk-version 0.2.141 \
+  --model claude-sonnet-5-5 --served-model claude-sonnet-5-5 \
+  --grant-file /owned/read-only-grant.json --proof-dir /owned/private/e71-fixed \
+  --max-queries 20 --max-cost-usd 10 --timeout-ms 1200000
 ```
 
-Direct claude-code adapter, isolated `CLAUDE_CONFIG_DIR`, scrubbed `CLAUDE*`
-environment and a dummy bearer token; the proxy keeps its real Claude Max
-authentication. Main model defaults to `sonnet` (`PROBE_MODEL`), because auto
-mode is gated by model. Each tool turn writes outside the client project: a
-write inside it is auto-allowed without consulting the classifier, and a run
-like that passes vacuously. The client talks to a recording relay in front of
-the proxy, because the proxy log never prints headers; the relay is what tells
-the header path apart from a shape match. Turn 4 runs with
-`CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`.
+Pin the actual implicated model IDs; a nearby model cannot establish acceptance.
+The source report used the `sonnet` alias and did not escrow its exact served
+ID. The explicit model above is a current candidate, not a replacement for
+that missing historical identity. For a source target, additionally pass its
+complete `--source-head`; it must be clean. A compiled source target must have
+matching clean build certification and artifact hashes. The target's own
+installed SDK is observed; the harness's dependency installation is not used
+as a substitute. Explicit client/native versions and public executable hashes
+are recorded. Missing inputs, expired grants and failed read-only OAuth usage
+readiness stop before generation.
 
-**Pass criteria** (asserted, non-zero exit on any):
+`--expect-unfixed` requires the same controls, but exactly the four original
+defect assertions (shape isolation, header isolation, later-main resume and
+no collision) must fail. It does not waive client success, shared-key native
+classifier occurrence, outside tool writes, model receipts or cost bounds.
+`--rehearsal` fences SDK query before invocation and records zero-query setup
+only. `--fail-after-copy` exercises failed setup cleanup; neither mode can
+establish native acceptance. The synthetic mode accepts only independently
+generated non-auth target/SDK fixtures and always reports acceptance false.
+Its controls are in `src/__tests__/claude-auto-mode-harness.test.ts`.
 
-- All four invocations exit 0 and answer correctly.
-- At least one request logs `diverged=independent-request:auxiliary-request`.
-  A run where the classifier never fires fails rather than passing vacuously.
-- Turns 1-3 send no request-class header; turn 4 sends one on every request,
-  and exactly the requests it labels `auxiliary` are isolated.
-- Every main request after the conversation's first logs
-  `lineage=continuation`. The classifier fires mid-turn, between a tool call
-  and its result, so checking only each turn's first request misses the damage.
-- No request logs `unrelated-history` or `concurrent-race`, and no invocation
-  is refused with a 4xx.
+The harness clears ambient auth/provider/proxy overrides before imports, uses
+separate private proxy settings/store/account/workdir and client home/config/
+XDG/project directories, and allocates both loopback ports dynamically. The
+runtime credential snapshot omits refresh authority; the owner fixture is
+never supplied to a mutable runtime. It must belong to the runtime user, have
+one hard link, and remain valid throughout the bounded run plus its safety
+margin. No auth refresh namespace or ambient provider paths are inherited.
+Client requests/output, SDK query count, total execution time and
+SDK-estimated cost are bounded. The cost ceiling is
+divided across the maximum queries through the SDK's `maxBudgetUsd`; an
+insufficient budget leaves the gate failed rather than relaxing assertions.
+Cleanup aborts and joins owned work, closes the proxy and relay, and checks
+owner-file bytes/inode/permissions and public target identities without
+publishing credential fingerprints. It removes the private snapshot/runtime
+only after successful joining; a failed join retains the private fixture and
+keeps acceptance closed.
 
-Classifier `sessionWait` is reported, not asserted.
+The sanitized `claude-auto-mode-results.json` contains only identities,
+protocol enums/counters, booleans and SDK completion/model/cost facts. It saves
+no generated prose, raw provider errors, tokens or private SDK transcripts.
+A relay request ID matches each wire request to exactly one adapter decision;
+equal aggregate classifier counts cannot satisfy isolation. A fixed pass
+requires actual classifier traffic on both shape and header paths, zero
+classifier session-turn wait with adequate SDK capacity, every later main
+request resuming, no collision/refusal, successful client turns/tool writes
+and positive assistant usage from the exact required served model. A normal
+successful SDK result is required unless the one-turn passthrough cap ends
+with `error_max_turns` and the same query's tool IDs/arguments match a complete
+HTTP tool terminal for the owned outside write. Missing/unclosed terminals,
+provider refusals and other SDK error results fail. Baseline wait is measured
+without weakening the fixed zero-wait assertion. Copy this result into durable
+review evidence after a native run; a temporary directory or synthetic green
+alone is insufficient.
 
-**Before/after (2026-09-30, Linux x64, Bun 1.2.20, Agent SDK 0.2.141, Claude
+**Contributor-reported historical before/after (2026-09-30, Linux x64, Bun 1.2.20, Agent SDK 0.2.141, Claude
 Code 2.1.286, `sonnet`).** Baseline `0ec52a2`: FAIL, 4 checks. 0 of 10
 requests isolated; all 3 classifier requests (`tools=0 stream=false
 msgCount=1`, one with request class `auxiliary`) classified
@@ -6111,9 +6155,10 @@ diverged `unrelated-history` too. Branch: PASS. 3 of 10 requests isolated as
 `auxiliary-request` (2 by shape, 1 by header), 6 of 6 later main requests
 resumed, no collisions, classifier `sessionWait` 0ms each. The gate imports
 `src/` directly rather than the built bundle, and this run used Bun 1.2.20 (not
-the `packageManager` 1.3.11); neither affects the proxy path under test.
+the `packageManager` 1.3.11). These observations do not validate the current
+corrected harness, package, system-envelope fallback or execution environment.
 
-**Live acceptance (2026-09-30, owner's working proxy, one ongoing auto-mode
+**Contributor-reported historical live traffic (2026-09-30, owner's working proxy, one ongoing auto-mode
 Claude Code session of ~700 messages).** The branch build replaced the
 installed 1.79.0 at 20:30:29 local; counts below are from the proxy journal,
 20:00 to 20:37, before an unrelated subagent collision began.

@@ -109,6 +109,7 @@ describe("divergence reason on the request line", () => {
     .filter((l: string) => l.includes("Client-driven tool loop with no session identity"))
 
   const CLASSIFIER = {
+    system: [{ type: "text", text: "You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\nfixture permissions\n</cc_automode_permissions>" }],
     model: "claude-sonnet-4-6",
     max_tokens: 64,
     stream: false,

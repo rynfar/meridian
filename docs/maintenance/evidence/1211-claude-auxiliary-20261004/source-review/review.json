@@ -1,0 +1,322 @@
+{
+  "reviewedAtUtc": "2026-10-05T01:12:49.766910+00:00",
+  "sourceHead": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+  "sourceBase": "f299fe06e72411b786380b5212edea79cd13966a",
+  "currentMain": "8e1c8bf738d7372ded01f28e99d6ec167acaf76f",
+  "disposition": "accept with maintainer corrections; submitted head not ready; actual Linux/Claude Code/Sonnet gate remains open",
+  "completeDiffSha256": "8ac45355055636fbfd125f427c57a313b7e8d1a1f0bf979fac75c4c74bb35d19",
+  "changedFiles": 11,
+  "changedHunks": 28,
+  "files": [
+    {
+      "path": "ARCHITECTURE.md",
+      "sourceBlob": "a2cfb6add352f9813679a284fbb207aaa557a05e",
+      "sourceSha256": "3e41b3a399147c57e97bbfa3d005f0b95344978223366419442376c5aa1ca859",
+      "sourceBytes": 41429,
+      "sourceLines": 570,
+      "patchSha256": "df444ec94072bd66ff444f2a6288b57d0e73687f6870f574c9903cbc7ffd36b4",
+      "changedHunks": 1,
+      "hunkHeaders": [
+        "@@ -328,6 +328,7 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "Changed adapter-method row checked against durable lookup and checkpoint/fallback behavior; it overstates skipped session lookup (F1)."
+    },
+    {
+      "path": "E2E.md",
+      "sourceBlob": "17a539238dfb283c45f95f2f82632165b519258c",
+      "sourceSha256": "0202542d386fa47bd01ab77bceef83fe6fc126f5d9a74e295fe6d4b35479029c",
+      "sourceBytes": 393785,
+      "sourceLines": 7413,
+      "patchSha256": "97d30aef6cfe9d5b8f5bb31c1753574dea1bd450a971fe1de914c5bdd015e276",
+      "changedHunks": 2,
+      "hunkHeaders": [
+        "@@ -1018,6 +1018,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{\"checkForUpdates\":false}",
+        "@@ -5894,6 +5895,81 @@ trimmed 12 messages (~3114 estimated tokens) and answered from the kept tail."
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "Entire new E71 section and index entry reviewed, including reported Linux/SDK/CLI/model baseline and working-proxy claims versus missing raw exact-head evidence and actual harness (F5/F6)."
+    },
+    {
+      "path": "scripts/e2e-claude-code-auto-mode.mjs",
+      "sourceBlob": "16d9f75f51fea9ad132b28a9e321be3629043895",
+      "sourceSha256": "3bbcf711b4a780296469f35d4b709bad97d8c3eca93c07598862b45035b05fe6",
+      "sourceBytes": 10554,
+      "sourceLines": 232,
+      "patchSha256": "8cfca2390070acef049aae4b1e4fbd3d54fc72dc857c9908220d9b5519dd48ee",
+      "changedHunks": 1,
+      "hunkHeaders": [
+        "@@ -0,0 +1,232 @@"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "All 232 lines read: CLI selection/version, environment/config/auth, proxy/relay, four real-client invocations, checks, timeout/join and cleanup (F5/F6)."
+    },
+    {
+      "path": "src/__tests__/claude-code-adapter.test.ts",
+      "sourceBlob": "2f1763f4a0498fcbc7b5dd21d77ad43b58c33e41",
+      "sourceSha256": "a7a30786fbd4f7df1d355ae11c7aaa9e8999e9488761aeebe2029f510ae6d50c",
+      "sourceBytes": 13550,
+      "sourceLines": 365,
+      "patchSha256": "0a47865d6518f235219b696d030fac6e50808c885a3cd6eff203c1088ab96c29",
+      "changedHunks": 2,
+      "hunkHeaders": [
+        "@@ -10,7 +10,7 @@",
+        "@@ -281,3 +281,85 @@ describe(\"claudeCodeAdapter.extractFileChangesFromToolUse\", () => {"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "All changed detection tests/import plus session-ID and parent fixtures read; explicit-header precedence good, long ordinary XML history and malformed tools/stream discrimination absent (F4)."
+    },
+    {
+      "path": "src/__tests__/lineage-divergence-reason.test.ts",
+      "sourceBlob": "8db99656af4d228f87df67fdc165a723a44bef75",
+      "sourceSha256": "5ed9cb707d6e664e261f7206fcd50bcf216986ebb7e267ec676ca7acac41a425",
+      "sourceBytes": 10401,
+      "sourceLines": 237,
+      "patchSha256": "43808a02adec09f0528c69f45a2edf271b306fe036bee8cc32b8ac0790b15abf",
+      "changedHunks": 4,
+      "hunkHeaders": [
+        "@@ -36,6 +36,7 @@ describe(\"independentRequestCause\", () => {",
+        "@@ -61,9 +62,10 @@ describe(\"independentRequestCause\", () => {",
+        "@@ -71,6 +73,25 @@ describe(\"independentRequestCause\", () => {",
+        "@@ -105,6 +126,8 @@ describe(\"formatDivergence\", () => {"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "All hunks and full tests read: pure cause precedence, key override exception and logging identifiers; caller-side checkpoint promotion can still overrule it (F1)."
+    },
+    {
+      "path": "src/__tests__/proxy-concurrency-coordination.test.ts",
+      "sourceBlob": "58e2bebfa61a7c10a1455027c09d6842b832ff39",
+      "sourceSha256": "508dc9aa9522df60040dcccddb754957d6da43583cf010fa7aff646c78792f58",
+      "sourceBytes": 37854,
+      "sourceLines": 851,
+      "patchSha256": "b1ab19a853ef19af525a0ce0d4a59caac603567471619701302b8aa3a5d20f07",
+      "changedHunks": 2,
+      "hunkHeaders": [
+        "@@ -158,6 +158,32 @@ function claudeCodeRequest(",
+        "@@ -473,6 +499,68 @@ describe(\"SDK and Session concurrency coordination\", () => {"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "All changed hunks plus SDK controls, before/after hooks, session-key request fixtures and adjoining #1043/race tests read; meaningful two-permit lease bypass and mapping/resume positives but failure/cancel/priority/full-history negatives absent (F1-F3)."
+    },
+    {
+      "path": "src/__tests__/proxy-divergence-reason-log.test.ts",
+      "sourceBlob": "c0962b6d928a34f0af7d4decf3a2c249756119d9",
+      "sourceSha256": "d743c1417ce7f8234eb4b57d0d381d083db22a71a6a1b171bf07b6201275a46b",
+      "sourceBytes": 7950,
+      "sourceLines": 200,
+      "patchSha256": "249aec67447bff2ac95f36cd61ca55fd40294d6c65f766e244f2767f7600a6a5",
+      "changedHunks": 1,
+      "hunkHeaders": [
+        "@@ -108,6 +108,34 @@ describe(\"divergence reason on the request line\", () => {"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "All changed hunks and complete fixture/assertion module read; short synthetic header/shape logs are checked, not durable authority or checkpoint refusal (F1)."
+    },
+    {
+      "path": "src/proxy/adapter.ts",
+      "sourceBlob": "92f09ecfad61c107492130e724c2f5f2f661af98",
+      "sourceSha256": "3c0ffbd1ce82a1098f859a3ab1c35b7af8e17ff9d347d9a9a6e4823f0b713597",
+      "sourceBytes": 13328,
+      "sourceLines": 322,
+      "patchSha256": "f25e3d5979ca6ea72f46e5067f4ece8b3c76dc1e524518c05228c5473a6dc64f",
+      "changedHunks": 1,
+      "hunkHeaders": [
+        "@@ -66,6 +66,17 @@ export interface AgentIdentity {"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "Full interface read; internal optional predicate composed through built-in instances. Comment is lineage-only, not zero durable reads. Public exposure audit owned by another reviewer."
+    },
+    {
+      "path": "src/proxy/adapters/claudecode.ts",
+      "sourceBlob": "2d00c975f5188506775f4854c09197cf7cb25be5",
+      "sourceSha256": "5adf30f8ae8554bb3659110070d03d15c99be786c64127cf4410db9cf0442a53",
+      "sourceBytes": 12378,
+      "sourceLines": 304,
+      "patchSha256": "c930ca1be7df7e0386364303ec98e62097d79e9978da6e5b5f6795786d9bd45e",
+      "changedHunks": 2,
+      "hunkHeaders": [
+        "@@ -121,6 +121,42 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi",
+        "@@ -181,6 +217,11 @@ export const claudeCodeAdapter: AgentAdapter = {"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "Full adapter read: metadata identity/parent parser, header-over-shape precedence, selection/tool boundary and classifier heuristic (F4)."
+    },
+    {
+      "path": "src/proxy/server.ts",
+      "sourceBlob": "374e65ecb9018eee1242fab06d91d8697d788a47",
+      "sourceSha256": "2f21512fc5b546b4c7d413138f48cb1ab02bf128c4ef1c55a334c05f63f81ba2",
+      "sourceBytes": 539531,
+      "sourceLines": 10127,
+      "patchSha256": "a39a686f508fd1d633cf28206836947e6a0ad8167f77b7f4a9f6d8ef25e6f982",
+      "changedHunks": 9,
+      "hunkHeaders": [
+        "@@ -327,6 +327,12 @@ interface RequestMeta {",
+        "@@ -2579,6 +2585,10 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -2589,6 +2599,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -2743,6 +2754,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -3248,7 +3260,9 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -7823,6 +7837,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -7851,6 +7866,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -7877,6 +7893,13 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe",
+        "@@ -7979,6 +8002,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "All changed hunks, outer admission/tree/leases, priority dispatch/authority/exposure, checkpoint promotion, resume/fork/query selection, success/error/abort/recovery mapping/tool-cache consumers traced (F1-F3/F5)."
+    },
+    {
+      "path": "src/proxy/session/lineage.ts",
+      "sourceBlob": "7c9147fac13e27b7ef6e0278fe13003a01e56205",
+      "sourceSha256": "75382271c1c6b1d23f624241e41df0f1f189a445eadfcbca1b48dff17111fa86",
+      "sourceBytes": 36196,
+      "sourceLines": 798,
+      "patchSha256": "e47f2722d20c479eb2d6b5a811abef1d30a724a054cf78cd661f488a13229a3b",
+      "changedHunks": 3,
+      "hunkHeaders": [
+        "@@ -395,7 +395,7 @@ export function formatLineageMismatch(mismatch: LineageMismatch): string | undef",
+        "@@ -405,6 +405,7 @@ export function formatLineageMismatch(mismatch: LineageMismatch): string | undef",
+        "@@ -430,7 +431,12 @@ export function independentRequestCause(input: {"
+      ],
+      "allChangedHunksSemanticallyReviewed": true,
+      "coverage": "All hunks, independent cause and formatter read; keeps pure downward dependency and log-only cause separate from exported Transform divergence union."
+    }
+  ],
+  "livePr": {
+    "state": "OPEN",
+    "comments": 0,
+    "reviews": 0,
+    "sourceHead": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+    "checks": [
+      {
+        "name": "test",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/rynfar/meridian/actions/runs/37210148913/job/111459500019"
+      },
+      {
+        "name": "smoke",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/rynfar/meridian/actions/runs/37210148980/job/111459500158"
+      },
+      {
+        "name": "desktop-build (ubuntu-latest)",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/rynfar/meridian/actions/runs/37210148939/job/111459500068"
+      },
+      {
+        "name": "desktop-build (macos-latest)",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/rynfar/meridian/actions/runs/37210148939/job/111459499932"
+      },
+      {
+        "name": "windows-smoke",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/rynfar/meridian/actions/runs/37210148913/job/111459499912"
+      },
+      {
+        "name": "build-push",
+        "status": "COMPLETED",
+        "conclusion": "SUCCESS",
+        "url": "https://github.com/rynfar/meridian/actions/runs/37210148980/job/111459742509"
+      },
+      {
+        "name": "changelog-duplication",
+        "status": "COMPLETED",
+        "conclusion": "SKIPPED",
+        "url": "https://github.com/rynfar/meridian/actions/runs/37210148913/job/111459500846"
+      }
+    ]
+  },
+  "authoredCommits": [
+    {
+      "authoredDate": "2026-10-01T00:13:30Z",
+      "authors": [
+        {
+          "email": "noah@passabilities.dev",
+          "id": "MDQ6VXNlcjY5NTgzMDA=",
+          "login": "passabilities",
+          "name": "Noah Passalacqua"
+        }
+      ],
+      "committedDate": "2026-10-04T14:30:43Z",
+      "messageBody": "",
+      "messageHeadline": "fix(session): add an auxiliary-request independence cause",
+      "oid": "b06c0aab235ee01e9b2c17715deeabbd08c22a81"
+    },
+    {
+      "authoredDate": "2026-10-01T00:16:40Z",
+      "authors": [
+        {
+          "email": "noah@passabilities.dev",
+          "id": "MDQ6VXNlcjY5NTgzMDA=",
+          "login": "passabilities",
+          "name": "Noah Passalacqua"
+        }
+      ],
+      "committedDate": "2026-10-04T14:30:43Z",
+      "messageBody": "",
+      "messageHeadline": "fix(claude-code): detect auto-mode classifier side requests",
+      "oid": "b8d2bbeeeb37fa1d797981c0da17efc1d871014d"
+    },
+    {
+      "authoredDate": "2026-10-01T00:20:53Z",
+      "authors": [
+        {
+          "email": "noah@passabilities.dev",
+          "id": "MDQ6VXNlcjY5NTgzMDA=",
+          "login": "passabilities",
+          "name": "Noah Passalacqua"
+        }
+      ],
+      "committedDate": "2026-10-04T14:30:43Z",
+      "messageBody": "\u2026pping and lease",
+      "messageHeadline": "fix(session): keep Claude Code classifier requests off the session ma\u2026",
+      "oid": "cdb7dce8299c137f0adc677d012f99e8db412f95"
+    },
+    {
+      "authoredDate": "2026-10-01T00:37:55Z",
+      "authors": [
+        {
+          "email": "noah@passabilities.dev",
+          "id": "MDQ6VXNlcjY5NTgzMDA=",
+          "login": "passabilities",
+          "name": "Noah Passalacqua"
+        }
+      ],
+      "committedDate": "2026-10-04T14:31:15Z",
+      "messageBody": "",
+      "messageHeadline": "test: live gate for Claude Code auto-mode session isolation",
+      "oid": "76d72bac5a0482dbd4e797a7ff670fb30cde6c56"
+    },
+    {
+      "authoredDate": "2026-10-01T02:11:01Z",
+      "authors": [
+        {
+          "email": "noah@passabilities.dev",
+          "id": "MDQ6VXNlcjY5NTgzMDA=",
+          "login": "passabilities",
+          "name": "Noah Passalacqua"
+        }
+      ],
+      "committedDate": "2026-10-04T14:31:16Z",
+      "messageBody": "",
+      "messageHeadline": "docs: record live acceptance and correct the auxiliary hook contract",
+      "oid": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070"
+    }
+  ],
+  "scope": {
+    "readOnlySourceReview": true,
+    "repoSourceEdits": 0,
+    "installs": 0,
+    "testRuns": 0,
+    "probeRuns": 0,
+    "modelCalls": 0,
+    "credentialReads": 0,
+    "githubMutations": 0,
+    "subagents": 0
+  },
+  "contractBoundary": "No public-contract modification is established by this review; AgentIdentity is not named in package root exports or ProxyConfig/Transform configuration graph. Another reviewer owns definitive API exposure audit; do not repeat owner approval based merely on TypeScript export."
+}

@@ -1,0 +1,76 @@
+{
+  "head": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "paths": [
+    {
+      "path": "src/proxy/server.ts",
+      "sha256": "6ea37d4ad98454c811dba342ecddc88ef088e2089d0caa75248348eae5f742f3",
+      "lines": 10161,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "src/proxy/adapters/claudecode.ts",
+      "sha256": "df5a92330314c6909b1d0be775c0ea3c8fa2724231e40b8edd193d16410547e8",
+      "lines": 340,
+      "unchangedSinceInitialSnapshot": false
+    },
+    {
+      "path": "src/proxy/sessionTree.ts",
+      "sha256": "dd3ce916a8af8fd0b109dfda23c616faa769446eac210ef5cc879ca31f2edab9",
+      "lines": 256,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "c45cb2ebcc619980d7d52315949cb643fa1b39f150cf2a0a855f833f58509724",
+      "lines": 576,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "src/__tests__/claude-code-adapter.test.ts",
+      "sha256": "564521f0dc1e108efdf0295a90824a36adc22b07ce947aacd47e81da0a4a8537",
+      "lines": 408,
+      "unchangedSinceInitialSnapshot": false
+    },
+    {
+      "path": "src/__tests__/priority-routing-integration.test.ts",
+      "sha256": "a7bacb95809c963ab7450ebb550a1a01fa28509ed700c756126480ef5211802c",
+      "lines": 2357,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "src/__tests__/proxy-concurrency-coordination.test.ts",
+      "sha256": "251dd228ee2b184e7f48b4cf0aaff1bba2a3817f21d06fa05db507de1bd02c44",
+      "lines": 930,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "src/__tests__/proxy-divergence-reason-log.test.ts",
+      "sha256": "1f0cf676e59d19f6215e38582070d12042e7fb921ebea9b591c9691305f52761",
+      "lines": 201,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "src/__tests__/proxy-session-tree-cancellation.test.ts",
+      "sha256": "13c40d3fcdcae2dd4ac3a6ad5762bb7df18ee318d285cd2304945d3032a3b038",
+      "lines": 719,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "src/__tests__/session-tree-unit.test.ts",
+      "sha256": "674e9da5b66b4309caebd76b53bbd36484a639ff99af44488601393fe2cc3136",
+      "lines": 313,
+      "unchangedSinceInitialSnapshot": true
+    },
+    {
+      "path": "src/__tests__/proxy-claude-auxiliary-recovery.test.ts",
+      "sha256": "c5e2cd33bc8bcbeb7d859a522089f6a336372c0a5f6548de4c6528cb5c4cef68",
+      "lines": 327,
+      "unchangedSinceInitialSnapshot": true
+    }
+  ],
+  "onlyOwnerFindingCorrectionsChanged": true,
+  "changedPaths": [
+    "src/proxy/adapters/claudecode.ts",
+    "src/__tests__/claude-code-adapter.test.ts"
+  ]
+}

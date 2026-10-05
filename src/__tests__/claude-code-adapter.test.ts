@@ -286,6 +286,7 @@ describe("isClaudeCodeAuxiliaryRequest", () => {
   // The auto-mode permission classifier: the conversation's own session id,
   // no tools, not streamed, and stop sequences closing its XML verdict.
   const classifier = {
+    system: [{ type: "text", text: "You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\nfixture permissions\n</cc_automode_permissions>\nReturn a verdict." }],
     model: "claude-sonnet-4-6",
     max_tokens: 64,
     stream: false,
@@ -324,9 +325,11 @@ describe("isClaudeCodeAuxiliaryRequest", () => {
     })).toBe(false)
   })
 
-  it("requires one of the classifier's stop sequences", () => {
+  it("accepts omitted stage2 stops and rejects unknown supplied stops", () => {
     const { stop_sequences: _omitted, ...withoutStops } = classifier
-    expect(isClaudeCodeAuxiliaryRequest(undefined, withoutStops)).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, withoutStops)).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: [] })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: ["</block>", "</severity>"] })).toBe(false)
     expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: ["\n\nHuman:"] }))
       .toBe(false)
   })
@@ -341,7 +344,46 @@ describe("isClaudeCodeAuxiliaryRequest", () => {
     expect(isClaudeCodeAuxiliaryRequest(undefined, "not an object")).toBe(false)
     expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: "</block>" })).toBe(false)
     expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: [42, null] })).toBe(false)
-    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, tools: null })).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, tools: null })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, tools: "none" })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stream: undefined })).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stream: "false" })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stop_sequences: ["</block>", 42] })).toBe(false)
+  })
+
+  it("requires the classifier-specific system envelope, not ordinary XML output", () => {
+    const { system: _system, ...ordinary } = classifier
+    expect(isClaudeCodeAuxiliaryRequest(undefined, ordinary)).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...ordinary, system: "Write XML ending at </block>." })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...ordinary, system: [{ type: "text", text: "<cc_automode_permissions>" }] })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...ordinary, messages: [
+      { role: "user", content: "Write a block." },
+      { role: "assistant", content: "<block>one</block>" },
+      { role: "user", content: "Write another block." },
+    ] })).toBe(false)
+    // The official segmented classifier can carry more than two user turns.
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, messages: [
+      ...classifier.messages, { role: "user", content: "another transcript segment" },
+    ] })).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, system: classifier.system[0]!.text })).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, system: [
+      { type: "text", text: "x-anthropic-billing-header: fixture" }, ...classifier.system,
+    ] })).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, system: "<cc_automode_permissions>\nfixture permissions\n</cc_automode_permissions>" })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...ordinary, system: [
+      { type: "text", text: "You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\nfixture" },
+      { type: "text", text: "\n</cc_automode_permissions>" },
+    ] })).toBe(false)
+  })
+
+  it("rejects a long malformed classifier envelope and permits empty permissions", () => {
+    const prefix = "You are a security monitor for autonomous AI coding agents."
+    const unclosed = `${prefix}\n${"<cc_automode_permissions>\n".repeat(8192)}`
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, system: unclosed })).toBe(false)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier,
+      system: `${prefix}\n<cc_automode_permissions>\n</cc_automode_permissions>` })).toBe(true)
+    expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier,
+      system: `${prefix}\n<cc_automode_permissions>\nfixture\n</cc_automode_permissions>unfinished` })).toBe(false)
   })
 })
 
@@ -350,6 +392,7 @@ describe("claudeCodeAdapter.isAuxiliaryRequest", () => {
   const contextWith = (headers: Record<string, string>): AdapterContext =>
     ({ req: { header: (name: string) => headers[name.toLowerCase()] } }) as unknown as AdapterContext
   const body = {
+    system: [{ type: "text", text: "You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\nfixture permissions\n</cc_automode_permissions>" }],
     stream: false,
     stop_sequences: ["</block>"],
     messages: [{ role: "user", content: "x" }],

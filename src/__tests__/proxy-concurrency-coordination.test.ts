@@ -27,6 +27,8 @@ let queryCalls = 0
 let controls: AttemptControl[] = []
 let capturedParams: Array<{ options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; env?: Record<string, string> } }> = []
 let rateLimitWorkQueries = false
+let autoCompleteQueries = false
+let queryFailures = new Map<number, string>()
 
 function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted: () => void } {
   let release = () => {}
@@ -40,6 +42,7 @@ installSdkMock(() => ({
   query: (params: { options?: { resume?: string; sessionId?: string; env?: Record<string, string> } }) => {
     capturedParams.push(params)
     queryCalls++
+    const queryNumber = queryCalls
     const control = deferredAttempt()
     controls.push(control)
     const sessionId = resolveMockSdkSessionId(params.options, `sdk-concurrency-${queryCalls}`)
@@ -48,11 +51,13 @@ installSdkMock(() => ({
       maxActiveQueries = Math.max(maxActiveQueries, activeQueries)
       control.markStarted()
       try {
+        const failure = queryFailures.get(queryNumber)
+        if (failure) throw new Error(failure)
         if (rateLimitWorkQueries && params.options?.env?.CLAUDE_CONFIG_DIR?.includes("hot-work")) {
           throw new Error("429 rate limit reached for this account")
         }
         yield { ...messageStart(), session_id: sessionId }
-        await control.wait
+        if (!autoCompleteQueries) await control.wait
         yield { ...textBlockStart(0), session_id: sessionId }
         yield { ...textDelta(0, "ok"), session_id: sessionId }
         yield { ...blockStop(0), session_id: sessionId }
@@ -86,6 +91,8 @@ const { processSessionTurns } = await import("../proxy/session/turnCoordinator")
 const { computeLineageHash, computeMessageHashes, verifyLineage } = await import("../proxy/session/lineage")
 const { deriveToolLoopSessionId, openAiAdapter } = await import("../proxy/adapters/openai")
 const { translateOpenAiToAnthropic } = await import("../proxy/openai")
+const { storeSession } = await import("../proxy/session/cache")
+const { lookupSharedSessionResult } = await import("../proxy/sessionStore")
 
 function request(
   messages: Array<{ role: string; content: unknown }>,
@@ -140,6 +147,8 @@ function claudeCodeRequest(
   messages: Array<{ role: string; content: unknown }>,
   sessionId: string,
   extraHeaders: Record<string, string> = {},
+  stream = false,
+  extraBody: Record<string, unknown> = {},
 ): Request {
   return new Request("http://localhost/v1/messages", {
     method: "POST",
@@ -151,9 +160,10 @@ function claudeCodeRequest(
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: 128,
-      stream: false,
+      stream,
       messages,
       metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+      ...extraBody,
     }),
   })
 }
@@ -174,6 +184,7 @@ function claudeCodeClassifierRequest(sessionId: string, extraHeaders: Record<str
       model: "claude-sonnet-4-6",
       max_tokens: 64,
       stream: false,
+      system: [{ type: "text", text: "You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\nfixture permissions\n</cc_automode_permissions>" }],
       stop_sequences: ["</block>"],
       messages: [
         { role: "user", content: "<transcript>User: run the tests</transcript>" },
@@ -238,6 +249,8 @@ describe("SDK and Session concurrency coordination", () => {
     controls = []
     capturedParams = []
     rateLimitWorkQueries = false
+    autoCompleteQueries = false
+    queryFailures = new Map()
     clearSessionCache()
     resetProcessSdkSemaphoreForTests()
     telemetryStore.clear()
@@ -559,6 +572,72 @@ describe("SDK and Session concurrency coordination", () => {
     ;(await waitForControl(0)).release()
     expect((await reqP).status).toBe(200)
     expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(2)
+  })
+
+  for (const stream of [false, true]) {
+    for (const refusal of [undefined, "No message found with message.uuid of: checkpoint-uuid"] as const) {
+      it(`keeps a header-labelled auxiliary independent of a complete checkpoint (stream=${stream}, refusal=${Boolean(refusal)})`, async () => {
+        autoCompleteQueries = true
+        const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+        const sessionId = `claude-code-checkpoint-aux-${crypto.randomUUID()}`
+        const opening = [{ role: "user", content: "read the fixture" }]
+        const continuation = [
+          ...opening,
+          { role: "assistant", content: [{ type: "tool_use", id: "toolu-checkpoint", name: "Read", input: { file_path: "fixture.txt" } }] },
+          { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu-checkpoint", content: "fixture receipt" }] },
+        ]
+        expect(storeSession(sessionId, opening, "main-checkpoint", undefined, [null], undefined,
+          "checkpoint-uuid", ["toolu-checkpoint"])).toBeTruthy()
+        const original = lookupSharedSessionResult(sessionId)
+        expect(original.status).toBe("found")
+        if (original.status !== "found") throw new Error("Checkpoint fixture was not published")
+        if (refusal) queryFailures.set(1, refusal)
+
+        const auxiliary = await app.fetch(claudeCodeRequest(continuation, sessionId, {
+          "x-claude-code-request-class": "auxiliary",
+        }, stream))
+        expect(auxiliary.status).toBe(200)
+        await auxiliary.text()
+        // Even a complete known tool batch cannot promote a side call. A
+        // refusal from its own fresh target cannot evict the main checkpoint.
+        expect(capturedParams.length).toBe(refusal ? 2 : 1)
+        if (refusal) expect(lookupSharedSessionResult(sessionId)).toEqual(original)
+        for (const call of capturedParams) expect(call.options?.resume).toBeUndefined()
+        expect(lookupSharedSessionResult(sessionId)).toEqual(original)
+
+        // The identical complete batch is still valid for an ordinary turn.
+        const mainIndex = capturedParams.length
+        const main = await app.fetch(claudeCodeRequest(continuation, sessionId, {}, stream))
+        expect(main.status).toBe(200)
+        await main.text()
+        expect(capturedParams[mainIndex]?.options?.resume).toBe("main-checkpoint")
+        const published = lookupSharedSessionResult(sessionId)
+        expect(published.status).toBe("found")
+        if (published.status !== "found") throw new Error("Normal continuation did not publish")
+        expect(published.generation).not.toBe(original.generation)
+      })
+    }
+  }
+
+  it("publishes and resumes ordinary XML-stopped Claude Code conversations", async () => {
+    autoCompleteQueries = true
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `ordinary-xml-${crypto.randomUUID()}`
+    const opening = [{ role: "user", content: "Write an XML block" }]
+    const xml = { system: "Return XML ending at </block>.", stop_sequences: ["</block>"] }
+    const first = await app.fetch(claudeCodeRequest(opening, sessionId, {}, false, xml))
+    expect(first.status).toBe(200)
+    await first.text()
+    const stored = readSessionStoreSnapshot()[sessionId]
+    expect(stored?.messageCount).toBe(1)
+    expect(stored?.claudeSessionId).toBe(capturedParams[0]?.options?.sessionId)
+    const next = await app.fetch(claudeCodeRequest([
+      ...opening, { role: "assistant", content: "ok" }, { role: "user", content: "Write another XML block" },
+    ], sessionId, {}, false, xml))
+    expect(next.status).toBe(200)
+    await next.text()
+    expect(capturedParams[1]?.options?.resume).toBe(stored?.claudeSessionId)
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(3)
   })
 
   it("replays a declared-flow loser instead of rewinding the turn it lost to (#870)", async () => {

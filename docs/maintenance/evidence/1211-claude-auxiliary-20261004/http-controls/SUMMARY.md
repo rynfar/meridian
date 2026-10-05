@@ -1,0 +1,12 @@
+# Claude auxiliary controls, 2026-10-04
+
+Unchanged contributor incorporation baseline: `4cd004cce0da93f5028a63e4a770cb10c3a278fa`. Only the two regression test files were copied into the separate baseline checkout; server and session-tree production bytes remained unchanged. The same test bytes ran against the corrected shared worktree. Bun 1.3.14; mocked SDK only. No login, token, model call, source-store mutation, full suite, typecheck or build.
+
+- Before cancellation: 13 pass, 4 fail, 76 assertions, exit 1. Both main socket/body cancellation controls leave the same-key auxiliary running. Both auxiliary socket/body cancellation controls wrongly abort the main's declared child. Existing 11 cases and both declared-ancestor controls pass. All requests are aborted/joined in finally, with zero live tree residue.
+- After cancellation: 17 pass, 0 fail, 93 assertions, exit 0; source/test SHA-256 stable throughout the run.
+- Before priority: 1 pass, 1 fail, 19 assertions, exit 1. Same-key auxiliary A-refusal/B-success changes the next healthy primary's assignment to B. The ordinary-primary failover positive control correctly retains B. The controlled clock advances beyond the exact HTTP-reported cooldown before subsequent primary requests, preventing exhaustion from masking assignment behavior.
+- After priority: 2 pass, 0 fail, 20 assertions, exit 0; source/test SHA-256 stable throughout the run. The primary remains on A and resumes its mapping; ordinary primary failover still retains B and resumes.
+
+The `.json` receipts retain exact commands, exit results and byte identities. Raw sanitized test logs are beside each receipt. These are HTTP integration controls and do not substitute for the required affected-platform/native-Claude auto-mode live acceptance.
+
+Follow-up type normalization: root's first standalone typecheck identified Hono's `Response | Promise<Response>` return type at the new pending-request acquisition sites. The shared `controlledFetch` helper now applies `Promise.resolve` to all eleven new acquisitions, without casts or assertion changes. The six new cancellation controls pass again (51 assertions, zero failures) with stable production/test bytes; see `after-cancellation-type-normalization.{log,json}`. The original first typecheck output is retained as `first-typecheck.log`. The exact original before/after test bytes and identities in the earlier receipts remain historical; the new test SHA-256 is in the follow-up receipt. Root owns the final standalone typecheck and full local gates.
