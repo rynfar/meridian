@@ -7,7 +7,7 @@ No native calls, credential discovery/refresh, full suite, typecheck, build, pus
 
 Baseline source: `076b249fd55db84ffde546a4f6bf5211efffbf69`, extracted via `git archive` into a separate immutable source directory. The final test file was copied into that snapshot; dependency symlink is read-only. Each process has fresh owned config/Claude/session fixtures and a synthetic API profile with the SDK mocked.
 
-The exact final test SHA-256 is `763458afb412e8aab18140b4ec7db062bf1277836cbb923859fbfe6e2ba0ee22` in both baseline and corrected runs.
+The initial HTTP-lane test SHA-256 is `763458afb412e8aab18140b4ec7db062bf1277836cbb923859fbfe6e2ba0ee22` in both baseline and corrected runs below.
 
 Baseline command: `bun test --timeout 15000 --test-name-pattern 'explicit root cancellation|separates a native agent|replays an unmarked' src/__tests__/claude-subagent-isolation.test.ts`
 
@@ -32,6 +32,8 @@ Every test joins HTTP/mock SDK work and checks SDK active/queued permits, live c
 ## Fixture correction provenance
 
 `fixture-assertion-correction-initial.log` preserves an initial 7-pass/1-fail run whose additional legacy-main assertion incorrectly required a checkpoint resume to publish the old SDK ID. The SDK received the correct old resume ID/checkpoint and returned a managed fork target; that assertion was corrected to require the actual returned SDK ID and retained previous ID. This was a test correction, not a production finding. Earlier baseline logs/manifests are retained as `initial-*`.
+
+Standalone typecheck later caught a missing required index in the synthetic SDK `blockStop()` helper. The committed fixture now calls `blockStop(0)`; production assertions are unchanged. The exact final typed test SHA-256 is `1ac8d3d5266dc2082fa8e6a8c68d7d3aed90c1ec61feb2b3f23c9bbe58743940`. [The same corrected fixture](final-typed-before-after-manifest.json) again reproduces all three defects against a fresh immutable `076b249f` archive (**3 failures / 25 assertions**, joined cleanup) and passes the corrected code (**8 passed / 144 assertions**). [Final typed baseline log](final-typed-http-baseline.log) and [corrected log](final-typed-http-corrected.log) preserve the result; standalone typecheck also passes at `6e7ee9f4`.
 
 ## Limits
 
