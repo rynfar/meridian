@@ -319,6 +319,78 @@
       "originalSha256": "745d5b021b5d871ec4fc23ce2358a5bef9a88a9f36ad2bb9626c10a3f54424c9",
       "archiveSizeBytes": 193,
       "archiveSha256": "f6958de8611a5a79671681473c9013961193e9fc6fb9be276484c655a34da4d6"
+    },
+    {
+      "path": "harness-controls/before-H3-H4.test.ts.gz",
+      "originalName": "harness-controls/before-H3-H4.test.ts",
+      "originalSizeBytes": 20849,
+      "originalSha256": "7e4e3b64345289cdf7772e58bb232428e844349dfc09979d6bba6a0b5a34e89e",
+      "archiveSizeBytes": 6477,
+      "archiveSha256": "309a104029def9e17352fc2ebd9dc0561a9a12449c23973a1c6d272b89189f4f"
+    },
+    {
+      "path": "harness-controls/before-H5.test.ts.gz",
+      "originalName": "harness-controls/before-H5.test.ts",
+      "originalSizeBytes": 21831,
+      "originalSha256": "ff345fa940313e1d80bd28b53d56c700e026864b92a84a79468a23d7f7461cd9",
+      "archiveSizeBytes": 6666,
+      "archiveSha256": "38e93ad430c7270bdfd5d8d485404d987a7bf945601931d3d2909cbdf8a177de"
+    },
+    {
+      "path": "harness-controls/harness-before-H5.mjs.gz",
+      "originalName": "harness-controls/harness-before-H5.mjs",
+      "originalSizeBytes": 37731,
+      "originalSha256": "855d8cefb6c8a14efad4a1792849da51d9e5608de3cd07ef8b11c99ab464ee95",
+      "archiveSizeBytes": 12177,
+      "archiveSha256": "666e57b030279c2b8a568a8ad9a9825070f1b09111cf4d285a683b4b98e044ce"
+    },
+    {
+      "path": "harness-controls/harness-before-H1-H2.mjs.gz",
+      "originalName": "harness-controls/harness-before-H1-H2.mjs",
+      "originalSizeBytes": 36552,
+      "originalSha256": "3935a61eb9a6d3b447f5bfefe3dde8324dccaf7a5288bdd87c0f6b39119cab6b",
+      "archiveSizeBytes": 11819,
+      "archiveSha256": "c24ef1060c4d3d47694aff0fea3b3b79bfc2076ebde188b01e358b517f935469"
+    },
+    {
+      "path": "harness-controls/before-H1-H2.test.ts.gz",
+      "originalName": "harness-controls/before-H1-H2.test.ts",
+      "originalSizeBytes": 19319,
+      "originalSha256": "ce7d22993a3675cbec0807523ebd71c46d29d879a4fc45df7dbe232e4da1b388",
+      "archiveSizeBytes": 6151,
+      "archiveSha256": "0dd50c04db6d7e5af3ef0a6054867b05839b86c1f6cdefafd7ff3cbf7d6f4d5a"
+    },
+    {
+      "path": "harness-review-initial/E2E.md.f11e.snapshot.gz",
+      "originalName": "harness-review-initial/E2E.md.f11e.snapshot",
+      "originalSizeBytes": 399982,
+      "originalSha256": "7cf16884845ab2248ce01ad011897154361655c1411b3118c65a670d233887c5",
+      "archiveSizeBytes": 126889,
+      "archiveSha256": "945367a20a6f7139f39d58d143a5a1e235cf89b8c0f522f78663c7b908fa5a25"
+    },
+    {
+      "path": "harness-review-initial/src____tests____claude-auto-mode-harness.test.ts.f11e.snapshot.gz",
+      "originalName": "harness-review-initial/src____tests____claude-auto-mode-harness.test.ts.f11e.snapshot",
+      "originalSizeBytes": 17712,
+      "originalSha256": "2f3fd3e774c7f711ae5906fd06582a8ef4a358380945fd7ecd6f4266154a2ac0",
+      "archiveSizeBytes": 5777,
+      "archiveSha256": "b78cf76ebd62ee6fd89f6af3c641283fc5d5e146112607a992609571d08a3098"
+    },
+    {
+      "path": "harness-review-initial/docs__maintenance__evidence__1211-claude-auxiliary-20261004__README.md.f11e.snapshot.gz",
+      "originalName": "harness-review-initial/docs__maintenance__evidence__1211-claude-auxiliary-20261004__README.md.f11e.snapshot",
+      "originalSizeBytes": 6581,
+      "originalSha256": "7ecb45150395a08450d48aee7991fcd0af444df01012d867949428979952e468",
+      "archiveSizeBytes": 3262,
+      "archiveSha256": "fe1e55fd1de06f9af73f635710d15714b1aa9297d9a9d0476e48c638c3031578"
+    },
+    {
+      "path": "harness-review-initial/scripts__e2e-claude-code-auto-mode.mjs.f11e.snapshot.gz",
+      "originalName": "harness-review-initial/scripts__e2e-claude-code-auto-mode.mjs.f11e.snapshot",
+      "originalSizeBytes": 36552,
+      "originalSha256": "3935a61eb9a6d3b447f5bfefe3dde8324dccaf7a5288bdd87c0f6b39119cab6b",
+      "archiveSizeBytes": 11819,
+      "archiveSha256": "c24ef1060c4d3d47694aff0fea3b3b79bfc2076ebde188b01e358b517f935469"
     }
   ]
 }
