@@ -1,0 +1,9 @@
+{
+  "head": "f11e60e5b2480bd76a6d5921b8386f58ae53856c",
+  "command": "npm test",
+  "exitCode": 2,
+  "pretestTypecheckPassed": false,
+  "suiteStarted": false,
+  "diagnostic": "TS2345 claude-auto-mode-harness.test.ts:89 string | undefined",
+  "disposition": "typed helper correction required; harness H1/H2 review findings also corrected before rerun"
+}

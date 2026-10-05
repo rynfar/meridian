@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'bun:test'
-import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
 const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-auto-mode.mjs')
-type Mode = { baseline?: boolean; missingClassifier?: boolean; markerInUser?: boolean; fast?: boolean; swapped?: boolean; startupChild?: boolean; pendingStartup?: boolean; wrongModel?: boolean; queryAtStartup?: boolean; hang?: boolean; errorMaxTurns?: boolean; terminalSse?: boolean; brokenTerminal?: boolean; refusal?: boolean; duplicateToolId?: boolean; borrowTerminal?: boolean; repeatHttpToolId?: boolean; missingErrorFlag?: boolean; falseMaxTurnsFlag?: boolean; missingStart?: boolean; earlyStop?: boolean; postTerminalContent?: boolean; duplicateIndex?: boolean; inputAfterClose?: boolean }
+type Mode = { baseline?: boolean; missingClassifier?: boolean; markerInUser?: boolean; fast?: boolean; swapped?: boolean; startupChild?: boolean; pendingStartup?: boolean; wrongModel?: boolean; queryAtStartup?: boolean; hang?: boolean; errorMaxTurns?: boolean; terminalSse?: boolean; brokenTerminal?: boolean; refusal?: boolean }
 function fixture(mode: Mode = {}) {
   const root = mkdtempSync(join(tmpdir(), 'meridian-e71-controls-'))
   const target = join(root, 'target'), sdk = join(target, 'node_modules/@anthropic-ai/claude-agent-sdk'), proof = join(root, 'proof')
@@ -16,14 +16,14 @@ function fixture(mode: Mode = {}) {
   // asynchronous receipts. It never imports the installed native dependency.
   writeFileSync(join(sdk, 'sdk.mjs'), `import {readFileSync,writeFileSync} from 'node:fs';
 const root=new URL('../../../',import.meta.url),mode=JSON.parse(readFileSync(new URL('mode.json',root),'utf8'));let count=0;
-export function query(input){writeFileSync(new URL('query-called',root),'synthetic only');const destination=/date > ([^\x60]+)/.exec(input.prompt)?.[1],tool=mode.errorMaxTurns&&destination?{type:'tool_use',id:mode.duplicateToolId&&destination.endsWith('/stamp1.txt')?'synthetic-reused-tool':'synthetic-tool-'+(++count),name:'Bash',input:{command:'date > '+destination}}:undefined;return{close(){},async *[Symbol.asyncIterator](){yield{type:'assistant',...(mode.refusal?{error:'authentication_failed'}:{}),message:{model:mode.refusal?'<synthetic>':mode.wrongModel?'claude-sonnet-4-6':'claude-sonnet-5-5',usage:{input_tokens:mode.refusal?0:12,output_tokens:mode.refusal?0:4},content:tool?[tool]:[]}};yield{type:'result',subtype:mode.refusal?'error_during_execution':tool?'error_max_turns':'success',...(mode.missingErrorFlag?{}:{is_error:tool&&mode.falseMaxTurnsFlag?false:!!tool||!!mode.refusal}),num_turns:1,total_cost_usd:0.001}}}}
+export function query(input){writeFileSync(new URL('query-called',root),'synthetic only');const destination=/date > ([^\x60]+)/.exec(input.prompt)?.[1],tool=mode.errorMaxTurns&&destination?{type:'tool_use',id:'synthetic-tool-'+(++count),name:'Bash',input:{command:'date > '+destination}}:undefined;return{close(){},async *[Symbol.asyncIterator](){yield{type:'assistant',...(mode.refusal?{error:'authentication_failed'}:{}),message:{model:mode.refusal?'<synthetic>':mode.wrongModel?'claude-sonnet-4-6':'claude-sonnet-5-5',usage:{input_tokens:mode.refusal?0:12,output_tokens:mode.refusal?0:4},content:tool?[tool]:[]}};yield{type:'result',subtype:mode.refusal?'error_during_execution':tool?'error_max_turns':'success',is_error:!!tool||!!mode.refusal,num_turns:1,total_cost_usd:0.001}}}}
 `)
   writeFileSync(join(target, 'server.mjs'), `import assert from 'node:assert/strict';import{createServer}from'node:http';import{readFileSync,writeFileSync,statSync}from'node:fs';import{spawn}from'node:child_process';import{once}from'node:events';import{query}from'@anthropic-ai/claude-agent-sdk';
-const mode=JSON.parse(readFileSync(new URL('mode.json',import.meta.url),'utf8'));let main=0,requests=0,toolTerminals=0,previousTool;
+const mode=JSON.parse(readFileSync(new URL('mode.json',import.meta.url),'utf8'));let main=0,requests=0;
 assert(!process.env.ANTHROPIC_API_KEY&&!process.env.ANTHROPIC_AUTH_TOKEN&&!process.env.CLAUDE_CODE_OAUTH_TOKEN&&!process.env.MERIDIAN_PROFILES&&!process.env.MERIDIAN_TELEMETRY_DB&&!process.env.CLAUDE_PROXY_CONFIG_DIR&&!process.env.AWS_PROFILE);
 export async function startProxyServer(config){
  const account=config.profiles[0].claudeConfigDir,cred=JSON.parse(readFileSync(account+'/.credentials.json','utf8'));
- assert(config.port===0&&config.host==='127.0.0.1'&&config.defaultProfile==='e71-owned'&&config.silent===false);assert(!cred.claudeAiOauth.refreshToken);assert((statSync(account+'/.credentials.json').mode&511)===256);assert(process.env.MERIDIAN_CREDENTIALS_READONLY==='1');assert(account!==process.env.CLAUDE_CONFIG_DIR);
+ assert(config.port===0&&config.host==='127.0.0.1'&&config.defaultProfile==='e71-owned');assert(!cred.claudeAiOauth.refreshToken);assert((statSync(account+'/.credentials.json').mode&511)===256);assert(process.env.MERIDIAN_CREDENTIALS_READONLY==='1');assert(account!==process.env.CLAUDE_CONFIG_DIR);
  writeFileSync(new URL('audit.json',import.meta.url),JSON.stringify({account,work:process.env.MERIDIAN_WORKDIR,config:process.env.MERIDIAN_CONFIG_DIR,store:process.env.MERIDIAN_SESSION_DIR,plugins:config.pluginDir,home:process.env.HOME}));
  if(mode.pendingStartup)await new Promise(()=>{});
  if(mode.startupChild){const child=spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});setInterval(()=>{},1000);process.stdout.write('ready')"],{cwd:process.env.MERIDIAN_WORKDIR,stdio:['ignore','pipe','ignore']});writeFileSync(new URL('startup-child-pid',import.meta.url),String(child.pid));await once(child.stdout,'data');throw new Error('synthetic startup failure after child readiness')}
@@ -31,10 +31,9 @@ export async function startProxyServer(config){
  if(mode.queryAtStartup)query(input());
  const server=createServer(async(req,res)=>{try{let text='';for await(const chunk of req)text+=chunk;const body=JSON.parse(text),aux=!body.tools?.length;
  let content=[];for await(const event of query(input(body)))if(event.type==='assistant')content=event.message.content;
- if(content.length){toolTerminals++;const current=content[0];if(mode.repeatHttpToolId&&toolTerminals===2)content=[current,previousTool];previousTool=current;if(mode.borrowTerminal&&toolTerminals===2)content=[]}
  const reportedAux=mode.swapped&&++requests<=2?!aux:aux;const lineage=reportedAux||main===0||mode.baseline?'diverged':'continuation';const divergence=reportedAux?(mode.baseline?'unrelated-history':'independent-request:auxiliary-request'):main>0&&mode.baseline?'unrelated-history':undefined;if(!aux)main++;
- if(!config.silent)console.log('[PROXY] '+req.headers['x-request-id']+' adapter=claude-code msgCount='+body.messages.length+' tools='+(body.tools?.length??0)+' lineage='+lineage+(divergence?' diverged='+divergence:'')+' sessionWait=0ms private=synthetic-owner-secret');
- if(content.length){if(mode.terminalSse){const tool=content[0],events=[{type:'message_start',message:{type:'message',content:[]}},{type:'content_block_start',index:0,content_block:{type:'tool_use',id:tool.id,name:tool.name,input:{}}},{type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:JSON.stringify(tool.input)}},...(mode.brokenTerminal?[]:[{type:'content_block_stop',index:0}]),{type:'message_delta',delta:{stop_reason:'tool_use'}},{type:'message_stop'}];if(mode.missingStart)events.shift();if(mode.earlyStop)events.splice(3,0,{type:'message_stop'});if(mode.postTerminalContent)events.push({type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:''}});if(mode.duplicateIndex)events.splice(2,0,{...events[1]});if(mode.inputAfterClose)events.splice(4,0,{type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:''}});res.writeHead(200,{'content-type':'text/event-stream'});res.end(events.map(event=>'data: '+JSON.stringify(event)+String.fromCharCode(10,10)).join(''))}else{if(mode.brokenTerminal)content[0].input.command='different synthetic tool';res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({type:'message',stop_reason:'tool_use',content}))}}else{res.writeHead(200,{'content-type':'application/json'});res.end('{}')}}catch{res.writeHead(500);res.end('{}')}});
+ console.log('[PROXY] '+req.headers['x-request-id']+' adapter=claude-code msgCount='+body.messages.length+' tools='+(body.tools?.length??0)+' lineage='+lineage+(divergence?' diverged='+divergence:'')+' sessionWait=0ms private=synthetic-owner-secret');
+ if(content.length){if(mode.terminalSse){const tool=content[0],events=[{type:'message_start',message:{type:'message',content:[]}},{type:'content_block_start',index:0,content_block:{type:'tool_use',id:tool.id,name:tool.name,input:{}}},{type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:JSON.stringify(tool.input)}},...(mode.brokenTerminal?[]:[{type:'content_block_stop',index:0}]),{type:'message_delta',delta:{stop_reason:'tool_use'}},{type:'message_stop'}];res.writeHead(200,{'content-type':'text/event-stream'});res.end(events.map(event=>'data: '+JSON.stringify(event)+String.fromCharCode(10,10)).join(''))}else{if(mode.brokenTerminal)content[0].input.command='different synthetic tool';res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({type:'message',stop_reason:'tool_use',content}))}}else{res.writeHead(200,{'content-type':'application/json'});res.end('{}')}}catch{res.writeHead(500);res.end('{}')}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));return{server,close:()=>new Promise(resolve=>server.close(resolve))}
 }
 `)
@@ -62,14 +61,12 @@ console.log(['ONE','TWO','THREE','FOUR'][turn-1]+' synthetic-owner-secret');
   writeFileSync(grant, bytes, { mode: 0o400 })
   return { root, target, sdk, client, native, proof, grant, bytes }
 }
-function commandFor(f: ReturnType<typeof fixture>, extras: string[] = [], timeout = '10000') {
-  return [process.execPath, harness, '--synthetic', '--target-root', f.target, '--entry', 'server.mjs', '--client', f.client, '--client-version', '2.1.286', '--native-cli', f.native, '--native-cli-version', '2.1.284', '--sdk-version', '0.2.141', '--model', 'claude-sonnet-5-5', '--served-model', 'claude-sonnet-5-5', '--grant-file', f.grant, '--proof-dir', f.proof, '--max-queries', '20', '--max-cost-usd', '10', '--timeout-ms', timeout, ...extras]
-}
 async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
   const f = fixture(mode)
   let retainedSyntheticRuntime: string | undefined
   try {
-    const child = Bun.spawn(commandFor(f, extras, timeout), { cwd: f.target, env: { ...process.env, ANTHROPIC_API_KEY: 'synthetic-ambient', ANTHROPIC_AUTH_TOKEN: 'synthetic-ambient', CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-ambient', MERIDIAN_PROFILES: 'synthetic-ambient', MERIDIAN_TELEMETRY_DB: '/synthetic-no-write', CLAUDE_PROXY_CONFIG_DIR: '/synthetic-no-read', AWS_PROFILE: 'synthetic-ambient' }, stdout: 'pipe', stderr: 'pipe' })
+    const command = [process.execPath, harness, '--synthetic', '--target-root', f.target, '--entry', 'server.mjs', '--client', f.client, '--client-version', '2.1.286', '--native-cli', f.native, '--native-cli-version', '2.1.284', '--sdk-version', '0.2.141', '--model', 'claude-sonnet-5-5', '--served-model', 'claude-sonnet-5-5', '--grant-file', f.grant, '--proof-dir', f.proof, '--max-queries', '20', '--max-cost-usd', '10', '--timeout-ms', timeout, ...extras]
+    const child = Bun.spawn(command, { cwd: f.target, env: { ...process.env, ANTHROPIC_API_KEY: 'synthetic-ambient', ANTHROPIC_AUTH_TOKEN: 'synthetic-ambient', CLAUDE_CODE_OAUTH_TOKEN: 'synthetic-ambient', MERIDIAN_PROFILES: 'synthetic-ambient', MERIDIAN_TELEMETRY_DB: '/synthetic-no-write', CLAUDE_PROXY_CONFIG_DIR: '/synthetic-no-read', AWS_PROFILE: 'synthetic-ambient' }, stdout: 'pipe', stderr: 'pipe' })
     const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
     const serialized = readFileSync(join(f.proof, 'claude-auto-mode-results.json'), 'utf8')
     const report = JSON.parse(serialized) as { result: string; acceptance: boolean; privateSnapshotCreated?: boolean; privateRuntimeRemoved: boolean; ownerGrantUnchanged: boolean; queries: unknown[]; checks: Record<string, boolean>; cleanupFailures: string[]; targetIdentityUnchanged?: boolean; failure?: string }
@@ -89,9 +86,7 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
       expect(new Set(Object.values(audit)).size).toBe(Object.values(audit).length)
       for (const directory of Object.values(audit)) expect(existsSync(directory)).toBe(!!mode.pendingStartup)
       if (mode.pendingStartup) {
-        const account = audit.account
-        if (typeof account !== 'string' || account.length === 0) throw new Error('Synthetic retained-runtime audit lacks an account directory')
-        const candidate = dirname(account)
+        const candidate = dirname(audit.account)
         expect(basename(candidate).startsWith('meridian-e71-')).toBe(true)
         expect(Object.values(audit).every(directory => dirname(directory) === candidate)).toBe(true)
         retainedSyntheticRuntime = candidate
@@ -111,27 +106,6 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
 }
 
 describe('E71 native harness containment and meaningful assertions', () => {
-  it('rejects existing proof links and regular files before any query without changing their targets', async () => {
-    for (const kind of ['symlink', 'hardlink', 'regular']) {
-      const f = fixture(), resultFile = join(f.proof, 'claude-auto-mode-results.json'), target = kind === 'regular' ? resultFile : join(f.root, 'unrelated-owner-file')
-      const bytes = 'synthetic existing output owner bytes\n'
-      try {
-        writeFileSync(target, bytes, { mode: 0o600 })
-        if (kind === 'symlink') symlinkSync(target, resultFile)
-        if (kind === 'hardlink') linkSync(target, resultFile)
-        const before = statSync(target)
-        const child = Bun.spawn(commandFor(f), { cwd: f.target, stdout: 'pipe', stderr: 'pipe' })
-        const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited])
-        expect(code).toBe(1)
-        expect(readFileSync(target, 'utf8')).toBe(bytes)
-        expect(statSync(target).ino).toBe(before.ino)
-        expect(statSync(target).nlink).toBe(before.nlink)
-        expect(existsSync(join(f.target, 'query-called'))).toBe(false)
-        expect(readFileSync(f.grant, 'utf8')).toBe(f.bytes)
-        expect(out + err).not.toContain('synthetic-owner-secret')
-      } finally { rmSync(f.root, { recursive: true, force: true }) }
-    }
-  }, 30000)
   it('runs an independent synthetic client through dynamic HTTP ports with ambient auth rejected', async () => {
     const result = await run(); expect(result.code).toBe(0); expect(result.report.result).toBe('PASS'); expect(result.report.targetIdentityUnchanged).toBe(true); expect(result.report.queries.length).toBe(10)
   }, 30000)
@@ -160,22 +134,6 @@ describe('E71 native harness containment and meaningful assertions', () => {
   }, 30000)
   it('rejects provider refusal receipts even when the synthetic client claims success', async () => {
     const result = await run({ refusal: true }); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
-  }, 30000)
-  it('rejects a duplicate SDK tool ID borrowing another request terminal', async () => {
-    const result = await run({ errorMaxTurns: true, duplicateToolId: true, borrowTerminal: true }); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
-  }, 30000)
-  it('rejects an HTTP tool ID repeated in otherwise complete terminals', async () => {
-    const result = await run({ errorMaxTurns: true, repeatHttpToolId: true }); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
-  }, 30000)
-  it('rejects missing success error flags and false max-turns error flags', async () => {
-    for (const mode of [{ missingErrorFlag: true }, { errorMaxTurns: true, falseMaxTurnsFlag: true }]) {
-      const result = await run(mode); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
-    }
-  }, 30000)
-  it('requires ordered SSE start, closed blocks and terminal events without later content', async () => {
-    for (const mode of [{ missingStart: true }, { earlyStop: true }, { postTerminalContent: true }, { duplicateIndex: true }, { inputAfterClose: true }]) {
-      const result = await run({ errorMaxTurns: true, terminalSse: true, ...mode }); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
-    }
   }, 30000)
   it('does not count an ordinary XML stop/user marker as the required native classifier envelope', async () => {
     const result = await run({ markerInUser: true }); expect(result.code).toBe(1); expect(result.report.checks.classifierOccurred).toBe(false)

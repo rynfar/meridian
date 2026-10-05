@@ -207,6 +207,118 @@
       "originalSha256": "ad4cc250114e2f47b0647f056087038322dbdf850f10217b727f2a2f91df1a5c",
       "archiveSizeBytes": 2718,
       "archiveSha256": "f090fa6f5a78ea2fc31a1779da4dd4cbcf0bd846e7c1cda6f6dcee1609fd1757"
+    },
+    {
+      "path": "harness-controls/H1-H2-before-controls.log.gz",
+      "originalName": "harness-controls/H1-H2-before-controls.log",
+      "originalSizeBytes": 3295,
+      "originalSha256": "fd0606e856e2c95fe84654ed735974e7ab7bdc717b34230abcdc24422d738ca1",
+      "archiveSizeBytes": 745,
+      "archiveSha256": "52768b888b41e47372594e02a12365ee9c64ed2d9fbd39448765b96134a359a6"
+    },
+    {
+      "path": "harness-controls/H3-H4-before-controls.log.gz",
+      "originalName": "harness-controls/H3-H4-before-controls.log",
+      "originalSizeBytes": 3589,
+      "originalSha256": "55678c71640268519d8bab2502878c6fd84b8c62373ddf62a6023ad2e80cc553",
+      "archiveSizeBytes": 1559,
+      "archiveSha256": "22c47dd1e04b2e744dd28860762a67d0c66d3616410f27ec461c7a32a62a5272"
+    },
+    {
+      "path": "harness-controls/H5-before-controls.log.gz",
+      "originalName": "harness-controls/H5-before-controls.log",
+      "originalSizeBytes": 1292,
+      "originalSha256": "8384617a37f857ef1e28bec64ff0a64fc2de864c78d1b97e28d6de247a588ade",
+      "archiveSizeBytes": 570,
+      "archiveSha256": "e03cfae9b03c38fc8b7b431867ca982aff8fbb7bd8902e16b2a615a31efabaaf"
+    },
+    {
+      "path": "harness-controls/SSE-initial-observed-tool-excerpt.log.gz",
+      "originalName": "harness-controls/SSE-initial-observed-tool-excerpt.log",
+      "originalSizeBytes": 945,
+      "originalSha256": "362a23b1bc03c077e22d90dd48ae7b8db507cad119d5635d65772636d74f4a67",
+      "archiveSizeBytes": 604,
+      "archiveSha256": "886cb62adf336186bf73b13a17bcf4cb7d7d9aa3bd17a38daa08ce769630aae8"
+    },
+    {
+      "path": "harness-controls/diff-final-H1-H5.log.gz",
+      "originalName": "harness-controls/diff-final-H1-H5.log",
+      "originalSizeBytes": 34,
+      "originalSha256": "904c4032abdd152c23098c7475d30e49f488d9dca4e254d1383f50ad4d6348b5",
+      "archiveSizeBytes": 54,
+      "archiveSha256": "f956a1c935826e73300c7e6a915e9dd3e63b44123ec2c1b9d02898bae9e9f86a"
+    },
+    {
+      "path": "harness-controls/docs-final-H1-H5.log.gz",
+      "originalName": "harness-controls/docs-final-H1-H5.log",
+      "originalSizeBytes": 104,
+      "originalSha256": "6756a43530ecca7112ba30ae120d978268ab974724a66dcd55631ceef7ab1717",
+      "archiveSizeBytes": 113,
+      "archiveSha256": "8b2c8672657b3b785bb229e2fe065e06a83011e72bfee43f5a3c4371ba557574"
+    },
+    {
+      "path": "harness-controls/focused-14-pass-observed-tool-excerpt.log.gz",
+      "originalName": "harness-controls/focused-14-pass-observed-tool-excerpt.log",
+      "originalSizeBytes": 386,
+      "originalSha256": "155231d9cd2442ecc44d0034b580feb80012770b96fe9c2ebb06fc542aa3216c",
+      "archiveSizeBytes": 303,
+      "archiveSha256": "0d41cc5b5b448799b5331f3076955be181bab0e9c0648abc2f118c6e5f19f87e"
+    },
+    {
+      "path": "harness-controls/focused-final-H1-H5.log.gz",
+      "originalName": "harness-controls/focused-final-H1-H5.log",
+      "originalSizeBytes": 3111,
+      "originalSha256": "0c78953ea032ea99064c0fcf1cffa59b994600a2850dd6fbc6590e87b4eaabc5",
+      "archiveSizeBytes": 1047,
+      "archiveSha256": "bd7a70e2401066f539c34cf9c0e52e7e5e35312346ab3397b9d6ad813a39c57f"
+    },
+    {
+      "path": "harness-controls/full-pretest-initial.log.gz",
+      "originalName": "harness-controls/full-pretest-initial.log",
+      "originalSizeBytes": 262,
+      "originalSha256": "745d5b021b5d871ec4fc23ce2358a5bef9a88a9f36ad2bb9626c10a3f54424c9",
+      "archiveSizeBytes": 193,
+      "archiveSha256": "f6958de8611a5a79671681473c9013961193e9fc6fb9be276484c655a34da4d6"
+    },
+    {
+      "path": "harness-controls/syntax-final-H1-H5.log.gz",
+      "originalName": "harness-controls/syntax-final-H1-H5.log",
+      "originalSizeBytes": 68,
+      "originalSha256": "92604f8dd82d1ba5b40295ba6f0ba5cc5097edeca3484210a433250cb8208c36",
+      "archiveSizeBytes": 84,
+      "archiveSha256": "977c08d2944459d72969b4b62d6b02f4f0905e7b4d84c0cc11a32875f84af961"
+    },
+    {
+      "path": "harness-controls/typecheck-after-audit-guard.log.gz",
+      "originalName": "harness-controls/typecheck-after-audit-guard.log",
+      "originalSizeBytes": 53,
+      "originalSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "archiveSizeBytes": 73,
+      "archiveSha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0"
+    },
+    {
+      "path": "harness-controls/typecheck-final-H1-H5.log.gz",
+      "originalName": "harness-controls/typecheck-final-H1-H5.log",
+      "originalSizeBytes": 53,
+      "originalSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "archiveSizeBytes": 73,
+      "archiveSha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0"
+    },
+    {
+      "path": "local-gates/graceful-fenced-focused.log.gz",
+      "originalName": "local-gates/graceful-fenced-focused.log",
+      "originalSizeBytes": 1467,
+      "originalSha256": "2adafbf4558672ce2a92af58423df1eae07b7c70a97cec978fad267dc500fe84",
+      "archiveSizeBytes": 716,
+      "archiveSha256": "df0a5ce0ae3e2757c51ba26663560ccbf93d881002bb86cb7dcb1dbfa96ffba6"
+    },
+    {
+      "path": "local-gates/npm-test-pretest-first.log.gz",
+      "originalName": "local-gates/npm-test-pretest-first.log",
+      "originalSizeBytes": 262,
+      "originalSha256": "745d5b021b5d871ec4fc23ce2358a5bef9a88a9f36ad2bb9626c10a3f54424c9",
+      "archiveSizeBytes": 193,
+      "archiveSha256": "f6958de8611a5a79671681473c9013961193e9fc6fb9be276484c655a34da4d6"
     }
   ]
 }

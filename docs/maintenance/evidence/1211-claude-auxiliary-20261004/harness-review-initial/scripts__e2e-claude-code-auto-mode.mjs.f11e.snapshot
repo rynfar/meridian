@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
 import { once } from 'node:events'
-import { lstatSync, statSync, fstatSync, openSync, closeSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, readdirSync, existsSync } from 'node:fs'
+import { lstatSync, statSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -29,15 +29,6 @@ assert(Number.isInteger(maximum) && maximum >= 1 && maximum <= 40 && costLimit >
 const output = resolve(args['proof-dir'])
 mkdirSync(output, { recursive: true, mode: 0o700 })
 assert((statSync(output).mode & 0o077) === 0 && !lstatSync(output).isSymbolicLink(), 'Proof directory must be private and real')
-function verifyProofDescriptor(fd) {
-  const row = fstatSync(fd)
-  assert(row.isFile() && row.uid === process.getuid() && row.nlink === 1 && (row.mode & 0o777) === 0o600, 'Proof descriptor must be private, owned and single-link')
-}
-// Reserve before imports, version probes or reading any grant. Existing
-// output (including a link) is never opened for writing or removed.
-const proofDescriptor = openSync(join(output, 'claude-auto-mode-results.json'), 'wx', 0o600)
-try { verifyProofDescriptor(proofDescriptor) }
-catch (error) { closeSync(proofDescriptor); throw error }
 const proof = { kind: synthetic ? 'synthetic-harness-control' : rehearsal ? 'zero-query-rehearsal' : 'native-affected-flow', expected: args['expect-unfixed'] ? 'unfixed' : 'fixed', platform: `${process.platform}/${process.arch}`, runtime: { bun: Bun.version, node: process.version }, requestedModel: args.model, requiredServedModel: args['served-model'], limits: { queries: maximum, sdkEstimatedCostUsd: costLimit, perQueryBudgetUsd: costLimit / maximum, totalMilliseconds: timeout }, queries: [], turns: [], checks: {}, result: 'INCOMPLETE', acceptance: false }
 const saved = { log: console.log, error: console.error, warn: console.warn, debug: console.debug }
 const publicLog = saved.log.bind(console), records = [], traceIds = new Map()
@@ -89,7 +80,7 @@ async function requestBody(request, maximumBytes) {
   } finally { await reader.cancel(); reader.releaseLock() }
 }
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
-const sdkTools = new Map(), sdkToolOwners = new Map(), httpTools = new Map(), pendingHttp = new Set()
+const sdkTools = new Map(), httpTools = new Map(), pendingHttp = new Set()
 let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup
 let startupSettled = false
 let inputs = []
@@ -177,59 +168,27 @@ function httpToolTerminal(status, contentType, text) {
   if (status !== 200) return
   const complete = []
   if (contentType.includes('text/event-stream')) {
-    const blocks = new Map(); let started = false, terminal = false, stopped = false
+    const blocks = new Map(); let reason, stopped = false
     for (const frame of text.replace(/\r\n/g, '\n').split('\n\n')) {
       const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n')
       if (!data) continue
       const event = JSON.parse(data)
-      if (event.type === 'ping') continue
-      if (event.type === 'error' || stopped) return
-      if (event.type === 'message_start') {
-        if (started || blocks.size) return
-        started = true; continue
-      }
-      if (!started) return
-      if (event.type === 'content_block_start') {
-        if (terminal || !Number.isInteger(event.index) || event.index < 0 || blocks.has(event.index) || typeof event.content_block?.type !== 'string') return
-        blocks.set(event.index, { ...event.content_block, json: '', closed: false })
-      }
-      if (event.type === 'content_block_delta') {
-        const block = blocks.get(event.index)
-        if (terminal || !block || block.closed) return
-        if (event.delta?.type === 'input_json_delta') {
-          if (block.type !== 'tool_use' || typeof event.delta.partial_json !== 'string') return
-          block.json += event.delta.partial_json
-        }
-      }
-      if (event.type === 'content_block_stop') {
-        const block = blocks.get(event.index)
-        if (terminal || !block || block.closed) return
-        block.closed = true
-      }
-      if (event.type === 'message_delta') {
-        if (terminal) return
-        if (event.delta?.stop_reason != null) {
-          if (event.delta.stop_reason !== 'tool_use' || !blocks.size || [...blocks.values()].some(block => !block.closed)) return
-          terminal = true
-        }
-      }
-      if (event.type === 'message_stop') {
-        if (!terminal || !blocks.size || [...blocks.values()].some(block => !block.closed)) return
-        stopped = true
-      }
+      if (event.type === 'error') return
+      if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') blocks.set(event.index, { ...event.content_block, json: '', closed: false })
+      if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta' && blocks.has(event.index)) blocks.get(event.index).json += event.delta.partial_json
+      if (event.type === 'content_block_stop' && blocks.has(event.index)) blocks.get(event.index).closed = true
+      if (event.type === 'message_delta') reason = event.delta?.stop_reason
+      if (event.type === 'message_stop') stopped = true
     }
-    if (!started || !terminal || !stopped) return
-    for (const block of blocks.values()) if (block.type === 'tool_use') complete.push({ id: block.id, input: block.json ? JSON.parse(block.json) : block.input })
+    if (!stopped || reason !== 'tool_use' || !blocks.size || [...blocks.values()].some(block => !block.closed)) return
+    for (const block of blocks.values()) complete.push({ id: block.id, input: block.json ? JSON.parse(block.json) : block.input })
   } else {
     const body = JSON.parse(text)
     if (body.type !== 'message' || body.stop_reason !== 'tool_use' || !Array.isArray(body.content)) return
     complete.push(...body.content.filter(block => block.type === 'tool_use'))
   }
   if (!complete.length || complete.some(block => typeof block.id !== 'string' || !block.id.length || !objectInput(block.input))) return
-  for (const block of complete) {
-    if (httpTools.has(block.id)) proof.httpToolIdReused = true
-    httpTools.set(block.id, JSON.stringify(inputIdentity(block.input)))
-  }
+  for (const block of complete) httpTools.set(block.id, JSON.stringify(inputIdentity(block.input)))
 }
 try {
   deadline = setTimeout(() => stop.abort(new Error('E71 total deadline exceeded')), timeout)
@@ -301,7 +260,7 @@ try {
     assert(!stop.signal.aborted && proof.queries.length < maximum, 'Generation count/deadline bound reached')
     assert(input.options.env?.CLAUDE_CONFIG_DIR === account && input.options.pathToClaudeCodeExecutable === native, 'SDK escaped explicit account/executable')
     assert(!input.options.env?.ANTHROPIC_API_KEY && !input.options.env?.ANTHROPIC_BASE_URL && !input.options.env?.CLAUDE_CODE_OAUTH_TOKEN, 'SDK inherited another authentication/provider override')
-    const row = { turn, requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', resumed: typeof input.options.resume === 'string', maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultFlagValid: false, resultIsError: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
+    const row = { turn, requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', resumed: typeof input.options.resume === 'string', maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultIsError: false, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
     const tools = new Map(); sdkTools.set(row, tools)
     proof.queries.push(row)
     const query = original({ ...input, options: { ...input.options, maxBudgetUsd: costLimit / maximum } }); active.add(query)
@@ -317,16 +276,11 @@ try {
               row.assistantError ||= Boolean(event.error)
               const usage = event.message?.usage
               if (usage) { row.inputTokens = Math.max(row.inputTokens, (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)); row.outputTokens = Math.max(row.outputTokens, usage.output_tokens ?? 0) }
-              for (const block of event.message?.content ?? []) if (block.type === 'tool_use' && typeof block.id === 'string' && objectInput(block.input)) {
-                if (sdkToolOwners.has(block.id) && sdkToolOwners.get(block.id) !== row) proof.sdkToolIdReused = true
-                sdkToolOwners.set(block.id, row)
-                tools.set(block.id, JSON.stringify(inputIdentity(block.input)))
-              }
+              for (const block of event.message?.content ?? []) if (block.type === 'tool_use' && typeof block.id === 'string' && objectInput(block.input)) tools.set(block.id, JSON.stringify(inputIdentity(block.input)))
             }
             if (event.type === 'result') {
               row.completed = true; row.resultSubtype = ['success', 'error_max_turns'].includes(event.subtype) ? event.subtype : 'other'
-              row.resultFlagValid = typeof event.is_error === 'boolean'
-              row.resultIsError = row.resultFlagValid ? event.is_error : null; row.nativeTurns = event.num_turns
+              row.resultIsError = event.is_error === true; row.nativeTurns = event.num_turns
               row.terminalReason = event.terminal_reason === undefined ? 'absent' : event.terminal_reason === 'max_turns' ? 'max_turns' : 'other'
               row.estimatedCostUsd = Number.isFinite(event.total_cost_usd) ? event.total_cost_usd : null
             }
@@ -339,7 +293,7 @@ try {
   })
   census = setInterval(() => { try { ownedProcesses() } catch { proof.processCensusFailed = true; stop.abort(new Error('Owned process census failed')) } }, 100)
   const { startProxyServer } = await import(pathToFileURL(entry).href)
-  startup = startProxyServer({ port: 0, host: '127.0.0.1', silent: false, profiles: [{ id: 'e71-owned', type: 'claude-max', claudeConfigDir: account }], defaultProfile: 'e71-owned', pluginDir: join(scratch, 'plugins'), pluginConfigPath: join(scratch, 'plugins.json') }).then(value => { proxy = value; return value }).finally(() => { startupSettled = true })
+  startup = startProxyServer({ port: 0, host: '127.0.0.1', silent: true, profiles: [{ id: 'e71-owned', type: 'claude-max', claudeConfigDir: account }], defaultProfile: 'e71-owned', pluginDir: join(scratch, 'plugins'), pluginConfigPath: join(scratch, 'plugins.json') }).then(value => { proxy = value; return value }).finally(() => { startupSettled = true })
   proxy = await duringRun(startup, 15000, 'Proxy startup deadline exceeded')
   if (!proxy.server.listening) await duringRun(once(proxy.server, 'listening'), 5000, 'Proxy listen deadline exceeded')
   const address = proxy.server.address(); assert(address && typeof address === 'object', 'Proxy did not bind loopback')
@@ -386,7 +340,7 @@ try {
     for (const row of proof.queries) {
       const tools = sdkTools.get(row)
       row.canonicalHttpToolTerminal = tools.size > 0 && [...tools].every(([id, input]) => httpTools.get(id) === input) && [...tools.values()].some(input => input.includes(`${outside}/stamp${row.turn}.txt`))
-      row.acceptedCanonicalResult = row.resultFlagValid && ((row.resultSubtype === 'success' && row.resultIsError === false) || (row.resultSubtype === 'error_max_turns' && row.resultIsError === true && row.maxTurns === 1 && row.nativeTurns === 1 && ['absent', 'max_turns'].includes(row.terminalReason) && row.canonicalHttpToolTerminal))
+      row.acceptedCanonicalResult = (row.resultSubtype === 'success' && !row.resultIsError) || (row.resultSubtype === 'error_max_turns' && row.maxTurns === 1 && row.nativeTurns === 1 && ['absent', 'max_turns'].includes(row.terminalReason) && row.canonicalHttpToolTerminal)
     }
     proof.wire = wire; proof.lineage = records
     const classifiers = wire.filter(row => row.classifier || row.requestClass === 'auxiliary'), shape = classifiers.filter(row => row.turn < 4), labelled = wire.filter(row => row.turn === 4 && row.requestClass === 'auxiliary'), mains = records.filter(row => row.tools > 0 && !row.auxiliary)
@@ -400,7 +354,7 @@ try {
       nonAuxiliaryPreserved: wire.filter(row => !row.classifier && row.requestClass !== 'auxiliary').every(row => decision(row).length === 1 && !decision(row)[0].auxiliary),
       auxiliaryZeroLeaseWait: classifiers.every(row => decision(row).length === 1 && decision(row)[0].sessionWaitMs === 0),
       mainResume: mains.length > 1 && mains.slice(1).every(row => row.lineage === 'continuation'), noCollision: !records.some(row => ['unrelated-history', 'concurrent-race'].includes(row.divergence)),
-      nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length > 0 && proof.queries.every(row => row.completed && row.iteratorSettled && row.acceptedCanonicalResult && !row.assistantError && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
+      nativeReceipts: !proof.httpReceiptFailure && proof.queries.length > 0 && proof.queries.every(row => row.completed && row.iteratorSettled && row.acceptedCanonicalResult && !row.assistantError && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
     }
     const defects = new Set(['shapeIsolation', 'headerIsolation', 'mainResume', 'noCollision'])
     for (const [name, actual] of Object.entries(proof.checks)) {
@@ -453,8 +407,7 @@ try {
   if (cleanup.length) proof.result = 'FAIL'
   proof.acceptance = !synthetic && !rehearsal && !args['expect-unfixed'] && proof.result === 'PASS'
   for (const key of Object.keys(saved)) console[key] = saved[key]
-  try { verifyProofDescriptor(proofDescriptor); writeFileSync(proofDescriptor, JSON.stringify(proof, null, 2)) }
-  finally { closeSync(proofDescriptor) }
+  writeFileSync(join(output, 'claude-auto-mode-results.json'), JSON.stringify(proof, null, 2), { mode: 0o600 })
   publicLog(JSON.stringify({ kind: proof.kind, result: proof.result, acceptance: proof.acceptance, sdkQueries: proof.queries.length, ownerGrantUnchanged: proof.ownerGrantUnchanged, privateRuntimeRemoved: proof.privateRuntimeRemoved, cleanupFailures: cleanup.length }))
 }
 process.exit(failure || proof.cleanupFailures.length ? 1 : 0)

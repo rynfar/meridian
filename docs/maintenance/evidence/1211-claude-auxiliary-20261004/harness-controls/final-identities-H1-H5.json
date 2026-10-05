@@ -1,0 +1,18 @@
+{
+  "baseHead": "f11e60e5b2480bd76a6d5921b8386f58ae53856c",
+  "workingTreeFilesSha256": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "01a842ec9327517b265e301bb075c7e1de99de289343e2d30e6811cfdb08589a",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "2098c3b077054a47559fe67049f2027d6c2c3b4b08e1ee1ab0f8b1ee5807e832",
+    "E2E.md": "69058c010d7b3f71d3c347ce38b7492a4ac03b9fdd8c42e1b9bca26e9faf6655"
+  },
+  "nativeGeneration": false,
+  "actualCredentialReads": false,
+  "syntheticLimits": {
+    "maxQueries": 20,
+    "maxEstimatedCostUsd": 10,
+    "perQueryBudgetUsd": 0.5,
+    "usualTotalMs": 10000,
+    "deadlineAndRetainCasesTotalMs": 500
+  },
+  "source": "working-tree packet before parent commit"
+}

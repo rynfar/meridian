@@ -3,8 +3,8 @@ import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, 
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
-const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-auto-mode.mjs')
-type Mode = { baseline?: boolean; missingClassifier?: boolean; markerInUser?: boolean; fast?: boolean; swapped?: boolean; startupChild?: boolean; pendingStartup?: boolean; wrongModel?: boolean; queryAtStartup?: boolean; hang?: boolean; errorMaxTurns?: boolean; terminalSse?: boolean; brokenTerminal?: boolean; refusal?: boolean; duplicateToolId?: boolean; borrowTerminal?: boolean; repeatHttpToolId?: boolean; missingErrorFlag?: boolean; falseMaxTurnsFlag?: boolean; missingStart?: boolean; earlyStop?: boolean; postTerminalContent?: boolean; duplicateIndex?: boolean; inputAfterClose?: boolean }
+const harness = '/tmp/meridian-backlog-20261004/meridian/1211/aux-harness-round1/harness-before-H1-H2.mjs'
+type Mode = { baseline?: boolean; missingClassifier?: boolean; markerInUser?: boolean; fast?: boolean; swapped?: boolean; startupChild?: boolean; pendingStartup?: boolean; wrongModel?: boolean; queryAtStartup?: boolean; hang?: boolean; errorMaxTurns?: boolean; terminalSse?: boolean; brokenTerminal?: boolean; refusal?: boolean; duplicateToolId?: boolean; borrowTerminal?: boolean; repeatHttpToolId?: boolean; missingErrorFlag?: boolean; falseMaxTurnsFlag?: boolean }
 function fixture(mode: Mode = {}) {
   const root = mkdtempSync(join(tmpdir(), 'meridian-e71-controls-'))
   const target = join(root, 'target'), sdk = join(target, 'node_modules/@anthropic-ai/claude-agent-sdk'), proof = join(root, 'proof')
@@ -34,7 +34,7 @@ export async function startProxyServer(config){
  if(content.length){toolTerminals++;const current=content[0];if(mode.repeatHttpToolId&&toolTerminals===2)content=[current,previousTool];previousTool=current;if(mode.borrowTerminal&&toolTerminals===2)content=[]}
  const reportedAux=mode.swapped&&++requests<=2?!aux:aux;const lineage=reportedAux||main===0||mode.baseline?'diverged':'continuation';const divergence=reportedAux?(mode.baseline?'unrelated-history':'independent-request:auxiliary-request'):main>0&&mode.baseline?'unrelated-history':undefined;if(!aux)main++;
  if(!config.silent)console.log('[PROXY] '+req.headers['x-request-id']+' adapter=claude-code msgCount='+body.messages.length+' tools='+(body.tools?.length??0)+' lineage='+lineage+(divergence?' diverged='+divergence:'')+' sessionWait=0ms private=synthetic-owner-secret');
- if(content.length){if(mode.terminalSse){const tool=content[0],events=[{type:'message_start',message:{type:'message',content:[]}},{type:'content_block_start',index:0,content_block:{type:'tool_use',id:tool.id,name:tool.name,input:{}}},{type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:JSON.stringify(tool.input)}},...(mode.brokenTerminal?[]:[{type:'content_block_stop',index:0}]),{type:'message_delta',delta:{stop_reason:'tool_use'}},{type:'message_stop'}];if(mode.missingStart)events.shift();if(mode.earlyStop)events.splice(3,0,{type:'message_stop'});if(mode.postTerminalContent)events.push({type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:''}});if(mode.duplicateIndex)events.splice(2,0,{...events[1]});if(mode.inputAfterClose)events.splice(4,0,{type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:''}});res.writeHead(200,{'content-type':'text/event-stream'});res.end(events.map(event=>'data: '+JSON.stringify(event)+String.fromCharCode(10,10)).join(''))}else{if(mode.brokenTerminal)content[0].input.command='different synthetic tool';res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({type:'message',stop_reason:'tool_use',content}))}}else{res.writeHead(200,{'content-type':'application/json'});res.end('{}')}}catch{res.writeHead(500);res.end('{}')}});
+ if(content.length){if(mode.terminalSse){const tool=content[0],events=[{type:'message_start',message:{type:'message',content:[]}},{type:'content_block_start',index:0,content_block:{type:'tool_use',id:tool.id,name:tool.name,input:{}}},{type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:JSON.stringify(tool.input)}},...(mode.brokenTerminal?[]:[{type:'content_block_stop',index:0}]),{type:'message_delta',delta:{stop_reason:'tool_use'}},{type:'message_stop'}];res.writeHead(200,{'content-type':'text/event-stream'});res.end(events.map(event=>'data: '+JSON.stringify(event)+String.fromCharCode(10,10)).join(''))}else{if(mode.brokenTerminal)content[0].input.command='different synthetic tool';res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({type:'message',stop_reason:'tool_use',content}))}}else{res.writeHead(200,{'content-type':'application/json'});res.end('{}')}}catch{res.writeHead(500);res.end('{}')}});
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));return{server,close:()=>new Promise(resolve=>server.close(resolve))}
 }
 `)
@@ -170,11 +170,6 @@ describe('E71 native harness containment and meaningful assertions', () => {
   it('rejects missing success error flags and false max-turns error flags', async () => {
     for (const mode of [{ missingErrorFlag: true }, { errorMaxTurns: true, falseMaxTurnsFlag: true }]) {
       const result = await run(mode); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
-    }
-  }, 30000)
-  it('requires ordered SSE start, closed blocks and terminal events without later content', async () => {
-    for (const mode of [{ missingStart: true }, { earlyStop: true }, { postTerminalContent: true }, { duplicateIndex: true }, { inputAfterClose: true }]) {
-      const result = await run({ errorMaxTurns: true, terminalSse: true, ...mode }); expect(result.code).toBe(1); expect(result.report.checks.nativeReceipts).toBe(false)
     }
   }, 30000)
   it('does not count an ordinary XML stop/user marker as the required native classifier envelope', async () => {

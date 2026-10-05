@@ -3,7 +3,7 @@ import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, 
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
-const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-auto-mode.mjs')
+const harness = '/tmp/meridian-backlog-20261004/meridian/1211/aux-harness-round1/harness-before-H5.mjs'
 type Mode = { baseline?: boolean; missingClassifier?: boolean; markerInUser?: boolean; fast?: boolean; swapped?: boolean; startupChild?: boolean; pendingStartup?: boolean; wrongModel?: boolean; queryAtStartup?: boolean; hang?: boolean; errorMaxTurns?: boolean; terminalSse?: boolean; brokenTerminal?: boolean; refusal?: boolean; duplicateToolId?: boolean; borrowTerminal?: boolean; repeatHttpToolId?: boolean; missingErrorFlag?: boolean; falseMaxTurnsFlag?: boolean; missingStart?: boolean; earlyStop?: boolean; postTerminalContent?: boolean; duplicateIndex?: boolean; inputAfterClose?: boolean }
 function fixture(mode: Mode = {}) {
   const root = mkdtempSync(join(tmpdir(), 'meridian-e71-controls-'))

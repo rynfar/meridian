@@ -309,6 +309,48 @@ its durable evidence receipts.
 Other historical dispositions below remain qualified by
 their own recorded scopes and dates.
 
+## Current continuation — 2026-10-04 (approved SQLite and Claude auxiliary corrections)
+
+The owner approved [#1277](https://github.com/rynfar/meridian/issues/1277),
+and the issue records that approval. [Review #1278](https://github.com/rynfar/meridian/pull/1278)
+merged as `74d0a49953211eb8e2c1ccae275971aa0d624c1c` from exact reviewed
+`ef4b629977b7705efd00459acd457c66ca58dc7a`, matching tree
+`fabaf59afb96133c43bf1aa6f7c182d61c307fa2`. All six executed final-head
+checks passed, including [test](https://github.com/rynfar/meridian/actions/runs/37250864506),
+plus the expected changelog skip; human authorship and blank squash body were
+verified. This merge contains maintenance documentation only. The earlier
+#1278 final-head CI/review-pending statements below are historical.
+
+The approved opt-in SQL corrections are active in an isolated worktree. Four
+actual Aleksey-authored SQL commits are preserved; the uncorrected inherited
+SSE layer is explicitly excluded. Opaque ownership, joined shutdown, exact
+JSON codec, exclusive maintenance and cleanup corrections have focused controls.
+Profile-pruning parity, bounded GC work, historical SQL stages, guarded native
+carrier packaging and actual platform/client/model proof remain gates. Both
+submitted SQL heads stay held; approval does not establish their acceptance.
+
+[#1211](https://github.com/rynfar/meridian/pull/1211) is being incorporated with
+[durable correction evidence](evidence/1211-claude-auxiliary-20261004/README.md).
+Its earlier public-API hold inferred too much from internal TypeScript exports:
+the adapter hooks are outside the published package interface and no owner
+defer was given. All five Noah-authored commits preserve Author/AuthorDate;
+maintainer corrections are separate. Complete source and production correction
+reviews resolve mapping/checkpoint authority, cancellation, priority affinity,
+classifier false positives and adjacent retry accounting. The actual-client
+harness is being corrected against independent receipt/containment findings;
+frozen full checks and final harness review remain pending. Native Linux Claude
+Code/Sonnet E71, E55 parity and all four E41 modes remain acceptance gates.
+This correction of #1211's internal scope approves no other public proposal.
+
+Draft [#1276](https://github.com/rynfar/meridian/pull/1276) at `e47fbb28` has
+all six executed checks passing, including
+[test](https://github.com/rynfar/meridian/actions/runs/37245344327), plus the
+expected changelog skip. Actual SDK/client/native Windows proof remains open;
+green CI does not permit landing it. Sonnet #1267's actual Meridian OpenCode
+V2 plugin setup is verified; its working owner inference gate remains open.
+Source PRs/issues remain open. No release or external-comment authority is
+inferred; the user's dirty root checkout remains preserved.
+
 ## Current continuation — 2026-10-04 (complete SQLite review)
 
 The [new review checkpoint](BACKLOG_SQLITE_REVIEW_2026-10-04.md) records #1274's

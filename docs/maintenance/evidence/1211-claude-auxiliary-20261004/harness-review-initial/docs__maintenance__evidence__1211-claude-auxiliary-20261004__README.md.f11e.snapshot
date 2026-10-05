@@ -14,7 +14,7 @@ The earlier public-API approval hold was an overbroad inference from a
 TypeScript `export` keyword. The root package exports only `.` through
 `src/proxy/server.ts`; `AgentIdentity` and `AgentAdapter` are internal,
 neither package exports nor part of `ProxyConfig`/transform types. The approved
-architecture [describes `AgentIdentity` as internal and inaccessible](../../../superpowers/specs/2026-04-17-plugin-system-design.md)
+architecture explicitly describes `AgentIdentity` as internal and inaccessible
 to plugins. Recognizing Claude Code's existing request-class header changes no
 Meridian header, health/profile/Messages schema or public lifecycle contract.
 This is an authorized internal correction; there was no owner-directed defer

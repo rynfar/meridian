@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
+import { installProxyBoundaryFences } from "./fixtures/proxy-boundary-fences"
 import { mkdtempSync, rmSync } from "node:fs"
 import type { AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
@@ -68,6 +69,30 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer, startProxyServer, clearSessionCache } = await import("../proxy/server")
 
+const ownedServers: ReturnType<typeof createProxyServer>[] = []
+const ownedInstances: Awaited<ReturnType<typeof startProxyServer>>[] = []
+function ownedServer(config: Parameters<typeof createProxyServer>[0]) {
+  const server = createProxyServer({ ...boundaries.config(), ...config })
+  ownedServers.push(server)
+  return server
+}
+async function joinOwnedFixtures(): Promise<void> {
+  for (const control of controls) control.release()
+  for (const server of ownedServers) {
+    server.beginDrain?.()
+    if ((server.getInFlightCount?.() ?? 0) > 0) server.forceAbortInFlight?.()
+  }
+  await Promise.all(ownedInstances.map(instance => instance.close()))
+  const deadline = Date.now() + 3000
+  while (ownedServers.some(server => (server.getInFlightCount?.() ?? 0) > 0)) {
+    if (Date.now() >= deadline) throw new Error("Owned shutdown fixture failed to finish")
+    await Bun.sleep(5)
+  }
+  ownedServers.length = 0
+  ownedInstances.length = 0
+}
+const boundaries = installProxyBoundaryFences(joinOwnedFixtures)
+
 function request(
   sessionId: string,
   stream = true,
@@ -124,19 +149,19 @@ describe("graceful shutdown", () => {
   })
 
   afterEach(async () => {
-    await Bun.sleep(25)
+    await joinOwnedFixtures()
     rmSync(isolatedSessionDir, { recursive: true, force: true })
   })
 
   it("exposes beginDrain and getInFlightCount, starting undrained with no in-flight requests", () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     expect(typeof server.beginDrain).toBe("function")
     expect(typeof server.getInFlightCount).toBe("function")
     expect(server.getInFlightCount!()).toBe(0)
   })
 
   it("/health reports 503 draining once beginDrain is called", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     server.beginDrain!()
     const response = await server.app.fetch(new Request("http://localhost/health"))
     expect(response.status).toBe(503)
@@ -150,7 +175,7 @@ describe("graceful shutdown", () => {
   // endpoint already returned for "unhealthy" — so the guarantee worth pinning
   // is that an undrained health check is untouched by any of it.
   it("leaves the undrained /health contract alone: same keys, never 'draining'", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     const response = await server.app.fetch(new Request("http://localhost/health"))
     const body = await response.json() as Record<string, unknown>
 
@@ -168,7 +193,7 @@ describe("graceful shutdown", () => {
   }, 20_000)
 
   it("rejects new /v1/messages requests with 503 once draining, without invoking the SDK", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     server.beginDrain!()
     const response = await server.app.fetch(request("drain-reject"))
     expect(response.status).toBe(503)
@@ -184,7 +209,7 @@ describe("graceful shutdown", () => {
   })
 
   it("lets a request admitted before draining finish, and drops getInFlightCount back to 0", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     const responseP = server.app.fetch(request("drain-inflight"))
     const control = await waitForControl(0)
 
@@ -203,7 +228,7 @@ describe("graceful shutdown", () => {
   })
 
   it("revokes durable publication when forced shutdown aborts an admitted request", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     const responseP = server.app.fetch(request("forced-shutdown", true))
     const control = await waitForControl(0)
 
@@ -227,7 +252,7 @@ describe("graceful shutdown", () => {
   })
 
   it("evicts an existing mapping when forced shutdown interrupts its next turn", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     const opening = [{ role: "user", content: "hi" }]
     const firstP = server.app.fetch(request("forced-existing", true, opening))
     const firstControl = await waitForControl(0)
@@ -259,7 +284,7 @@ describe("graceful shutdown", () => {
   })
 
   it("preserves the source when shutdown cancels a non-stream fork before response", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     const opening = [{ role: "user", content: "hi" }]
     const firstP = server.app.fetch(request("forced-existing-nonstream", false, opening))
     const firstControl = await waitForControl(0)
@@ -284,7 +309,7 @@ describe("graceful shutdown", () => {
   })
 
   it("counts a same-session request while it waits for the active turn", async () => {
-    const server = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const server = ownedServer({ port: 0, host: "127.0.0.1", silent: true })
     const opening = [{ role: "user", content: "hi" }]
     const continuation = [
       ...opening,
@@ -318,7 +343,8 @@ describe("graceful shutdown", () => {
     // The tests above drive the Hono app directly, which cannot show that the
     // drain gate and the socket teardown are actually wired into close() —
     // that wiring is what every plugin's SIGTERM handler depends on.
-    const instance = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const instance = await startProxyServer({ ...boundaries.config(), port: 0, host: "127.0.0.1", silent: true })
+    ownedInstances.push(instance)
     const base = `http://127.0.0.1:${(instance.server.address() as AddressInfo).port}`
 
     const inFlightP = post(base, "e2e-drain")

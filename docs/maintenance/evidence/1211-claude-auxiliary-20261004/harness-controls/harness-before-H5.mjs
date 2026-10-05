@@ -177,49 +177,20 @@ function httpToolTerminal(status, contentType, text) {
   if (status !== 200) return
   const complete = []
   if (contentType.includes('text/event-stream')) {
-    const blocks = new Map(); let started = false, terminal = false, stopped = false
+    const blocks = new Map(); let reason, stopped = false
     for (const frame of text.replace(/\r\n/g, '\n').split('\n\n')) {
       const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('\n')
       if (!data) continue
       const event = JSON.parse(data)
-      if (event.type === 'ping') continue
-      if (event.type === 'error' || stopped) return
-      if (event.type === 'message_start') {
-        if (started || blocks.size) return
-        started = true; continue
-      }
-      if (!started) return
-      if (event.type === 'content_block_start') {
-        if (terminal || !Number.isInteger(event.index) || event.index < 0 || blocks.has(event.index) || typeof event.content_block?.type !== 'string') return
-        blocks.set(event.index, { ...event.content_block, json: '', closed: false })
-      }
-      if (event.type === 'content_block_delta') {
-        const block = blocks.get(event.index)
-        if (terminal || !block || block.closed) return
-        if (event.delta?.type === 'input_json_delta') {
-          if (block.type !== 'tool_use' || typeof event.delta.partial_json !== 'string') return
-          block.json += event.delta.partial_json
-        }
-      }
-      if (event.type === 'content_block_stop') {
-        const block = blocks.get(event.index)
-        if (terminal || !block || block.closed) return
-        block.closed = true
-      }
-      if (event.type === 'message_delta') {
-        if (terminal) return
-        if (event.delta?.stop_reason != null) {
-          if (event.delta.stop_reason !== 'tool_use' || !blocks.size || [...blocks.values()].some(block => !block.closed)) return
-          terminal = true
-        }
-      }
-      if (event.type === 'message_stop') {
-        if (!terminal || !blocks.size || [...blocks.values()].some(block => !block.closed)) return
-        stopped = true
-      }
+      if (event.type === 'error') return
+      if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') blocks.set(event.index, { ...event.content_block, json: '', closed: false })
+      if (event.type === 'content_block_delta' && event.delta?.type === 'input_json_delta' && blocks.has(event.index)) blocks.get(event.index).json += event.delta.partial_json
+      if (event.type === 'content_block_stop' && blocks.has(event.index)) blocks.get(event.index).closed = true
+      if (event.type === 'message_delta') reason = event.delta?.stop_reason
+      if (event.type === 'message_stop') stopped = true
     }
-    if (!started || !terminal || !stopped) return
-    for (const block of blocks.values()) if (block.type === 'tool_use') complete.push({ id: block.id, input: block.json ? JSON.parse(block.json) : block.input })
+    if (!stopped || reason !== 'tool_use' || !blocks.size || [...blocks.values()].some(block => !block.closed)) return
+    for (const block of blocks.values()) complete.push({ id: block.id, input: block.json ? JSON.parse(block.json) : block.input })
   } else {
     const body = JSON.parse(text)
     if (body.type !== 'message' || body.stop_reason !== 'tool_use' || !Array.isArray(body.content)) return
