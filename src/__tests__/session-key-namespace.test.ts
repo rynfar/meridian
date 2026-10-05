@@ -72,6 +72,7 @@ describe("Mapping namespace ownership", () => {
     expect(resumed.type).toBe("continuation")
     if (resumed.type !== "continuation") throw new Error("expected namespaced continuation")
     expect(resumed.session.claudeSessionId).toBe("fresh-sdk-id")
+    expect(Object.hasOwn(resumed.session, "keyNamespace")).toBe(false)
     expect(lookupSession(key, continuation, directory)).toEqual({ type: "diverged", reason: "not-found" })
   })
 
@@ -93,5 +94,22 @@ describe("Mapping namespace ownership", () => {
     expect(storeSession(key, opening, "fresh-sdk-id", directory,
       undefined, undefined, null, null, undefined, undefined, generation, undefined, namespace)).toBe(false)
     expect(readSessionStoreSnapshot()[key]).toEqual(before)
+  })
+
+  it.each([undefined, namespace])("limits read-error memory fallback to its exact private namespace: %s", expectedNamespace => {
+    expect(storeSession(key, opening, "cached-owned-sdk", directory,
+      undefined, undefined, null, null, undefined, undefined, undefined, undefined, expectedNamespace)).toBeTruthy()
+    const loaded = lookupSession(key, continuation, directory, expectedNamespace)
+    expect(loaded.type).toBe("continuation")
+    if (loaded.type !== "continuation") throw new Error("expected owned cached continuation")
+    expect(Object.hasOwn(loaded.session, "keyNamespace")).toBe(false)
+    // A real malformed owned file forces the store's error path; absence would
+    // be authoritative eviction and must never exercise this fallback.
+    writeFileSync(join(directory, "sessions.json"), "{synthetic malformed store", { mode: 0o600 })
+    expect(lookupSharedSessionResult(key).status).toBe("error")
+    expect(lookupSession(key, continuation, directory, expectedNamespace).type).toBe("continuation")
+    const foreignNamespace = expectedNamespace === undefined ? namespace : undefined
+    expect(lookupSession(key, continuation, directory, foreignNamespace))
+      .toEqual({ type: "diverged", reason: "not-found" })
   })
 })
