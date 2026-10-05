@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "--timeout",
+    "15000",
+    "--test-name-pattern",
+    "explicit root cancellation|separates a native agent|replays an unmarked",
+    "src/__tests__/claude-subagent-isolation.test.ts"
+  ],
+  "exitCode": 1
+}

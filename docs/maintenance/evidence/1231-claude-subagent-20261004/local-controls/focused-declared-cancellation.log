@@ -1,0 +1,25 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-session-tree-cancellation.test.ts:
+(pass) parent-to-child cancellation > aborts a linked child's in-flight SDK query when the parent's request aborts [261.04ms]
+(pass) parent-to-child cancellation > aborts a linked child's stream, closing it with an error frame [59.67ms]
+(pass) parent-to-child cancellation > cancels children when a streaming parent's response body is cancelled [48.01ms]
+(pass) parent-to-child cancellation > propagates once when a teardown trips both client abort paths [46.16ms]
+(pass) parent-to-child cancellation > walks the whole subtree, not just the immediate children [73.81ms]
+(pass) parent-to-child cancellation > evicts the cancelled child's session mapping so no interrupted tail is resumable [121.97ms]
+(pass) parent-to-child cancellation > leaves children alone when the parent's turn merely completes [61.11ms]
+(pass) parent-to-child cancellation > leaves a request that declared no parent alone [49.65ms]
+(pass) parent-to-child cancellation > counts propagated cancellations on /telemetry/summary [46.70ms]
+(pass) parent-to-child cancellation > cancels a subtree explicitly via POST /v1/sessions/:key/cancel [45.97ms]
+(pass) parent-to-child cancellation > reports an idle session as nothing to cancel [1.77ms]
+(pass) parent-to-child cancellation > cancels a same-key Claude auxiliary and declared child when the main socket closes [74.28ms]
+(pass) parent-to-child cancellation > leaves the main and its declared child alive when a same-key auxiliary socket closes [69.27ms]
+(pass) parent-to-child cancellation > cancels a same-key Claude auxiliary and declared child when the main response body closes [65.14ms]
+(pass) parent-to-child cancellation > leaves the main and its declared child alive when a same-key auxiliary response body closes [70.78ms]
+(pass) parent-to-child cancellation > cancels a declared Claude subagent and its same-key auxiliary when their ancestor aborts [79.48ms]
+(pass) parent-to-child cancellation > reaches a declared subagent's auxiliary when that subagent has no main request in flight [46.81ms]
+
+ 17 pass
+ 0 fail
+ 95 expect() calls
+Ran 17 tests across 1 file. [1.57s]

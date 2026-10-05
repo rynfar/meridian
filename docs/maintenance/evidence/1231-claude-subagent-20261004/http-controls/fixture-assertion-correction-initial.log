@@ -1,0 +1,29 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/claude-subagent-isolation.test.ts:
+(pass) Claude Code Agent cancellation isolation > explicit root cancellation reaches undeclared native agents and every active classifier [1112.31ms]
+(pass) Claude Code Agent cancellation isolation > keeps undeclared native agents alive when the main request signal closes [1401.75ms]
+(pass) Claude Code Agent cancellation isolation > keeps undeclared native agents alive when the main response body closes [1350.54ms]
+(pass) Claude Code Agent cancellation isolation > explicit scoped-agent cancellation leaves the main and sibling mappings untouched [3227.56ms]
+419 |     expect(main.call.options.resume).toBe("legacy-ordinary-main")
+420 |     expect(main.call.options.resumeSessionAt).toBe("legacy-ordinary-checkpoint")
+421 |     expect((await complete(main)).status).toBe(200)
+422 |     const stored = readSessionStoreSnapshot()[rawMain]
+423 |     expect(stored?.keyNamespace).toBeUndefined()
+424 |     expect(stored?.claudeSessionId).toBe("legacy-ordinary-main")
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: "legacy-ordinary-main"
+Received: "59f51935-13e2-400d-b483-7878677672e2"
+
+      at <anonymous> (/Users/rynfar/repos/meridian-claude-subagent-1231-20261004/src/__tests__/claude-subagent-isolation.test.ts:424:37)
+(fail) Claude Code Agent key and checkpoint isolation > resumes an ordinary arbitrary raw main ID from its unmarked legacy checkpoint [310.36ms]
+(pass) Claude Code Agent key and checkpoint isolation > separates a native agent from a bare main ID matching the old derived string [1228.34ms]
+(pass) Claude Code Agent key and checkpoint isolation > keeps a subagent classifier refusal from evicting the main and sibling checkpoints [1846.87ms]
+(pass) Claude Code Agent key and checkpoint isolation > replays an unmarked legacy reserved-key collision without inheriting its checkpoint or transcript [939.59ms]
+
+ 7 pass
+ 1 fail
+ 142 expect() calls
+Ran 8 tests across 1 file. [11.86s]

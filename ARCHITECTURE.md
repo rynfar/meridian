@@ -394,8 +394,9 @@ Their private SDK history is never read or edited for this migration.
 This isolates Claude Code's raw/scoped identities; it does not redesign the
 existing cross-client or profile-prefix string keyspaces. The marker prevents
 cross-namespace adoption, not authentication or a global identity guarantee.
-The optional marker must be reconciled with the separate, unapproved SQLite
-codec/facade branch before any such storage integration.
+The optional marker must be reconciled with the separate SQLite codec/facade
+branch before storage integration. Its opt-in contract is owner-approved in
+#1277; integration and native acceptance remain held.
 `getRootSessionId`
 keeps those subagents on the conversation's account under sticky and
 priority routing. Known limitation: a backgrounded main session (and a

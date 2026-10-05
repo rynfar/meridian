@@ -1,0 +1,6 @@
+{
+  "baselineSourceHead": "076b249fd55db84ffde546a4f6bf5211efffbf69",
+  "testPath": "src/__tests__/claude-subagent-isolation.test.ts",
+  "testSha256": "763458afb412e8aab18140b4ec7db062bf1277836cbb923859fbfe6e2ba0ee22",
+  "scope": "Credentialless mocked-SDK HTTP regressions; immutable baseline source; no native acceptance claim"
+}

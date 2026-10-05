@@ -1,0 +1,39 @@
+{
+  "scope": "E72 working-tree harness correction; no native execution",
+  "sourcePrHead": "50d4a59d0ca5e55e625ec801fa2a9eb187d508ed",
+  "authoredIncorporationHead": "076b249fd55db84ffde546a4f6bf5211efffbf69",
+  "parentReference": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+  "files": [
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 47887,
+      "lines": 529,
+      "sha256": "a21992f13904d810aefd73b772922af640017d7428cdc67b0765ffc7fcb3f60f"
+    },
+    {
+      "path": "src/__tests__/claude-subagent-harness.test.ts",
+      "bytes": 27575,
+      "lines": 222,
+      "sha256": "a3343dd094da98c92ee21eb18f038dfec733b51437f7714577163a32e6353078"
+    },
+    {
+      "path": "E2E.md",
+      "bytes": 409991,
+      "lines": 7646,
+      "sha256": "07d442c4ef130e56ebcd606fef60adf465383646fac573fe4abc11d5258addf4"
+    }
+  ],
+  "sourceHarness": {
+    "sha256": "5ae15fbd81ff8e5fc768165fbbcc398cc483c9562f06a7e372365af14ae27de1",
+    "lines": 232,
+    "executed": false,
+    "reason": "unsafe ambient auth/config discovery is not authorized"
+  },
+  "focusedLog": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1231/e72-harness-controls/focused-ownership-final.log",
+    "sha256": "20b3c9a4bc533ba1a0e9c5764320b39e468b897a759356c19bdc297af459848f",
+    "tests": 22,
+    "assertions": 844,
+    "exit": 0
+  }
+}

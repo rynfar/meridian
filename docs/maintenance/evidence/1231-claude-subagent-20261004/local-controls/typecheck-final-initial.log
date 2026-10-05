@@ -1,0 +1,5 @@
+
+> @rynfar/meridian@1.79.0 typecheck
+> tsc --noEmit
+
+src/__tests__/claude-subagent-isolation.test.ts(95,20): error TS2554: Expected 1 arguments, but got 0.

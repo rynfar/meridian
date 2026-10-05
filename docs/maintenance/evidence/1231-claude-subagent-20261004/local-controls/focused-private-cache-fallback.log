@@ -1,0 +1,21 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/session-key-namespace.test.ts:
+(pass) Mapping namespace ownership > preserves ordinary unmarked main-session lookup and continuation [27.94ms]
+(pass) Mapping namespace ownership > rejects legacy authority in a namespaced lookup and leaves its bytes unchanged [2.50ms]
+(pass) Mapping namespace ownership > freshly replaces an ambiguous legacy slot without inheriting checkpoint/recovery/transcript ownership [3.55ms]
+(pass) Mapping namespace ownership > does not evict an unproven namespace or alter its synthetic transcript on cancellation [3.91ms]
+(pass) Mapping namespace ownership > fences a stale namespaced replacement and preserves the winning ordinary mapping [3.61ms]
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+(pass) Mapping namespace ownership > limits read-error memory fallback to its exact private namespace: %s [2.31ms]
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+(pass) Mapping namespace ownership > limits read-error memory fallback to its exact private namespace: synthetic-keyspace:1 [2.74ms]
+
+ 7 pass
+ 0 fail
+ 40 expect() calls
+Ran 7 tests across 1 file. [90.00ms]

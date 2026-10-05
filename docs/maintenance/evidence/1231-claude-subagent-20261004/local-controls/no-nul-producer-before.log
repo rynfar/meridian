@@ -1,0 +1,23 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/claude-code-session-identity.test.ts:
+37 |
+38 |   it("produces scalar-safe agent tuples even when the raw root contains NUL", () => {
+39 |     for (const root of ["native-uuid", "owner\u0000chosen-root"]) {
+40 |       const key = claudeCodeSessionKey("a", body(root))
+41 |       if (!key) throw new Error("missing synthetic agent key")
+42 |       expect(key.includes("\u0000")).toBe(false)
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/Users/rynfar/repos/meridian-claude-subagent-1231-20261004/src/__tests__/claude-code-session-identity.test.ts:42:38)
+(fail) Claude Code internal session identity > produces scalar-safe agent tuples even when the raw root contains NUL [0.27ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [20.00ms]
