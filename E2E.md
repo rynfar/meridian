@@ -6277,9 +6277,10 @@ permission mode with Agent/Bash preallowed and does not establish mixed auto
 mode. Its current universal-main model checks qualify only the foreground
 scenario without classifier traffic; no gate alteration is required if that
 actual scenario emits none. Any classifier traffic needs exact role-aware
-model correlation. Carry-over is deferred until the separate E71 role-aware witness
-design and controls settle. Existing synthetic successes are not native
-acceptance and do not close mixed-flow acceptance.
+model correlation. The finalized parent E71 role-aware witness and controls are settled. E72
+carry-over remains a separate qualification if actual classifier traffic appears.
+Existing synthetic successes are not native acceptance and do not close
+mixed-flow acceptance.
 
 Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
 ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs
