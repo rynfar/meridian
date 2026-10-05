@@ -73,8 +73,13 @@ or captured native wire proof.
 ## Evidence limits and remaining gates
 
 Development checks use Bun 1.3.14 on macOS arm64 with a mocked SDK and private
-synthetic state. They consume zero real generations and read no owner credential
-store. The initial standalone typecheck found missing union narrowing and
+synthetic state. They consume zero real generations. A mocked SDK alone does not prove
+auth/default-native-store isolation. The older shutdown fixture reached those
+non-subject boundaries by source inspection; its corrected synthetic fence
+intercepts auth/store/proactive/background calls, records zero fixture writes,
+and joins owned work before restoring the mocks. Earlier unfenced passes do
+not establish whether a real default store was read or refreshed; no credential
+contents were inspected or retained by this review. The initial standalone typecheck found missing union narrowing and
 Hono `Response | Promise<Response>` normalization in new test helpers; corrected
 checks and first failures are retained. One XML/detector capture accidentally
 ran in the corrected checkout: it is retained as an **after** capture, and the
@@ -99,3 +104,20 @@ patch bytes retain original and gzip hashes in `raw-artifact-archives.json`;
 use `gzip -dc` to recover the original bytes. Historical temporary paths identify
 the original execution, while corresponding maintained tests/scripts and
 durable artifacts provide the correction/reproduction path.
+
+The initial full gate at `c237ab9a` completed its first stage with 5,069 pass /
+35 skips / 1 failure; the remaining 18 stages did not run. The new auxiliary
+response-body control checked registry retirement after five fixed ticks,
+although cancellation returns before asynchronous stream finalizers settle.
+The [test-only correction](cancellation-settlement/REPORT.md) observes the
+existing bounded completion predicate before every original survival assertion
+and exact-zero cleanup check; it changes no production path or latency limit.
+Targeted five controls and the full 17-test file pass; the required full rerun
+is still pending. The [final harness review](harness-review-final/review.md)
+resolves H1–H5 without a native acceptance claim.
+
+Original child manifests retain historical uncompressed names. The root
+`raw-artifact-archives.json` maps those exact bytes to deterministic gzip
+archives, including earlier test/script snapshots. They are historical
+reproduction evidence; the maintained executable harness and tests live in
+`scripts/` and `src/__tests__/`.

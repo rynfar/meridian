@@ -163,6 +163,19 @@ async function cancellationDeadline<T>(operation: Promise<T>): Promise<T> {
   }
 }
 
+/** Body cancellation aborts the SDK before its stream finalizer releases the registry entry. */
+async function waitForTrackedRequests(expected: number): Promise<void> {
+  const deadline = performance.now() + 2_000
+  let tracked = processSessionTree.stats().tracked
+  while (tracked !== expected) {
+    if (performance.now() >= deadline) {
+      throw new Error(`cancellation registry did not settle within two seconds: expected ${expected}, observed ${tracked}`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    tracked = processSessionTree.stats().tracked
+  }
+}
+
 interface ControlledRequest {
   readonly abort: AbortController
   readonly response: Promise<Response>
@@ -186,7 +199,7 @@ async function cleanControlledRequests(requests: readonly ControlledRequest[]): 
       await result.value.body.cancel("test cleanup")
     }
   }
-  await settle()
+  await waitForTrackedRequests(0)
   expect(processSessionTree.stats().tracked).toBe(0)
 }
 
@@ -609,9 +622,10 @@ describe("parent-to-child cancellation", () => {
         await cancellationDeadline(auxiliaryStarted)
 
         expect(calls).toHaveLength(3)
+        expect(processSessionTree.stats().tracked).toBe(3)
         if (cancellation === "socket") auxiliaryAbort.abort("classifier socket closed")
         else await (await cancellationDeadline(auxiliaryResponse)).body!.cancel("classifier reader closed")
-        await settle()
+        await waitForTrackedRequests(2)
 
         expect(calls[2]!.controller!.signal.aborted).toBe(true)
         expect(calls[0]!.controller!.signal.aborted).toBe(false)

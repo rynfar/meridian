@@ -391,6 +391,102 @@
       "originalSha256": "3935a61eb9a6d3b447f5bfefe3dde8324dccaf7a5288bdd87c0f6b39119cab6b",
       "archiveSizeBytes": 11819,
       "archiveSha256": "c24ef1060c4d3d47694aff0fea3b3b79bfc2076ebde188b01e358b517f935469"
+    },
+    {
+      "path": "cancellation-settlement/full-own-file.log.gz",
+      "originalName": "cancellation-settlement/full-own-file.log",
+      "originalSizeBytes": 2186,
+      "originalSha256": "040fdf718003584e5757a58d49ebd36ca0e152dc4c82c843988b47f5b5131220",
+      "archiveSizeBytes": 734,
+      "archiveSha256": "fd4ccbccd0a114560746b943029b3486187b1ce70a164226bf09c88e59837a17"
+    },
+    {
+      "path": "cancellation-settlement/npm-test-failed-frozen-c237ab9a.log.gz",
+      "originalName": "cancellation-settlement/npm-test-failed-frozen-c237ab9a.log",
+      "originalSizeBytes": 963555,
+      "originalSha256": "d06a882d0af05c073bc8605539fc49ed69b9ad22e87c359627c0b9c7c9a31005",
+      "archiveSizeBytes": 183688,
+      "archiveSha256": "5eeed367dc3329c0fae1b59c5514300abd63d06dbdc6de8932570cb88daf7322"
+    },
+    {
+      "path": "cancellation-settlement/targeted-cancellation.log.gz",
+      "originalName": "cancellation-settlement/targeted-cancellation.log",
+      "originalSizeBytes": 855,
+      "originalSha256": "e8bcf89348b5775953bb7f579f5d0a13e1e2dc27e195a7bab14ef425a242c5d2",
+      "archiveSizeBytes": 339,
+      "archiveSha256": "38cf2cfb726ee6147a9295ecb0a814bd427ceb8a99816faafb3ca139b50a6572"
+    },
+    {
+      "path": "cancellation-settlement/test-after.ts.gz",
+      "originalName": "cancellation-settlement/test-after.ts",
+      "originalSizeBytes": 28742,
+      "originalSha256": "3324e04a68416c06f65673c59fa7d65a7d94033d412b67db3165c0b2955b1485",
+      "archiveSizeBytes": 5598,
+      "archiveSha256": "98bf0f694393c22510866219cbe09a31509b59826bdff4a580c56247619cd678"
+    },
+    {
+      "path": "cancellation-settlement/test-before.ts.gz",
+      "originalName": "cancellation-settlement/test-before.ts",
+      "originalSizeBytes": 28064,
+      "originalSha256": "13c40d3fcdcae2dd4ac3a6ad5762bb7df18ee318d285cd2304945d3032a3b038",
+      "archiveSizeBytes": 5434,
+      "archiveSha256": "566087bebf0cb128eeac153dfe1f5a17adc14bb63a9ffee2e2c7e26657d937f4"
+    },
+    {
+      "path": "cancellation-settlement/test-correction.diff.gz",
+      "originalName": "cancellation-settlement/test-correction.diff",
+      "originalSizeBytes": 1985,
+      "originalSha256": "a5a1de78b00e9c776d699ec6f7f5ae35c46e9bc85049f69fefa02a4c6ddf5bbe",
+      "archiveSizeBytes": 821,
+      "archiveSha256": "b45d9e89a139f6ff687d25aeac43ae12370ac2d1434864e767735d409e5662fe"
+    },
+    {
+      "path": "harness-review-final/E2E.md.corrected.snapshot.gz",
+      "originalName": "harness-review-final/E2E.md.corrected.snapshot",
+      "originalSizeBytes": 400465,
+      "originalSha256": "69058c010d7b3f71d3c347ce38b7492a4ac03b9fdd8c42e1b9bca26e9faf6655",
+      "archiveSizeBytes": 127068,
+      "archiveSha256": "f35f99c97d1456a182cbb9e5320de68326386dfaf9722f2245ac3ee929b100d0"
+    },
+    {
+      "path": "harness-review-final/docs__maintenance__evidence__1211-claude-auxiliary-20261004__README.md.corrected.snapshot.gz",
+      "originalName": "harness-review-final/docs__maintenance__evidence__1211-claude-auxiliary-20261004__README.md.corrected.snapshot",
+      "originalSizeBytes": 6635,
+      "originalSha256": "988aa77b79e8708774432987b0440be1f8a41ceed22a42c71049854934022985",
+      "archiveSizeBytes": 3298,
+      "archiveSha256": "1922d17c89d2c7dcfa7b8a4f55c946160509657bfbba80168d2a74a95def5e07"
+    },
+    {
+      "path": "harness-review-final/scripts__e2e-claude-code-auto-mode.mjs.corrected.snapshot.gz",
+      "originalName": "harness-review-final/scripts__e2e-claude-code-auto-mode.mjs.corrected.snapshot",
+      "originalSizeBytes": 38664,
+      "originalSha256": "01a842ec9327517b265e301bb075c7e1de99de289343e2d30e6811cfdb08589a",
+      "archiveSizeBytes": 12306,
+      "archiveSha256": "5eb53bca1c09baf434c12068fa919a172127c2ded34375dc4e62b26a1a453092"
+    },
+    {
+      "path": "harness-review-final/src____tests____claude-auto-mode-harness.test.ts.corrected.snapshot.gz",
+      "originalName": "harness-review-final/src____tests____claude-auto-mode-harness.test.ts.corrected.snapshot",
+      "originalSizeBytes": 21815,
+      "originalSha256": "2098c3b077054a47559fe67049f2027d6c2c3b4b08e1ee1ab0f8b1ee5807e832",
+      "archiveSizeBytes": 6648,
+      "archiveSha256": "cd7c6291079519113a96ccf5e3c627035a31f68388c01736e07393a9d89dbf93"
+    },
+    {
+      "path": "harness-review-final/src____tests____fixtures__proxy-boundary-fences.ts.corrected.snapshot.gz",
+      "originalName": "harness-review-final/src____tests____fixtures__proxy-boundary-fences.ts.corrected.snapshot",
+      "originalSizeBytes": 5120,
+      "originalSha256": "c6cb8c09d9f3bec9e5b0ed1648d11c3734e1effb116079fa6decd6187800fd10",
+      "archiveSizeBytes": 1864,
+      "archiveSha256": "5cae846f77aa9103bc7ed26b45528eba834d762688ad3635cf559e9f15a6be68"
+    },
+    {
+      "path": "harness-review-final/src____tests____graceful-shutdown.test.ts.corrected.snapshot.gz",
+      "originalName": "harness-review-final/src____tests____graceful-shutdown.test.ts.corrected.snapshot",
+      "originalSizeBytes": 15351,
+      "originalSha256": "32d53b69a5c5b40fc5607a1c9198977b728a9266566f0b88735d16bd3212a881",
+      "archiveSizeBytes": 4235,
+      "archiveSha256": "cec204aded2b8619afa1c547f720bf5970fe1e927c4b7e179669b42272bb919c"
     }
   ]
 }

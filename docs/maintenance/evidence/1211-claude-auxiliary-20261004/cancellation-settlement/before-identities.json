@@ -1,0 +1,23 @@
+{
+  "head": "c237ab9a0d332f6cf3292fc7de2eaf0026fc2037",
+  "fullFirstStage": {
+    "pass": 5069,
+    "skip": 35,
+    "fail": 1,
+    "laterStages": "not run"
+  },
+  "artifacts": [
+    {
+      "source": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004/src/__tests__/proxy-session-tree-cancellation.test.ts",
+      "copy": "/tmp/meridian-backlog-20261004/meridian/1211/aux-cancellation-settlement-round1/test-before.ts",
+      "bytes": 28064,
+      "sha256": "13c40d3fcdcae2dd4ac3a6ad5762bb7df18ee318d285cd2304945d3032a3b038"
+    },
+    {
+      "source": "/tmp/meridian-backlog-20261004/meridian/1211/final-gates/npm-test-final.log",
+      "copy": "/tmp/meridian-backlog-20261004/meridian/1211/aux-cancellation-settlement-round1/npm-test-failed-frozen-c237ab9a.log",
+      "bytes": 963555,
+      "sha256": "d06a882d0af05c073bc8605539fc49ed69b9ad22e87c359627c0b9c7c9a31005"
+    }
+  ]
+}
