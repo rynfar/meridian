@@ -102,6 +102,9 @@ function createFingerprintCache(maxSize: number) {
 let activeMaxSessions = getMaxSessionsLimit()
 let sessionCache = createSessionCache(activeMaxSessions)
 let fingerprintCache = createFingerprintCache(activeMaxSessions)
+// LineageResult/SessionState are published types. Cache ownership is private
+// bookkeeping, never an added field in the public lineage state or observers.
+const cacheNamespaces = new WeakMap<SessionState, string | undefined>()
 
 /** Clear all session caches (used in tests).
  *  Re-reads MERIDIAN_MAX_SESSIONS / CLAUDE_PROXY_MAX_SESSIONS so tests can override the limit. */
@@ -167,9 +170,8 @@ function touchSession(state: SessionState): SessionState {
 function stateFromSharedSession(
   shared: NonNullable<ReturnType<typeof lookupSharedSession>>,
 ): SessionState {
-  return {
+  const state: SessionState = {
     claudeSessionId: shared.claudeSessionId,
-    ...(shared.keyNamespace === undefined ? {} : { keyNamespace: shared.keyNamespace }),
     lastAccess: Date.now(),
     messageCount: shared.messageCount || 0,
     lineageHash: shared.lineageHash || "",
@@ -182,6 +184,8 @@ function stateFromSharedSession(
     currentTranscript: shared.currentTranscript,
     previousTranscript: shared.previousTranscript,
   }
+  cacheNamespaces.set(state, shared.keyNamespace)
+  return state
 }
 
 /** Drop rollback authority only after the response terminal is irrevocable. */
@@ -367,7 +371,7 @@ export function lookupSession(
     const cached = sessionCache.get(sessionId)
     const state = shared.status === "found"
       ? shared.session.keyNamespace === keyNamespace ? stateFromSharedSession(shared.session) : undefined
-      : shared.status === "error" && cached?.keyNamespace === keyNamespace ? cached : undefined
+      : shared.status === "error" && cached && cacheNamespaces.get(cached) === keyNamespace ? cached : undefined
     if (shared.status === "found" && shared.session.keyNamespace !== keyNamespace) {
       sessionCache.delete(sessionId)
     }
@@ -465,7 +469,6 @@ export function storeSession(
   const messageBlockHashes = computeMessageBlockHashes(messages)
   const state: SessionState = {
     claudeSessionId,
-    ...(keyNamespace === undefined ? {} : { keyNamespace }),
     lastAccess: Date.now(),
     messageCount: messages?.length || 0,
     lineageHash,
@@ -547,6 +550,7 @@ export function storeSession(
   if (!storedGeneration) return false
 
   // Publish to memory only after the durable CAS succeeds.
+  cacheNamespaces.set(state, keyNamespace)
   if (sessionId) sessionCache.set(sessionId, state)
   if (fp && !sessionId) fingerprintCache.set(fp, state)
   return storedGeneration
