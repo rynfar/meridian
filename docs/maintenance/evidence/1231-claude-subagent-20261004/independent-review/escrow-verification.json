@@ -1,0 +1,7 @@
+{
+  "reviewedHead": "be60a60b3d68814b2155a921b5cc5f0526b6ba28",
+  "escrowCodeHead": "6e7ee9f4f3d003de7f1d593983bc9f3af16561cd",
+  "unchangedSourceAndTestIdentities": 12,
+  "reviewedSourceHashesStillMatch": true,
+  "scope": "Receipt preserved byte-identically; no extension to full or native acceptance"
+}

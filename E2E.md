@@ -6269,15 +6269,17 @@ the exact `ANTHROPIC_DEFAULT_SONNET_MODEL` version pin; an exact full SDK model
 ID also qualifies. The harness
 does not discover credentials, client binaries, profiles or configuration.
 
-**Open model-witness correction:** actual ancillary/classifier requests need
+**Separate mixed-auto/ancillary model gate:** actual classifier requests need
 separate exact model identities and per-request SDK/wire/served correlation.
 The official 2.1.286 auto-mode selector can use `claude-sonnet-5` for a
 `claude-sonnet-5-5` main and later fall back to the main model. E72 uses default
 permission mode with Agent/Bash preallowed and does not establish mixed auto
-mode, but its current universal-main model checks are not qualified for such
-traffic. Carry-over is deferred until the separate E71 role-aware witness
+mode. Its current universal-main model checks qualify only the foreground
+scenario without classifier traffic; no gate alteration is required if that
+actual scenario emits none. Any classifier traffic needs exact role-aware
+model correlation. Carry-over is deferred until the separate E71 role-aware witness
 design and controls settle. Existing synthetic successes are not native
-acceptance and do not close this dialect gate.
+acceptance and do not close mixed-flow acceptance.
 
 Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
 ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs
