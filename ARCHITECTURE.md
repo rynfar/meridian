@@ -380,7 +380,7 @@ multiplexes agents over one session id needs the same treatment.
 Claude Code is the second such client: its Agent-tool subagents send the
 conversation's own `metadata.user_id` session id, so `claudeCodeAdapter`
 keys a request carrying a valid `x-claude-code-agent-id` in the reserved
-`\u0000meridian-claude-code:1:` tuple namespace. Agent and main tuples are
+`meridian-claude-code:1:` printable tuple namespace. Agent and main tuples are
 disjoint: ordinary main IDs remain byte-identical, while main IDs beginning
 with the reserved prefix escape into a main tuple. Concatenating
 `<sid>:agent:<agentId>` would collide with a valid bare main ID.

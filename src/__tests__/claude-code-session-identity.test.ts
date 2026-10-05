@@ -3,7 +3,7 @@ import type { Context } from "hono"
 import { claudeCodeAdapter, claudeCodeSessionKey } from "../proxy/adapters/claudecode"
 import { SessionTreeRegistry } from "../proxy/sessionTree"
 
-const PREFIX = "\u0000meridian-claude-code:1:"
+const PREFIX = "meridian-claude-code:1:"
 const body = (sessionId: string, parentSessionId?: string) => ({
   metadata: { user_id: { session_id: sessionId, ...(parentSessionId ? { parent_session_id: parentSessionId } : {}) } },
 })
@@ -33,6 +33,16 @@ describe("Claude Code internal session identity", () => {
     const identities = ["s", "s:agent:a", 's\"', "s\\", "s\n", "\u0000s", "é", PREFIX, `${PREFIX}[]`]
     const keys = identities.flatMap(id => [claudeCodeSessionKey(undefined, body(id)), claudeCodeSessionKey("a", body(id))])
     expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it("produces scalar-safe agent tuples even when the raw root contains NUL", () => {
+    for (const root of ["native-uuid", "owner\u0000chosen-root"]) {
+      const key = claudeCodeSessionKey("a", body(root))
+      if (!key) throw new Error("missing synthetic agent key")
+      expect(key.includes("\u0000")).toBe(false)
+      const tuple = JSON.parse(key.slice(key.indexOf("["))) as unknown
+      expect(tuple).toEqual(["agent", root, "a"])
+    }
   })
 
   it("falls malformed headers back to the same escaped main key", () => {

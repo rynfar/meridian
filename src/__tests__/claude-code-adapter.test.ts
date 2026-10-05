@@ -96,7 +96,7 @@ describe("Claude Code subagent session keys", () => {
 
   it("keys an Agent-tool subagent by session id and agent id", () => {
     expect(claudeCodeAdapter.getSessionId(withAgent("a4a81dc1bbf7ee837"), body))
-      .toBe("\u0000meridian-claude-code:1:[\"agent\",\"parent-sid\",\"a4a81dc1bbf7ee837\"]")
+      .toBe("meridian-claude-code:1:[\"agent\",\"parent-sid\",\"a4a81dc1bbf7ee837\"]")
   })
 
   it("gives parallel subagents distinct keys", () => {
@@ -109,7 +109,7 @@ describe("Claude Code subagent session keys", () => {
     for (const agentId of ["", "has space", "a/b", "é", "x".repeat(129)]) {
       expect(claudeCodeAdapter.getSessionId(withAgent(agentId), body)).toBe("parent-sid")
     }
-    expect(claudeCodeSessionKey("x".repeat(128), body)).toBe(`\u0000meridian-claude-code:1:["agent","parent-sid","${"x".repeat(128)}"]`)
+    expect(claudeCodeSessionKey("x".repeat(128), body)).toBe(`meridian-claude-code:1:["agent","parent-sid","${"x".repeat(128)}"]`)
   })
 
   it("never manufactures a key from an agent id alone", () => {

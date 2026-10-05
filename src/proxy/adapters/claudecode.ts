@@ -127,7 +127,7 @@ export const CLAUDE_CODE_AGENT_ID_HEADER = "x-claude-code-agent-id"
 const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
 
 /** Reserved internal keyspace, never written back into client metadata. */
-const CLAUDE_CODE_SESSION_PREFIX = "\u0000meridian-claude-code:1:"
+const CLAUDE_CODE_SESSION_PREFIX = "meridian-claude-code:1:"
 const CLAUDE_CODE_SESSION_NAMESPACE = "claude-code:1"
 
 function claudeCodeMainSessionKey(sessionId: string): string {
@@ -147,7 +147,7 @@ function claudeCodeMainSessionKey(sessionId: string): string {
  * `x-claude-code-agent-id` on every subagent request — stable across that
  * subagent's turns, distinct between subagents, and sent without gateway hint
  * headers (verified statically against 2.1.287). Agent keys use a reserved
- * tuple namespace: concatenating `<sid>:agent:<agentId>` collided with a
+ * printable tuple namespace: concatenating `<sid>:agent:<agentId>` collided with a
  * perfectly valid bare client session ID. Ordinary main IDs remain unchanged;
  * reserved-prefix main IDs escape into a disjoint main tuple. An agent id never
  * creates a key on its own: without a metadata session id there is none.
