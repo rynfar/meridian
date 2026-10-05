@@ -1,0 +1,42 @@
+{
+  "kind": "synthetic-harness-control",
+  "expected": "fixed",
+  "platform": "darwin/arm64",
+  "runtime": {
+    "bun": "1.3.14",
+    "node": "v24.3.0"
+  },
+  "requestedModel": "claude-sonnet-5-5",
+  "requiredServedModel": "claude-sonnet-5-5",
+  "limits": {
+    "queries": 20,
+    "sdkEstimatedCostUsd": 10,
+    "perQueryBudgetUsd": 0.5,
+    "totalMilliseconds": 10000
+  },
+  "queries": [],
+  "turns": [],
+  "checks": {},
+  "result": "FAIL",
+  "acceptance": false,
+  "identity": {
+    "targetKind": "installed-package",
+    "packageVersion": "0.0.0",
+    "proxyEntrySha256": "29552a58e5c5b2c93657143d432f2610e126236526261079933bf2dcc11c8377",
+    "sdkVersion": "0.2.141",
+    "sdkEntrySha256": "c20ad88d470ba94f9cef4cb3939c4d420a41987e6b2457f349ace8fbf0464635",
+    "clientSha256": "63e7fe0906efd0c4a82abe67b2ef0cbe39da43cb7f85d017b3b1244b8264072a",
+    "nativeCliSha256": "53a9b47b4d0d9f9614109c804041b0dcf5724362d46b69ab652f16c458d2f906"
+  },
+  "failureType": "AssertionError",
+  "failureCode": "ERR_ASSERTION",
+  "failure": "Identity input must be a regular non-symlink file",
+  "ownedResidualProcesses": 0,
+  "targetIdentityUnchanged": true,
+  "ownerGrantUnchanged": null,
+  "runtimeGrantUnchanged": null,
+  "privateRuntimeRemoved": true,
+  "privateRuntimeRetained": false,
+  "cleanupFailures": [],
+  "suppressedLogLines": 0
+}

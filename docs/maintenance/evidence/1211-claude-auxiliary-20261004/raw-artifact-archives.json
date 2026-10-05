@@ -511,6 +511,517 @@
       "originalSha256": "43dc68f76ea737fc6314c23a967a067a2a4d72f2cefebd799fa593a8052a5923",
       "archiveSizeBytes": 814,
       "archiveSha256": "200d3fa525e943af3d431b84981fe3a54313fe138b2d919d866e0d20a483f651"
+    },
+    {
+      "path": "classifier-model-selection-audit/verification.log.gz",
+      "originalName": "classifier-model-selection-audit/verification.log",
+      "originalSizeBytes": 205,
+      "originalSha256": "a55861cd6802a11a8d61debb02dbf1ad254eb52f26641def21b47d812f042065",
+      "archiveSizeBytes": 157,
+      "archiveSha256": "4e22f51f54060afdfc05a96e0d39df30a092187256d611740d96dc19ac232e76"
+    },
+    {
+      "path": "requested-model-controls/after.log.gz",
+      "originalName": "requested-model-controls/after.log",
+      "originalSizeBytes": 868,
+      "originalSha256": "a2eb03f7e9aeab7bfb390e705001e152c3db9bd39a57250a41657f14c70f643e",
+      "archiveSizeBytes": 197,
+      "archiveSha256": "c2cd7f64a512ed609620c70a0415ad84ab73f6e53882855cf55d68bef970b147"
+    },
+    {
+      "path": "requested-model-controls/baseline-cd8b5063-auto-mode.mjs.gz",
+      "originalName": "requested-model-controls/baseline-cd8b5063-auto-mode.mjs",
+      "originalSizeBytes": 38664,
+      "originalSha256": "01a842ec9327517b265e301bb075c7e1de99de289343e2d30e6811cfdb08589a",
+      "archiveSizeBytes": 12306,
+      "archiveSha256": "c9bc8db338ee5df741e07495cd794029dae28f850afe1d5a33d368df6c3cd182"
+    },
+    {
+      "path": "requested-model-controls/before.log.gz",
+      "originalName": "requested-model-controls/before.log",
+      "originalSizeBytes": 712,
+      "originalSha256": "1e29c2b3ba5c4b2abf1b722cb0a28dba833a55dc130a8b794301833e38091091",
+      "archiveSizeBytes": 164,
+      "archiveSha256": "2019b2ccb20eece27959ade4f5ad4f07887e50e0ae141540b40ac0604204be60"
+    },
+    {
+      "path": "requested-model-controls/focused-final.log.gz",
+      "originalName": "requested-model-controls/focused-final.log",
+      "originalSizeBytes": 3271,
+      "originalSha256": "2bde705192f9a7d22d2c92ddad974d05ea5ea1f90dddb2918ea3c858957af229",
+      "archiveSizeBytes": 1108,
+      "archiveSha256": "2147202972461c088e77b96a3412c2ff3bec7cc186139c7cca5088af22fd1631"
+    },
+    {
+      "path": "requested-model-controls/model-control-driver.ts.gz",
+      "originalName": "requested-model-controls/model-control-driver.ts",
+      "originalSizeBytes": 15951,
+      "originalSha256": "e92cd32c6283ee35d2b94a02d73d2cc78bb1385732624d45781209f449f89c63",
+      "archiveSizeBytes": 5564,
+      "archiveSha256": "b129a491d3ac96a081bef029f69882cfbf46218015f84025b410c4699bb4ece8"
+    },
+    {
+      "path": "role-model-witness-controls/FINAL_DELTA.patch.gz",
+      "originalName": "role-model-witness-controls/FINAL_DELTA.patch",
+      "originalSizeBytes": 81031,
+      "originalSha256": "221ad11e8357c3dc3b8a2c8c598abd17c07021bb61d25b90bc3f6a3929f2b50e",
+      "archiveSizeBytes": 20428,
+      "archiveSha256": "7fcb457defe850eb6a0c292b24a36d5c9079781a8ded7ef49e828913124e0bfa"
+    },
+    {
+      "path": "role-model-witness-controls/actual-target-iteration.log.gz",
+      "originalName": "role-model-witness-controls/actual-target-iteration.log",
+      "originalSizeBytes": 349,
+      "originalSha256": "4ff5fe40d5561792aefb5a7c4cbac7a0c20023a7872512fbb9ee372f8bd606ed",
+      "archiveSizeBytes": 274,
+      "archiveSha256": "55bc46098d5e35a42a7a5562ef2f01a840d7023a579177578187a9f150a044e8"
+    },
+    {
+      "path": "role-model-witness-controls/before-after-driver.ts.gz",
+      "originalName": "role-model-witness-controls/before-after-driver.ts",
+      "originalSizeBytes": 32536,
+      "originalSha256": "ff93774586a45d4cee3651bdc1876a4b260568ca9975327d8eae04cdb8dd2808",
+      "archiveSizeBytes": 10025,
+      "archiveSha256": "d601f695d3d74a58c4018688f57aa8681061b062f96840e6634a6f43667203f0"
+    },
+    {
+      "path": "role-model-witness-controls/before-after.log.gz",
+      "originalName": "role-model-witness-controls/before-after.log",
+      "originalSizeBytes": 2763,
+      "originalSha256": "000bc79ac5937f80df4e19e9a15fdc9ed0c3097e4a9f1c58831fe5538754bab5",
+      "archiveSizeBytes": 477,
+      "archiveSha256": "4f69ad7aac19a43c79471398d2d9dec600ec9233b8431e2c1a56cef736820bb8"
+    },
+    {
+      "path": "role-model-witness-controls/cancel-entry-iteration/clone-error-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/cancel-entry-iteration/clone-error-preload.mjs",
+      "originalSizeBytes": 728,
+      "originalSha256": "0af328c664ccadbb95b2574a48e7883ee3f0af71c1dbbade0efbe7f2d4dd4a14",
+      "archiveSizeBytes": 399,
+      "archiveSha256": "27f3d63070343e7ad1aeb84bc2ac44bf84a0279a5c6af9c8491c5b82e45136af"
+    },
+    {
+      "path": "role-model-witness-controls/cancel-entry-iteration/clone-hang-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/cancel-entry-iteration/clone-hang-preload.mjs",
+      "originalSizeBytes": 730,
+      "originalSha256": "d62ed5ff6c4342d06d6305d50e72ec045843fa6a72302d63cea026a7880deb4a",
+      "archiveSizeBytes": 400,
+      "archiveSha256": "fdb1412553717e8bd34039b4cffb29944aad1090cf5307d89c5092a4b46ef296"
+    },
+    {
+      "path": "role-model-witness-controls/cancel-entry-iteration.log.gz",
+      "originalName": "role-model-witness-controls/cancel-entry-iteration.log",
+      "originalSizeBytes": 330,
+      "originalSha256": "81df61f8424489615a81cf1281109633387fb3dda5c3ec1bed3704a0508594a2",
+      "archiveSizeBytes": 253,
+      "archiveSha256": "d4b7e2dbed5af64c7239a70b1f2eebf69fd40609477784939930da8d25eb9899"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/compiled-duplicate-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/compiled-duplicate-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "5507b3fc765e3e4961d441af4051d75267895ee2791dafed8461b57199daa154",
+      "archiveSizeBytes": 3309,
+      "archiveSha256": "1a58708247c9860ccbe1156097731c785324aa45b5b27da25f4cef5f9c90af4b"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/compiled-positive-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/compiled-positive-runner.mjs",
+      "originalSizeBytes": 8103,
+      "originalSha256": "f9ed7a995b3d6b80c3b888b117054c0604d2b635d22553bf0baca67960e2c11a",
+      "archiveSizeBytes": 3309,
+      "archiveSha256": "4c5da7cc980bf42a2d5badda98506dc2eca41d71f22797ca938806dd47b46804"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/compiled-swap-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/compiled-swap-runner.mjs",
+      "originalSizeBytes": 8099,
+      "originalSha256": "3c4827a2aa27700e2ca41fddaa5efa864fff59105c44d17f318037a0bdd0e4f2",
+      "archiveSizeBytes": 3309,
+      "archiveSha256": "501e47dc5666476319131cb9f833cf44a1b80e8c10bd744bbb2cd7391b01d50e"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/compiled-unmatched-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/compiled-unmatched-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "4503a542fa4ead66106c6f245bb69e1102649ba219b54225a955e8e84be7c5d1",
+      "archiveSizeBytes": 3310,
+      "archiveSha256": "e74d3fc9e7ce0def6ddb66550f381cb9478459a782fd59ed856cd244544fa2da"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/source-duplicate-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/source-duplicate-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "f9fc73882ac1fd0fa024568c06f0ca59f7abc92bf4c074a34b7a2ff4ad32a0d2",
+      "archiveSizeBytes": 3271,
+      "archiveSha256": "70e5ceb50fd853e3e0c33891cc0825286a20921cd710eb124000114614a7ffd0"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/source-positive-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/source-positive-runner.mjs",
+      "originalSizeBytes": 8067,
+      "originalSha256": "ee8d2d8c1f9de3d2cde02f9dfd88cf1eb8ab03b1fbba4bd176efd44030d02435",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "ee243cd51b20c6296095f05202f78b4ed7c58aa4440b565321d43c62687a3132"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/source-swap-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/source-swap-runner.mjs",
+      "originalSizeBytes": 8063,
+      "originalSha256": "fc7956a59c6080c8a6da05d56ad1407b453383e2ea15ae685f1437cbbadfd456",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "400b80f145e0ecb2be545ca9d93585da91aa8b3baa0e60de35b59f1e390fa5a6"
+    },
+    {
+      "path": "role-model-witness-controls/final-actual-context/source-unmatched-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-actual-context/source-unmatched-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "f10ab7074b01697eb77b084aa8fc5534505772012ae98914d53f11d8659c2a89",
+      "archiveSizeBytes": 3271,
+      "archiveSha256": "e974a8123f211660a8df634602650cb98e154bb9cc1a4a3bce6026f1b3a92a1d"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/clone-error-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/clone-error-preload.mjs",
+      "originalSizeBytes": 728,
+      "originalSha256": "18df74d4a151cde7fdb520aa2574daafb07aa6bbf235d35fccd2b2eeb5e6d4fd",
+      "archiveSizeBytes": 400,
+      "archiveSha256": "48926ce506684a39de83356d76b66d3cbc4e3f82ec301822afe435bef3f0ad67"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/clone-hang-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/clone-hang-preload.mjs",
+      "originalSizeBytes": 730,
+      "originalSha256": "b373a60df99a7542799c4d759e71b03de7319a9a0907865a2d1d9057ecc484ea",
+      "archiveSizeBytes": 400,
+      "archiveSha256": "fd7d0b1196a136f3e9ea0749e341061b33ebe6c6f8179349f2ab7e1ece8669c1"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/compiled-duplicate-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/compiled-duplicate-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "3096b367a11e4c9d1fb888f7776dc4e2b452e5cdeb251a1b6fad9afa1bee05a0",
+      "archiveSizeBytes": 3308,
+      "archiveSha256": "aa1e2854dd0d7c9a632205840d45a47eb6ec4f3a26ef18f6534d012afbb20396"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/compiled-positive-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/compiled-positive-runner.mjs",
+      "originalSizeBytes": 8103,
+      "originalSha256": "272323aa33027cbd624fb8a28347871ba8c03443be1aae337e9cfd86a7708169",
+      "archiveSizeBytes": 3308,
+      "archiveSha256": "8703cfd7aac9869189cf6ce0e729a7c52f12da1d9178871a00567d5d6dc03410"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/compiled-swap-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/compiled-swap-runner.mjs",
+      "originalSizeBytes": 8099,
+      "originalSha256": "c6a0fae2884c46aff4af7d46e8f596147b24c8ef7508fa17f4603ab7e61642b6",
+      "archiveSizeBytes": 3309,
+      "archiveSha256": "4f1670ec81b4eff60e17e4a4c94d584f9d65f2185eb0b12aa2ddda3927b6df41"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/compiled-unmatched-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/compiled-unmatched-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "e926622d2f56aed2c63176801c8ea2977ef252af05875fe4d55a6d9ad1c6b957",
+      "archiveSizeBytes": 3309,
+      "archiveSha256": "3cc18d7012d48d38fa9a01cb53ad7bc393139d789e2906236c08dbab33a56bcf"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/source-duplicate-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/source-duplicate-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "69b51be11a3f5ff3c32a3aea8dbea549fb134232367ac30a02947119e438afd8",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "c4e880ce781646373716bf8704a1dd488d8e7b21c299bc1c5f28b87cfdd0aace"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/source-positive-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/source-positive-runner.mjs",
+      "originalSizeBytes": 8067,
+      "originalSha256": "f6e3fb15914601a9627628ba7dded64205367543e110f0ad5774f48b2e747fe6",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "24d9f6b08549324a175f2c6203c452f3cf3517125cf9b6f0e147e074fbf21f64"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/source-swap-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/source-swap-runner.mjs",
+      "originalSizeBytes": 8063,
+      "originalSha256": "d82d33f7c6c6d5f1fbc587cb6e4452935512c6c71b4d126cc987e3405a430ef2",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "25d008223164794972de4d4f62cdfa0f8242ac18fce2f5b27bbb6c0c2031f755"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-context/source-unmatched-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-context/source-unmatched-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "32b6482e576c3603ce05fb7fb099965cf960a1bc0b6ede3ca2089c7f437ec517",
+      "archiveSizeBytes": 3271,
+      "archiveSha256": "a5ff76fa6b5a5fd309171e838677ab80a952442daa855c13ca292aee684940c5"
+    },
+    {
+      "path": "role-model-witness-controls/final-cancel-entry-focused.log.gz",
+      "originalName": "role-model-witness-controls/final-cancel-entry-focused.log",
+      "originalSizeBytes": 5589,
+      "originalSha256": "0811be3c547f9ad91229d0f580f1772e306e2b381b4789d5b68a93d637d9a969",
+      "archiveSizeBytes": 1675,
+      "archiveSha256": "692c0aada8334d99806436f94fbec1e1cb55e2384b3230c70f215dd4fcb8d26e"
+    },
+    {
+      "path": "role-model-witness-controls/final-claude-auto-mode-harness.test.ts.gz",
+      "originalName": "role-model-witness-controls/final-claude-auto-mode-harness.test.ts",
+      "originalSizeBytes": 52410,
+      "originalSha256": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5",
+      "archiveSizeBytes": 13666,
+      "archiveSha256": "4cd84788fddc4e8a41b8fb7670cff5dfcfb0ea80e205b484a0ad79e809b80305"
+    },
+    {
+      "path": "role-model-witness-controls/final-e71-auto-mode.mjs.gz",
+      "originalName": "role-model-witness-controls/final-e71-auto-mode.mjs",
+      "originalSizeBytes": 47968,
+      "originalSha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+      "archiveSizeBytes": 14782,
+      "archiveSha256": "16a97bdfd48599fb90a0a483a6d486471a223081aca76610a0e69abad2695d82"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/clone-error-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/clone-error-preload.mjs",
+      "originalSizeBytes": 558,
+      "originalSha256": "d1ad578aacdbe126f4c2bfca5de3fbd9f7b08b2b1d47cbf857f68e74ec74b12c",
+      "archiveSizeBytes": 375,
+      "archiveSha256": "652a7c18e8b972a3d22aff1f32c9d13779335cc7cb742dca86ce59d6c63fcc6d"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/clone-hang-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/clone-hang-preload.mjs",
+      "originalSizeBytes": 521,
+      "originalSha256": "140f93fd1db62a783b94339fc47c0790913b09cda86dd60c35ab36feb5f816a9",
+      "archiveSizeBytes": 355,
+      "archiveSha256": "ed9ffe2f9e34f5bc1e7187b10644cf968bc30057e7720df7c2347094a9307ed1"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/compiled-duplicate-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/compiled-duplicate-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "b58ca33a2efc3d0c0e2b9e28e37bda4baab37a1d6c4025fbb4e3cca65b554720",
+      "archiveSizeBytes": 3308,
+      "archiveSha256": "74001170c431781c7c729be6d6a93d55e2efcf7ccb52b083bb6161c4ce793ebd"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/compiled-positive-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/compiled-positive-runner.mjs",
+      "originalSizeBytes": 8103,
+      "originalSha256": "99197c5cb0c5fb3d9518053d7208c1bfa778ac43e31a4cfd8dd4d684b3792039",
+      "archiveSizeBytes": 3308,
+      "archiveSha256": "0f2e09a31ffef062ea31fae3d5c451a3a21c0d33ba96630bb9d898eb422a5b24"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/compiled-swap-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/compiled-swap-runner.mjs",
+      "originalSizeBytes": 8099,
+      "originalSha256": "a1d1c486432457a1568cb15566ffa7e53b1998e37e29fcf5d09b0e1737466332",
+      "archiveSizeBytes": 3308,
+      "archiveSha256": "88978cc996358903088379c7eadf40c5c6eebb1d22ea857c3682c39b49f0ea24"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/compiled-unmatched-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/compiled-unmatched-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "71452f1b97ce78d6bc412f4524e6cae3716e7b5c9f5c532f85a15535b44470e5",
+      "archiveSizeBytes": 3310,
+      "archiveSha256": "b7aea2493bccc9ea49c60f7a8ab0703b73c1a9a14bb52f61a78f927ece149ff9"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/source-duplicate-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/source-duplicate-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "3dfded2edabb2f45aca1dec6e6214383d4cec00216f8d2cb8eba9bee4b34367e",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "b6dd27bf21c9410645ccfe271d4f3a8ca4b29c0556d3e2820c50eecaef11bb4e"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/source-positive-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/source-positive-runner.mjs",
+      "originalSizeBytes": 8067,
+      "originalSha256": "95b7b298da155021529c186ffa97e1b2ecc585baefa1d7b0ec1d9f9d9c6762bb",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "271cf93c90b85dc8f3add9e13336aa266b5f1f9052f82e4aa4090b61f1a106f6"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/source-swap-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/source-swap-runner.mjs",
+      "originalSizeBytes": 8063,
+      "originalSha256": "aeb7cf0d3eec1564c4305e3c181dd784961f13ab6fc592522ade2d4ac5c73055",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "8b21365de297749307764bd7926ab5df63c9a26460df5abc5d7abdfc695f703f"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-context/source-unmatched-runner.mjs.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-context/source-unmatched-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "9c51e27eaea3a3fbb24079918b89243ba70b96a2338b8d7fb48af7144e684dc2",
+      "archiveSizeBytes": 3271,
+      "archiveSha256": "512c0d94388a1118a390ac8171ac7468e5dedfe0350a9cc063d20d595a3abf73"
+    },
+    {
+      "path": "role-model-witness-controls/final-postjoin-focused.log.gz",
+      "originalName": "role-model-witness-controls/final-postjoin-focused.log",
+      "originalSizeBytes": 5583,
+      "originalSha256": "b32e6a9df939c0e5f68f9b0dc87fc6f3e0d6a843af7262b0e434abbd47b35342",
+      "archiveSizeBytes": 1671,
+      "archiveSha256": "771e4931e00083a935cba2ff50d32bfe18223f4e08dbbaf38e78c27d63c72d6a"
+    },
+    {
+      "path": "role-model-witness-controls/focused-final-with-containment.log.gz",
+      "originalName": "role-model-witness-controls/focused-final-with-containment.log",
+      "originalSizeBytes": 5416,
+      "originalSha256": "01720b2415d09a31c889f79bd5040ec72c42085a87d839af6785d3e14e2f7053",
+      "archiveSizeBytes": 1633,
+      "archiveSha256": "d5bf32d3cc6811758eeaa7a3c0c04a58c9ad74918dd32cd872143371d835903e"
+    },
+    {
+      "path": "role-model-witness-controls/focused-final.log.gz",
+      "originalName": "role-model-witness-controls/focused-final.log",
+      "originalSizeBytes": 5267,
+      "originalSha256": "2e2e48ecd1c36ff670bff694a8c543a7af048311d6341d8ae245f70b910c63de",
+      "archiveSizeBytes": 1585,
+      "archiveSha256": "8692311920991f132219fdd9345340591e46eed4a459ee3ea3da7b9ad0f93c1f"
+    },
+    {
+      "path": "role-model-witness-controls/frozen-e71-auto-mode.mjs.gz",
+      "originalName": "role-model-witness-controls/frozen-e71-auto-mode.mjs",
+      "originalSizeBytes": 46508,
+      "originalSha256": "8d50248a6a8eaea377a5bd0e55a21a5929ec4ac48c0385c0865b2bf53eace0bd",
+      "archiveSizeBytes": 14435,
+      "archiveSha256": "dff87f061085d5ddc46b9ea1c3cacf1f2aca61b01cfc3ad0935f4c1f8e7ac206"
+    },
+    {
+      "path": "role-model-witness-controls/http-receipt-join-controls/after-stderr.log.gz",
+      "originalName": "role-model-witness-controls/http-receipt-join-controls/after-stderr.log",
+      "originalSizeBytes": 0,
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archiveSizeBytes": 20,
+      "archiveSha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "path": "role-model-witness-controls/http-receipt-join-controls/after-stdout.log.gz",
+      "originalName": "role-model-witness-controls/http-receipt-join-controls/after-stdout.log",
+      "originalSizeBytes": 165,
+      "originalSha256": "770a4993ed93474ddb32bca0b2f3b641eefe91a3717953b8a16827ac30c7a756",
+      "archiveSizeBytes": 154,
+      "archiveSha256": "f3e460ddf4387ec858b1eebb2b497644145cf45b52f7ab148d5cc2013fe10e46"
+    },
+    {
+      "path": "role-model-witness-controls/http-receipt-join-controls/before-after.log.gz",
+      "originalName": "role-model-witness-controls/http-receipt-join-controls/before-after.log",
+      "originalSizeBytes": 1170,
+      "originalSha256": "49a0d1e7f1be5dd3cfd2779447a043d9271464addb3b66f9e16866d774995ea5",
+      "archiveSizeBytes": 494,
+      "archiveSha256": "b217580f674b9d13c6ac5e825d1f18c73b1c0f80b5da77856f580c9d88ad407c"
+    },
+    {
+      "path": "role-model-witness-controls/http-receipt-join-controls/before-stderr.log.gz",
+      "originalName": "role-model-witness-controls/http-receipt-join-controls/before-stderr.log",
+      "originalSizeBytes": 0,
+      "originalSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archiveSizeBytes": 20,
+      "archiveSha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "path": "role-model-witness-controls/http-receipt-join-controls/before-stdout.log.gz",
+      "originalName": "role-model-witness-controls/http-receipt-join-controls/before-stdout.log",
+      "originalSizeBytes": 164,
+      "originalSha256": "627e77784851c429e33cdac908d9e678615e1756a09a29cbce704901b2f4802d",
+      "archiveSizeBytes": 152,
+      "archiveSha256": "439b14756e87a78e211b97452107de1746e1bb1c58c75ffb838f2cb75d2d3ade"
+    },
+    {
+      "path": "role-model-witness-controls/http-receipt-join-controls/shared-cancel-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/http-receipt-join-controls/shared-cancel-preload.mjs",
+      "originalSizeBytes": 782,
+      "originalSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f",
+      "archiveSizeBytes": 432,
+      "archiveSha256": "6946b2f8e4db94217adc9edcbd57395370613154044a834a54e5569aeadbb65c"
+    },
+    {
+      "path": "role-model-witness-controls/http-receipt-join-controls/shared-cancellation-driver.ts.gz",
+      "originalName": "role-model-witness-controls/http-receipt-join-controls/shared-cancellation-driver.ts",
+      "originalSizeBytes": 18440,
+      "originalSha256": "a62674ee125d7a6bb58d7f621bf3f12e6f0d2270299bb51061799f52fdb43a05",
+      "archiveSizeBytes": 6264,
+      "archiveSha256": "efac274e1b64032f4bfa2e8a4f5e004078bdaa7bc8b529d59eb02ce0ee60a234"
+    },
+    {
+      "path": "role-model-witness-controls/initial-positive.log.gz",
+      "originalName": "role-model-witness-controls/initial-positive.log",
+      "originalSizeBytes": 335,
+      "originalSha256": "975fb4bf8f384e428932d33772d3bf678da378c02f242a32be89add61d9fc614",
+      "archiveSizeBytes": 262,
+      "archiveSha256": "999ff2ee09f2c59defdae469f0665def17d03f11e2ae5437dc3aa5cba42572b5"
+    },
+    {
+      "path": "role-model-witness-controls/join-controls-iteration/clone-error-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/join-controls-iteration/clone-error-preload.mjs",
+      "originalSizeBytes": 558,
+      "originalSha256": "8298297e935866da2afed0c83d0113378ec1d9c738b84415ea4b59000f75494f",
+      "archiveSizeBytes": 376,
+      "archiveSha256": "cb20b7149952d896e54dd0278e0f66a0541cd4e94d0a17bc046ab4be56ccfb7a"
+    },
+    {
+      "path": "role-model-witness-controls/join-controls-iteration/clone-hang-preload.mjs.gz",
+      "originalName": "role-model-witness-controls/join-controls-iteration/clone-hang-preload.mjs",
+      "originalSizeBytes": 521,
+      "originalSha256": "6e84eb243b0c1876a16b4acba23d44389e84f7b3af1b88460bc5c8753b42beb7",
+      "archiveSizeBytes": 354,
+      "archiveSha256": "c47192322eccd574a5634cf1b985a33ddf30177ebd3ff7af38eab5553a198926"
+    },
+    {
+      "path": "role-model-witness-controls/join-controls-iteration.log.gz",
+      "originalName": "role-model-witness-controls/join-controls-iteration.log",
+      "originalSizeBytes": 330,
+      "originalSha256": "244673f8b6ea838a072bd3bc9898ec2f9e162db5b7540ba757cc396e29666373",
+      "archiveSizeBytes": 253,
+      "archiveSha256": "659d3005582042e34f80ee80d298d76ad8d945cac78c5b451e2727243a8c8cc2"
+    },
+    {
+      "path": "role-model-witness-controls/prejoin-claude-auto-mode-harness.test.ts.gz",
+      "originalName": "role-model-witness-controls/prejoin-claude-auto-mode-harness.test.ts",
+      "originalSizeBytes": 48444,
+      "originalSha256": "9a1cdef732cb15d23d36884322131b00035c8368a72942d62dafd3bc43d263b1",
+      "archiveSizeBytes": 12907,
+      "archiveSha256": "e3f9623ba5929e9b06c9408470c9af7ad15244f6b93710fef5f730b6f8d068a1"
+    },
+    {
+      "path": "role-model-witness-controls/role-controls-iteration.log.gz",
+      "originalName": "role-model-witness-controls/role-controls-iteration.log",
+      "originalSizeBytes": 825,
+      "originalSha256": "5dac34f0e65814951ef98fccdbd8616569c8a7c285204161a1df3ac8b42f9b5d",
+      "archiveSizeBytes": 415,
+      "archiveSha256": "a03741b2b2f4a607060fc36fbc7bfddf2c153a4a7088805081c8d49169661ff4"
+    },
+    {
+      "path": "raw-originals/role-model-witness-controls/INDEPENDENT_FINAL_REVIEW.md.gz",
+      "originalName": "role-model-witness-controls/INDEPENDENT_FINAL_REVIEW.md",
+      "originalSizeBytes": 4076,
+      "originalSha256": "aca5bc237ea2c0705c17dc60a5324bae4dfd2eb12b8cd9bfd4fc845df99344aa",
+      "archiveSizeBytes": 2009,
+      "archiveSha256": "0de0b400a3d09d3a10a57dda0666c9e08a2c200fa308571729fc1a152db6ff5b",
+      "renderedLinkRepairs": [
+        {
+          "originalTarget": "final-cancel-entry-focused.log",
+          "archivedTarget": "final-cancel-entry-focused.log.gz"
+        }
+      ]
+    },
+    {
+      "path": "raw-originals/classifier-model-selection-audit/REPORT.md.gz",
+      "originalName": "classifier-model-selection-audit/REPORT.md",
+      "originalSizeBytes": 9337,
+      "originalSha256": "3fc3bd9489ee264c6e631ba8ee9c71d995b79d89b035fba021f4d4c9deedc2a1",
+      "archiveSizeBytes": 4604,
+      "archiveSha256": "237e434c0ed3dce414207a113cc948f853c6dcd3884b725fb1b8aaf8ec19d925",
+      "narrativeCorrection": "Distinguish published missing requested-identity checks/global served gate from superseded proposed all-wire/all-SDK-main gate; static source facts unchanged."
     }
   ]
 }

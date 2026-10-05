@@ -1,0 +1,152 @@
+{
+  "scope": "Same shared preload proves actual cancellation entered and permanently pending in both prejoin/final lanes; both overall FAIL, acceptance false",
+  "execSession": 14199,
+  "command": [
+    "bun",
+    "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/shared-cancellation-driver.ts"
+  ],
+  "independentSubprocessDeadlineMilliseconds": 23000,
+  "harnessDeadlineMilliseconds": 3000,
+  "beforeHarness": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/frozen-e71-auto-mode.mjs",
+    "bytes": 46508,
+    "sha256": "8d50248a6a8eaea377a5bd0e55a21a5929ec4ac48c0385c0865b2bf53eace0bd"
+  },
+  "afterHarness": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-e71-auto-mode.mjs",
+    "bytes": 47968,
+    "sha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765"
+  },
+  "finalMaintainedTest": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-claude-auto-mode-harness.test.ts",
+    "bytes": 52410,
+    "sha256": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5"
+  },
+  "sharedPreload": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/shared-cancel-preload.mjs",
+    "bytes": 782,
+    "sha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+  },
+  "causalResult": [
+    {
+      "lane": "before",
+      "code": 1,
+      "result": "FAIL",
+      "acceptance": false,
+      "queries": 10,
+      "cloneReceiptEntered": true,
+      "cloneCancellationEntered": true,
+      "loggerContextDescriptorRestored": true,
+      "privateRuntimeRemoved": true,
+      "relayOperationsJoined": null,
+      "pendingRelayHandlers": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "cleanupFailures": [],
+      "ownedResidualProcesses": 0,
+      "entrySha256": "8d50248a6a8eaea377a5bd0e55a21a5929ec4ac48c0385c0865b2bf53eace0bd",
+      "sharedPreloadSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+    },
+    {
+      "lane": "after",
+      "code": 1,
+      "result": "FAIL",
+      "acceptance": false,
+      "queries": 10,
+      "cloneReceiptEntered": true,
+      "cloneCancellationEntered": true,
+      "loggerContextDescriptorRestored": false,
+      "privateRuntimeRemoved": false,
+      "relayOperationsJoined": true,
+      "pendingRelayHandlers": 0,
+      "httpReceiptsJoined": false,
+      "pendingHttpReceipts": 1,
+      "cleanupFailures": [
+        "HTTP receipt join",
+        "logger context retained after unjoined work",
+        "private runtime retained after cleanup failure"
+      ],
+      "ownedResidualProcesses": 0,
+      "entrySha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+      "sharedPreloadSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+    }
+  ],
+  "historicalPendingReadQualification": "final-postjoin-context/ and join-controls-iteration/ did not prove cancellation entered; do not claim otherwise",
+  "files": [
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/REPORT.md",
+      "bytes": 3842,
+      "sha256": "0a4580e2c98c21d75d5bedfa1d5b609f1dc67099b5812f07fac55bd39fc785dd"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-clone-cancellation-entered.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-clone-receipt-entered.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-proof.json",
+      "bytes": 8702,
+      "sha256": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-stdout.log",
+      "bytes": 165,
+      "sha256": "770a4993ed93474ddb32bca0b2f3b641eefe91a3717953b8a16827ac30c7a756"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-after-summary.json",
+      "bytes": 1414,
+      "sha256": "502b88f3ea8f36c4dfccb6200ba493c967d54fb6019715614fcda5f470d35cff"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-after.log",
+      "bytes": 1170,
+      "sha256": "49a0d1e7f1be5dd3cfd2779447a043d9271464addb3b66f9e16866d774995ea5"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-clone-cancellation-entered.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-clone-receipt-entered.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-proof.json",
+      "bytes": 8409,
+      "sha256": "987f67b6084835611cd7710fcd515b092a673f1e41d0d6620d70e74613e7bf26"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-stdout.log",
+      "bytes": 164,
+      "sha256": "627e77784851c429e33cdac908d9e678615e1756a09a29cbce704901b2f4802d"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/shared-cancel-preload.mjs",
+      "bytes": 782,
+      "sha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/shared-cancellation-driver.ts",
+      "bytes": 18440,
+      "sha256": "a62674ee125d7a6bb58d7f621bf3f12e6f0d2270299bb51061799f52fdb43a05"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "kind": "independent-read-only-prejoin-review",
+  "base": "cd8b5063a1e001f61eb610f82c05e8bd6e20974a",
+  "filesFullyRead": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "8d50248a6a8eaea377a5bd0e55a21a5929ec4ac48c0385c0865b2bf53eace0bd",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "9a1cdef732cb15d23d36884322131b00035c8368a72942d62dafd3bc43d263b1"
+  },
+  "focused": {
+    "pass": 33,
+    "assertions": 1067,
+    "fail": 0,
+    "skips": 0,
+    "seconds": 47.58,
+    "log": "focused-final-with-containment.log"
+  },
+  "reviewedControls": [
+    "role-specific requested/wire/SDK alias pin/served facts",
+    "exact private actual-target logger ALS request ownership and callback semantics",
+    "nested logger witness clearing",
+    "truthful restored-but-drift versus unrestorable flags",
+    "source and certified80d compiled positive/swapped/unmatched/duplicate mocked-SDK cases",
+    "grant pre-read regular/type/no-link/UID/0400/singlelink plus no-follow/nonblocking descriptor and identity invariance",
+    "preserved H1-H5 tool/flag/logging/output/SSE receipts"
+  ],
+  "materialFinding": {
+    "path": "scripts/e2e-claude-code-auto-mode.mjs",
+    "line": 523,
+    "finding": "Cleanup logger restoration eligibility omits explicit settlement of relay fetch-handler and cloned HTTP receipt operations. Transport stop alone does not prove pending reader cancellation joined.",
+    "approvedCorrection": "Stop admission; bounded handler then pending-receipt joins; require both sets empty and report booleans before ALS restoration/removal; preserve private fixture and fail acceptance on nonjoin.",
+    "status": "correction-in-progress"
+  },
+  "limits": [
+    "All SDK/auth/executable behavior in these controls is synthetic/fenced; no native acceptance.",
+    "Existing compiled artifacts certify80d source, not a new candidate build.",
+    "Real selector/policy/entitlement/remapping/probe/demotion unproved.",
+    "One-query-per-wire is conservative no-retry qualification; legitimate internal retries remain separate.",
+    "Different model-pin swaps discriminated; same-model ownership relies on verified logger provenance rather than hostile-target authentication."
+  ],
+  "mergeReady": false,
+  "nativeAcceptance": false,
+  "hashSource": "Exact frozen files read before authorized pending-HTTP correction; final candidate will have a separate receipt."
+}

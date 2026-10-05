@@ -1,0 +1,116 @@
+{
+  "kind": "independent-final-E71-harness-review",
+  "base": "cd8b5063a1e001f61eb610f82c05e8bd6e20974a",
+  "disposition": "PASS for bounded correction direction and frozen source; final full local gates, final-head CI and native affected-flow acceptance remain open",
+  "remainingMaterialFindings": [],
+  "filesFullyRead": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5",
+    "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+  },
+  "focused": {
+    "authoritativeWorkerExec": 53506,
+    "exit": 0,
+    "pass": 34,
+    "fail": 0,
+    "skips": 0,
+    "assertions": 1124,
+    "seconds": 65.11,
+    "log": "final-cancel-entry-focused.log"
+  },
+  "reviewerExecutedChecks": {
+    "nodeSyntax": {
+      "exit": 0
+    },
+    "gitDiffCheck": {
+      "exit": 0
+    },
+    "documentation": "independent-doc-validation.json"
+  },
+  "observedCleanup": {
+    "settledCloneReadFailure": "receipt acceptance false; handlers/receipts joined, descriptor actually restored, private runtime removed",
+    "permanentCancellation": "read rejected; cancel-entry marker exists; one pending receipt, handlers joined, descriptor not restored, private runtime retained; acceptance false",
+    "boundedJoin": "Relay admission closed first; active handler promises joined before cloned-receipt snapshot; both must settle and sets be empty before restoration/removal"
+  },
+  "resolvedFindings": [
+    "nested known-logger contexts cannot borrow outer ownership",
+    "descriptor restoration attempted before restorable-drift failure and reported from actual success",
+    "snapshot type/ownership validated before content read, no-follow/nonblocking descriptor and fd/path identity checks",
+    "relay handlers and HTTP receipt readers explicitly bounded/joined before restoration/removal",
+    "maintained negative proves cancellation entry rather than only pending read"
+  ],
+  "controls": [
+    "exact per-request role/wire/SDK full ID or sonnet alias plus exact version pin/served model",
+    "single explicit audited classifier arm, no client forcing or broad allowlist",
+    "missing/unmatched/reused contexts and differing-role/model equal-count swaps rejected",
+    "actual target source and existing certified80d compiled HTTP contexts, mocked SDK/auth/executable and external network fence",
+    "successful JSON/SSE and all prior H1-H5 tool ownership, error flag, logging, output descriptor and ordered terminal guards retained",
+    "zero-query invalid-grant/read-observation controls and source/runtime/public identity invariance",
+    "hung client and ignored-TERM/startup failure joined; unjoined fixtures retained"
+  ],
+  "receipts": {
+    "clone-error-cancel-marker.txt": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72",
+    "clone-error-marker.txt": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164",
+    "clone-error-preload.mjs": "18df74d4a151cde7fdb520aa2574daafb07aa6bbf235d35fccd2b2eeb5e6d4fd",
+    "clone-error.json": "8b175cd96cfb2c23d9ea82094922a4dff9fa694d0ed0df997ac3318815d61356",
+    "clone-hang-cancel-marker.txt": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72",
+    "clone-hang-marker.txt": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164",
+    "clone-hang-preload.mjs": "b373a60df99a7542799c4d759e71b03de7319a9a0907865a2d1d9057ecc484ea",
+    "clone-hang.json": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb",
+    "compiled-duplicate-runner.mjs": "3096b367a11e4c9d1fb888f7776dc4e2b452e5cdeb251a1b6fad9afa1bee05a0",
+    "compiled-duplicate.json": "89c7876981269a6cab41d5828852aa0480c907f57123ec431f7383c63c470046",
+    "compiled-positive-runner.mjs": "272323aa33027cbd624fb8a28347871ba8c03443be1aae337e9cfd86a7708169",
+    "compiled-positive.json": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445",
+    "compiled-swap-runner.mjs": "c6a0fae2884c46aff4af7d46e8f596147b24c8ef7508fa17f4603ab7e61642b6",
+    "compiled-swap.json": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006",
+    "compiled-unmatched-runner.mjs": "e926622d2f56aed2c63176801c8ea2977ef252af05875fe4d55a6d9ad1c6b957",
+    "compiled-unmatched.json": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa",
+    "source-duplicate-runner.mjs": "69b51be11a3f5ff3c32a3aea8dbea549fb134232367ac30a02947119e438afd8",
+    "source-duplicate.json": "c6c681024449c5235c1c6aa0349ee0dca44dc1088f4cb623969d96714314e324",
+    "source-positive-runner.mjs": "f6e3fb15914601a9627628ba7dded64205367543e110f0ad5774f48b2e747fe6",
+    "source-positive.json": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f",
+    "source-swap-runner.mjs": "d82d33f7c6c6d5f1fbc587cb6e4452935512c6c71b4d126cc987e3405a430ef2",
+    "source-swap.json": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1",
+    "source-unmatched-runner.mjs": "32b6482e576c3603ce05fb7fb099965cf960a1bc0b6ede3ca2089c7f437ec517",
+    "source-unmatched.json": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2"
+  },
+  "limits": [
+    "No actual auth/native/model calls occurred. All SDK/auth/client behavior in focused controls is synthetic or mocked.",
+    "Existing compiled case certifies80d source; this lane did not build or certify a new delivery.",
+    "Actual Linux x64 CLI2.1.286/native2.1.284/SDK0.2.141 emitted classifier/main model and granted affected-flow remain required.",
+    "Classifier runtime feature/policy/config/entitlement/provider/probe/demotion selection remains unproved; one explicit selected arm only.",
+    "Multiple SDK queries for one wire request fail conservative no-retry benchmark; legitimate retry behavior remains separate, not called malicious.",
+    "Same-model swapped requests rely on verified logger provenance; model equality does not authenticate a hostile target.",
+    "Historical30/980 run skipped compiled due stripped MERIDIAN_* opt-in; retained as such.33/1067 was prejoin;34/1122 proved pending read;34/1124 is final entered-cancellation maintained proof.",
+    "Shared prejoin8d/final entered-cancellation comparison is a separate causal record; both lanes may fail deadline, not a claim of old acceptance PASS."
+  ],
+  "finalFullLocalGatesRun": false,
+  "finalHeadCIRun": false,
+  "nativeAcceptance": false,
+  "mergeReady": false,
+  "causalJoinComparison": {
+    "authoritativeWorkerExec": 14199,
+    "exit": 0,
+    "summary": "http-receipt-join-controls/before-after-summary.json",
+    "sharedPreloadSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f",
+    "before": "Immutable8d: entered permanently pending cancellation, overallFAIL/acceptancefalse/10queries, restorationtrue/runtimeRemovedtrue/no cleanupfailures.",
+    "after": "Finale2f: samepreload entered cancellation, overallFAIL/acceptancefalse/10queries, handlersjoined/zero, receiptpending1/joinfalse, restorationfalse/runtimeretained.",
+    "interpretation": "Fixes failure-path cleanup truth/containment; does not claim baseline acceptancePASS."
+  },
+  "causalJoinHashes": {
+    "before-clone-cancellation-entered.txt": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72",
+    "before-after.log": "49a0d1e7f1be5dd3cfd2779447a043d9271464addb3b66f9e16866d774995ea5",
+    "after-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "before-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after-clone-receipt-entered.txt": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164",
+    "before-clone-receipt-entered.txt": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164",
+    "shared-cancellation-driver.ts": "a62674ee125d7a6bb58d7f621bf3f12e6f0d2270299bb51061799f52fdb43a05",
+    "after-stdout.log": "770a4993ed93474ddb32bca0b2f3b641eefe91a3717953b8a16827ac30c7a756",
+    "before-stdout.log": "627e77784851c429e33cdac908d9e678615e1756a09a29cbce704901b2f4802d",
+    "after-clone-cancellation-entered.txt": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72",
+    "before-after-summary.json": "502b88f3ea8f36c4dfccb6200ba493c967d54fb6019715614fcda5f470d35cff",
+    "shared-cancel-preload.mjs": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f",
+    "before-proof.json": "987f67b6084835611cd7710fcd515b092a673f1e41d0d6620d70e74613e7bf26",
+    "after-proof.json": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+  }
+}

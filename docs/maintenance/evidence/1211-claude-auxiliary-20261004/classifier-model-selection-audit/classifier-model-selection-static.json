@@ -1,0 +1,445 @@
+{
+  "kind": "official-client-static-classifier-model-selection",
+  "date": "2026-10-04",
+  "package": "@anthropic-ai/claude-code-linux-x64",
+  "version": "2.1.286",
+  "officialRegistryUrl": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/2.1.286",
+  "officialTarballUrl": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-2.1.286.tgz",
+  "inspectedArtifactSha256": "fe503f65c6289d59c23e5b21ae44f03583f997dd33a2cbfc75ab4f96fb8fc73f",
+  "inspectedArtifactBytes": 241667256,
+  "localBinaryDataOnly": "/tmp/meridian-backlog-20261004/meridian/1211/aux-round1/classifier-static/distribution/package/claude",
+  "tarballSha256": "4887d7125e6c5ae5bf4dd5b0c5ae04469a9e387acb9e1281636d83d8d9a683e0",
+  "tarballBytes": 108247300,
+  "registrySha1Matches": true,
+  "registrySha512Matches": true,
+  "registrySignaturesIndependentlyVerified": false,
+  "conclusions": {
+    "separateClassifierSelector": true,
+    "unconditionalClassifierEqualsMainSupported": false,
+    "fixedClassifierModelSupported": false,
+    "defaultEligibleProbeCanonicalModel": "claude-sonnet-5",
+    "distinctMainExampleCanonicalModel": "claude-sonnet-5-5",
+    "staticCounterexampleConditions": [
+      "Main resolves to claude-sonnet-5-5",
+      "No eligible model/modelByMainModel feature override",
+      "External probe is not demoted (new host starts unprobed)",
+      "Sonnet5 is policy eligible",
+      "No explicit custom Sonnet default replaces it",
+      "Provider/policy remap and extraBodyParams do not erase the distinct identifiers"
+    ],
+    "actualEmittedWireVerified": false,
+    "actualServedSDKModelVerified": false,
+    "actualRuntimeConfigOrPolicyRead": false,
+    "nativeExecuted": false,
+    "modelCalls": 0,
+    "authStoreGlobalConfigRead": false
+  },
+  "locations": [
+    {
+      "id": "baked-sonnet5-catalog",
+      "binaryByteOffsetStart": 197586449,
+      "binaryByteOffsetEndExclusive": 197587372,
+      "bytes": 923,
+      "sha256": "4c9be7b376d88a3db1cc975f5da4253f611b8996e6a4841a33be51446182a2c2",
+      "searchRange": [
+        197585000,
+        197588000
+      ],
+      "locateStartUtf8": "{id:\"claude-sonnet-5\",",
+      "locateEndUtf8": "{id:\"claude-sonnet-5-5\",",
+      "staticFact": "Baked Sonnet5 provider catalog: first_party and gateway claude-sonnet-5; native other provider IDs separately listed."
+    },
+    {
+      "id": "baked-sonnet55-catalog",
+      "binaryByteOffsetStart": 197587372,
+      "binaryByteOffsetEndExclusive": 197588371,
+      "bytes": 999,
+      "sha256": "49e9a3e8e28c7e40dafd8c353e3ba5decd891f29075b50b241463f527a44f085",
+      "searchRange": [
+        197585000,
+        197590000
+      ],
+      "locateStartUtf8": "{id:\"claude-sonnet-5-5\",",
+      "locateEndUtf8": "{id:\"claude-opus-4-0\",",
+      "staticFact": "Distinct baked canonical main ID claude-sonnet-5-5; first_party and gateway match canonical ID."
+    },
+    {
+      "id": "catalog-key-map",
+      "binaryByteOffsetStart": 197603469,
+      "binaryByteOffsetEndExclusive": 197604017,
+      "bytes": 548,
+      "sha256": "b928fbbe05131a7e42845f34c0783cb7b9d2b082980e82273669016b63c348d7",
+      "searchRange": [
+        197603000,
+        197605000
+      ],
+      "locateStartUtf8": "var M={\"claude-3-5-haiku\"",
+      "locateEndUtf8": "function z(e)",
+      "staticFact": "Sonnet5 key sonnet5 and Sonnet5-5 key sonnet55 are distinct; G constructs fo through catalog fa entries."
+    },
+    {
+      "id": "catalog-key-generation",
+      "binaryByteOffsetStart": 197604375,
+      "binaryByteOffsetEndExclusive": 197604619,
+      "bytes": 244,
+      "sha256": "1d5db3909d8aeade535aacd6630a63d3e658bd33e3a0415e02ed59bc067990c4",
+      "searchRange": [
+        197604000,
+        197606000
+      ],
+      "locateStartUtf8": "function G(){",
+      "locateEndUtf8": "function i(e)",
+      "staticFact": "G maps each canonical key to provider IDs; fo=G()."
+    },
+    {
+      "id": "catalog-inverse",
+      "binaryByteOffsetStart": 197605557,
+      "binaryByteOffsetEndExclusive": 197605630,
+      "bytes": 73,
+      "sha256": "6c913c01ad9aef1375b4566ba665b95962c2599d26ef47cf572935f225d3d338",
+      "searchRange": [
+        197605000,
+        197606500
+      ],
+      "locateStartUtf8": "vU=Object.fromEntries",
+      "locateEndUtf8": "function UR(e)",
+      "staticFact": "vU maps firstParty catalog IDs to keys used by CR."
+    },
+    {
+      "id": "provider-catalog",
+      "binaryByteOffsetStart": 199072722,
+      "binaryByteOffsetEndExclusive": 199072911,
+      "bytes": 189,
+      "sha256": "62e0ebea7750a78b14e9ba769eba79afebcdef14a9bfec6a5802a9207596853c",
+      "searchRange": [
+        199072000,
+        199074000
+      ],
+      "locateStartUtf8": "function Qr(e,n)",
+      "locateEndUtf8": "async function hA()",
+      "staticFact": "Qr selects provider entry, falls back when null, applies Bedrock region handling and normalizes IDs."
+    },
+    {
+      "id": "provider-catalog-overrides",
+      "binaryByteOffsetStart": 199073861,
+      "binaryByteOffsetEndExclusive": 199074485,
+      "bytes": 624,
+      "sha256": "d17fc01e73440847786b659670f5044ffab5fdc894ae7bb485dce58304a565e8",
+      "searchRange": [
+        199073000,
+        199075000
+      ],
+      "locateStartUtf8": "function Hf(e)",
+      "locateEndUtf8": "async function Cgn(e)",
+      "staticFact": "Hf applies in-memory modelOverrides; Pg returns override catalog, wt unoverridden catalog."
+    },
+    {
+      "id": "main-model-explicit",
+      "binaryByteOffsetStart": 199395142,
+      "binaryByteOffsetEndExclusive": 199395361,
+      "bytes": 219,
+      "sha256": "4975245297da2339c0a8dce5f6567c964fbc12f7fb263217bc082c2c356d81f6",
+      "searchRange": [
+        199395000,
+        199396000
+      ],
+      "locateStartUtf8": "function Oh(){",
+      "locateEndUtf8": "function thn(e",
+      "staticFact": "Main model Oh prefers explicit Cd(), then Mmt environment/persisted model, applying policy helper thn."
+    },
+    {
+      "id": "main-model-resolve",
+      "binaryByteOffsetStart": 199396168,
+      "binaryByteOffsetEndExclusive": 199396242,
+      "bytes": 74,
+      "sha256": "1b7bb28b63b2e3341df07f33377bfa66462c29edafc90e2dff4affc12b4f8dc5",
+      "searchRange": [
+        199396000,
+        199397000
+      ],
+      "locateStartUtf8": "function et(){",
+      "locateEndUtf8": "var na=",
+      "staticFact": "et returns Pt(Oh()) if explicit/current model exists, otherwise default al()."
+    },
+    {
+      "id": "main-alias-resolution",
+      "binaryByteOffsetStart": 199425388,
+      "binaryByteOffsetEndExclusive": 199425932,
+      "bytes": 544,
+      "sha256": "5f3bbbdfd569b6f6445bf259d19e5dc975dd636b782be9a0a815a576537ef3f2",
+      "searchRange": [
+        199425000,
+        199426500
+      ],
+      "locateStartUtf8": "function Pt(e){",
+      "locateEndUtf8": "function Lde(e)",
+      "staticFact": "Pt resolves tier aliases; full canonical model string is normalized through yT, with context handling."
+    },
+    {
+      "id": "canonical-main-keys",
+      "binaryByteOffsetStart": 199421233,
+      "binaryByteOffsetEndExclusive": 199421375,
+      "bytes": 142,
+      "sha256": "7d8196e6ac9d56c7ceb7eeb846b45de8fa87fa3091c072b14391c45c925073db",
+      "searchRange": [
+        199421000,
+        199422000
+      ],
+      "locateStartUtf8": "function Nmt(e,n)",
+      "locateEndUtf8": "function hWr(e,n)",
+      "staticFact": "Nmt builds exact canonical main identity keys, possibly with [1m]; Mh canonicalizes identity."
+    },
+    {
+      "id": "helper-catalog-suppression",
+      "binaryByteOffsetStart": 199370820,
+      "binaryByteOffsetEndExclusive": 199370932,
+      "bytes": 112,
+      "sha256": "a48d56376c052d623f5e80315a86c3dcee5744aa4721a144d62644f9d1de3c0f",
+      "searchRange": [
+        199370000,
+        199372000
+      ],
+      "locateStartUtf8": "function ij(e)",
+      "locateEndUtf8": "function p7()",
+      "staticFact": "ij temporarily suppresses served catalog lookup while classifier helpers compute model selection."
+    },
+    {
+      "id": "helper-model-denial",
+      "binaryByteOffsetStart": 199394471,
+      "binaryByteOffsetEndExclusive": 199394583,
+      "bytes": 112,
+      "sha256": "f386d752042f021173eac4b2034e60cce5c64ee551ce53b30989d23d7ec7f91a",
+      "searchRange": [
+        199394000,
+        199395000
+      ],
+      "locateStartUtf8": "function K_e(e)",
+      "locateEndUtf8": "function Tb(e)",
+      "staticFact": "Denied helper model is remapped to current main et()."
+    },
+    {
+      "id": "classifier-default-models",
+      "binaryByteOffsetStart": 199398690,
+      "binaryByteOffsetEndExclusive": 199399487,
+      "bytes": 797,
+      "sha256": "fb71024d3bf0dac2774db64af527e6b4df1045cc458db2676cbd8a55fadb715b",
+      "searchRange": [
+        199398500,
+        199400000
+      ],
+      "locateStartUtf8": "function pI(e)",
+      "locateEndUtf8": "var Ob=",
+      "staticFact": "pI resolves Opus pin/catalog; gI excludes Sonnet4.5/4.6 and Haiku, otherwise selects env Sonnet pin or Pg().sonnet5 if allowed; Bb preserves eligible context; aWr uses ij; nhn/lWr remap Fable/Mythos to Opus else preserve main."
+    },
+    {
+      "id": "provider-wire-remap",
+      "binaryByteOffsetStart": 199427705,
+      "binaryByteOffsetEndExclusive": 199428211,
+      "bytes": 506,
+      "sha256": "a54deea902d9e2eeb9c62f14c86c45896844793bab3078a95ab35df2e94c1f7b",
+      "searchRange": [
+        199427000,
+        199429000
+      ],
+      "locateStartUtf8": "function CR(e)",
+      "locateEndUtf8": "function $I(e,n)",
+      "staticFact": "CR normalizes model, finds canonical catalog key, applies provider catalog and policy/modelOverrides where allowed; wire identifier can differ from selected canonical model."
+    },
+    {
+      "id": "builtin-auto-config",
+      "binaryByteOffsetStart": 203345333,
+      "binaryByteOffsetEndExclusive": 203345892,
+      "bytes": 559,
+      "sha256": "b82ecddaabf982c7dfb808081dc591b7054f3fa77ffd8076cb302d687989149e",
+      "searchRange": [
+        203345000,
+        203346000
+      ],
+      "locateStartUtf8": "var iPr=",
+      "locateEndUtf8": "class QL",
+      "staticFact": "iPr built-in config contains classifier behavior/severity thresholds but no model/modelByMainModel override; aS returns feature-config override, or Dg/iPr depending on vS."
+    },
+    {
+      "id": "classifier-probe-state",
+      "binaryByteOffsetStart": 206706469,
+      "binaryByteOffsetEndExclusive": 206706776,
+      "bytes": 307,
+      "sha256": "1023c660842b427353699388f8a291f46ab7615b62b9a175f921d77d1bfb5945",
+      "searchRange": [
+        206706000,
+        206708000
+      ],
+      "locateStartUtf8": "class bGt",
+      "locateEndUtf8": "function Pie(e)",
+      "staticFact": "Per-host bGt initializes externalSonnet5Probe to unprobed; Dy obtains that host state."
+    },
+    {
+      "id": "classifier-stage-one",
+      "binaryByteOffsetStart": 206741184,
+      "binaryByteOffsetEndExclusive": 206741811,
+      "bytes": 627,
+      "sha256": "64ca25bf50f302320c91d2bdc088345583b9a9013036ec73d662d7de7f7d86aa",
+      "searchRange": [
+        206741000,
+        206744000
+      ],
+      "locateStartUtf8": "async function I1o(",
+      "locateEndUtf8": "let Er=Date.now(),Mr=",
+      "staticFact": "I1o receives classifier model as parameter S and uses it to initialize per-model options; stage-one request assignment is separately pinned in classifier-stage-one-request."
+    },
+    {
+      "id": "classifier-stage-one-request",
+      "binaryByteOffsetStart": 206741887,
+      "binaryByteOffsetEndExclusive": 206742194,
+      "bytes": 307,
+      "sha256": "5fc8bdbdb4a0c9f018bc29fbb8ef93a03dd958ced6f2a238e8a3db117769b85c",
+      "searchRange": [
+        206741700,
+        206743000
+      ],
+      "locateStartUtf8": "yt={model:S,max_tokens:",
+      "locateEndUtf8": ",{raw:gt,usage:Ge,opts:yt}=",
+      "staticFact": "Stage-one yt.model=S, querySource auto_mode, max/stop shape and extraBodyParams=lGt(S); request forwarded to fGt and WFe/KB."
+    },
+    {
+      "id": "classifier-stage-two",
+      "binaryByteOffsetStart": 206743976,
+      "binaryByteOffsetEndExclusive": 206744717,
+      "bytes": 741,
+      "sha256": "038a75746e76e45350fdcba9075b02b78efa31b4cb6bb20d248638ba65925975",
+      "searchRange": [
+        206743000,
+        206746000
+      ],
+      "locateStartUtf8": "dn={model:S,max_tokens:8192+Zn",
+      "locateEndUtf8": "let Er=JFe(ro)",
+      "staticFact": "Stage-two dn.model=S, same auto_mode source; forwards to fGt."
+    },
+    {
+      "id": "classifier-extras",
+      "binaryByteOffsetStart": 206749391,
+      "binaryByteOffsetEndExclusive": 206749541,
+      "bytes": 150,
+      "sha256": "719397eaac2a6efaf9ae02d38e8d5ffa41161fe61ca203f9442d7baa84011d1b",
+      "searchRange": [
+        206749000,
+        206750000
+      ],
+      "locateStartUtf8": "function N1o(e,n){}",
+      "locateEndUtf8": "async function WFe(",
+      "staticFact": "N1o is empty in official shipped code; lGt returns XK() after calling no-op N1o. Do not assume extraBodyParams empty without runtime witness."
+    },
+    {
+      "id": "classifier-sidequery-forwarder",
+      "binaryByteOffsetStart": 206749541,
+      "binaryByteOffsetEndExclusive": 206750202,
+      "bytes": 661,
+      "sha256": "a53ca08b95fcebc00a9c8fb31081770efa5afa03f170999e9f76a00d09e34d1b",
+      "searchRange": [
+        206749000,
+        206751000
+      ],
+      "locateStartUtf8": "async function WFe(",
+      "locateEndUtf8": "function $1o(e,n)",
+      "staticFact": "WFe forwards all classifier options n into KB with timeout/signal/credentials/fetch callback; no model replacement here."
+    },
+    {
+      "id": "classifier-selected-model-caller",
+      "binaryByteOffsetStart": 206754712,
+      "binaryByteOffsetEndExclusive": 206755481,
+      "bytes": 769,
+      "sha256": "3c0b99de06b282e2a86ac66c3f89ecd4491bf93a38ad99e710e575b93c9921df",
+      "searchRange": [
+        206754000,
+        206756000
+      ],
+      "locateStartUtf8": "let{value:Kn,src:Pn,externalDefault:Gn}=WDe()",
+      "locateEndUtf8": "fr=X1o()",
+      "staticFact": "Nae chooses WDe().value Kn; closure dn passes chosen Er as I1o model parameter S; initial Mo=Kn; probe status derives from unprobed state and externalDefault."
+    },
+    {
+      "id": "classifier-probe-demotion",
+      "binaryByteOffsetStart": 206756018,
+      "binaryByteOffsetEndExclusive": 206757787,
+      "bytes": 1769,
+      "sha256": "b1af54c85299bcad2f917e1031df09aae7be623a54838c27ca637b7cec3bda5c",
+      "searchRange": [
+        206755000,
+        206758000
+      ],
+      "locateStartUtf8": "if(ro&&!g.aborted){",
+      "locateEndUtf8": "function pGt()",
+      "staticFact": "A successful probe confirms; eligible unavailable errors demote. Probe demotion may retry $Gt(Kn)=lWr(current main) if distinct, allowed, and deadline remaining; general FGt currently no fallback."
+    },
+    {
+      "id": "classifier-model-selector",
+      "binaryByteOffsetStart": 206757972,
+      "binaryByteOffsetEndExclusive": 206759282,
+      "bytes": 1310,
+      "sha256": "d9cce703bacc4132340a6ad1a0bbc20f7bb15bde9ea54f941b20c6e7e9190f74",
+      "searchRange": [
+        206757900,
+        206760000
+      ],
+      "locateStartUtf8": "function h$e(){",
+      "locateEndUtf8": "function R2(){",
+      "staticFact": "WDe picks policy-eligible modelByMainModel or model server config first; else aWr(main) if probe not demoted; else y$e(main)=lWr(main). NGt uses Nmt exact keys; prefixPatterns not enabled at this caller. G1o yields no general capacity fallback; $Gt chooses distinct eligible current-main fallback."
+    },
+    {
+      "id": "side-query-wire-body",
+      "binaryByteOffsetStart": 205756897,
+      "binaryByteOffsetEndExclusive": 205759197,
+      "bytes": 2300,
+      "sha256": "e0b82364c43dfc432f06f61d11dcc6fd4038438ff2cd31bd3833598b6333ca09",
+      "searchRange": [
+        205756800,
+        205760000
+      ],
+      "locateStartUtf8": "async function KB(e)",
+      "locateEndUtf8": "let Gn=performance.now()",
+      "staticFact": "KB transforms input model n through K_e(n)=Fe; base request model CR(Fe), then extraBodyParams spread Ce can override fields; same Pn sent to beta.messages.create."
+    },
+    {
+      "id": "side-query-native-create",
+      "binaryByteOffsetStart": 205759197,
+      "binaryByteOffsetEndExclusive": 205759801,
+      "bytes": 604,
+      "sha256": "530617692f8a7650dc8966a7d4ab559d4adad6aa3672c9b151641ed6d7b01d3a",
+      "searchRange": [
+        205758800,
+        205760000
+      ],
+      "locateStartUtf8": "let Gn=performance.now()",
+      "locateEndUtf8": "let er=$sn(Kr)",
+      "staticFact": "KB uses selected/remapped Pn in SDK beta.messages.create with auxiliary dispatch headers when applicable; no automatic replacement with CLI --model at this caller."
+    },
+    {
+      "id": "classifier-retry-forwarder",
+      "binaryByteOffsetStart": 206750937,
+      "binaryByteOffsetEndExclusive": 206751620,
+      "bytes": 683,
+      "sha256": "bd18d22f7c44b06347fa035b75c6bc6155b9ddd3dc9c7bd0e0eddf5e63568f70",
+      "searchRange": [
+        206750000,
+        206752500
+      ],
+      "locateStartUtf8": "async function fGt(",
+      "locateEndUtf8": "function JFe(e)",
+      "staticFact": "fGt forwards request options n directly to WFe; beta-rejection retry changes only extraBetas through separately pinned $1o. Parse retry reuses n without changing model."
+    },
+    {
+      "id": "classifier-beta-only-retry-options",
+      "binaryByteOffsetStart": 206750202,
+      "binaryByteOffsetEndExclusive": 206750386,
+      "bytes": 184,
+      "sha256": "f96634a26d685ad80726b01a70d7defaeecc40b24149962f6964aa965d0a7b58",
+      "searchRange": [
+        206750000,
+        206751000
+      ],
+      "locateStartUtf8": "function $1o(e,n)",
+      "locateEndUtf8": "function U1o(e,n)",
+      "staticFact": "$1o only returns spread original n with a filtered extraBetas field; classifier model is retained."
+    }
+  ]
+}

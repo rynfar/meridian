@@ -1,0 +1,182 @@
+{
+  "base": "cd8b5063a1e001f61eb610f82c05e8bd6e20974a",
+  "kind": "synthetic-only-requested-model-controls",
+  "nativeAcceptance": false,
+  "focused": {
+    "tests": 20,
+    "assertions": 603,
+    "result": "PASS",
+    "seconds": 30.55
+  },
+  "files": [
+    {
+      "path": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004/scripts/e2e-claude-code-auto-mode.mjs",
+      "sha256": "5662e9e2659757db89daa3a9631ea6ec03eb48df9038b1a2fb456cf70760a4b5",
+      "bytes": 39154
+    },
+    {
+      "path": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004/src/__tests__/claude-auto-mode-harness.test.ts",
+      "sha256": "1b4b9bdad075097bc72c188e20f73aa096997691a3b235a316ebe20696057c70",
+      "bytes": 22945
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/requested-model-controls/baseline-cd8b5063-auto-mode.mjs",
+      "sha256": "01a842ec9327517b265e301bb075c7e1de99de289343e2d30e6811cfdb08589a",
+      "bytes": 38664
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/requested-model-controls/model-control-driver.ts",
+      "sha256": "e92cd32c6283ee35d2b94a02d73d2cc78bb1385732624d45781209f449f89c63",
+      "bytes": 15951
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/requested-model-controls/before.log",
+      "sha256": "1e29c2b3ba5c4b2abf1b722cb0a28dba833a55dc130a8b794301833e38091091",
+      "bytes": 712
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/requested-model-controls/after.log",
+      "sha256": "a2eb03f7e9aeab7bfb390e705001e152c3db9bd39a57250a41657f14c70f643e",
+      "bytes": 868
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/requested-model-controls/focused-final.log",
+      "sha256": "2bde705192f9a7d22d2c92ddad974d05ea5ea1f90dddb2918ea3c858957af229",
+      "bytes": 3271
+    }
+  ],
+  "controls": [
+    {
+      "path": "before-alias.json",
+      "sha256": "5b62742fa639b1092c974e8ee0a6d6b76a22744b734cf6a19b9a73c13ab041e2",
+      "phase": "before",
+      "case": "alias",
+      "code": 0,
+      "result": "PASS",
+      "queries": 10,
+      "nativeReceipts": true,
+      "wireRequestedModel": null
+    },
+    {
+      "path": "before-missing_pin.json",
+      "sha256": "1a7f684fbdd5330c0285546d77d7cb1b487eace27afdc4d5291aaf078e45f23a",
+      "phase": "before",
+      "case": "missing_pin",
+      "code": 0,
+      "result": "PASS",
+      "queries": 10,
+      "nativeReceipts": true,
+      "wireRequestedModel": null
+    },
+    {
+      "path": "before-unsupported_alias.json",
+      "sha256": "988f86d73c5f95495a8e202f6c8e0012ab314d52f52dce5c66c69bbd203814c8",
+      "phase": "before",
+      "case": "unsupported_alias",
+      "code": 0,
+      "result": "PASS",
+      "queries": 10,
+      "nativeReceipts": true,
+      "wireRequestedModel": null
+    },
+    {
+      "path": "before-wrong_pin.json",
+      "sha256": "9f96fd78688c7b1fec6f10601505e51310d9956d67ff41968fc21d98e86f48b9",
+      "phase": "before",
+      "case": "wrong_pin",
+      "code": 0,
+      "result": "PASS",
+      "queries": 10,
+      "nativeReceipts": true,
+      "wireRequestedModel": null
+    },
+    {
+      "path": "before-wrong_sdk_id.json",
+      "sha256": "86c435b324c47ee82a04a234f03ae81c2eee6a0715449e101326a22e59269003",
+      "phase": "before",
+      "case": "wrong_sdk_id",
+      "code": 0,
+      "result": "PASS",
+      "queries": 10,
+      "nativeReceipts": true,
+      "wireRequestedModel": null
+    },
+    {
+      "path": "before-wrong_wire.json",
+      "sha256": "0aa5cc18fce84b769ffc22653835b7ef2a13a3ff73473874bae9c8b32a552eb7",
+      "phase": "before",
+      "case": "wrong_wire",
+      "code": 0,
+      "result": "PASS",
+      "queries": 10,
+      "nativeReceipts": true,
+      "wireRequestedModel": null
+    },
+    {
+      "path": "after-alias.json",
+      "sha256": "cdc68ad3b1232723b079a51c948bb67e9b9aaa86308373cc8b668b031f3f55b7",
+      "phase": "after",
+      "case": "alias",
+      "code": 0,
+      "result": "PASS",
+      "queries": 10,
+      "nativeReceipts": true,
+      "wireRequestedModel": true
+    },
+    {
+      "path": "after-missing_pin.json",
+      "sha256": "7110bc5fcc92539c5cb6be88d49d991c228147f28d37e177d1295691cc6e02f7",
+      "phase": "after",
+      "case": "missing_pin",
+      "code": 1,
+      "result": "FAIL",
+      "queries": 10,
+      "nativeReceipts": false,
+      "wireRequestedModel": true
+    },
+    {
+      "path": "after-unsupported_alias.json",
+      "sha256": "da0b517d01c364d0e65048397b7d10730f6c5ebf837c3c181527855526af90da",
+      "phase": "after",
+      "case": "unsupported_alias",
+      "code": 1,
+      "result": "FAIL",
+      "queries": 10,
+      "nativeReceipts": false,
+      "wireRequestedModel": true
+    },
+    {
+      "path": "after-wrong_pin.json",
+      "sha256": "3313f77d409bf7d4da4ff899b8cbe7a80433d1b834bfb398d398994f093f5972",
+      "phase": "after",
+      "case": "wrong_pin",
+      "code": 1,
+      "result": "FAIL",
+      "queries": 10,
+      "nativeReceipts": false,
+      "wireRequestedModel": true
+    },
+    {
+      "path": "after-wrong_sdk_id.json",
+      "sha256": "1f6b6894d70115b001f88867d0c8601861473c0cb3c44acc6ceb38422839e0eb",
+      "phase": "after",
+      "case": "wrong_sdk_id",
+      "code": 1,
+      "result": "FAIL",
+      "queries": 10,
+      "nativeReceipts": false,
+      "wireRequestedModel": true
+    },
+    {
+      "path": "after-wrong_wire.json",
+      "sha256": "5bdab447d2196bbe9091b3c592a352cd287957b33f39601f92632c7916df7aba",
+      "phase": "after",
+      "case": "wrong_wire",
+      "code": 1,
+      "result": "FAIL",
+      "queries": 10,
+      "nativeReceipts": false,
+      "wireRequestedModel": false
+    }
+  ]
+}

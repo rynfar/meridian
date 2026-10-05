@@ -1,0 +1,23 @@
+{
+  "kind": "immutable-reviewed-E71-packet-escrow",
+  "parentHead": "cd8b5063a1e001f61eb610f82c05e8bd6e20974a",
+  "sourcePackets": [
+    "classifier-model-selection-audit",
+    "requested-model-controls",
+    "snapshot-pre-read-controls",
+    "role-model-witness-controls"
+  ],
+  "copiedFiles": 166,
+  "deterministicArchives": 63,
+  "archivalMap": "raw-artifact-archives.json",
+  "allOriginalBytesRetained": true,
+  "historicalCodeOutsideDiscovery": true,
+  "noNativeAcceptance": true,
+  "sourceRootHistorical": "/tmp/meridian-backlog-20261004/meridian/1211",
+  "reproduction": "Maintained script/tests in scripts/ and src/__tests__/. gzip -dc archived artifact to recover original exact bytes; raw JSON manifests use historical names resolved by archival map.",
+  "reviewedCandidateSourceHashes": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5",
+    "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+  }
+}

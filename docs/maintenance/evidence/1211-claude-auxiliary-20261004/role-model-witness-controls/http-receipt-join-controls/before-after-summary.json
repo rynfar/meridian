@@ -1,0 +1,44 @@
+[
+  {
+    "lane": "before",
+    "code": 1,
+    "result": "FAIL",
+    "acceptance": false,
+    "queries": 10,
+    "cloneReceiptEntered": true,
+    "cloneCancellationEntered": true,
+    "loggerContextDescriptorRestored": true,
+    "privateRuntimeRemoved": true,
+    "relayOperationsJoined": null,
+    "pendingRelayHandlers": null,
+    "httpReceiptsJoined": null,
+    "pendingHttpReceipts": null,
+    "cleanupFailures": [],
+    "ownedResidualProcesses": 0,
+    "entrySha256": "8d50248a6a8eaea377a5bd0e55a21a5929ec4ac48c0385c0865b2bf53eace0bd",
+    "sharedPreloadSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+  },
+  {
+    "lane": "after",
+    "code": 1,
+    "result": "FAIL",
+    "acceptance": false,
+    "queries": 10,
+    "cloneReceiptEntered": true,
+    "cloneCancellationEntered": true,
+    "loggerContextDescriptorRestored": false,
+    "privateRuntimeRemoved": false,
+    "relayOperationsJoined": true,
+    "pendingRelayHandlers": 0,
+    "httpReceiptsJoined": false,
+    "pendingHttpReceipts": 1,
+    "cleanupFailures": [
+      "HTTP receipt join",
+      "logger context retained after unjoined work",
+      "private runtime retained after cleanup failure"
+    ],
+    "ownedResidualProcesses": 0,
+    "entrySha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+    "sharedPreloadSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+  }
+]

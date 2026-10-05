@@ -1,0 +1,24 @@
+[
+  {
+    "command": [
+      "node",
+      "--check",
+      "scripts/e2e-claude-code-auto-mode.mjs"
+    ],
+    "cwd": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "cwd": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004",
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  }
+]

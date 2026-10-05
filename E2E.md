@@ -1146,7 +1146,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E66 | [Interrupted turn after a settled checkpoint](#e66-interrupted-turn-after-a-settled-checkpoint) | **Automated, real proxy + SDK + Claude Max**: `bun scripts/e2e-checkpoint-interrupted-turn.mjs`. An OpenCode-keyed tool round whose complete result is followed by a partial assistant turn (what a dropped stream leaves) must resume the stored session; a result for an unknown call is the negative control and must still take the fresh replay. **Run before releases touching the passthrough early-stop checkpoint or checkpoint replay** | 2026-09-26 |
 | E67 | [OpenCode V2 interrupted tool turn](#e67-opencode-v2-interrupted-tool-turn) | **Actual OpenCode 2.0.16 client and Meridian V2 plugin, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-checkpoint-fault.mjs`. Inject one partial SSE failure after the real client tool call; require the client's exact retry shape and SDK resume, plus a same-session recovery. **Run before releases touching keyed checkpoint recovery** | 2026-09-26 |
 | E68 | [OpenCode V2 user-invoked skill](#e68-opencode-v2-user-invoked-skill) | **Actual OpenCode V2 server, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-skill-content.mjs`. A skill invoked with no typed text must reach the SDK prompt inside `<skill_content>` and drive the reply. **Run before releases touching user-text sanitization** | 2026-09-27 |
-| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Prepared native Linux x64 gate**, explicit target/client/SDK/model and owned read-only grant: `bun scripts/e2e-claude-code-auto-mode.mjs` with the E71 options below. Actual Claude Code CLI in `--permission-mode auto`; synthetic controls and historical contributor observations do not establish current acceptance. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
+| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Prepared native Linux x64 gate**, explicit target/client/SDK, separate requested/served main and classifier pins, and owned read-only grant: `bun scripts/e2e-claude-code-auto-mode.mjs` with the required E71 options below. Actual Claude Code CLI in `--permission-mode auto`; synthetic controls and historical contributor observations do not establish current acceptance. Exact request witnesses bind each SDK query to its classified wire request. Requires shape and header isolation, later main resume, no collisions/refusals, and the selected single classifier arm; selector changes and internal retries remain qualified separately. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -6087,6 +6087,7 @@ bun scripts/e2e-claude-code-auto-mode.mjs \
   --native-cli /owned/sdk-claude-code-2.1.284 --native-cli-version 2.1.284 \
   --sdk-version 0.2.141 \
   --model claude-sonnet-5-5 --served-model claude-sonnet-5-5 \
+  --classifier-model claude-sonnet-5 --classifier-served-model claude-sonnet-5 \
   --grant-file /owned/read-only-grant.json --proof-dir /owned/private/e71-fixed \
   --max-queries 20 --max-cost-usd 10 --timeout-ms 1200000
 ```
@@ -6101,6 +6102,35 @@ installed SDK is observed; the harness's dependency installation is not used
 as a substitute. Explicit client/native versions and public executable hashes
 are recorded. Missing inputs, expired grants and failed read-only OAuth usage
 readiness stop before generation.
+
+Main and classifier identities are separate required inputs. Official client
+2.1.286 selects the classifier independently: a Sonnet5-5 main can use the
+distinct Sonnet5 probe, then fall back to the main after probe demotion.
+Feature configuration, policy, entitlement and provider remapping can also
+affect selection; static catalog/source facts do not prove what a native run
+emits. `--classifier-model` pins exactly one audited arm for the run: the
+Sonnet5 probe or the requested main fallback. `--classifier-served-model`
+pins its exact required served identity. The harness never forces client
+configuration to select that arm. A legitimate different selection or
+within-invocation demotion fails the selected arm's qualification rather
+than passing through an all-query model allowlist. Preserve that failure
+and separately qualify another explicit arm if needed.
+
+Each relay-owned request ID and role is matched to the actual target's private
+logger request context through a harness-only AsyncLocalStorage witness.
+Source and compiled targets use the same observer; saved proof contains
+ordinals, roles, public model IDs and match facts, not raw request IDs or
+context. Each SDK query must name its own request's full wire model or the
+supported `sonnet` tier with that exact version pin. Its observed served
+model must match the separately declared main or classifier served pin.
+Missing, unmatched or reused request contexts fail qualification. This
+receipt checks differing model pins; it relies on the verified target logger
+context for same-model ownership and does not independently authenticate a
+hostile target or distinguish swapped requests with identical model pins.
+The bounded benchmark requires one SDK query per wire request: legitimate
+internal resume/context/rate-limit retries retain the same request ID and
+are conservatively rejected here. This is a benchmark limit, not evidence
+of corrupted or malicious client behavior; retry acceptance is separate.
 
 `--expect-unfixed` requires the same controls, but exactly the four original
 defect assertions (shape isolation, header isolation, later-main resume and
@@ -6119,12 +6149,22 @@ runtime credential snapshot omits refresh authority; the owner fixture is
 never supplied to a mutable runtime. It must belong to the runtime user, have
 one hard link, and remain valid throughout the bounded run plus its safety
 margin. No auth refresh namespace or ambient provider paths are inherited.
+Snapshot file type and grant ownership/permissions are checked before content
+reads. Each snapshot reads a regular file through a no-follow, nonblocking
+descriptor,
+verifies its identity against the selected path before and after reading,
+and rejects symlink or nonregular grant inputs without reading their content.
 Client requests/output, SDK query count, total execution time and
 SDK-estimated cost are bounded. The cost ceiling is
 divided across the maximum queries through the SDK's `maxBudgetUsd`; an
 insufficient budget leaves the gate failed rather than relaxing assertions.
-Cleanup aborts and joins owned work, closes the proxy and relay, and checks
-owner-file bytes/inode/permissions and public target identities without
+Cleanup closes relay admission, aborts owned work, closes the proxy and relay,
+and requires bounded settlement of relay handlers and cloned HTTP receipt
+readers before restoring the logger context or removing the private runtime.
+A settled clone-read failure fails receipt acceptance but permits joined
+teardown; a pending read or cancellation fails cleanup and retains the private
+fixture. Cleanup also checks owner-file bytes/inode/permissions and public
+target identities without
 publishing credential fingerprints. It removes the private snapshot/runtime
 only after successful joining; a failed join retains the private fixture and
 keeps acceptance closed.
@@ -6140,8 +6180,8 @@ equal aggregate classifier counts cannot satisfy isolation. A fixed pass
 requires actual classifier traffic on both shape and header paths, zero
 classifier session-turn wait with adequate SDK capacity, every later main
 request resuming, no collision/refusal, successful client turns/tool writes
-and positive assistant usage from the exact required served model. A normal
-successful SDK result with boolean `is_error: false` is required unless the
+and positive assistant usage from each role's exact required served model.
+A normal successful SDK result with boolean `is_error: false` is required unless the
 one-turn passthrough cap ends with `error_max_turns`, boolean `is_error: true`
 and the same query's tool IDs/arguments match a complete HTTP tool terminal
 for the owned outside write. SDK tool IDs cannot be shared between queries or
@@ -6151,7 +6191,10 @@ content. Missing/unclosed terminals,
 provider refusals and other SDK error results fail. Baseline wait is measured
 without weakening the fixed zero-wait assertion. Copy this result into durable
 review evidence after a native run; a temporary directory or synthetic green
-alone is insufficient.
+alone is insufficient. The original AsyncLocalStorage run descriptor must be
+restored exactly after joined work. Restorable descriptor drift still fails
+cleanup qualification, even when restoration succeeds; failed restoration
+must be reported as failed rather than inferred from joined process counts.
 
 **Contributor-reported historical before/after (2026-09-30, Linux x64, Bun 1.2.20, Agent SDK 0.2.141, Claude
 Code 2.1.286, `sonnet`).** Baseline `0ec52a2`: FAIL, 4 checks. 0 of 10

@@ -309,6 +309,32 @@ its durable evidence receipts.
 Other historical dispositions below remain qualified by
 their own recorded scopes and dates.
 
+## Current continuation — 2026-10-04 (Claude auxiliary model and observer witnesses)
+
+The [current #1211 correction record](evidence/1211-claude-auxiliary-20261004/README.md)
+escrows the official 29-slice classifier-model audit, historical requested-model
+controls, metadata-first grant snapshots, role-aware per-request model witnesses
+and joined HTTP observer cleanup. Both independent final reviews pass for script
+`e2f58e5a`, test `b58d12c7` and E71 instructions `f4410422`. The maintained
+focused gate passes 34 tests / 1,124 assertions / no skips with real source and
+existing certified `80d1ce81` compiled request plumbing plus mocked SDK/auth.
+Entered permanent cancellation has same-preload before/after proof; the corrected
+harness truthfully retains its logger/private runtime until cloned readers join.
+Historical prejoin, pending-read and compiled-skip runs remain explicit.
+
+All five Noah Passalacqua source Author/AuthorDate/subject tuples remain exact;
+this is a separate maintainer harness correction with no production/public-API
+change. Root's fresh current-main read is `74d0a499`; no rebase is needed.
+Draft [#1279](https://github.com/rynfar/meridian/pull/1279) at prior `cd8b5063`
+has all six executed checks passing plus expected changelog skip, with no
+comments/reviews. That CI and the earlier `80d1ce81` full gates apply only to
+those historical heads. The new clean commit and fresh local full test,
+standalone typecheck/build and new-head CI remain pending at this checkpoint.
+Actual Linux/client/model E71, E55 and all four E41 acceptance gates remain open,
+including selector/policy/entitlement/probe/demotion and separate retry limits.
+No native/auth/model call, source closure, release or external message is
+authorized by this checkpoint. The lower continuation entries remain historical.
+
 ## Current continuation — 2026-10-04 (approved SQLite and Claude auxiliary corrections)
 
 The owner approved [#1277](https://github.com/rynfar/meridian/issues/1277),

@@ -1,0 +1,11 @@
+{
+  "group": "snapshot-pre-read",
+  "lane": "before",
+  "kind": "symlink",
+  "code": 1,
+  "result": "FAIL",
+  "contentReadObserved": true,
+  "queries": 0,
+  "cleanupFailures": [],
+  "privateRuntimeRemoved": true
+}
