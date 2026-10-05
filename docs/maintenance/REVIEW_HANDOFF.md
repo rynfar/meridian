@@ -337,8 +337,12 @@ defer was given. All five Noah-authored commits preserve Author/AuthorDate;
 maintainer corrections are separate. Complete source and production correction
 reviews resolve mapping/checkpoint authority, cancellation, priority affinity,
 classifier false positives and adjacent retry accounting. The actual-client
-harness is being corrected against independent receipt/containment findings;
-frozen full checks and final harness review remain pending. Native Linux Claude
+harness resolves all five independent receipt/containment findings; final
+correction review passes. Frozen `80d1ce81` passes all 19 npm stages:
+5,417 pass / 35 skips / 0 failures, plus standalone typecheck/build. The first
+full-stage failure in the new body-cancellation test is preserved; a reviewed
+test-only correction now observes actual finalizer retirement before all
+original survival assertions. Delivery-head CI remains pending. Native Linux Claude
 Code/Sonnet E71, E55 parity and all four E41 modes remain acceptance gates.
 This correction of #1211's internal scope approves no other public proposal.
 

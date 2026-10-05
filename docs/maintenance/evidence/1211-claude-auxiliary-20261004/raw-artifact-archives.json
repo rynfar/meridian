@@ -487,6 +487,30 @@
       "originalSha256": "32d53b69a5c5b40fc5607a1c9198977b728a9266566f0b88735d16bd3212a881",
       "archiveSizeBytes": 4235,
       "archiveSha256": "cec204aded2b8619afa1c547f720bf5970fe1e927c4b7e179669b42272bb919c"
+    },
+    {
+      "path": "local-gates/npm-test-rerun.log.gz",
+      "originalName": "local-gates/npm-test-rerun.log",
+      "originalSizeBytes": 1088151,
+      "originalSha256": "86c8755926738769f8c14c05d3947ff3137a7c09549f4aea2a491f593d9a38a9",
+      "archiveSizeBytes": 202222,
+      "archiveSha256": "bdb0b8a43b39f752fd47b5aa25bbbf7c9343863ebae812dbd1e0cf47e6802e7e"
+    },
+    {
+      "path": "local-gates/typecheck-rerun.log.gz",
+      "originalName": "local-gates/typecheck-rerun.log",
+      "originalSizeBytes": 53,
+      "originalSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "archiveSizeBytes": 73,
+      "archiveSha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0"
+    },
+    {
+      "path": "local-gates/build-rerun.log.gz",
+      "originalName": "local-gates/build-rerun.log",
+      "originalSizeBytes": 2238,
+      "originalSha256": "43dc68f76ea737fc6314c23a967a067a2a4d72f2cefebd799fa593a8052a5923",
+      "archiveSizeBytes": 814,
+      "archiveSha256": "200d3fa525e943af3d431b84981fe3a54313fe138b2d919d866e0d20a483f651"
     }
   ]
 }

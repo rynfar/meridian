@@ -1,0 +1,1 @@
+{"baseRefName":"main","comments":[],"headRefOid":"22566e8ac0b9e079bb0d28c0eb4aa05207c56070","number":1211,"reviews":[],"state":"OPEN","title":"fix(session): isolate Claude Code auto-mode classifier requests from session resume"}

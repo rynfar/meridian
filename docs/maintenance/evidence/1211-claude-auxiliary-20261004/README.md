@@ -87,8 +87,8 @@ separate unchanged-baseline run provides the actual before failures.
 
 The critical E71 harness remains in `scripts/e2e-claude-code-auto-mode.mjs`.
 Synthetic harness results are safety/discrimination controls, not Linux/native
-acceptance. Final frozen-head full npm suite, standalone typecheck/build,
-complete independent correction review and exact-head CI must be recorded.
+acceptance. Frozen full npm suite, standalone typecheck/build and complete independent
+correction reviews are recorded below; exact delivery-head CI remains pending.
 Actual implicated Linux x64 Claude Code 2.1.286/Sonnet, selected installed SDK
 and bundled CLI identities, separately required shape/header classifier paths,
 main resume, cancellation/lease behavior and zero owned residue remain open.
@@ -113,7 +113,7 @@ The [test-only correction](cancellation-settlement/REPORT.md) observes the
 existing bounded completion predicate before every original survival assertion
 and exact-zero cleanup check; it changes no production path or latency limit.
 Targeted five controls and the full 17-test file pass; the required full rerun
-is still pending. The [final harness review](harness-review-final/review.md)
+subsequently passed as recorded below. The [final harness review](harness-review-final/review.md)
 resolves H1–H5 without a native acceptance claim.
 
 Original child manifests retain historical uncompressed names. The root
@@ -121,3 +121,24 @@ Original child manifests retain historical uncompressed names. The root
 archives, including earlier test/script snapshots. They are historical
 reproduction evidence; the maintained executable harness and tests live in
 `scripts/` and `src/__tests__/`.
+
+## Frozen local gates and delivery
+
+At clean `80d1ce8158dc7cd466a87863404bf6ea02754c8b` on current main
+`74d0a499`, `npm test` (including its initial typecheck) passes all 19 stages:
+**5,417 pass / 35 skips / 0 failures, 27,544 assertions**. Standalone typecheck
+and build also exit zero; Node entrypoints and clean build certification pass.
+The [machine record](local-gates/result.json), raw archived logs and freeze
+hashes retain exact inputs. Both earlier failures are retained, including
+pretest stopping before any suite and the first-stage cancellation settlement
+failure. The fresh passing rerun follows a reviewed test correction; it does
+not silently substitute a green rerun for missing causality.
+
+Source #1211 was refreshed before delivery: unchanged `22566e8a`, open, with
+no comments/reviews. [Author mappings](author-ledger.json) preserve all five
+original Author/AuthorDate/subjects through the documentation-only rebase.
+All production, harness and test blobs remain frozen after these checks; the
+delivery adds only maintenance evidence and handoff metadata. Source PR/issues
+remain open. The integration stays draft for exact-head CI and the actual
+E71/E55/E41 gates above. These local checks establish no native model or
+client acceptance and authorize no release.

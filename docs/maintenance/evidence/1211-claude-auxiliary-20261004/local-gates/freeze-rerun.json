@@ -1,0 +1,28 @@
+{
+  "frozenHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+  "base": "74d0a49953211eb8e2c1ccae275971aa0d624c1c",
+  "cleanBeforeGates": true,
+  "executableAndInstructionHashes": {
+    "ARCHITECTURE.md": "c45cb2ebcc619980d7d52315949cb643fa1b39f150cf2a0a855f833f58509724",
+    "E2E.md": "69058c010d7b3f71d3c347ce38b7492a4ac03b9fdd8c42e1b9bca26e9faf6655",
+    "scripts/e2e-claude-code-auto-mode.mjs": "01a842ec9327517b265e301bb075c7e1de99de289343e2d30e6811cfdb08589a",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "2098c3b077054a47559fe67049f2027d6c2c3b4b08e1ee1ab0f8b1ee5807e832",
+    "src/__tests__/claude-code-adapter.test.ts": "564521f0dc1e108efdf0295a90824a36adc22b07ce947aacd47e81da0a4a8537",
+    "src/__tests__/fixtures/proxy-boundary-fences.ts": "c6cb8c09d9f3bec9e5b0ed1648d11c3734e1effb116079fa6decd6187800fd10",
+    "src/__tests__/graceful-shutdown.test.ts": "32d53b69a5c5b40fc5607a1c9198977b728a9266566f0b88735d16bd3212a881",
+    "src/__tests__/lineage-divergence-reason.test.ts": "5ed9cb707d6e664e261f7206fcd50bcf216986ebb7e267ec676ca7acac41a425",
+    "src/__tests__/priority-routing-integration.test.ts": "a7bacb95809c963ab7450ebb550a1a01fa28509ed700c756126480ef5211802c",
+    "src/__tests__/proxy-claude-auxiliary-recovery.test.ts": "c5e2cd33bc8bcbeb7d859a522089f6a336372c0a5f6548de4c6528cb5c4cef68",
+    "src/__tests__/proxy-concurrency-coordination.test.ts": "251dd228ee2b184e7f48b4cf0aaff1bba2a3817f21d06fa05db507de1bd02c44",
+    "src/__tests__/proxy-divergence-reason-log.test.ts": "1f0cf676e59d19f6215e38582070d12042e7fb921ebea9b591c9691305f52761",
+    "src/__tests__/proxy-session-tree-cancellation.test.ts": "3324e04a68416c06f65673c59fa7d65a7d94033d412b67db3165c0b2955b1485",
+    "src/__tests__/session-tree-unit.test.ts": "674e9da5b66b4309caebd76b53bbd36484a639ff99af44488601393fe2cc3136",
+    "src/proxy/adapter.ts": "3c0ffbd1ce82a1098f859a3ab1c35b7af8e17ff9d347d9a9a6e4823f0b713597",
+    "src/proxy/adapters/claudecode.ts": "df5a92330314c6909b1d0be775c0ea3c8fa2724231e40b8edd193d16410547e8",
+    "src/proxy/server.ts": "6ea37d4ad98454c811dba342ecddc88ef088e2089d0caa75248348eae5f742f3",
+    "src/proxy/session/lineage.ts": "75382271c1c6b1d23f624241e41df0f1f189a445eadfcbca1b48dff17111fa86",
+    "src/proxy/sessionTree.ts": "dd3ce916a8af8fd0b109dfda23c616faa769446eac210ef5cc879ca31f2edab9"
+  },
+  "previousFullGateHead": "c237ab9a0d332f6cf3292fc7de2eaf0026fc2037",
+  "rerunReason": "discriminating observed cancellation-finalizer settlement test correction; production unchanged"
+}

@@ -1,0 +1,14 @@
+{
+  "head": "c237ab9a0d332f6cf3292fc7de2eaf0026fc2037",
+  "command": "npm test",
+  "exitCode": 1,
+  "pretestTypecheckPassed": true,
+  "completedStages": 1,
+  "totalStages": 19,
+  "passes": 5069,
+  "skips": 35,
+  "failures": 1,
+  "assertions": 26138,
+  "failedTest": "same-key auxiliary response body cancellation tracked entries expected2 received3 after abort/survival assertions passed",
+  "remaining18Stages": "not run"
+}
