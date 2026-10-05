@@ -23,9 +23,10 @@
  *   2. **Abort, not completion.** Only an actual abort of a node propagates. A
  *      parent turn that finishes normally leaves its children alone — a child
  *      routinely outlives the parent turn that spawned it.
- *   3. **Self-gating.** Propagation can only reach a request that declared a
+ *   3. **Self-gating.** Automatic propagation can only reach a request that declared a
  *      parent, so a client that does not stamp linkage is unaffected with no
- *      config flag to set.
+ *      config flag to set. Explicit conversation cancellation may additionally
+ *      select an adapter-declared live group; that is never an automatic edge.
  *
  * Pure bookkeeping: no HTTP, no I/O, no logging. The caller supplies the abort
  * handle and owns the eviction/telemetry discipline that follows an abort.
@@ -46,6 +47,12 @@ export interface SessionTreeEntry {
   readonly parentKey?: string
   /** Preserve a declared ancestor when auxiliary work has a private leaf key. */
   readonly additionalParentKey?: string
+  /** Explicit route alias; absent means sessionKey is itself the public key. */
+  readonly explicitCancelKey?: string
+  /** Conversation-wide explicit cancellation, never an automatic parent edge. */
+  readonly explicitRootKey?: string
+  /** Internal root used for declared ancestry when its public alias escaped. */
+  readonly explicitRootSessionKey?: string
   /**
    * Abort this request. Must route through the same abort path a client
    * disconnect uses, so the eviction, permit release, and lease release that
@@ -61,7 +68,7 @@ export interface SessionTreeStats {
   linked: number
   /** Cancellations that aborted at least one live request, since start. */
   propagations: number
-  /** Descendant requests aborted by an ancestor's cancellation, since start. */
+  /** Declared descendant requests aborted by an ancestor's cancellation. */
   cancelledDescendants: number
 }
 
@@ -197,10 +204,20 @@ export class SessionTreeRegistry {
   }
 
   private cancel(sessionKey: string, options: CancelOptions): SessionTreeCancellation {
-    const descendants = this.descendantsOf(sessionKey)
-    const targets = options.includeSelf
-      ? [...this.liveRequestsFor(sessionKey), ...descendants]
-      : descendants
+    const live = options.includeSelf ? [...this.entries.values()] : []
+    const rootOrigins = live.filter(entry => entry.explicitRootKey === sessionKey)
+    // An arbitrary raw root ID may look like a scoped cancel key. Prefer its
+    // live conversation group; never interpret it as another agent's alias.
+    const origins = rootOrigins.length > 0 ? rootOrigins : live.filter(entry =>
+      (entry.explicitCancelKey ?? entry.sessionKey) === sessionKey)
+    const ancestryRoots = rootOrigins.length > 0
+      ? new Set(rootOrigins.map(entry => entry.explicitRootSessionKey ?? sessionKey))
+      : new Set([sessionKey])
+    const descendants = [...ancestryRoots].flatMap(key => this.descendantsOf(key))
+    if (options.includeSelf) {
+      for (const origin of origins) descendants.push(...this.descendantsOf(origin.sessionKey))
+    }
+    const targets = [...new Set(options.includeSelf ? [...origins, ...descendants] : descendants)]
     if (targets.length === 0) return EMPTY_CANCELLATION
 
     const keys: string[] = []
@@ -219,7 +236,7 @@ export class SessionTreeRegistry {
       requestIds.push(entry.requestId)
     }
     this.propagations++
-    this.cancelledDescendants += descendants.length
+    this.cancelledDescendants += new Set(descendants).size
     return { keys, requestIds }
   }
 

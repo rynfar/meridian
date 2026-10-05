@@ -54,10 +54,9 @@ function extractClaudeCodeClientCwd(body: any): string | undefined {
 /**
  * Session identity declared in `metadata.user_id`.
  *
- * `sessionId` is the whole of the session key — nothing is appended, prefixed,
- * or normalized — because it is what every cached mapping is already stored
- * under. `parentSessionId` is additive: a client that does not stamp it gets
- * exactly the identity it got before the field existed.
+ * These are raw client IDs. Ordinary main keys remain byte-identical; native
+ * agent scoping and reserved-prefix escaping happen separately below.
+ * `parentSessionId` is additive and continues to name a declared main session.
  */
 export interface ClaudeCodeSessionIdentity {
   readonly sessionId: string
@@ -127,6 +126,16 @@ export const CLAUDE_CODE_AGENT_ID_HEADER = "x-claude-code-agent-id"
 /** Agent ids are short opaque tokens. Anything else is ignored, never keyed. */
 const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
 
+/** Reserved internal keyspace, never written back into client metadata. */
+const CLAUDE_CODE_SESSION_PREFIX = "\u0000meridian-claude-code:1:"
+const CLAUDE_CODE_SESSION_NAMESPACE = "claude-code:1"
+
+function claudeCodeMainSessionKey(sessionId: string): string {
+  return sessionId.startsWith(CLAUDE_CODE_SESSION_PREFIX)
+    ? `${CLAUDE_CODE_SESSION_PREFIX}${JSON.stringify(["main", sessionId])}`
+    : sessionId
+}
+
 /**
  * The session key for one Claude Code request.
  *
@@ -137,9 +146,10 @@ const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
  * so neither resumed, and both queued on one turn lease. The CLI stamps
  * `x-claude-code-agent-id` on every subagent request — stable across that
  * subagent's turns, distinct between subagents, and sent without gateway hint
- * headers (verified against 2.1.287) — so a subagent is keyed
- * `<sid>:agent:<agentId>`. The main conversation, and any request whose agent
- * id is missing or malformed, keeps the bare session id. An agent id never
+ * headers (verified statically against 2.1.287). Agent keys use a reserved
+ * tuple namespace: concatenating `<sid>:agent:<agentId>` collided with a
+ * perfectly valid bare client session ID. Ordinary main IDs remain unchanged;
+ * reserved-prefix main IDs escape into a disjoint main tuple. An agent id never
  * creates a key on its own: without a metadata session id there is none.
  *
  * A backgrounded main session (and a fork-of-main subagent) also gets a fresh
@@ -149,8 +159,8 @@ const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
 export function claudeCodeSessionKey(agentId: string | undefined, body: unknown): string | undefined {
   const sessionId = extractClaudeCodeSessionId(body)
   if (sessionId === undefined) return undefined
-  if (agentId === undefined || !CLAUDE_CODE_AGENT_ID.test(agentId)) return sessionId
-  return `${sessionId}:agent:${agentId}`
+  if (agentId === undefined || !CLAUDE_CODE_AGENT_ID.test(agentId)) return claudeCodeMainSessionKey(sessionId)
+  return `${CLAUDE_CODE_SESSION_PREFIX}${JSON.stringify(["agent", sessionId, agentId])}`
 }
 
 /** Claude Code's own request classification (`main`, `auxiliary`, `compaction`, …). */
@@ -283,7 +293,10 @@ export const claudeCodeAdapter: AgentAdapter = {
    * a declared parent always names a key derived the same way this one was.
    */
   getParentSessionId(_c: Context, body?: unknown): string | undefined {
-    return extractClaudeCodeParentSessionId(body)
+    const parent = extractClaudeCodeParentSessionId(body)
+    // The existing envelope names a main session, not a native parent agent.
+    // The CLI does not emit a parent-agent identity here; never invent one.
+    return parent === undefined ? undefined : claudeCodeMainSessionKey(parent)
   },
 
   /**
@@ -292,7 +305,24 @@ export const claudeCodeAdapter: AgentAdapter = {
    * id) share for account routing.
    */
   getRootSessionId(_c: Context, body?: unknown): string | undefined {
+    const sessionId = extractClaudeCodeSessionId(body)
+    return sessionId === undefined ? undefined : claudeCodeMainSessionKey(sessionId)
+  },
+
+  getRootSessionCancelKey(_c: Context, body?: unknown): string | undefined {
     return extractClaudeCodeSessionId(body)
+  },
+
+  getSessionNamespace(c: Context, body?: unknown): string | undefined {
+    const key = claudeCodeSessionKey(c.req.header(CLAUDE_CODE_AGENT_ID_HEADER), body)
+    return key?.startsWith(CLAUDE_CODE_SESSION_PREFIX) ? CLAUDE_CODE_SESSION_NAMESPACE : undefined
+  },
+
+  getSessionCancelKey(c: Context, body?: unknown): string | undefined {
+    const agentId = c.req.header(CLAUDE_CODE_AGENT_ID_HEADER)
+    return agentId !== undefined && CLAUDE_CODE_AGENT_ID.test(agentId)
+      ? claudeCodeSessionKey(agentId, body)
+      : extractClaudeCodeSessionId(body)
   },
 
   /** See `isClaudeCodeAuxiliaryRequest`. */

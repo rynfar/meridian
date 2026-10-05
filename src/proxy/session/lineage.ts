@@ -38,6 +38,8 @@ export const MIN_SUFFIX_FOR_COMPACTION = 2
 
 export interface SessionState {
   claudeSessionId: string
+  /** Internal ownership marker for reserved mapping keyspaces. */
+  keyNamespace?: string
   lastAccess: number
   messageCount: number
   /** Hash of messages[0..messageCount-1] for fast-path lineage verification.

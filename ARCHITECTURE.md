@@ -342,6 +342,8 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | `getSessionId(c)` | Extract session ID from request headers |
 | `getAgentMode(c, body)` | Normalize an adapter-specific primary/subagent declaration |
 | `getRootSessionId(c, body)` | Optional conversation root for account routing (sticky and priority assignment): a subagent with a session key of its own stays on its parent's account (Claude Code's Agent tool) |
+| `getSessionNamespace(c, body)` | Internal mapping ownership discriminator for reserved keys; legacy raw main mappings remain unmarked |
+| `getSessionCancelKey(c, body)` / `getRootSessionCancelKey(c, body)` | Explicit request/conversation cancellation aliases when internal keys are scoped or escaped; these do not declare automatic parent links |
 | `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips mapping lookup/publication and the turn lease; priority placement is read-only and cancellation uses a private leaf (Claude Code's auto-mode classifier) |
 | `extractWorkingDirectory(body)` | Parse working directory from request body |
 | `normalizeContent(content)` | Normalize message content for hashing |
@@ -377,8 +379,24 @@ multiplexes agents over one session id needs the same treatment.
 
 Claude Code is the second such client: its Agent-tool subagents send the
 conversation's own `metadata.user_id` session id, so `claudeCodeAdapter`
-keys a request carrying `x-claude-code-agent-id` as `<sid>:agent:<agentId>`
-and leaves the main conversation on the bare `<sid>`. `getRootSessionId`
+keys a request carrying a valid `x-claude-code-agent-id` in the reserved
+`\u0000meridian-claude-code:1:` tuple namespace. Agent and main tuples are
+disjoint: ordinary main IDs remain byte-identical, while main IDs beginning
+with the reserved prefix escape into a main tuple. Concatenating
+`<sid>:agent:<agentId>` would collide with a valid bare main ID.
+Reserved mappings carry a `keyNamespace` ownership marker. Exact marker
+equality gates lineage, checkpoint and recovery lookup; a mismatched legacy
+slot can only be replaced through fresh generation-fenced publication, without
+inheriting its prior SDK IDs, checkpoints or transcript locators. Cancellation
+cannot evict a mismatched namespace. Ambiguous pre-existing reserved-prefix
+main mappings require fresh replay rather than adopting unproven ownership.
+Their private SDK history is never read or edited for this migration.
+This isolates Claude Code's raw/scoped identities; it does not redesign the
+existing cross-client or profile-prefix string keyspaces. The marker prevents
+cross-namespace adoption, not authentication or a global identity guarantee.
+The optional marker must be reconciled with the separate, unapproved SQLite
+codec/facade branch before any such storage integration.
+`getRootSessionId`
 keeps those subagents on the conversation's account under sticky and
 priority routing. Known limitation: a backgrounded main session (and a
 fork-of-main subagent) gets a fresh agent id but carries the whole
@@ -468,12 +486,25 @@ Three properties bound it:
 - **Live requests only.** An entry exists between "admitted" and "settled". A
   session that was seen once but has nothing in flight is not a cancellation
   target, so the registry is bounded by concurrency, not by history.
-- **Self-gating.** Propagation can only reach a request that declared a parent,
+- **Self-gating.** Automatic propagation can only reach a request that declared a parent,
   so every client that does not stamp linkage is unaffected with no flag to set.
 
 `POST /v1/sessions/:key/cancel` cancels a subtree explicitly, and
 `GET /telemetry/summary` reports the live gauges and cumulative counts under
 `sessionTree`.
+
+Claude Code's native agents also register a separate explicit conversation
+group. Cancelling the raw conversation ID reaches its live main, agents and
+private auxiliary leaves even when the CLI declares no immediate parent.
+This group is not an automatic ancestry edge: a main HTTP disconnect still
+leaves undeclared native background agents independent. Cancelling a scoped
+agent key reaches that agent and its own auxiliary leaves; unrelated main and
+sibling requests survive. A live raw conversation alias takes precedence when
+an owner-chosen raw ID happens to look like an internal scoped cancel key.
+The existing `parent_session_id` envelope names an immediate main session.
+It cannot distinguish two native agents sharing that raw session ID; the CLI
+has not supplied a parent-agent identity, so native nested-agent ancestry is
+not inferred or claimed. Existing unambiguous declared main trees still cascade.
 
 ## Testing Strategy
 

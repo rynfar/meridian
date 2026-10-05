@@ -54,7 +54,7 @@ export interface AgentIdentity {
    * assignment — so a subagent lands on its parent's account.
    *
    * Everything else stays on `getSessionId`: the session mapping, lineage,
-   * the turn lease, the session tree, the durable priority route (coupled to
+   * the turn lease, declared automatic ancestry, the durable priority route (coupled to
    * one session mapping) and the `[1m]` rate-limit bench (scoped per session
    * so one limited flow never downgrades its siblings).
    *
@@ -62,6 +62,15 @@ export interface AgentIdentity {
    * Undefined, or no method, means the request is its own root.
    */
   getRootSessionId?(c: Context, body?: unknown): string | undefined
+
+  /** Internal mapping ownership discriminator; absent for legacy raw keys. */
+  getSessionNamespace?(c: Context, body?: unknown): string | undefined
+
+  /** Public explicit-cancel alias, distinct from a namespaced internal key. */
+  getSessionCancelKey?(c: Context, body?: unknown): string | undefined
+
+  /** Public conversation-cancel alias when its internal root key is escaped. */
+  getRootSessionCancelKey?(c: Context, body?: unknown): string | undefined
 
   /**
    * Optional client-declared agent mode. Adapters own their header/protocol

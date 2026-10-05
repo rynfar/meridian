@@ -126,6 +126,7 @@ export function evictSession(
   workingDirectory?: string,
   messages?: Array<{ role: string; content: any }>,
   expectedGeneration?: StoredSessionGeneration,
+  keyNamespace?: string,
 ): boolean {
   if (sessionId) {
     const cached = sessionCache.get(sessionId)
@@ -135,7 +136,8 @@ export function evictSession(
     }
     // Store failures are safety-significant: callers must not release a turn
     // after claiming cleanup succeeded while the durable mapping remains.
-    const evicted = evictSharedSession(sessionId, expectedGeneration)
+    // Exact namespace ownership is checked atomically inside the store lock.
+    const evicted = evictSharedSession(sessionId, expectedGeneration, { keyNamespace })
     // Header-keyed and fingerprint-keyed conversations are independent durable
     // keys. Never apply one key's generation token to the other key.
     return evicted
@@ -167,6 +169,7 @@ function stateFromSharedSession(
 ): SessionState {
   return {
     claudeSessionId: shared.claudeSessionId,
+    ...(shared.keyNamespace === undefined ? {} : { keyNamespace: shared.keyNamespace }),
     lastAccess: Date.now(),
     messageCount: shared.messageCount || 0,
     lineageHash: shared.lineageHash || "",
@@ -353,7 +356,8 @@ export function warnHeaderlessToolLoopOnce(adapterName: string): void {
 export function lookupSession(
   sessionId: string | undefined,
   messages: Array<{ role: string; content: any }>,
-  workingDirectory?: string
+  workingDirectory?: string,
+  keyNamespace?: string,
 ): LineageResult {
   if (sessionId) {
     // A durable absence is an authoritative eviction. Only an actual store
@@ -362,8 +366,11 @@ export function lookupSession(
     const shared = lookupSharedSessionResult(sessionId)
     const cached = sessionCache.get(sessionId)
     const state = shared.status === "found"
-      ? stateFromSharedSession(shared.session)
-      : shared.status === "error" ? cached : undefined
+      ? shared.session.keyNamespace === keyNamespace ? stateFromSharedSession(shared.session) : undefined
+      : shared.status === "error" && cached?.keyNamespace === keyNamespace ? cached : undefined
+    if (shared.status === "found" && shared.session.keyNamespace !== keyNamespace) {
+      sessionCache.delete(sessionId)
+    }
     if (shared.status === "missing") {
       sessionCache.delete(sessionId)
       if (cached) {
@@ -450,6 +457,7 @@ export function storeSession(
   sourceTranscript?: { sessionId: string; configDir: string; projectDir?: string },
   expectedGeneration?: StoredSessionGeneration | null,
   priorityPublication?: PrioritySessionPublication,
+  keyNamespace?: string,
 ): StoredSessionGeneration | false {
   if (!claudeSessionId) return false
   const lineageHash = computeLineageHash(messages)
@@ -457,6 +465,7 @@ export function storeSession(
   const messageBlockHashes = computeMessageBlockHashes(messages)
   const state: SessionState = {
     claudeSessionId,
+    ...(keyNamespace === undefined ? {} : { keyNamespace }),
     lastAccess: Date.now(),
     messageCount: messages?.length || 0,
     lineageHash,
@@ -484,6 +493,7 @@ export function storeSession(
     const published = storeSharedSessionAndPriorityAssignment({
       key,
       claudeSessionId,
+      keyNamespace,
       messageCount: state.messageCount,
       lineageHash,
       messageHashes,
@@ -531,6 +541,7 @@ export function storeSession(
       currentTranscript,
       sourceTranscript,
       expectedGeneration,
+      keyNamespace,
     )
   }
   if (!storedGeneration) return false
