@@ -29,9 +29,15 @@ foreground source/test bytes remain `a4abef7637160466007d51ae37642e4947ab05a2aff
 and `a8fe98331b604562f1ced01c46082557c8b21bf21dc029e3f06953bcbdabe357`.
 The same five snapshot controls fail before and pass after, and the corrected
 complete synthetic harness has 27 passes / 913 assertions; those recorded checks
-precede this rebase. Fresh focused/full npm test, standalone typecheck, certified
-build and required final-head CI remain pending for this child. Actual native
-Linux/client/SDK/model E72, mixed-flow, cancellation and E41 gates remain open.
+precede this rebase. Fresh focused/full local gates now pass at exact clean
+`aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7`: **5,502 pass / 36 skips / 0 failures / 29,310 assertions**
+across 19 npm stages, separate typecheck and a verified certified build with
+409 matching dist artifacts. [The terminal gate escrow](final-parent/REPORT.md)
+retains all original logs, source freeze, actual Darwin/arm64 Node/Bun identities
+and independent audit. These checks and build identify tested `aff1f201`, with
+later delivery changes limited to maintenance evidence. Required exact final-head
+CI and actual Linux/client/SDK/model E72, mixed-flow, cancellation and E41 gates
+remain open.
 
 ## Source boundary and contributor credit
 
@@ -45,7 +51,7 @@ Exact contributor source `50d4a59d0ca5e55e625ec801fa2a9eb187d508ed`, GitHub base
 | `cb8d1a59a103e006359e048a9d0275cf814351ee` | `c7567b020eec2d5758a34d4fe2a5dfbd190ec1ab` |
 | `50d4a59d0ca5e55e625ec801fa2a9eb187d508ed` | `076b249fd55db84ffde546a4f6bf5211efffbf69` |
 
-Noah Passalacqua's Author and AuthorDate are preserved on all five commits. Maintainer corrections are separate. Final rebase/delivery mappings must be recorded before a child PR, which must target the open parent branch rather than main.
+Noah Passalacqua's Author and AuthorDate are preserved on all five commits. Maintainer corrections are separate. Final-parent rebase mappings are recorded in the continuation above. The child delivery targets the open parent branch rather than main.
 
 ## Material findings and corrections
 
@@ -66,7 +72,7 @@ Direct [identity/tree tests](../../../../src/__tests__/claude-code-session-ident
 
 [The actual unchanged SQL scalar validator](local-controls/sql-representability.json) also accepts both corrected scoped-agent keys and raw embedded-NUL tuple values. [Its exact probe](local-controls/sql-representability.ts) and [output](local-controls/sql-validator-after.log) preserve producer and validator identities. This probe imports two explicitly recorded review worktrees; it does not load a database, exercise a complete codec/facade port, or establish SQL/native acceptance. Ordinary nonreserved main IDs remain byte-identical, including preexisting unusual raw IDs; the producer control concerns derived tuple keys.
 
-[Prepared E72 harness controls](harness-controls/REPORT.md) pass **22 tests / 844 assertions**, with fake SDK/client/target fixtures, no real grants and `acceptance: false`. An initial standalone typecheck at `482ec2c5` caught the HTTP fixture's missing `blockStop` index. The fixture now explicitly closes block 0; the HTTP controls again pass **8 / 144 assertions** and standalone `npm run typecheck` passes at `6e7ee9f4`. Original and corrected logs are retained. Full npm test/build and independent final-head review remain coordinated by the queue owner; none is claimed complete for this child delivery yet. All executed local controls are synthetic facts, not native client/model proof.
+[Prepared E72 harness controls](harness-controls/REPORT.md) pass **22 tests / 844 assertions**, with fake SDK/client/target fixtures, no real grants and `acceptance: false`. An initial standalone typecheck at `482ec2c5` caught the HTTP fixture's missing `blockStop` index. The fixture now explicitly closes block 0; the HTTP controls again pass **8 / 144 assertions** and standalone `npm run typecheck` passes at `6e7ee9f4`. Original and corrected logs are retained. The historical focused controls precede final-parent validation; current full npm/typecheck/build and independent audit are recorded in the continuation and terminal gate escrow above. All executed local controls are synthetic facts, not native client/model proof.
 
 The current E72 script assumes every wire/SDK/served query has the main model identity. Its foreground command uses default permission mode with preallowed Agent/Bash tools, and does not establish mixed auto-mode behavior. The official 2.1.286 classifier selector can choose `claude-sonnet-5` for a `claude-sonnet-5-5` main and later fall back to the main model. If actual ancillary/classifier traffic appears, it needs a role-aware, exact per-request model witness rather than the universal-main assumption. This is an open mixed-auto/ancillary acceptance gate; no foreground harness alteration is required when the actual scenario emits no classifier. The finalized parent E71 role-aware witness and controls are settled. Any E72 carry-over remains separately held for the actual mixed-flow qualification. Existing synthetic controls do not close the mixed-flow gate.
 
@@ -74,4 +80,4 @@ The current E72 script assumes every wire/SDK/served query has the main model id
 
 ## Remaining acceptance gates
 
-Actual Linux x64 / Claude Code CLI 2.1.287 / target-installed SDK 0.2.141 / exact implicated requested and served Sonnet identity; unchanged-baseline and corrected E72 receipts; background child/main overlap; mixed auto-mode classifier and native Agent traffic; explicit root/scoped/nested cancellation and incidental parent abort independence; affected E41 four-mode proof; final current-parent/head local gates and required CI. Historical contributor observations used a `sonnet` alias and did not escrow the exact served model/native executable, so they cannot replace current proof. Background/fork-main first request still replays its inherited snapshot; later requests use their own scoped chain. Source #1231 stays open and no release is authorized.
+Actual Linux x64 / Claude Code CLI 2.1.287 / target-installed SDK 0.2.141 / exact implicated requested and served Sonnet identity; unchanged-baseline and corrected E72 receipts; background child/main overlap; mixed auto-mode classifier and native Agent traffic; explicit root/scoped/nested cancellation and incidental parent abort independence; affected E41 four-mode proof; required exact final-head CI. Current-parent local gates are recorded above. Historical contributor observations used a `sonnet` alias and did not escrow the exact served model/native executable, so they cannot replace current proof. Background/fork-main first request still replays its inherited snapshot; later requests use their own scoped chain. Source #1231 stays open and no release is authorized.

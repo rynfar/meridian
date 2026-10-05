@@ -1,0 +1,26 @@
+{
+  "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "command": [
+    "bun",
+    "test",
+    "src/__tests__/claude-code-session-identity.test.ts",
+    "src/__tests__/session-key-namespace.test.ts",
+    "src/__tests__/root-session-id.test.ts",
+    "src/__tests__/session-tree-unit.test.ts",
+    "src/__tests__/claude-code-adapter.test.ts"
+  ],
+  "pid": 84528,
+  "processGroup": 84528,
+  "startedUtc": "2026-10-05T04:49:21.334086+00:00",
+  "removedEnvNames": [
+    "CLAUDE_AGENT_SDK_VERSION"
+  ],
+  "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-pure.log",
+  "exitCode": 0,
+  "elapsedSeconds": 0.2763807910087053,
+  "completedUtc": "2026-10-05T04:49:21.610724+00:00",
+  "logBytes": 10278,
+  "logSha256": "7677cadf379db8c9a5ae3383d0f76f9fc4ee143f4d257bf531e6aa8a76b31ee7",
+  "sourceUnchanged": true,
+  "terminalProcessWaitObserved": true
+}

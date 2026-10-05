@@ -1,0 +1,54 @@
+{
+  "recordedUtc": "2026-10-05T05:05:01.290805+00:00",
+  "gateResults": [
+    {
+      "name": "final-build.result.json",
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exit": 0
+    },
+    {
+      "name": "final-typecheck.result.json",
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exit": 0
+    },
+    {
+      "name": "focused-harness.result.json",
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exit": 0
+    },
+    {
+      "name": "focused-http.result.json",
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exit": 0
+    },
+    {
+      "name": "focused-pure.result.json",
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exit": 0
+    },
+    {
+      "name": "focused-typecheck.result.json",
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exit": 0
+    },
+    {
+      "name": "npm-test.result.json",
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exit": 0
+    }
+  ],
+  "ownedGateGroupsChecked": [
+    12193,
+    16510,
+    84528,
+    85580,
+    88921,
+    94224,
+    96125
+  ],
+  "remainingOwnedGateGroups": [],
+  "pythonIndependentArtifactCount": 409,
+  "allActualDistFilesExactHashMatch": true,
+  "worktreeClean": true,
+  "nativeAcceptance": false
+}

@@ -1,0 +1,22 @@
+{
+  "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "command": [
+    "bun",
+    "test",
+    "src/__tests__/claude-subagent-isolation.test.ts"
+  ],
+  "pid": 85580,
+  "processGroup": 85580,
+  "startedUtc": "2026-10-05T04:49:29.376653+00:00",
+  "removedEnvNames": [
+    "CLAUDE_AGENT_SDK_VERSION"
+  ],
+  "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-http.log",
+  "exitCode": 0,
+  "elapsedSeconds": 11.118892416998278,
+  "completedUtc": "2026-10-05T04:49:40.495973+00:00",
+  "logBytes": 1320,
+  "logSha256": "8af182c8cedcfcd9d8a98e3cb30ff65cca7973f31127153250710302ce8036eb",
+  "sourceUnchanged": true,
+  "terminalProcessWaitObserved": true
+}

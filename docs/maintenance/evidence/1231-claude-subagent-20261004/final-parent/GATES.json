@@ -1,0 +1,453 @@
+{
+  "schemaVersion": 1,
+  "kind": "terminal final-parent child local gates and proof escrow",
+  "recordedUtc": "2026-10-05T05:07:35.786119+00:00",
+  "testedCleanHead": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "testedTree": "1d9125f77601c0f48ba4efe6b7fea72bd0c06c7a",
+  "approvedParent": "e731a2dfae4931d0c7718e99098cc4ab4a3355a2",
+  "rebaseHead": "1f754311a28fb148de5b04127761c2bb13d849d2",
+  "combinedE2ESha256AtRebase": "3cd83e74ddc50c4b06c0b3877f719c122cc811d354cf493ff338d7db38a159bd",
+  "qualifiedE2ESha256AtTestedHead": "6e357ea7fea1d7bcd31c17e96d16ffea738d8b6d21ce8aab8c3a465005958db2",
+  "frozenTrackedFiles": 1448,
+  "sourceUnchangedAcrossAllSevenGates": true,
+  "fullNpmTest": {
+    "stages": [
+      {
+        "pass": 5154,
+        "skip": 36,
+        "fail": 0,
+        "assertions": 27900,
+        "summary": "5190 tests across 320 files. [494.28s]"
+      },
+      {
+        "pass": 3,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 16,
+        "summary": "3 tests across 1 file. [1.76s]"
+      },
+      {
+        "pass": 24,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 105,
+        "summary": "24 tests across 1 file. [213.00ms]"
+      },
+      {
+        "pass": 5,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 21,
+        "summary": "5 tests across 1 file. [140.00ms]"
+      },
+      {
+        "pass": 7,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 135,
+        "summary": "7 tests across 1 file. [500.00ms]"
+      },
+      {
+        "pass": 12,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 15,
+        "summary": "12 tests across 1 file. [2.43s]"
+      },
+      {
+        "pass": 3,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 16,
+        "summary": "3 tests across 1 file. [577.00ms]"
+      },
+      {
+        "pass": 22,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 63,
+        "summary": "22 tests across 1 file. [751.00ms]"
+      },
+      {
+        "pass": 10,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 36,
+        "summary": "10 tests across 1 file. [1247.00ms]"
+      },
+      {
+        "pass": 11,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 21,
+        "summary": "11 tests across 1 file. [134.00ms]"
+      },
+      {
+        "pass": 8,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 9,
+        "summary": "8 tests across 1 file. [1137.00ms]"
+      },
+      {
+        "pass": 95,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 169,
+        "summary": "95 tests across 1 file. [25.00ms]"
+      },
+      {
+        "pass": 13,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 39,
+        "summary": "13 tests across 1 file. [25.00ms]"
+      },
+      {
+        "pass": 11,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 37,
+        "summary": "11 tests across 1 file. [603.00ms]"
+      },
+      {
+        "pass": 76,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 395,
+        "summary": "76 tests across 1 file. [118.71s]"
+      },
+      {
+        "pass": 7,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 16,
+        "summary": "7 tests across 1 file. [1411.00ms]"
+      },
+      {
+        "pass": 9,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 28,
+        "summary": "9 tests across 1 file. [249.00ms]"
+      },
+      {
+        "pass": 8,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 49,
+        "summary": "8 tests across 1 file. [511.00ms]"
+      },
+      {
+        "pass": 24,
+        "skip": 0,
+        "fail": 0,
+        "assertions": 240,
+        "summary": "24 tests across 1 file. [546.00ms]"
+      }
+    ],
+    "stageCount": 19,
+    "pass": 5502,
+    "skip": 36,
+    "fail": 0,
+    "assertions": 29310,
+    "npmPretestTypecheckObserved": true
+  },
+  "focused": {
+    "pure": {
+      "pass": 86,
+      "assertions": 231
+    },
+    "http": {
+      "pass": 8,
+      "assertions": 144
+    },
+    "e72Harness": {
+      "pass": 27,
+      "assertions": 913
+    }
+  },
+  "actualRuntimeIdentities": {
+    "actualRuntimes": [
+      {
+        "runtime": "node",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "version": "v22.22.3",
+        "executablePath": "/Users/rynfar/.hermes/node/bin/node",
+        "executableSha256": "5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
+      },
+      {
+        "runtime": "bun",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "version": "1.3.14",
+        "executablePath": "/Users/rynfar/.bun/bin/bun",
+        "executableSha256": "e0c90ec15d33363e6b70713d56bc3b2c7585c17f40a0fe0f8fd9305901d4e233"
+      }
+    ],
+    "qualification": "Original freeze.platform is Python wrapper metadata (Darwin x86_64); actual Node and Bun are Darwin arm64. These credentialless local checks do not establish Linux x64 native affected-flow acceptance."
+  },
+  "build": {
+    "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+    "sourceHash": "90ff72ed756eaba550a56ad2afcdc8e8bdfafa8367dada315a699038bb015b52",
+    "artifactCount": 409,
+    "certificateSha256": "236121e903e60819bc2d06a688878860633c6772367e40ef1a17a74d5769fad5",
+    "gitBuildStoreCertificateAndFullArtifactsVerified": true
+  },
+  "gateResults": {
+    "focused-harness": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "command": [
+        "bun",
+        "test",
+        "--timeout",
+        "30000",
+        "src/__tests__/claude-subagent-harness.test.ts"
+      ],
+      "pid": 88921,
+      "processGroup": 88921,
+      "startedUtc": "2026-10-05T04:50:05.070418+00:00",
+      "removedEnvNames": [
+        "CLAUDE_AGENT_SDK_VERSION"
+      ],
+      "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-harness.log",
+      "exitCode": 0,
+      "elapsedSeconds": 64.31636441600858,
+      "completedUtc": "2026-10-05T04:51:09.388035+00:00",
+      "logBytes": 4681,
+      "logSha256": "e96c98f8cae37f4f518fa84e9dd6de3477f9307d049ab851ca20dbf6666197cd",
+      "sourceUnchanged": true,
+      "terminalProcessWaitObserved": true
+    },
+    "npm-test": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "pid": 96125,
+      "processGroup": 96125,
+      "startedUtc": "2026-10-05T04:51:51.999132+00:00",
+      "removedEnvNames": [
+        "CLAUDE_AGENT_SDK_VERSION"
+      ],
+      "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/npm-test.log",
+      "exitCode": 0,
+      "elapsedSeconds": 629.6340323329787,
+      "completedUtc": "2026-10-05T05:02:21.618953+00:00",
+      "logBytes": 1104475,
+      "logSha256": "43637e5b478aa5d7ad372a34d59618742ced875069681e31d186856ad634d1cb",
+      "sourceUnchanged": true,
+      "terminalProcessWaitObserved": true
+    },
+    "final-build": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "pid": 16510,
+      "processGroup": 16510,
+      "startedUtc": "2026-10-05T05:03:42.453226+00:00",
+      "removedEnvNames": [
+        "CLAUDE_AGENT_SDK_VERSION"
+      ],
+      "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/final-build.log",
+      "exitCode": 0,
+      "elapsedSeconds": 4.341452958993614,
+      "completedUtc": "2026-10-05T05:03:46.794954+00:00",
+      "logBytes": 2237,
+      "logSha256": "480f59c5f8e4c604ce47099a4177b235bc43d999e73e0aaa41790f6594ccf651",
+      "sourceUnchanged": true,
+      "terminalProcessWaitObserved": true
+    },
+    "focused-http": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "command": [
+        "bun",
+        "test",
+        "src/__tests__/claude-subagent-isolation.test.ts"
+      ],
+      "pid": 85580,
+      "processGroup": 85580,
+      "startedUtc": "2026-10-05T04:49:29.376653+00:00",
+      "removedEnvNames": [
+        "CLAUDE_AGENT_SDK_VERSION"
+      ],
+      "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-http.log",
+      "exitCode": 0,
+      "elapsedSeconds": 11.118892416998278,
+      "completedUtc": "2026-10-05T04:49:40.495973+00:00",
+      "logBytes": 1320,
+      "logSha256": "8af182c8cedcfcd9d8a98e3cb30ff65cca7973f31127153250710302ce8036eb",
+      "sourceUnchanged": true,
+      "terminalProcessWaitObserved": true
+    },
+    "focused-pure": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "command": [
+        "bun",
+        "test",
+        "src/__tests__/claude-code-session-identity.test.ts",
+        "src/__tests__/session-key-namespace.test.ts",
+        "src/__tests__/root-session-id.test.ts",
+        "src/__tests__/session-tree-unit.test.ts",
+        "src/__tests__/claude-code-adapter.test.ts"
+      ],
+      "pid": 84528,
+      "processGroup": 84528,
+      "startedUtc": "2026-10-05T04:49:21.334086+00:00",
+      "removedEnvNames": [
+        "CLAUDE_AGENT_SDK_VERSION"
+      ],
+      "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-pure.log",
+      "exitCode": 0,
+      "elapsedSeconds": 0.2763807910087053,
+      "completedUtc": "2026-10-05T04:49:21.610724+00:00",
+      "logBytes": 10278,
+      "logSha256": "7677cadf379db8c9a5ae3383d0f76f9fc4ee143f4d257bf531e6aa8a76b31ee7",
+      "sourceUnchanged": true,
+      "terminalProcessWaitObserved": true
+    },
+    "focused-typecheck": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "pid": 94224,
+      "processGroup": 94224,
+      "startedUtc": "2026-10-05T04:51:18.566281+00:00",
+      "removedEnvNames": [
+        "CLAUDE_AGENT_SDK_VERSION"
+      ],
+      "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-typecheck.log",
+      "exitCode": 0,
+      "elapsedSeconds": 4.316819624975324,
+      "completedUtc": "2026-10-05T04:51:22.883410+00:00",
+      "logBytes": 53,
+      "logSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "sourceUnchanged": true,
+      "terminalProcessWaitObserved": true
+    },
+    "final-typecheck": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "pid": 12193,
+      "processGroup": 12193,
+      "startedUtc": "2026-10-05T05:03:00.682718+00:00",
+      "removedEnvNames": [
+        "CLAUDE_AGENT_SDK_VERSION"
+      ],
+      "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/final-typecheck.log",
+      "exitCode": 0,
+      "elapsedSeconds": 5.245508207997773,
+      "completedUtc": "2026-10-05T05:03:05.928558+00:00",
+      "logBytes": 53,
+      "logSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "sourceUnchanged": true,
+      "terminalProcessWaitObserved": true
+    }
+  },
+  "rawArchiveMappings": [
+    {
+      "path": "local-gates/final-build.log.gz",
+      "archiveSha256": "7ad798eb521ad765b00b4094c1fbfc07131e647f7ff98508969f507c0ae43fba",
+      "rawSha256": "480f59c5f8e4c604ce47099a4177b235bc43d999e73e0aaa41790f6594ccf651",
+      "rawBytes": 2237,
+      "archiveBytes": 814
+    },
+    {
+      "path": "local-gates/final-typecheck.log.gz",
+      "archiveSha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0",
+      "rawSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "rawBytes": 53,
+      "archiveBytes": 73
+    },
+    {
+      "path": "local-gates/focused-harness.log.gz",
+      "archiveSha256": "35f52016a49fc0862849982d043ede3908a576df72172edcabecb3ba8a0ea58d",
+      "rawSha256": "e96c98f8cae37f4f518fa84e9dd6de3477f9307d049ab851ca20dbf6666197cd",
+      "rawBytes": 4681,
+      "archiveBytes": 1381
+    },
+    {
+      "path": "local-gates/focused-http.log.gz",
+      "archiveSha256": "4d1823e38183d3f48b97db997600860516f2fc3084a1f2a500e1df1c8b027bdd",
+      "rawSha256": "8af182c8cedcfcd9d8a98e3cb30ff65cca7973f31127153250710302ce8036eb",
+      "rawBytes": 1320,
+      "archiveBytes": 532
+    },
+    {
+      "path": "local-gates/focused-pure.log.gz",
+      "archiveSha256": "ab41390e971cd01d797c2d44c29a1af392fd16e11d54bff3c8df41ad93e576a1",
+      "rawSha256": "7677cadf379db8c9a5ae3383d0f76f9fc4ee143f4d257bf531e6aa8a76b31ee7",
+      "rawBytes": 10278,
+      "archiveBytes": 2890
+    },
+    {
+      "path": "local-gates/focused-typecheck.log.gz",
+      "archiveSha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0",
+      "rawSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "rawBytes": 53,
+      "archiveBytes": 73
+    },
+    {
+      "path": "local-gates/npm-test.log.gz",
+      "archiveSha256": "dabb09fa855fc2c14283d5a9dbba901a17127212867bfaf2182159cc07989893",
+      "rawSha256": "43637e5b478aa5d7ad372a34d59618742ced875069681e31d186856ad634d1cb",
+      "rawBytes": 1104475,
+      "archiveBytes": 206949
+    },
+    {
+      "path": "local-gates/freeze.json.gz",
+      "archiveSha256": "dc01ab59a61d35b2d64ec5acf09425db0415aa410073aa1a832b3837758a54e3",
+      "rawSha256": "685124bb5f8109c2f8e004dec85b4c75a8b9700bfac4fb361b094c38d1eeac16",
+      "rawBytes": 203682,
+      "archiveBytes": 68587
+    },
+    {
+      "path": "local-gates/build-certificate-verification.json.gz",
+      "archiveSha256": "0bdb97e902d123832fd69a8f8ca3ec8a76eba662f6eadfc6027428becf52d486",
+      "rawSha256": "7435f89a91683c5ec248620f8566954cd3ca51177d6b6ff235572048958f64f9",
+      "rawBytes": 44186,
+      "archiveBytes": 19659
+    },
+    {
+      "path": "local-gates/actual-build-provenance.json.gz",
+      "archiveSha256": "ba0178e6588a6865218c735a1971cf60ebf14d10dd325356fc227d41008bf0d4",
+      "rawSha256": "236121e903e60819bc2d06a688878860633c6772367e40ef1a17a74d5769fad5",
+      "rawBytes": 40361,
+      "archiveBytes": 19374
+    }
+  ],
+  "rootIndependentAuditSha256": "be13e954cf9f6840f1e857ff5efdf60ac3615014ee67cc99e6b584c40f0a120a",
+  "allOwnedGateGroupsEmpty": true,
+  "sourcePrFresh": {
+    "number": 1231,
+    "state": "OPEN",
+    "head": "50d4a59d0ca5e55e625ec801fa2a9eb187d508ed",
+    "updatedAt": "2026-10-04T14:40:52Z"
+  },
+  "noNativeAuthModelCallsOrGithubMutations": true,
+  "nativeAcceptance": false,
+  "finalHeadCIObserved": false,
+  "currentCompiledChildContextOptInControlExecuted": false,
+  "skipQualification": "35 established suite skips plus one opt-in E71 compiled-target context control in ordinary npm test. Parent separately recorded compiled controls remain qualified to that exact parent; no current child compiled/native control is inferred.",
+  "deliveryQualification": "A later selected evidence-only commit will preserve all tested executable/source/script/E2E/package/architecture/design identities. Full/type/build results and certified artifact were actually produced at the exact clean testedHead aff1, not attributed to the later maintenance head. A future compiled native target requires matching clean final-head build certification.",
+  "remainingGates": [
+    "Exact final-head CI including test after draft publication.",
+    "Actual Linux x64 Claude Code2.1.287, target SDK0.2.141 and exact implicated requested/served Sonnet E72 unchanged-baseline/fixed receipts.",
+    "Background Agent/main overlap and mixed auto-mode classifier/Agent qualification.",
+    "Native explicit root/scoped/nested cancellation and incidental parent abort independence.",
+    "All four affected E41 modes.",
+    "Separate SQL namespace codec/facade reconciliation under approved opt-in1277."
+  ]
+}

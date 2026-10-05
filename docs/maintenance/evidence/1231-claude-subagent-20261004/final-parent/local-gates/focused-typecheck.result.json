@@ -1,0 +1,22 @@
+{
+  "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "command": [
+    "npm",
+    "run",
+    "typecheck"
+  ],
+  "pid": 94224,
+  "processGroup": 94224,
+  "startedUtc": "2026-10-05T04:51:18.566281+00:00",
+  "removedEnvNames": [
+    "CLAUDE_AGENT_SDK_VERSION"
+  ],
+  "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-typecheck.log",
+  "exitCode": 0,
+  "elapsedSeconds": 4.316819624975324,
+  "completedUtc": "2026-10-05T04:51:22.883410+00:00",
+  "logBytes": 53,
+  "logSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+  "sourceUnchanged": true,
+  "terminalProcessWaitObserved": true
+}

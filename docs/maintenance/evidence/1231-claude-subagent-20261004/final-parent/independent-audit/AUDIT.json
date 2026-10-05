@@ -1,0 +1,278 @@
+{
+  "kind": "independent-read-only-final-parent-rebase-and-observed-gate-audit",
+  "recordedUtc": "2026-10-05T04:58:25.285916+00:00",
+  "auditedHead": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "tree": "1d9125f77601c0f48ba4efe6b7fea72bd0c06c7a",
+  "parent": "e731a2dfae4931d0c7718e99098cc4ab4a3355a2",
+  "childBefore": "3cb640b7950e148dcee84f6ea7709220f3e09728",
+  "rebase": "1f754311a28fb148de5b04127761c2bb13d849d2",
+  "disposition": "PASS for observed rebase, authorship, preserved public graph and completed synthetic artifacts; final delivery/full gates/CI/native acceptance not approved",
+  "materialFindings": [],
+  "childNonE2EFilesVerifiedBytePreservedAtRebase": 139,
+  "inheritedParentFilesVerifiedObjectIdentical": 1307,
+  "subsequentMetadataOnlyPaths": [
+    "E2E.md",
+    "docs/maintenance/evidence/1231-claude-subagent-20261004/README.md",
+    "docs/maintenance/evidence/1231-claude-subagent-20261004/final-parent/REBASE.json"
+  ],
+  "authorMappings": [
+    {
+      "before": "9b92078120f8a3202b358ce5b08adca454a77202",
+      "after": "9e81e4ca7e95dd762b07b2eb3a49e480a500bcfd",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:18:19-05:00",
+      "subject": "refactor(routing): route accounts by the conversation's root session key",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "890b52b18a0bb3111fabc86ded755208dea71566",
+      "after": "683e8fefb8d2552eb2e142db0c43860983fff213",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:31:47-05:00",
+      "subject": "fix(claude-code): key each Agent-tool subagent apart from its parent session",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "a9ab5f503dbb48a41ec592d944ba574705f072cb",
+      "after": "c0ec5e2a6b0fb84b318b4a9de757082e54cf59c3",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:34:24-05:00",
+      "subject": "test: live gate for Claude Code subagent session isolation",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "c7567b020eec2d5758a34d4fe2a5dfbd190ec1ab",
+      "after": "04bd6d0eeba55189315cafe8540890ccbea3b004",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:51:19-05:00",
+      "subject": "test: type the Claude Code subagent key test context",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "076b249fd55db84ffde546a4f6bf5211efffbf69",
+      "after": "f03928f8cc511624de0503642954c0f0492fe9cf",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:56:41-05:00",
+      "subject": "docs: note the backgrounded Claude Code session replay limitation",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "eb72589c62f965afe3eabbb747ead1f725173054",
+      "after": "d8a08920b3a3bd6d11cb54946acca3e78f2bb3e3",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T20:52:27-06:00",
+      "subject": "fix: isolate native Claude agents and preserve root cancellation",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "ecdafbbeb39f20fb3c5a2103de697ce4a282e0e1",
+      "after": "ecd9930e41684b5dba86b4a9c85d3de274db18f4",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T20:54:19-06:00",
+      "subject": "fix: keep mapping ownership out of public lineage state",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "f3cbbae97cb6e0631a17990ba74eab4e6c402b90",
+      "after": "9a3c21ece99246dbbd503c8a641c70bdbe9419c9",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T20:56:40-06:00",
+      "subject": "test: fence private mapping namespace fallback",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "f361cc24a661ee6cfce2c5383bd77bd6008f61b3",
+      "after": "22619b95785667455610364dd31cff07d82ac014",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T21:01:33-06:00",
+      "subject": "fix: keep native agent tuple keys scalar compatible",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "482ec2c5f979def1740eda46d8e2bbc4ff9122be",
+      "after": "7f88994cb0a49c902f234cdd98107a151b66a5c2",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T21:02:21-06:00",
+      "subject": "test: prepare bounded native Agent session proof",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "6e7ee9f4f3d003de7f1d593983bc9f3af16561cd",
+      "after": "2c954221fa37118b70eb5163ce0feacba673b566",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T21:03:36-06:00",
+      "subject": "test: close the synthetic stream block explicitly",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "30448e37e540ecd983d3b1ecd82904804afb02a1",
+      "after": "cd22434e62416d752fb12632316a9ef5261bc416",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T21:06:42-06:00",
+      "subject": "docs: escrow native Agent layer correction evidence",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "be60a60b3d68814b2155a921b5cc5f0526b6ba28",
+      "after": "e52c27fcdf6316133e780953fb3df1738eef4054",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T21:13:26-06:00",
+      "subject": "docs: preserve final typed HTTP defect controls",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "fd1d57068eb7d2a9781f8d85193934be4ddce743",
+      "after": "2937f4a29975e78a4a6e724ed794898df0e125f7",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T21:20:26-06:00",
+      "subject": "docs: keep classifier model witness gate explicit",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "f7b81ac0f0a840b5ca833780b7eb02958ae7e22d",
+      "after": "5b49fde4c5e96b5ab03111c07c9c41e6fab061c4",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T21:21:41-06:00",
+      "subject": "docs: preserve qualified native Agent source review",
+      "ancestorOfAuditedHead": true
+    },
+    {
+      "before": "3cb640b7950e148dcee84f6ea7709220f3e09728",
+      "after": "1f754311a28fb148de5b04127761c2bb13d849d2",
+      "author": "Trevor Walker",
+      "email": "rynfar@gmail.com",
+      "authorDate": "2026-10-04T22:16:43-06:00",
+      "subject": "fix: validate subagent harness snapshots before reading",
+      "ancestorOfAuditedHead": true
+    }
+  ],
+  "originalSourceContributorTuplesVerified": 5,
+  "publicGraphFilesUnchanged": [
+    "package.json",
+    "src/proxy/types.ts",
+    "src/proxy/session/lineage.ts",
+    "src/proxy/transform.ts",
+    ".agents/references/api-contract.md"
+  ],
+  "maintainedSourceSha256": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+    "scripts/e2e-claude-code-subagent-session.mjs": "a4abef7637160466007d51ae37642e4947ab05a2aff2927ab35041fd94e4417a",
+    "src/__tests__/claude-subagent-harness.test.ts": "a8fe98331b604562f1ced01c46082557c8b21bf21dc029e3f06953bcbdabe357",
+    "E2E.md": "6e357ea7fea1d7bcd31c17e96d16ffea738d8b6d21ce8aab8c3a465005958db2"
+  },
+  "rebaseE2ESha256": "3cd83e74ddc50c4b06c0b3877f719c122cc811d354cf493ff338d7db38a159bd",
+  "currentQualifiedE2ESha256": "6e357ea7fea1d7bcd31c17e96d16ffea738d8b6d21ce8aab8c3a465005958db2",
+  "parentE71SectionUnchanged": true,
+  "childE72SectionUnchangedAtRebase": true,
+  "childE72CurrentDelta": "Approved status qualifier only: parent E71 settled; E72 mixed-flow qualification remains held",
+  "historicalIndependentReviewSourceHashesVerified": 12,
+  "historicalSnapshotManifestEntriesVerified": 74,
+  "historicalSnapshotRawLogsAndSourcesVerified": true,
+  "completedGateArtifacts": {
+    "focused-pure": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exitCode": 0,
+      "logSha256": "7677cadf379db8c9a5ae3383d0f76f9fc4ee143f4d257bf531e6aa8a76b31ee7",
+      "command": [
+        "bun",
+        "test",
+        "src/__tests__/claude-code-session-identity.test.ts",
+        "src/__tests__/session-key-namespace.test.ts",
+        "src/__tests__/root-session-id.test.ts",
+        "src/__tests__/session-tree-unit.test.ts",
+        "src/__tests__/claude-code-adapter.test.ts"
+      ],
+      "terminalProcessWaitObserved": true,
+      "pass": 86,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 231,
+      "batches": 1
+    },
+    "focused-http": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exitCode": 0,
+      "logSha256": "8af182c8cedcfcd9d8a98e3cb30ff65cca7973f31127153250710302ce8036eb",
+      "command": [
+        "bun",
+        "test",
+        "src/__tests__/claude-subagent-isolation.test.ts"
+      ],
+      "terminalProcessWaitObserved": true,
+      "pass": 8,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 144,
+      "batches": 1
+    },
+    "focused-harness": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exitCode": 0,
+      "logSha256": "e96c98f8cae37f4f518fa84e9dd6de3477f9307d049ab851ca20dbf6666197cd",
+      "command": [
+        "bun",
+        "test",
+        "--timeout",
+        "30000",
+        "src/__tests__/claude-subagent-harness.test.ts"
+      ],
+      "terminalProcessWaitObserved": true,
+      "pass": 27,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 913,
+      "batches": 1
+    },
+    "focused-typecheck": {
+      "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+      "exitCode": 0,
+      "logSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "terminalProcessWaitObserved": true
+    }
+  },
+  "finalGatesWithoutObservedTerminalResult": [
+    "npm-test",
+    "typecheck-final",
+    "build-final"
+  ],
+  "resolvedRelativeLinks": 12,
+  "fencesBalanced": true,
+  "diffCheck": "pass",
+  "metadataActionsBeforePublication": [
+    {
+      "path": "delivery-finalization/pr-body-draft.md",
+      "text": "The prepared body still says authorized parent rebase is PENDING although exact parent/rebase is verified. Replace this placeholder and record actual terminal focused/full/type/build results before publication; do not present this draft body as final."
+    },
+    {
+      "path": "delivery-finalization/gates/freeze.json",
+      "text": "Platform.system/machine records the Python gate-wrapper observation Darwin/x86_64. Node/Bun process architecture is not recorded here; retain or explicitly qualify the interpreter observation, and do not infer the implicated Linux native-client runtime from it."
+    }
+  ],
+  "nativeAcceptance": false,
+  "mixedAutoAcceptance": false,
+  "fullFinalHeadCIObserved": false,
+  "publishedInterfaceApprovalNeededForThisInternalCorrection": false,
+  "sourcePRClosureOrReleaseAuthorized": false,
+  "auditRestrictions": "No product runtime checks, tests/builds, SDK/history/auth/credential reads, native/model calls, network/GitHub actions or checkout edits; only git/file read verification and this external audit output."
+}

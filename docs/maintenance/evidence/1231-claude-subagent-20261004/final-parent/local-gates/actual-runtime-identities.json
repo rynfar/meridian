@@ -1,0 +1,21 @@
+{
+  "actualRuntimes": [
+    {
+      "runtime": "node",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "version": "v22.22.3",
+      "executablePath": "/Users/rynfar/.hermes/node/bin/node",
+      "executableSha256": "5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
+    },
+    {
+      "runtime": "bun",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "version": "1.3.14",
+      "executablePath": "/Users/rynfar/.bun/bin/bun",
+      "executableSha256": "e0c90ec15d33363e6b70713d56bc3b2c7585c17f40a0fe0f8fd9305901d4e233"
+    }
+  ],
+  "qualification": "Original freeze.platform is Python wrapper metadata (Darwin x86_64); actual Node and Bun are Darwin arm64. These credentialless local checks do not establish Linux x64 native affected-flow acceptance."
+}

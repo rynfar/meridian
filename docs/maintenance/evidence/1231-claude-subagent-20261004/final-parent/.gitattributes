@@ -1,0 +1,2 @@
+# Generated source identity inventory retains exact raw bytes for independent checks.
+TESTED_SOURCE_IDENTITIES.json -diff linguist-generated=true
