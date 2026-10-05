@@ -6263,11 +6263,21 @@ alias: the exact historical served model and native executable were not
 escrowed. For a source target, also provide its full `--source-head`; it must
 be clean. Compiled source targets require matching clean build certification
 and all recorded artifact hashes. The target's own installed SDK is observed,
-with public executable/package hashes and strict version probes. Wire model
-IDs must match the requested ID. An SDK `sonnet` tier alias qualifies only with
+with public executable/package hashes and strict version probes. The current
+script checks every wire model ID against the main requested ID. An SDK `sonnet` tier alias qualifies only with
 the exact `ANTHROPIC_DEFAULT_SONNET_MODEL` version pin; an exact full SDK model
 ID also qualifies. The harness
 does not discover credentials, client binaries, profiles or configuration.
+
+**Open model-witness correction:** actual ancillary/classifier requests need
+separate exact model identities and per-request SDK/wire/served correlation.
+The official 2.1.286 auto-mode selector can use `claude-sonnet-5` for a
+`claude-sonnet-5-5` main and later fall back to the main model. E72 uses default
+permission mode with Agent/Bash preallowed and does not establish mixed auto
+mode, but its current universal-main model checks are not qualified for such
+traffic. Carry-over is deferred until the separate E71 role-aware witness
+design and controls settle. Existing synthetic successes are not native
+acceptance and do not close this dialect gate.
 
 Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
 ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs
