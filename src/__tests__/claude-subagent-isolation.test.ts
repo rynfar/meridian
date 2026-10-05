@@ -92,7 +92,7 @@ installSdkMock(() => ({
         }
         yield { ...textBlockStart(), session_id: sdkSessionId }
         yield { ...textDelta(0, "ok"), session_id: sdkSessionId }
-        yield { ...blockStop(), session_id: sdkSessionId }
+        yield { ...blockStop(0), session_id: sdkSessionId }
         yield { ...messageDelta("end_turn"), session_id: sdkSessionId }
         yield { ...messageStop(), session_id: sdkSessionId }
         yield { ...assistantMessage([{ type: "text", text: "ok" }]), session_id: sdkSessionId }
