@@ -69,5 +69,17 @@
     "direction": "Role-aware model receipts, metadata-first snapshots and joined HTTP observer cleanup; original five contributor tuples unchanged",
     "nativeAcceptance": false,
     "freshFinalGatesRequired": true
+  },
+  "typedArtifactGuardCorrection": {
+    "parentHead": "72b766b497eaf96069c6633499ac813e58908e1d",
+    "testSha256": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+    "scriptAndE2EUnchanged": true,
+    "sourceAuthorTuplesUnchanged": true,
+    "originalFullPretestExit": 2,
+    "noSuitesRanBeforeCorrection": true,
+    "standaloneTypecheckExit": 0,
+    "focusedTests": 2,
+    "focusedAssertions": 72,
+    "freshFullGatePending": true
   }
 }

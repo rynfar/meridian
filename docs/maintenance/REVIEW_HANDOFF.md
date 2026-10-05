@@ -322,6 +322,13 @@ Entered permanent cancellation has same-preload before/after proof; the correcte
 harness truthfully retains its logger/private runtime until cloned readers join.
 Historical prejoin, pending-read and compiled-skip runs remain explicit.
 
+The first full gate at clean `72b766b4` stopped during pretest typecheck
+before any suite. Its raw TS2769 failures are preserved. A separate explicit
+artifact-hash string guard corrects test typing without changing digest/model/
+ownership expectations; `64f2cba2` passes standalone typecheck and the actual
+source/compiled subset (2 tests / 72 assertions). The 34/1,124 result above
+is historical `b58d12c7` proof; the clean corrected full rerun remains pending.
+
 All five Noah Passalacqua source Author/AuthorDate/subject tuples remain exact;
 this is a separate maintainer harness correction with no production/public-API
 change. Root's fresh current-main read is `74d0a499`; no rebase is needed.

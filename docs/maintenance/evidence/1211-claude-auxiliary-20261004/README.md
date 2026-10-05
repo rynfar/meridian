@@ -52,6 +52,15 @@ renderings. Historical scripts/tests/logs are deterministic gzip archives so
 Bun cannot discover them as maintained tests. Recover exact bytes with
 `gzip -dc`; maintained reproduction stays in `scripts/` and `src/__tests__/`.
 
+The first new full gate at clean `72b766b4` stopped in pretest with two
+optional artifact-hash type errors; no suite ran. A separate
+[explicit typed helper correction](typed-artifact-hash-correction/REPORT.md)
+retains both digest assertions after runtime string guards. Test `64f2cba2`
+passes standalone typecheck and the actual source/compiled subset (2 tests /
+72 assertions); script `e2f58e5a` and E71 instructions `f4410422` are unchanged.
+The prior 34/1,124 focus belongs to test `b58d12c7`. Fresh full gates on the
+clean correction commit remain pending.
+
 The five contributor mappings remain unchanged. A new clean source commit,
 final `npm test`, standalone typecheck/build and new-head CI remain to be
 recorded. Actual Linux E71/E55/all-four-E41 proof remains open. No source PR or

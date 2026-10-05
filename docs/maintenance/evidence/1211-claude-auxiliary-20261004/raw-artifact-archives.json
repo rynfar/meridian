@@ -1022,6 +1022,110 @@
       "archiveSizeBytes": 4604,
       "archiveSha256": "237e434c0ed3dce414207a113cc948f853c6dcd3884b725fb1b8aaf8ec19d925",
       "narrativeCorrection": "Distinguish published missing requested-identity checks/global served gate from superseded proposed all-wire/all-SDK-main gate; static source facts unchanged."
+    },
+    {
+      "path": "typed-artifact-hash-correction/npm-test.log.gz",
+      "originalName": "typed-artifact-hash-correction/npm-test.log",
+      "originalSizeBytes": 1145,
+      "originalSha256": "4eedd3232326d606a699d6b1f4638b06305a482b11ea77a3f8f5684c4c3af34d",
+      "archiveSizeBytes": 280,
+      "archiveSha256": "d9bd4f5263d09acaf12e4a4cdef3acedb71cbe24f52271e0eae291cbb94250d2"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typecheck-explicit-hash-guard.log.gz",
+      "originalName": "typed-artifact-hash-correction/typecheck-explicit-hash-guard.log",
+      "originalSizeBytes": 53,
+      "originalSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "archiveSizeBytes": 73,
+      "archiveSha256": "19c7e12164763313599e106659812d4a5beae02aab3052ccf67140be08e8723c"
+    },
+    {
+      "path": "typed-artifact-hash-correction/focused-explicit-hash-guard.log.gz",
+      "originalName": "typed-artifact-hash-correction/focused-explicit-hash-guard.log",
+      "originalSizeBytes": 485,
+      "originalSha256": "1f42c14992313625b40fc04b516dcad12172c9d19d269906c66f55b6d52b9435",
+      "archiveSizeBytes": 289,
+      "archiveSha256": "8c56158c8728011c1ccf2fe38729f18408595ed86dfebb46365d404baf39e2a1"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/source-duplicate-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/source-duplicate-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "95a10d08401c8beaf363b6d9ba906e245587c0f7fc60ec7b0850a010b9d76848",
+      "archiveSizeBytes": 3269,
+      "archiveSha256": "920472c74946f4311ae1b0f32fa87ac5d1a025fd802c3278ea6af689cf9a2e5e"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/source-unmatched-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/source-unmatched-runner.mjs",
+      "originalSizeBytes": 8068,
+      "originalSha256": "3c5319409c3cf9f7c4e5d66eb7d06176972b8249693c6e70e3cdd4257f5e6893",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "d7c4d4fc6e63f24ec73d71f879cfd0685f10b1d8c9e30af6a0ea4d4223ac4f3d"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/source-positive-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/source-positive-runner.mjs",
+      "originalSizeBytes": 8067,
+      "originalSha256": "03400551518c8258d894e13f9c818dd0d5402392225b2c0fbe1a01007b0f8e96",
+      "archiveSizeBytes": 3271,
+      "archiveSha256": "78d12c0261637c7c114456a3a24032a02908a46bd89e015f3bc059f48b08a780"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-positive-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-positive-runner.mjs",
+      "originalSizeBytes": 8103,
+      "originalSha256": "aa031c2a494e4b5e8f27ecf049cb43c3cb46169526ee460a45cbdd25bcd26ab5",
+      "archiveSizeBytes": 3308,
+      "archiveSha256": "0867cf01467bd32a9039e8e0e28f78f9ec56ef7de80a29b927f8cf831e9b7079"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-swap-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-swap-runner.mjs",
+      "originalSizeBytes": 8099,
+      "originalSha256": "87506a14cc1408445f59209b7cc7e389f85ec74ce5ebd2fde0e34b6792b6ce16",
+      "archiveSizeBytes": 3307,
+      "archiveSha256": "fdfc1d0ab620f0238d32e1a0e2ce458252f79c5225f5460b3bc82db4848d902c"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/source-swap-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/source-swap-runner.mjs",
+      "originalSizeBytes": 8063,
+      "originalSha256": "ffe64cd01b5607337f34e9527f40b8edf80deaff242a8fc9ddaa6a0fbd7c2581",
+      "archiveSizeBytes": 3270,
+      "archiveSha256": "1d5e976ad9e945d26cf6c1e16b88dd23c820767c36da11f5534d83c253fa3bef"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-duplicate-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-duplicate-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "8ae1cbbbbdd2fd8a04883297cf6640ac3927b102f862a6800de3a292cdf896fc",
+      "archiveSizeBytes": 3308,
+      "archiveSha256": "8383dde71e73d3698601ab1048f8b81e4766fae2af163303adff0bcf38fb3083"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-unmatched-runner.mjs.gz",
+      "originalName": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-unmatched-runner.mjs",
+      "originalSizeBytes": 8104,
+      "originalSha256": "cf583f72e0a0ca7d1301f91ebbfff92efa9f765c719f7d2e90db75018e049b08",
+      "archiveSizeBytes": 3310,
+      "archiveSha256": "7f174b21a377955b4a3b8b49f4bc4f8de16f040a974c38877948826cc29bc4b0"
+    },
+    {
+      "path": "typed-artifact-hash-correction/corrected-claude-auto-mode-harness.test.ts.gz",
+      "originalName": "typed-artifact-hash-correction/corrected-claude-auto-mode-harness.test.ts",
+      "originalSizeBytes": 52651,
+      "originalSha256": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+      "archiveSizeBytes": 13716,
+      "archiveSha256": "bdb2fc700a33ddf69b64b531b4d454110b1d642f930fcc7bbf5505b4104d4bbe"
+    },
+    {
+      "path": "typed-artifact-hash-correction/typed-correction.patch.gz",
+      "originalName": "typed-artifact-hash-correction/typed-correction.patch",
+      "originalSizeBytes": 1340,
+      "originalSha256": "949a9438c5fa21b8e9f8820891ecdfd83a78f72e46a832977dd1a21f2111d5de",
+      "archiveSizeBytes": 599,
+      "archiveSha256": "93f5c6af176b2f208fcf86ebd594ab17d9ab33ce7307ff46c106e259594305b9"
     }
   ]
 }

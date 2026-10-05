@@ -158,7 +158,9 @@ async function actualTargetControl(kind: 'source' | 'compiled', mode: 'positive'
     const found = Object.keys(manifest.artifacts).find(file => file.endsWith('.js') && /export \{[^\n]*getClaudeAuthStatusAsync[^\n]*resolveClaudeExecutableAsync/.test(readFileSync(join(repository, 'dist', file), 'utf8')))
     if (!found) throw new Error('Certified compiled model module unavailable')
     models = join(repository, 'dist', found)
-    expect(digest(models)).toBe(manifest.artifacts[found]); expect(digest(entry)).toBe(manifest.artifacts['server.js'])
+    const modelArtifactHash = manifest.artifacts[found], entryArtifactHash = manifest.artifacts['server.js']
+    if (typeof modelArtifactHash !== 'string' || typeof entryArtifactHash !== 'string') throw new Error('Certified compiled artifact hashes unavailable')
+    expect(digest(models)).toBe(modelArtifactHash); expect(digest(entry)).toBe(entryArtifactHash)
   }
   const resultFile = join(root, 'results.json'), script = join(root, 'control.mjs')
   writeFileSync(script, `import assert from 'node:assert/strict';

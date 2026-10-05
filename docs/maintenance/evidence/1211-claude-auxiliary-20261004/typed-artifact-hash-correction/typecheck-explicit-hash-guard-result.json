@@ -1,0 +1,10 @@
+{
+  "command": [
+    "npm",
+    "run",
+    "typecheck"
+  ],
+  "exit": 0,
+  "finishedUtc": "2026-10-05T04:23:39.867972+00:00",
+  "logSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c"
+}

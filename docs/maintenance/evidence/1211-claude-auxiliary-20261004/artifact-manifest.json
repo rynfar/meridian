@@ -2,12 +2,12 @@
   "algorithm": "sha256",
   "files": {
     "README.md": {
-      "bytes": 13421,
-      "sha256": "c654781f103293169f4a34a5004af6e0b7ae3d928d64871f93c6d1fd093903a7"
+      "bytes": 13983,
+      "sha256": "4d5ee41f94cdb0f1235f7f90686f1f758f75794d4798f1d5e370f9d1bca7cd55"
     },
     "author-ledger.json": {
-      "bytes": 3510,
-      "sha256": "095b077b8f0c6c3bcf82f902822f31db8b2ff84a4ae1a45c46dcf7ab8ee6f8bd"
+      "bytes": 3969,
+      "sha256": "1de81865c7157b4f7d3617192a6bf720b9b3220af73f1adf097e29e9138370cd"
     },
     "cancellation-settlement/REPORT.md": {
       "bytes": 2635,
@@ -370,8 +370,8 @@
       "sha256": "1905b8ae56bcefe04bdd15b065faf630cfdc90c622e604f279ea647d03eef6e0"
     },
     "raw-artifact-archives.json": {
-      "bytes": 53782,
-      "sha256": "5b2b86d7d0d63e682167d270c507725e90a3d0683c47677acd199836ad2081b9"
+      "bytes": 59677,
+      "sha256": "ac8e6aaaf83743e5200a53d919a3fe645410a5d2882cc530c460f354f0ffcb87"
     },
     "raw-originals/classifier-model-selection-audit/REPORT.md.gz": {
       "bytes": 4604,
@@ -1116,6 +1116,110 @@
     "source-review/source-complete.diff.gz": {
       "bytes": 14590,
       "sha256": "d2cca494abad7bfc8423926783b5ccffe7c90df1fa9832d3ae4c80fc1e0a00f1"
+    },
+    "typed-artifact-hash-correction/REPORT.md": {
+      "bytes": 1894,
+      "sha256": "20d7621abb5b6e3e22048275b9a7ebf5f031576c5182280d773f3d3186f32031"
+    },
+    "typed-artifact-hash-correction/corrected-claude-auto-mode-harness.test.ts.gz": {
+      "bytes": 13716,
+      "sha256": "bdb2fc700a33ddf69b64b531b4d454110b1d642f930fcc7bbf5505b4104d4bbe"
+    },
+    "typed-artifact-hash-correction/focused-explicit-hash-guard-result.json": {
+      "bytes": 446,
+      "sha256": "c510658d0d978a31d46aaaf64fc784f29a4d5a86c3841de5f6534c7e8957ba11"
+    },
+    "typed-artifact-hash-correction/focused-explicit-hash-guard.log.gz": {
+      "bytes": 289,
+      "sha256": "8c56158c8728011c1ccf2fe38729f18408595ed86dfebb46365d404baf39e2a1"
+    },
+    "typed-artifact-hash-correction/freeze.json": {
+      "bytes": 776,
+      "sha256": "2e1ea28b4231f238f94b83f77257218f56bc65e7c279b135bd8d7a0c65d9ddd1"
+    },
+    "typed-artifact-hash-correction/npm-test-result.json": {
+      "bytes": 270,
+      "sha256": "f200d181a33002968e35c9ffefc231c9641f2ec05683b41fcb0377a9ef1a1869"
+    },
+    "typed-artifact-hash-correction/npm-test.log.gz": {
+      "bytes": 280,
+      "sha256": "d9bd4f5263d09acaf12e4a4cdef3acedb71cbe24f52271e0eae291cbb94250d2"
+    },
+    "typed-artifact-hash-correction/typecheck-explicit-hash-guard-result.json": {
+      "bytes": 210,
+      "sha256": "d1af66f30ad3e978cf1c452549fa04788093069d95e691cc9c63ec9216e75dd3"
+    },
+    "typed-artifact-hash-correction/typecheck-explicit-hash-guard.log.gz": {
+      "bytes": 73,
+      "sha256": "19c7e12164763313599e106659812d4a5beae02aab3052ccf67140be08e8723c"
+    },
+    "typed-artifact-hash-correction/typed-correction.patch.gz": {
+      "bytes": 599,
+      "sha256": "93f5c6af176b2f208fcf86ebd594ab17d9ab33ce7307ff46c106e259594305b9"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-duplicate-runner.mjs.gz": {
+      "bytes": 3308,
+      "sha256": "8383dde71e73d3698601ab1048f8b81e4766fae2af163303adff0bcf38fb3083"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-duplicate.json": {
+      "bytes": 668,
+      "sha256": "d48071f9a346a9c5f7ad65c7ad3ba972c4717abec60ed5d49dd7f381d7a9512a"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-positive-runner.mjs.gz": {
+      "bytes": 3308,
+      "sha256": "0867cf01467bd32a9039e8e0e28f78f9ec56ef7de80a29b927f8cf831e9b7079"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-positive.json": {
+      "bytes": 793,
+      "sha256": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-swap-runner.mjs.gz": {
+      "bytes": 3307,
+      "sha256": "fdfc1d0ab620f0238d32e1a0e2ce458252f79c5225f5460b3bc82db4848d902c"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-swap.json": {
+      "bytes": 791,
+      "sha256": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-unmatched-runner.mjs.gz": {
+      "bytes": 3310,
+      "sha256": "7f174b21a377955b4a3b8b49f4bc4f8de16f040a974c38877948826cc29bc4b0"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/compiled-unmatched.json": {
+      "bytes": 668,
+      "sha256": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-duplicate-runner.mjs.gz": {
+      "bytes": 3269,
+      "sha256": "920472c74946f4311ae1b0f32fa87ac5d1a025fd802c3278ea6af689cf9a2e5e"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-duplicate.json": {
+      "bytes": 628,
+      "sha256": "c6c681024449c5235c1c6aa0349ee0dca44dc1088f4cb623969d96714314e324"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-positive-runner.mjs.gz": {
+      "bytes": 3271,
+      "sha256": "78d12c0261637c7c114456a3a24032a02908a46bd89e015f3bc059f48b08a780"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-positive.json": {
+      "bytes": 753,
+      "sha256": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-swap-runner.mjs.gz": {
+      "bytes": 3270,
+      "sha256": "1d5e976ad9e945d26cf6c1e16b88dd23c820767c36da11f5534d83c253fa3bef"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-swap.json": {
+      "bytes": 751,
+      "sha256": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-unmatched-runner.mjs.gz": {
+      "bytes": 3270,
+      "sha256": "d7c4d4fc6e63f24ec73d71f879cfd0685f10b1d8c9e30af6a0ea4d4223ac4f3d"
+    },
+    "typed-artifact-hash-correction/typed-hash-guard-context/source-unmatched.json": {
+      "bytes": 628,
+      "sha256": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2"
     }
   }
 }
