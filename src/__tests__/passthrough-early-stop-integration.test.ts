@@ -10,6 +10,7 @@ import { describe, it, expect, mock, spyOn, beforeAll, beforeEach, afterEach, af
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
+import { progressBody, PROGRESS_WORK } from "./fixtures/claude-code-progress"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -422,6 +423,42 @@ describe("Integration: passthrough early stop", () => {
       { type: "tool_result", tool_use_id: "tu1", content: "hi" },
     ])
   })
+
+  for (const fails of [false, true]) {
+    it(`isolates a ${fails ? "failing" : "successful"} progress caption from a pending tool checkpoint`, async () => {
+      const sessionId = `progress-checkpoint-${crypto.randomUUID()}`
+      const agentId = "checkpoint-agent"
+      const key = `${sessionId}:agent:${agentId}`
+      usedSessionKeys.add(key)
+      const headers = { "x-claude-code-agent-id": agentId }
+      const body = progressBody(sessionId)
+      const toolTurn = assistantMessage([
+        { type: "tool_use", id: "read-1", name: "Read", input: { file_path: "alpha.txt" } },
+      ])
+      mockMessages = [toolTurn, userDenyMessage("read-1")]
+      const first = await postClaudeCode(app, { ...body, stream: false, messages: PROGRESS_WORK.slice(0, 1) }, sessionId, headers)
+      expect(first.status).toBe(200)
+      const published = lookupSharedSession(key)
+      expect(published?.passthroughToolCallIds).toEqual(["read-1"])
+      expect(published?.passthroughToolCallAssistantUuid).toBe(toolTurn.uuid)
+
+      mockMessages = fails ? [] : [assistantMessage([{ type: "text", text: "Reading alpha.txt" }])]
+      mockTerminalError = fails ? new Error("No conversation found with session ID") : undefined
+      const summary = await postClaudeCode(app, body, sessionId, headers)
+      const wire = await summary.text()
+      expect(wire).toContain(fails ? "event: error" : "message_stop")
+      expect(capturedQueryParams.options.resume).toBeUndefined()
+      expect(capturedQueryParams.options.resumeSessionAt).toBeUndefined()
+      expect(lookupSharedSession(key)).toEqual(published)
+
+      mockTerminalError = undefined
+      mockMessages = [assistantMessage([{ type: "text", text: "ALPHA" }])]
+      const next = await postClaudeCode(app, { ...body, stream: false, messages: PROGRESS_WORK }, sessionId, headers)
+      expect(next.status).toBe(200)
+      expect(capturedQueryParams.options.resume).toBe(published?.claudeSessionId)
+      expect(capturedQueryParams.options.resumeSessionAt).toBe(toolTurn.uuid)
+    })
+  }
 
   it("non-stream: replays changed earlier history even when pending tool IDs match", async () => {
     const assistantToolTurn = assistantMessage([
