@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:te
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
-import { progressBody, PROGRESS_WORK } from "./fixtures/claude-code-progress"
+import { progressBody, PROGRESS_FIRST_PROMPT, PROGRESS_WORK } from "./fixtures/claude-code-progress"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -615,6 +615,70 @@ describe("SDK and Session concurrency coordination", () => {
     ;(await waitForControl(2)).release()
     expect((await nextP).status).toBe(200)
     expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  })
+
+  /** A subagent's streaming caption request carrying the given history. */
+  function claudeCodeCaptionRequest(
+    messages: Array<{ role: string; content: unknown }>,
+    sessionId: string,
+    agentId: string,
+  ): Request {
+    return new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.287", "x-claude-code-agent-id": agentId },
+      body: JSON.stringify({ ...progressBody(sessionId), messages }),
+    })
+  }
+
+  async function expectCaptionLeavesSubagentSession(
+    work: Array<{ role: string; content: unknown }>,
+    caption: Array<{ role: string; content: unknown }>,
+    next: Array<{ role: string; content: unknown }>,
+  ) {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-progress-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const key = claudeCodeSubagentKey(sessionId, agentId)
+    const workP = app.fetch(claudeCodeSubagentRequest(work, sessionId, agentId))
+    ;(await waitForControl(0)).release()
+    expect((await workP).status).toBe(200)
+    const published = readSessionStoreSnapshot()[key]
+    expect(published?.messageCount).toBe(work.length)
+
+    const captionP = app.fetch(claudeCodeCaptionRequest(caption, sessionId, agentId))
+    ;(await waitForControl(1)).release()
+    const captionResponse = await captionP
+    expect(captionResponse.status).toBe(200)
+    expect(await captionResponse.text()).toContain("message_stop")
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(readSessionStoreSnapshot()[key]).toEqual(published)
+
+    const nextP = app.fetch(claudeCodeSubagentRequest(next, sessionId, agentId))
+    ;(await waitForControl(2)).release()
+    expect((await nextP).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  }
+
+  it("resumes the subagent session after a caption sent as its own user message", async () => {
+    const answered = [...PROGRESS_WORK, { role: "assistant", content: "alpha.txt contains ALPHA." }]
+    await expectCaptionLeavesSubagentSession(
+      answered,
+      [...answered, { role: "user", content: PROGRESS_FIRST_PROMPT }],
+      [...answered, { role: "user", content: "continue" }],
+    )
+  })
+
+  it("resumes the subagent session after a caption appended after tool results and text", async () => {
+    const lastUser = [
+      { type: "tool_result", tool_use_id: "read-1", content: "ALPHA" },
+      { type: "text", text: "Note: alpha.txt is a plain text file." },
+    ]
+    const work = [...PROGRESS_WORK.slice(0, -1), { role: "user", content: lastUser }]
+    await expectCaptionLeavesSubagentSession(
+      work,
+      [...work.slice(0, -1), { role: "user", content: [...lastUser, { type: "text", text: PROGRESS_FIRST_PROMPT }] }],
+      [...work, { role: "assistant", content: "ok" }, { role: "user", content: "continue" }],
+    )
   })
 
   it("does not queue a progress summary behind its subagent's running turn", async () => {

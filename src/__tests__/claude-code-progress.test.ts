@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import { Hono } from "hono"
 import { claudeCodeAdapter } from "../proxy/adapters/claudecode"
-import { progressBody, PROGRESS_PROMPT } from "./fixtures/claude-code-progress"
+import { progressBody, PROGRESS_FIRST_PROMPT, PROGRESS_PROMPT } from "./fixtures/claude-code-progress"
 
 async function auxiliary(body: unknown, headers: Record<string, string> = {}) {
   const app = new Hono()
@@ -24,9 +24,30 @@ describe("Claude Code progress-caption classification", () => {
     const body = progressBody()
     body.messages.at(-1)!.content = [
       { type: "tool_result", tool_use_id: "read-1", content: "ALPHA" },
-      { type: "text", text: PROGRESS_PROMPT.replace(/Previous: .*\n\n/, "") },
+      { type: "text", text: PROGRESS_FIRST_PROMPT },
     ]
     expect(await auxiliary(body)).toBe(true)
+  })
+
+  it("classifies a caption appended after other text in the last user message", async () => {
+    const body = progressBody()
+    body.messages.at(-1)!.content = [
+      { type: "tool_result", tool_use_id: "read-1", content: "ALPHA" },
+      { type: "text", text: "Note: alpha.txt is a plain text file." },
+      { type: "text", text: PROGRESS_FIRST_PROMPT },
+    ]
+    expect(await auxiliary(body)).toBe(true)
+  })
+
+  it("classifies a caption sent as a user message of its own", async () => {
+    for (const content of [PROGRESS_FIRST_PROMPT, [{ type: "text", text: PROGRESS_FIRST_PROMPT }]]) {
+      const messages = [...progressBody().messages.slice(0, -1),
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "read-1", content: "ALPHA" }] },
+        { role: "assistant", content: "alpha.txt contains ALPHA." },
+        { role: "user", content },
+      ]
+      expect(await auxiliary({ ...progressBody(), messages })).toBe(true)
+    }
   })
 
   it("lets an explicit request class override shape detection", async () => {
@@ -43,11 +64,16 @@ describe("Claude Code progress-caption classification", () => {
     }
   })
 
-  it("does not classify the caption text typed, quoted, extended, or inside a tool result", async () => {
+  it("does not classify the caption text quoted, extended, followed by more text, or inside a tool result", async () => {
     for (const messages of [
-      [{ role: "user", content: PROGRESS_PROMPT }],
-      [{ role: "user", content: [{ type: "text", text: PROGRESS_PROMPT }] }],
+      [{ role: "user", content: `Please explain this prompt:\n${PROGRESS_PROMPT}` }],
+      [{ role: "user", content: `${PROGRESS_PROMPT}\nNow edit the file.` }],
       [{ role: "user", content: [{ type: "tool_result", tool_use_id: "read-1", content: PROGRESS_PROMPT }] }],
+      [{ role: "user", content: [
+        { type: "text", text: PROGRESS_PROMPT },
+        { type: "text", text: "Now edit the file." },
+      ] }],
+      [{ role: "user", content: PROGRESS_PROMPT }, { role: "assistant", content: "Reading alpha.txt" }],
       [{ role: "user", content: [
         { type: "tool_result", tool_use_id: "read-1", content: "ALPHA" },
         { type: "text", text: `Please explain this prompt:\n${PROGRESS_PROMPT}` },
