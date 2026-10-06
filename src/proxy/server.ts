@@ -5081,6 +5081,80 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               ? managedForkTarget?.sessionId
               : undefined
             let nextClientBlockIndex = 0
+
+            // Call only after shouldEarlyStop(earlyStop) returned true.
+            const freezeEarlyStopCheckpoint = (): void => {
+              nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
+              // Streamed calls are already visible, even if a later hook
+              // recognizes a duplicate. The client will return each ID.
+              nextPassthroughToolCallIds = [...earlyStop.expected].filter(id =>
+                !droppedToolUseIds.has(id) || streamedToolUseIds.has(id))
+              earlyStopFired = true
+              for (let i = capturedToolUses.length - 1; i >= 0; i--) {
+                if (!earlyStop.expected.has(capturedToolUses[i]!.id)) capturedToolUses.splice(i, 1)
+              }
+              claudeLog("passthrough.checkpoint_ready", {
+                mode: "stream",
+                captured: capturedToolUses.length,
+                toolCallAssistantUuid: nextPassthroughToolCallAssistantUuid,
+              })
+            }
+
+            // No stream event ever reached the client, but the SDK did answer:
+            // open the message and forward its visible content. In passthrough
+            // only the first turn belongs to the client (later ones react to the
+            // denied tool call); its captured tool_use blocks follow through the
+            // caller's ordinary path. Returns the turn's non-tool stop reason when
+            // it opened the envelope.
+            const openUnstreamedEnvelope = (): string | undefined => {
+              if (messageStartEmitted || unstreamedAssistants.length === 0) return undefined
+              const hasUnseenToolUses = capturedToolUses.some(tu => !streamedToolUseIds.has(tu.id))
+              const allowUnstreamedThinking =
+                (!pipelineCtx.hidesInternalTools || sdkFeatures.thinkingPassthrough) &&
+                (!passthrough || pipelineCtx.supportsThinking || sdkFeatures.thinkingPassthrough)
+              const turns = passthrough ? unstreamedAssistants.slice(0, 1) : unstreamedAssistants
+              const hasUnstreamedContent = turns.some(turn =>
+                turn.content?.some(block => unstreamedAssistantBlockFrames(block, 0, allowUnstreamedThinking).length > 0))
+              if (!hasUnstreamedContent && !(passthrough && hasUnseenToolUses)) return undefined
+              const first = unstreamedAssistants[0]!
+              // No SDK message_delta was seen, so the terminal delta has to be
+              // built by the caller; a tool_use stop is re-derived there from
+              // what was actually forwarded.
+              const lastStop = turns[turns.length - 1]!.stop_reason
+              if (safeEnqueue(encoder.encode(
+                `event: message_start\ndata: ${JSON.stringify({
+                  type: "message_start",
+                  message: {
+                    id: first.id, type: "message", role: "assistant", model: first.model ?? model,
+                    content: [], stop_reason: null, stop_sequence: null, usage: first.usage ?? lastUsage ?? {},
+                  },
+                })}\n\n`
+              ), "unstreamed_message_start")) {
+                messageStartEmitted = true
+                eventsForwarded += 1
+              }
+              for (const turn of turns) {
+                for (const block of turn.content ?? []) {
+                  const frames = unstreamedAssistantBlockFrames(block, nextClientBlockIndex, allowUnstreamedThinking)
+                  if (frames.length === 0) continue
+                  nextClientBlockIndex++
+                  for (const frame of frames) {
+                    if (!safeEnqueue(encoder.encode(
+                      `event: ${frame.event}\ndata: ${JSON.stringify(frame.data)}\n\n`
+                    ), `unstreamed_${frame.event}`)) continue
+                    eventsForwarded += 1
+                    if (frame.event === "content_block_start") contentBlocksForwarded += 1
+                    if (frame.textLength !== undefined) {
+                      textEventsForwarded += 1
+                      textCharsForwarded += frame.textLength
+                    }
+                  }
+                }
+              }
+              claudeLog("response.unstreamed_turn_forwarded", { model, turns: turns.length })
+              return lastStop && lastStop !== "tool_use" ? lastStop : "end_turn"
+            }
+
             try {
               // Same transparent retry wrapper as the non-streaming path.
               // Rate-limit retry strategy:
@@ -5475,20 +5549,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
                       trackerCoversStreamedCalls(earlyStop, streamedToolUseIds) &&
                       shouldEarlyStop(earlyStop)
                     ) {
-                      nextPassthroughToolCallAssistantUuid = settledToolCallAssistantUuid(earlyStop)
-                      // Streamed calls are already visible, even if a later hook
-                      // recognizes a duplicate. The client will return each ID.
-                      nextPassthroughToolCallIds = [...earlyStop.expected].filter(id =>
-                        !droppedToolUseIds.has(id) || streamedToolUseIds.has(id))
-                      earlyStopFired = true
-                      for (let i = capturedToolUses.length - 1; i >= 0; i--) {
-                        if (!earlyStop.expected.has(capturedToolUses[i]!.id)) capturedToolUses.splice(i, 1)
-                      }
-                      claudeLog("passthrough.checkpoint_ready", {
-                        mode: "stream",
-                        captured: capturedToolUses.length,
-                        toolCallAssistantUuid: nextPassthroughToolCallAssistantUuid,
-                      })
+                      freezeEarlyStopCheckpoint()
                     }
                   }
                   if (
@@ -6469,60 +6530,8 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               }
 
               if (!streamClosed) {
-                // No stream event ever reached the client, but the SDK did answer:
-                // open the message here and forward its visible content. In
-                // passthrough only the first turn belongs to the client (later
-                // ones react to the denied tool call); its captured tool_use
-                // blocks follow through the ordinary path below.
-                let unstreamedStopReason: string | undefined
+                const unstreamedStopReason = openUnstreamedEnvelope()
                 const unseenToolUses = capturedToolUses.filter(tu => !streamedToolUseIds.has(tu.id))
-                const allowUnstreamedThinking =
-                  (!pipelineCtx.hidesInternalTools || sdkFeatures.thinkingPassthrough) &&
-                  (!passthrough || pipelineCtx.supportsThinking || sdkFeatures.thinkingPassthrough)
-                const visibleTurns = passthrough ? unstreamedAssistants.slice(0, 1) : unstreamedAssistants
-                const hasUnstreamedContent = visibleTurns.some(turn =>
-                  turn.content?.some(block => unstreamedAssistantBlockFrames(block, 0, allowUnstreamedThinking).length > 0))
-                if (!messageStartEmitted && unstreamedAssistants.length > 0 &&
-                    (hasUnstreamedContent || (passthrough && unseenToolUses.length > 0))) {
-                  const first = unstreamedAssistants[0]!
-                  const turns = visibleTurns
-                  // No SDK message_delta was seen, so the terminal delta has to
-                  // be built here; a tool_use stop is re-derived below from what
-                  // was actually forwarded.
-                  const lastStop = turns[turns.length - 1]!.stop_reason
-                  unstreamedStopReason = lastStop && lastStop !== "tool_use" ? lastStop : "end_turn"
-                  if (safeEnqueue(encoder.encode(
-                    `event: message_start\ndata: ${JSON.stringify({
-                      type: "message_start",
-                      message: {
-                        id: first.id, type: "message", role: "assistant", model: first.model ?? model,
-                        content: [], stop_reason: null, stop_sequence: null, usage: first.usage ?? lastUsage ?? {},
-                      },
-                    })}\n\n`
-                  ), "unstreamed_message_start")) {
-                    messageStartEmitted = true
-                    eventsForwarded += 1
-                  }
-                  for (const turn of turns) {
-                    for (const block of turn.content ?? []) {
-                      const frames = unstreamedAssistantBlockFrames(block, nextClientBlockIndex, allowUnstreamedThinking)
-                      if (frames.length === 0) continue
-                      nextClientBlockIndex++
-                      for (const frame of frames) {
-                        if (!safeEnqueue(encoder.encode(
-                          `event: ${frame.event}\ndata: ${JSON.stringify(frame.data)}\n\n`
-                        ), `unstreamed_${frame.event}`)) continue
-                        eventsForwarded += 1
-                        if (frame.event === "content_block_start") contentBlocksForwarded += 1
-                        if (frame.textLength !== undefined) {
-                          textEventsForwarded += 1
-                          textCharsForwarded += frame.textLength
-                        }
-                      }
-                    }
-                  }
-                  claudeLog("response.unstreamed_turn_forwarded", { model, turns: turns.length })
-                }
 
                 // In passthrough mode, emit captured tool_use blocks as stream events
                 // Skip any that were already forwarded during the stream (dedup by ID)
@@ -6877,12 +6886,38 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
               // Discarding them turns a recoverable stall into a turn the model
               // later reports having "forgotten", because the next resume shows
               // its promise to act with no matching call.
-              const canRecoverAsToolUse = canRecoverCapturedToolUses({
+              const capturedRecoveryEligible = canRecoverCapturedToolUses({
                 reason: ownSingleStepAbort ? "aborted" : sdkTerm.reason,
                 passthrough,
                 capturedToolUses: capturedToolUses.length,
                 abortIsOurs: ownSingleStepAbort && sawDuplicateToolUse,
-              }) && messageStartEmitted
+              })
+              // A turn Claude Code re-sent without streaming (#1098) has opened
+              // no envelope yet. Open it from the SDK's complete assistant
+              // message so its captured calls can recover like a streamed turn.
+              // Only at the proxy's one-turn cap: the SDK iterator has ended
+              // after the first model call, so every captured call belongs to
+              // the client's turn. A larger budget may have captured calls from
+              // a hidden later turn, and an idle stall may have cut the hook off
+              // mid-turn; both keep failing as before.
+              if (
+                capturedRecoveryEligible && sdkTerm.reason === "max_turns" && lastAttemptMaxTurns === 1 &&
+                !messageStartEmitted && !streamClosed &&
+                !durableWritesRevoked && !requestAbort.abortSnapshot().aborted
+              ) {
+                openUnstreamedEnvelope()
+                // The stream loop never froze a checkpoint because no streamed
+                // block could prove the call set complete. The tracker has now
+                // seen every call of this turn, and the delivered result means
+                // the transcript is durable (see recoverableCheckpoint below).
+                if (
+                  messageStartEmitted && earlyStopEnabled && !earlyStopFired && sawCanonicalResult &&
+                  streamedToolUseIds.size === 0 && shouldEarlyStop(earlyStop)
+                ) {
+                  freezeEarlyStopCheckpoint()
+                }
+              }
+              const canRecoverAsToolUse = capturedRecoveryEligible && messageStartEmitted
 
               // Uncaptured streamed calls can recover only with a complete
               // client-visible envelope and no cancellation. The opt-in covers

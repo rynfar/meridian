@@ -2052,6 +2052,214 @@ describe("Integration: passthrough early stop", () => {
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
   })
 
+  // Claude Code re-sends a turn without streaming when its stream fails
+  // (#1098). That turn arrives with no stream events, so nothing has opened
+  // the client envelope when the capped stop throws. The captured call must
+  // still reach the client instead of surfacing as a 500.
+  it("stream: recovers a captured call from a non-streamed turn at the one-turn cap", async () => {
+    const toolTurn = assistantMessage([
+      { type: "text", text: "Reading x." },
+      { type: "tool_use", id: "unstreamed-capped-tool", name: "read", input: { file_path: "x" } },
+    ])
+    toolTurn.message.stop_reason = "tool_use"
+    mockMessages = [
+      toolTurn,
+      userDenyMessage("unstreamed-capped-tool"),
+      {
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        session_id: "test-session",
+        usage: { output_tokens: 42 },
+      },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x unstreamed" }],
+    }, "es-unstreamed-capped")
+    expect(first.status).toBe(200)
+    const events = parseSSE(await first.text())
+    expect(events.filter(e => e.event === "error")).toHaveLength(0)
+    expect(events.filter(e => e.event === "message_start")).toHaveLength(1)
+    expect(events.filter(e => e.event === "message_stop")).toHaveLength(1)
+    const starts = events.filter(e => e.event === "content_block_start")
+      .map(e => (e.data as any).content_block)
+    expect(starts.map(block => block.type)).toEqual(["text", "tool_use"])
+    expect(starts[1].id).toBe("unstreamed-capped-tool")
+    expect(starts.map((_, i) => i)).toEqual(events.filter(e => e.event === "content_block_start")
+      .map(e => (e.data as any).index))
+    expect(events.filter(e => e.event === "content_block_delta")
+      .map(e => (e.data as any).delta.text ?? (e.data as any).delta.partial_json).join(""))
+      .toBe('Reading x.{"file_path":"x"}')
+    expect(events.filter(e => e.event === "message_delta")
+      .map(e => (e.data as any).delta.stop_reason)).toEqual(["tool_use"])
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "the file says X" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x unstreamed" },
+        { role: "assistant", content: [
+          { type: "text", text: "Reading x." },
+          { type: "tool_use", id: "unstreamed-capped-tool", name: "read", input: { file_path: "x" } },
+        ] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "unstreamed-capped-tool", content: "X" }] },
+      ],
+    }, "es-unstreamed-capped")
+    expect(second.status).toBe(200)
+    expect(capturedQueryParamsAll[1].options.resume).toBe(initialManagedSessionId())
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
+  it("stream: recovers every parallel call from a non-streamed turn at the one-turn cap", async () => {
+    const toolTurn = assistantMessage([
+      { type: "tool_use", id: "unstreamed-parallel-a", name: "read", input: { file_path: "a" } },
+      { type: "tool_use", id: "unstreamed-parallel-b", name: "read", input: { file_path: "b" } },
+    ])
+    mockMessages = [
+      toolTurn,
+      userDenyMessage("unstreamed-parallel-a"),
+      userDenyMessage("unstreamed-parallel-b"),
+      { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read a and b unstreamed" }],
+    }, "es-unstreamed-parallel")
+    const events = parseSSE(await response.text())
+    expect(events.filter(e => e.event === "error")).toHaveLength(0)
+    expect(events.filter(e => e.event === "content_block_start")
+      .map(e => (e.data as any).content_block.id))
+      .toEqual(["unstreamed-parallel-a", "unstreamed-parallel-b"])
+    expect(events.filter(e => e.event === "message_delta")
+      .map(e => (e.data as any).delta.stop_reason)).toEqual(["tool_use"])
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "a and b read" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read a and b unstreamed" },
+        { role: "assistant", content: [
+          { type: "tool_use", id: "unstreamed-parallel-a", name: "read", input: { file_path: "a" } },
+          { type: "tool_use", id: "unstreamed-parallel-b", name: "read", input: { file_path: "b" } },
+        ] },
+        { role: "user", content: [
+          { type: "tool_result", tool_use_id: "unstreamed-parallel-a", content: "A" },
+          { type: "tool_result", tool_use_id: "unstreamed-parallel-b", content: "B" },
+        ] },
+      ],
+    }, "es-unstreamed-parallel")
+    expect(second.status).toBe(200)
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBe(toolTurn.uuid)
+  })
+
+  it("stream: recovers a non-streamed capped call without a checkpoint when no result was delivered", async () => {
+    mockMessages = [
+      assistantMessage([
+        { type: "tool_use", id: "unstreamed-no-result", name: "read", input: { file_path: "x" } },
+      ]),
+      userDenyMessage("unstreamed-no-result"),
+    ]
+    mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x without a result" }],
+    }, "es-unstreamed-no-result")
+    const events = parseSSE(await response.text())
+    expect(events.filter(e => e.event === "error")).toHaveLength(0)
+    expect(events.filter(e => e.event === "content_block_start")
+      .map(e => (e.data as any).content_block.id)).toEqual(["unstreamed-no-result"])
+
+    mockTerminalError = undefined
+    mockMessages = [assistantMessage([{ type: "text", text: "fresh replay" }])]
+    const second = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "read x without a result" },
+        { role: "assistant", content: [{ type: "tool_use", id: "unstreamed-no-result", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "unstreamed-no-result", content: "X" }] },
+      ],
+    }, "es-unstreamed-no-result")
+    expect(second.status).toBe(200)
+    expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
+    expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
+  })
+
+  it("stream: does not recover a non-streamed turn when the budget was not the one-turn cap", async () => {
+    process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = "3"
+    try {
+      mockMessages = [
+        assistantMessage([
+          { type: "tool_use", id: "unstreamed-pinned", name: "read", input: { file_path: "x" } },
+        ]),
+        userDenyMessage("unstreamed-pinned"),
+        { type: "result", subtype: "error_max_turns", is_error: true, session_id: "test-session" },
+      ]
+      mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (3)")
+
+      const response = await post(app, {
+        model: "claude-sonnet-4-5",
+        max_tokens: 400,
+        stream: true,
+        tools: [READ_TOOL],
+        messages: [{ role: "user", content: "read x pinned" }],
+      }, "es-unstreamed-pinned")
+      const events = parseSSE(await response.text())
+      expect(capturedQueryParamsAll[0].options.maxTurns).toBe(3)
+      expect(events.filter(e => e.event === "error")).toHaveLength(1)
+      expect(events.filter(e => e.event === "message_start")).toHaveLength(0)
+    } finally {
+      delete process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
+    }
+  })
+
+  it("stream: leaves a non-streamed turn unopened when its failure is not recoverable", async () => {
+    mockMessages = [
+      assistantMessage([
+        { type: "tool_use", id: "unstreamed-exit-tool", name: "read", input: { file_path: "x" } },
+      ]),
+      userDenyMessage("unstreamed-exit-tool"),
+    ]
+    mockTerminalError = new Error("Claude Code process exited with code 1")
+
+    const response = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: true,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "read x then exit" }],
+    }, "es-unstreamed-exit")
+    const events = parseSSE(await response.text())
+    expect(events.filter(e => e.event === "error")).toHaveLength(1)
+    expect(events.filter(e => e.event === "message_start")).toHaveLength(0)
+    expect(events.filter(e => e.event === "content_block_start")).toHaveLength(0)
+  })
+
   it("stream: a capped checkpoint fork does not store parent rollback UUIDs", async () => {
     const parentToolTurn = assistantMessage([
       { type: "tool_use", id: "capped-fork-parent", name: "read", input: { file_path: "parent" } },

@@ -19,8 +19,9 @@ Object.assign(process.env, {
 })
 
 const requested = process.argv.find(arg => arg.startsWith('--case='))?.slice(7)
-const cases = requested ? [requested] : ['text', 'tool', 'control']
-assert(cases.every(value => ['text', 'tool', 'control'].includes(value)))
+const cases = requested ? [requested] : ['text', 'tool', 'tool-capped', 'control']
+assert(cases.every(value => ['text', 'tool', 'tool-capped', 'control'].includes(value)))
+const pinnedMaxTurns = process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
 let mode = 'text'
 let upstreamStreamed = 0
 let upstreamNonstreamed = 0
@@ -51,7 +52,7 @@ const upstream = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request
     const afterTool = body.messages?.some(message => Array.isArray(message.content)
       && message.content.some(block => block.type === 'tool_result'))
     const content = [{ type: 'text', text: 'MOCK_FALLBACK_TEXT' }]
-    if (mode === 'tool' && tool && !afterTool) content.push({ type: 'tool_use', id: 'toolu_fallback_weather', name: tool.name, input: { city: 'Paris' } })
+    if (mode.startsWith('tool') && tool && !afterTool) content.push({ type: 'tool_use', id: 'toolu_fallback_weather', name: tool.name, input: { city: 'Paris' } })
     return Response.json({ id: `msg_fallback_${upstreamNonstreamed}`, type: 'message', role: 'assistant', model: body.model,
       content, stop_reason: content.length > 1 ? 'tool_use' : 'end_turn', stop_sequence: null, usage })
   } catch (error) {
@@ -70,12 +71,17 @@ const tool = { name: 'get_weather', description: 'Get weather in a city.',
 try {
   for (const selected of cases) {
     mode = selected
+    // tool-capped keeps the default one-turn cap, so the CLI stops at
+    // max_turns after the denied call instead of completing its internal turn.
+    if (selected === 'tool-capped') delete process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS
+    else process.env.MERIDIAN_PASSTHROUGH_MAX_TURNS = pinnedMaxTurns
+    const isTool = selected.startsWith('tool')
     const beforeStreamed = upstreamStreamed
     const beforeNonstreamed = upstreamNonstreamed
     const response = await fetch(`http://127.0.0.1:${proxyPort}/v1/messages`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-meridian-agent': 'pi', 'x-session-affinity': crypto.randomUUID() },
       body: JSON.stringify({ model: 'haiku', max_tokens: 512, stream: true, tools: [tool],
-        messages: [{ role: 'user', content: selected === 'tool' ? 'Call get_weather for Paris.' : 'Reply with the fixture answer.' }] }),
+        messages: [{ role: 'user', content: isTool ? 'Call get_weather for Paris.' : 'Reply with the fixture answer.' }] }),
       signal: AbortSignal.timeout(120_000),
     })
     const raw = await response.text()
@@ -88,10 +94,10 @@ try {
       .map(event => event.delta.text).join('')
     assert(text.includes(selected === 'control' ? 'MOCK_STREAMED_TEXT' : 'MOCK_FALLBACK_TEXT'), raw.slice(0, 2000))
     const tools = events.filter(event => event.type === 'content_block_start' && event.content_block?.type === 'tool_use')
-    assert.equal(tools.length, selected === 'tool' ? 1 : 0, raw.slice(0, 2000))
-    if (selected === 'tool') assert.equal(tools[0].content_block.name, 'get_weather')
+    assert.equal(tools.length, isTool ? 1 : 0, raw.slice(0, 2000))
+    if (isTool) assert.equal(tools[0].content_block.name, 'get_weather')
     const stop = events.findLast(event => event.type === 'message_delta')?.delta.stop_reason
-    assert.equal(stop, selected === 'tool' ? 'tool_use' : 'end_turn', raw.slice(0, 2000))
+    assert.equal(stop, isTool ? 'tool_use' : 'end_turn', raw.slice(0, 2000))
     assert(upstreamStreamed > beforeStreamed, 'CLI did not request streaming')
     if (selected === 'control') assert.equal(upstreamNonstreamed - beforeNonstreamed, 0)
     else assert(upstreamNonstreamed > beforeNonstreamed, 'CLI did not take the nonstreaming fallback path')
