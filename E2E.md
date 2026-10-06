@@ -7433,6 +7433,23 @@ The wrapper observes the real SDK, and only the owned consumer dependency is
 replaced. It does not rewrite provider output or inspect SDK persistence. See
 [versions, commands, causal failures and limits](docs/maintenance/evidence/1246-claude-path-resolution.md).
 
+## Claude Code executable setting
+
+For changes to Settings, Claude Code Executable (`/settings/api/claude-executable`)
+or to how a turn picks its executable, build and run
+`scripts/e2e-claude-executable-setting.mjs` with `E2E_PROFILE_CLAUDE_DIR`
+(read-only credentials) and optional `E2E_SYSTEM_CLAUDE`/`E2E_CUSTOM_CLAUDE`.
+It starts the built Node server once and sends real turns on system, bundled
+and custom, switching through the settings API without a restart, then switches
+while a streaming turn is still answering. Require every exact receipt, procfs
+attribution of each turn's Claude Code process to the chosen executable only,
+matching `/health` and settings state, a 400 for an unusable custom path, the
+in-flight turn finishing on its original executable, the next turn on the new
+one, and zero residual processes. The turns carry no client headers, so this is
+HTTP evidence for logic every adapter shares, not an OpenCode-flow proof. Render
+the settings card at phone and desktop widths when it changes. See
+[the evidence record](docs/maintenance/evidence/claude-executable-setting.md).
+
 ## Antigravity catalogs above 128 client tools
 
 For catalog-validation changes, run `scripts/e2e-antigravity-tool-catalog.mjs`
