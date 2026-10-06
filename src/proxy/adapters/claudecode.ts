@@ -23,6 +23,7 @@ import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../tools"
 import { resolvePassthrough } from "../../env"
+import { isClaudeCodeProgressSummary } from "./claudecodeProgress"
 
 /**
  * Extract Claude Code's client-local working directory from the request's
@@ -219,10 +220,14 @@ function hasAutoModePermissions(system: unknown): boolean {
  * streamed session-start request, compaction and main turns all fall outside
  * it. If a future CLI changes that envelope or those stops, detection falls back to
  * today's behavior rather than isolating a real turn.
+ * An identified subagent's streaming progress caption has its own narrow
+ * shape in claudecodeProgress; it must also stay out of the working mapping.
  */
-export function isClaudeCodeAuxiliaryRequest(requestClass: string | undefined, body: unknown): boolean {
+export function isClaudeCodeAuxiliaryRequest(requestClass: string | undefined, body: unknown, agentId?: string): boolean {
   if (requestClass !== undefined) return requestClass === "auxiliary"
   if (!body || typeof body !== "object") return false
+  if (extractClaudeCodeSessionId(body) === undefined) return false
+  if (agentId !== undefined && CLAUDE_CODE_AGENT_ID.test(agentId) && isClaudeCodeProgressSummary(body)) return true
   const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown; system?: unknown }
   if (request.tools !== undefined && (!Array.isArray(request.tools) || request.tools.length > 0)) return false
   if ((request.stream !== undefined && request.stream !== false) || !hasAutoModePermissions(request.system)) return false
@@ -232,7 +237,7 @@ export function isClaudeCodeAuxiliaryRequest(requestClass: string | undefined, b
   )) {
     return false
   }
-  return extractClaudeCodeSessionId(body) !== undefined
+  return true
 }
 
 /**
@@ -327,7 +332,7 @@ export const claudeCodeAdapter: AgentAdapter = {
 
   /** See `isClaudeCodeAuxiliaryRequest`. */
   isAuxiliaryRequest(c: Context, body?: unknown): boolean {
-    return isClaudeCodeAuxiliaryRequest(c.req.header(CLAUDE_CODE_REQUEST_CLASS_HEADER), body)
+    return isClaudeCodeAuxiliaryRequest(c.req.header(CLAUDE_CODE_REQUEST_CLASS_HEADER), body, c.req.header(CLAUDE_CODE_AGENT_ID_HEADER))
   },
 
   /**

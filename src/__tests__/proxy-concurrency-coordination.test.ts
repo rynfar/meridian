@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:te
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
+import { progressBody, PROGRESS_WORK } from "./fixtures/claude-code-progress"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -582,6 +583,66 @@ describe("SDK and Session concurrency coordination", () => {
     expect((await mainP).status).toBe(200)
     expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(1)
     expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+  })
+
+  it("preserves a subagent's working mapping across a streaming progress summary", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-progress-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const key = claudeCodeSubagentKey(sessionId, agentId)
+    const firstP = app.fetch(claudeCodeSubagentRequest(PROGRESS_WORK, sessionId, agentId))
+    ;(await waitForControl(0)).release()
+    expect((await firstP).status).toBe(200)
+    const published = readSessionStoreSnapshot()[key]
+    expect(published?.messageCount).toBe(3)
+
+    const summaryP = app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.287", "x-claude-code-agent-id": agentId },
+      body: JSON.stringify(progressBody(sessionId)),
+    }))
+    ;(await waitForControl(1)).release()
+    const summary = await summaryP
+    expect(summary.status).toBe(200)
+    expect(await summary.text()).toContain("message_stop")
+    expect(readSessionStoreSnapshot()[key]).toEqual(published)
+
+    const nextP = app.fetch(claudeCodeSubagentRequest([
+      ...PROGRESS_WORK,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ], sessionId, agentId))
+    ;(await waitForControl(2)).release()
+    expect((await nextP).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  })
+
+  it("does not queue a progress summary behind its subagent's running turn", async () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-progress-lease-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const key = claudeCodeSubagentKey(sessionId, agentId)
+    const mainP = app.fetch(claudeCodeSubagentRequest(PROGRESS_WORK, sessionId, agentId))
+    const mainControl = await waitForControl(0)
+    const summaryP = app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.287", "x-claude-code-agent-id": agentId },
+      body: JSON.stringify(progressBody(sessionId)),
+    }))
+    try {
+      ;(await waitForControl(1)).release()
+      const summary = await summaryP
+      expect(summary.status).toBe(200)
+      await summary.text()
+      expect(readSessionStoreSnapshot()[key]).toBeUndefined()
+      expect(maxActiveQueries).toBe(2)
+    } finally {
+      mainControl.release()
+      await mainP
+    }
+    expect(readSessionStoreSnapshot()[key]?.messageCount).toBe(3)
   })
 
   it("treats a declared non-auxiliary request class as a normal turn", async () => {

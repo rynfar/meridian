@@ -1,0 +1,37 @@
+// The client-generated final text block observed alongside a tool_result.
+export const PROGRESS_PROMPT = `Describe your most recent action in 3-5 words using present tense (-ing). Name the file or function, not the branch. Do not use tools.
+
+Previous: "Reading the parser in config.ts" — say something NEW.
+
+Good: "Reading runAgent.ts"
+Good: "Fixing null check in validate.ts"
+Good: "Running auth module tests"
+Good: "Adding retry logic to fetchUser"
+
+Bad (past tense): "Analyzed the branch diff"
+Bad (too vague): "Investigating the issue"
+Bad (too long): "Reviewing full branch diff and AgentTool.tsx integration"
+Bad (branch name): "Analyzed adam/background-summary branch diff"`
+
+export const PROGRESS_WORK = [
+  { role: "user", content: "Read alpha.txt" },
+  { role: "assistant", content: [{ type: "tool_use", id: "read-1", name: "Read", input: { file_path: "alpha.txt" } }] },
+  { role: "user", content: [{ type: "tool_result", tool_use_id: "read-1", content: "ALPHA" }] },
+]
+
+export function progressBody(sessionId = "progress-session") {
+  return {
+    model: "claude-opus-4-6",
+    max_tokens: 128,
+    stream: true,
+    tools: [{ name: "Read", description: "Read a file", input_schema: { type: "object", properties: {} } }],
+    metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    messages: [
+      ...PROGRESS_WORK.slice(0, -1),
+      { role: "user", content: [
+        { type: "tool_result", tool_use_id: "read-1", content: "ALPHA" },
+        { type: "text", text: PROGRESS_PROMPT },
+      ] },
+    ],
+  }
+}
