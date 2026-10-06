@@ -425,7 +425,7 @@ describe("Integration: passthrough early stop", () => {
   })
 
   for (const fails of [false, true]) {
-    it(`isolates a ${fails ? "failing" : "successful"} progress caption from a pending tool checkpoint`, async () => {
+    it(`keeps the pending tool checkpoint for the next turn after a ${fails ? "failing" : "successful"} progress caption`, async () => {
       const sessionId = `progress-checkpoint-${crypto.randomUUID()}`
       const agentId = "checkpoint-agent"
       const key = `${sessionId}:agent:${agentId}`

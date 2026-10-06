@@ -1,4 +1,8 @@
-// NOTE: Claude Code-specific progress-caption wire shape (#1288).
+// NOTE: Claude Code-specific. A subagent periodically asks for a short caption
+// of its latest action by appending this instruction, as its own text block,
+// after the tool results of the last user message (#1288). The strings below
+// are the client's prompt, byte for byte; only the quoted previous caption
+// between them varies.
 const PROGRESS_PREFIX = "Describe your most recent action in 3-5 words using present tense (-ing). Name the file or function, not the branch. Do not use tools.\n\n"
 const PROGRESS_EXAMPLES = `Good: "Reading runAgent.ts"
 Good: "Fixing null check in validate.ts"
@@ -16,7 +20,13 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
-/** Match only the client caption appended after tool results, never quoted history. */
+/**
+ * True only for the exact caption request: a streaming request with tools
+ * whose last user message is one or more tool_result blocks (distinct ids)
+ * followed by the caption instruction as the final text block. The same text
+ * typed by a user, quoted inside a longer message, or returned inside a tool
+ * result does not match.
+ */
 export function isClaudeCodeProgressSummary(body: unknown): boolean {
   const request = record(body)
   if (request?.stream !== true || !Array.isArray(request.tools) || request.tools.length === 0) return false

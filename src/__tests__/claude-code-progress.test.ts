@@ -15,12 +15,12 @@ async function auxiliary(body: unknown, headers: Record<string, string> = {}) {
   return result.auxiliary
 }
 
-describe("Claude Code progress summaries", () => {
-  it("isolates the observed streaming tools-bearing summary", async () => {
+describe("Claude Code progress-caption classification", () => {
+  it("classifies a subagent progress caption as auxiliary", async () => {
     expect(await auxiliary(progressBody())).toBe(true)
   })
 
-  it("accepts the initial summary without a previous caption", async () => {
+  it("classifies the first caption, which quotes no previous caption", async () => {
     const body = progressBody()
     body.messages.at(-1)!.content = [
       { type: "tool_result", tool_use_id: "read-1", content: "ALPHA" },
@@ -29,12 +29,12 @@ describe("Claude Code progress summaries", () => {
     expect(await auxiliary(body)).toBe(true)
   })
 
-  it("honors an explicit request class over shape detection", async () => {
+  it("lets an explicit request class override shape detection", async () => {
     expect(await auxiliary(progressBody(), { "x-claude-code-request-class": "main" })).toBe(false)
     expect(await auxiliary({}, { "x-claude-code-request-class": "auxiliary" })).toBe(true)
   })
 
-  it("requires an identified subagent and the observed streaming shape", async () => {
+  it("requires a well-formed agent id, a session key, streaming and tools", async () => {
     for (const id of ["", "bad id", "x".repeat(129)]) {
       expect(await auxiliary(progressBody(), { "x-claude-code-agent-id": id })).toBe(false)
     }
@@ -43,7 +43,7 @@ describe("Claude Code progress summaries", () => {
     }
   })
 
-  it("does not isolate a normal instruction, a quotation, or text inside a tool result", async () => {
+  it("does not classify the caption text typed, quoted, extended, or inside a tool result", async () => {
     for (const messages of [
       [{ role: "user", content: PROGRESS_PROMPT }],
       [{ role: "user", content: [{ type: "text", text: PROGRESS_PROMPT }] }],

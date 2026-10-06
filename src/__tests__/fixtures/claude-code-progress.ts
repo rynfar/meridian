@@ -1,4 +1,6 @@
-// The client-generated final text block observed alongside a tool_result.
+// A Claude Code subagent progress-caption request (#1288). PROGRESS_PROMPT is
+// the client's instruction verbatim, sent as the final text block after the
+// tool_result of the working turn.
 export const PROGRESS_PROMPT = `Describe your most recent action in 3-5 words using present tense (-ing). Name the file or function, not the branch. Do not use tools.
 
 Previous: "Reading the parser in config.ts" — say something NEW.
