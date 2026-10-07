@@ -1,5 +1,74 @@
 # Upstream review handoff
 
+## Oldest-first continuation (2026-10-07)
+
+The owner requested oldest PRs and issues first. Use creation date ascending
+across Meridian and managed scrub repositories, while respecting drafts,
+explicit no-review requests and existing owner holds. This supersedes older
+queue-order suggestions below. The refreshed inventory contained 18 Meridian
+issues and 24 Meridian PRs, plus three scrub PRs and no scrub issues. These are
+dated observations; refresh before selecting another item.
+
+- **Issue [650](https://github.com/rynfar/meridian/issues/650), July 17:**
+  receiver and sender workflows are delivered. Fresh secret-name metadata shows
+  `MERIDIAN_DISPATCH_TOKEN` absent from Hermes, OpenCode and Pi scrub repositories.
+  It remains held for owner provisioning of the narrowly scoped credential and
+  a witnessed sender-to-receiver dispatch. Do not export a broad CLI credential
+  as a substitute.
+- **Issue [769](https://github.com/rynfar/meridian/issues/769), August 7:**
+  the published OpenClaw scrub does not establish that the reporter's newer,
+  undisclosed trigger is handled. The latest owner hold requires a minimized
+  failing input or private, version-matched off/on/off verification. Do not add
+  speculative rules or close the report because the plugin exists.
+- **Issues [917](https://github.com/rynfar/meridian/issues/917) and
+  [933](https://github.com/rynfar/meridian/issues/933), August 31/September 4:**
+  the two last cited examples have concrete time-budget explanations. The
+  [tool-cache failure](https://github.com/rynfar/meridian/actions/runs/34315620193/job/102351097458)
+  explicitly expired at 5,003 ms under Bun's implicit five-second timeout;
+  the older claim that it had no timing bound was incorrect. The
+  [extra-usage failure](https://github.com/rynfar/meridian/actions/runs/34315145910/job/102349683150)
+  received 1,992 ms against the obsolete 500 ms assertion. Merged #990
+  (`92698147221c02afe89496906617f963b392bea6`), an ancestor of current main,
+  supplies the 30-second suite bound and a ten-second amplified-backoff control
+  with a five-second observation bound. These corrections do not explain the
+  [remaining fast concurrent failure](https://github.com/rynfar/meridian/actions/runs/33907044767/job/101134309533):
+  at #935 head `0d863bcf62a31317e202e668f0c22bb291b445d4`, one of three
+  headerless requests returned 500 at 132 ms after all three logged usage. Its
+  response body was not captured. The same head's later success cannot establish
+  a fix. Both issues remain open for that cause and the original unclassified
+  fast failures. Current main `6636c0da` passed the focused original HTTP test;
+  this is current mocked behavior, not a retrospective diagnosis.
+  The corrected `src/__tests__/integration.test.ts` fixture holds three SDK
+  writers, verifies distinct targets and durable mappings, and checks both
+  simultaneous and reverse-order completion plus released ownership. A
+  synthetic SDK-error control makes both versions reject HTTP 500: the old
+  fixture omits its error body, while the corrected fixture retains the body,
+  target, request index and cleanup facts. This demonstrates diagnostic capture,
+  not reproduction of the historical cause. The shared ten-second main-work
+  budget leaves three bounded five-second cleanup phases within the explicit
+  thirty-second test limit; unfinished work is recorded without claiming a join.
+- **Issue [1011](https://github.com/rynfar/meridian/issues/1011), September 10:**
+  the remaining authored `c5804275` commit is still owner-deferred. It changes
+  empty capped-output guarantees and stream/nonstream parity; oldest-first
+  ordering does not supply the missing contract decision.
+- **Oldest nondraft scrub PR
+  [OpenCode 18](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/18),
+  September 27:** source `03d2f561` remains conflicted and held for the recorded
+  Claude-only correction and affected-client proof. Scrub release PRs Pi 15 and
+  OpenCode 20 still need separate release authorization.
+- **Oldest nondraft Meridian PR
+  [1176](https://github.com/rynfar/meridian/pull/1176), September 28:**
+  independent full-diff review of `f552804e061a9aaca8ef371779f1c9e093e2ec5f`
+  retains the existing product/evidence hold. Meridian supports Claude and
+  Antigravity serving; GPT request identifiers are answered by Claude and remain
+  unpriced without overrides. The 25 GPT catalog entries and daily updater
+  cannot establish an OpenAI-serving cost feature. Revisit when a supported
+  OpenAI backend supplies observed served-model and normalized usage facts,
+  then verify prices, partial-cost display and the real affected flow. No new
+  public-plugin approval requirement was established for this catalog.
+
+This pass does not authorize a release or close the remaining CI issues.
+
 ## Current continuation — 2026-10-07
 
 Pi continuation #1290/#1289 was delivered by [#1296](https://github.com/rynfar/meridian/pull/1296),
@@ -22,8 +91,12 @@ Linux JSON/SSE before/after, all four E41 modes, concurrent publication lifetime
 real/recurrent timer controls and built native OpenCode with both plugins.
 Required final-head CI passed; the closed PR's final body retains the receipt.
 
-Current delivery: [source #1285](https://github.com/rynfar/meridian/pull/1285),
-unchanged `08ddd8b061a2d271f8af397b83baf2a33f4deb4c`. The authored incorporation
+Auth-status [source #1285](https://github.com/rynfar/meridian/pull/1285),
+unchanged `08ddd8b061a2d271f8af397b83baf2a33f4deb4c`, was delivered by
+[#1300](https://github.com/rynfar/meridian/pull/1300), merged as
+`30c738d77d5e7839577ebc5d144b74da4590e319`. The landed tree
+`0fef592183db00ce0bc81c988d51124b76bd374a` equals the validated delivery tree;
+contributor credit and unchanged-source closure are verified. The authored incorporation
 is `b67c2f8a6e20aaa3e0ee0b7aa0ea792f1d09351b`, with separate maintainer
 ownership/resolver/diagnostic corrections. Tested executable `065e7c7f620f871774a4fe0caa2497950818fd6e`
 passes npm **5,433 / 35 skip / 0 fail**, standalone typecheck/build, both same-native
@@ -32,15 +105,19 @@ package controls. [Durable proof and limitations](evidence/1285-auth-status.md)
 include the committed auth-only harness, Darwin arm64 CLI 2.1.284/SDK 0.2.141
 identity, joined cleanup and retained first failures. Independent scoped review
 accepts the production, source/package proof, final local checks and documents
-with no remaining material finding. Required delivery-head CI remains before
-credited integration and fresh unchanged-source closure. This auth-only flow makes no model/client claim;
+with no remaining material finding. All six executed checks passed on delivery
+head `ae470d511f1f170168c7b95140ba0bb56d99d179`, including required `test`,
+with the expected changelog skip. This auth-only flow makes no model/client claim;
 older whole-OS/controller holds are separate.
 
 [Transcript source #1261](https://github.com/rynfar/meridian/pull/1261) remains
-deferred at unchanged `7475d08c652332aa1b9b23cbc525024bef83ab28`, despite green CI:
+open at new head `b999654d0b5562c067dbc376b4d578ff9168be68` on the October 7
+refresh. Its prior head `7475d08c652332aa1b9b23cbc525024bef83ab28` was deferred:
 [the concrete review](evidence/1261-transcript-sweep-review.md) retains pin/lease,
-admission-race and destructive-child join findings. Revisit a corrected ownership,
-pin/admission/join design with real affected-flow proof. Its watcher is removed.
+admission-race and destructive-child join findings. That old review does not
+validate the new head. Revisit the full current ownership, pin/admission/join
+design with real affected-flow proof when its place in the oldest-first queue
+is reached. Its watcher is removed.
 Other historical Sonnet/MCP/SQLite/backlog holds retain their own scopes;
 preparation completion does not grant their outstanding live acceptance.
 
