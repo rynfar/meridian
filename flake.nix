@@ -80,6 +80,8 @@
               meridian = pkgs.callPackage ./nix/package.nix { };
             };
 
+            checks.home-module = import ./nix/tests/hm-module.nix { inherit pkgs; };
+
             legacyPackages.meridianPlugins = pipe inputs [
               (filterAttrs (pname: _: hasPrefix "meridian-plugin-" pname))
               (mapAttrs' (

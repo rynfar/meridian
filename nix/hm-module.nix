@@ -33,6 +33,7 @@ let
     path
     port
     str
+    strMatching
     submodule
     ;
   cfg = config.services.meridian;
@@ -142,6 +143,22 @@ in
       description = "Extra environment variables passed to the Meridian service.";
     };
 
+    unsetEnvironment = mkOption {
+      type = listOf (strMatching "[A-Za-z_][A-Za-z0-9_]*");
+      default = [ ];
+      example = [
+        "ANTHROPIC_API_KEY"
+        "ANTHROPIC_BASE_URL"
+        "CLAUDE_CODE_OAUTH_TOKEN"
+      ];
+      description = ''
+        Environment variable names removed from the service's final environment,
+        including values inherited from the systemd user manager. This is opt-in;
+        leave empty for existing API-key, OAuth-token and profile configurations.
+        Removal takes precedence over `environment` and generated settings.
+      '';
+    };
+
     opencode.pluginPath = mkOption {
       type = str;
       default = "${cfg.package}/lib/meridian/dist/meridian";
@@ -162,11 +179,13 @@ in
         ExecStart = getExe cfg.package;
         Restart = "on-failure";
         RestartSec = 5;
+        UnsetEnvironment = cfg.unsetEnvironment;
 
         Environment =
           let
             # camelCase settings name -> SNAKE_CASE fragment ("retentionDays" -> "RETENTION_DAYS")
-            toSnake = s: concatStrings (map (c: if elem c upperChars then "_${c}" else c) (stringToCharacters s));
+            toSnake =
+              s: concatStrings (map (c: if elem c upperChars then "_${c}" else c) (stringToCharacters s));
             envName = attrPath: "MERIDIAN_" + toUpper (concatStringsSep "_" (map toSnake attrPath));
             # Flatten cfg.settings into env assignments, skipping nulls.
             # Restricted to lib functions that have existed for years so the
