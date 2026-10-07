@@ -681,6 +681,40 @@ describe("SDK and Session concurrency coordination", () => {
     )
   })
 
+  // An SDK MCP server instance accepts one transport at a time: a second query
+  // connecting the same instance fails and runs without the client's tools.
+  it("gives a progress caption its own tool server while the working turn keeps the session's", async () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `progress-mcp-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const toolServer = (index: number) => Object.values((capturedParams[index]?.options as any)?.mcpServers ?? {})
+      .find((server: any) => server?.type === "sdk" && server?.name !== "opencode")
+    const answered = [...PROGRESS_WORK, { role: "assistant", content: "ok" }]
+    const firstP = app.fetch(claudeCodeCaptionRequest(PROGRESS_WORK, sessionId, agentId))
+    ;(await waitForControl(0)).release()
+    await (await firstP).text()
+
+    const workP = app.fetch(claudeCodeCaptionRequest([...answered, { role: "user", content: "continue" }], sessionId, agentId))
+    const work = await waitForControl(1)
+    const captionP = app.fetch(claudeCodeCaptionRequest(progressBody(sessionId).messages, sessionId, agentId))
+    ;(await waitForControl(2)).release()
+    await (await captionP).text()
+    work.release()
+    await (await workP).text()
+
+    expect(toolServer(0)).toBeDefined()
+    expect(toolServer(1)).toBe(toolServer(0))
+    expect(toolServer(2)).toBeDefined()
+    expect(toolServer(2)).not.toBe(toolServer(1))
+
+    const nextP = app.fetch(claudeCodeCaptionRequest([...answered, { role: "user", content: "continue" }, { role: "assistant", content: "ok" }, { role: "user", content: "next" }], sessionId, agentId))
+    ;(await waitForControl(3)).release()
+    await (await nextP).text()
+    expect(toolServer(3)).toBe(toolServer(0))
+  })
+
   it("does not queue a progress summary behind its subagent's running turn", async () => {
     process.env.MERIDIAN_MAX_CONCURRENT = "2"
     resetProcessSdkSemaphoreForTests()
