@@ -121,6 +121,74 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi
   return extractClaudeCodeSessionIdentity(body)?.parentSessionId
 }
 
+/** The agent context Claude Code runs a request under; absent on the main conversation. */
+export const CLAUDE_CODE_AGENT_ID_HEADER = "x-claude-code-agent-id"
+
+/** Agent ids are short opaque tokens. Anything else is ignored, never keyed. */
+const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
+
+/**
+ * The session key for one Claude Code request.
+ *
+ * NOTE: agent-specific (claude-code). An Agent-tool subagent sends its parent
+ * conversation's `metadata.user_id` session id while running a multi-turn
+ * conversation of its own, and background subagents overlap the parent's
+ * turns. Under one key each history read as `unrelated-history` to the other,
+ * so neither resumed, and both queued on one turn lease. The CLI stamps
+ * `x-claude-code-agent-id` on every subagent request — stable across that
+ * subagent's turns, distinct between subagents, and sent without gateway hint
+ * headers (verified against 2.1.287) — so a subagent is keyed
+ * `<sid>:agent:<agentId>`. The main conversation, and any request whose agent
+ * id is missing or malformed, keeps the bare session id. An agent id never
+ * creates a key on its own: without a metadata session id there is none.
+ *
+ * A backgrounded main session (and a fork-of-main subagent) also gets a fresh
+ * agent id but carries the whole transcript, so its first request under the
+ * new key is one full-history replay; later turns resume on that key.
+ */
+export function claudeCodeSessionKey(agentId: string | undefined, body: unknown): string | undefined {
+  const sessionId = extractClaudeCodeSessionId(body)
+  if (sessionId === undefined) return undefined
+  if (agentId === undefined || !CLAUDE_CODE_AGENT_ID.test(agentId)) return sessionId
+  return `${sessionId}:agent:${agentId}`
+}
+
+/** Claude Code's own request classification (`main`, `auxiliary`, `compaction`, …). */
+export const CLAUDE_CODE_REQUEST_CLASS_HEADER = "x-claude-code-request-class"
+
+/** The auto-mode classifier's XML verdicts end at these tags. */
+const CLASSIFIER_STOP_SEQUENCES = new Set(["</block>", "</severity>"])
+
+/**
+ * Is this a Claude Code side call under the conversation's session id?
+ *
+ * NOTE: agent-specific (claude-code). The auto-mode permission classifier
+ * sends the conversation's own `metadata.user_id` session id with a two-message
+ * transcript of its own. Read as a turn, it classifies `unrelated-history` and
+ * overwrites the conversation's mapping, so the next real turn cannot resume.
+ *
+ * The CLI names its request class in `x-claude-code-request-class`, but sends
+ * it only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL,
+ * or under a remote flag — through Meridian it is normally absent. When present
+ * it decides outright. Otherwise the classifier's shape does: a session key,
+ * no tools, not streamed, and a stop sequence closing its verdict tag. The
+ * streamed session-start request, compaction and main turns all fall outside
+ * it. If a future CLI changes those stop sequences, detection falls back to
+ * today's behavior rather than isolating a real turn.
+ */
+export function isClaudeCodeAuxiliaryRequest(requestClass: string | undefined, body: unknown): boolean {
+  if (requestClass !== undefined) return requestClass === "auxiliary"
+  if (!body || typeof body !== "object") return false
+  const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown }
+  if (Array.isArray(request.tools) && request.tools.length > 0) return false
+  if (request.stream === true) return false
+  if (!Array.isArray(request.stop_sequences)) return false
+  if (!request.stop_sequences.some(stop => typeof stop === "string" && CLASSIFIER_STOP_SEQUENCES.has(stop))) {
+    return false
+  }
+  return extractClaudeCodeSessionId(body) !== undefined
+}
+
 /**
  * Is this request from the Claude Code CLI, whatever adapter is handling it?
  *
@@ -167,10 +235,11 @@ export const claudeCodeAdapter: AgentAdapter = {
 
   /**
    * Claude Code embeds its conversation ID in metadata.user_id rather than a
-   * session-affinity header. Fall back to fingerprint resume when absent.
+   * session-affinity header; an Agent-tool subagent adds its agent id (see
+   * `claudeCodeSessionKey`). Fall back to fingerprint resume when absent.
    */
-  getSessionId(_c: Context, body?: unknown): string | undefined {
-    return extractClaudeCodeSessionId(body)
+  getSessionId(c: Context, body?: unknown): string | undefined {
+    return claudeCodeSessionKey(c.req.header(CLAUDE_CODE_AGENT_ID_HEADER), body)
   },
 
   /**
@@ -179,6 +248,20 @@ export const claudeCodeAdapter: AgentAdapter = {
    */
   getParentSessionId(_c: Context, body?: unknown): string | undefined {
     return extractClaudeCodeParentSessionId(body)
+  },
+
+  /**
+   * The conversation's own `metadata.user_id` session id: the key its main
+   * requests use, and the root its Agent-tool subagents (keyed apart by agent
+   * id) share for account routing.
+   */
+  getRootSessionId(_c: Context, body?: unknown): string | undefined {
+    return extractClaudeCodeSessionId(body)
+  },
+
+  /** See `isClaudeCodeAuxiliaryRequest`. */
+  isAuxiliaryRequest(c: Context, body?: unknown): boolean {
+    return isClaudeCodeAuxiliaryRequest(c.req.header(CLAUDE_CODE_REQUEST_CLASS_HEADER), body)
   },
 
   /**

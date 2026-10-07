@@ -341,6 +341,8 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 |--------|-------------|
 | `getSessionId(c)` | Extract session ID from request headers |
 | `getAgentMode(c, body)` | Normalize an adapter-specific primary/subagent declaration |
+| `getRootSessionId(c, body)` | Optional conversation root for account routing (sticky and priority assignment): a subagent with a session key of its own stays on its parent's account (Claude Code's Agent tool) |
+| `isAuxiliaryRequest(c, body)` | Declare a side call that shares the conversation's session key: it skips session lookup, publication and the turn lease (Claude Code's auto-mode classifier) |
 | `extractWorkingDirectory(body)` | Parse working directory from request body |
 | `normalizeContent(content)` | Normalize message content for hashing |
 | `getBlockedBuiltinTools()` | SDK tools replaced by agent's MCP equivalents |
@@ -372,6 +374,16 @@ lineage and one turn lease, which cost the user's first turn either a 400
 therefore appends the agent name for non-primary agents (`ses_x#title`), leaving
 the primary agent's key byte-identical to the header. An adapter whose client
 multiplexes agents over one session id needs the same treatment.
+
+Claude Code is the second such client: its Agent-tool subagents send the
+conversation's own `metadata.user_id` session id, so `claudeCodeAdapter`
+keys a request carrying `x-claude-code-agent-id` as `<sid>:agent:<agentId>`
+and leaves the main conversation on the bare `<sid>`. `getRootSessionId`
+keeps those subagents on the conversation's account under sticky and
+priority routing. Known limitation: a backgrounded main session (and a
+fork-of-main subagent) gets a fresh agent id but carries the whole
+transcript, so its first request under the new key is one full-history
+replay; later turns resume normally.
 
 **A session header is identity, never authentication.** Polytoken's native
 `X-Polytoken-Session` header is the cleanest example: the trimmed header value
