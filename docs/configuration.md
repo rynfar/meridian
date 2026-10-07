@@ -805,8 +805,9 @@ request-scoped context contract or a way to make content disappear from an
 active model session. In particular, do not use it for secrets or instructions
 that must be forgotten. For Pi and generic passthrough, persist advisory
 snapshots in append-only history when client and SDK context must agree. An
-explicit opt-in contract with defined retention semantics remains under
-discussion in [#1068](https://github.com/rynfar/meridian/issues/1068).
+explicit request-scoped context API was declined in
+[#1068](https://github.com/rynfar/meridian/issues/1068); append-only advisory
+snapshots remain the supported approach.
 
 ### Reading the log
 

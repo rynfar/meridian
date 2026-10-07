@@ -60,9 +60,12 @@ These are dated observations; refresh before selecting another item.
   empty capped-output guarantees and stream/nonstream parity; oldest-first
   ordering does not supply the missing contract decision.
 - **Issue [1068](https://github.com/rynfar/meridian/issues/1068), September 19:**
-  the owner's disposition choice remains pending. Existing append-only guidance
-  and the retention-contract/actual Pydantic AI acceptance gates remain unchanged;
-  no closure or new interface decision is inferred.
+  the owner chose the shipped append-only approach on October 7. The request
+  for a new context API was declined and closed as not planned at **22:40:55 UTC**.
+  [#1163](https://github.com/rynfar/meridian/pull/1163) remains the delivered
+  guidance: earlier advisory text stays in the resumed SDK session. This closure
+  does not claim replacement/removal semantics or a live Pydantic AI cache
+  benchmark. The older open-design statements below are historical.
 - **Issue [1073](https://github.com/rynfar/meridian/issues/1073), September 19:**
   the official-CLI macOS implementation and its recorded expansions already
   landed. A bounded internal correction now requires boolean `useG1Credits`;
