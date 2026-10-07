@@ -6341,9 +6341,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // append to, and emitting blocks would be malformed SSE. That case
               // — the SDK yielding nothing client-visible at all — is already
               // covered by the retry wrapper's didYieldClientEvent check.
+              //
+              // An auxiliary request has no session of its own to fork, and
+              // must not touch the working one (it never owns that mapping, so
+              // the fork could not be prepared anyway). Its silent turn is
+              // delivered as is; a caption without text is simply not shown.
               if (
                 !streamClosed &&
                 messageStartEmitted &&
+                independentCause !== "auxiliary-request" &&
                 shouldAttemptRecovery({
                   outcome: preRecoveryOutcome,
                   alreadyAttempted: silentTurnRecoveryAttempted,
