@@ -47,10 +47,34 @@ dated observations; refresh before selecting another item.
   not reproduction of the historical cause. The shared ten-second main-work
   budget leaves three bounded five-second cleanup phases within the explicit
   thirty-second test limit; unfinished work is recorded without claiming a join.
+  [Delivery #1306](https://github.com/rynfar/meridian/pull/1306) is now merged as
+  `eb88f9894229f70be453ca2d83ab36643b1a142b`, after six successful checks on
+  `486240609e2e1d9f5672656e62acb84fcfb28463`. The merged tree
+  `fb95ec3dc59506d2d1b009f61af14063471ca63c` matches the tested tree and human
+  authorship is verified. It improves diagnostic evidence; neither CI issue is
+  closed by that test delivery.
 - **Issue [1011](https://github.com/rynfar/meridian/issues/1011), September 10:**
   the remaining authored `c5804275` commit is still owner-deferred. It changes
   empty capped-output guarantees and stream/nonstream parity; oldest-first
   ordering does not supply the missing contract decision.
+- **Issue [1073](https://github.com/rynfar/meridian/issues/1073), September 19:**
+  the official-CLI macOS implementation and its recorded expansions already
+  landed. A bounded internal correction now requires boolean `useG1Credits`;
+  only explicit false passes the existing subscription-only checks. Sixteen
+  unchanged-runtime fixture cases reproduce missing/falsy acceptance. Corrected
+  probe/backend suites pass 39/72 tests, and all local gates on the pre-rebase
+  source pass **5,451 / 35 skip / 0 fail**, typecheck and build.
+  Official agy 1.2.7 / Gemini 3.8 Flash Low / actual Pi 0.72.1 on macOS arm64
+  passes text, client-tool roundtrip, completed-history replay and exact-file
+  streaming client read/write. The native executable remains hash/version
+  identical before/after. The committed account-settings probe disables
+  auto-update and checks executable hashes around both read-only commands;
+  only whitelisted setting types/flags are retained. First self-update and
+  local API-key fixture failures remain qualified in
+  [the durable proof](evidence/1073-subscription-settings.md).
+  Final-head rebase/CI delivery remains open; broader Linux/Windows and
+  reliability acceptance keeps #1073 open. No new owner approval is needed for
+  this internal enforcement of its already approved subscription boundary.
 - **Oldest nondraft scrub PR
   [OpenCode 18](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/18),
   September 27:** source `03d2f561` remains conflicted and held for the recorded
