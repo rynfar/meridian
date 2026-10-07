@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readAgProbe } from '../proxy/backends/antigravityProbe'
 import { AntigravityRuntime } from '../proxy/backends/antigravityRuntime'
+import { parseAgRequest } from '../proxy/backends/antigravityProtocol'
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
-function fixture(mode = 'once') {
+function fixture(mode = 'once', settings?: Record<string, unknown>) {
   const root = mkdtempSync(join(tmpdir(), 'agy-probe-')); roots.push(root)
   const executable = join(root, 'probe.cjs')
   writeFileSync(executable, `#!/usr/bin/env node
@@ -30,11 +31,12 @@ else {
      const old=Number(fs.readFileSync(path.join(root,'old-pid'),'utf8'));
      try {process.kill(old,0);process.exit(43);} catch(e) {if(e.code !== 'ESRCH') throw e;}
    }
-   console.log(process.argv[2] === 'models' ? 'gemini-test\\tGemini Test' : mode === 'malformed' ? 'not-json' : JSON.stringify({command:{data:{config:{customModelsConfig:{},modelProvider:mode === 'provider' ? 'api' : '',useG1Credits:mode === 'paid'}}}}));
+   const settings=process.env.AG_PROBE_SETTINGS ? JSON.parse(process.env.AG_PROBE_SETTINGS) : {customModelsConfig:{},modelProvider:mode === 'provider' ? 'api' : '',useG1Credits:mode === 'paid'};
+   console.log(process.argv[2] === 'models' ? 'gemini-test\\tGemini Test' : mode === 'malformed' ? 'not-json' : JSON.stringify({command:{data:{config:settings}}}));
  }
 }
 `, { mode: 0o755 })
-  const env = { ...process.env, AG_PROBE_ROOT: root, AG_PROBE_MODE: mode }
+  const env = { ...process.env, AG_PROBE_ROOT: root, AG_PROBE_MODE: mode, AG_PROBE_SETTINGS: settings === undefined ? '' : JSON.stringify(settings) }
   const controller = new AbortController()
   return { executable, env, controller, options: { env, signal: controller.signal, timeoutMs: 1000, killGraceMs: 50 }, ready: () => existsSync(join(root, 'count')), calls: () => readFileSync(join(root, 'calls'), 'utf8').trim().split('\n').map(line => JSON.parse(line) as { args: string[]; pid: number }) }
 }
@@ -156,6 +158,67 @@ describe.skipIf(process.platform === 'win32')('Antigravity read-only subscriptio
       expect(f.calls().filter(call => call.args[1] === '/config')).toHaveLength(2)
     } finally { await runtime.close() }
   })
+  it('accepts explicit false credits in default settings and rechecks account authorization', async () => {
+    const f = fixture('success', { customModelsConfig: {}, modelProvider: '', useG1Credits: false })
+    const runtime = new AntigravityRuntime({ executable: f.executable })
+    Object.assign(runtime.childEnv, f.env)
+    try {
+      await runtime.verifyAccount()
+      expect(await runtime.availableModels()).toEqual(['gemini-test'])
+      await runtime.verifyAccount()
+      expect(f.calls().filter(call => call.args[1] === '/config')).toHaveLength(3)
+      expect(f.calls().filter(call => call.args[0] === 'models')).toHaveLength(1)
+      expect(runtime.runs.size).toBe(0)
+    } finally { await runtime.close() }
+  })
+  it('accepts the observed 1.2.7 default settings shape with explicit false credits', async () => {
+    const f = fixture('success', { customModelsConfig: null, modelProvider: '', useG1Credits: false, gcp: null })
+    const runtime = new AntigravityRuntime({ executable: f.executable })
+    Object.assign(runtime.childEnv, f.env)
+    try {
+      expect(await runtime.availableModels()).toEqual(['gemini-test'])
+      expect(runtime.cliVersion).toBe('1.2.7')
+      expect(f.calls().map(call => call.args[0])).toEqual(['--version', '-p', 'models'])
+      expect(runtime.runs.size).toBe(0)
+    } finally { await runtime.close() }
+  })
+  const invalidCredits = [
+    { label: 'absent', settings: { customModelsConfig: {}, modelProvider: '' } },
+    ...[null, 0, ''].map(useG1Credits => ({ label: JSON.stringify(useG1Credits), settings: { customModelsConfig: {}, modelProvider: '', useG1Credits } })),
+  ]
+  for (const { label, settings } of invalidCredits) {
+    for (const operation of ['account validation', 'model discovery', 'generation admission']) {
+      it(`rejects ${label} credits before ${operation} without retrying invalid configuration`, async () => {
+        const f = fixture('success', settings), runtime = new AntigravityRuntime({ executable: f.executable })
+        Object.assign(runtime.childEnv, f.env)
+        try {
+          const pending = operation === 'account validation' ? runtime.verifyAccount()
+            : operation === 'model discovery' ? runtime.availableModels()
+            : runtime.create(parseAgRequest({ model: 'gemini-test', messages: [{ role: 'user', content: 'Fixture admission check' }] }))
+          await expect(pending).rejects.toThrow()
+          expect(f.calls().map(call => call.args[0])).toEqual(['--version', '-p'])
+          expect(f.calls().filter(call => call.args[1] === '/config')).toHaveLength(1)
+          expect(runtime.runs.size).toBe(0)
+          expect(runtime.preparing).toBe(0)
+        } finally { await runtime.close() }
+      })
+    }
+    it(`freshly verifies corrected explicit false settings after rejecting ${label} credits`, async () => {
+      const f = fixture('success', settings), runtime = new AntigravityRuntime({ executable: f.executable })
+      Object.assign(runtime.childEnv, f.env)
+      try {
+        await expect(runtime.verifyAccount()).rejects.toThrow()
+        expect(f.calls().map(call => call.args[0])).toEqual(['--version', '-p'])
+        runtime.childEnv.AG_PROBE_SETTINGS = JSON.stringify({ customModelsConfig: {}, modelProvider: '', useG1Credits: false })
+        await runtime.verifyAccount()
+        expect(f.calls().map(call => call.args[0])).toEqual(['--version', '-p', '--version', '-p'])
+        expect(await runtime.availableModels()).toEqual(['gemini-test'])
+        expect(f.calls().filter(call => call.args[1] === '/config')).toHaveLength(3)
+        expect(f.calls().filter(call => call.args[0] === 'models')).toHaveLength(1)
+        expect(runtime.runs.size).toBe(0)
+      } finally { await runtime.close() }
+    })
+  }
   for (const mode of ['version', 'provider', 'paid', 'malformed']) it(`does not retry invalid ${mode} validation`, async () => {
     const f = fixture(mode), runtime = new AntigravityRuntime({ executable: f.executable })
     Object.assign(runtime.childEnv, f.env)

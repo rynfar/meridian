@@ -17,6 +17,11 @@ const config = join(root, "pi-config"), project = join(root, "client")
 await mkdir(config); await mkdir(project)
 console.log(`Artifacts: ${root}`)
 const externalUrl = process.env.E2E_MERIDIAN_URL
+// The owned service uses a fixture key. An external service uses the key
+// explicitly provided by its caller, without copying it into client config.
+const apiKey = externalUrl ? process.env.MERIDIAN_API_KEY : 'local-fixture'
+if (!externalUrl) process.env.MERIDIAN_API_KEY = apiKey
+const headers = { 'content-type': 'application/json', ...(apiKey ? { 'x-api-key': apiKey } : {}) }
 const proxy = externalUrl ? undefined : await startProxyServer({ backend: "antigravity", port: 0, silent: true, antigravity: { allowToolBridge: true, executable: process.env.MERIDIAN_AGY_PATH } })
 if (proxy && !proxy.server.listening) await once(proxy.server, "listening")
 const address = proxy?.server.address()
@@ -32,7 +37,7 @@ try {
   assert.equal(health.backend, "antigravity", JSON.stringify(health))
   assert.equal(health.auth.provider, "agy-account")
   const send = async body => {
-    const response = await fetch(url + "/v1/messages", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model, max_tokens: 1024, ...body }), signal: AbortSignal.timeout(90000) })
+    const response = await fetch(url + "/v1/messages", { method: "POST", headers, body: JSON.stringify({ model, max_tokens: 1024, ...body }), signal: AbortSignal.timeout(90000) })
     const result = await response.json()
     assert.equal(response.status, 200, JSON.stringify(result))
     return result
@@ -67,7 +72,7 @@ try {
       let raw = ""; for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
       observed.push(body)
-      const response = await fetch(url + req.url, { method: "POST", headers: { "content-type": "application/json" }, body: raw })
+      const response = await fetch(url + req.url, { method: "POST", headers, body: raw })
       res.writeHead(response.status, { "content-type": response.headers.get("content-type") })
       Readable.fromWeb(response.body).pipe(res)
     } catch (error) { res.writeHead(500); res.end(String(error)) }

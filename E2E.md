@@ -205,6 +205,17 @@ opt-in gate consumes account quota. `E2E_AGY_MODEL` selects an actual account
 model slug; `MERIDIAN_AGY_PATH` and `E2E_PI_BIN` select installed binaries.
 It never uses a Gemini API key or the Python SDK.
 
+For an owned official CLI pin, set `AGY_CLI_DISABLE_AUTO_UPDATE=true` and verify
+its executable hash and version before/after the flow. The CLI can otherwise
+replace itself after an initial version check. Run
+`node scripts/e2e-antigravity-account-settings.mjs /owned/official-agy-1.2.7 /owned/empty-project /owned/settings-proof.json`
+to capture only whitelisted effective setting types/flags with per-command
+binary identity checks. The tested 1.2.7 account exposes boolean
+`useG1Credits: false`; missing or malformed credits are not verified disabled.
+The live runner uses an owned fixture service key, or the explicitly supplied
+key for `E2E_MERIDIAN_URL`. See the
+[sanitized settings proof](docs/maintenance/evidence/1073-subscription-settings.md).
+
 The built Node server runs on an ephemeral loopback port with the
 Antigravity tool bridge explicitly enabled. The gate checks live text, a random
 HTTP client tool receipt, completed-history replay, then actual Pi streaming

@@ -1,0 +1,97 @@
+{
+  "baseline": "6636c0da918ad9ee1228ce1e23f771353bf89d72",
+  "baselineFixture": {
+    "pass": 22,
+    "fail": 16,
+    "limit": "synthetic credentialless validation; no paid-mode or charge claim"
+  },
+  "correctedFocused": {
+    "probePass": 39,
+    "backendPass": 72,
+    "fail": 0,
+    "typecheck": "PASS"
+  },
+  "nativeSettings": {
+    "cli": "1.2.7",
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v22.22.3",
+    "fields": {
+      "customModelsConfig": {
+        "present": true,
+        "type": "null"
+      },
+      "modelProvider": {
+        "present": true,
+        "type": "string",
+        "empty": true
+      },
+      "useG1Credits": {
+        "present": true,
+        "type": "boolean",
+        "enabled": false
+      },
+      "gcp": {
+        "present": true,
+        "type": "null"
+      }
+    },
+    "executableSha256": "8c01ef82307dc01455418eb2e6e82f2989a3fa8b815c4b192efaaa89a55bef8d",
+    "binaryHashBeforeAfterEachCommand": "MATCH",
+    "modelCommands": 0
+  },
+  "actualSourceFlow": {
+    "model": "gemini-3.8-flash-low",
+    "cli": "1.2.7",
+    "platform": "darwin",
+    "passed": [
+      "live text",
+      "HTTP client-owned tool roundtrip",
+      "completed history replay",
+      "actual Pi client: streaming read and write tool rounds, exact client-local file copy, final answer"
+    ],
+    "piVersion": "0.72.1",
+    "piRequests": 3,
+    "cliAtEnd": "1.2.7"
+  },
+  "sourceFlowIdentity": {
+    "before": "8c01ef82307dc01455418eb2e6e82f2989a3fa8b815c4b192efaaa89a55bef8d",
+    "after": "8c01ef82307dc01455418eb2e6e82f2989a3fa8b815c4b192efaaa89a55bef8d",
+    "unchanged": true,
+    "updateDisabled": "AGY_CLI_DISABLE_AUTO_UPDATE=true",
+    "exitCode": 0
+  },
+  "retainedFailures": [
+    {
+      "cause": "CLI self-updated;unsupported1.3.1 initialization refusal",
+      "noAcceptedGeneration": true
+    },
+    {
+      "cause": "Local Meridian API-key middleware401; runner nowusesfixturekey",
+      "noNativeAuthenticationConclusion": true
+    },
+    {
+      "cause": "SystemGit Xcode-license launcher;19Gitfixturefailures",
+      "fixedEnvironment": "existingCommandLineToolsGit",
+      "focusedBuildCertificationPass": 22
+    }
+  ],
+  "identityControl": {
+    "fixtureChangedAfterVersion": true,
+    "exitCode": 1,
+    "configCommands": 0
+  },
+  "finalLocalGates": {
+    "base": "6636c0da918ad9ee1228ce1e23f771353bf89d72",
+    "npmTest": {
+      "pass": 5451,
+      "skip": 35,
+      "fail": 0
+    },
+    "stages": 19,
+    "typecheck": "PASS",
+    "build": "PASS",
+    "gitPath": "/Library/Developer/CommandLineTools/usr/bin/git"
+  },
+  "issue1073": "OPEN: broaderplatform/reliabilityacceptance remains"
+}
