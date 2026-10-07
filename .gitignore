@@ -59,3 +59,6 @@ __pycache__/
 
 # Desktop installer output
 apps/desktop/release/
+
+# Local gate/evidence output (never committed)
+.evidence/

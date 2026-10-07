@@ -22,6 +22,7 @@ import {
 import { join } from "node:path"
 import { mkdtempSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
+import { setupStoreBackend, teardownStoreBackend, legacyStoreOnly } from "./fixtures/bookkeeping-store-backend"
 
 describe("Shared session store", () => {
   let tmpDir: string
@@ -29,10 +30,12 @@ describe("Shared session store", () => {
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "session-store-basic-"))
     setSessionStoreDir(tmpDir)
+    setupStoreBackend(tmpDir)
     clearSharedSessions()
   })
 
   afterEach(() => {
+    teardownStoreBackend()
     setSessionStoreDir(null)
     try { rmSync(tmpDir, { recursive: true }) } catch {}
   })
@@ -90,7 +93,7 @@ describe("Shared session store", () => {
     expect(lookupSharedSession("sess-2")).toBeUndefined()
   })
 
-  it("should serve consecutive reads from the identity cache", () => {
+  legacyStoreOnly("should serve consecutive reads from the identity cache", () => {
     storeSharedSession("session-123", "claude-sess-abc")
     const first = lookupSharedSessionResult("session-123")
     const second = lookupSharedSessionResult("session-123")
@@ -108,7 +111,7 @@ describe("Shared session store", () => {
     expect(lookupSharedSession("session-123")!.claudeSessionId).toBe("claude-sess-def")
   })
 
-  it("should pick up a store replaced out of band by another process", () => {
+  legacyStoreOnly("should pick up a store replaced out of band by another process", () => {
     storeSharedSession("session-123", "claude-sess-abc")
     expect(lookupSharedSession("session-123")!.claudeSessionId).toBe("claude-sess-abc")
 
@@ -124,7 +127,7 @@ describe("Shared session store", () => {
     expect(lookupSharedSession("session-456")!.claudeSessionId).toBe("claude-sess-xyz")
   })
 
-  it("should treat a deleted store as missing instead of serving the stale cache", () => {
+  legacyStoreOnly("should treat a deleted store as missing instead of serving the stale cache", () => {
     storeSharedSession("session-123", "claude-sess-abc")
     expect(lookupSharedSession("session-123")!.claudeSessionId).toBe("claude-sess-abc")
 
@@ -132,7 +135,7 @@ describe("Shared session store", () => {
     expect(lookupSharedSessionResult("session-123").status).toBe("missing")
   })
 
-  it("never aliases a caller-owned locator into the cached document", () => {
+  legacyStoreOnly("never aliases a caller-owned locator into the cached document", () => {
     // A shared locator object would let a later caller-side mutation diverge the
     // read cache from the file on disk.
     const callerLocator: { sessionId: string; configDir: string; projectDir?: string } =
@@ -208,7 +211,7 @@ describe("Shared session store", () => {
     expect(lookupSharedSession("session-boundary")?.passthroughToolCallIds).toBeUndefined()
   })
 
-  it("ignores legacy user-denial boundaries after upgrade", () => {
+  legacyStoreOnly("ignores legacy user-denial boundaries after upgrade", () => {
     writeFileSync(join(tmpDir, "sessions.json"), JSON.stringify({
       "legacy-boundary": {
         claudeSessionId: "claude-legacy",
@@ -257,7 +260,7 @@ describe("Shared session store", () => {
     }
   })
 
-  it("keeps tolerant lookups but rejects strict reads and mutations on corruption", () => {
+  legacyStoreOnly("keeps tolerant lookups but rejects strict reads and mutations on corruption", () => {
     const sessionsPath = join(tmpDir, "sessions.json")
     writeFileSync(sessionsPath, "not json{{{")
 

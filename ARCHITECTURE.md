@@ -194,6 +194,7 @@ src/
 │   ├── query.ts               ← SDK query options builder (shared between stream/non-stream paths)
 │   ├── errors.ts              ← Error classification (SDK errors → HTTP responses)
 │   ├── retryAfter.ts          ← Retry-After computation for 429/503/529 (PURE)
+│   ├── sseFailureSniff.ts     ← SSE framing/classification and bounded priority stream transport (leaf)
 │   ├── models.ts              ← Model mapping, Claude executable resolution
 │   ├── authStatusProcess.ts   ← Bounded auth/resolver children and explicit process/pipe joins
 │   ├── claudeResolverOwnership.ts ← Independent leases for shared async resolver custody
@@ -298,7 +299,7 @@ server.ts (HTTP layer)
 
 2. **`session/cache.ts` owns all mutable session state.** No other module should create or manage LRU caches for sessions.
 
-3. **`errors.ts`, `retryAfter.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts` and `retryAfter.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` instead.
+3. **`errors.ts`, `retryAfter.ts`, `models.ts`, `tools.ts`, `messages.ts`, `profiles.ts`, `profileCli.ts`, `buildInfo.ts`, `updateCheck.ts`, `sseFailureSniff.ts` are leaf modules.** They must not import from `server.ts`, `session/`, or `adapter.ts`. `buildInfo.ts` and `retryAfter.ts` are additionally pure — every export is a function of its arguments (plus `process.env` for `buildInfo.ts`), so the registry I/O lives in `updateCheck.ts` instead. `sseFailureSniff.ts` keeps pure framing separate from reader/queue lifecycle helpers; account selection, publication and durable settlement remain in `server.ts`.
 
 4. **`server.ts` owns Hono route registration and orchestration.** Hono
    middleware stays at the proxy boundary. Standard `Request`/`Response`
@@ -357,6 +358,50 @@ Agent-specific behavior is isolated behind the `AgentAdapter` interface (`adapte
 | `ALLOWED_MCP_TOOLS` usage in `server.ts` | Line ~176 | Used for `buildAgentDefinitions`. Move when adapter handles agent defs. |
 
 ## Session Management
+
+### SQLite bookkeeping boundary
+
+Maintenance correctness: published guard identity is permanent, and pending
+historical guard retirement refuses before native opens (explicit original-inode
+recovery only). Same-process inspection never opens auxiliary main/guard aliases
+while local owners exist; standalone CLI inspection remains supported. Fresh
+creation is the empty-input durable journal/barrier protocol, not a separate
+unjournaled authority. Legacy import representability is exercised through exact
+row codecs, triggers and schema in a disposable transaction before barriers, then
+rechecked under ownership. Terminal export/abort history is validated rather than
+treated as active authority merely because journals remain. Post-READY residue
+archival requires explicit stopped-child attestation and preserves the existing
+no-clobber archive protocol. See configuration and cold-maintenance regressions.
+
+`MERIDIAN_BOOKKEEPING=sqlite` explicitly selects the shared row-based backend
+for both lifecycle and session mappings. JSON remains the default for legacy
+installations; a SQLite directory never falls back to JSON. One database per
+session directory stores resources, full-incarnation leases, generation fences,
+mapping histories/pins and priority publication state. Histories are loaded for
+addressed lookups, not GC pin collection.
+
+`startProxyServer` awaits READY initialization before binding. Synchronous
+`createProxyServer` requires an initialized handle; embedders call the exported
+`initializeProxyBookkeeping` first and close both the returned handle and the
+proxy's `closeBackend` after draining. Handles are reference-counted and the
+maintenance guard remains shared until the last owner closes. Backend/directory
+changes while a SQLite runtime is owned are rejected.
+
+Standalone synchronous cache/store operations retain their signatures. Server
+mutation roots enter asynchronous admission around the complete operation;
+nested store writes join the same transaction. Lifecycle publication promotes
+the resource and publishes its mapping/pins/priority state in one COMMIT. Its
+callback is synchronous and performs no SDK, filesystem or process probes.
+Cache and priority-memory changes are commit hooks; server publication flags
+are set only after the awaited durable publication returns. Unknown COMMIT
+outcomes retain the turn fence and never authorize abandonment of that fork.
+
+Native SQLite `busy_timeout=0` prevents synchronous lock waits. A bounded local
+FIFO retries BEGIN asynchronously, while SQLite serializes different processes.
+Read scopes use one snapshot and bypass in-memory authority. Maintenance uses
+bounded pages and PASSIVE checkpoints; explicit offline commands own migration,
+export and TRUNCATE. See [configuration](docs/configuration.md#sqlite-session-bookkeeping)
+and the runtime/COMMIT integration tests for the executable contract.
 
 Sessions map an agent's conversation ID to a Claude SDK session ID. Two caches work in tandem:
 
@@ -419,6 +464,22 @@ it as a real `Retry-After` header; SSE turns carry it as `error.retry_after` in
 the error frame, because a stream's headers went out with `message_start` long
 before the failure existed. Under priority routing the wait names the *pool's*
 earliest opening, not the last account tried.
+
+**Failover runs inside the client-facing stream.** Under priority routing a
+streaming request is decided like a non-stream one until an account answers
+with SSE: a non-SSE answer (such as a session-conflict 400) keeps its HTTP
+status, and an account-failover refusal moves to the next candidate. Once an
+account streams, the outer SSE response goes out and the remaining candidates
+run inside it (`streamPriorityDispatch`, framing in `sseFailureSniff.ts`).
+Content-free keepalives (`: ping`, every 15s) reach the client while the
+account decides; SDK transport pings stay non-progress for the idle guard. An
+account-failover `event: error` before any real frame suppresses that account
+and starts the next — never on a cancelled request. The first real frame
+relays byte-exact, an exposure-committed attempt relays its error instead of
+failing over, and a pool exhausted after headers emits one SSE error frame.
+
+The relay is bounded: the outer queue holds 64 KiB, and an incomplete prelude
+reaching 64 KiB ends sniffing and relays the attempt unchanged.
 
 **A `[1m]` bench is scoped to whatever actually failed.** Extra Usage exhaustion
 is an entitlement fact about the account, so it benches the whole profile. A

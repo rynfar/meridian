@@ -19,6 +19,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["src/**/*", "index.ts", "provider.ts", "tests/**/*"],
+  "include": ["src/**/*", "bin/session-bookkeeping.ts", "index.ts", "provider.ts", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
 }

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { setupLifecycleBackend, teardownLifecycleBackend } from "./fixtures/bookkeeping-lifecycle-backend"
+import { observeLifecycleState } from "./fixtures/bookkeeping-lifecycle-observer"
+import { injectDeletingResource } from "./fixtures/bookkeeping-lifecycle-injection"
+import type { TranscriptResource } from "../proxy/session/bookkeeping/types"
 import { spawn } from "node:child_process"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -27,22 +31,14 @@ import { captureProcessIncarnation } from "../proxy/session/processIncarnation"
 // capturing each spawned child's incarnation shells out to PowerShell/CIM on
 // Windows, which is budgeted up to 10s per probe on a cold host.
 
-interface StoredResource {
-  state: string
-  deletionToken?: string
-  deletionOwner?: unknown
-  deletionExecutor?: unknown
-  deletionProcessGroupId?: number
-  lastError?: string
-}
-
 interface StoredSidecar {
-  resources: Record<string, StoredResource>
+  resources: Record<string, TranscriptResource>
 }
 
 const tempRoots: string[] = []
 
 afterEach(async () => {
+  teardownLifecycleBackend()
   await Promise.all(tempRoots.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -77,7 +73,8 @@ async function makeFixture(sessionId: string): Promise<{
   const storeDir = join(root, "store")
   const configDir = join(root, "config")
   const projectDir = join(root, "project")
-  await mkdir(storeDir, { recursive: true })
+  await mkdir(storeDir, { recursive: true, mode: 0o700 })
+  setupLifecycleBackend(storeDir)
   const sdkPath = join(root, "stub-sdk.mjs")
   await writeFile(sdkPath, STUB_SDK_SOURCE, "utf8")
   return {
@@ -101,7 +98,7 @@ function gcOptions(fixture: Awaited<ReturnType<typeof makeFixture>>) {
 }
 
 function readSidecar(storeDir: string): StoredSidecar {
-  return JSON.parse(readFileSync(join(storeDir, "session-gc.json"), "utf8")) as StoredSidecar
+  return observeLifecycleState(storeDir)
 }
 
 describe("session GC deletes retired transcripts on every platform", () => {
@@ -220,7 +217,8 @@ console.log(JSON.stringify({ pid: process.pid, bun: process.versions.bun ?? null
   // claim forever. POSIX genuinely differs (the group probe waits out
   // surviving group members), so this test is win32-only rather than a win32
   // skip.
-  test.if(process.platform === "win32")(
+  describe.if(process.platform === "win32")("Windows-only recovery", () => {
+  test(
     "reconcile recovers a deleting claim whose executor pid was reused by a live process",
     async () => {
       const fixture = await makeFixture("windows-gc-reused-pid")
@@ -235,8 +233,7 @@ console.log(JSON.stringify({ pid: process.pid, bun: process.versions.bun ?? null
       // Same live pid as this process, but a boot id that can never match the
       // local host: a provably dead incarnation on a provably live pid.
       const reusedPidExecutor = { ...current, bootId: "00000000-0000-4000-8000-000000000000" }
-      const sidecarPath = join(fixture.storeDir, "session-gc.json")
-      const sidecar = JSON.parse(await readFile(sidecarPath, "utf8")) as StoredSidecar
+      const sidecar = observeLifecycleState(fixture.storeDir)
       const resource = sidecar.resources[key]
       if (!resource) throw new Error("expected sidecar resource for fixture locator")
       resource.state = "deleting"
@@ -244,7 +241,7 @@ console.log(JSON.stringify({ pid: process.pid, bun: process.versions.bun ?? null
       resource.deletionOwner = reusedPidExecutor
       resource.deletionExecutor = reusedPidExecutor
       resource.deletionProcessGroupId = current.pid
-      await writeFile(sidecarPath, JSON.stringify(sidecar), "utf8")
+      injectDeletingResource(fixture.storeDir, resource)
 
       const recovered = await reconcile([], options)
       expect(recovered.deletingRecovered).toBe(1)
@@ -252,4 +249,5 @@ console.log(JSON.stringify({ pid: process.pid, bun: process.versions.bun ?? null
     },
     60_000,
   )
+  })
 })

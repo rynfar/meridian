@@ -26,6 +26,7 @@ import {
   setSessionStoreDir,
   storeSharedSession,
 } from "../proxy/sessionStore"
+import { rewriteFullStore } from "./fixtures/full-document-store-rewrite"
 
 const META_KEY = "\u0000meridian-session-store"
 
@@ -103,16 +104,10 @@ describe("session store mutation cost on a large store", () => {
     const { keys, text } = buildFixture(dir, 400, 180)
     expect(text.length).toBeGreaterThan(5_000_000)
 
-    // What every mutation used to do on the loop: parse, serialize, write, fsync.
+    // Full-document work with the same lock, atomic rename and directory flush as a mutation.
     const baselines: number[] = []
     for (let run = 0; run < 3; run++) {
-      baselines.push(await loopLagOf(() => {
-        const parsed = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8"))
-        const fd = openSync(join(dir, `baseline-${run}`), "w", 0o600)
-        writeFileSync(fd, JSON.stringify(parsed))
-        fsyncSync(fd)
-        closeSync(fd)
-      }))
+      baselines.push(await loopLagOf(() => rewriteFullStore(dir)))
     }
 
     // The first mutation after a foreign write parses once and encodes every entry once.

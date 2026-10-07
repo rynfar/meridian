@@ -19,7 +19,7 @@ import { linkRequestAbort, type RequestAbortLink } from "./requestAbort"
 import { processSessionTree, truncateSessionKey, type SessionTreeRegistration } from "./sessionTree"
 import { AbortableSemaphore, getProcessSdkSemaphore, type SemaphoreLease } from "./concurrency"
 import { InflightRegistry, isLoopbackPeer, onResponseDone, type InflightHandle } from "./inflight"
-import { plog, setProxyLogSilent } from "./operationalLog"
+import { plog, setProxyDiagnosticSink, setProxyLogSilent } from "./operationalLog"
 import { closeServerWithGracePeriod, trackServerConnections } from "./shutdown"
 import { fetchOAuthUsage, fetchOAuthUsageResult, toUsageEntry, peekOAuthUsage } from "./oauthUsage"
 import { resolveSdkWorkingDirectory } from "./cwd"
@@ -69,6 +69,7 @@ import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, rend
 import { detectSupervision } from "./supervision"
 import type { RequestMetric } from "../telemetry"
 import { canRecoverCapturedToolUses, canRecoverUncapturedToolUses, isStreamedToolBlockComplete, unavailableToolResults, type StreamedToolBlockRecord, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
+import { createSseRelayStream, relayStreamAttempt } from "./sseFailureSniff"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, readStoredCredentialPresence, getAuthRenewalStatus, getStoredPlanFields, resolveRenewalWarnDays, type CredentialStore, type StoredPlanFields } from "./tokenRefresh"
 import { planAllowance } from "./planAllowance"
 import { isCredentialsReadOnly, logCredentialsModeBanner } from "./credentialsMode"
@@ -195,7 +196,7 @@ import {
   releasePriorityAttempt,
   blockPriorityAttempt,
   listStoredSessions,
-  readSessionStoreSnapshot,
+  readSessionTranscriptPins,
   readSessionStoreGenerationSnapshot,
   type StoredSessionGeneration,
   DEFAULT_PROFILE_COPY_GRACE_MS,
@@ -209,18 +210,25 @@ import {
   canonicalizeTranscriptLocator,
   ensureTranscriptJournaled,
   prepareForkForPublication,
-  publishPinnedTranscript,
+  publishPinnedTranscript as publishTranscript,
   registerLiveTranscript,
   releaseJoinedTranscriptLease,
   releaseSupersededProfileCopies,
   runGc as runSessionGc,
   getTranscriptResourceKey,
   SessionLifecycleError,
-  SessionLifecycleLockError,
   type SessionLifecycleOptions,
   type TranscriptLocator,
 } from "./sessionLifecycle"
 import { createSdkProcessGate } from "./session/sdkProcessGate"
+import {
+  admitSessionStoreWrite, bookkeepingMode, checkpointProxyBookkeeping,
+  initializeProxyBookkeeping, retainProxyBookkeeping,
+} from "./session/bookkeeping/runtime"
+import { BookkeepingBusyError, BookkeepingCommitUncertainError } from "./session/bookkeeping/database"
+import { SessionLifecycleLockError, SessionLifecycleQueueCapacityError, SessionLifecycleQueueStalledError } from "./session/lifecycleErrors"
+setProxyDiagnosticSink((message) => diagnosticLog.session(message))
+export { initializeProxyBookkeeping } from "./session/bookkeeping/runtime"
 // Re-export for backwards compatibility (existing tests import from here)
 export { computeLineageHash, hashMessage, computeMessageHashes }
 export { clearSessionCache, getMaxSessionsLimit }
@@ -642,6 +650,12 @@ type PriorityDispatchOptions = {
   }
 }
 
+function classifyBookkeepingFailure(error: unknown, message: string, model?: string) {
+  return error instanceof SessionLifecycleLockError || error instanceof BookkeepingCommitUncertainError
+    ? { status: 503, type: "overloaded_error", message: "Session bookkeeping is unavailable; retry shortly." }
+    : classifyError(message, model)
+}
+
 /**
  * Begin the daily registry check, if the operator has asked for one.
  *
@@ -767,11 +781,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       0,
       envInt("SESSION_GC_GRACE_MS", SESSION_TURN_MAX_HOLD_MS + 60_000),
     ),
-    // External acquisition budget at the local FIFO head, not local queue time.
-    lockWaitMs: Math.max(100, envInt("SESSION_GC_LOCK_WAIT_MS", 2_000)),
+    // JSON budgets external acquisition at the FIFO head. SQLite uses the shared
+    // admission deadline from enqueue, including local FIFO wait.
+    ...(bookkeepingMode() === "json"
+      ? { lockWaitMs: Math.max(100, envInt("SESSION_GC_LOCK_WAIT_MS", 2_000)) }
+      : {}),
     // No lease a live request holds can outlive the turn watchdog.
     unarmedLeaseTtlMs: SESSION_TURN_MAX_HOLD_MS + 60_000,
     deletionTimeoutMs: Math.max(1_000, envInt("SESSION_GC_DELETE_TIMEOUT_MS", 30_000)),
+    // Executor handshake (durable attach under the sidecar lock) gets its own
+    // budget so a FIFO wait can never eat the deletion budget it fences.
+    deletionHandshakeTimeoutMs: Math.max(1_000, envInt("SESSION_GC_HANDSHAKE_TIMEOUT_MS", 30_000)),
     runTimeoutMs: Math.max(1_000, envInt("SESSION_GC_RUN_TIMEOUT_MS", 30_000)),
   }
   let sessionGcRunning: Promise<void> | undefined
@@ -801,17 +821,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
   const collectSessionGcPins = (): TranscriptLocator[] => {
     const pins: TranscriptLocator[] = [...activeSessionGcPins.values()].map((entry) => entry.locator)
-    for (const session of Object.values(readSessionStoreSnapshot())) {
-      if (session.currentTranscript?.sessionId === session.claudeSessionId) {
-        pins.push(session.currentTranscript)
-      }
-      if (
-        session.previousTranscript
-        && session.previousTranscript.sessionId === session.previousClaudeSessionId
-      ) {
-        pins.push(session.previousTranscript)
-      }
-    }
+    if (!bookkeepingHandle) pins.push(...readSessionTranscriptPins())
     return pins
   }
   sessionGcOptions.pinProvider = collectSessionGcPins
@@ -849,6 +859,20 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         if (result.failed) {
           plog(`[PROXY] session GC deferred ${result.failed} failed deletion(s); retry is scheduled`)
         }
+      }
+      try {
+        const checkpoint = await checkpointProxyBookkeeping()
+        if (checkpoint && (checkpoint.busy || checkpoint.checkpointed < checkpoint.log)) {
+          claudeLog("session.checkpoint_deferred", { ...checkpoint })
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        const deferred = error instanceof SessionLifecycleLockError
+          || error instanceof BookkeepingBusyError
+          || error instanceof SessionLifecycleQueueCapacityError
+          || error instanceof SessionLifecycleQueueStalledError
+        claudeLog(deferred ? "session.checkpoint_deferred" : "session.checkpoint_failed", { error: message })
+        plog(`[PROXY] bookkeeping checkpoint ${deferred ? "deferred" : "failed"}: ${message}`)
       }
     })().catch((error) => {
       // Corrupt or contended metadata is fail-closed: keep transcripts and try
@@ -1289,96 +1313,297 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       })
   }
 
-  /** Inspect an inner response for an account-level failure without destroying
-   *  it. Non-stream: an error body on a non-OK status. Stream: an
-   *  `event: error` frame BEFORE any content frame (mid-content errors pass
-   *  through — never yank a stream a client is already consuming).
-   *
-   *  `isAccountFailoverError` decides which classified types are worth another
-   *  account; anything else is this account's honest answer and belongs to the
-   *  client untouched. The non-stream status gate is `!res.ok` rather than a
-   *  literal 429 because the qualifying types do not share one status — a
-   *  spent quota window is 429, a refused subscription 402. */
+  function isEventStream(res: Response): boolean {
+    return (res.headers.get("content-type") ?? "").includes("text/event-stream")
+  }
+
+  /** Inspect a non-SSE inner response for an account-level failure.
+   *  An account-shaped error on a non-OK status is worth another account;
+   *  anything else is this account's honest answer and belongs to the client
+   *  untouched. SSE bodies are decided in-stream by `streamPriorityDispatch`.
+   *  The status gate is `!res.ok` rather than a literal 429
+   *  because the qualifying types do not share one status — a spent quota
+   *  window is 429, a refused subscription 402. */
   async function sniffAccountFailure(res: Response): Promise<
     | { failed: true; errorPayload: unknown; errorType: string; response: Response }
     | { failed: false; errorPayload: null; errorType: null; response: Response }
   > {
-    const contentType = res.headers.get("content-type") ?? ""
-    if (!contentType.includes("text/event-stream")) {
-      if (!res.ok) {
-        const body = await res.clone().json().catch(() => null) as { error?: { type?: string } } | null
-        const errorType = body?.error?.type
-        if (isAccountFailoverError(errorType)) {
-          return { failed: true, errorPayload: body, errorType, response: res }
-        }
-      }
+    if (isEventStream(res) || res.ok) {
       return { failed: false, errorPayload: null, errorType: null, response: res }
     }
-    const reader = res.body?.getReader()
-    if (!reader) return { failed: false, errorPayload: null, errorType: null, response: res }
-    const decoder = new TextDecoder()
-    const consumed: Uint8Array[] = []
-    let text = ""
-    let failure: { payload: unknown; type: string } | null = null
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      consumed.push(value)
-      text += decoder.decode(value, { stream: true })
-      const frameEnd = text.indexOf("\n\n")
-      if (frameEnd === -1) continue
-      const frame = text.slice(0, frameEnd)
-      if (/^event: error$/m.test(frame)) {
-        const dataLine = frame.split("\n").find(l => l.startsWith("data: "))
-        try {
-          const parsed = dataLine ? JSON.parse(dataLine.slice(6)) as { error?: { type?: string } } : null
-          const parsedType = parsed?.error?.type
-          if (isAccountFailoverError(parsedType)) {
-            failure = { payload: parsed, type: parsedType }
-          }
-        } catch { /* not an account-failure frame — pass through below */ }
-      }
-      break // first complete frame decides
+    const body = await res.clone().json().catch(() => null) as { error?: { type?: string } } | null
+    const errorType = body?.error?.type
+    if (isAccountFailoverError(errorType)) {
+      return { failed: true, errorPayload: body, errorType, response: res }
     }
-    if (failure) {
-      await reader.cancel().catch(() => {})
-      // The original response body is now locked and consumed. Preserve the
-      // exact bytes already read so a no-retry exposure barrier can still
-      // return a usable account-error response to the client.
-      const replay = new ReadableStream<Uint8Array>({
-        start(ctrl) {
-          for (const chunk of consumed) ctrl.enqueue(chunk)
-          ctrl.close()
-        },
-      })
-      const response = new Response(replay, { status: res.status, headers: res.headers })
-      const completion = responseCompletions.get(res)
-      if (completion) responseCompletions.set(response, completion)
-      return { failed: true, errorPayload: failure.payload, errorType: failure.type, response }
-    }
-    const rest = new ReadableStream<Uint8Array>({
-      start(ctrl) { for (const chunk of consumed) ctrl.enqueue(chunk) },
-      async pull(ctrl) {
-        const { done, value } = await reader.read()
-        if (done) ctrl.close()
-        else ctrl.enqueue(value)
-      },
-      cancel(reason) { void reader.cancel(reason).catch(() => {}) },
+    return { failed: false, errorPayload: null, errorType: null, response: res }
+  }
+
+  async function runPriorityAttempt(
+    options: PriorityDispatchOptions,
+    attempt: number,
+    candidate: string,
+    attemptOwnerToken: string | undefined,
+    requestAbortLink = options.requestAbortLink,
+    exposure: PriorityAttemptExposure = { committed: false },
+  ) {
+    const priorityPublication = options.durableRoute && options.publicationTurn
+      ? {
+          routeKey: options.durableRoute.routeKey,
+          profileId: candidate,
+          lastHumanTurnDigest: options.publicationTurn.turnId,
+          lastHumanTurnIssuedAt: options.publicationTurn.issuedAt,
+          attemptOwnerToken: attemptOwnerToken!,
+          expectedAssignmentGeneration: options.durableRoute.expectedGeneration,
+        }
+      : undefined
+    // Fork the hop's telemetry, retaining the request ID for routeChain.
+    const attemptMeta = { ...forkAttemptMeta(options.requestMeta, attempt), routeAttempt: attempt + 1 }
+    const inner = await handleMessages(options.context, attemptMeta, {
+      body: options.body,
+      forcedProfileId: candidate,
+      turnWatchdogSignal: options.turnWatchdogSignal,
+      requestAbortLink,
+      forceFreshPriorityReplay: priorityPublication !== undefined
+        && (options.durableRoute?.forceFreshReplay === true
+          || (options.currentProfileId !== undefined && candidate !== options.currentProfileId)),
+      priorityPublication,
+      priorityAttemptExposure: exposure,
     })
-    const response = new Response(rest, { status: res.status, headers: res.headers })
-    const completion = responseCompletions.get(res)
-    if (completion) responseCompletions.set(response, completion)
-    return { failed: false, errorPayload: null, errorType: null, response }
+    return { inner, exposure }
+  }
+
+  function markPriorityFailure(candidate: string, reason: string): number {
+    const quotaRefusal = isQuotaRefusal(reason)
+    const until = quotaRefusal
+      ? priorityCooldownUntil(candidate, Date.now())
+      : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
+    priorityExhaustion.mark(candidate, until, reason)
+    claudeLog("priority.exhausted", { profile: candidate, until, reason })
+    if (quotaRefusal) refinePriorityCooldown(candidate)
+    return until
+  }
+
+  /** Streaming priority dispatch, entered once an account answers with SSE:
+   *  that attempt and every later candidate run INSIDE the client-facing
+   *  stream.
+   *
+   *  The outer SSE Response is returned before the handed attempt's first
+   *  frame, so headers reach the client immediately and keepalives keep the
+   *  connection live while an account is still deciding. An account-failover
+   *  error before any real frame suppresses that account and starts the next
+   *  candidate — never on a cancelled request. The first real frame (content
+   *  or an honest error) relays byte-exact; an exposure-committed attempt's
+   *  error relays instead of suppressing (the no-retry barrier). A pool
+   *  exhausted after headers emits one coherent SSE error frame, because the
+   *  HTTP status can no longer be rewritten.
+   *
+   *  `settleAttempt` settles the durable priority attempt claim exactly as
+   *  the non-stream loop does. */
+  async function streamPriorityDispatch(
+    options: PriorityDispatchOptions,
+    attemptOwnerToken: string | undefined,
+    settleAttempt: (disposition: "release" | "block") => Promise<boolean>,
+    start: {
+      attempt: number
+      inner: Response
+      exposure: PriorityAttemptExposure
+      lastError: unknown
+      previous: string | null
+      previousReason: string
+      earliestPoolReset: number | null
+    },
+  ): Promise<Response> {
+    const encoder = new TextEncoder()
+    const errorFrame = (payload: unknown): Uint8Array =>
+      encoder.encode(`event: error\ndata: ${JSON.stringify(payload)}\n\n`)
+    const unavailableFrame = () => errorFrame({
+      type: "error",
+      error: { type: "overloaded_error", message: "Durable priority attempt state is unavailable", retry_after: OVERLOADED_RETRY_AFTER_SECONDS },
+    })
+
+    // Abort the request-wide link, not just a reader that may not exist yet.
+    const requestAbort = options.requestAbortLink ?? linkRequestAbort(options.context.req.raw.signal)
+
+    let resolveOuterCompletion: () => void = () => {}
+    const outerCompletion = new Promise<void>(resolve => { resolveOuterCompletion = resolve })
+
+    const stream = createSseRelayStream(async sink => {
+        const { enqueue } = sink
+        const isCancelled = () => sink.isCancelled() || requestAbort.controller.signal.aborted
+        let activeExposure: PriorityAttemptExposure | null = null
+        let failedUnexpectedly = false
+        let settled = false
+        const settle = async (disposition: "release" | "block"): Promise<boolean> => {
+          if (settled) return true
+          settled = await settleAttempt(disposition)
+          return settled
+        }
+        let lastInner: Response | null = null
+        try {
+          let { lastError, previous, previousReason, earliestPoolReset } = start
+          for (let attempt = start.attempt; attempt < options.candidateIds.length; attempt++) {
+            const candidate = options.candidateIds[attempt]!
+            const handed = attempt === start.attempt
+            // The handed attempt is always relayed: its reader owns the cancel.
+            if (!handed && isCancelled()) break
+            activeExposure = handed ? start.exposure : { committed: false }
+            const { inner, exposure } = handed
+              ? start
+              : await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken, requestAbort, activeExposure)
+            lastInner = inner
+            const verdict = await relayStreamAttempt(inner, { ...sink, isCancelled })
+            if (verdict.kind === "suppressed") {
+              // Cancel BEFORE joining cleanup, then read the final exposure
+              // state. Cleanup may itself latch a side effect; testing the
+              // barrier before completion could replay an exposed attempt.
+              await verdict.discard()
+              await responseCompletions.get(inner)?.catch(() => {})
+              const reason = verdict.errorType
+              const cooldownUntil = markPriorityFailure(candidate, reason)
+              if (isCancelled()) break
+              earliestPoolReset = Math.min(earliestPoolReset ?? cooldownUntil, cooldownUntil)
+              lastError = verdict.errorPayload
+              previous = candidate
+              previousReason = reason
+              if (exposure.committed) {
+                // The SDK may already have emitted content, structured
+                // output, or a tool side effect. Never replay that attempt on
+                // another account — and the client has not seen the refused
+                // bytes yet, so relay them now instead of failing over.
+                claudeLog("priority.failover_withheld", { profile: candidate, reason: exposure.reason ?? "attempt_exposed" })
+                if (!await settle("block")) {
+                  await enqueue(unavailableFrame())
+                  return
+                }
+                sink.onMeaningfulForwarded()
+                for (const chunk of verdict.held) await enqueue(chunk)
+                return
+              }
+              // Suppressible and unexposed: try the next candidate, without
+              // the previous attempt's reader as the cancel target.
+              sink.registerCancel(() => {})
+              continue
+            }
+            if (isCancelled()) break
+            if (options.sessionKey && !options.durableRoute) {
+              // Process memory preserves only legacy/keyless new-conversation
+              // affinity. Trusted attempts publish authority at the atomic
+              // durable terminal barrier and must not poison adoption on
+              // errors or cancel.
+              const previousAssignment = priorityAssignments.get(options.sessionKey)
+              priorityAssignments.set(options.sessionKey, {
+                profileId: candidate,
+                requestId: options.publicationTurn?.turnId ?? previousAssignment?.requestId,
+              })
+            }
+            if (previous) {
+              claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey: options.sessionKey })
+              plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
+              // The client is about to receive a normal answer and will never
+              // learn that an account dropped out. A supervisor watching for
+              // spent accounts has to hear about it from here or not at all.
+              failoverEvents.append({
+                kind: "failover",
+                profile: previous,
+                servedBy: candidate,
+                reason: previousReason,
+                routing: options.routing ?? "priority",
+                sessionKey: options.sessionKey,
+                internalHop: false,
+                until: spentProfiles.get(previous)?.until ?? null,
+                limit: spentProfiles.get(previous)?.diagnosis ?? null,
+              })
+            }
+            return
+          }
+          if (previous && !isCancelled()) {
+            failoverEvents.append({
+              kind: "pool_exhausted",
+              profile: previous,
+              servedBy: null,
+              reason: "rate_limit_error",
+              routing: options.routing ?? "priority",
+              sessionKey: options.sessionKey,
+              internalHop: false,
+              until: spentProfiles.get(previous)?.until ?? null,
+              limit: spentProfiles.get(previous)?.diagnosis ?? null,
+            })
+          }
+          // Every candidate ended before exposure: release the exact durable
+          // claim, then surface the LAST tried profile's error once — headers
+          // are already out, so the terminal verdict travels in the stream.
+          // Quota waits name the pool's earliest opening, just as on JSON.
+          if (!isCancelled() && !await settle("release")) {
+            await enqueue(unavailableFrame())
+            return
+          }
+          if (!isCancelled() && lastError !== null) {
+            if (isQuotaRefusal(previousReason) && typeof lastError === "object") {
+              const envelope = (lastError as { error?: unknown }).error
+              if (envelope !== null && typeof envelope === "object") {
+                Object.assign(envelope, retryAfterBodyFields(retryAfterSeconds({ status: 429, resetAtMs: earliestPoolReset })))
+              }
+            }
+            await enqueue(errorFrame(lastError))
+          }
+        } catch (error) {
+          failedUnexpectedly = true
+          // Headers are already sent: classify as the route's own handler
+          // would, but deliver the verdict as a stream error frame.
+          const errMsg = error instanceof Error ? error.message : String(error)
+          claudeLog("error.unhandled", { error: errMsg })
+          if (!isCancelled()) {
+            const classified = classifyBookkeepingFailure(error, errMsg)
+            await enqueue(errorFrame({
+              type: "error",
+              error: { type: classified.type, message: classified.message,
+                ...retryAfterBodyFields(retryAfterSeconds({ status: classified.status })) },
+            }))
+          }
+        } finally {
+          if (failedUnexpectedly) requestAbort.abort("priority relay failed")
+          // The outer completion resolves only after the last attempt's own
+          // completion has settled, preserving the route's finishRequest
+          // ordering.
+          void (async () => {
+            try {
+              if (lastInner) await responseCompletions.get(lastInner)?.catch(() => {})
+            } finally {
+              // Settle only after cleanup, when the exposure barrier is final.
+              if (isCancelled() || failedUnexpectedly) await settle(activeExposure?.committed ? "block" : "release")
+              if (!options.requestAbortLink) requestAbort.detach()
+              resolveOuterCompletion()
+            }
+          })()
+        }
+    }, reason => {
+      requestAbort.setCause("stream_cancel")
+      requestAbort.abort(reason)
+      options.requestMeta.cascadeSubtreeCancel?.("stream_cancel")
+    })
+    const response = new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    })
+    responseCompletions.set(response, outerCompletion)
+    return response
   }
 
   async function dispatchPriority(options: PriorityDispatchOptions): Promise<Response> {
     let attemptOwnerToken: string | undefined
     if (options.durableRoute && options.publicationTurn) {
       try {
-        const claim = claimPriorityAttempt({
-          routeKey: options.durableRoute.routeKey,
-          expectedAssignmentGeneration: options.durableRoute.expectedGeneration,
+        const claim = await admitSessionStoreWrite(() => claimPriorityAttempt({
+          routeKey: options.durableRoute!.routeKey,
+          expectedAssignmentGeneration: options.durableRoute!.expectedGeneration,
           turn: options.claimTurn,
+        }), {
+          ...sessionGcOptions,
+          admissionSignal: options.requestAbortLink?.controller.signal ?? options.context.req.raw.signal,
         })
         if (!claim) {
           return options.context.json({
@@ -1398,12 +1623,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }, 503, TRANSIENT_RETRY_AFTER_HEADERS)
       }
     }
-    const settleAttempt = (disposition: "release" | "block"): boolean => {
+    const settleAttempt = async (disposition: "release" | "block"): Promise<boolean> => {
       if (!attemptOwnerToken || !options.durableRoute) return true
       try {
-        return disposition === "block"
-          ? blockPriorityAttempt(options.durableRoute.routeKey, attemptOwnerToken)
-          : releasePriorityAttempt(options.durableRoute.routeKey, attemptOwnerToken)
+        return await admitSessionStoreWrite(() => disposition === "block"
+          ? blockPriorityAttempt(options.durableRoute!.routeKey, attemptOwnerToken!)
+          : releasePriorityAttempt(options.durableRoute!.routeKey, attemptOwnerToken!))
       } catch (error) {
         claudeLog("priority.attempt_settle_failed", {
           routeKey: options.durableRoute.routeKey,
@@ -1427,34 +1652,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // Retry-After names the pool's earliest opening (#901).
     let earliestPoolReset: number | null = null
     for (const [attempt, candidate] of options.candidateIds.entries()) {
-      const exposure: PriorityAttemptExposure = { committed: false }
-      const priorityPublication = options.durableRoute && options.publicationTurn
-        ? {
-            routeKey: options.durableRoute.routeKey,
-            profileId: candidate,
-            lastHumanTurnDigest: options.publicationTurn.turnId,
-            lastHumanTurnIssuedAt: options.publicationTurn.issuedAt,
-            attemptOwnerToken: attemptOwnerToken!,
-            expectedAssignmentGeneration: options.durableRoute.expectedGeneration,
-          }
-        : undefined
-      // Each hop writes its own telemetry row. `routeAttempt` is what marks a
-      // row as a hop and orders it, and the `requestId` forkAttemptMeta keeps
-      // across attempts is what groups them - so the read path can stitch a
-      // failover back into one row with its account chain
-      // (telemetry/routeChain.ts). Nothing is correlated here.
-      const attemptMeta = { ...forkAttemptMeta(options.requestMeta, attempt), routeAttempt: attempt + 1 }
-      const inner = await handleMessages(options.context, attemptMeta, {
-        body: options.body,
-        forcedProfileId: candidate,
-        turnWatchdogSignal: options.turnWatchdogSignal,
-        requestAbortLink: options.requestAbortLink,
-        forceFreshPriorityReplay: priorityPublication !== undefined
-          && (options.durableRoute?.forceFreshReplay === true
-            || (options.currentProfileId !== undefined && candidate !== options.currentProfileId)),
-        priorityPublication,
-        priorityAttemptExposure: exposure,
-      })
+      const { inner, exposure } = await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken)
+      // A non-SSE answer is decided here and keeps its HTTP status. Once an
+      // account streams, headers go out and the remaining candidates are
+      // tried inside the stream.
+      if (options.wantsStream && isEventStream(inner)) {
+        return streamPriorityDispatch(options, attemptOwnerToken, settleAttempt, {
+          attempt, inner, exposure, lastError, previous, previousReason, earliestPoolReset,
+        })
+      }
       const sniffed = await sniffAccountFailure(inner)
       if (!sniffed.failed) {
         if (options.sessionKey && !options.durableRoute) {
@@ -1491,16 +1697,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const reason = sniffed.errorType
       // Only a quota refusal has a reset to look up. Both cooldown tiers read
       // the account's five-hour window, which says nothing about entitlement.
-      const quotaRefusal = isQuotaRefusal(reason)
-      const cooldownUntil = quotaRefusal
-        ? priorityCooldownUntil(candidate, Date.now())
-        : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
-      priorityExhaustion.mark(candidate, cooldownUntil, reason)
+      const cooldownUntil = markPriorityFailure(candidate, reason)
       if (earliestPoolReset === null || cooldownUntil < earliestPoolReset) {
         earliestPoolReset = cooldownUntil
       }
-      claudeLog("priority.exhausted", { profile: candidate, until: cooldownUntil, reason })
-      if (quotaRefusal) refinePriorityCooldown(candidate)
       lastError = sniffed.errorPayload
       lastStatus = inner.status
       previous = candidate
@@ -1510,7 +1710,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         // tool side effect even though a non-stream handler ultimately returned
         // an account-shaped error. Never replay that attempt on another account.
         claudeLog("priority.failover_withheld", { profile: candidate, reason: exposure.reason ?? "attempt_exposed" })
-        if (!settleAttempt("block")) return unavailableAttemptResponse()
+        if (!await settleAttempt("block")) return unavailableAttemptResponse()
         return sniffed.response
       }
     }
@@ -1530,17 +1730,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // Every candidate ended before exposure. Release the exact durable claim
     // before the client can retry; failure stays fail-closed and never advances
     // to another account or returns a retryable account-shaped response.
-    if (!settleAttempt("release")) return unavailableAttemptResponse()
-    // Surface the LAST tried profile's error (owner decision). Stream sniff
-    // consumed the inner body, so reconstruct the exact frame for SSE requests.
-    // The SSE frame carries its own `retry_after` field, relayed verbatim from
-    // whichever attempt produced it — headers are unavailable to a stream.
-    if (options.wantsStream) {
-      return new Response(`event: error\ndata: ${JSON.stringify(lastError)}\n\n`, {
-        status: 200,
-        headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" },
-      })
-    }
+    if (!await settleAttempt("release")) return unavailableAttemptResponse()
+    // Surface the LAST tried profile's error (owner decision).
     // The wait belongs to the POOL, not to the last account tried: the caller
     // can proceed as soon as ANY candidate frees up. `earliestPoolReset` is a
     // real observed boundary when a quota refusal supplied one and the
@@ -1603,17 +1794,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       let priorityTerminalCommitted = false
       let recoveryPublishedTarget: TranscriptLocator | undefined
       let priorityRollbackRetirement: Promise<void> | undefined
-      const evictSession = (...args: Parameters<typeof evictCachedSession>): boolean => {
+      const evictSession = async (...args: Parameters<typeof evictCachedSession>): Promise<boolean> => {
         try {
           if (priorityTerminalCommitted && options.priorityPublication) return true
           if (options.priorityPublication?.rollback) {
             const rollbackScopeKey = options.priorityPublication.rollback.key
-            const restoredGeneration = rollbackPrioritySessionPublication(
+            const restoredGeneration = await admitSessionStoreWrite(() => rollbackPrioritySessionPublication(
               args[0],
               args[2] ?? options.body.messages ?? [],
               args[1],
-              options.priorityPublication,
-            )
+              options.priorityPublication!,
+            ), sessionGcOptions)
             if (!restoredGeneration) {
               requestMeta.retainSessionTurnFence?.()
               return false
@@ -1652,7 +1843,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             // not be deleted merely to authorize a noncanonical terminal.
             return false
           }
-          const evicted = evictCachedSession(...args)
+          const evicted = await admitSessionStoreWrite(() => evictCachedSession(...args), sessionGcOptions)
           if (!evicted && resumedMappingMayBeAdvanced) {
             requestMeta.retainSessionTurnFence?.()
           }
@@ -1693,6 +1884,24 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       let managedForkSource: TranscriptLocator | undefined
       let managedForkCommitted = false
       let managedForkPublished = false
+      const uncertainPublications = new Set<string>()
+      const publishPinnedTranscript: typeof publishTranscript = async (locator, callback, publicationOptions) => {
+        try {
+          return await publishTranscript(locator, callback, publicationOptions)
+        } catch (error) {
+          if (error instanceof BookkeepingCommitUncertainError) {
+            uncertainPublications.add(getTranscriptResourceKey(locator))
+            requestMeta.retainSessionTurnFence?.()
+            // Uncertain durable authority is also a no-replay barrier, even when
+            // only keepalives reached the client before the publication fault.
+            if (options.priorityAttemptExposure) {
+              options.priorityAttemptExposure.committed = true
+              options.priorityAttemptExposure.reason ??= "publication_commit_uncertain"
+            }
+          }
+          throw error
+        }
+      }
       let managedForkAbandoned = false
       let managedForkAbandonment: Promise<void> | undefined
       let managedForkSuperseded = false
@@ -1709,6 +1918,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       }
 
       const abandonManagedFork = (reason: string): Promise<void> => {
+        if (managedForkTarget && uncertainPublications.has(getTranscriptResourceKey(managedForkTarget))) {
+          releaseManagedPins()
+          return Promise.resolve()
+        }
         if (managedForkAbandonment) return managedForkAbandonment
         const pending = (async (): Promise<void> => {
           if (unexpectedManagedForkTarget) {
@@ -1743,6 +1956,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
 
       const commitManagedFork = async (): Promise<void> => {
         if (!managedForkTarget || managedForkSuperseded || managedForkCommitted) return
+        // SQL publication promotes the resource with its mapping in the same COMMIT.
+        if (bookkeepingHandle) return
         // Promote under the lifecycle lock before publishing the mapping. A
         // crash here leaves an unpinned live resource that reconciliation can
         // retire; the reverse order could expose a mapping to a deleted target.
@@ -1758,14 +1973,22 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // - and every other turn queued behind the same lock - with a 503 the
       // client can only answer by regenerating the whole turn. A durable
       // priority attempt cannot finalize without its atomic publication, so it
-      // still fails closed.
-      const deferTerminalPublication = (
+      // still fails closed. So does SQLite bookkeeping: there the invalidation
+      // needs the same database write lock and lifecycle queue that just
+      // refused the publication, and a failed invalidation of a resumed mapping
+      // keeps the session turn fence, which would block every retry of the
+      // conversation. Failing closed leaves the 503 retryable.
+      const deferTerminalPublication = async (
         error: unknown,
         mode: string,
-        invalidateMapping: () => boolean,
-      ): boolean => {
-        if (!(error instanceof SessionLifecycleLockError) || options.priorityPublication) return false
-        if (!invalidateMapping()) return false
+        invalidateMapping: () => Promise<boolean>,
+      ): Promise<boolean> => {
+        if (
+          !(error instanceof SessionLifecycleLockError)
+          || bookkeepingHandle
+          || options.priorityPublication
+        ) return false
+        if (!await invalidateMapping()) return false
         claudeLog("session.publication_deferred", { mode, error: error.message })
         const deferred = `${requestMeta.requestId} session.publication_deferred mode=${mode} reason=${error.constructor.name}; answer delivered, next turn replays`
         plog(`[PROXY] ${deferred}`)
@@ -1779,14 +2002,17 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         }
       }
 
-      const finalizePriorityPublication = (): void => {
+      const finalizePriorityPublication = async (): Promise<void> => {
         assertPriorityPublicationReady()
         const publication = options.priorityPublication
         if (!publication) return
         if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
           throw new Error("Durable priority attempt was revoked before terminal finalization")
         }
-        if (!finalizePrioritySessionPublication(publication)) {
+        if (!await admitSessionStoreWrite(() => {
+          assertDurableWritesAllowed()
+          return finalizePrioritySessionPublication(publication)
+        }, admissionLifecycleOptions)) {
           // Publication is not terminal authority until its exact attempt claim
           // and rollback marker are removed together. Withhold terminal bytes.
           throw new Error("Durable priority attempt changed before terminal finalization")
@@ -3876,9 +4102,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           let nextPassthroughToolCallIds: string[] | undefined
           let sawCanonicalResult = false
           let mappingInvalidated = false
-          const invalidateNonStreamMapping = (): boolean => {
+          const invalidateNonStreamMapping = async (): Promise<boolean> => {
             if (isIndependentSession || mappingInvalidated) return true
-            const evicted = evictSession(
+            const evicted = await evictSession(
               profileSessionId,
               profileScopedCwd,
               lineageMessages,
@@ -3887,7 +4113,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             if (evicted) mappingInvalidated = true
             return evicted
           }
-          const settleInterruptedNonStreamMapping = (): boolean => {
+          const settleInterruptedNonStreamMapping = async (): Promise<boolean> => {
             if (
               options.priorityPublication
               && !options.priorityPublication.rollback
@@ -4054,7 +4280,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), evicting and replaying as fresh session`)
                     managedForkSuperseded = true
                     await abandonManagedFork("resume_replay")
-                    if (!evictSession(
+                    if (!await evictSession(
                       profileSessionId,
                       profileScopedCwd,
                       lineageMessages,
@@ -4115,7 +4341,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
                     managedForkSuperseded = true
                     await abandonManagedFork("fresh_model_fallback")
-                    if (!evictSession(
+                    if (!await evictSession(
                       profileSessionId,
                       profileScopedCwd,
                       lineageMessages,
@@ -4475,7 +4701,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               (requestAbort.controller.signal.aborted || durableWritesRevoked || failedResumedTurn)
               && !isIndependentSession
             ) {
-              if (!settleInterruptedNonStreamMapping()) {
+              if (!await settleInterruptedNonStreamMapping()) {
                 throw new Error("Shared session mapping changed before interrupted non-stream invalidation")
               }
               claudeLog("session.interrupted_mapping_evicted", {
@@ -4491,7 +4717,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             ) {
               // A failed durability drain must not leave either a newly cached
               // checkpoint or an older mapping behind for the advanced client.
-              if (!settleInterruptedNonStreamMapping()) {
+              if (!await settleInterruptedNonStreamMapping()) {
                 throw new Error("Shared session mapping changed before non-stream recovery invalidation")
               }
               claudeLog("passthrough.noncanonical_session_evicted", { mode: "non_stream", reason: "drain_error" })
@@ -4778,7 +5004,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   // Iterator visibility is not durability. Never publish a
                   // resumeSessionAt UUID unless the CLI reached its terminal
                   // result and had a chance to commit the transcript.
-                  if (!invalidateNonStreamMapping()) {
+                  if (!await invalidateNonStreamMapping()) {
                     throw new Error("Shared session mapping changed before non-stream terminal invalidation")
                   }
                   claudeLog("passthrough.noncanonical_session_evicted", { mode: "non_stream" })
@@ -4813,28 +5039,28 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     mappingExpectedGeneration,
                     options.priorityPublication,
                       )
-                        if (stored) {
-                          mappingExpectedGeneration = stored
-                          if (managedForkTarget?.sessionId === currentSessionId) managedForkPublished = true
-                        }
                         return stored
                       },
                       admissionLifecycleOptions,
                     )
+                    if (mappingStored) {
+                      mappingExpectedGeneration = mappingStored
+                      if (managedForkTarget?.sessionId === currentSessionId) managedForkPublished = true
+                    }
                   } catch (error) {
-                    publicationDeferred = deferTerminalPublication(error, "non_stream", invalidateNonStreamMapping)
+                    publicationDeferred = await deferTerminalPublication(error, "non_stream", invalidateNonStreamMapping)
                     if (
                       !publicationDeferred &&
                       (requestAbort.controller.signal.aborted || durableWritesRevoked) &&
                       managedForkPublished &&
-                      !invalidateNonStreamMapping()
+                      !await invalidateNonStreamMapping()
                     ) {
                       throw new Error("Shared session mapping changed before canceled non-stream publication cleanup")
                     }
                     if (!publicationDeferred) throw error
                   }
                   if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
-                    if (mappingStored && !invalidateNonStreamMapping()) {
+                    if (mappingStored && !await invalidateNonStreamMapping()) {
                       throw new Error("Shared session mapping changed after canceled non-stream publication")
                     }
                     throw new Error("Request canceled after non-stream publication")
@@ -4860,7 +5086,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 }
               }
 
-              finalizePriorityPublication()
+              await finalizePriorityPublication()
               const responseSessionId = currentSessionId || resumeSessionId || `session_${Date.now()}`
 
               return new Response(JSON.stringify({
@@ -5390,7 +5616,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), evicting and replaying as fresh session`)
                       managedForkSuperseded = true
                       await abandonManagedFork("resume_replay")
-                      if (!evictSession(
+                      if (!await evictSession(
                         profileSessionId,
                         profileScopedCwd,
                         lineageMessages,
@@ -5447,7 +5673,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       plog(`[PROXY] ${requestMeta.requestId} extra usage persisted on resumed ${model}, retrying as fresh session`)
                       managedForkSuperseded = true
                       await abandonManagedFork("fresh_model_fallback")
-                      if (!evictSession(
+                      if (!await evictSession(
                         profileSessionId,
                         profileScopedCwd,
                         lineageMessages,
@@ -6148,7 +6374,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   exitedBeforeCanonicalTerminal ||
                   (checkpointTurn && (!earlyStopFired || !sawCanonicalResult))
                 ) {
-                  const evicted = evictSession(
+                  const evicted = await evictSession(
                     profileSessionId,
                     profileScopedCwd,
                     lineageMessages,
@@ -6161,8 +6387,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 } else {
                   validateManagedForkResult(currentSessionId)
                   let publicationDeferred = false
-                  const deferStreamPublication = (error: unknown): false => {
-                    if (!deferTerminalPublication(error, "stream", () => evictSession(
+                  const deferStreamPublication = async (error: unknown): Promise<false> => {
+                    if (!await deferTerminalPublication(error, "stream", () => evictSession(
                       profileSessionId,
                       profileScopedCwd,
                       lineageMessages,
@@ -6197,18 +6423,18 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     mappingExpectedGeneration,
                     options.priorityPublication,
                       )
-                      if (stored) {
-                        mappingExpectedGeneration = stored
-                        if (managedForkTarget?.sessionId === currentSessionId) managedForkPublished = true
-                      }
                       return stored
                     },
                     admissionLifecycleOptions,
                   ).catch(deferStreamPublication)
+                  if (mappingStored) {
+                    mappingExpectedGeneration = mappingStored
+                    if (managedForkTarget?.sessionId === currentSessionId) managedForkPublished = true
+                  }
                   if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
                     if (
                       mappingStored && !isIndependentSession &&
-                      !evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
+                      !await evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
                     ) {
                       throw new Error("Shared session mapping changed after canceled stream publication")
                     }
@@ -6505,7 +6731,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   !isIndependentSession && !sawDuplicateToolUse
                 ) {
                   const recoverySdkUuidMap = allMessages.map(() => null)
-                  await commitFork(recoveryForkTarget, admissionLifecycleOptions)
+                  if (!bookkeepingHandle) await commitFork(recoveryForkTarget, admissionLifecycleOptions)
                   assertDurableWritesAllowed()
                   const recoveryMappingStored = await publishPinnedTranscript(
                     recoveryForkTarget,
@@ -6525,19 +6751,19 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     mappingExpectedGeneration,
                     options.priorityPublication,
                       )
-                      if (stored) {
-                        mappingExpectedGeneration = stored
-                        recoveryForkPublished = true
-                        recoveryPublishedTarget = recoveryForkTarget
-                      }
                       return stored
                     },
                     admissionLifecycleOptions,
                   )
+                  if (recoveryMappingStored) {
+                    mappingExpectedGeneration = recoveryMappingStored
+                    recoveryForkPublished = true
+                    recoveryPublishedTarget = recoveryForkTarget
+                  }
                   if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
                     if (
                       recoveryMappingStored && !isIndependentSession &&
-                      !evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
+                      !await evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
                     ) {
                       throw new Error("Shared session mapping changed after canceled silent-recovery publication")
                     }
@@ -6626,7 +6852,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         })
                       })
                   }
-                  if (recoveryForkTarget && !recoveryForkPublished) {
+                  if (recoveryForkTarget && !recoveryForkPublished
+                    && !uncertainPublications.has(getTranscriptResourceKey(recoveryForkTarget))) {
                     await abandonFork(recoveryForkTarget, sessionGcOptions).catch((error) => {
                       claudeLog("session.fork_abandon_failed", {
                         mode: "silent_recovery",
@@ -6744,7 +6971,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 // so recovered content lands ahead of them, where clients can
                 // still see it).
                 assertPriorityPublicationReady()
-                finalizePriorityPublication()
+                await finalizePriorityPublication()
                 if (messageStartEmitted) {
                   sendTerminalDelta(streamedToolUseIds.size > 0 ? "tool_use" : unstreamedStopReason)
                   sendTerminalStop("final_message_stop")
@@ -6868,7 +7095,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 && interruptedMappingMayBeAdvanced
                 && !isIndependentSession
               ) {
-                evictSession(
+                await evictSession(
                   profileSessionId,
                   profileScopedCwd,
                   lineageMessages,
@@ -6904,7 +7131,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 const mayEvictInterruptedMapping =
                   !managedForkTarget || managedForkPublished || clientAssistantContentExposed
                 if (disposition.action === "evict" && mayEvictInterruptedMapping) {
-                  evictSession(
+                  await evictSession(
                     profileSessionId,
                     profileScopedCwd,
                     lineageMessages,
@@ -6952,7 +7179,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 })
                 streamErr = { status: verdict.status, type: verdict.type, message: verdict.message }
               } else {
-                streamErr = classifyError(errMsg, model)
+                streamErr = classifyBookkeepingFailure(error, errMsg, model)
               }
               claudeLog("proxy.anthropic.error", { error: errMsg, classified: streamErr.type })
 
@@ -7142,7 +7369,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               ) {
                 // Do not grant a terminal tool checkpoint while the durable
                 // mapping still names an ancestry that lacks those calls.
-                const evicted = evictSession(
+                const evicted = await evictSession(
                   profileSessionId,
                   profileScopedCwd,
                   lineageMessages,
@@ -7242,18 +7469,18 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     mappingExpectedGeneration,
                     options.priorityPublication,
                       )
-                      if (stored) {
-                        mappingExpectedGeneration = stored
-                        if (managedForkTarget?.sessionId === currentSessionId) managedForkPublished = true
-                      }
                       return stored
                     },
                     admissionLifecycleOptions,
                   )
+                  if (mappingStored) {
+                    mappingExpectedGeneration = mappingStored
+                    if (managedForkTarget?.sessionId === currentSessionId) managedForkPublished = true
+                  }
                   if (requestAbort.controller.signal.aborted || durableWritesRevoked) {
                     if (
                       mappingStored && !isIndependentSession &&
-                      !evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
+                      !await evictSession(profileSessionId, profileScopedCwd, lineageMessages, mappingExpectedGeneration)
                     ) {
                       throw new Error("Shared session mapping changed after canceled recovery publication")
                     }
@@ -7286,7 +7513,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 // now may the terminal pair authorize the client to submit the
                 // recovered tool results.
                 assertPriorityPublicationReady()
-                finalizePriorityPublication()
+                await finalizePriorityPublication()
                 const terminalDeltaEnqueued = enqueueTerminalDelta(encoder.encode(
                   `event: message_delta\ndata: ${JSON.stringify({
                     type: "message_delta",
@@ -7662,7 +7889,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               resolveStreamCompletion()
             })
           },
-          cancel(reason) {
+          async cancel(reason) {
             requestAbort.setCause("stream_cancel")
             requestAbort.abort(reason)
             // Only the owner detaches the link; an adopted request-wide link
@@ -7679,7 +7906,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // A direct resume or already-published target may have advanced.
               // An unpublished managed fork writes only its isolated target, so
               // preserve the still-authoritative source mapping and abandon it.
-              evictSession(
+              await evictSession(
                     profileSessionId,
                     profileScopedCwd,
                     lineageMessages,
@@ -7717,7 +7944,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           ? { status: 499, type: "request_cancelled", message: "The request was cancelled" }
           : error instanceof IdleStallCeilingError
             ? error.verdict
-            : classifyError(errMsg)
+            : classifyBookkeepingFailure(error, errMsg)
 
         // Non-streaming failures still own their headers here, so the hint goes
         // out as a real `Retry-After` (#901). `resolvedProfileId` is undefined
@@ -9895,12 +10122,16 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     }
   }
 
+  const bookkeepingHandle = retainProxyBookkeeping()
   return {
     app,
     config: finalConfig,
     initPlugins: initPluginsAsync,
     closeBackend: async () => {
-      const results = await Promise.allSettled([authOwner.close(), antigravity?.closeBackend()])
+      if (inFlightRequests) throw new Error("drain requests before closing the bookkeeping backend")
+      const results = await Promise.allSettled([authOwner.close(), antigravity?.closeBackend?.()])
+      if (sessionGcRunning) await sessionGcRunning
+      bookkeepingHandle?.close()
       for (const result of results) if (result.status === "rejected") throw result.reason
     },
     beginDrain: () => { draining = true; antigravity?.beginDrain?.() },
@@ -10016,9 +10247,20 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
   }
   logCredentialsModeBanner()
   claudeExecutable = await resolveClaudeExecutableAsync()
+  const startupBookkeeping = await initializeProxyBookkeeping()
   const authOwner = createAuthStatusOwner()
   const getInstanceAuthStatus = (profileId?: string, envOverrides?: Record<string, string>) =>
     authOwner.run(() => getClaudeAuthStatusAsync(profileId, envOverrides))
+  let proxy: ProxyServer | undefined
+  try {
+    proxy = createProxyServerWithAuthOwner(config, authOwner)
+    await proxy.initPlugins?.()
+  } catch (error) {
+    try { await proxy?.closeBackend?.() }
+    finally { startupBookkeeping?.close() }
+    throw error
+  }
+  startupBookkeeping?.close()
   const {
     app,
     config: finalConfig,
@@ -10028,8 +10270,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     getInFlightCount,
     sweepSessionGc,
     closeBackend,
-  } = createProxyServerWithAuthOwner(config, authOwner)
-  if (initPlugins) await initPlugins()
+  } = proxy
 
   // Only the owned HTTP-server lifecycle starts a periodic sweep. Embedders
   // using createProxyServer().app still sweep opportunistically after managed
@@ -10088,7 +10329,8 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
   // don't inherit it.
   const fd = socketActivationFd()
   let server: Server
-  if (fd !== undefined) {
+  try {
+    if (fd !== undefined) {
     delete process.env.LISTEN_FDS
     delete process.env.LISTEN_PID
     server = createAdaptorServer({ fetch: app.fetch, serverOptions, overrideGlobalObjects: false }) as Server
@@ -10097,7 +10339,7 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
       onListening(typeof addr === "object" && addr !== null ? addr.port : finalConfig.port)
       if (!finalConfig.silent) console.log(`Meridian socket-activated (inherited fd ${fd})`)
     })
-  } else {
+    } else {
     server = serve(
       {
         fetch: app.fetch,
@@ -10108,6 +10350,11 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
       },
       (info) => onListening(info.port),
     ) as Server
+    }
+  } catch (error) {
+    if (sessionGcInterval) clearInterval(sessionGcInterval)
+    await closeBackend?.()
+    throw error
   }
 
   const idleMs = finalConfig.idleTimeoutSeconds * 1000
@@ -10181,6 +10428,12 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
 
   let closePromise: Promise<void> | undefined
   let idleExitCheck: ReturnType<typeof setInterval> | undefined
+  // The bookkeeping backend stays open while a revoked request may still use
+  // it, but this instance's auth-status children are cancelled either way.
+  const closeBackendWhenSettled = async (): Promise<void> => {
+    if ((getInFlightCount?.() ?? 0) === 0) await closeBackend?.()
+    else await authOwner.close().catch((error) => console.error("[PROXY] Auth status shutdown failed:", error))
+  }
   const instance: ProxyInstance = {
     server,
     config: finalConfig,
@@ -10210,9 +10463,11 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
               connectionTracker.forceCloseAll()
             },
           })
+        } catch (error) {
+          await closeBackendWhenSettled()
+          throw error
         } finally {
           connectionTracker.dispose()
-          await closeBackend?.()
         }
         // Give aborted SDK iterators one short bounded window to observe the
         // revocation and release their fencing leases. Durable callbacks also
@@ -10230,10 +10485,14 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
         } else if (!finalConfig.silent) {
           console.warn("[PROXY] Skipping final session GC because revoked requests have not settled.")
         }
+        await closeBackendWhenSettled()
       })()
       return closePromise
     },
   }
+  server.once("error", () => {
+    void instance.close().catch((error) => console.error("[PROXY] Failed startup cleanup:", error))
+  })
 
   // --- Opt-in idle self-exit for socket-activation / per-demand use ---
   // When MERIDIAN_IDLE_EXIT_SECONDS is set, exit gracefully after the proxy

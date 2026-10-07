@@ -1,7 +1,7 @@
 import { expect, it, spyOn } from "bun:test"
 import { LifecycleLockQueue } from "../proxy/session/lifecycleLockQueue"
 import { diagnosticLog } from "../telemetry"
-import { setProxyLogSilent } from "../proxy/operationalLog"
+import { setProxyDiagnosticSink, setProxyLogSilent } from "../proxy/operationalLog"
 import {
   SessionLifecycleQueueCapacityError,
   SessionLifecycleQueueStalledError,
@@ -126,6 +126,8 @@ it("does not blame the holder for a stall deadline delayed by a blocked event lo
 it("reports a late stall deadline on stderr and in the diagnostic log by default", async () => {
   // Other HTTP tests may have established the process-wide silent host policy.
   setProxyLogSilent(false)
+  // The proxy registers this sink when its server module loads.
+  setProxyDiagnosticSink((message) => diagnosticLog.session(message))
   diagnosticLog.clear()
   const stderr = spyOn(console, "error").mockImplementation(() => {})
   try {

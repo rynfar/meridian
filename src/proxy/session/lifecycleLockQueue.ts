@@ -4,8 +4,7 @@ import {
   SessionLifecycleQueueStalledError,
   SessionLifecycleReentrancyError,
 } from "./lifecycleErrors"
-import { diagnosticLog } from "../../telemetry"
-import { plog } from "../operationalLog"
+import { pdiagnostic, plog } from "../operationalLog"
 
 interface QueueOptions {
   readonly maxPending?: number
@@ -19,7 +18,7 @@ interface QueueOptions {
 
 const logQueueEvent = (message: string): void => {
   plog(`[PROXY] ${message}`)
-  diagnosticLog.session(message)
+  pdiagnostic(message)
 }
 
 interface Pending {
