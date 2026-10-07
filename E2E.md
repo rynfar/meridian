@@ -6074,6 +6074,15 @@ User text or ordinary XML stop sequences do not establish a classifier.
 Official CLI distribution inspection supports this shape statically; actual
 emitted wire and model receipts still require the native gate.
 
+The CLI names its request class in `x-claude-code-request-class`, but sends it
+only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL, or
+under a remote flag. The adapter therefore uses the header when present and
+otherwise the shape: session key, no tools, not streamed. A request carrying
+the CLI's own `x-claude-code-session-id` needs nothing more, which also covers
+the session-state classifier (one `Current state: …` message, no stop
+sequence); any other request also needs a `</block>` or `</severity>` stop
+sequence.
+
 Run the committed harness unchanged against the unchanged baseline and fixed
 head. Both use four actual `--permission-mode auto` invocations: two tool
 turns, an ordinary resumed turn, and a tool turn with gateway hint headers.
