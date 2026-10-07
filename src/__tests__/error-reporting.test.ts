@@ -8,7 +8,7 @@
  * unhandled rejection, which an in-process test cannot provoke safely.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { authHeader, buildEnvelope, buildEvent, parseDsn, parseStack, scrubSecrets } from "../errorReporting/event"
@@ -294,13 +294,49 @@ describe("in a real process", () => {
   it("an unhandled rejection with no other listener still exits as it would without the reporter, recorded once", async () => {
     for (const failure of ["reject", "reject-undefined"]) {
       const spool = join(tempDir(), "spool")
-      const baseline = await runChild({ REPORTER_SPOOL: join(tempDir(), "unused"), REPORTER_FAIL: failure })
-      const withReporter = await runChild({ REPORTER_DSN: deadDsn(), REPORTER_SPOOL: spool, REPORTER_FAIL: failure })
-      expect(baseline.code).not.toBe(0)
-      expect(withReporter.code).toBe(baseline.code)
-      await waitFor(() => readdirSync(spool).length === 1 && spooled(spool).length === 1)
-      expect(readdirSync(spool)).toEqual(spooled(spool))
-      expect(spooled(spool)).toHaveLength(1)
+      const posted: string[] = []
+      let releaseResponse: (() => void) | undefined
+      const responseReady = new Promise<void>((resolve) => { releaseResponse = resolve })
+      const unavailable = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        async fetch(request) {
+          posted.push(await request.text())
+          await responseReady
+          return new Response("unavailable", { status: 503 })
+        },
+      })
+      try {
+        const baseline = await runChild({ REPORTER_SPOOL: join(tempDir(), "unused"), REPORTER_FAIL: failure })
+        const withReporter = await runChild({
+          REPORTER_DSN: `http://publickey@127.0.0.1:${unavailable.port}/42`, REPORTER_SPOOL: spool, REPORTER_FAIL: failure,
+        })
+        expect(baseline.code).not.toBe(0)
+        expect(withReporter.code).toBe(baseline.code)
+        await waitFor(() => posted.length > 0)
+        expect(posted).toHaveLength(1)
+
+        // A dying process does not join its detached delivery child. Before
+        // that child claims the file, an initial JSON snapshot is not settled.
+        // Hold the response to witness the claim, then require retry restoration.
+        const claimed = readdirSync(spool)
+        expect(claimed).toHaveLength(1)
+        expect(claimed[0]).toMatch(/\.json\.sending-\d+$/)
+        releaseResponse?.()
+        await waitFor(() => {
+          const files = readdirSync(spool)
+          return files.length === 1 && files[0]!.endsWith(".json")
+        })
+        const settled = readdirSync(spool)
+        expect(settled).toHaveLength(1)
+        expect(settled[0]).toMatch(/\.json$/)
+        expect(posted).toHaveLength(1)
+        expect(readFileSync(join(spool, settled[0]!), "utf8")).toBe(posted[0]!)
+        expect(eventOf(posted[0]!).exception.values[0]!.mechanism).toEqual({ type: "onunhandledrejection", handled: false })
+      } finally {
+        releaseResponse?.()
+        unavailable.stop(true)
+      }
     }
   })
 
