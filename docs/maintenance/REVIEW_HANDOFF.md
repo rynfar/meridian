@@ -5,16 +5,18 @@
 The owner requested oldest PRs and issues first. Use creation date ascending
 across Meridian and managed scrub repositories, while respecting drafts,
 explicit no-review requests and existing owner holds. This supersedes older
-queue-order suggestions below. The refreshed inventory contained 18 Meridian
-issues and 24 Meridian PRs, plus three scrub PRs and no scrub issues. These are
-dated observations; refresh before selecting another item.
+queue-order suggestions below. The paginated refresh at **2026-10-07 22:18:35
+UTC**, after #1176 closed, contained 18 Meridian issues and 23 Meridian PRs,
+plus three managed scrub PRs and no scrub issues across six managed repositories.
+These are dated observations; refresh before selecting another item.
 
 - **Issue [650](https://github.com/rynfar/meridian/issues/650), July 17:**
   receiver and sender workflows are delivered. Fresh secret-name metadata shows
   `MERIDIAN_DISPATCH_TOKEN` absent from Hermes, OpenCode and Pi scrub repositories.
-  It remains held for owner provisioning of the narrowly scoped credential and
-  a witnessed sender-to-receiver dispatch. Do not export a broad CLI credential
-  as a substitute.
+  The owner explicitly kept this deferred on October 7. Do not provision a
+  token or run a dispatch while that hold stands. Revisit only on owner steering;
+  acceptance still requires the narrowly scoped credential and a witnessed
+  sender-to-receiver dispatch. Do not export a broad CLI credential as a substitute.
 - **Issue [769](https://github.com/rynfar/meridian/issues/769), August 7:**
   the published OpenClaw scrub does not establish that the reporter's newer,
   undisclosed trigger is handled. The latest owner hold requires a minimized
@@ -57,13 +59,18 @@ dated observations; refresh before selecting another item.
   the remaining authored `c5804275` commit is still owner-deferred. It changes
   empty capped-output guarantees and stream/nonstream parity; oldest-first
   ordering does not supply the missing contract decision.
+- **Issue [1068](https://github.com/rynfar/meridian/issues/1068), September 19:**
+  the owner's disposition choice remains pending. Existing append-only guidance
+  and the retention-contract/actual Pydantic AI acceptance gates remain unchanged;
+  no closure or new interface decision is inferred.
 - **Issue [1073](https://github.com/rynfar/meridian/issues/1073), September 19:**
   the official-CLI macOS implementation and its recorded expansions already
   landed. A bounded internal correction now requires boolean `useG1Credits`;
   only explicit false passes the existing subscription-only checks. Sixteen
   unchanged-runtime fixture cases reproduce missing/falsy acceptance. Corrected
-  probe/backend suites pass 39/72 tests, and all local gates on the pre-rebase
-  source pass **5,451 / 35 skip / 0 fail**, typecheck and build.
+  probe/backend suites pass 39/72 tests. Final local gates on rebased delivery
+  `a6d15a2f970edabe0fc323bbcb8506597008f356` pass **5,452 / 35 skip / 0 fail**,
+  typecheck and build; the earlier 5,451 result remains pre-rebase evidence.
   Official agy 1.2.7 / Gemini 3.8 Flash Low / actual Pi 0.72.1 on macOS arm64
   passes text, client-tool roundtrip, completed-history replay and exact-file
   streaming client read/write. The native executable remains hash/version
@@ -72,24 +79,83 @@ dated observations; refresh before selecting another item.
   only whitelisted setting types/flags are retained. First self-update and
   local API-key fixture failures remain qualified in
   [the durable proof](evidence/1073-subscription-settings.md).
-  Final-head rebase/CI delivery remains open; broader Linux/Windows and
-  reliability acceptance keeps #1073 open. No new owner approval is needed for
-  this internal enforcement of its already approved subscription boundary.
+  [Delivery #1307](https://github.com/rynfar/meridian/pull/1307) merged as
+  `ff260ea217072cf842f319c64d563e122f4d6964` after six successful final-head checks
+  and the expected changelog skip, including
+  [required test](https://github.com/rynfar/meridian/actions/runs/37689253024/job/113024913360).
+  Merged tree `2d4112bcae9c1900016b225e2f5ea07679341f6b` exactly matches the tested
+  tree; human credit is verified. Broader Linux/Windows and reliability acceptance
+  keeps #1073 open. No new owner approval is needed for this internal enforcement
+  of its already approved subscription boundary.
 - **Oldest nondraft scrub PR
   [OpenCode 18](https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/18),
   September 27:** source `03d2f561` remains conflicted and held for the recorded
   Claude-only correction and affected-client proof. Scrub release PRs Pi 15 and
   OpenCode 20 still need separate release authorization.
-- **Oldest nondraft Meridian PR
-  [1176](https://github.com/rynfar/meridian/pull/1176), September 28:**
-  independent full-diff review of `f552804e061a9aaca8ef371779f1c9e093e2ec5f`
-  retains the existing product/evidence hold. Meridian supports Claude and
-  Antigravity serving; GPT request identifiers are answered by Claude and remain
-  unpriced without overrides. The 25 GPT catalog entries and daily updater
-  cannot establish an OpenAI-serving cost feature. Revisit when a supported
-  OpenAI backend supplies observed served-model and normalized usage facts,
-  then verify prices, partial-cost display and the real affected flow. No new
-  public-plugin approval requirement was established for this catalog.
+- **PR [1176](https://github.com/rynfar/meridian/pull/1176), September 28:**
+  declined and closed unmerged at **2026-10-07 22:16:36 UTC**, with unchanged head
+  `f552804e061a9aaca8ef371779f1c9e093e2ec5f`. This supersedes the reviewer hold:
+  Meridian has no supported OpenAI-serving producer for the proposed built-in
+  GPT valuation. GPT request IDs are served by Claude; synthetic GPT metrics,
+  override convenience and 25 unused catalog entries do not establish that feature.
+  The authored [Nowaker source](https://github.com/Nowaker/meridian/tree/f552804e061a9aaca8ef371779f1c9e093e2ec5f)
+  and `feat/openai-pricing` branch are preserved. Reconsider only if a separately
+  approved supported OpenAI backend lands with observed served-model/normalized
+  usage and actual-client proof, then refresh valuation, overrides, partial-cost
+  display and authoritative prices. No backend work is inferred from this decline.
+- **PR [1193](https://github.com/rynfar/meridian/pull/1193), September 29:**
+  the owner explicitly kept `7c9308968f760119e1b9f3ba8d74497af39d4a85` deferred on
+  October 7. Do not run warming queries. Revisit on owner steering; the tracked
+  background-call contract, real idle cache-loss/benefit proof and lifecycle gates
+  remain required. The universal five-minute TTL rationale is unproven for Meridian.
+  Static review retains missing normal process/hook fences, private source pinning
+  and release-before-join, plus stale admission after the semaphore wait: expiry,
+  opt-out and mapping replacement are not revalidated. Preserve foreground priority,
+  revocation, tool denial and joined cleanup before acceptance. The
+  [prior disposition](BACKLOG_DISPOSITIONS_2026-10-01.md) records the original
+  gates; this pass adds the stale-admission finding. The owner deferral supplies
+  no implementation approval.
+- **PR [1201](https://github.com/rynfar/meridian/pull/1201), October 1:**
+  unchanged source `30e01969c4511cc21e3a46c76d35c615a5ac6466` remains held for the
+  original worker/deployment, SDK, exact model and cache/resume acceptance evidence.
+  Two reconstruction cases using the public production producer passed with explicit
+  in-memory shell/database/event/interruption doubles: Meowbert
+  [historical `b5a83ea8`](https://github.com/XInTheDark/meowbert-ai-agent/commit/b5a83ea81fa7314256d90bb0ad378536923cd65a)
+  produces call A / output A / call B / output B; its
+  [caller fix `08e771a9`](https://github.com/XInTheDark/meowbert-ai-agent/commit/08e771a948d6d9db1fe96fee93c9ed7d54068cf4)
+  produces call A / call B / output A / output B. Both exercised the production
+  dispatcher, shell handler, persistence/reconstruction and Claude normalizer,
+  preserving correlated receipts and each revision's ordering. This confirms the
+  public producer shape, not an end-to-end Meridian fix. The original live
+  parallel-call/resume and unrelated/duplicate/missing-call controls remain open.
+- **PR [1211](https://github.com/rynfar/meridian/pull/1211), October 1:**
+  unchanged source `22566e8ac0b9e079bb0d28c0eb4aa05207c56070` retains the
+  **accept with maintainer corrections** disposition; actual affected-client
+  acceptance stays held. Recover the corrected `e731a2dfae4931d0c7718e99098cc4ab4a3355a2`
+  delivery from `codex/claude-auxiliary-1211-20261004`; do not duplicate it or land
+  the original unchanged. The [retained proof](https://github.com/rynfar/meridian/blob/e731a2dfae4931d0c7718e99098cc4ab4a3355a2/docs/maintenance/evidence/1211-claude-auxiliary-20261004/README.md)
+  supersedes the obsolete API-approval hold: the hook is internal. Revisit with a
+  ready owned Linux x64 environment and original main/classifier model evidence.
+  Native E71 before/after, separately observed requested/served model identities,
+  E55 gateway parity and all four E41 modes remain gates; the historical `sonnet`
+  alias does not supply exact served IDs or the missing native CLI identity.
+  Current-main reconciliation then needs fresh local gates and final-head CI.
+- **Issue [1212](https://github.com/rynfar/meridian/issues/1212) / PR
+  [1213](https://github.com/rynfar/meridian/pull/1213), October 1:**
+  the preserved correction from administratively closed
+  [draft #1267](https://github.com/rynfar/meridian/pull/1267),
+  `fe93ce447bd277a45157fcaad957cd37e4eba2e6`, remains held for native evidence.
+  It was not merged; source #1213 remains open. Its
+  [qualified proof](https://github.com/rynfar/meridian/blob/fe93ce447bd277a45157fcaad957cd37e4eba2e6/docs/maintenance/evidence/1213-native-sonnet-context.md)
+  establishes local controls and actual package-installed Meridian V2 plugin
+  execution, but no valid Sonnet 5.5 completion. Actual Linux/OpenCode/Sonnet 5.5
+  large-history baseline/fixed/resume evidence remains missing; preparation and
+  historical green gates do not replace it.
+
+Every future actual OpenCode/Claude verification or access diagnostic requires
+the generation-matching Meridian OpenCode plugin and retained configuration/load/
+route witnesses under the [mandatory preflight](../../E2E.md#required-meridian-opencode-plugin-preflight).
+Check that path before interpreting a refusal or requesting another owner login.
 
 This pass does not authorize a release or close the remaining CI issues.
 

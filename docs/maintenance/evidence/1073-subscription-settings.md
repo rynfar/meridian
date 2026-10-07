@@ -92,6 +92,20 @@ E2E_PI_BIN=/owned/pi-0.72.1 node scripts/e2e-antigravity.mjs
 ```
 
 [Sanitized results](1073-subscription-settings-results.json) retain the before/
-after fixture, native identity and actual-client facts. Final local/CI gates
-remain pending in this working record. #1073 remains open for its broader
-Linux/Windows and reliability acceptance scope. No release is claimed.
+after fixture, native identity and actual-client facts, including the earlier
+pre-rebase local result.
+
+## Delivery — 2026-10-07
+
+[PR #1307](https://github.com/rynfar/meridian/pull/1307) merged at 21:50:17 UTC as
+`ff260ea217072cf842f319c64d563e122f4d6964` from final tested head
+`a6d15a2f970edabe0fc323bbcb8506597008f356`. Final rebased local gates passed
+**5,452 / 35 skip / 0 fail**, standalone typecheck and build. Six executed
+final-head CI checks passed, including
+[required test](https://github.com/rynfar/meridian/actions/runs/37689253024/job/113024913360),
+with the expected changelog skip. The merged tree
+`2d4112bcae9c1900016b225e2f5ea07679341f6b` exactly matches the tested tree;
+human credit is verified. This supersedes the earlier pending-delivery status.
+
+#1073 remains open for its broader Linux/Windows and reliability acceptance
+scope. No release is claimed.
