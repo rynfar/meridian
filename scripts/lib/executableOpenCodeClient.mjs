@@ -8,6 +8,7 @@ import {join} from 'node:path'
 import {spawn} from 'node:child_process'
 import {Readable, Transform} from 'node:stream'
 import {StringDecoder} from 'node:string_decoder'
+import {fileURLToPath} from 'node:url'
 import {observeChildClosure, stopAndJoinChild} from './e2eProcessCustody.mjs'
 
 export async function createExecutableOpenCodeClient({repo, root, proxyURL, env, model}) {
@@ -22,7 +23,8 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
   delete clientEnv.MERIDIAN_PROFILES
   delete clientEnv.MERIDIAN_DEFAULT_PROFILE
   const closures = [], requests = [], pending = new Set(), controllers = new Set()
-  let session, current, firstFailure
+  let session, current, firstFailure, host, hostWitness, hostURL, hostOutput = '', hostErrors = ''
+  const pluginPath = path => realpathSync(path.startsWith('file:') ? fileURLToPath(path) : path)
   async function invoke(command, args, label, timeoutMs = 180000) {
     const child = spawn(command, args, {cwd: join(root, 'project'), env: clientEnv, stdio: ['ignore', 'pipe', 'pipe']})
     const witness = observeChildClosure(child)
@@ -121,6 +123,12 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
   await new Promise((resolve, reject) => { relay.once('error', reject); relay.listen(0, '127.0.0.1', resolve) })
   const baseURL = `http://127.0.0.1:${relay.address().port}/v1`
   const close = async () => {
+    let hostClosure
+    if (host) {
+      hostClosure = await stopAndJoinChild(host, hostWitness, {graceMs: 5000, forceMs: 3000})
+      writeFileSync(join(root, 'opencode-server.stdout'), hostOutput, {mode: 0o600})
+      writeFileSync(join(root, 'opencode-server.stderr'), hostErrors, {mode: 0o600})
+    }
     for (const controller of controllers) controller.abort()
     relay.closeAllConnections()
     await new Promise(resolve => relay.close(resolve))
@@ -128,7 +136,8 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
     try {
       await Promise.race([Promise.allSettled([...pending]), new Promise(resolve => { timer = setTimeout(resolve, 5000) })])
     } finally { clearTimeout(timer) }
-    return {closed: !relay.listening && pending.size === 0, handlersJoined: pending.size === 0, closures,
+    return {closed: !relay.listening && pending.size === 0 && (!hostClosure || hostClosure.joined),
+      ...(hostClosure ? {hostClosure} : {}), handlersJoined: pending.size === 0, closures,
       requests: requests.map(({session: id, ...row}) => ({...row, sessionCaptured: Boolean(id)}))}
   }
   try {
@@ -142,15 +151,29 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
     assert.equal(version.stdout.trim(), expectedVersion)
     await invoke(process.execPath, [join(repo, 'dist', 'cli.js'), 'setup', '--v1'], 'opencode-setup', 30000)
     const configured = JSON.parse(readFileSync(join(config, 'opencode.json'), 'utf8'))
-    assert.deepEqual(configured.plugin.map(path => realpathSync(path)), [plugin])
+    assert.deepEqual(configured.plugin.map(pluginPath), [plugin])
     assert.equal(configured.provider.anthropic.options.baseURL, baseURL)
-    // OpenCode itself resolves the effective config and loads the real plugin
-    // before any model call. Retain both config and runtime load witnesses.
+    // OpenCode itself resolves effective config before any model call.
     const preflight = await invoke(executable, ['debug', 'config', '--print-logs', '--log-level', 'DEBUG'], 'opencode-preflight', 60000)
     const effective = JSON.parse(preflight.stdout)
-    assert.deepEqual(effective.plugin.map(path => realpathSync(path)), [plugin])
+    assert.deepEqual(effective.plugin.map(pluginPath), [plugin])
     assert.equal(effective.provider.anthropic.options.baseURL, baseURL)
-    assert(preflight.stderr.split('\n').some(line => line.includes('loading plugin') && line.includes(plugin)),
+    host = spawn(executable, ['serve', '--hostname', '127.0.0.1', '--port', '0', '--print-logs', '--log-level', 'DEBUG'],
+      {cwd: join(root, 'project'), env: clientEnv, stdio: ['ignore', 'pipe', 'pipe']})
+    hostWitness = observeChildClosure(host)
+    host.stdout.on('data', chunk => { hostOutput = (hostOutput + chunk).slice(-1024 * 1024) })
+    host.stderr.on('data', chunk => { hostErrors = (hostErrors + chunk).slice(-1024 * 1024) })
+    const deadline = Date.now() + 60000
+    while (!(hostURL = /opencode server listening on (http:\/\/127\.0\.0\.1:\d+)/.exec(hostOutput)?.[1])) {
+      assert(!hostWitness.state.exitSeen && Date.now() < deadline, 'OpenCode server did not become ready')
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    const created = await fetch(hostURL + '/session', {method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({title: 'executable-selector-proof'}), signal: AbortSignal.timeout(30000)})
+    assert.equal(created.status, 200)
+    session = (await created.json()).id
+    assert(session, 'OpenCode did not create its own session')
+    assert(hostErrors.split('\n').some(line => line.includes('loading plugin') && line.includes(plugin)),
       'Actual OpenCode did not record loading the expected Meridian plugin')
     const identity = {version: expectedVersion, plugin: '<repo>/dist/meridian',
       pluginSha256: createHash('sha256').update(readFileSync(join(plugin, 'index.js'))).digest('hex'),
@@ -160,7 +183,7 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
       assert(!firstFailure, 'An earlier relay operation failed')
       current = {receipt, during, duringStarted: false}
       const start = requests.length
-      const flags = session ? ['--session', session] : ['--title', 'executable-selector-proof']
+      const flags = ['--attach', hostURL, '--session', session]
       const result = await invoke(executable, ['run', '--format', 'json', '--print-logs', '--log-level', 'DEBUG',
         ...flags, '--model', `anthropic/${model}`, prompt], `opencode-turn-${++turnIndex}`)
       const events = result.stdout.split('\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line))
