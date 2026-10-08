@@ -112,6 +112,7 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
           let event
           try { event = JSON.parse(line.slice(6)) } catch (error) { done(error); return }
           if (row && event.type === 'message_start') row.responseModel = event.message?.model
+          if (row && event.type === 'message_stop') row.messageStopped = true
           if (row?.hasCurrentReceipt && row.mode === 'primary' && current?.during && !current.duringStarted && event.delta?.type === 'text_delta') {
             current.duringStarted = true
             current.duringDone = Promise.resolve().then(current.during)
@@ -221,8 +222,13 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
       if (firstFailure) throw firstFailure
       assert(primary.every(row => typeof row.responseModel === 'string'), 'No actual model identity reached the client')
       const text = events.filter(event => event.type === 'text').map(event => event.part?.text ?? '').join('')
+      const history = await fetch(`${hostURL}/session/${encodeURIComponent(session)}/message`, {signal: AbortSignal.timeout(30000)})
+      assert.equal(history.status, 200)
+      const savedMessages = await history.json()
+      const saved = savedMessages.filter(message => message.info?.role === 'assistant').at(-1)?.info
+      assert(saved && !saved.error && typeof saved.time?.completed === 'number', 'The actual OpenCode session has no completed assistant message')
       current = undefined
-      return {receiptDelivered: text.includes(receipt), stopped: events.some(event => event.type === 'step_finish'),
+      return {receiptDelivered: text.includes(receipt), stopped: primary.every(row => row.messageStopped === true),
         responseModel: primary.at(-1).responseModel, duringResult, actualClient: true, sameSession: true, primaryRequests: primary.length}
     }}
   } catch (error) {
