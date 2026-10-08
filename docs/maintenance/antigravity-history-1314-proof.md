@@ -114,6 +114,28 @@ and corrected with precise declarations, without casts or ignored diagnostics. T
 corrected focused suite passed **39/39 cases, 355 assertions**, with typecheck
 and syntax checks; final full checks are recorded at the frozen correction head.
 
+The third independent review found one remaining main integration window:
+client failure was fed into lifecycle retirement only after a physical checkpoint.
+A delayed initial or postjoin write could let an already-acquiring replacement
+forward despite a failed client. On frozen `0c01c2f`, a source-order fake control
+reproduced **21 passed / 1 failed**, admitting one forward before the held writer
+completed. This is an injected old-order counterexample, not actual Pi/native or
+model reproduction.
+
+Main now installs `observeOwnedClient` before its first artifact await. Its
+synchronous observation callback retains client failure and retires admission on
+stop/error/exit/close or unknown join. Ordinary clean exit/close retires without
+inventing failure. Already-acquiring proxies remain retained and closed by the
+existing owner. Connected-observer controls hold initial/postjoin writes and
+replacement acquisition, require zero forwarding, and retain the late close.
+Other controls cover error/capture/stop/signal, deadline/missing-close, later
+writer rejection/timeout and cleanup errors, original-client-cause ordering and
+clean completion. They call the actual connection used by main, rather than
+manually retiring it. The **45/45 focused cases, 419 assertions**, typecheck and
+syntax checks passed; final full checks are recorded on the frozen correction
+head. Immutable-close, serial-writer, stream-first-cause, exited-leader guards,
+renderer/runtime and contributor bytes remain unchanged.
+
 **Live status at preparation: not run.** Official account/catalog preflight is
 not inference. Reporter DeepSeekHarness ACP version/OS remain unknown; a supported
 Pi import success would remain qualified and would not establish exact reporter

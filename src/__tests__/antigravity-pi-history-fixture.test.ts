@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events"
 import { PassThrough, Writable } from "node:stream"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { assertImportedHistory, boundedCompletion, historyFixture, inspectRenderedHistory, observeClient, liveLifecycle, serializedSnapshots, forwardResponse } from "../../scripts/e2e-antigravity-pi-history.mjs"
+import { assertImportedHistory, boundedCompletion, historyFixture, inspectRenderedHistory, observeClient, observeOwnedClient, liveLifecycle, serializedSnapshots, forwardResponse } from "../../scripts/e2e-antigravity-pi-history.mjs"
 import { parseAgRequest, renderAgPrompt } from "../proxy/backends/antigravityProtocol"
 import type { AgMessage } from "../proxy/backends/antigravityProtocol"
 
@@ -391,4 +391,136 @@ test("normal forwarding tracks the real stream finish and preserves a clean owne
   expect(chunks.join("")).toBe("actual stream bytes")
   expect(owner.state.firstFailure).toBeUndefined()
   expect(owner.state.operations[0]?.outcome).toBe("RESOLVED")
+})
+
+// Actual main connection is registered before its first artifact await. Fake
+// roles/streams only: this proves admission ordering, not OS/native joins.
+test("failed role retires acquisition while the initial artifact write is still blocked", async () => {
+  const instance = { id: "late" }, acquired = deferred<typeof instance>(), write = deferred<void>()
+  const closed: string[] = []
+  let forwards = 0
+  const writer = serializedSnapshots(async () => { await write.promise }, 1000)
+  const owner = liveLifecycle({ start: () => acquired.promise, close: async proxy => {
+    await writer.submit({ stage: "before-late-close" }); closed.push(proxy.id)
+  } })
+  const child = new FakeClient(123)
+  const role = observeOwnedClient(child, owner, { signalGroup: () => { throw new Error("Closed fake leader must not be signalled") } })
+  const initial = writer.submit({ stage: "before-client-close-wait" })
+  const mainWait = (async () => {
+    await initial; await role.join
+    await writer.submit({ stage: "client-close-outcome" })
+  })()
+  const request = owner.run("relay-request", async () => { await owner.start(); owner.forward(() => { forwards++ }) }).then(() => "RESOLVED", error => String(error))
+  await tick(); child.close(1)
+  expect(owner.state.retired).toBe(true)
+  const originalCause = owner.state.firstFailure
+  expect(originalCause).toEqual({ kind: "client", error: "Client close 1, signal null" })
+  acquired.release(instance); await tick()
+  expect(forwards).toBe(0)
+  expect(owner.state.closes).toMatchObject([{ label: "late-start-after-retirement", outcome: "PENDING" }])
+  expect(closed).toEqual([]) // Actual close waits behind the held snapshot writer.
+  write.release(); await mainWait
+  expect(await request).toContain("after retirement")
+  await owner.drain(); await writer.seal({ stage: "final" })
+  expect(closed).toEqual(["late"])
+  expect(owner.state.firstFailure).toEqual(originalCause)
+})
+
+test("failed close retires before the postjoin artifact checkpoint and retains late replacement", async () => {
+  const instance = { id: "late" }, acquired = deferred<typeof instance>(), write = deferred<void>()
+  const closed: string[] = [], child = new FakeClient(123)
+  let forwards = 0
+  const owner = liveLifecycle({ start: () => acquired.promise, close: async proxy => { closed.push(proxy.id) } })
+  const writer = serializedSnapshots(async () => { await write.promise }, 1000)
+  const role = observeOwnedClient(child, owner, { signalGroup: () => { throw new Error("Must not signal closed fake leader") } })
+  const mainWait = (async () => { await role.join; await writer.submit({ stage: "client-close-outcome" }) })()
+  const request = owner.run("relay-request", async () => { await owner.start(); owner.forward(() => { forwards++ }) }).then(() => "RESOLVED", error => String(error))
+  await tick(); child.close(1); await tick()
+  expect(writer.state.completed).toBe(0)
+  expect(owner.state.firstFailure).toEqual({ kind: "client", error: "Client close 1, signal null" })
+  acquired.release(instance)
+  expect(await request).toContain("after retirement")
+  expect(forwards).toBe(0); expect(closed).toEqual(["late"])
+  write.release(); await mainWait; await owner.drain(); await writer.seal({ stage: "final" })
+})
+
+test("connected role error/capture/stop/signal failures synchronously retire before any artifact work", async () => {
+  for (const failure of ["error", "capture", "stop", "signal"]) {
+    const child = new FakeClient(123), signals: string[] = []
+    const owner = liveLifecycle({ start: async () => ({ id: "unused" }), close: async () => {} })
+    const role = observeOwnedClient(child, owner, { captureBytes: 1, signalGroup: (_pid, signal) => { signals.push(signal) } })
+    if (failure === "error") child.emit("error", Object.assign(new Error("original client EIO"), { code: "EIO" }))
+    else if (failure === "capture") child.stdout.emit("data", Buffer.from("overflow"))
+    else if (failure === "stop") role.stop("original controlled stop")
+    else { child.signalCode = "SIGTERM"; child.emit("exit", null, "SIGTERM") }
+    expect(owner.state.retired).toBe(true)
+    expect(owner.state.firstFailure?.kind).toBe("client")
+    expect(owner.state.firstFailure?.error).toBe(role.state.failure)
+    expect(() => owner.forward(() => { throw new Error("Must not admit generation") })).toThrow("retired")
+    if (failure === "signal") expect(signals).toEqual([])
+    child.close(143); await role.join; await owner.drain()
+  }
+})
+
+test("connected deadline and missing-close join retire synchronously and preserve original role cause", async () => {
+  for (const deadline of [false, true]) {
+    const child = new FakeClient(deadline ? undefined : 123), signals: string[] = []
+    const owner = liveLifecycle({ start: async () => ({ id: "unused" }), close: async () => {} })
+    const role = observeOwnedClient(child, owner, { deadlineMs: deadline ? 1 : 1000, joinGraceMs: 5, killGraceMs: 1, signalGroup: (_pid, signal) => { signals.push(signal) } })
+    if (!deadline) {
+      child.exit(0)
+      expect(owner.state.retired).toBe(true)
+      expect(owner.state.firstFailure).toBeUndefined() // Clean leader exit alone is not a failure.
+    }
+    const joined = await role.join
+    expect(joined.outcome).toBe("UNKNOWN_CLOSE_TIMEOUT")
+    expect(owner.state.retired).toBe(true)
+    expect(owner.state.firstFailure).toEqual({ kind: "client", error: deadline ? "Client deadline exceeded" : "Client close join deadline exceeded" })
+    expect(signals).toEqual([])
+    child.close(0)
+    expect((await role.join).outcome).toBe("UNKNOWN_CLOSE_TIMEOUT")
+    expect(owner.state.firstFailure?.error).toBe(deadline ? "Client deadline exceeded" : "Client close join deadline exceeded")
+    await owner.drain()
+  }
+})
+
+test("client cause precedes a later failed or timed-out physical snapshot and cleanup error", async () => {
+  for (const timeout of [false, true]) {
+    const child = new FakeClient(123), held = deferred<void>()
+    const instance = { id: "proxy" }
+    const owner = liveLifecycle({ start: async () => instance, close: async () => { throw new Error("later cleanup EIO") } })
+    await owner.start()
+    const writer = serializedSnapshots(async () => { if (timeout) await held.promise; else { await held.promise; throw new Error("later artifact EIO") } }, 5)
+    const role = observeOwnedClient(child, owner, { signalGroup: () => { throw new Error("Closed fake leader must not be signalled") } })
+    const checkpoint = writer.submit({ stage: "initial" })
+    child.close(1)
+    const original = owner.state.firstFailure
+    expect(original).toEqual({ kind: "client", error: "Client close 1, signal null" })
+    if (!timeout) held.release()
+    const snapshot = await checkpoint
+    expect(snapshot.outcome).toBe(timeout ? "UNKNOWN_TIMEOUT" : "REJECTED")
+    owner.fail("artifact-write", snapshot.error) // Later actual writer outcome, not substitute client retirement.
+    expect(owner.state.firstFailure).toEqual(original)
+    await role.join; await owner.drain()
+    expect(owner.state.failures.some(failure => failure.kind === "proxy-close" && failure.error.includes("later cleanup EIO"))).toBe(true)
+    expect(owner.state.failures.some(failure => failure.kind === "artifact-write")).toBe(true)
+    await writer.seal({ stage: "final" }); held.release(); await tick()
+    expect(owner.state.firstFailure).toEqual(original)
+  }
+})
+
+test("ordinary clean role completion retires admission without inventing a failure", async () => {
+  const child = new FakeClient(123), signals: string[] = []
+  const owner = liveLifecycle({ start: async () => ({ id: "unused" }), close: async () => {} })
+  const role = observeOwnedClient(child, owner, { signalGroup: (_pid, signal) => { signals.push(signal) } })
+  child.exit(0)
+  expect(owner.state.retired).toBe(true)
+  expect(owner.state.firstFailure).toBeUndefined()
+  child.close(0)
+  expect((await role.join).outcome).toBe("CLOSE_OBSERVED")
+  expect(role.state.failure).toBeUndefined()
+  expect(signals).toEqual([])
+  expect(() => owner.forward(() => { throw new Error("Must not forward after clean client termination") })).toThrow("retired")
+  expect((await owner.drain()).outcome).toBe("RESOLVED")
+  expect(owner.state.firstFailure).toBeUndefined()
 })

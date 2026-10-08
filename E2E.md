@@ -7573,7 +7573,11 @@ one-second escalation and a two-second close grace after exit or stopping.
 Missing close yields a failed/unknown outcome; late or locally destroyed pipe
 closure cannot reclassify it as a native join. No signals use an exited leader.
 One lifecycle owner tracks relay handlers and proxy acquisitions. Retirement
-aborts forwarding before cleanup and forbids new start/fetch operations. Each
+aborts forwarding before cleanup and forbids new start/fetch operations. The
+client observer connects to that owner before the first artifact await. Stop,
+error, exit, close and unknown-join observations synchronously retire admission
+and retain client failure before physical writes; clean exit/close retires
+without inventing failure. Each
 captured proxy has one cached ten-second close outcome; a later caller cannot
 turn its unknown outcome into success. Already-started late replacements are
 retained and closed without forwarding. Handler/start operations have a

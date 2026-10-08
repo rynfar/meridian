@@ -252,10 +252,14 @@ export function forwardResponse(readable, response, lifecycle, checkpoint) {
   })
 }
 
+/** @type {(observation:{stage:string,failure:string|undefined,termination:string|undefined})=>void} */
+const ignoreClientObservation = () => undefined
+
 /** One owned Pi role. Missing close is a finite failure, never a native join. */
-export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1024 * 1024, joinGraceMs = 2000, killGraceMs = 1000, signalGroup = (pid, signal) => { process.kill(-pid, signal) } } = {}) {
+export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1024 * 1024, joinGraceMs = 2000, killGraceMs = 1000, signalGroup = (pid, signal) => { process.kill(-pid, signal) }, onObservation = ignoreClientObservation } = {}) {
   /** @type {{stdout:string, stderr:string, failure:string|undefined, exitEvent:boolean, exitCode:number|null, exitSignal:string|null, closeEvent:boolean, lateCloseEvent:boolean, joinExpired:boolean, localPipeCloseRequested:boolean, stdoutEnd:boolean, stderrEnd:boolean, stdoutClose:boolean, stderrClose:boolean, signals:Array<{signal:string,sent:boolean,code?:string}>}} */
   const state = { stdout: '', stderr: '', failure: undefined, exitEvent: false, exitCode: null, exitSignal: null, closeEvent: false, lateCloseEvent: false, joinExpired: false, localPipeCloseRequested: false, stdoutEnd: false, stderrEnd: false, stdoutClose: false, stderrClose: false, signals: [] }
+  const notify = (stage, termination = undefined) => onObservation({ stage, failure: state.failure, termination })
   let stopping = false, settled = false, killTimer, closeTimer, resolveJoin
   /** @type {Promise<{code:number|null,signal:string|null,closeEvent:boolean,outcome:string}>} */
   const join = new Promise(resolve => { resolveJoin = resolve })
@@ -268,6 +272,7 @@ export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1
     if (settled || closeTimer) return
     closeTimer = setTimeout(() => {
       state.joinExpired = true; state.failure ??= 'Client close join deadline exceeded'
+      notify('join-timeout')
       finish({ code: child.exitCode, signal: child.signalCode, closeEvent: false, outcome: 'UNKNOWN_CLOSE_TIMEOUT' })
       // Release only our local read ends. Their close events cannot prove native cleanup.
       for (const name of ['stdout', 'stderr']) if (typeof child[name].destroy === 'function') {
@@ -282,6 +287,7 @@ export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1
   }
   const stop = reason => {
     state.failure ??= reason
+    notify('stop') // Generation retirement must precede signals and artifact awaits.
     if (stopping || settled || state.closeEvent) return
     stopping = true; terminate('SIGTERM'); killTimer = setTimeout(() => terminate('SIGKILL'), killGraceMs); armCloseDeadline()
   }
@@ -297,12 +303,31 @@ export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1
     child[name].on('error', error => stop(`Client ${name} read failed: ${error.code ?? error.name}`))
   }
   child.once('error', error => stop(`Client process error: ${error.code ?? error.name}`))
-  child.once('exit', (code, signal) => { state.exitEvent = true; state.exitCode = code; state.exitSignal = signal; armCloseDeadline() })
+  child.once('exit', (code, signal) => {
+    state.exitEvent = true; state.exitCode = code; state.exitSignal = signal
+    if (code !== 0 || signal !== null) state.failure ??= `Client exit ${code}, signal ${signal}`
+    notify('exit', state.failure ? undefined : 'Client exited cleanly')
+    armCloseDeadline()
+  })
   child.once('close', (code, signal) => {
     state.closeEvent = true; state.lateCloseEvent = settled
+    if (code !== 0 || signal !== null) state.failure ??= `Client close ${code}, signal ${signal}`
+    notify('close', state.failure ? undefined : 'Client closed cleanly')
     finish({ code, signal, closeEvent: true, outcome: 'CLOSE_OBSERVED' })
   })
   return { state, stop, join }
+}
+
+/** Actual main connection: observe before any checkpoint can block. The callback
+ * is synchronous; clean termination retires admission without inventing failure.
+ * @param {{fail:(kind:string,error:unknown)=>void,retire:(reason:string)=>void}} lifecycle
+ * @param {Parameters<typeof observeClient>[1]} options
+ */
+export function observeOwnedClient(child, lifecycle, options = {}) {
+  return observeClient(child, { ...options, onObservation: observation => {
+    if (observation.failure) lifecycle.fail('client', observation.failure)
+    else lifecycle.retire(observation.termination || 'Client terminated')
+  } })
 }
 
 function groupAbsent(pid) {
@@ -444,12 +469,11 @@ export async function main() {
     const args = ['--provider', 'meridian-agy', '--model', model, '--thinking', 'off', '--tools', 'read,write', '--session', session, '--no-extensions', '--no-mcp', '--no-skills', '--no-prompt-templates', '--no-context-files', '--no-themes', '--no-approve', '--offline', '--system-prompt', 'Follow the newest typed request. Historical completed actions must not run again. Use only the client tools.', '-p', ' ']
     report.argv = [node, pi, ...args]; report.clientEnvNames = Object.keys(env)
     child = spawn(node, [pi, ...args], { cwd: project, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
-    role = observeClient(child)
+    role = observeOwnedClient(child, lifecycle)
     await checkpoint('before-client-close-wait')
     report.clientJoin = { ...await role.join, ownedGroupAfter: child.pid ? groupAbsent(child.pid) : 'NOT_STARTED' }
     await checkpoint('client-close-outcome')
     assert.equal(report.clientJoin.outcome, 'CLOSE_OBSERVED', 'Client close remains unknown; no native join is established')
-    if (report.clientJoin.code !== 0 || role.state.failure) lifecycle.fail('client', role.state.failure ?? `Actual Pi exit ${report.clientJoin.code}`)
     assert.equal(lifecycle.state.firstFailure, undefined, 'Retained relay/client failure'); assert.equal(report.clientJoin.code, 0, 'Actual Pi did not exit cleanly'); assert.equal(report.clientJoin.ownedGroupAfter, 'ESRCH_NO_GROUP')
     assert(role.state.stdoutEnd && role.state.stderrEnd && role.state.stdoutClose && role.state.stderrClose, 'Client pipes did not finish and physically close')
     assert(observed.length >= 3 && restarted, 'Actual result-tail recovery did not occur')
