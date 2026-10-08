@@ -1,0 +1,20 @@
+# Generated with caniko/simit 6b58559e871fa4a169e8be33f1024775858eba81
+# (qualified run 37742276156; simit-unwrapped SHA-256
+# 056bbf255eb1cc169cc83bb462b01226f09240c52c50290b237137e0befbb74d).
+# Regenerate: simit init ci --platform github --ci-provider actions --runtime nix
+# Verify with the same revision: append --check --diff.
+[ci]
+platform = "github"
+provider = "actions"
+runtime = "nix"
+runner = "ubuntu-24.04"
+nix_builds = [".#checks.x86_64-linux.home-module"]
+
+[ci.nix_build]
+only = true
+timeout_minutes = 30
+max_parallel = 1
+max_jobs = 1
+cores = 2
+capture_results = true
+artifact_retention_days = 14
