@@ -1,5 +1,55 @@
 # Upstream review handoff
 
+## Current recovered continuation (2026-10-08)
+
+The owner resumed the combined oldest-first PR/issue queue. The dirty checkout
+remains at `446a0f1633be3a0cf36d8f1e9f222e914d2f7c83`: head, index, status and
+all twelve dirty items match the saved before record. Work uses isolated feature
+branches from fetched main `458cf15c59dc5ff99f50bf4dea4a002ff44b947f`.
+No community comments, new release, tags or publishing occurred.
+
+- **SQLite #1219:** the interrupted R7 native fixture run had already completed.
+  Joined receipts establish all sixteen cases pass under both Bun 1.3.11 and
+  Node 22.0.0, with exit-zero joined outer commands. The native artifact SHA256 is
+  `6caf1e117be0cf83cb7ad392d0e1b6a5826a96f8d4e4f7a2dd5e86c3e0b9e128`.
+  It was not rerun or rebuilt. Delivery preparation stays at `d4dce40f` in
+  `codex/sqlite-inspection-1219-20261008`. This is bounded native fixture proof;
+  physical guard xWrite, natural close/projection faults, complete controller and
+  migration ownership, Linux/client/model/package and final CI gates remain open.
+- **AGY #1314 / issue #1073:** [draft #1317](https://github.com/rynfar/meridian/pull/1317)
+  preserves source `d1a13085` by Cd1s as authored cherry-pick `80d4b966`, with
+  separate corrections. The real Pi 1.1.0 / agy 1.2.7 / Gemini 3.8 Flash Low /
+  Darwin import-and-replacement gate fails unchanged on baseline `458cf15c`,
+  `dedf4096` and corrected code head `0e7c1df1`: two identical successful writes
+  instead of one. Actual joins/pipes are qualified separately. Code-head local
+  gates pass 5,521 tests / 35 skip / zero fail, typecheck and build; `cd6b31a7`
+  adds only the failed-evidence record. [The committed proof](antigravity-history-1314-proof.md)
+  retains the reproducible escrow and product hold. No blind prompt retry,
+  installation or green CI resolves that live failure. Exact reporter ACP/OS,
+  installed package, broader platform/model and final-head CI remain separate.
+  Keep source #1314 and issue #1073 open; investigate deterministic result-tail
+  semantics before another actual arm.
+- **Profiles #1316:** root source/browser review accepts the scoped display fix,
+  with completed local gates and final-head CI still required. Nowaker <spam@nowaker.net> source
+  `67c78683696712f7db714cbc5bb529bde8f5dfc3` is preserved with Author/AuthorDate
+  as `b4d8095e2fb998396d4e3a217547888477b23199` in
+  `codex/profiles-needs-login-1316-20261008`. Actual baseline/candidate Profiles
+  templates execute in the T3 browser with owned synthetic HTTP data. The
+  baseline lacks both badges/red borders; the candidate shows them, preserves
+  the active blue ring, avoids healthy/API false flags, clears on recovery and
+  handles unavailable quota conservatively. Paired 1280/375px and a 320px control
+  fit. E2E.md qualifies this display gate without model/OAuth generation.
+  [The scoped proof](evidence/profiles-needs-login-1316.md) records review,
+  reproducible fixture, validation and media limits. Broader login/expiry issues
+  stay open. Preserve Nowaker credit when squashing and recheck source head before
+  closing it as incorporated.
+
+All supplemental receipts, failed traces and before/after media remain under
+`/Users/rynfar/repos/meridian-review-evidence-20261006/resumption-20261008-round1`.
+Older dated statuses below do not supersede this checkpoint. Existing owner holds
+on #650, #1193 and #1011, no-review/draft holds, and prior missing affected-flow
+acceptance gates remain in force. The queue is not claimed cleared.
+
 ## Current CI diagnostics continuation (2026-10-08)
 
 [#1312](https://github.com/rynfar/meridian/pull/1312) merged as
