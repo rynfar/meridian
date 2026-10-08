@@ -1,19 +1,20 @@
-{ pkgs }:
+{ pkgs, home-manager }:
 let
   inherit (pkgs) lib;
   evaluate =
     settings:
-    (lib.evalModules {
-      specialArgs = { inherit pkgs; };
+    (home-manager.lib.homeManagerConfiguration {
+      inherit pkgs;
       modules = [
-        {
-          options.systemd.user.services = lib.mkOption {
-            type = lib.types.attrs;
-            default = { };
-          };
-        }
         (import ../hm-module.nix { meridian = pkgs.emptyDirectory; })
-        { services.meridian = settings; }
+        {
+          home = {
+            username = "meridian-test";
+            homeDirectory = "/home/meridian-test";
+            stateVersion = "25.11";
+          };
+          services.meridian = settings;
+        }
       ];
     }).config;
   default = evaluate { enable = true; };
@@ -31,6 +32,7 @@ let
   };
 in
 assert (evaluate { }).systemd.user.services == { };
+assert !(builtins.hasAttr "systemd/user/meridian.service" (evaluate { }).xdg.configFile);
 assert default.services.meridian.unsetEnvironment == [ ];
 assert default.systemd.user.services.meridian.Service.UnsetEnvironment == [ ];
 assert
@@ -49,4 +51,20 @@ assert
       }).systemd.user.services
       true
   )).success;
-pkgs.writeText "meridian-home-module" "ok"
+pkgs.runCommand "meridian-home-module"
+  {
+    nativeBuildInputs = [ pkgs.gnugrep ];
+    defaultUnit = default.xdg.configFile."systemd/user/meridian.service".source;
+    isolatedUnit = isolated.xdg.configFile."systemd/user/meridian.service".source;
+  }
+  ''
+    grep -Fxq '[Service]' "$defaultUnit"
+    ! grep -q '^UnsetEnvironment=' "$defaultUnit"
+    for name in ${lib.escapeShellArgs isolated.services.meridian.unsetEnvironment}; do
+      grep -Fxq "UnsetEnvironment=$name" "$isolatedUnit"
+    done
+    test "$(grep -c '^UnsetEnvironment=' "$isolatedUnit")" -eq ${toString (builtins.length isolated.services.meridian.unsetEnvironment)}
+    grep -Fxq 'Environment=CLAUDE_CONFIG_DIR=/home/example/.claude-work' "$isolatedUnit"
+    grep -Fxq 'Environment=MERIDIAN_CONFIG_DIR=/home/example/.config/meridian-opencode' "$isolatedUnit"
+    touch "$out"
+  ''
