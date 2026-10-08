@@ -408,14 +408,14 @@ afterEach(() => {
 })
 
 describe("priority routing", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     resetProcessSdkSemaphoreForTests()
     capturedEnvs = []
     failingDirs = new Set()
     // failureMessage resets in the file-level beforeEach, which runs first and
     // covers the later describes too — this one only ever saw the leak because
     // its own tests happened to run last.
-    clearSessionCache()
+    await clearSessionCache()
     // The active profile is process-global module state; other test files
     // (profile-switch integration) set it. This suite's expectations are
     // relative to defaultProfile, so reset it explicitly.
@@ -1149,7 +1149,7 @@ describe("priority routing", () => {
     const firstApp = createTestApp()
     await assignToFallback(firstApp, sessionId, "human-1")
     const staleRoute = durableRoute(sessionId)
-    expect(evictSharedSession(staleRoute.mappingKey, staleRoute.mappingGeneration)).toBe(true)
+    expect(await evictSharedSession(staleRoute.mappingKey, staleRoute.mappingGeneration)).toBe(true)
     expect(lookupSharedSessionResult(staleRoute.mappingKey).status).toBe("missing")
     capturedEnvs = []
     capturedSdkCalls = []
@@ -1438,8 +1438,9 @@ describe("priority routing", () => {
 
     await body.cancel("cancel after atomic publication")
     recoveryGate.open()
-    for (let attempt = 0; attempt < 50 && durableRoute(sessionId).profileId !== "personal"; attempt++) {
-      await new Promise<void>(resolve => setImmediate(resolve))
+    // The rollback is a store write off the event loop; give it wall time, not ticks.
+    for (let attempt = 0; attempt < 500 && durableRoute(sessionId).profileId !== "personal"; attempt++) {
+      await new Promise<void>(resolve => setTimeout(resolve, 10))
     }
 
     const restored = durableRoute(sessionId)
@@ -1482,7 +1483,7 @@ describe("priority routing", () => {
     await body.cancel("cancel unsigned publication before terminal")
     latePublicationRecoveryGate = null
     recoveryGate.open()
-    for (let attempt = 0; attempt < 100; attempt++) {
+    for (let attempt = 0; attempt < 500; attempt++) {
       const current = durableRoute(sessionId)
       const mapping = lookupSharedSessionResult(current.mappingKey)
       if (
@@ -1490,7 +1491,7 @@ describe("priority routing", () => {
         && mapping.session.claudeSessionId === fallbackMapping.session.claudeSessionId
         && current.mappingGeneration === mapping.generation
       ) break
-      await new Promise<void>(resolve => setImmediate(resolve))
+      await new Promise<void>(resolve => setTimeout(resolve, 10))
     }
     const restored = durableRoute(sessionId)
     const restoredMapping = lookupSharedSessionResult(restored.mappingKey)
@@ -1780,10 +1781,10 @@ describe("priority cooldown resolution", () => {
   const WORK_RESET = Date.now() + 4 * 60 * 60_000      // 4h out
   const PERSONAL_RESET = Date.now() + 30 * 60_000      // 30m out
 
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedEnvs = []
     failingDirs = new Set()
-    clearSessionCache()
+    await clearSessionCache()
     resetActiveProfile()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
@@ -2131,10 +2132,10 @@ describe("priority cooldown resolution", () => {
 })
 
 describe("keyless priority affinity", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     capturedEnvs = []
     failingDirs = new Set()
-    clearSessionCache()
+    await clearSessionCache()
     resetActiveProfile()
     rateLimitStore.clear()
     // Mirror the existing blocks exactly — MERIDIAN_PROFILE_ORDER matters,

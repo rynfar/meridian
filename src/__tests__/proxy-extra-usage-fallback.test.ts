@@ -233,8 +233,8 @@ function post(app: any, body: any, headers: Record<string, string> = {}) {
 }
 
 describe("Extra usage required fallback", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryCalls = []
     rateLimitBenches = []
     lifecycleAtQuery = []

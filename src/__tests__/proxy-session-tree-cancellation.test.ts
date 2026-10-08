@@ -149,13 +149,13 @@ async function drain(response: Response): Promise<string> {
 describe("parent-to-child cancellation", () => {
   let originalPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     originalPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
     behaviors = []
     calls = []
     notifyQueryStarted = undefined
-    clearSessionCache()
+    await clearSessionCache()
     processSessionTree.clear()
   })
 

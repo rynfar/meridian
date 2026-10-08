@@ -117,11 +117,11 @@ async function postNonStream(app: any, tools: any[] = [READ_TOOL]): Promise<Resp
 describe("Passthrough streaming: early termination on tool_use stop", () => {
   let origEnv: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {
@@ -285,11 +285,11 @@ describe("Passthrough streaming: early termination on tool_use stop", () => {
 describe("Passthrough non-streaming: tool_use returned without HTTP 500", () => {
   let origEnv: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     origEnv = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {

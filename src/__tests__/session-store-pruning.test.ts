@@ -17,7 +17,7 @@ describe("Session store count-based pruning", () => {
   const originalDir = process.env.CLAUDE_PROXY_SESSION_DIR
   const originalMax = process.env.CLAUDE_PROXY_MAX_STORED_SESSIONS
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Mock Date.now() to return increasing values so that
     // lastUsedAt ordering is deterministic even when the loop runs in <1ms
     // (which happens on fast CI runners).
@@ -26,7 +26,7 @@ describe("Session store count-based pruning", () => {
     tmpDir = mkdtempSync(join(tmpdir(), "session-pruning-test-"))
     setSessionStoreDir(tmpDir)
     process.env.CLAUDE_PROXY_MAX_STORED_SESSIONS = "5"
-    clearSharedSessions()
+    await clearSharedSessions()
   })
 
   afterEach(() => {
@@ -39,20 +39,20 @@ describe("Session store count-based pruning", () => {
     else process.env.CLAUDE_PROXY_MAX_STORED_SESSIONS = originalMax
   })
 
-  it("keeps all entries when under capacity", () => {
-    storeSharedSession("a", "claude-a")
-    storeSharedSession("b", "claude-b")
-    storeSharedSession("c", "claude-c")
+  it("keeps all entries when under capacity", async () => {
+    await storeSharedSession("a", "claude-a")
+    await storeSharedSession("b", "claude-b")
+    await storeSharedSession("c", "claude-c")
 
     expect(lookupSharedSession("a")?.claudeSessionId).toBe("claude-a")
     expect(lookupSharedSession("b")?.claudeSessionId).toBe("claude-b")
     expect(lookupSharedSession("c")?.claudeSessionId).toBe("claude-c")
   })
 
-  it("prunes oldest entries when capacity is exceeded", () => {
+  it("prunes oldest entries when capacity is exceeded", async () => {
     // Fill to capacity
     for (let i = 0; i < 5; i++) {
-      storeSharedSession(`sess-${i}`, `claude-${i}`, i)
+      await storeSharedSession(`sess-${i}`, `claude-${i}`, i)
     }
 
     // All 5 should exist
@@ -61,8 +61,8 @@ describe("Session store count-based pruning", () => {
     }
 
     // Add 2 more — should evict the 2 oldest (sess-0, sess-1)
-    storeSharedSession("sess-5", "claude-5", 5)
-    storeSharedSession("sess-6", "claude-6", 6)
+    await storeSharedSession("sess-5", "claude-5", 5)
+    await storeSharedSession("sess-6", "claude-6", 6)
 
     expect(lookupSharedSession("sess-0")).toBeUndefined()
     expect(lookupSharedSession("sess-1")).toBeUndefined()
@@ -71,21 +71,21 @@ describe("Session store count-based pruning", () => {
     expect(lookupSharedSession("sess-6")).toBeDefined()
   })
 
-  it("never prunes the mapping being published when the wall clock moves backward", () => {
+  it("never prunes the mapping being published when the wall clock moves backward", async () => {
     for (let i = 0; i < 5; i++) {
-      storeSharedSession(`future-${i}`, `claude-future-${i}`)
+      await storeSharedSession(`future-${i}`, `claude-future-${i}`)
     }
     dateSpy.mockImplementation(() => 1)
 
-    expect(storeSharedSession("new-after-clock-step", "claude-new")).not.toBe(false)
+    expect(await storeSharedSession("new-after-clock-step", "claude-new")).not.toBe(false)
     expect(lookupSharedSession("new-after-clock-step")?.claudeSessionId).toBe("claude-new")
     expect(lookupSharedSession("future-0")).toBeUndefined()
   })
 
-  it("does NOT prune by time — old sessions survive", () => {
+  it("does NOT prune by time — old sessions survive", async () => {
     // Store a session, then manually set lastUsedAt to 48 hours ago
     // by writing directly. Under the old TTL system this would be pruned.
-    storeSharedSession("ancient", "claude-ancient")
+    await storeSharedSession("ancient", "claude-ancient")
 
     // Read it back — should still exist regardless of age
     // (we can't easily fake the timestamp without writing raw JSON,
@@ -96,17 +96,17 @@ describe("Session store count-based pruning", () => {
     expect(session!.claudeSessionId).toBe("claude-ancient")
   })
 
-  it("preserves most recently used entries during pruning", () => {
+  it("preserves most recently used entries during pruning", async () => {
     // Store 5 sessions
     for (let i = 0; i < 5; i++) {
-      storeSharedSession(`sess-${i}`, `claude-${i}`, i)
+      await storeSharedSession(`sess-${i}`, `claude-${i}`, i)
     }
 
     // "Touch" sess-0 by re-storing it (updates lastUsedAt)
-    storeSharedSession("sess-0", "claude-0-updated", 0)
+    await storeSharedSession("sess-0", "claude-0-updated", 0)
 
     // Add a new one — should evict sess-1 (oldest untouched), NOT sess-0
-    storeSharedSession("sess-new", "claude-new")
+    await storeSharedSession("sess-new", "claude-new")
 
     expect(lookupSharedSession("sess-0")?.claudeSessionId).toBe("claude-0-updated")
     expect(lookupSharedSession("sess-1")).toBeUndefined()

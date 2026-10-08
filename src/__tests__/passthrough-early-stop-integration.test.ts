@@ -25,7 +25,7 @@ let yieldedCount = 0
 let capturedQueryParams: any = null
 let capturedQueryParamsAll: any[] = []
 let mockTerminalError: Error | undefined
-let mockBeforeTerminalError: (() => void) | undefined
+let mockBeforeTerminalError: (() => void | Promise<void>) | undefined
 let mockLogObserver: ((event: string) => void) | undefined
 /**
  * Per-attempt SDK scripts, consumed one per `query()` call. Retry paths need
@@ -89,7 +89,7 @@ installSdkMock(() => ({
         }
       }
       if (terminalError) {
-        mockBeforeTerminalError?.()
+        await mockBeforeTerminalError?.()
         throw terminalError
       }
       // Real SDK queries terminate with a result, and that boundary is the only
@@ -270,10 +270,10 @@ describe("Integration: passthrough early stop", () => {
     mockOmitReturnedSessionId = false
   })
 
-  afterEach(() => {
-    for (const key of usedSessionKeys) evictSharedSession(key)
+  afterEach(async () => {
+    for (const key of usedSessionKeys) await evictSharedSession(key)
     usedSessionKeys.clear()
-    clearSessionCache()
+    await clearSessionCache()
     if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
     else delete process.env.MERIDIAN_PASSTHROUGH
     if (savedEarlyStop !== undefined) process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP = savedEarlyStop
@@ -2319,8 +2319,8 @@ describe("Integration: passthrough early stop", () => {
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
     // Another publisher wins after this request read its generation. Recovery
     // must preserve that winner and report failure before authorizing tools.
-    mockBeforeTerminalError = () => {
-      expect(storeSharedSession(sessionKey, "concurrent-winner")).toBeTruthy()
+    mockBeforeTerminalError = async () => {
+      expect(await storeSharedSession(sessionKey, "concurrent-winner")).toBeTruthy()
     }
     const requestId = `recovery-loss-${streamed}-${operation}-${TEST_RUN_ID}`
     const response = await post(app, {
@@ -2396,8 +2396,8 @@ describe("Integration: passthrough early stop", () => {
       { type: "result", subtype: "error_max_turns", is_error: true },
     ]
     mockTerminalError = new Error("Claude Code returned an error result: Reached maximum number of turns (1)")
-    mockBeforeTerminalError = () => {
-      expect(storeSharedSession(sessionKey, "concurrent-observer-winner")).toBeTruthy()
+    mockBeforeTerminalError = async () => {
+      expect(await storeSharedSession(sessionKey, "concurrent-observer-winner")).toBeTruthy()
     }
     const requestId = `recovery-failed-observer-${TEST_RUN_ID}`
     let logFailures = 0

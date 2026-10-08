@@ -270,19 +270,19 @@ describe("checkpoint reconciliation on a synthesized identity", () => {
     rmSync(TEST_SESSION_DIR, { recursive: true, force: true })
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     savedPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
     mockMessages = []
     capturedQueryParamsAll = []
     mockBaseSessionId = `test-session-${crypto.randomUUID()}`
-    clearSessionCache()
+    await clearSessionCache()
   })
 
-  afterEach(() => {
-    for (const key of usedSessionKeys) evictSharedSession(key)
+  afterEach(async () => {
+    for (const key of usedSessionKeys) await evictSharedSession(key)
     usedSessionKeys.clear()
-    clearSessionCache()
+    await clearSessionCache()
     if (savedPassthrough !== undefined) process.env.MERIDIAN_PASSTHROUGH = savedPassthrough
     else delete process.env.MERIDIAN_PASSTHROUGH
   })

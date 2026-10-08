@@ -92,12 +92,12 @@ describe("durable priority route publication", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it("upgrades lazily and publishes route plus mapping in one document", () => {
-    storeSharedSession("ordinary", "sdk-ordinary")
+  it("upgrades lazily and publishes route plus mapping in one document", async () => {
+    await storeSharedSession("ordinary", "sdk-ordinary")
     const before = JSON.parse(readFileSync(join(dir, "sessions.json"), "utf8"))
     expect(before[META_KEY].version).toBe(1)
 
-    const published = atomicPublish({
+    const published = await atomicPublish({
       routeKey: "conversation-1",
       mappingKey: "personal:conversation-1",
       profileId: "personal",
@@ -122,17 +122,17 @@ describe("durable priority route publication", () => {
     })
   })
 
-  it("blocks same-turn replay after exposure and clears only at exact terminal finalization", () => {
+  it("blocks same-turn replay after exposure and clears only at exact terminal finalization", async () => {
     const initialRoute = lookupPriorityAssignmentResult("attempt-route")
     if (initialRoute.status === "error") throw initialRoute.error
-    const firstClaim = claimPriorityAttempt({
+    const firstClaim = await claimPriorityAttempt({
       routeKey: "attempt-route",
       expectedAssignmentGeneration: initialRoute.generation,
       turn: { turnId: HUMAN_A, issuedAt: 1_900_000_000 },
     })
     expect(firstClaim).not.toBe(false)
     if (!firstClaim) return
-    expect(blockPriorityAttempt("attempt-route", firstClaim.ownerToken)).toBe(true)
+    expect(await blockPriorityAttempt("attempt-route", firstClaim.ownerToken)).toBe(true)
 
     const blockedRoute = lookupPriorityAssignmentResult("attempt-route")
     if (blockedRoute.status === "error") throw blockedRoute.error
@@ -142,38 +142,38 @@ describe("durable priority route publication", () => {
       blockedTurnIssuedAt: 1_900_000_000,
       ownerToken: null,
     })
-    expect(claimPriorityAttempt({
+    expect(await claimPriorityAttempt({
       routeKey: "attempt-route",
       expectedAssignmentGeneration: blockedRoute.generation,
       turn: { turnId: HUMAN_A, issuedAt: 1_900_000_000 },
     })).toBe(false)
-    expect(claimPriorityAttempt({
+    expect(await claimPriorityAttempt({
       routeKey: "attempt-route",
       expectedAssignmentGeneration: blockedRoute.generation,
     })).toBe(false)
 
-    const newer = claimPriorityAttempt({
+    const newer = await claimPriorityAttempt({
       routeKey: "attempt-route",
       expectedAssignmentGeneration: blockedRoute.generation,
       turn: { turnId: HUMAN_B, issuedAt: 1_900_000_001 },
     })
     expect(newer).not.toBe(false)
     if (!newer) return
-    expect(releasePriorityAttempt("attempt-route", newer.ownerToken)).toBe(true)
+    expect(await releasePriorityAttempt("attempt-route", newer.ownerToken)).toBe(true)
     expect(priorityAttempt("attempt-route")).toMatchObject({
       blocked: true,
       blockedTurnDigest: HUMAN_A,
       ownerToken: null,
     })
 
-    const finalClaim = claimPriorityAttempt({
+    const finalClaim = await claimPriorityAttempt({
       routeKey: "attempt-route",
       expectedAssignmentGeneration: blockedRoute.generation,
       turn: { turnId: HUMAN_B, issuedAt: 1_900_000_001 },
     })
     expect(finalClaim).not.toBe(false)
     if (!finalClaim) return
-    const published = atomicPublish({
+    const published = await atomicPublish({
       routeKey: "attempt-route",
       mappingKey: "work:attempt-route",
       profileId: "work",
@@ -185,7 +185,7 @@ describe("durable priority route publication", () => {
     expect(published).not.toBe(false)
     if (!published) return
     expect(priorityAttempt("attempt-route")?.ownerToken).toBe(finalClaim.ownerToken)
-    expect(finalizeSharedSessionAndPriorityAssignment({
+    expect(await finalizeSharedSessionAndPriorityAssignment({
       key: "work:attempt-route",
       routeKey: "attempt-route",
       expectedMappingGeneration: published.mappingGeneration,
@@ -195,22 +195,22 @@ describe("durable priority route publication", () => {
     expect(priorityAttempt("attempt-route")).toBeUndefined()
   })
 
-  it("bounds unresolved attempt claims without evicting an active blocker", () => {
+  it("bounds unresolved attempt claims without evicting an active blocker", async () => {
     process.env.MERIDIAN_MAX_PRIORITY_ATTEMPTS = "1"
     const firstRoute = lookupPriorityAssignmentResult("attempt-cap-1")
     if (firstRoute.status === "error") throw firstRoute.error
-    const first = claimPriorityAttempt({
+    const first = await claimPriorityAttempt({
       routeKey: "attempt-cap-1",
       expectedAssignmentGeneration: firstRoute.generation,
       turn: { turnId: HUMAN_A, issuedAt: 1_900_000_000 },
     })
     expect(first).not.toBe(false)
     if (!first) return
-    expect(blockPriorityAttempt("attempt-cap-1", first.ownerToken)).toBe(true)
+    expect(await blockPriorityAttempt("attempt-cap-1", first.ownerToken)).toBe(true)
 
     const secondRoute = lookupPriorityAssignmentResult("attempt-cap-2")
     if (secondRoute.status === "error") throw secondRoute.error
-    expect(claimPriorityAttempt({
+    expect(await claimPriorityAttempt({
       routeKey: "attempt-cap-2",
       expectedAssignmentGeneration: secondRoute.generation,
       turn: { turnId: HUMAN_B, issuedAt: 1_900_000_001 },
@@ -230,7 +230,7 @@ describe("durable priority route publication", () => {
       const routeKey = process.env.ROUTE_KEY
       const route = lookupPriorityAssignmentResult(routeKey)
       if (route.status === "error") throw route.error
-      const claim = claimPriorityAttempt({
+      const claim = await claimPriorityAttempt({
         routeKey,
         expectedAssignmentGeneration: route.generation,
         turn: { turnId: process.env.DIGEST, issuedAt: Number(process.env.ISSUED_AT) },
@@ -240,7 +240,7 @@ describe("durable priority route publication", () => {
         const key = "work:" + routeKey
         const mapping = lookupSharedSessionResult(key)
         if (mapping.status === "error" || !mapping.generation) process.exit(3)
-        const published = storeSharedSessionAndPriorityAssignment({
+        const published = await storeSharedSessionAndPriorityAssignment({
           key,
           claudeSessionId: "sdk-crash-after",
           messageCount: 1,
@@ -295,14 +295,14 @@ describe("durable priority route publication", () => {
     if (afterBeforeCrash.status === "error") throw afterBeforeCrash.error
     expect(afterBeforeCrash.status).toBe("missing")
     expect(afterBeforeCrash.attempt?.ownerToken).toBeString()
-    expect(claimPriorityAttempt({
+    expect(await claimPriorityAttempt({
       routeKey: "crash-before",
       expectedAssignmentGeneration: afterBeforeCrash.generation,
       turn: { turnId: HUMAN_B, issuedAt: 1_900_000_001 },
     })).toBe(false)
     if (beforeRaw !== undefined) expect(readFileSync(join(dir, "sessions.json"), "utf8")).not.toBe(beforeRaw)
 
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "crash-after",
       mappingKey: "personal:crash-after",
       profileId: "personal",
@@ -321,12 +321,12 @@ describe("durable priority route publication", () => {
     }
     expect(crashedRoute.assignment.mappingGeneration).toBe(crashedMapping.generation)
     expect(crashedRoute.attempt?.ownerToken).toBeString()
-    expect(claimPriorityAttempt({
+    expect(await claimPriorityAttempt({
       routeKey: "crash-after",
       expectedAssignmentGeneration: crashedRoute.generation,
       turn: { turnId: HUMAN_B, issuedAt: 1_900_000_001 },
     })).toBe(false)
-    expect(claimPriorityAttempt({
+    expect(await claimPriorityAttempt({
       routeKey: "crash-after",
       expectedAssignmentGeneration: crashedRoute.generation,
       turn: { turnId: HUMAN_C, issuedAt: 1_900_000_002 },
@@ -334,7 +334,7 @@ describe("durable priority route publication", () => {
   }, 20_000)
 
   it("keeps cross-process readers coherent across route-refresh renames", async () => {
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "reader-route",
       mappingKey: "work:reader-route",
       profileId: "work",
@@ -370,7 +370,7 @@ describe("durable priority route publication", () => {
     try {
       await waitForFile(ready)
       for (let index = 1; index <= 30; index += 1) {
-        expect(storeSharedSession("work:reader-route", `sdk-reader-${index}`)).not.toBe(false)
+        expect(await storeSharedSession("work:reader-route", `sdk-reader-${index}`)).not.toBe(false)
       }
       writeFileSync(stop, "stop")
       const timeout = Symbol("timeout")
@@ -384,7 +384,7 @@ describe("durable priority route publication", () => {
   }, 20_000)
 
   it("makes a frozen v1 writer reject the claimed v3 store byte-identically", async () => {
-    storeSharedSession("v1-frozen", "sdk-v1-frozen")
+    await storeSharedSession("v1-frozen", "sdk-v1-frozen")
     const storePath = join(dir, "sessions.json")
     expect(JSON.parse(readFileSync(storePath, "utf8"))[META_KEY].version).toBe(1)
     const ready = join(dir, "v1.ready")
@@ -415,7 +415,7 @@ describe("durable priority route publication", () => {
       await waitForFile(ready)
       const route = lookupPriorityAssignmentResult("v1-upgrade-claim")
       if (route.status === "error") throw route.error
-      expect(claimPriorityAttempt({
+      expect(await claimPriorityAttempt({
         routeKey: "v1-upgrade-claim",
         expectedAssignmentGeneration: route.generation,
         turn: { turnId: HUMAN_A, issuedAt: 1_900_000_000 },
@@ -435,8 +435,8 @@ describe("durable priority route publication", () => {
     }
   }, 20_000)
 
-  it("loses atomically when either exact generation is stale", () => {
-    const first = atomicPublish({
+  it("loses atomically when either exact generation is stale", async () => {
+    const first = await atomicPublish({
       routeKey: "conversation-2",
       mappingKey: "personal:conversation-2",
       profileId: "personal",
@@ -447,7 +447,7 @@ describe("durable priority route publication", () => {
     if (!first) return
     const before = readFileSync(join(dir, "sessions.json"), "utf8")
 
-    expect(storeSharedSessionAndPriorityAssignment({
+    expect(await storeSharedSessionAndPriorityAssignment({
       key: "personal:conversation-2",
       claudeSessionId: "sdk-stale-route",
       messageCount: 2,
@@ -467,7 +467,7 @@ describe("durable priority route publication", () => {
 
     const currentRoute = lookupPriorityAssignmentResult("conversation-2")
     if (currentRoute.status === "error") throw currentRoute.error
-    expect(storeSharedSessionAndPriorityAssignment({
+    expect(await storeSharedSessionAndPriorityAssignment({
       key: "personal:conversation-2",
       claudeSessionId: "sdk-stale-mapping",
       messageCount: 2,
@@ -486,8 +486,8 @@ describe("durable priority route publication", () => {
     expect(readFileSync(join(dir, "sessions.json"), "utf8")).toBe(before)
   })
 
-  it("keeps a v1 document byte-identical when either side of the first dual CAS is stale", () => {
-    storeSharedSession("ordinary-v1", "sdk-ordinary-v1")
+  it("keeps a v1 document byte-identical when either side of the first dual CAS is stale", async () => {
+    await storeSharedSession("ordinary-v1", "sdk-ordinary-v1")
     const path = join(dir, "sessions.json")
     const before = readFileSync(path, "utf8")
     expect(JSON.parse(before)[META_KEY].version).toBe(1)
@@ -517,16 +517,16 @@ describe("durable priority route publication", () => {
       },
     })
 
-    expect(attempt(mapping.generation, "stale-route-generation")).toBe(false)
+    expect(await attempt(mapping.generation, "stale-route-generation")).toBe(false)
     expect(readFileSync(path, "utf8")).toBe(before)
-    expect(attempt("stale-mapping-generation", route.generation)).toBe(false)
+    expect(await attempt("stale-mapping-generation", route.generation)).toBe(false)
     expect(readFileSync(path, "utf8")).toBe(before)
     expect(JSON.parse(readFileSync(path, "utf8"))[META_KEY].version).toBe(1)
   })
 
-  it("restores both authorities after a canceled promotion", () => {
-    storeSharedSession("work:conversation-3", "sdk-work-old")
-    const fallback = atomicPublish({
+  it("restores both authorities after a canceled promotion", async () => {
+    await storeSharedSession("work:conversation-3", "sdk-work-old")
+    const fallback = await atomicPublish({
       routeKey: "conversation-3",
       mappingKey: "personal:conversation-3",
       profileId: "personal",
@@ -534,7 +534,7 @@ describe("durable priority route publication", () => {
       digest: HUMAN_A,
     })
     expect(fallback).not.toBe(false)
-    const promotion = atomicPublish({
+    const promotion = await atomicPublish({
       routeKey: "conversation-3",
       mappingKey: "work:conversation-3",
       profileId: "work",
@@ -544,7 +544,7 @@ describe("durable priority route publication", () => {
     expect(promotion).not.toBe(false)
     if (!promotion) return
 
-    const restored = rollbackSharedSessionAndPriorityAssignment({
+    const restored = await rollbackSharedSessionAndPriorityAssignment({
       key: "work:conversation-3",
       routeKey: "conversation-3",
       expectedMappingGeneration: promotion.mappingGeneration,
@@ -564,9 +564,9 @@ describe("durable priority route publication", () => {
     })
   })
 
-  it("keeps the fallback route and exact mapping rollback-safe at session cap one", () => {
+  it("keeps the fallback route and exact mapping rollback-safe at session cap one", async () => {
     process.env.MERIDIAN_MAX_STORED_SESSIONS = "1"
-    const fallback = atomicPublish({
+    const fallback = await atomicPublish({
       routeKey: "cap-one-conversation",
       mappingKey: "personal:cap-one-conversation",
       profileId: "personal",
@@ -576,7 +576,7 @@ describe("durable priority route publication", () => {
     expect(fallback).not.toBe(false)
     if (!fallback) return
 
-    const promotion = atomicPublish({
+    const promotion = await atomicPublish({
       routeKey: "cap-one-conversation",
       mappingKey: "work:cap-one-conversation",
       profileId: "work",
@@ -593,7 +593,7 @@ describe("durable priority route publication", () => {
       generation: fallback.mappingGeneration,
     })
 
-    const restored = rollbackSharedSessionAndPriorityAssignment({
+    const restored = await rollbackSharedSessionAndPriorityAssignment({
       key: "work:cap-one-conversation",
       routeKey: "cap-one-conversation",
       expectedMappingGeneration: promotion.mappingGeneration,
@@ -622,8 +622,8 @@ describe("durable priority route publication", () => {
     })
   })
 
-  it("blocks every ordinary mutation of an exact rollback mapping", () => {
-    const fallback = atomicPublish({
+  it("blocks every ordinary mutation of an exact rollback mapping", async () => {
+    const fallback = await atomicPublish({
       routeKey: "protected-rollback",
       mappingKey: "personal:protected-rollback",
       profileId: "personal",
@@ -631,7 +631,7 @@ describe("durable priority route publication", () => {
       digest: HUMAN_A,
     })
     expect(fallback).not.toBe(false)
-    const promotion = atomicPublish({
+    const promotion = await atomicPublish({
       routeKey: "protected-rollback",
       mappingKey: "work:protected-rollback",
       profileId: "work",
@@ -642,22 +642,22 @@ describe("durable priority route publication", () => {
     if (!promotion) return
 
     const before = readFileSync(join(dir, "sessions.json"), "utf8")
-    expect(storeSharedSession("personal:protected-rollback", "sdk-mutated")).toBe(false)
-    expect(atomicPublish({
+    expect(await storeSharedSession("personal:protected-rollback", "sdk-mutated")).toBe(false)
+    expect(await atomicPublish({
       routeKey: "other-route",
       mappingKey: "personal:protected-rollback",
       profileId: "personal",
       sdkSessionId: "sdk-mutated",
       digest: HUMAN_A,
     })).toBe(false)
-    expect(attachSharedTranscriptLocator(
+    expect(await attachSharedTranscriptLocator(
       "personal:protected-rollback",
       "sdk-protected-personal",
       { sessionId: "sdk-protected-personal", configDir: dir },
     )).toBe(false)
     expect(readFileSync(join(dir, "sessions.json"), "utf8")).toBe(before)
 
-    const restored = rollbackSharedSessionAndPriorityAssignment({
+    const restored = await rollbackSharedSessionAndPriorityAssignment({
       key: "work:protected-rollback",
       routeKey: "protected-rollback",
       expectedMappingGeneration: promotion.mappingGeneration,
@@ -676,8 +676,8 @@ describe("durable priority route publication", () => {
     expect(route.assignment.mappingGeneration).toBe(mapping.generation)
   })
 
-  it("lets the same route publish back onto its exact rollback profile after owner loss", () => {
-    const fallback = atomicPublish({
+  it("lets the same route publish back onto its exact rollback profile after owner loss", async () => {
+    const fallback = await atomicPublish({
       routeKey: "marker-failback",
       mappingKey: "personal:marker-failback",
       profileId: "personal",
@@ -685,7 +685,7 @@ describe("durable priority route publication", () => {
       digest: HUMAN_A,
     })
     expect(fallback).not.toBe(false)
-    const provisional = atomicPublish({
+    const provisional = await atomicPublish({
       routeKey: "marker-failback",
       mappingKey: "work:marker-failback",
       profileId: "work",
@@ -696,7 +696,7 @@ describe("durable priority route publication", () => {
     if (!provisional) return
 
     const beforeForeign = readFileSync(join(dir, "sessions.json"), "utf8")
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "foreign-route",
       mappingKey: "personal:marker-failback",
       profileId: "personal",
@@ -705,7 +705,7 @@ describe("durable priority route publication", () => {
     })).toBe(false)
     expect(readFileSync(join(dir, "sessions.json"), "utf8")).toBe(beforeForeign)
 
-    const republished = atomicPublish({
+    const republished = await atomicPublish({
       routeKey: "marker-failback",
       mappingKey: "personal:marker-failback",
       profileId: "personal",
@@ -728,14 +728,14 @@ describe("durable priority route publication", () => {
     const rollbacks = asRecord(meta.priorityRollbackMappings, "rollbacks")
     expect(rollbacks["marker-failback"]).toMatchObject({ mappingKey: "work:marker-failback" })
 
-    expect(finalizeSharedSessionAndPriorityAssignment({
+    expect(await finalizeSharedSessionAndPriorityAssignment({
       key: "work:marker-failback",
       routeKey: "marker-failback",
       expectedMappingGeneration: provisional.mappingGeneration,
       expectedAssignmentGeneration: provisional.assignmentGeneration,
       rollbackMappingKey: "personal:marker-failback",
     })).toBe(false)
-    expect(rollbackSharedSessionAndPriorityAssignment({
+    expect(await rollbackSharedSessionAndPriorityAssignment({
       key: "work:marker-failback",
       routeKey: "marker-failback",
       expectedMappingGeneration: provisional.mappingGeneration,
@@ -744,7 +744,7 @@ describe("durable priority route publication", () => {
       previousAssignment: provisional.previousAssignment,
     })).toBe(false)
 
-    expect(rollbackSharedSessionAndPriorityAssignment({
+    expect(await rollbackSharedSessionAndPriorityAssignment({
       key: "personal:marker-failback",
       routeKey: "marker-failback",
       expectedMappingGeneration: republished.mappingGeneration,
@@ -762,9 +762,9 @@ describe("durable priority route publication", () => {
     expect(restored.assignment.mappingGeneration).toBe(restoredMapping.generation)
   })
 
-  it("finalizes a cap-one promotion and prunes its rollback backlog exactly once", () => {
+  it("finalizes a cap-one promotion and prunes its rollback backlog exactly once", async () => {
     process.env.MERIDIAN_MAX_STORED_SESSIONS = "1"
-    const fallback = atomicPublish({
+    const fallback = await atomicPublish({
       routeKey: "finalize-cap-one",
       mappingKey: "personal:finalize-cap-one",
       profileId: "personal",
@@ -772,7 +772,7 @@ describe("durable priority route publication", () => {
       digest: HUMAN_A,
     })
     expect(fallback).not.toBe(false)
-    const promotion = atomicPublish({
+    const promotion = await atomicPublish({
       routeKey: "finalize-cap-one",
       mappingKey: "work:finalize-cap-one",
       profileId: "work",
@@ -789,7 +789,7 @@ describe("durable priority route publication", () => {
       expectedAssignmentGeneration: promotion.assignmentGeneration,
       rollbackMappingKey: "personal:finalize-cap-one",
     }
-    expect(finalizeSharedSessionAndPriorityAssignment(finalized)).toBe(true)
+    expect(await finalizeSharedSessionAndPriorityAssignment(finalized)).toBe(true)
     expect(lookupSharedSessionResult("personal:finalize-cap-one").status).toBe("missing")
     expect(lookupSharedSessionResult("work:finalize-cap-one")).toMatchObject({
       status: "found",
@@ -803,7 +803,7 @@ describe("durable priority route publication", () => {
     if (finalizedRoute.status !== "found") throw new Error("finalized route is missing")
     expect(finalizedRoute.generation).not.toBe(promotion.assignmentGeneration)
     const afterFirst = readFileSync(join(dir, "sessions.json"), "utf8")
-    expect(rollbackSharedSessionAndPriorityAssignment({
+    expect(await rollbackSharedSessionAndPriorityAssignment({
       key: "work:finalize-cap-one",
       routeKey: "finalize-cap-one",
       expectedMappingGeneration: promotion.mappingGeneration,
@@ -811,13 +811,13 @@ describe("durable priority route publication", () => {
       previousMapping: promotion.previousMapping,
       previousAssignment: promotion.previousAssignment,
     })).toBe(false)
-    expect(finalizeSharedSessionAndPriorityAssignment(finalized)).toBe(false)
+    expect(await finalizeSharedSessionAndPriorityAssignment(finalized)).toBe(false)
     expect(readFileSync(join(dir, "sessions.json"), "utf8")).toBe(afterFirst)
   })
 
-  it("makes repeated rollback a one-shot safe CAS with no second mutation", () => {
-    storeSharedSession("work:one-shot", "sdk-work-before")
-    const first = atomicPublish({
+  it("makes repeated rollback a one-shot safe CAS with no second mutation", async () => {
+    await storeSharedSession("work:one-shot", "sdk-work-before")
+    const first = await atomicPublish({
       routeKey: "one-shot",
       mappingKey: "personal:one-shot",
       profileId: "personal",
@@ -825,7 +825,7 @@ describe("durable priority route publication", () => {
       digest: HUMAN_A,
     })
     expect(first).not.toBe(false)
-    const publication = atomicPublish({
+    const publication = await atomicPublish({
       routeKey: "one-shot",
       mappingKey: "work:one-shot",
       profileId: "work",
@@ -843,11 +843,11 @@ describe("durable priority route publication", () => {
       previousMapping: publication.previousMapping,
       previousAssignment: publication.previousAssignment,
     }
-    expect(rollbackSharedSessionAndPriorityAssignment(rollback)).not.toBe(false)
+    expect(await rollbackSharedSessionAndPriorityAssignment(rollback)).not.toBe(false)
     const afterFirst = readFileSync(join(dir, "sessions.json"), "utf8")
 
-    expect(rollbackSharedSessionAndPriorityAssignment(rollback)).toBe(false)
-    expect(finalizeSharedSessionAndPriorityAssignment({
+    expect(await rollbackSharedSessionAndPriorityAssignment(rollback)).toBe(false)
+    expect(await finalizeSharedSessionAndPriorityAssignment({
       key: rollback.key,
       routeKey: rollback.routeKey,
       expectedMappingGeneration: rollback.expectedMappingGeneration,
@@ -862,8 +862,8 @@ describe("durable priority route publication", () => {
     })
   })
 
-  it("preserves v3 routes during ordinary writes and clears them explicitly", () => {
-    const first = atomicPublish({
+  it("preserves v3 routes during ordinary writes and clears them explicitly", async () => {
+    const first = await atomicPublish({
       routeKey: "conversation-4",
       mappingKey: "personal:conversation-4",
       profileId: "personal",
@@ -871,14 +871,14 @@ describe("durable priority route publication", () => {
       digest: HUMAN_A,
     })
     expect(first).not.toBe(false)
-    const updated = storeSharedSession("personal:conversation-4", "sdk-personal-updated")
+    const updated = await storeSharedSession("personal:conversation-4", "sdk-personal-updated")
     expect(updated).not.toBe(false)
     const refreshedRoute = lookupPriorityAssignmentResult("conversation-4")
     expect(refreshedRoute).toMatchObject({
       status: "found",
       assignment: { mappingGeneration: updated },
     })
-    const attached = attachSharedTranscriptLocator(
+    const attached = await attachSharedTranscriptLocator(
       "personal:conversation-4",
       "sdk-personal-updated",
       { sessionId: "sdk-personal-updated", configDir: dir },
@@ -890,22 +890,22 @@ describe("durable priority route publication", () => {
       status: "found",
       assignment: { mappingGeneration: attached },
     })
-    storeSharedSession("unrelated", "sdk-unrelated")
+    await storeSharedSession("unrelated", "sdk-unrelated")
     expect(lookupPriorityAssignmentResult("conversation-4")).toEqual(attachedRoute)
-    clearSharedSessions()
+    await clearSharedSessions()
     expect(lookupPriorityAssignmentResult("conversation-4").status).toBe("missing")
   })
 
-  it("bounds route records separately without deleting their session mappings", () => {
+  it("bounds route records separately without deleting their session mappings", async () => {
     process.env.MERIDIAN_MAX_PRIORITY_ASSIGNMENTS = "1"
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "route-old",
       mappingKey: "personal:old",
       profileId: "personal",
       sdkSessionId: "sdk-old",
       digest: HUMAN_A,
     })).not.toBe(false)
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "route-new",
       mappingKey: "personal:new",
       profileId: "personal",
@@ -918,7 +918,7 @@ describe("durable priority route publication", () => {
     expect(lookupSharedSession("personal:new")?.claudeSessionId).toBe("sdk-new")
   })
 
-  it("prunes routes and mappings together and fences both absent-key ABA domains", () => {
+  it("prunes routes and mappings together and fences both absent-key ABA domains", async () => {
     process.env.MERIDIAN_MAX_PRIORITY_ASSIGNMENTS = "2"
     process.env.MERIDIAN_MAX_STORED_SESSIONS = "1"
 
@@ -927,14 +927,14 @@ describe("durable priority route publication", () => {
     if (oldMappingBefore.status === "error" || !oldMappingBefore.generation) throw new Error("mapping lookup failed")
     if (oldRouteBefore.status === "error") throw oldRouteBefore.error
 
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "aba-old",
       mappingKey: "personal:aba-old",
       profileId: "personal",
       sdkSessionId: "sdk-aba-old",
       digest: HUMAN_A,
     })).not.toBe(false)
-    const survivor = atomicPublish({
+    const survivor = await atomicPublish({
       routeKey: "aba-new",
       mappingKey: "personal:aba-new",
       profileId: "personal",
@@ -967,7 +967,7 @@ describe("durable priority route publication", () => {
       generation: survivor.mappingGeneration,
     })
 
-    const staleRouteAttempt = storeSharedSessionAndPriorityAssignment({
+    const staleRouteAttempt = await storeSharedSessionAndPriorityAssignment({
       key: "personal:aba-old",
       claudeSessionId: "sdk-stale-route-aba",
       messageCount: 1,
@@ -985,7 +985,7 @@ describe("durable priority route publication", () => {
     })
     expect(staleRouteAttempt).toBe(false)
 
-    const staleMappingAttempt = storeSharedSessionAndPriorityAssignment({
+    const staleMappingAttempt = await storeSharedSessionAndPriorityAssignment({
       key: "personal:aba-old",
       claudeSessionId: "sdk-stale-mapping-aba",
       messageCount: 1,
@@ -1005,7 +1005,7 @@ describe("durable priority route publication", () => {
 
     // A fresh lookup can recreate the old key, proving the cap can cycle while
     // both stale absence tokens remain rejected.
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "aba-old",
       mappingKey: "personal:aba-old",
       profileId: "personal",
@@ -1024,7 +1024,7 @@ describe("durable priority route publication", () => {
     const modulePath = join(import.meta.dir, "../proxy/sessionStore.ts")
     const childCode = `
       import { storeSharedSessionAndPriorityAssignment } from ${JSON.stringify(modulePath)}
-      const result = storeSharedSessionAndPriorityAssignment({
+      const result = await storeSharedSessionAndPriorityAssignment({
         key: "work:two-process",
         claudeSessionId: "sdk-" + process.env.WORKER,
         messageCount: 1,
@@ -1082,14 +1082,14 @@ describe("durable priority route publication", () => {
   }, 20_000)
 
   it("allows exactly one real-process finalize-or-rollback winner", async () => {
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "two-terminal-process",
       mappingKey: "personal:two-terminal-process",
       profileId: "personal",
       sdkSessionId: "sdk-two-terminal-personal",
       digest: HUMAN_A,
     })).not.toBe(false)
-    const publication = atomicPublish({
+    const publication = await atomicPublish({
       routeKey: "two-terminal-process",
       mappingKey: "work:two-terminal-process",
       profileId: "work",
@@ -1112,8 +1112,8 @@ describe("durable priority route publication", () => {
       } from ${JSON.stringify(modulePath)}
       const input = JSON.parse(process.env.INPUT)
       const won = process.env.ROLE === "finalize"
-        ? finalizeSharedSessionAndPriorityAssignment(input.finalize)
-        : rollbackSharedSessionAndPriorityAssignment(input.rollback) !== false
+        ? await finalizeSharedSessionAndPriorityAssignment(input.finalize)
+        : await rollbackSharedSessionAndPriorityAssignment(input.rollback) !== false
       console.log(JSON.stringify({ won }))
     `
     const input = JSON.stringify({
@@ -1160,15 +1160,15 @@ describe("durable priority route publication", () => {
     }
   }, 20_000)
 
-  it("fails closed on malformed or stale exact rollback markers", () => {
-    expect(atomicPublish({
+  it("fails closed on malformed or stale exact rollback markers", async () => {
+    expect(await atomicPublish({
       routeKey: "strict-rollback",
       mappingKey: "personal:strict-rollback",
       profileId: "personal",
       sdkSessionId: "sdk-strict-personal",
       digest: HUMAN_A,
     })).not.toBe(false)
-    expect(atomicPublish({
+    expect(await atomicPublish({
       routeKey: "strict-rollback",
       mappingKey: "work:strict-rollback",
       profileId: "work",
@@ -1218,17 +1218,17 @@ describe("durable priority route publication", () => {
     }
   })
 
-  it("fails closed on malformed durable attempt claims without rewriting the file", () => {
+  it("fails closed on malformed durable attempt claims without rewriting the file", async () => {
     const route = lookupPriorityAssignmentResult("strict-attempt")
     if (route.status === "error") throw route.error
-    const claim = claimPriorityAttempt({
+    const claim = await claimPriorityAttempt({
       routeKey: "strict-attempt",
       expectedAssignmentGeneration: route.generation,
       turn: { turnId: HUMAN_A, issuedAt: 1_900_000_000 },
     })
     expect(claim).not.toBe(false)
     if (!claim) return
-    expect(blockPriorityAttempt("strict-attempt", claim.ownerToken)).toBe(true)
+    expect(await blockPriorityAttempt("strict-attempt", claim.ownerToken)).toBe(true)
     const path = join(dir, "sessions.json")
     const baseline = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>
     const corruptions: Array<(attempt: Record<string, unknown>) => void> = [
@@ -1252,8 +1252,8 @@ describe("durable priority route publication", () => {
     }
   })
 
-  it("fails closed on a strict malformed-v3 route matrix without rewriting the file", () => {
-    const published = atomicPublish({
+  it("fails closed on a strict malformed-v3 route matrix without rewriting the file", async () => {
+    const published = await atomicPublish({
       routeKey: "strict-route",
       mappingKey: "personal:strict-route",
       profileId: "personal",
@@ -1261,7 +1261,7 @@ describe("durable priority route publication", () => {
       digest: HUMAN_A,
     })
     expect(published).not.toBe(false)
-    storeSharedSession("wrong-key", "sdk-wrong-key")
+    await storeSharedSession("wrong-key", "sdk-wrong-key")
     const wrongKeyMapping = lookupSharedSessionResult("wrong-key")
     if (wrongKeyMapping.status !== "found" || !wrongKeyMapping.generation) {
       throw new Error("wrong-key mapping lookup failed")
@@ -1320,7 +1320,7 @@ describe("durable priority route publication", () => {
         name: malformedCase.name,
         status: "error",
       })
-      expect(() => storeSharedSession(`malformed-${index}`, `sdk-malformed-${index}`)).toThrow()
+      await expect(storeSharedSession(`malformed-${index}`, `sdk-malformed-${index}`)).rejects.toThrow()
       expect(readFileSync(path, "utf8")).toBe(malformed)
     }
   })

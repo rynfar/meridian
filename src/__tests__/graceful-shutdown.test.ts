@@ -115,12 +115,12 @@ async function waitForControl(index: number, timeoutMs = 3000): Promise<AttemptC
 describe("graceful shutdown", () => {
   let isolatedSessionDir = ""
 
-  beforeEach(() => {
+  beforeEach(async () => {
     isolatedSessionDir = mkdtempSync(join(tmpdir(), "meridian-shutdown-test-"))
     setSessionStoreDir(isolatedSessionDir)
     queryCalls = 0
     controls = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(async () => {

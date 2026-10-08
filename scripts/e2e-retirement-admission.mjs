@@ -80,7 +80,7 @@ try {
   // publication (6ecfbaa7). Retirement therefore needs the mappings actually
   // dropped, which cache eviction under session pressure and a proxy restart
   // both do, so unpin them explicitly instead of assuming the switch did it.
-  clearSessionCache()
+  await clearSessionCache()
   assert.equal(mappings().length, 0)
   await proxy.sweepSessionGc()
   const retired = resources().filter(row => row.state === "retired").length
