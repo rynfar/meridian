@@ -157,6 +157,16 @@ the same actual live assertion must pass on the new candidate before acceptance.
 The first paired traces and joined local/native receipts are retained under the
 2026-10-08 resumption evidence packet and summarized in the delivery record.
 
+The corrected candidate `0e7c1df1d6cf20864ba793e61b3c1add161c10c3` also failed
+that unchanged assertion: two successful identical writes, then a successful read.
+The actual Pi exit and captured-pipe close observations remained clean; both
+public proxy closes resolved and sampled owned native groups were absent. No
+unexplained rerun is accepted. Its final local gates passed: 5,521 tests, zero
+failures, 35 skips; standalone typecheck and build both exited zero. Direct
+representation regressions passed, but they did not resolve the live repetition.
+Root adversarial review found no further source blocker; whole-product acceptance
+is held. Investigate deterministic result-tail semantics before another live arm.
+
 **Live acceptance remains open.** Official account/catalog preflight is
 not inference. Reporter DeepSeekHarness ACP version/OS remain unknown; a supported
 Pi import success would remain qualified and would not establish exact reporter
