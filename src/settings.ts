@@ -68,6 +68,14 @@ export interface MeridianSettings {
    * MERIDIAN_ERROR_REPORTING_DSN wins. Read once at startup.
    */
   errorReportingDsn?: string
+  /**
+   * Days Claude Code keeps the transcripts requests leave on disk before its
+   * own sweep deletes them; 0 keeps every one. Unset means 30, Claude Code's
+   * default. MERIDIAN_TRANSCRIPT_RETENTION_DAYS wins, and a profile whose own
+   * settings.json names `cleanupPeriodDays` keeps that. Re-read on every
+   * request; see proxy/transcriptRetention.ts.
+   */
+  transcriptRetentionDays?: number
   /** Ask the npm registry once a day whether a newer Meridian is published.
    *  Off unless switched on: an instance only reaches a third party on a timer
    *  because someone asked it to. The header shows the running version either

@@ -58,6 +58,8 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_TELEMETRY_PERSIST` | `CLAUDE_PROXY_TELEMETRY_PERSIST` | unset | Enable SQLite telemetry persistence. Data survives proxy restarts. |
 | `MERIDIAN_TELEMETRY_DB` | `CLAUDE_PROXY_TELEMETRY_DB` | `~/.config/meridian/telemetry.db` | SQLite database path (when persistence is enabled) |
 | `MERIDIAN_TELEMETRY_RETENTION_DAYS` | `CLAUDE_PROXY_TELEMETRY_RETENTION_DAYS` | `7` | Days to retain telemetry data before cleanup |
+| `MERIDIAN_TRANSCRIPT_RETENTION_DAYS` | `CLAUDE_PROXY_TRANSCRIPT_RETENTION_DAYS` | `30` | Days Claude Code keeps the transcripts requests leave on disk before deleting them; `0` keeps them all. `transcriptRetentionDays` in `settings.json` (or the `/settings` page) is the alternative, and the environment wins. See [Transcript retention](#transcript-retention). |
+| `MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS` | `CLAUDE_PROXY_TRANSCRIPT_SWEEP_INTERVAL_MS` | `10800000` (3 hours) | How often Meridian sweeps the transcripts of idle profiles; `0` leaves the sweep to requests alone. See [Transcript retention](#transcript-retention). |
 | `MERIDIAN_DEFAULT_PROFILE` | — | *(first profile)* | Default profile ID when no header is sent |
 | `MERIDIAN_ADAPTER_INSTANCES` | — | unset | JSON [adapter instance](agents.md#adapter-instances) definitions, overriding `~/.config/meridian/adapter-instances.json` |
 | `MERIDIAN_BETA_POLICY` | — | `allow-safe` | Client `anthropic-beta` header handling: `allow-safe`, `strip-all`, or `allow-all` |
@@ -154,7 +156,7 @@ second instance pointed at an empty directory starts genuinely empty:
 
 | File | Holds |
 |---|---|
-| `settings.json` | Active profile, routing mode, priority order, `checkForUpdates`, page `layout` |
+| `settings.json` | Active profile, routing mode, priority order, `checkForUpdates`, page `layout`, `transcriptRetentionDays` |
 | `profiles.json` | Configured profiles ([Multi-Profile Support](profiles.md)) |
 | `profiles/<id>/` | Per-profile `CLAUDE_CONFIG_DIR` (credentials, SDK state) |
 | `adapter-instances.json` | [Adapter instances](agents.md#adapter-instances) |
@@ -623,6 +625,63 @@ While draining:
   port only closes once they're all done or the grace period elapses,
   whichever comes first. If the grace period elapses first, a warning is
   logged and any remaining HTTP connections are forcibly closed.
+
+## Transcript retention
+
+Every request leaves a Claude Code transcript on disk -
+`projects/<project>/<session>.jsonl` and its sidecar files - in the config
+directory of the profile that served it (`~/.claude` without profiles).
+Claude Code deletes transcripts nobody has touched for `cleanupPeriodDays`,
+but it only reads that setting from a settings source it is allowed to load,
+and Meridian starts Claude Code with every settings file switched off so
+nothing on the proxy host leaks into a request. Meridian therefore hands the
+period over itself, as a flag setting, which loads no file.
+
+- **30 days by default**, Claude Code's own default. Change it with
+  `MERIDIAN_TRANSCRIPT_RETENTION_DAYS`, `transcriptRetentionDays` in
+  `settings.json`, or the `/settings` page; the environment wins. A change
+  applies to the next request.
+- **`0` keeps every transcript.** Meridian then passes no period and Claude
+  Code deletes nothing. Meridian never passes `0` itself: current Claude Code
+  rejects it, and older versions read it as "write no transcripts".
+- **A config directory's own `settings.json` wins** when it sets
+  `cleanupPeriodDays` and retention is on here. Without profiles that
+  directory is your own `~/.claude`, so a retention you chose for interactive
+  Claude Code still holds. If that file cannot be parsed, or names a value
+  Claude Code would reject, no period is passed and nothing is deleted there.
+  A `cleanupPeriodDays` from your organisation's managed settings outranks all
+  of these inside Claude Code.
+- **When it runs:** Claude Code sweeps in the background a few seconds after a
+  process starts, at most once a day per config directory (`.last-cleanup`
+  there records the last run). A request's process often ends before the
+  sweep gets going. After upgrading, the first sweep can take up to a day:
+  older versions let Claude Code record a skipped sweep as a run.
+- **Idle profiles:** two minutes after startup and then every three hours,
+  Meridian looks at every profile's config directory, one at a time. Where
+  Claude Code has not swept for a day and no request is running, it starts
+  one Claude Code process just for the sweep and stops it once
+  `.last-cleanup` advances, or after ten minutes. That process gets no
+  prompt, makes no model call, writes no transcript, and cannot reach the
+  network: every connection it opens goes to a local proxy that refuses it.
+  It starts only when an SDK slot is free and no request is waiting for one,
+  and holds that slot until the sweep finishes: about half a minute in
+  testing, ten minutes at most.
+  Change the interval with `MERIDIAN_TRANSCRIPT_SWEEP_INTERVAL_MS`; `0` turns
+  idle sweeps off and leaves the cleanup to requests.
+- **Logins are never touched:** a Claude Code process whose stored login is
+  about to expire refreshes it. The idle sweep skips a directory whose login
+  expires within 30 minutes, leaving it until Meridian's own refresher has
+  rolled it over. The refusing proxy would stop a refresh from reaching
+  Anthropic anyway. The stored login is compared before and after each sweep
+  process; if it ever changed, Meridian logs `transcript sweep STOPPED` and
+  runs no further idle sweeps until it restarts. An instance under
+  `MERIDIAN_CREDENTIALS_READONLY` never runs idle sweeps; whichever instance
+  owns the logins does.
+- **Resuming an expired conversation:** a conversation idle for longer than the
+  period has no transcript left to resume. Meridian retries the resume a few
+  times, then replays the history into a fresh session, so the request still
+  succeeds; the replay is flattened text trimmed to the model's context window
+  and cannot restore SDK thinking.
 
 ## Session identity
 

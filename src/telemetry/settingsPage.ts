@@ -214,6 +214,22 @@ ${profileBarHtml}
     <div id="telemetry-body">Loading…</div>
   </div>
 
+  <h1 style="margin-top:40px">Transcript Retention</h1>
+  <p class="subtitle" style="max-width:720px;line-height:1.6">
+    Every request leaves a Claude Code transcript on disk, under <code>projects/</code> in the config directory of
+    the profile that served it. Claude Code deletes transcripts nobody has touched for this many days, the same
+    cleanup it runs for your own Claude Code sessions, so that directory stops growing forever. The cleanup runs
+    inside Meridian's Claude Code processes, at most once a day per profile. For a profile that is idle and has not
+    been cleaned for a day, Meridian starts one Claude Code process just for the cleanup every few hours; it gets no
+    prompt and cannot reach the network. A conversation idle for longer than this has no transcript left to resume from;
+    Meridian then replays its history into a fresh session. 0 keeps every transcript. A profile whose own
+    <code>settings.json</code> sets <code>cleanupPeriodDays</code> keeps its own value.
+    Changes apply to the next request - no restart needed.
+  </p>
+  <div class="adapter-card" id="transcripts-card">
+    <div id="transcripts-body">Loading…</div>
+  </div>
+
   <h1 style="margin-top:40px">Updates</h1>
   <p class="subtitle" style="max-width:720px;line-height:1.6">
     Meridian is installed and updated by hand, so an instance can sit on an old version for weeks without
@@ -710,6 +726,43 @@ async function putTelemetry(body) {
   await loadTelemetry();
 }
 
+async function loadTranscripts() {
+  const cfg = await (await fetch('/settings/api/transcripts')).json();
+  const lim = cfg.limits || { min: 0, max: 3650 };
+  const eff = cfg.effective || {};
+  const now = eff.days === 0 ? 'off, every transcript is kept'
+    : eff.days + ' days' + (eff.source === 'default' ? ' (default)' : '');
+
+  document.getElementById('transcripts-body').innerHTML = telemetryRow('Delete after',
+    '<input type="number" id="tr-days" value="' + (cfg.saved == null ? '' : cfg.saved) + '"'
+      + ' min="' + lim.min + '" max="' + lim.max + '" step="1" placeholder="' + cfg.default + '"'
+      + ' style="width:110px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
+      + ' <span style="color:var(--muted);font-size:12px">days</span>',
+    telemetryEsc(now),
+    cfg.envOverride ? ' <span style="font-size:11px;color:var(--yellow)">(MERIDIAN_TRANSCRIPT_RETENTION_DAYS wins over this setting)</span>' : '')
+    + '<div class="pricing-note" style="margin-top:4px">Leave blank for the default of ' + cfg.default + ' days.</div>';
+
+  document.getElementById('tr-days').addEventListener('change', async (e) => {
+    const raw = e.target.value.trim();
+    await putTranscripts({ transcriptRetentionDays: raw === '' ? null : Number(raw) });
+  });
+}
+
+async function putTranscripts(body) {
+  const res = await fetch('/settings/api/transcripts', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Failed to save transcript retention');
+  } else {
+    showSaved();
+  }
+  await loadTranscripts();
+}
+
 async function loadUpdates() {
   const cfg = await (await fetch('/settings/api/updates')).json();
   const build = cfg.build || {};
@@ -817,6 +870,7 @@ loadConfig();
 loadPricing();
 loadRouting();
 loadTelemetry();
+loadTranscripts();
 loadUpdates();
 loadHeaderSettings();
 loadLayout();

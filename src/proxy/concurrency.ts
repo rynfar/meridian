@@ -115,6 +115,17 @@ export class AbortableSemaphore {
     })
   }
 
+  /**
+   * A lease if a slot is free and nobody is queued for one, otherwise
+   * undefined. It never joins the queue, so background work using it never
+   * sits ahead of a request that is waiting for a slot.
+   */
+  tryAcquire(): SemaphoreLease | undefined {
+    if (this.activeCount >= this.limit || this.waiters.length > 0) return undefined
+    this.activeCount++
+    return this.createLease(Date.now())
+  }
+
   private createLease(enqueuedAt: number): SemaphoreLease {
     let released = false
     return {
