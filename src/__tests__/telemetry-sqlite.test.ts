@@ -319,6 +319,38 @@ describe("SqliteTelemetryStore error handling", () => {
   })
 })
 
+describe("SqliteTelemetryStore beside another writer", () => {
+  it("records a request while another process briefly holds the write lock", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "meridian-test-"))
+    const dbPath = join(tmpDir, "shared.db")
+    const stores = createSqliteStores(dbPath, 7)
+    // A second process takes the database's write lock, says so, holds it
+    // for 150ms and commits - what an import or an operator's sqlite3 does.
+    const holder = Bun.spawn([process.execPath, "-e", `
+      const Database = require(${JSON.stringify(Bun.resolveSync("libsql", import.meta.dir))})
+      const db = new Database(process.env.HOLD_DB)
+      db.exec("BEGIN IMMEDIATE")
+      db.prepare("INSERT INTO diagnostic_logs (timestamp, level, category, message) VALUES (1, 'info', 'test', 'held')").run()
+      console.log("locked")
+      Bun.sleepSync(150)
+      db.exec("COMMIT")
+    `], { env: { ...process.env, HOLD_DB: dbPath }, stdout: "pipe", stderr: "pipe" })
+    try {
+      const { value } = await holder.stdout.getReader().read()
+      expect(new TextDecoder().decode(value)).toContain("locked")
+
+      stores.telemetry.record(makeMetric({ requestId: "while-locked" }))
+
+      expect(await holder.exited).toBe(0)
+      expect(stores.telemetry.getRecent().map(m => m.requestId)).toEqual(["while-locked"])
+    } finally {
+      holder.kill()
+      stores.close()
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe("SqliteTelemetryStore retention", () => {
   it("cleanup removes rows older than retention period", () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "meridian-test-"))
