@@ -1,5 +1,15 @@
 # Upstream review handoff
 
+## Current guarded continuation (2026-10-08, after #1318)
+
+[Profiles #1318](https://github.com/rynfar/meridian/pull/1318) merged reviewed head `726e387d` as `74ee5515cde58a4df03a48c0ca38abb20ccad648` after all six executed final-head checks passed, including required test, plus the expected changelog skip. Landed tree `e186206faf677d176796b9d2b70c852a5f585602` exactly matches the validated tree. Nowaker co-author credit is present. Source #1316 was rechecked unchanged at `67c78683696712f7db714cbc5bb529bde8f5dfc3` and closed as incorporated. Root source/browser adversarial review preceded landing; the PR body records final checks and merge verification. Broader login/expiry issues remain open.
+
+The fresh paginated account/org discovery still finds six managed Meridian/scrub repositories. Owner holds, release-only proposals and affected-flow gates remain separate. #1261's current `b999654d` source retains the earlier five ownership/admission/join/off/evidence findings: the entire sweep, retention resolver and native harness are identical to the prior reviewed source. Its current source review is retained in the durable local resumption-round2 packet; it stays open and held.
+
+The owner explicitly approved the bounded runtime executable-selection public contract for #1293 tracked in [#1319](https://github.com/rynfar/meridian/issues/1319): authenticated GET/PUT, System default, environment priority, next-turn selection and only the custom health-source addition. Source corrections, adversarial review, actual affected-flow proof and CI remain required. Two authored source commits have been preserved in the isolated `codex/claude-executable-1293-20261008` branch on `74ee5515`; current root review identifies unowned settings probes, concurrent partial-write/mixed-state defects and incomplete harness process/pipe cleanup. Corrections and validation remain pending; no product acceptance is claimed. The next independent preparation is [Home Manager #1305](https://github.com/rynfar/meridian/pull/1305): three authored commits preserved on fresh main, with a separate Linux-only check correction. [Source review and native before/after proof](evidence/home-manager-isolation-1305.md) record the reproduced Darwin regression and passing Linux renderer. Final local test/typecheck/build pass (5478 pass, 35 skip, zero failures); final integration-head CI including the native Nix job remains before merge.
+
+AGY draft #1317, SQLite whole-product acceptance, and original client/model/package/CI holds remain unchanged. No release or community comments occurred; the owner checkout is preserved. Earlier pending-CI statements for #1318 below are historical.
+
 ## Current recovered continuation (2026-10-08)
 
 The owner resumed the combined oldest-first PR/issue queue. The dirty checkout

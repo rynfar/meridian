@@ -1,0 +1,140 @@
+{
+  "sourceHead": "f64aaadb6bb578f676b834552ea3ee20c8f3c893",
+  "main": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+  "authoredReplay": {
+    "b73e05093d31ccbe8c452b956c4befd937e4bae2": "22c33eeef3b3a7d9e824ccdba3b2de2182d17b8d",
+    "552eb56f6cde6d34e14d59c85e6cb4a5c5addb30": "3404eb6450f7ee0ab58055791728173f248cdb53",
+    "f64aaadb6bb578f676b834552ea3ee20c8f3c893": "4d97f73a1455e437a073808ebed1c59119412a1b"
+  },
+  "author": "Can H. Tartanoglu <gpg@rotas.mozmail.com>",
+  "correctedCodeHead": "e22822c8e2b312eabd81f52fc0bfd53bf7fda8bf",
+  "native": "Nix 2.35.2 in isolated Linux x86_64 Docker container (emulated on Darwin arm64)",
+  "image": "nixos/nix@sha256:7a007c766426c1877758ddc5cb87a965ac131fc78c582ce0083d922d51ae945c",
+  "inputIdentity": {
+    "baseline": {
+      "head": "4d97f73a1455e437a073808ebed1c59119412a1b",
+      "archiveSha256": "3727cd232af05ce13d459e953ecd5f3a0d319ef7a43967385d6fa159b60c1e69",
+      "flakeSha256": "cd68d51c8c7ad4dfa3d73eb71632aeabf2ce74dd2546cd3e57a85ab9acfd094d",
+      "lockSha256": "cd2723ceb4d26323fddfc6bad6417d7a6006697581b51ef3fb8acf0fab373237"
+    },
+    "candidate": {
+      "head": "e22822c8e2b312eabd81f52fc0bfd53bf7fda8bf",
+      "archiveSha256": "720797be98ff8c2d049f7ea3d9cc0be17e2bf65ef40f31e79392086012a0dd2d",
+      "flakeSha256": "8818dbc0b37ce311dabf75e78b8fb5199f2552585fbf09f3c13a515c53d7cf9a",
+      "lockSha256": "cd2723ceb4d26323fddfc6bad6417d7a6006697581b51ef3fb8acf0fab373237"
+    }
+  },
+  "darwinBaseline": {
+    "exit": 1,
+    "cause": "attribute systemd/user/meridian.service missing in real Home Manager renderer"
+  },
+  "correctedAarch64Darwin": {
+    "exit": 0,
+    "checks": []
+  },
+  "linuxBuild": {
+    "exit": 0,
+    "result": [
+      {
+        "drvPath": "/nix/store/x4r9hyjbvgs1s0730b8n80pj5lwgvbrq-meridian-home-module.drv",
+        "outputs": {
+          "out": "/nix/store/cpais4980ya0arb12jkn5jghn6m7wah9-meridian-home-module"
+        }
+      }
+    ]
+  },
+  "firstLinuxAttempt": {
+    "exit": 1,
+    "cause": "QEMU cannot load Nix seccomp BPF program",
+    "correction": "filter-syscalls=false in container only; same source, lock and test assertions"
+  },
+  "x86_64Darwin": {
+    "exit": 1,
+    "cause": "existing locked Nixpkgs26.11 dropped x86_64-darwin; unrelated platform gate not claimed green"
+  },
+  "containersObservedExited": [
+    {
+      "name": "meridian-nix-1305-20261008-r2",
+      "outerExit": 0,
+      "qualification": "independent command exit files; wrapper exit is not gate acceptance"
+    },
+    {
+      "name": "meridian-nix-1305-20261008-native-r3",
+      "outerExit": 0
+    }
+  ],
+  "modelCalls": 0,
+  "hostServiceActivation": false,
+  "adversarialReview": "Root complete final contribution diff and delivery documentation against current main, existing module/flake callers, real locked Home Manager renderer, defaults, option typing, generated directives, platform boundaries and CI shell/pins; Darwin finding corrected separately; no material bounded finding remains",
+  "localGates": {
+    "head": "e22822c8e2b312eabd81f52fc0bfd53bf7fda8bf",
+    "steps": [
+      {
+        "command": [
+          "npm",
+          "test"
+        ],
+        "exit": 0,
+        "durationSeconds": 478.577,
+        "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/resumption-20261008-round2/nix1305/0-local.log",
+        "sha256": "6b5da9b284651adbbf225678b756b7f54cd464125d2291ad149fd6780f966c76"
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        "exit": 0,
+        "durationSeconds": 4.329,
+        "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/resumption-20261008-round2/nix1305/1-local.log",
+        "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exit": 0,
+        "durationSeconds": 3.601,
+        "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/resumption-20261008-round2/nix1305/2-local.log",
+        "sha256": "bc9527346e14456570850126ef878d892c15887c6fd89386724b88053f029e08"
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "origin/main...HEAD"
+        ],
+        "exit": 0,
+        "durationSeconds": 0.029,
+        "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/resumption-20261008-round2/nix1305/3-local.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "finalHeadCI": "not started",
+  "artifactHashes": {
+    "run-native.sh": "f46c9a839db3030bbc16ff591e0e2329744c8a78c165aa5d5fb048bc4c2f48e2",
+    "baseline-darwin.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline-darwin.stderr": "fdb4a7d3ba1db0f514febfc501c18e210e729d4df93d5f56112bd2bb5c153422",
+    "corrected-darwin.stdout": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "corrected-x86-darwin.stderr": "dfb25cbf070d3668e6cb159563ae24ac553b651d26ea78603e2f2dfe8514d0d9",
+    "corrected-linux.stderr": "fa63dd04c0c3045df18314b5d02b664c6088813577204864a7666ae657d3258b",
+    "native-round2/run.sh": "91f3a54a1fb0360875a097330499758a296f7648463ae8d3ff8e2f255e1f62c2",
+    "native-round2/linux.stdout": "a611d3b6dcb8cd9d4d69c49af5732f08891f07bf4eb3701e9df17a75d1079e6f",
+    "native-round2/linux.stderr": "9cd2a9c3b1d5785a76b8dda1d3929a5d406cd88ef053789be532bc629e99fa7e"
+  },
+  "authorDates": {
+    "b73e05093d31ccbe8c452b956c4befd937e4bae2": "2026-10-07T18:56:13Z",
+    "552eb56f6cde6d34e14d59c85e6cb4a5c5addb30": "2026-10-08T09:30:01Z",
+    "f64aaadb6bb578f676b834552ea3ee20c8f3c893": "2026-10-08T11:31:35Z"
+  },
+  "localTestCounts": {
+    "pass": 5478,
+    "skip": 35,
+    "fail": 0
+  }
+}

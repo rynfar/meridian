@@ -7534,3 +7534,16 @@ their own auth status. A synthetic API key recognition is not inference-key
 validation. The separately isolated HTTP regression file checks supplied setup
 tokens and preserves stored subscription plan, renewal and missing-token rules.
 See [bounded proof](docs/maintenance/evidence/1257-profile-credential-isolation.md).
+
+## Home Manager service environment rendering
+
+For the opt-in `unsetEnvironment` configuration, run native Nix with the existing
+lock: `nix build --no-link --no-update-lock-file .#checks.x86_64-linux.home-module`.
+This uses the real locked Home Manager renderer and asserts default omission,
+repeated removal directives, explicit config/login directories, disabled-service
+omission and invalid-name rejection. The check is Linux-only: verify the Darwin
+check set with `nix eval --no-update-lock-file --json .#checks.aarch64-darwin
+--apply 'checks: builtins.attrNames checks'` and require an empty array.
+[Before/after proof and platform limits](docs/maintenance/evidence/home-manager-isolation-1305.md)
+retain the native failed-before missing-service assertion and the corrected build.
+No model/credential flow is implicated by this generated-unit-only change.
