@@ -99,6 +99,8 @@ Called before the request is sent to the Claude SDK. Receives the full request c
 | `supportsThinking` | `boolean` | Forward thinking blocks |
 | `metadata` | `Record<string, unknown>` | Plugin-to-plugin state |
 
+Returned message histories must contain at least one message with a role and string or array content. Changing the history sends the complete transformed history to the SDK and starts a fresh execution; client history still controls session ownership and continuation checks. Equivalent copies preserve normal resumes. Repeated history changes therefore incur replay cost; preserve completed tool calls and their results together.
+
 **Example — add a system prompt addendum:**
 ```ts
 onRequest(ctx) {
