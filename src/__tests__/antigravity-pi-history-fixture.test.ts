@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test"
 import { z } from "zod"
 import { EventEmitter } from "node:events"
+import { PassThrough, Writable } from "node:stream"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { assertImportedHistory, boundedCompletion, historyFixture, inspectRenderedHistory, observeClient } from "../../scripts/e2e-antigravity-pi-history.mjs"
+import { assertImportedHistory, boundedCompletion, historyFixture, inspectRenderedHistory, observeClient, liveLifecycle, serializedSnapshots, forwardResponse } from "../../scripts/e2e-antigravity-pi-history.mjs"
 import { parseAgRequest, renderAgPrompt } from "../proxy/backends/antigravityProtocol"
 import type { AgMessage } from "../proxy/backends/antigravityProtocol"
 
@@ -212,4 +213,182 @@ test("capture overflow and deadlines cannot become a clean client success (fake 
     expect(role.state.failure).toBeDefined()
     expect(signals).toEqual(["SIGTERM"])
   }
+})
+
+function deferred<T>() {
+  let release: (value: T) => void = () => { throw new Error("Deferred not initialized") }
+  const promise = new Promise<T>(resolve => { release = resolve })
+  return { promise, release }
+}
+const tick = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+
+test("one captured public close keeps its first UNKNOWN across overlapping and later callers", async () => {
+  const instance = { id: "old" }, close = deferred<void>(), receipts: string[] = []
+  let closeCalls = 0
+  const owner = liveLifecycle({ start: async () => instance, close: async () => { closeCalls++; await close.promise }, closeMs: 5,
+    onClose: async (_instance, _label, outcome) => { receipts.push(outcome.outcome) } })
+  await owner.start()
+  const first = owner.close(instance, "result-tail"), second = owner.close(instance, "final")
+  expect(first).toBe(second)
+  const firstOutcome = await first
+  close.release(); await close.promise; await tick()
+  const secondOutcome = await second
+  expect(firstOutcome.outcome).toBe("UNKNOWN_TIMEOUT")
+  expect(secondOutcome).toBe(firstOutcome)
+  expect((await owner.close(instance, "late-caller")).outcome).toBe("UNKNOWN_TIMEOUT")
+  expect(receipts).toEqual(["UNKNOWN_TIMEOUT"])
+  expect(closeCalls).toBe(1)
+  expect(owner.state.firstFailure?.kind).toBe("proxy-close")
+  await owner.drain()
+})
+
+test("retirement during deferred old close joins the handler without starting or forwarding replacement", async () => {
+  const instance = { id: "old" }, close = deferred<void>()
+  let starts = 0, forwards = 0
+  const owner = liveLifecycle({ start: async () => { starts++; return instance }, close: async () => close.promise, closeMs: 100, drainMs: 100 })
+  await owner.start()
+  const handler = owner.run("relay-request", async () => {
+    await owner.close(instance, "result-tail")
+    await owner.start()
+    owner.forward(() => { forwards++ })
+  })
+  // Attach rejection observer before retirement can reject the pending handler.
+  const handlerResult = handler.then(() => "RESOLVED", error => String(error))
+  await tick(); owner.retire("Client exited")
+  const drain = owner.drain()
+  close.release()
+  expect(await handlerResult).toContain("retired")
+  expect((await drain).outcome).toBe("RESOLVED")
+  expect(starts).toBe(1); expect(forwards).toBe(0)
+  expect(() => owner.forward(() => { forwards++ })).toThrow("retired")
+  await expect(owner.start()).rejects.toThrow("retired")
+  expect(starts).toBe(1); expect(forwards).toBe(0)
+})
+
+test("replacement already acquiring at retirement is retained and closed before a qualified drain", async () => {
+  const old = { id: "old" }, late = { id: "late" }, acquired = deferred<typeof late>()
+  const lateClose = deferred<void>(), closed: string[] = [], receipts: string[] = []
+  let starts = 0, forwards = 0
+  const owner = liveLifecycle({ start: async () => ++starts === 1 ? old : acquired.promise,
+    close: async (instance, label) => { closed.push(instance.id + ":" + label); if (instance === late) await lateClose.promise },
+    onClose: async (instance, _label, outcome) => { receipts.push(instance.id + ":" + outcome.outcome) }, closeMs: 100, drainMs: 100 })
+  await owner.start()
+  const handler = owner.run("relay-request", async () => {
+    await owner.close(old, "result-tail")
+    await owner.start()
+    owner.forward(() => { forwards++ })
+  }).then(() => "RESOLVED", error => String(error))
+  await tick(); expect(starts).toBe(2)
+  owner.retire("Client exited"); const drain = owner.drain()
+  acquired.release(late); await tick()
+  expect(closed).toContain("late:late-start-after-retirement")
+  expect(receipts).not.toContain("late:RESOLVED")
+  lateClose.release()
+  expect(await handler).toContain("after retirement")
+  expect((await drain).outcome).toBe("RESOLVED")
+  expect(receipts).toEqual(["old:RESOLVED", "late:RESOLVED"])
+  expect(forwards).toBe(0)
+})
+
+test("cleanup waits for the actual close-qualification callback and retains its late failure", async () => {
+  const instance = { id: "old" }, qualification = deferred<void>()
+  const owner = liveLifecycle({ start: async () => instance, close: async () => {}, drainMs: 100,
+    onClose: async () => { await qualification.promise; throw new Error("receipt qualification EIO") } })
+  await owner.start()
+  const close = owner.close(instance, "result-tail").then(() => "RESOLVED", error => String(error))
+  await tick()
+  let drained = false
+  const drain = owner.drain().then(result => { drained = true; return result })
+  await tick(); expect(drained).toBe(false)
+  expect(owner.state.closes[0]?.receiptCallbackOutcome).toBe("PENDING")
+  qualification.release()
+  expect(await close).toContain("qualification EIO")
+  expect((await drain).outcome).toBe("RESOLVED")
+  expect(owner.state.firstFailure).toEqual({ kind: "proxy-close-qualification", error: "Error: receipt qualification EIO" })
+  expect(owner.state.closes[0]?.receiptCallbackOutcome).toBe("REJECTED")
+  expect(owner.state.operations.every(operation => operation.outcome !== "PENDING")).toBe(true)
+  await expect(owner.run("after-retirement", async () => { throw new Error("Must not run") })).rejects.toThrow("retired")
+})
+
+test("unknown operation drain stays unknown when an acquired instance arrives later", async () => {
+  const late = { id: "late" }, acquired = deferred<typeof late>(), closed: string[] = []
+  const owner = liveLifecycle({ start: () => acquired.promise, close: async instance => { closed.push(instance.id) }, operationMs: 100, drainMs: 5 })
+  const startResult = owner.start().then(() => "RESOLVED", error => String(error))
+  await tick(); owner.retire("Cleanup"); const drain = await owner.drain()
+  expect(drain.outcome).toBe("UNKNOWN_TIMEOUT")
+  acquired.release(late)
+  expect(await startResult).toContain("after retirement")
+  expect(closed).toEqual(["late"])
+  expect((await owner.drain()).outcome).toBe("UNKNOWN_TIMEOUT")
+  expect(owner.state.firstFailure?.kind).toBe("lifecycle-drain")
+})
+
+test("checkpoint snapshots are captured at submission, serialized and drained before sealing", async () => {
+  const first = deferred<void>(), records: object[] = []
+  let active = 0, maximum = 0
+  const writer = serializedSnapshots(async snapshot => {
+    active++; maximum = Math.max(maximum, active)
+    if (records.length === 0) await first.promise
+    records.push(snapshot); active--
+  }, 100)
+  const source = { stage: "one", events: ["original"] }
+  const one = writer.submit(source)
+  source.events.push("later"); source.stage = "mutated"
+  const two = writer.submit({ stage: "two" })
+  const final = writer.seal({ stage: "final" })
+  await tick(); expect(active).toBe(1); expect(records).toEqual([])
+  first.release(); await one; await two
+  expect((await final).outcome).toBe("RESOLVED")
+  expect(records).toEqual([{ stage: "one", events: ["original"] }, { stage: "two" }, { stage: "final" }])
+  expect(maximum).toBe(1)
+  expect((await writer.submit({ stage: "late" })).outcome).toBe("NOT_ADMITTED_AFTER_SEAL")
+  expect(records).toHaveLength(3)
+})
+
+test("timed-out physical artifact write forbids queued writes even after its late completion", async () => {
+  const pending = deferred<void>(), writes: object[] = []
+  const writer = serializedSnapshots(async snapshot => { writes.push(snapshot); await pending.promise }, 5)
+  const first = writer.submit({ stage: "first" }), second = writer.submit({ stage: "second" })
+  expect((await first).outcome).toBe("UNKNOWN_TIMEOUT")
+  expect((await second).outcome).toBe("NOT_WRITTEN_AFTER_FAILURE")
+  expect((await writer.seal({ stage: "final" })).error).toContain("UNKNOWN_TIMEOUT")
+  pending.release(); await tick()
+  expect(writes).toEqual([{ stage: "first" }])
+  expect(writer.state.completed).toBe(0)
+})
+
+test("forwarding retains the original upstream cause before downstream destruction and later failures", async () => {
+  const source = new PassThrough(), records: object[] = [], instance = { id: "proxy" }
+  const writer = serializedSnapshots(async snapshot => { records.push(snapshot) }, 100)
+  const owner = liveLifecycle({ start: async () => instance, close: async () => { throw new Error("cleanup close EIO") } })
+  await owner.start()
+  const downstream = new Writable({ write(_chunk, _encoding, callback) { callback() } })
+  let causeAtDestroy: { kind: string; error: string } | undefined
+  downstream.on("close", () => { causeAtDestroy = owner.state.firstFailure })
+  const checkpoint = (stage: string) => writer.submit({ stage, lifecycle: owner.state })
+  const handler = owner.run("relay-request", async () => forwardResponse(source, downstream, owner, checkpoint)).then(() => "RESOLVED", error => String(error))
+  await tick(); source.destroy(new Error("original upstream ECONNRESET"))
+  expect(await handler).toContain("original upstream ECONNRESET")
+  owner.fail("client", new Error("Pi exit 1"))
+  await owner.drain(); await tick()
+  expect(causeAtDestroy).toEqual({ kind: "response-stream", error: "Error: original upstream ECONNRESET" })
+  expect(owner.state.firstFailure).toEqual(causeAtDestroy)
+  expect(owner.state.failures.some(failure => failure.kind === "client" && failure.error.includes("exit 1"))).toBe(true)
+  expect(owner.state.failures.some(failure => failure.kind === "proxy-close" && failure.error.includes("cleanup close EIO"))).toBe(true)
+  expect(owner.state.retired).toBe(true)
+  expect(() => owner.forward(() => { throw new Error("Must never forward") })).toThrow("retired")
+  await writer.seal({ stage: "final", lifecycle: owner.state })
+  expect(records[0]).toMatchObject({ lifecycle: { firstFailure: { kind: "response-stream", error: "Error: original upstream ECONNRESET" } } })
+  expect(records.at(-1)).toMatchObject({ lifecycle: { firstFailure: causeAtDestroy, retired: true } })
+})
+
+test("normal forwarding tracks the real stream finish and preserves a clean owner", async () => {
+  const owner = liveLifecycle({ start: async () => ({ id: "unused" }), close: async () => {} })
+  const source = new PassThrough(), chunks: string[] = []
+  const response = new Writable({ write(chunk, _encoding, callback) { chunks.push(chunk.toString()); callback() } })
+  const handler = owner.run("relay-request", async () => forwardResponse(source, response, owner, async () => {}))
+  await tick(); source.end("actual stream bytes"); await handler; await owner.drain()
+  expect(chunks.join("")).toBe("actual stream bytes")
+  expect(owner.state.firstFailure).toBeUndefined()
+  expect(owner.state.operations[0]?.outcome).toBe("RESOLVED")
 })

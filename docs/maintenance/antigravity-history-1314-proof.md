@@ -84,6 +84,36 @@ sentinel's inferred `unknown` was retained and corrected by an explicit typed
 promise and narrowing; no casts or ignored diagnostics were used. Full final
 gates are recorded against the subsequent frozen correction head.
 
+The second independent review rejected main orchestration even though the
+individual finite helpers were supported. Final cleanup could race the
+result-tail replacement, re-observe one cached public close through a second
+time window, and write concurrent checkpoints. A new overlapping-window control
+on unchanged `96bc5b2` reproduced **12 passed / 1 failed**: the first observer was
+unknown while the second resolved the same late promise. This is a source-derived
+fake interleaving, not a native/client failure reproduction.
+
+Main now uses one lifecycle owner: retirement forbids new start/forward work,
+tracked handlers and starts have finite observations, and each captured proxy
+has one immutable bounded close outcome. Already-started late acquisitions stay
+tracked and are closed without forwarding. Cleanup drains tracked work; unknown
+operations or closes remain failures. Immutable snapshots have one serialized
+writer and terminal seal; failed/unknown writes prevent queued overlap. The final
+snapshot explicitly precedes its artifact-drain outcome, which the outer command
+must retain. Injected controls use these actual main helpers for deferred close,
+late close, deferred/late acquisition, no post-retirement forwarding, unknown
+drain, and concurrent/failed snapshot writes.
+
+The review also found that asynchronous forwarded-stream errors were destroyed
+without preserving their cause. Main's shared forwarding helper now retains the
+original upstream error before downstream destruction and checkpoints it through
+the serialized writer. Its erroring-Readable control preserves that original
+cause alongside later client and cleanup failures; a normal stream-finish control
+stays clean. These are credentialless injected streams/promises, not actual Pi,
+HTTP/native or model proof. Initial new state/type inference failures are retained
+and corrected with precise declarations, without casts or ignored diagnostics. The
+corrected focused suite passed **39/39 cases, 355 assertions**, with typecheck
+and syntax checks; final full checks are recorded at the frozen correction head.
+
 **Live status at preparation: not run.** Official account/catalog preflight is
 not inference. Reporter DeepSeekHarness ACP version/OS remain unknown; a supported
 Pi import success would remain qualified and would not establish exact reporter

@@ -7572,9 +7572,20 @@ No completed write may run again. Client roles have a 240-second deadline,
 one-second escalation and a two-second close grace after exit or stopping.
 Missing close yields a failed/unknown outcome; late or locally destroyed pipe
 closure cannot reclassify it as a native join. No signals use an exited leader.
-Public proxy and relay close waits are capped at ten seconds. Full artifact
-checkpoints precede these waits, preserve the first failure and record separate
-cleanup failures. The CLI exits nonzero after retaining an unknown join; process
+One lifecycle owner tracks relay handlers and proxy acquisitions. Retirement
+aborts forwarding before cleanup and forbids new start/fetch operations. Each
+captured proxy has one cached ten-second close outcome; a later caller cannot
+turn its unknown outcome into success. Already-started late replacements are
+retained and closed without forwarding. Handler/start operations have a
+130-second bound and cleanup drains them for ten seconds; unknown pending
+operations remain failures, rather than proof of native cleanup. Relay close is
+also capped at ten seconds. Immutable artifact snapshots use one serial writer
+with ten-second write/drain bounds; a failed/unknown physical write prevents
+queued writes from overlapping it. A final seal rejects late writes. The final
+snapshot labels its artifact drain pending; the outer command must retain the
+post-drain console result and actual exit/joins. Checkpoints precede waits,
+retain the first upstream stream cause before downstream destruction, and keep
+later client and cleanup errors separately. The CLI exits nonzero after retaining an unknown join; process
 exit itself does not establish native cleanup. Client logs are capped; requests
 are capped at 16 and 2 MiB each. A separate structural check inspects the actual
 translated request's rendered recap and byte-equivalent final history; a baseline
