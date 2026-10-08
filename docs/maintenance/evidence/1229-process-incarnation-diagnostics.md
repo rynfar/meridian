@@ -210,3 +210,19 @@ build, adversarial review and CI remain separate delivery gates; their final
 receipts belong to the draft/maintenance checkpoint. Keep #1229 open and #1266
 draft pending the affected-flow gates. No public plugin interface changed;
 this internal diagnostic correction needs no new contract approval.
+
+### Native launcher review correction
+
+Independent review found one evidence defect, `PR1266-R1-F1`: the launcher
+recorded owned-group presence but did not require its absence before advancing
+or reporting PASS. The shared command predicate now requires
+`ESRCH_NO_GROUP`; present, unknown and missing observations preserve the
+receipt and stop. This adds no post-reap signals or product behavior.
+Seven pure retained-receipt controls verify ESRCH acceptance, rejection of
+present/unknown/missing group observations, and the existing exit/controller/
+deadline failures. These generated receipts are not live group-negative proof.
+The corrected launcher ran once more under the same controlled Darwin deny
+rule: all three commands exited 0, joined their leaders and observed ESRCH;
+both native arms retained their absent/present diagnostics and unchanged
+source. The appended review-control receipts in the JSON record preserve the
+earlier observations and all platform/client/package limitations.

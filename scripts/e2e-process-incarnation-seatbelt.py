@@ -44,6 +44,13 @@ def save(path, value):
         stream.write("\n")
 
 
+def command_succeeded(receipt):
+    return (receipt.get("exit") == 0
+            and not receipt.get("controllerFailureClass")
+            and not receipt.get("deadlineExpired")
+            and receipt.get("ownedGroupPresenceAfterJoin") == "ESRCH_NO_GROUP")
+
+
 def run(out, name, argv, additional_env, deadline):
     root = out / name
     root.mkdir(mode=0o700)
@@ -128,18 +135,19 @@ def main():
     stopped = None
     for number, (module, expected) in enumerate(((baseline, "0"), (corrected, "1")), 1):
         previous = receipts[-1]
-        if previous.get("exit") != 0 or previous.get("controllerFailureClass") or previous.get("deadlineExpired"):
+        if not command_succeeded(previous):
             stopped = "FIRST_MEANINGFUL_FAILURE_NO_RERUN"
             break
         env = {"E2E_PROCESS_INCARNATION_MODULE": str(module), "E2E_EXPECT_DIAGNOSTIC": expected}
         receipt = run(out, f"{number:02d}-" + ("baseline" if expected == "0" else "corrected"),
                       ["/usr/bin/sandbox-exec", "-p", POLICY, str(bun), "--eval", PROGRAM], env, 15)
         receipts.append(receipt)
-    if any(row.get("exit") != 0 or row.get("controllerFailureClass") or row.get("deadlineExpired") for row in receipts):
+    if any(not command_succeeded(row) for row in receipts):
         stopped = "FIRST_MEANINGFUL_FAILURE_NO_RERUN"
     after = [source_identity(path) for path in (baseline, corrected)]
     save(out / "SOURCE_AFTER.json", after)
-    success = stopped is None and len(receipts) == 3 and before == after
+    success = (stopped is None and len(receipts) == 3
+               and all(command_succeeded(row) for row in receipts) and before == after)
     result = {"result": "PASS" if success else "FAIL", "receipts": receipts,
               "sourceBeforeAfterEqual": before == after, "stoppedReason": stopped,
               "scope": "ACTUAL_CONTROLLED_DARWIN_MODULE_DIAGNOSTIC_ONLY",
