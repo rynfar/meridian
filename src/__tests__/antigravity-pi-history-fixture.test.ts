@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test"
 import { z } from "zod"
 import { EventEmitter } from "node:events"
-import { assertImportedHistory, historyFixture, observeClient } from "../../scripts/e2e-antigravity-pi-history.mjs"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
+import { assertImportedHistory, boundedCompletion, historyFixture, inspectRenderedHistory, observeClient } from "../../scripts/e2e-antigravity-pi-history.mjs"
+import { parseAgRequest, renderAgPrompt } from "../proxy/backends/antigravityProtocol"
 import type { AgMessage } from "../proxy/backends/antigravityProtocol"
 
 const fixture = historyFixture("/public-fixture", "gemini-3.8-flash-low", "LATEST_FIXTURE")
@@ -71,12 +74,17 @@ test("escrow requires the imported newest typed request and rejects duplicate hi
   expect(() => assertImportedHistory(duplicate, fixture)).toThrow()
 })
 
+class FakePipe extends EventEmitter {
+  destroyCalls = 0
+  destroy() { this.destroyCalls++; this.emit("close") }
+}
 class FakeClient extends EventEmitter {
-  stdout = new EventEmitter()
-  stderr = new EventEmitter()
+  stdout = new FakePipe()
+  stderr = new FakePipe()
   exitCode: number | null = null
   signalCode: string | null = null
   constructor(readonly pid: number | undefined) { super() }
+  exit(code: number) { this.exitCode = code; this.emit("exit", code, null) }
   close(code: number) {
     this.exitCode = code
     for (const stream of [this.stdout, this.stderr]) { stream.emit("end"); stream.emit("close") }
@@ -93,6 +101,90 @@ test("escrow spawn errors remain failures and join close without signaling an ab
   child.close(-2); await role.join
   expect(role.state.closeEvent).toBe(true)
   expect(signals).toEqual([])
+})
+
+test("exited leader with held pipes reaches a finite unknown join without stale signals (fake events only)", async () => {
+  const child = new FakeClient(123), signals: string[] = []
+  const role = observeClient(child, { deadlineMs: 10, joinGraceMs: 5, killGraceMs: 2, signalGroup: (_pid, signal) => { signals.push(signal) } })
+  child.exit(0)
+  const outcome = await Promise.race([role.join, new Promise<string>(resolve => setTimeout(() => resolve("WAIT_BOUND_EXCEEDED"), 40))])
+  child.close(0) // Release the old implementation's fake timers after the observation.
+  if (typeof outcome === "string") throw new Error(outcome)
+  expect(outcome).toMatchObject({ outcome: "UNKNOWN_CLOSE_TIMEOUT", closeEvent: false })
+  expect(signals).toEqual([])
+  expect(role.state.failure).toContain("close join")
+  expect(role.state.joinExpired && role.state.localPipeCloseRequested).toBe(true)
+  expect(child.stdout.destroyCalls).toBe(1)
+})
+
+test("error then leader exit before escalation preserves first failure and finite unknown join (fake events only)", async () => {
+  const child = new FakeClient(123), signals: string[] = []
+  const role = observeClient(child, { joinGraceMs: 5, killGraceMs: 2, signalGroup: (_pid, signal) => { signals.push(signal) } })
+  child.emit("error", Object.assign(new Error("fixture primary failure"), { code: "EIO" }))
+  child.exit(143)
+  const outcome = await Promise.race([role.join, new Promise<string>(resolve => setTimeout(() => resolve("WAIT_BOUND_EXCEEDED"), 40))])
+  child.close(143)
+  if (typeof outcome === "string") throw new Error(outcome)
+  expect(outcome).toMatchObject({ outcome: "UNKNOWN_CLOSE_TIMEOUT", closeEvent: false })
+  expect(role.state.failure).toContain("EIO")
+  expect(signals).toEqual(["SIGTERM"])
+})
+
+test("missing and late close cannot reclassify an unknown join as success (fake events only)", async () => {
+  const child = new FakeClient(undefined)
+  const role = observeClient(child, { deadlineMs: 1, joinGraceMs: 5, killGraceMs: 2, signalGroup: () => { throw new Error("Must not signal absent role") } })
+  const outcome = await Promise.race([role.join, new Promise<string>(resolve => setTimeout(() => resolve("WAIT_BOUND_EXCEEDED"), 40))])
+  child.close(0)
+  if (typeof outcome === "string") throw new Error(outcome)
+  expect(outcome).toMatchObject({ outcome: "UNKNOWN_CLOSE_TIMEOUT", closeEvent: false })
+  expect(await role.join).toEqual(outcome)
+  expect(role.state.failure).toContain("deadline")
+  expect(role.state.lateCloseEvent).toBe(true)
+})
+
+test("failed escalation stays a failed unknown join and does not replace the first capture error (fake events only)", async () => {
+  const child = new FakeClient(123)
+  const role = observeClient(child, { captureBytes: 1, joinGraceMs: 10, killGraceMs: 2, signalGroup: () => { throw Object.assign(new Error("fixture denied signal"), { code: "EPERM" }) } })
+  child.stdout.emit("data", Buffer.from("overflow"))
+  const outcome = await role.join
+  expect(outcome).toMatchObject({ outcome: "UNKNOWN_CLOSE_TIMEOUT", closeEvent: false })
+  expect(role.state.failure).toContain("capture cap")
+  expect(role.state.signals).toEqual([{ signal: "SIGTERM", sent: false, code: "EPERM" }, { signal: "SIGKILL", sent: false, code: "EPERM" }])
+  expect(role.state.stdoutEnd || role.state.stderrEnd || role.state.closeEvent).toBe(false)
+  expect(role.state.stdoutClose && role.state.stderrClose && role.state.localPipeCloseRequested).toBe(true)
+  child.close(0)
+  expect((await role.join).outcome).toBe("UNKNOWN_CLOSE_TIMEOUT")
+})
+
+test("unknown and rejected public-close promises are finite and late resolution cannot become proof (fake promise only)", async () => {
+  let release: (() => void) | undefined
+  const pending = new Promise<void>(resolve => { release = resolve })
+  const outcome = await boundedCompletion(() => pending, 5)
+  expect(outcome.outcome).toBe("UNKNOWN_TIMEOUT")
+  expect(outcome.error).toContain("deadline")
+  release?.(); await pending
+  expect(outcome.outcome).toBe("UNKNOWN_TIMEOUT")
+  const failed = await boundedCompletion(() => { throw new Error("fixture public-close EIO") }, 5)
+  expect(failed.outcome).toBe("REJECTED")
+  expect(failed.error).toContain("EIO")
+  expect((await boundedCompletion(() => Promise.resolve(), 5)).outcome).toBe("RESOLVED")
+})
+
+test("long temporary paths match only the current-call advisory preview while full history stays exact", () => {
+  const path = join(tmpdir(), "meridian-agy-pi-history-" + "x".repeat(80), "project", "already-completed.txt")
+  expect(path.length).toBeGreaterThan(80)
+  const request = parseAgRequest({ model: "gemini-3.8-flash-low", messages: [
+    { role: "user", content: "The large write is complete; continue the new target." },
+    { role: "assistant", content: [{ type: "tool_use", id: "fixture-current-large", name: "write", input: { content: "x".repeat(100000), path } }] },
+    { role: "user", content: [{ type: "tool_result", tool_use_id: "fixture-current-large", content: "Completed." }] },
+  ] })
+  const rendered = renderAgPrompt(request), prefix = rendered.slice(0, rendered.indexOf("Client conversation:\n"))
+  expect(prefix.includes('"target":' + JSON.stringify(path))).toBe(false)
+  const observed = inspectRenderedHistory(rendered, request.messages, path)
+  expect(observed).toMatchObject({ currentTargetInRecap: true, targetPreviewChars: 80, targetPreviewTruncated: true, fullHistoryExact: true, advisoryPreviewOnly: true })
+  expect(inspectRenderedHistory(rendered, request.messages, "/wrong").currentTargetInRecap).toBe(false)
+  expect(inspectRenderedHistory(rendered.replace('"id":"fixture-current-large"', '"id":"other"'), request.messages, path).currentTargetInRecap).toBe(false)
+  expect(inspectRenderedHistory(rendered + "changed", request.messages, path).fullHistoryExact).toBe(false)
 })
 
 test("started-role errors and capture caps stop the same role, preserve the first error and still join (fake events only)", async () => {

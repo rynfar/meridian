@@ -37,7 +37,7 @@ are pure defenses, not claims of reproduced public-parser or attachment flows.
 
 The reusable opt-in [Pi long-history escrow](../../scripts/e2e-antigravity-pi-history.mjs)
 and [E2E instructions](../../E2E.md#antigravity-imported-long-history-replay-1073--1314)
-use current isolated Pi 1.1.0, official agy 1.3.1, Gemini 3.8 Flash Low and an
+use current isolated Pi 1.1.0, official agy 1.2.7, Gemini 3.8 Flash Low and an
 imported public v3 session. Its actual client wire, exact new target/action,
 filesystem bytes, correlated read/write results and completed-result-tail
 recovery are independent of model prose. Pure fixture/lifecycle tests exercise
@@ -50,10 +50,39 @@ typecheck. The preserved failures were corrected through explicit
 public-format validation in the test and precise script type annotations, without
 casts or ignores. The final focused checks passed **24/24 cases, 266 assertions**
 and typecheck on Bun 1.3.11. Deprecated
-Pi 0.72.1, the original agy 1.2.7 proposal and an unavailable unbundled `dist`
-protocol path were preparation drafts, never live success. Current escrow selects
+Pi 0.72.1 and an unavailable unbundled `dist` protocol path were preparation
+drafts, never live success. Current escrow selects
 a built source checkout with Bun 1.3.11 for its separate pure protocol inspection;
 it does not establish installed Meridian package equivalence.
+
+The first independent whole-change review rejected escrow readiness for two
+concrete source defects. Its agy 1.3.1 pin contradicted the unchanged baseline
+and candidate runtime's exact 1.2.7 guard; the escrow and docs now require 1.2.7
+without changing that guard. Version/config/catalog preflight remains distinct
+from actual model acceptance.
+
+Its close-only client wait could hang after leader exit with held pipes and
+prevent artifact retention. Three new fake-event controls failed on the frozen
+escrow (**6 passed / 3 failed**). Client exit/stop now starts a finite close grace;
+missing close is a permanently failed/unknown outcome. Failed signal attempts
+remain recorded without replacing the first error; no signal uses an exited
+leader. Local pipe destruction or late close is explicitly distinct from native
+cleanup. Public/relay close waits are finite; artifact checkpoints precede waits
+and retain separate cleanup failures before the CLI's nonzero termination. The
+fake controls cover held pipes, missing/late close, error then exit before
+escalation, failed escalation and unknown/rejected public close. They do not
+establish actual OS/native joins.
+
+Root also reproduced a valid long temp path rejected by the escrow's full-path
+recap predicate. The corrected advisory predicate accepts only the bounded
+target projection on the exact current fixture call. A long-path pure control
+retains that original false negative and rejects wrong call/target or altered
+full history; actual wire targets, correlated results and file bytes stay exact.
+The corrected focused suite passed **30/30 cases, 296 assertions**, plus
+typecheck on Bun 1.3.11. A first new typecheck failure from the finite-test
+sentinel's inferred `unknown` was retained and corrected by an explicit typed
+promise and narrowing; no casts or ignored diagnostics were used. Full final
+gates are recorded against the subsequent frozen correction head.
 
 **Live status at preparation: not run.** Official account/catalog preflight is
 not inference. Reporter DeepSeekHarness ACP version/OS remain unknown; a supported

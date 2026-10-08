@@ -57,20 +57,61 @@ export function assertImportedHistory(body, fixture) {
   }
 }
 
-/** One owned Pi role. Errors/caps/deadlines stop it without abandoning its close join. */
-export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1024 * 1024, signalGroup = (pid, signal) => { process.kill(-pid, signal) } } = {}) {
-  /** @type {{stdout:string, stderr:string, failure:string|undefined, closeEvent:boolean, stdoutEnd:boolean, stderrEnd:boolean, stdoutClose:boolean, stderrClose:boolean, signals:Array<{signal:string,sent:boolean,code?:string}>}} */
-  const state = { stdout: '', stderr: '', failure: undefined, closeEvent: false, stdoutEnd: false, stderrEnd: false, stdoutClose: false, stderrClose: false, signals: [] }
-  let stopping = false, killTimer
+/** Advisory projection only; actual tool targets/results and file bytes stay exact.
+ * @param {string} rendered @param {unknown[]} messages @param {string} seedPath
+ */
+export function inspectRenderedHistory(rendered, messages, seedPath) {
+  const prefix = rendered.slice(0, rendered.indexOf('Client conversation:\n'))
+  const suffix = '[… truncated]'
+  const projectedTarget = seedPath.length <= 80 ? seedPath : seedPath.slice(0, 80 - suffix.length) + suffix
+  const currentCallField = '"type":"tool_use","id":"fixture-current-large","name":"write","target":' + JSON.stringify(projectedTarget)
+  return { prefixChars: prefix.length, currentTargetInRecap: prefix.includes(currentCallField), targetPreviewChars: projectedTarget.length, targetPreviewTruncated: projectedTarget !== seedPath, advisoryPreviewOnly: true, fullHistoryExact: rendered.endsWith('Client conversation:\n' + JSON.stringify(messages)) }
+}
+
+/** A timeout remains unknown even if the original promise subsequently resolves.
+ * @param {() => unknown} action
+ * @returns {Promise<{outcome:string,value:unknown,error:string|undefined}>}
+ */
+export async function boundedCompletion(action, timeoutMs = 10000) {
+  let timer
+  const timeout = new Promise(resolve => { timer = setTimeout(() => resolve({ outcome: 'UNKNOWN_TIMEOUT', value: undefined, error: 'Completion deadline exceeded' }), timeoutMs) })
+  try {
+    return await Promise.race([timeout, Promise.resolve().then(action).then(value => ({ outcome: 'RESOLVED', value, error: undefined }), error => ({ outcome: 'REJECTED', value: undefined, error: String(error) }))])
+  } finally { clearTimeout(timer) }
+}
+
+/** One owned Pi role. Missing close is a finite failure, never a native join. */
+export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1024 * 1024, joinGraceMs = 2000, killGraceMs = 1000, signalGroup = (pid, signal) => { process.kill(-pid, signal) } } = {}) {
+  /** @type {{stdout:string, stderr:string, failure:string|undefined, exitEvent:boolean, exitCode:number|null, exitSignal:string|null, closeEvent:boolean, lateCloseEvent:boolean, joinExpired:boolean, localPipeCloseRequested:boolean, stdoutEnd:boolean, stderrEnd:boolean, stdoutClose:boolean, stderrClose:boolean, signals:Array<{signal:string,sent:boolean,code?:string}>}} */
+  const state = { stdout: '', stderr: '', failure: undefined, exitEvent: false, exitCode: null, exitSignal: null, closeEvent: false, lateCloseEvent: false, joinExpired: false, localPipeCloseRequested: false, stdoutEnd: false, stderrEnd: false, stdoutClose: false, stderrClose: false, signals: [] }
+  let stopping = false, settled = false, killTimer, closeTimer, resolveJoin
+  /** @type {Promise<{code:number|null,signal:string|null,closeEvent:boolean,outcome:string}>} */
+  const join = new Promise(resolve => { resolveJoin = resolve })
+  const finish = result => {
+    if (settled) return
+    settled = true; clearTimeout(timer); clearTimeout(killTimer); clearTimeout(closeTimer)
+    resolveJoin(result)
+  }
+  const armCloseDeadline = () => {
+    if (settled || closeTimer) return
+    closeTimer = setTimeout(() => {
+      state.joinExpired = true; state.failure ??= 'Client close join deadline exceeded'
+      finish({ code: child.exitCode, signal: child.signalCode, closeEvent: false, outcome: 'UNKNOWN_CLOSE_TIMEOUT' })
+      // Release only our local read ends. Their close events cannot prove native cleanup.
+      for (const name of ['stdout', 'stderr']) if (typeof child[name].destroy === 'function') {
+        state.localPipeCloseRequested = true; child[name].destroy()
+      }
+    }, joinGraceMs)
+  }
   const terminate = signal => {
-    if (!child.pid || state.closeEvent || child.exitCode !== null || child.signalCode !== null) return
+    if (!child.pid || settled || state.closeEvent || child.exitCode !== null || child.signalCode !== null) return
     try { signalGroup(child.pid, signal); state.signals.push({ signal, sent: true }) }
     catch (error) { state.signals.push({ signal, sent: false, code: error.code }); if (error.code !== 'ESRCH') state.failure ??= `Signal failed: ${error.code}` }
   }
   const stop = reason => {
     state.failure ??= reason
-    if (stopping || state.closeEvent) return
-    stopping = true; terminate('SIGTERM'); killTimer = setTimeout(() => terminate('SIGKILL'), 1000)
+    if (stopping || settled || state.closeEvent) return
+    stopping = true; terminate('SIGTERM'); killTimer = setTimeout(() => terminate('SIGKILL'), killGraceMs); armCloseDeadline()
   }
   const timer = setTimeout(() => stop('Client deadline exceeded'), deadlineMs)
   const capture = (chunk, name) => {
@@ -84,10 +125,11 @@ export function observeClient(child, { deadlineMs = 240000, captureBytes = 4 * 1
     child[name].on('error', error => stop(`Client ${name} read failed: ${error.code ?? error.name}`))
   }
   child.once('error', error => stop(`Client process error: ${error.code ?? error.name}`))
-  const join = new Promise(resolve => child.once('close', (code, signal) => {
-    state.closeEvent = true; clearTimeout(timer); clearTimeout(killTimer)
-    resolve({ code, signal, closeEvent: true })
-  }))
+  child.once('exit', (code, signal) => { state.exitEvent = true; state.exitCode = code; state.exitSignal = signal; armCloseDeadline() })
+  child.once('close', (code, signal) => {
+    state.closeEvent = true; state.lateCloseEvent = settled
+    finish({ code, signal, closeEvent: true, outcome: 'CLOSE_OBSERVED' })
+  })
   return { state, stop, join }
 }
 
@@ -123,7 +165,7 @@ export async function main() {
   const nodeParts = /^v(\d+)\.(\d+)\./.exec(report.clientNode)
   assert(nodeParts && (Number(nodeParts[1]) > 22 || Number(nodeParts[1]) === 22 && Number(nodeParts[2]) >= 19), 'Pi 1.1.0 requires Node >=22.19.0')
   assert.equal(report.client, '1.1.0', 'Use independently installed pinned current Pi 1.1.0')
-  assert(/\b1\.3\.1\b/.test(report.cli), 'Use independently preflighted official agy 1.3.1')
+  assert(/\b1\.2\.7\b/.test(report.cli), 'Use independently verified official agy 1.2.7, accepted by both frozen runtimes')
   report.serverSha256 = sha(await readFile(join(packageRoot, 'dist/server.js')))
   report.protocolSha256 = sha(await readFile(join(packageRoot, 'src/proxy/backends/antigravityProtocol.ts')))
   report.harnessSha256 = sha(await readFile(fileURLToPath(import.meta.url)))
@@ -136,23 +178,49 @@ export async function main() {
   report.fixtureSha256 = sha(await readFile(session))
   await writeFile(join(root, 'fixture-before.jsonl'), await readFile(session), { mode: 0o600 })
   const observed = [], baselineChildren = new Set(directChildren().map(row => row[0]))
-  let proxy, url, relay, child, role, restarted = false, clientFailure, stdout = '', stderr = '', primaryError
+  let proxy, url, relay, child, role, restarted = false, clientFailure, stdout = '', stderr = '', primaryError, proxyCloseFailure
+  const checkpoint = async stage => {
+    report.stage = stage
+    report.clientFailure = clientFailure
+    if (role) {
+      const { stdout: capturedOut, stderr: capturedErr, ...observation } = role.state
+      stdout = capturedOut; stderr = capturedErr; report.clientObservation = observation
+    }
+    try {
+      await writeFile(join(root, 'requests.json'), JSON.stringify(observed, null, 2), { mode: 0o600 })
+      await writeFile(join(root, 'pi.stdout'), stdout, { mode: 0o600 }); await writeFile(join(root, 'pi.stderr'), stderr, { mode: 0o600 })
+      await writeFile(join(root, 'report.json'), JSON.stringify(report, null, 2), { mode: 0o600 })
+    } catch (error) {
+      report.artifactError ??= String(error)
+      console.error(JSON.stringify({ primaryError: report.error, artifactError: report.artifactError, stage }))
+    }
+  }
   const start = async () => {
     proxy = await startProxyServer({ backend: 'antigravity', port: 0, silent: true, antigravity: { executable, allowToolBridge: true, turnTimeoutMs: 60000, pendingToolTimeoutMs: 30000 } })
     if (!proxy.server.listening) await once(proxy.server, 'listening')
     const address = proxy.server.address(); assert(address && typeof address !== 'string')
     url = `http://127.0.0.1:${address.port}`
+    proxyCloseFailure = undefined
   }
   const closeProxy = async label => {
+    if (proxyCloseFailure) throw new Error(proxyCloseFailure) // Do not repeat a timed-out native wait.
     let owned = [], censusError
     try { owned = directChildren().filter(row => !baselineChildren.has(row[0]) && row[0] !== child?.pid) }
     catch (error) { censusError = String(error) }
     const qualified = !censusError && owned.every(row => row[0] === row[2])
-    const observation = { label, publicCloseResolved: false, listenerStopped: false, qualified, censusError, groups: [], scope: 'sampled direct owned native children/groups; not a universal descendant census' }
+    const observation = { label, publicCloseResolved: false, publicCloseOutcome: 'PENDING', publicCloseError: undefined, listenerStopped: false, qualified, censusError, groups: [], scope: 'sampled direct owned native children/groups; not a universal descendant census' }
     report.joins.push(observation)
-    await proxy.close() // Public close joins run.settled after native child close and workspace cleanup.
+    await checkpoint(label + '-before-public-close')
+    const completion = await boundedCompletion(() => proxy.close())
+    Object.assign(observation, { publicCloseOutcome: completion.outcome, publicCloseError: completion.error, listenerStopped: !proxy.server.listening })
+    if (completion.outcome !== 'RESOLVED') {
+      proxyCloseFailure = `Public proxy close ${completion.outcome}: ${completion.error}`
+      await checkpoint(label + '-public-close-unqualified')
+      throw new Error(proxyCloseFailure)
+    }
     const groups = owned.map(row => ({ pid: row[0], pgid: row[2], after: row[0] === row[2] ? groupAbsent(row[2]) : 'UNQUALIFIED_GROUP' }))
     Object.assign(observation, { publicCloseResolved: true, listenerStopped: !proxy.server.listening, groups })
+    await checkpoint(label + '-public-close-observed')
     assert(qualified && !proxy.server.listening && groups.every(row => row.after === 'ESRCH_NO_GROUP'), 'Old proxy/native group did not join')
     if (label === 'before-result-tail-replay') assert(groups.length > 0, 'No owned native process observed before replacement')
   }
@@ -184,7 +252,10 @@ export async function main() {
     report.argv = [node, pi, ...args]; report.clientEnvNames = Object.keys(env)
     child = spawn(node, [pi, ...args], { cwd: project, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
     role = observeClient(child)
+    await checkpoint('before-client-close-wait')
     report.clientJoin = { ...await role.join, ownedGroupAfter: child.pid ? groupAbsent(child.pid) : 'NOT_STARTED' }
+    await checkpoint('client-close-outcome')
+    assert.equal(report.clientJoin.outcome, 'CLOSE_OBSERVED', 'Client close remains unknown; no native join is established')
     assert.equal(report.clientJoin.code, 0, 'Actual Pi did not exit cleanly'); assert.equal(clientFailure ?? role.state.failure, undefined); assert.equal(report.clientJoin.ownedGroupAfter, 'ESRCH_NO_GROUP')
     assert(role.state.stdoutEnd && role.state.stderrEnd && role.state.stdoutClose && role.state.stderrClose, 'Client pipes did not finish and physically close')
     assert(observed.length >= 3 && restarted, 'Actual result-tail recovery did not occur')
@@ -202,28 +273,32 @@ export async function main() {
     assert.equal(await readFile(fixture.outputPath, 'utf8'), writes[0].input.content)
     for (const [path, content] of fixture.files) assert.equal(await readFile(path, 'utf8'), content, 'Completed historical file changed')
     report.passed.push('actual Pi imports full public history and exact content-first write/result IDs', 'newest exact write/read target and bytes with correlated actual tool results', 'joined backend replacement before pure result-tail replay; no repeated completed write')
-    const rendered = renderAgPrompt(parseAgRequest(first)), prefix = rendered.slice(0, rendered.indexOf('Client conversation:\n'))
-    report.renderer = { prefixChars: prefix.length, currentTargetInRecap: prefix.includes('"target":' + JSON.stringify(fixture.seedPath)), fullHistoryExact: rendered.endsWith('Client conversation:\n' + JSON.stringify(parseAgRequest(first).messages)) }
-    assert(prefix.length < 16000 && report.renderer.currentTargetInRecap && report.renderer.fullHistoryExact, 'Actual translated prompt recap/full-history structural regression')
+    const rendered = renderAgPrompt(parseAgRequest(first))
+    report.renderer = inspectRenderedHistory(rendered, parseAgRequest(first).messages, fixture.seedPath)
+    assert(report.renderer.prefixChars < 16000 && report.renderer.currentTargetInRecap && report.renderer.fullHistoryExact, 'Actual translated prompt recap/full-history structural regression')
     report.passed.push('actual translated-body deterministic recap bound and intact full history (separate from model behavior)')
     assert.equal(sha(await readFile(join(packageRoot, 'dist/server.js'))), report.serverSha256, 'Selected server bytes changed')
     assert.equal(sha(await readFile(join(packageRoot, 'src/proxy/backends/antigravityProtocol.ts'))), report.protocolSha256, 'Selected pure protocol bytes changed')
     assert.equal(sha(await readFile(pi)), report.piCliSha256, 'Selected Pi CLI bytes changed')
   } catch (error) { primaryError = error; report.error = String(error) }
   finally {
+    await checkpoint('before-final-cleanup')
     if (role) {
       if (!role.state.closeEvent) role.stop('Final cleanup after primary failure')
+      await checkpoint('before-final-client-close-wait')
       report.clientJoin ??= { ...await role.join, ownedGroupAfter: child.pid ? groupAbsent(child.pid) : 'NOT_STARTED' }
       const { stdout: capturedOut, stderr: capturedErr, ...observation } = role.state
       stdout = capturedOut; stderr = capturedErr; report.clientObservation = observation
     }
     if (proxy) try { await closeProxy('final') } catch (error) { report.closeError = String(error) }
-    if (relay) try { relay.closeAllConnections(); await new Promise(resolve => relay.close(resolve)) } catch (error) { report.relayCloseError = String(error) }
-    try {
-      await writeFile(join(root, 'requests.json'), JSON.stringify(observed, null, 2), { mode: 0o600 })
-      await writeFile(join(root, 'pi.stdout'), stdout, { mode: 0o600 }); await writeFile(join(root, 'pi.stderr'), stderr, { mode: 0o600 })
-      await writeFile(join(root, 'report.json'), JSON.stringify(report, null, 2), { mode: 0o600 })
-    } catch (error) { report.artifactError = String(error); console.error(JSON.stringify({ primaryError: report.error, artifactError: report.artifactError })) }
+    if (relay) {
+      await checkpoint('before-relay-close-wait')
+      relay.closeAllConnections()
+      report.relayClose = await boundedCompletion(() => new Promise(resolve => relay.close(resolve)))
+      if (report.relayClose.outcome !== 'RESOLVED') report.relayCloseError = `Relay close ${report.relayClose.outcome}: ${report.relayClose.error}`
+    }
+    report.runTermination = primaryError || report.closeError || report.relayCloseError || report.artifactError ? 'NONZERO_AFTER_RETAINED_FAILURE; native custody may remain unqualified' : 'QUALIFIED_CHECKS_COMPLETE'
+    await checkpoint('final-outcomes')
   }
   if (primaryError) throw primaryError
   assert.equal(report.closeError, undefined, 'Final proxy/process close was not qualified; see retained report')
@@ -232,4 +307,7 @@ export async function main() {
   console.log(JSON.stringify(report, null, 2))
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main()
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try { await main() }
+  catch (error) { console.error(String(error)); process.exit(1) } // Retained unknown joins fail; process exit is not native cleanup proof.
+}
