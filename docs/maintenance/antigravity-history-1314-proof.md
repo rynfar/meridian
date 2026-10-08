@@ -136,7 +136,28 @@ syntax checks passed; final full checks are recorded on the frozen correction
 head. Immutable-close, serial-writer, stream-first-cause, exited-leader guards,
 renderer/runtime and contributor bytes remain unchanged.
 
-**Live status at preparation: not run.** Official account/catalog preflight is
+The first actual supported-client comparison used the same escrow with Pi 1.1.0,
+official agy 1.2.7, Gemini 3.8 Flash Low and Darwin. Both unchanged baseline
+`458cf15c` and the corrected candidate `dedf4096` failed the exact same assertion:
+two successful writes to the latest target rather than one. The first write's
+result arrived before the old backend's qualified close and replacement; the
+second call repeated its exact target and content. Both actual clients exited
+zero with closed captured pipes; public proxy closes resolved and sampled native
+groups were absent after join. These failures are retained, not acceptance.
+
+Inspection of the actual candidate replay prompt exposed two concrete weaknesses:
+long common-parent paths had identical head-only target previews, and the restated
+write instruction followed its completed-work recap. A separate correction keeps
+both ends of the bounded 80-character target, places the restatement before recent
+results, and ends that recap with brief continuation guidance. Two direct pure
+regression controls fail before this correction and pass afterward. All original
+contributor tests remain unchanged, including their short recap size bound.
+These structural corrections do not establish that Gemini will obey the prompt;
+the same actual live assertion must pass on the new candidate before acceptance.
+The first paired traces and joined local/native receipts are retained under the
+2026-10-08 resumption evidence packet and summarized in the delivery record.
+
+**Live acceptance remains open.** Official account/catalog preflight is
 not inference. Reporter DeepSeekHarness ACP version/OS remain unknown; a supported
 Pi import success would remain qualified and would not establish exact reporter
 acceptance or complete all of #1073. No OpenCode arm is included; an eventual arm

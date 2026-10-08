@@ -63,7 +63,8 @@ export function assertImportedHistory(body, fixture) {
 export function inspectRenderedHistory(rendered, messages, seedPath) {
   const prefix = rendered.slice(0, rendered.indexOf('Client conversation:\n'))
   const suffix = '[… truncated]'
-  const projectedTarget = seedPath.length <= 80 ? seedPath : seedPath.slice(0, 80 - suffix.length) + suffix
+  const head = Math.ceil((80 - suffix.length) / 2)
+  const projectedTarget = seedPath.length <= 80 ? seedPath : seedPath.slice(0, head) + suffix + seedPath.slice(-(80 - suffix.length - head))
   const currentCallField = '"type":"tool_use","id":"fixture-current-large","name":"write","target":' + JSON.stringify(projectedTarget)
   return { prefixChars: prefix.length, currentTargetInRecap: prefix.includes(currentCallField), targetPreviewChars: projectedTarget.length, targetPreviewTruncated: projectedTarget !== seedPath, advisoryPreviewOnly: true, fullHistoryExact: rendered.endsWith('Client conversation:\n' + JSON.stringify(messages)) }
 }

@@ -175,7 +175,13 @@ const TARGET_KEYS = ["file_path", "filePath", "path", "file", "command", "cmd", 
 /** What a tool call acted on: its first target-like string argument, else its first argument. */
 function toolTarget(input: Record<string, unknown>): string {
   const key = TARGET_KEYS.find(k => typeof input[k] === "string")
-  return preview(String(key ? input[key] : Object.values(input)[0] ?? ""), 80)
+  const target = String(key ? input[key] : Object.values(input)[0] ?? "")
+  if (target.length <= 80) return target
+  // Preserve the filename/command tail as well as its origin. Head-only path
+  // previews make distinct completed actions under a long parent look identical.
+  const omission = "[… truncated]"
+  const head = Math.ceil((80 - omission.length) / 2)
+  return target.slice(0, head) + omission + target.slice(-(80 - omission.length - head))
 }
 /** Head and tail of a long restated text; the full text stays in the history, so restating never multiplies a large paste. */
 function clip(text: string, max = 4000): string {
@@ -293,6 +299,7 @@ export function renderAgPrompt(request: AgRequest, nativeTools: string[] = []): 
   const since = recentWork(request.messages.slice(at + 1))
   const actions = earlierActions(request.messages.slice(0, Math.max(at, 0)))
   const status = workStatus(request.messages)
+  const hasRecentResults = request.messages.slice(at + 1).some(message => blocks(message).some(block => block.type === "tool_result"))
   const reminder = status.pending ? "Answer this; unmatched tool calls remain pending"
     : status.errors ? "Answer this; recorded tool errors do not establish success"
     : since.omitted || actions.omitted ? "Answer this; the recap is partial and does not establish completion"
@@ -309,7 +316,8 @@ export function renderAgPrompt(request: AgRequest, nativeTools: string[] = []): 
     "Image attachment references are created by Meridian from client-supplied bytes. Inspect each relevant attachment with view_file using its exact absolute path. Those are the only permitted filesystem reads.",
     "Client system instructions:\n" + (typeof request.system === "string" ? request.system : request.system?.map(b => b.text).join("\n") ?? ""),
     current && actions.text ? "Tool calls before this request, oldest first: " + actions.text : "",
-    current ? reminder + (since.text ? ". Since this request:\n" + since.text : ":") + "\n" + current : "",
+    current ? current + "\n" + reminder + (since.text ? ". Since this request:\n" + since.text : ":") : "",
+    current && hasRecentResults ? "Continue from these recorded results; restating the request does not ask you to execute successful actions again." : "",
     // Keep the history last: it is one JSON value that clients of this prompt parse from the end.
     "Client conversation:\n" + JSON.stringify(request.messages),
   ].filter(Boolean).join("\n\n")
