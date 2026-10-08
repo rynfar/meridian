@@ -33,8 +33,12 @@ GET/PUT uses no-store responses and the existing same-origin browser-write
 policy. Custom paths must be absolute and pass a bounded shell-free version
 check. Changes apply to subsequent turns; a started turn retains its selected
 path through retries. Concurrent selection changes during vetting return 409;
-cancelled/unconfirmed probes return 503 without saving the choice. The health
+cancelled/unconfirmed path-vetting probes return 503 before saving the choice. The health
 contract adds only `custom` to the existing executable-source enum.
+
+As with an HTTP write whose response is interrupted, a completed preference
+write is not rolled back if a subsequent state-description probe or disconnect
+fails. Read GET to confirm the saved preference after an ambiguous response.
 
 The hostname contract was approved by the owner on 2026-10-04 in #1259's
 review conversation. Claude and standalone Antigravity share the persisted

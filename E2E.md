@@ -7450,6 +7450,20 @@ HTTP evidence for logic every adapter shares, not an OpenCode-flow proof. Render
 the settings card at phone and desktop widths when it changes. See
 [the evidence record](docs/maintenance/evidence/claude-executable-setting.md).
 
+The actual OpenCode V1 arm runs the same assertions with
+`E2E_CLIENT=opencode`, an absolute `E2E_OPENCODE_BIN`, the pinned
+`E2E_OPENCODE_VERSION`, and an independently installed server scrub plugin at
+`E2E_PLUGIN_PATH` (optionally assert `E2E_PLUGIN_VERSION`). It runs the tested
+CLI's `setup --v1`, verifies the effective configuration contains exactly one
+matching built plugin and provider relay, then checks valid plugin-generated
+signed session/agent headers before forwarding to the SDK. It uses one actual
+OpenCode server and saved session, requires completed assistant state through
+OpenCode's public session API plus streamed `message_stop`, and joins every
+client command, server and captured pipe. It does not manufacture client headers
+or inspect private SDK transcripts. Both arms borrow only a private credential
+snapshot, retain the account's native HOME, and leave the operator profile alone.
+See [the corrected before/after proof and limits](docs/maintenance/evidence/claude-executable-selection-review-20261008.md).
+
 ## Antigravity catalogs above 128 client tools
 
 For catalog-validation changes, run `scripts/e2e-antigravity-tool-catalog.mjs`

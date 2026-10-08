@@ -1,5 +1,43 @@
 # Upstream review handoff
 
+## Current executable-selection continuation (2026-10-08)
+
+The owner approved the bounded executable-selection contract in
+[#1319](https://github.com/rynfar/meridian/issues/1319); source #1293 remains at
+`1a201f37ab49261ce9d463d2f43e1182ab66202a`. Its two actual Nowaker commits
+are preserved as `0de23574` and `32f64d54` on current main `74ee5515`, with
+separate correction `bc695a99` and committed headless client harness through
+`6fdd002a` in `codex/claude-executable-1293-20261008`. Root full-diff
+adversarial review corrected unowned/missing-join probes, stale writes/mixed
+snapshots and unbounded/bare-PID harness cleanup; no material source finding
+remains. This was root review, not a delegated independent review.
+
+Local gates passed 5,502 tests / 35 skips / zero failures, pretest, typecheck
+and build. Actual Linux arm64 / Node 22.22.3 / SDK 0.2.141 / Haiku 4.5 proof
+passed both HTTP and OpenCode V1 1.18.32 arms: five turns, all three selections,
+in-flight retention, next-turn change and no server restart. The actual client
+uses the tested `setup --v1` plugin, valid signed outbound session/agent headers,
+independently installed scrub 0.2.3 and a single saved session. Unchanged main
+completed a real control turn, then failed the settings route with 404. Actual
+leader/pipe/client/relay joins, zero residuals and credential isolation are
+retained in [the corrected review and portable receipt](evidence/claude-executable-selection-review-20261008.md).
+UI selection/error/Retry and desktop/phone card fit passed; inherited 320px SDK
+row overflow is qualified against unchanged main. Final delivery-head CI remains
+held. No Windows/macOS model, Opus remedy, installed-package or release claim.
+Recheck main, delivery head, source head and CI before integrating; preserve
+Nowaker coauthor credit and close source #1293 only if unchanged.
+
+Profiles delivery #1318 has merged as `74ee5515`, with tested/landed tree and
+Nowaker credit verified; unchanged source #1316 was closed without a comment.
+Home Manager delivery [#1320](https://github.com/rynfar/meridian/pull/1320),
+head `0f75be7c`, remains monitored for final-head CI. Its authored source #1305
+and separate Darwin check-registration correction have local and locked native
+Nix proof recorded in that delivery; do not infer merge readiness from this
+dated checkpoint. SQLite #1219, AGY #1314/#1073, #769, transcript #1261 and
+existing owner defer/no-review/release holds remain unchanged. The combined
+oldest-first queue is active and is not claimed cleared. The owner's checkout
+is preserved at `446a0f16`; all work remains isolated.
+
 ## Current recovered continuation (2026-10-08)
 
 The owner resumed the combined oldest-first PR/issue queue. The dirty checkout

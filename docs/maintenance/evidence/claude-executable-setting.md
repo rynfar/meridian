@@ -1,5 +1,12 @@
 # Choose the Claude Code executable at runtime
 
+This is the contributor's historical evidence for the earlier source identified
+below. Its execution, cleanup and local-gate statements describe that source,
+not the corrected integration harness. The owner approved the bounded contract
+in [#1319](https://github.com/rynfar/meridian/issues/1319) on 2026-10-08.
+[The current maintainer review and joined proof](claude-executable-selection-review-20261008.md)
+supersede this record for acceptance; final delivery-head CI remains required.
+
 Settings gains a Claude Code Executable choice, backed by authenticated
 `GET`/`PUT /settings/api/claude-executable`: **system** (the `claude` on PATH,
 the default and #1250's order), **bundled** (the packaged CLI first, PATH as
