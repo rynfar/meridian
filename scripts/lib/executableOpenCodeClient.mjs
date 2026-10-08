@@ -1,7 +1,7 @@
 // Actual OpenCode V1 arm of the executable-selection gate. Uses the tested
 // built CLI's setup and a recording relay; never manufactures client headers.
 import assert from 'node:assert/strict'
-import {createHash} from 'node:crypto'
+import {createHash, createHmac} from 'node:crypto'
 import {createServer} from 'node:http'
 import {mkdirSync, readFileSync, realpathSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
@@ -25,6 +25,17 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
   const closures = [], requests = [], pending = new Set(), controllers = new Set()
   let session, current, firstFailure, host, hostWitness, hostURL, hostOutput = '', hostErrors = ''
   const pluginPath = path => realpathSync(path.startsWith('file:') ? fileURLToPath(path) : path)
+  function signedTurn(headers) {
+    const parts = (headers.get('x-meridian-opencode-turn') ?? '').split('.')
+    if (parts.length !== 3 || parts[0] !== 'v1') return false
+    try {
+      const payload = Buffer.from(parts[1], 'base64url').toString('utf8')
+      const decoded = JSON.parse(payload)
+      return decoded.g === 'oc1' && decoded.s === headers.get('x-opencode-session') && decoded.a === headers.get('x-opencode-agent-name')
+        && parts[2] === createHmac('sha256', Buffer.from(env.MERIDIAN_OPENCODE_ATTESTATION_KEY, 'base64url'))
+          .update('meridian.opencode.turn.v1\0').update(payload).digest('base64url')
+    } catch { return false }
+  }
   async function invoke(command, args, label, timeoutMs = 180000) {
     const child = spawn(command, args, {cwd: join(root, 'project'), env: clientEnv, stdio: ['ignore', 'pipe', 'pipe']})
     const witness = observeChildClosure(child)
@@ -73,9 +84,17 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
         row = {route: request.url, model: parsed.model, streaming: parsed.stream === true,
           session: headers.get('x-opencode-session'), agent: headers.get('x-opencode-agent-name'),
           mode: headers.get('x-opencode-agent-mode'), requestIdentity: headers.has('x-opencode-request'),
-          attested: headers.has('x-meridian-opencode-turn'),
+          attested: signedTurn(headers),
           hasCurrentReceipt: current ? JSON.stringify(parsed.messages).includes(current.receipt) : false}
         requests.push(row)
+        // V1 1.18.32's successful loader callback emits no log. The actual
+        // plugin's signed outbound hook is the runtime load witness, checked
+        // here before forwarding permits any SDK/model inference.
+        if (row.mode === 'primary') {
+          assert(row.session && row.agent === 'build' && row.requestIdentity && row.attested,
+            'Missing actual Meridian runtime plugin witness; inference was not admitted')
+          row.pluginLoadedBeforeForward = true
+        }
       }
       const upstream = await fetch(proxyURL + request.url, {method: request.method, headers,
         ...(body ? {body} : {}), signal: controller.signal})
@@ -179,11 +198,9 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
     assert.equal(providers.status, 200)
     await providers.arrayBuffer()
     await new Promise(resolve => setTimeout(resolve, 100))
-    assert(hostErrors.split('\n').some(line => line.includes('loading plugin') && line.includes(plugin)),
-      'Actual OpenCode did not record loading the expected Meridian plugin')
     const identity = {version: expectedVersion, plugin: '<repo>/dist/meridian',
       pluginSha256: createHash('sha256').update(readFileSync(join(plugin, 'index.js'))).digest('hex'),
-      setupExit: 0, effectiveEntries: 1, loadedBeforeInference: true, providerTargetsRelay: true}
+      setupExit: 0, effectiveEntries: 1, runtimeLoadWitness: 'signed hook checked before relay forwarding', providerTargetsRelay: true}
     let turnIndex = 0
     return {identity, close, async turn({prompt, receipt, during}) {
       assert(!firstFailure, 'An earlier relay operation failed')
