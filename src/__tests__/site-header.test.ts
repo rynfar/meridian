@@ -17,7 +17,7 @@ import { pluginPageHtml } from "../proxy/plugins/pluginPage"
 import { profileBarCss, profileBarHtml, profileBarJs } from "../telemetry/profileBar"
 import { ICON_PATH } from "../telemetry/icon"
 import { DEFAULT_PROFILE_SORT, PROFILE_SORT_MODES } from "../telemetry/profileSort"
-import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT } from "../telemetry/profileSpent"
+import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT, isUnusableJs } from "../telemetry/profileSpent"
 import { renderLoginCallbackPage } from "../telemetry/loginCallbackPage"
 
 const allPages: Array<[string, string]> = [
@@ -179,6 +179,13 @@ describe("landing page layout", () => {
     expect(landingHtml).toContain(`var GENERAL_WINDOW_TYPES=${JSON.stringify(GENERAL_WINDOW_TYPES)}`)
     expect(landingHtml).toContain("--spend-fade")
     expect(landingHtml).toContain("needs login")
+  })
+
+  test("an account that cannot serve gets a solid red border, flagged by the rule /profiles shares", () => {
+    expect(landingHtml).toContain(isUnusableJs)
+    expect(profilePageHtml).toContain(isUnusableJs)
+    expect(landingHtml).toContain(".profile-card.needs-login { border-color: var(--red); }")
+    expect(landingHtml).not.toContain("dashed")
   })
 
   test("the fade never reaches the card itself, so the active ring survives it", () => {

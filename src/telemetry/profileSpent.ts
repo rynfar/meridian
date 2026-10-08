@@ -70,6 +70,13 @@ export function isUnusable(input: SpendInput): boolean {
 }
 
 /**
+ * isUnusable for the inline page scripts, which cannot import. Both / and
+ * /profiles embed this one string, so the two pages flag the same accounts;
+ * profile-spent.test.ts holds it to the function above.
+ */
+export const isUnusableJs = "function isUnusable(p){if(p.loggedIn===false)return true;return p.error==='no_token'}"
+
+/**
  * The worse of the general windows, or null when none of them carries a
  * number. Null means "no evidence", which is not the same as zero and must
  * not render as a pristine account.

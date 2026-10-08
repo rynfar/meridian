@@ -13,7 +13,7 @@ import { profileFactsJs } from "./profileFacts"
 import { profileFindJs } from "./profileFind"
 import { reorderClientJs, reorderCss, reorderLiveRegionHtml } from "./profileOrder"
 import { DEFAULT_PROFILE_SORT, PROFILE_SORT_MODES } from "./profileSort"
-import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT } from "./profileSpent"
+import { FADE_FROM, GENERAL_WINDOW_TYPES, SPENT_AT, isUnusableJs } from "./profileSpent"
 
 export const landingHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -249,7 +249,7 @@ function resetIn(ts){if(ts==null)return '';var d=ts-Date.now();if(d<=0)return 'r
 var GENERAL_WINDOW_TYPES=${JSON.stringify(GENERAL_WINDOW_TYPES)};
 var FADE_FROM=${FADE_FROM};
 var SPENT_AT=${SPENT_AT};
-function isUnusable(p){if(p.loggedIn===false)return true;return p.error==='no_token'}
+${isUnusableJs}
 function generalUtilization(windows){
   var worst=null;
   for(var i=0;i<(windows||[]).length;i++){

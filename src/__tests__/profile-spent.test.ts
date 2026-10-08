@@ -9,6 +9,7 @@ import {
   computeProfileSpend,
   generalUtilization,
   isUnusable,
+  isUnusableJs,
 } from "../telemetry/profileSpent"
 
 const win = (type: string, utilization: number | null) => ({ type, utilization })
@@ -58,6 +59,14 @@ describe("isUnusable", () => {
   it("is false for a healthy profile", () => {
     expect(isUnusable({ error: null, loggedIn: true, windows: [win("seven_day", 0.3)] })).toBe(false)
     expect(isUnusable({})).toBe(false)
+  })
+
+  it("is the same rule in the copy the pages embed", () => {
+    const pageIsUnusable = new Function(`${isUnusableJs}; return isUnusable`)()
+    for (const input of [{ error: "no_token" }, { loggedIn: false }, { error: "not_oauth", loggedIn: true },
+      { error: null, loggedIn: true }, {}, { loggedIn: false, error: "not_oauth" }]) {
+      expect(pageIsUnusable(input)).toBe(isUnusable(input))
+    }
   })
 })
 
