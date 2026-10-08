@@ -10,7 +10,7 @@
  * process-wide, and this one needs the real resolver.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { installSdkMock } from "./sdkMock"
@@ -34,7 +34,7 @@ installMcpToolsMock(() => ({ createOpencodeMcpServer: () => ({ type: "sdk", name
 
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 const { resetCachedClaudePath, resetCachedClaudeAuthStatus, resolveClaudeExecutableSync } = await import("../proxy/models")
-const { getSetting } = await import("../settings")
+const { getSetting, setSetting } = await import("../settings")
 
 type TestApp = { fetch: (request: Request) => Response | Promise<Response> }
 interface Candidate { path: string | null; source: string | null; version: string | null; detail?: string }
@@ -51,6 +51,7 @@ describe("Claude Code executable setting", () => {
   let dir: string
   let bin: string
   let app: TestApp
+  let proxy: ReturnType<typeof createProxyServer>
   let systemClaude: string
   const saved: Record<string, string | undefined> = {}
   const ENV_KEYS = ["MERIDIAN_CONFIG_DIR", "MERIDIAN_CLAUDE_PATH", "PATH"]
@@ -81,10 +82,12 @@ describe("Claude Code executable setting", () => {
     resetCachedClaudeAuthStatus()
     clearSessionCache()
     ranWith.length = 0
-    app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    proxy = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    app = proxy.app
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await proxy.closeBackend?.()
     for (const key of ENV_KEYS) {
       if (saved[key] === undefined) delete process.env[key]
       else process.env[key] = saved[key]
@@ -97,11 +100,12 @@ describe("Claude Code executable setting", () => {
   const get = async (): Promise<State> =>
     await (await app.fetch(new Request("http://localhost/settings/api/claude-executable"))).json() as State
 
-  const put = (body: unknown, headers: Record<string, string> = {}) =>
+  const put = (body: unknown, headers: Record<string, string> = {}, signal?: AbortSignal) =>
     app.fetch(new Request("http://localhost/settings/api/claude-executable", {
       method: "PUT",
       headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
+      signal,
     }))
 
   /** Run one turn and return the executable the SDK was asked to run. */
@@ -221,5 +225,115 @@ describe("Claude Code executable setting", () => {
     rmSync(chosen)
 
     expect(await turn(false)).toBe(systemClaude)
+  })
+
+  it("does not commit a mode-only custom write against a concurrently cleared path", async () => {
+    const chosen = fakeClaude(join(dir, "claude-race"), "9.9.2")
+    expect((await put({ mode: "custom", path: chosen })).status).toBe(200)
+    const entered = join(dir, "probe-entered"), release = join(dir, "probe-release")
+    writeFileSync(chosen, `#!/bin/sh\ntouch '${entered}'\nwhile [ ! -f '${release}' ]; do sleep 0.01; done\necho '9.9.2 (Claude Code)'\n`)
+    const first = put({ mode: "custom" })
+    try {
+      const deadline = Date.now() + 3000
+      while (!existsSync(entered) && Date.now() < deadline) await Bun.sleep(10)
+      expect(existsSync(entered)).toBe(true)
+      const second = put({ mode: "system", path: null })
+      // Let the second request reach its mutation while the first version
+      // check is suspended. A serialized implementation may still be queued.
+      await Bun.sleep(50)
+      writeFileSync(release, "release")
+      const responses = await Promise.all([first, second])
+      expect(responses.every(response => [200, 409].includes(response.status))).toBe(true)
+      expect(getSetting("claudeExecutable")).toBe("system")
+      expect(getSetting("claudeExecutablePath")).toBeUndefined()
+    } finally {
+      writeFileSync(release, "release")
+      await first
+    }
+  })
+
+  function heldClaude() {
+    const chosen = join(dir, "claude-held"), entered = join(dir, "held-entered"), release = join(dir, "held-release")
+    writeFileSync(chosen, `#!/bin/sh\necho $$ >> '${entered}'\nwhile [ ! -f '${release}' ]; do sleep 0.01; done\necho '9.9.2 (Claude Code)'\n`)
+    chmodSync(chosen, 0o755)
+    return { chosen, entered, release }
+  }
+
+  async function enteredProbe(path: string) {
+    const deadline = Date.now() + 3000
+    while (!existsSync(path) && Date.now() < deadline) await Bun.sleep(10)
+    expect(existsSync(path)).toBe(true)
+  }
+
+  async function boundedResponse(pending: Promise<Response>) {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([pending, new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("settings probe outlived shutdown/disconnect")), 3000)
+      })])
+    } finally { clearTimeout(timer) }
+  }
+
+  it("joins an active path check on instance shutdown and never saves its choice", async () => {
+    const { chosen, entered, release } = heldClaude()
+    const pending = Promise.resolve(put({ mode: "custom", path: chosen }))
+    try {
+      await enteredProbe(entered)
+      await proxy.closeBackend?.()
+      expect((await boundedResponse(pending)).status).toBe(503)
+      expect(getSetting("claudeExecutable")).toBeUndefined()
+      const pid = Number(readFileSync(entered, "utf8").trim())
+      expect(() => process.kill(pid, 0)).toThrow()
+      expect((await put({ mode: "bundled" })).status).toBe(503)
+    } finally { writeFileSync(release, "release"); await pending }
+  })
+
+  it("cancels an abandoned path check without publishing the chosen binary", async () => {
+    const { chosen, entered, release } = heldClaude(), controller = new AbortController()
+    const pending = Promise.resolve(put({ mode: "custom", path: chosen }, {}, controller.signal))
+    try {
+      await enteredProbe(entered)
+      controller.abort()
+      expect((await boundedResponse(pending)).status).toBe(503)
+      expect(getSetting("claudeExecutable")).toBeUndefined()
+      const pid = Number(readFileSync(entered, "utf8").trim())
+      expect(() => process.kill(pid, 0)).toThrow()
+    } finally { writeFileSync(release, "release"); await pending }
+  })
+
+  it("shares simultaneous version checks and keeps the surviving caller's lease", async () => {
+    const { chosen, entered, release } = heldClaude(), controller = new AbortController()
+    const first = Promise.resolve(put({ mode: "custom", path: chosen }, {}, controller.signal))
+    let second: Promise<Response> | undefined
+    try {
+      await enteredProbe(entered)
+      second = Promise.resolve(put({ mode: "custom", path: chosen }))
+      await Bun.sleep(50)
+      controller.abort()
+      expect(readFileSync(entered, "utf8").trim().split("\n")).toHaveLength(1)
+      const pid = Number(readFileSync(entered, "utf8").trim())
+      expect(() => process.kill(pid, 0)).not.toThrow()
+      writeFileSync(release, "release")
+      expect((await boundedResponse(first)).status).toBe(503)
+      expect((await boundedResponse(second)).status).toBe(200)
+      expect(readFileSync(entered, "utf8").trim().split("\n")).toHaveLength(1)
+      expect(getSetting("claudeExecutablePath")).toBe(chosen)
+    } finally { writeFileSync(release, "release"); await Promise.all([first, second]) }
+  })
+
+  it("reports one saved preference snapshot while another writer changes the mode", async () => {
+    const { chosen, entered, release } = heldClaude()
+    setSetting("claudeExecutable", "custom")
+    setSetting("claudeExecutablePath", chosen)
+    const pending = get()
+    try {
+      await enteredProbe(entered)
+      setSetting("claudeExecutable", "bundled")
+      writeFileSync(release, "release")
+      const state = await pending
+      expect(state.mode).toBe("custom")
+      expect(state.customPath).toBe(chosen)
+      expect(state.active).toMatchObject({ path: chosen, source: "custom" })
+    } finally { writeFileSync(release, "release"); await pending }
   })
 })

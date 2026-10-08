@@ -771,7 +771,18 @@ function claudeExeCandidate(c) {
 }
 
 async function loadClaudeExecutable() {
-  const cfg = await (await fetch('/settings/api/claude-executable')).json();
+  let cfg;
+  try {
+    const response = await fetch('/settings/api/claude-executable');
+    cfg = await response.json();
+    if (!response.ok) throw new Error(cfg.error || 'Failed to load the Claude Code executable');
+  } catch (error) {
+    document.getElementById('claude-exe-body').innerHTML = '<div role="alert" style="color:var(--red)">'
+      + telemetryEsc(error.message || 'Failed to load the Claude Code executable')
+      + '</div><button class="add-btn" id="claude-exe-retry" style="margin-top:12px">Retry</button>';
+    document.getElementById('claude-exe-retry').addEventListener('click', loadClaudeExecutable);
+    return;
+  }
   const cands = cfg.candidates || {};
   const modes = cfg.modes || ['system', 'bundled', 'custom'];
   const select = '<select id="claude-exe-mode" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 10px">'

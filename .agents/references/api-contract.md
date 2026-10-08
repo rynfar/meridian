@@ -27,6 +27,15 @@ External plugins depend on these interfaces. **Changes require project owner app
 | `POST /profiles/active` request/response | `server.ts` | Profile switching from CLI and UI |
 If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
 
+The owner approved executable selection in #1319 on 2026-10-08. System remains
+the default; `MERIDIAN_CLAUDE_PATH` has highest priority. The authenticated
+GET/PUT uses no-store responses and the existing same-origin browser-write
+policy. Custom paths must be absolute and pass a bounded shell-free version
+check. Changes apply to subsequent turns; a started turn retains its selected
+path through retries. Concurrent selection changes during vetting return 409;
+cancelled/unconfirmed probes return 503 without saving the choice. The health
+contract adds only `custom` to the existing executable-source enum.
+
 The hostname contract was approved by the owner on 2026-10-04 in #1259's
 review conversation. Claude and standalone Antigravity share the persisted
 setting and header API behind their existing optional API-key gate. Only an

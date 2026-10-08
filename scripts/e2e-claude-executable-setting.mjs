@@ -16,11 +16,12 @@
 //   E2E_PROFILE_CLAUDE_DIR="$HOME/.claude" node scripts/e2e-claude-executable-setting.mjs
 import assert from 'node:assert/strict'
 import {randomUUID} from 'node:crypto'
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {homedir, tmpdir} from 'node:os'
 import {basename, dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {spawn, spawnSync} from 'node:child_process'
+import {spawn} from 'node:child_process'
+import {observeChildClosure, stopAndJoinChild} from './lib/e2eProcessCustody.mjs'
 
 assert.equal(process.platform, 'linux', 'Process attribution reads Linux procfs')
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -41,19 +42,39 @@ const sleep = ms => new Promise(done => setTimeout(done, ms))
 
 // Also warms each binary: an evicted ~200 MB executable can miss the PATH
 // probe's deadline on its first start, which is not what this run measures.
-function claudeVersion(executable) {
-  const out = spawnSync(executable, ['--version'], {encoding: 'utf8', timeout: 120000})
-  const version = /^(\S+) \(Claude Code\)$/.exec((out.stdout ?? '').trim())?.[1]
+async function claudeVersion(executable) {
+  const child = spawn(executable, ['--version'], {stdio: ['ignore', 'pipe', 'pipe']})
+  const witness = observeChildClosure(child)
+  let output = '', overflow = false, timer
+  child.stdout.on('data', chunk => {
+    output += chunk
+    if (output.length > 16384) {
+      overflow = true; output = output.slice(0, 16384)
+      if (!witness.state.exitSeen && !witness.state.closeSeen) child.kill('SIGTERM')
+    }
+  })
+  child.stderr.resume()
+  try {
+    await Promise.race([witness.joined, new Promise(resolve => { timer = setTimeout(resolve, 120000) })])
+  } finally { clearTimeout(timer) }
+  const closure = await stopAndJoinChild(child, witness, {graceMs: 0, forceMs: 3000})
+  assert(closure.joined && closure.exitCode === 0 && closure.exitSignal === null && !overflow, `${executable} version probe did not close successfully`)
+  const version = /^(\S+) \(Claude Code\)$/.exec(output.trim())?.[1]
   assert(version, `${executable} does not answer --version like Claude Code`)
   return version
 }
-assert.equal(claudeVersion(bundled), bundledVersion)
-const systemVersion = claudeVersion(systemTarget)
-const customVersion = claudeVersion(customTarget)
+assert.equal(await claudeVersion(bundled), bundledVersion)
+const systemVersion = await claudeVersion(systemTarget)
+const customVersion = await claudeVersion(customTarget)
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'meridian-exe-setting-')))
-const token = basename(root)
-for (const dir of ['bin', 'custom', 'config', 'sessions', 'project', 'home', 'xdg']) mkdirSync(join(root, dir), {mode: 0o700})
+for (const dir of ['bin', 'custom', 'config', 'sessions', 'project', 'home', 'xdg', 'claude-profile']) mkdirSync(join(root, dir), {mode: 0o700})
+// Borrow only a credential snapshot. Native transcripts/settings belong to
+// this private profile; the operator's profile is never scanned or written.
+const credentialSnapshot = join(root, 'claude-profile', '.credentials.json')
+process.once('exit', () => rmSync(credentialSnapshot, {force: true}))
+copyFileSync(join(credentials, '.credentials.json'), credentialSnapshot)
+chmodSync(credentialSnapshot, 0o600)
 const log = join(root, 'invocations.log')
 writeFileSync(log, '', {mode: 0o600})
 const shim = join(root, 'bin', 'claude')
@@ -75,11 +96,6 @@ const readLog = () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(
   return {name, kind, pid: Number(pid)}
 })
 
-// Claude Code writes this run's transcripts under the profile directory, in a
-// project directory named after the disposable project path; only those go.
-const projectsDir = join(credentials, 'projects')
-const projectsBefore = new Set(existsSync(projectsDir) ? readdirSync(projectsDir) : [])
-
 const env = {...process.env}
 for (const key of Object.keys(env)) if (/^(MERIDIAN_|CLAUDE|ANTHROPIC_|OPENAI_|OPENCODE_)/.test(key)) delete env[key]
 Object.assign(env, {
@@ -91,16 +107,16 @@ Object.assign(env, {
   MERIDIAN_CONFIG_DIR: join(root, 'config'), MERIDIAN_SESSION_DIR: join(root, 'sessions'),
   MERIDIAN_WORKDIR: join(root, 'project'), MERIDIAN_NO_UPDATE_CHECK: '1', MERIDIAN_TELEMETRY_PERSIST: '0',
   MERIDIAN_CREDENTIALS_READONLY: '1', MERIDIAN_DEFAULT_PROFILE: 'owned-exe',
-  MERIDIAN_PROFILES: JSON.stringify([{id: 'owned-exe', claudeConfigDir: credentials}]),
+  MERIDIAN_PROFILES: JSON.stringify([{id: 'owned-exe', claudeConfigDir: join(root, 'claude-profile')}]),
 })
 
 const server = spawn(process.execPath, [cli], {cwd: join(root, 'project'), env, detached: true, stdio: ['ignore', 'pipe', 'pipe']})
 const serverPid = server.pid
+const serverClosure = observeChildClosure(server)
 let stdout = '', stderr = ''
 const keepTail = (text, chunk) => (text + chunk).slice(-1024 * 1024)
 server.stdout.on('data', chunk => { stdout = keepTail(stdout, chunk) })
 server.stderr.on('data', chunk => { stderr = keepTail(stderr, chunk) })
-const closed = new Promise(done => server.once('close', done))
 
 // A process that has exited between listing and reading is not an error.
 function readProc(path, read = readFileSync) {
@@ -323,12 +339,8 @@ if (base) {
   adapters = [...new Set((Array.isArray(recent) ? recent : recent.requests ?? []).map(row => row.adapter).filter(Boolean))]
 }
 clearInterval(observer)
-if (server.exitCode === null && server.signalCode === null) {
-  process.kill(-serverPid, 'SIGTERM')
-  const killer = setTimeout(() => { if (server.exitCode === null) process.kill(-serverPid, 'SIGKILL') }, 20000)
-  await closed
-  clearTimeout(killer)
-}
+const closure = await stopAndJoinChild(server, serverClosure)
+if (!closure.joined && !failure) failure = {step: 'cleanup', reason: 'server exit/close/captured-pipe custody is unconfirmed'}
 // Every Claude Code process this run started works in the disposable project.
 function ownedProcesses() {
   return readdirSync('/proc').filter(entry => /^\d+$/.test(entry))
@@ -337,14 +349,10 @@ function ownedProcesses() {
 const cleanupDeadline = Date.now() + 15000
 while (ownedProcesses().length && Date.now() < cleanupDeadline) await sleep(100)
 const residual = ownedProcesses()
-for (const pid of residual) process.kill(Number(pid), 'SIGKILL')
+// Enumeration supplies a failure witness, never authority to signal a bare
+// PID. The server's own process gates must join the SDK children it admitted.
 if (!failure && residual.length) failure = {step: 'cleanup', reason: `${residual.length} Claude Code process(es) outlived the server`}
-let transcriptsRemoved = 0
-for (const entry of existsSync(projectsDir) ? readdirSync(projectsDir) : []) {
-  if (projectsBefore.has(entry) || !entry.includes(token)) continue
-  rmSync(join(projectsDir, entry), {recursive: true, force: true})
-  transcriptsRemoved++
-}
+rmSync(credentialSnapshot, {force: true})
 
 const clean = value => JSON.parse(JSON.stringify(value).split(root).join('<fixture>').split(repo).join('<repo>').split(homedir()).join('~'))
 const summary = clean({
@@ -355,7 +363,8 @@ const summary = clean({
     system: {path: shim, runs: systemTarget, version: systemVersion},
     custom: {path: custom, runs: customTarget, version: customVersion},
   },
-  adapters, steps, serverRestarted: false, residualProcesses: residual.length, transcriptsRemoved,
+  adapters, steps, serverRestarted: false, residualProcesses: residual.length, closure,
+  operatorProfileMutated: false, credentialSnapshotRemoved: !existsSync(credentialSnapshot),
 })
 writeFileSync(join(root, 'proof.json'), JSON.stringify(summary, null, 2), {mode: 0o600})
 writeFileSync(join(root, 'server.stdout'), stdout, {mode: 0o600})

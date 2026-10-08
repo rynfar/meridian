@@ -200,6 +200,7 @@ src/
 │   ├── authStatusOwnership.ts ← Per-instance ownership of shared auth-status refreshes
 │   ├── claudeExecutablePreference.ts ← System/bundled/custom executable choice, read from settings.json (leaf)
 │   ├── claudeExecutableSettings.ts ← GET/PUT /settings/api/claude-executable: the choice, what each would run, versions
+│   ├── claudeProbeOwnership.ts ← Request/instance ownership of executable probes and resolver leases
 │   ├── buildInfo.ts           ← Build provenance: source detection, semver compare (PURE)
 │   ├── localBuildInfo.ts      ← Local build comparisons and public forge links (PURE)
 │   ├── buildRuntime.ts        ← Immutable runtime identity and independent disk status
@@ -609,3 +610,13 @@ bounded TERM/KILL escalation. Missing settlement rejects cleanup and retains
 the single-flight slot; neither a settled result promise nor `exitCode` alone
 proves the child joined. Cache expiry never detaches an in-flight check. The
 existing `ProxyInstance.close()` and `closeBackend()` signatures are unchanged.
+
+Executable settings and turn/readiness resolution also register independent
+leases with `claudeProbeOwnership.ts`. Disconnect/shutdown retires admission
+before canceling those leases, while a sibling caller retains its shared child.
+Version/lookup slots survive missing joins; changing preference cannot bypass an
+older resolver's unknown custody. Settings use a coherent preference/resolution
+snapshot and revalidate the saved mode/path after asynchronous path vetting,
+returning 409 instead of committing against a concurrent selection change.
+The settings boundary is limited to 32 pending requests per instance and 16
+shared live probe slots; the completed version cache holds at most 128 files.

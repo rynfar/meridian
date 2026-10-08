@@ -12,12 +12,13 @@
 import { isAbsolute } from "node:path"
 import { isSameOriginRequest } from "../sameOrigin"
 import { loadSettings, saveSettings, type MeridianSettings } from "../settings"
-import { CLAUDE_EXECUTABLE_MODES, isClaudeExecutableMode, savedClaudeExecutablePreference } from "./claudeExecutablePreference"
+import { CLAUDE_EXECUTABLE_MODES, isClaudeExecutableMode, resolveClaudeExecutablePreference } from "./claudeExecutablePreference"
+import { assertClaudeProbeActive } from "./claudeProbeOwnership"
+import { AuthStatusProcessFailure } from "./authStatusProcess"
 import {
   describeClaudeExecutableCandidates,
-  getResolvedClaudeExecutableInfo,
   readClaudeVersion,
-  resolveClaudeExecutableAsync,
+  resolveClaudeExecutableInfoAsync,
   type ClaudeExecutableCandidate,
   type ClaudeExecutableSource,
 } from "./models"
@@ -31,15 +32,18 @@ async function candidateAt(path: string, source: ClaudeExecutableSource): Promis
 
 export async function claudeExecutableSettingsState() {
   const saved = loadSettings()
+  const preference = resolveClaudeExecutablePreference(saved?.claudeExecutable, saved?.claudeExecutablePath)
   const customPath = typeof saved?.claudeExecutablePath === "string" ? saved.claudeExecutablePath : null
   const envPath = process.env.MERIDIAN_CLAUDE_PATH || null
   // Resolve under the saved preference first, so `active` is what the next
   // turn runs even when another process saved it.
-  const activeError = await resolveClaudeExecutableAsync().then(
-    () => undefined,
-    (err: unknown) => (err instanceof Error ? err.message : String(err)),
-  )
-  const activeInfo = getResolvedClaudeExecutableInfo()
+  let activeError: string | undefined
+  const activeInfo = await resolveClaudeExecutableInfoAsync(preference).catch((err: unknown) => {
+    if (err instanceof AuthStatusProcessFailure && err.reason === "join") throw err
+    activeError = err instanceof Error ? err.message : String(err)
+    return null
+  })
+  assertClaudeProbeActive()
   const [candidates, custom, envOverride] = await Promise.all([
     describeClaudeExecutableCandidates(),
     customPath
@@ -53,7 +57,7 @@ export async function claudeExecutableSettingsState() {
     ? (described ? { ...activeInfo, version: described.version } : await candidateAt(activeInfo.path, activeInfo.source))
     : null
   return {
-    mode: savedClaudeExecutablePreference().mode,
+    mode: preference.mode,
     modes: CLAUDE_EXECUTABLE_MODES,
     customPath,
     active,
@@ -105,6 +109,14 @@ export async function claudeExecutableSettingsResponse(request: Request): Promis
   if (givenPath !== undefined || (mode === "custom" && nextPath)) {
     const problem = await customPathProblem((givenPath ?? nextPath)!)
     if (problem) return Response.json({ error: problem }, { status: 400, headers })
+  }
+
+  assertClaudeProbeActive()
+  // The version check yielded. Re-read immediately before the synchronous
+  // merge/write so another API/CLI writer cannot change the validated pair.
+  const latest = loadSettings()
+  if (latest?.claudeExecutable !== saved?.claudeExecutable || latest?.claudeExecutablePath !== saved?.claudeExecutablePath) {
+    return Response.json({ error: "Claude executable selection changed while checking the path; reload and retry" }, { status: 409, headers })
   }
 
   const patch: Partial<MeridianSettings> = {}
