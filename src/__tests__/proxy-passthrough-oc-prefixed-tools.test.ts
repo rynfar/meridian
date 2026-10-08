@@ -129,11 +129,11 @@ async function postNonStream(tools: any[]): Promise<Array<{ name: string; input:
 describe("passthrough delivery of mcp__oc__-named client tools (#967)", () => {
   let orig: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = []
     orig = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {

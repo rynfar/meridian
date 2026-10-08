@@ -64,7 +64,7 @@ for the betas; `scripts/e2e-opencode-v2-stable-live.mjs` for 2.0.16).
 Across these gates, we verify:
 
 1. **Plugin configuration & loading:** bundled and source plugin installation via `meridian setup --v2`.
-2. **Session continuity & replay:** durable lineage across turns, restarts, and file store rehydration.
+2. **Session continuity & replay:** durable lineage across turns, restarts, and session store rehydration.
 3. **Branching & undo:** tool execution, prefix rollback detection, and isolated fork histories.
 4. **Subagent & agent isolation:** detached title/summary work, independent concurrent subagents, and compaction.
 5. **Model discovery & effort variants:** `GET /v1/models` catalog synchronization, cold-start cache seeding, and cache invalidation.

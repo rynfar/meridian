@@ -211,7 +211,7 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
   let origPassthrough: string | undefined
   let origEarlyStop: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     origPassthrough = process.env.MERIDIAN_PASSTHROUGH
     origEarlyStop = process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP
     process.env.MERIDIAN_PASSTHROUGH = "1"
@@ -225,7 +225,7 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     capturedForkSession = undefined
     denyUuids = []
     assistantToolUuids = []
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {

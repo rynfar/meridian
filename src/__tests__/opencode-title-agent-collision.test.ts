@@ -240,7 +240,7 @@ describe("OpenCode request-scoped lineage metadata", () => {
 })
 
 describe("OpenCode title agent vs the user's conversation", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
     capturedOptions = []
     capturePromptItems = false
@@ -251,13 +251,13 @@ describe("OpenCode title agent vs the user's conversation", () => {
     onUserEnteredQuery = undefined
     titleQueryEntries = 0
     telemetryStore.clear()
-    clearSessionCache()
+    await clearSessionCache()
   })
-  afterEach(() => {
+  afterEach(async () => {
     holdTitleUntil = undefined
     onTitleEnteredQuery = undefined
     onUserEnteredQuery = undefined
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("does not refuse the user's turn after a title turn on the same session id", async () => {

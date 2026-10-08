@@ -14,7 +14,7 @@ import { installMcpToolsMock } from "./mcpToolsMock"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { getSessionStoreDir, readSessionStoreSnapshot } from "../proxy/sessionStore"
-import { reconcile, type TranscriptLocator } from "../proxy/sessionLifecycle"
+import { readSessionGcSnapshot, reconcile, type TranscriptLocator } from "../proxy/sessionLifecycle"
 import {
   messageStart,
   textBlockStart,
@@ -44,7 +44,7 @@ let lifecycleBeforeSdkEvents: Array<LifecycleResourceSnapshot | undefined> = []
 let reconcileBeforeSdkEvents = false
 
 function readLifecycleResource(sessionId: string): LifecycleResourceSnapshot | undefined {
-  const sidecar = JSON.parse(readFileSync(join(getSessionStoreDir(), "session-gc.json"), "utf8")) as {
+  const sidecar = readSessionGcSnapshot(getSessionStoreDir()) as {
     resources: Record<string, LifecycleResourceSnapshot>
   }
   return Object.values(sidecar.resources).find((resource) => resource.locator.sessionId === sessionId)
@@ -233,8 +233,8 @@ function post(app: any, body: any, headers: Record<string, string> = {}) {
 }
 
 describe("Extra usage required fallback", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     queryCalls = []
     rateLimitBenches = []
     lifecycleAtQuery = []

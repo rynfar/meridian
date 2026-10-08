@@ -114,8 +114,8 @@ installMcpToolsMock(() => ({
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 
 describe("non-stream deny-hold (#592)", () => {
-  beforeEach(() => {
-    clearSessionCache()
+  beforeEach(async () => {
+    await clearSessionCache()
     hook1SettledBeforeTurnEnd = undefined
   })
 

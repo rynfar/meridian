@@ -2,7 +2,7 @@
 // Real SDK/CLI + local API. Explicit delivery faults reproduce capped partial
 // and silent turns; this does not claim a live model reproduced the fault.
 import assert from "node:assert/strict"
-import { mkdtempSync, readFileSync, realpathSync } from "node:fs"
+import { mkdtempSync, realpathSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -144,6 +144,7 @@ const observer = spyOn(sdk, "query").mockImplementation(input => {
   } })
 })
 const { startProxyServer } = await import("../src/proxy/server.ts")
+const { readSessionGcSnapshot } = await import("../src/proxy/sessionLifecycle.ts")
 const proxy = await startProxyServer({ port: 0, host: "127.0.0.1", silent: true,
   profiles: [{ id: "fixture", type: "api", apiKey: "local-test-key", baseUrl: `http://127.0.0.1:${upstream.port}` }],
 })
@@ -178,7 +179,7 @@ function success(response, stop) {
   assert.equal(response.stop, stop, response.raw)
   if (stream) assert.equal(response.events.filter(event => event.type === "message_stop").length, 1)
 }
-const resources = () => Object.values(JSON.parse(readFileSync(join(root, "sessions", "session-gc.json"), "utf8")).resources)
+const resources = () => Object.values(readSessionGcSnapshot(join(root, "sessions")).resources)
 async function waitForState(id, state) {
   for (let attempt = 0; attempt < 100; attempt++) {
     if (resources().some(row => row.locator.sessionId === id && row.state === state)) return

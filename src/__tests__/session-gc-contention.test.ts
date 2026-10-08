@@ -7,6 +7,7 @@ import { join } from "node:path"
 import {
   getTranscriptResourceKey,
   reconcile,
+  readSessionGcSnapshot,
   registerLiveTranscript,
   runGc,
   SessionLifecycleLockError,
@@ -88,7 +89,7 @@ it.each([false, true])("durably admits 24 simultaneous registrations with a larg
       expect(hashes).toBeLessThan(100_000)
       expect(timeouts).toBe(0)
       expect(gcError).toBeUndefined()
-      const persisted: unknown = JSON.parse(readFileSync(join(storeDir, "session-gc.json"), "utf8"))
+      const persisted: unknown = readSessionGcSnapshot(storeDir)
       for (let i = 0; i < 24; i++) {
         const key = getTranscriptResourceKey({ sessionId: `request-${i}`, configDir: storeDir })
         expect(persisted).toHaveProperty(`resources.${key}.state`, "live")

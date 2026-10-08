@@ -64,9 +64,9 @@ async function captureStderr(run: () => unknown): Promise<string[]> {
 }
 
 describe("silent-mode [PROXY] logging", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockMessages = [assistantMessage([{ type: "text", text: "ok" }])]
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("suppresses [PROXY] operational stderr when config.silent is true", async () => {

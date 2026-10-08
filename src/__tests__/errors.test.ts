@@ -451,6 +451,14 @@ describe("classifyError", () => {
       expect(result.message).not.toContain(".lock")
     })
 
+    it("classifies the session store's write lock wait as proxy load", () => {
+      const result = classifyError("[sessionStore] timed out waiting for lock on /var/lib/meridian/.cache/meridian/sessions.db")
+      expect(result.status).toBe(503)
+      expect(result.type).toBe("overloaded_error")
+      expect(result.message).toContain("a bookkeeping lock is busy")
+      expect(result.message).not.toContain("/var/lib")
+    })
+
     it("classifies the ownership backlog limit as proxy load", () => {
       const result = classifyError("session transcript ownership backlog is full")
       expect(result.status).toBe(503)

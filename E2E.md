@@ -69,7 +69,7 @@ that separate provider path.
 
 ```sh
 bun scripts/e2e-session-store-cost.mjs
-E2E_SESSION_STORE_FIXTURE=<printed-artifact>/sessions.json \
+E2E_SESSION_STORE_FIXTURE=$(ls <printed-artifact>/sessions.json.migrated-*) \
 E2E_TOOL_RECEIPT=1 E2E_CONCURRENCY=2 E2E_MODEL=claude-opus-5-5 \
 E2E_PLUGIN_PATH=<installed-opencode-scrub>/dist/index.js \
 bun scripts/e2e-opencode-lifecycle-admission.mjs
@@ -1182,7 +1182,7 @@ cat /tmp/proxy-e2e.log | strings | grep "\[PROXY\]" | tail -5
 **Cleanup.** Each test section is independent. Kill the proxy and clear the session store between sections if you need isolation:
 ```bash
 kill $(lsof -ti :3456) 2>/dev/null
-rm -f ~/.cache/meridian/sessions.json
+rm -f ~/.cache/meridian/sessions.db ~/.cache/meridian/sessions.db-wal ~/.cache/meridian/sessions.db-shm
 ```
 
 ---
@@ -1442,7 +1442,7 @@ curl -s http://127.0.0.1:3456/v1/messages \
 
 ## E8: Cross-Proxy Resume
 
-**Verifies:** Sessions survive proxy restart via the shared file store (`~/.cache/meridian/sessions.json`).
+**Verifies:** Sessions survive proxy restart via the shared session store (`~/.cache/meridian/sessions.db`).
 
 ```bash
 # Step 1: Create a session
@@ -1457,8 +1457,8 @@ curl -s http://127.0.0.1:3456/v1/messages \
     "messages": [{"role": "user", "content": "Remember: PHOENIX_42"}]
   }' > /dev/null
 
-# Verify stored in file
-cat ~/.cache/meridian/sessions.json | python3 -m json.tool | grep -A3 "e2e-persist"
+# Verify stored in the session store
+sqlite3 ~/.cache/meridian/sessions.db "SELECT key, entry FROM sessions WHERE key LIKE '%e2e-persist%'"
 
 # Step 2: Kill and restart proxy (in-memory caches wiped)
 kill $(lsof -ti :3456); sleep 2
@@ -1907,12 +1907,12 @@ ANTHROPIC_API_KEY=should-be-stripped ANTHROPIC_BASE_URL=http://should-be-strippe
 
 ## E21: Session Store Pruning
 
-**Verifies:** The file-based session store (`~/.cache/meridian/sessions.json`) evicts the oldest entries when the count exceeds `CLAUDE_PROXY_MAX_STORED_SESSIONS`.
+**Verifies:** The session store (`~/.cache/meridian/sessions.db`) evicts the oldest entries when the count exceeds `CLAUDE_PROXY_MAX_STORED_SESSIONS`.
 
 **Requires proxy restart with env var:**
 ```bash
 kill $(lsof -ti :3456) 2>/dev/null; sleep 1
-rm -f ~/.cache/meridian/sessions.json
+rm -f ~/.cache/meridian/sessions.db ~/.cache/meridian/sessions.db-wal ~/.cache/meridian/sessions.db-shm
 CLAUDE_PROXY_PORT=3456 CLAUDE_PROXY_MAX_STORED_SESSIONS=3 bun run ./bin/cli.ts > /tmp/proxy-e2e.log 2>&1 &
 # Wait for ready...
 ```
@@ -1929,15 +1929,11 @@ for i in 1 2 3 4 5; do
 done
 
 # Verify the store is bounded
-cat ~/.cache/meridian/sessions.json | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-print(f'Entries: {len(d)} (should be <= 3)')
-"
+sqlite3 ~/.cache/meridian/sessions.db "SELECT 'Entries: ' || count(*) || ' (should be <= 3)' FROM sessions"
 ```
 
 **Pass criteria:**
-- File store contains at most 3 entries
+- The session store holds at most 3 sessions
 - Oldest sessions (lowest `lastUsedAt`) were evicted
 
 **After testing, restart proxy in normal mode (no cap).**
@@ -2347,7 +2343,7 @@ echo "$CLAUDE_SESSION_ID"
 # 2. Query usage immediately (proves fingerprint-backed sessions are discoverable)
 curl -s http://127.0.0.1:3456/v1/sessions/$CLAUDE_SESSION_ID/context-usage | python3 -m json.tool
 
-# 3. Restart the proxy WITHOUT deleting ~/.cache/meridian/sessions.json
+# 3. Restart the proxy WITHOUT deleting ~/.cache/meridian/sessions.db
 kill $(lsof -ti :3456) 2>/dev/null
 sleep 2
 CLAUDE_PROXY_PORT=3456 bun run ./bin/cli.ts > /tmp/proxy-e2e.log 2>&1 &

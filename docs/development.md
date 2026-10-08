@@ -43,7 +43,7 @@ Every incoming request is classified:
 | **Undo** | User rolled back messages | Fork at rollback point |
 | **Diverged** | Completely different conversation | Start fresh |
 
-Sessions are stored in-memory (LRU) and persisted to `~/.cache/meridian/sessions.json` for cross-proxy resume.
+Sessions are stored in-memory (LRU) and persisted to `~/.cache/meridian/sessions.db`, a SQLite database with one row per session, for cross-proxy resume.
 
 ### Agent Detection
 

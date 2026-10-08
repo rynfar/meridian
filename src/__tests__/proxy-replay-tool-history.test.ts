@@ -21,7 +21,7 @@ installMcpToolsMock(() => ({ createOpencodeMcpServer: () => ({ type: "sdk", name
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 
 describe("fresh tool history through HTTP", () => {
-  beforeEach(() => { inputs = []; clearSessionCache() })
+  beforeEach(async () => { inputs = []; await clearSessionCache() })
   for (const stream of [false, true]) for (const image of [false, true]) {
     it(`preserves calls, arguments, result identity and errors (stream=${stream}, image=${image})`, async () => {
       const media = { type: "image", source: { type: "base64", media_type: "image/png", data: "pixels" } }

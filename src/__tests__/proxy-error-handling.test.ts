@@ -74,9 +74,9 @@ const BASIC_REQUEST = {
 }
 
 describe("Error classification", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockError = null
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   for (const stream of [false, true]) {
@@ -275,9 +275,9 @@ describe("Error classification", () => {
 })
 
 describe("Empty messages array (regression #450)", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockError = null
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   it("rejects empty messages array with 400 — cold-start safety, no RangeError crash", async () => {

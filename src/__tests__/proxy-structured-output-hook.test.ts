@@ -134,12 +134,12 @@ function request(stream: boolean) {
 describe("structured output survives the passthrough deny hook", () => {
   let originalPassthrough: string | undefined
 
-  beforeEach(() => {
+  beforeEach(async () => {
     originalPassthrough = process.env.MERIDIAN_PASSTHROUGH
     process.env.MERIDIAN_PASSTHROUGH = "1"
     capturedOptions = {}
     hookDeniedStructuredOutput = undefined
-    clearSessionCache()
+    await clearSessionCache()
   })
 
   afterEach(() => {

@@ -15,6 +15,7 @@ import { CrossProcessTurnCoordinator } from "../proxy/session/crossProcessTurnCo
 import {
   abandonFork,
   prepareFork,
+  readSessionGcSnapshot,
   reconcile,
   registerLiveTranscript,
   releaseSupersededProfileCopies,
@@ -77,7 +78,7 @@ function storedKeys(): string[] {
   return Object.keys(readSessionStoreSnapshot()).sort()
 }
 
-function prune(overrides: Partial<Parameters<typeof pruneSupersededProfileCopies>[0]> = {}): number {
+function prune(overrides: Partial<Parameters<typeof pruneSupersededProfileCopies>[0]> = {}): Promise<number> {
   return pruneSupersededProfileCopies({
     profileIds: PROFILES,
     graceMs: GRACE,
@@ -100,29 +101,29 @@ describe("pruneSupersededProfileCopies", () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  it("keeps the newest copy of a conversation and removes older copies past the grace window", () => {
+  it("keeps the newest copy of a conversation and removes older copies past the grace window", async () => {
     writeStore(dir, [
       { key: "work:ses_a", ageMs: GRACE + 5 * HOUR },
       { key: "personal:ses_a", ageMs: GRACE + 2 * HOUR },
       { key: "ses_a", ageMs: 1_000 },
       { key: "work:ses_b", ageMs: GRACE + 9 * HOUR },
     ])
-    expect(prune()).toBe(2)
+    expect(await prune()).toBe(2)
     expect(storedKeys()).toEqual(["ses_a", "work:ses_b"])
   })
 
-  it("keeps every copy touched within the grace window, and a zero grace keeps only the newest", () => {
+  it("keeps every copy touched within the grace window, and a zero grace keeps only the newest", async () => {
     writeStore(dir, [
       { key: "work:ses_a", ageMs: 30 * 60_000 },
       { key: "personal:ses_a", ageMs: 1_000 },
     ])
-    expect(prune()).toBe(0)
+    expect(await prune()).toBe(0)
     expect(storedKeys()).toEqual(["personal:ses_a", "work:ses_a"])
-    expect(prune({ graceMs: 0 })).toBe(1)
+    expect(await prune({ graceMs: 0 })).toBe(1)
     expect(storedKeys()).toEqual(["personal:ses_a"])
   })
 
-  it("by default keeps a copy for a day, past an account's 5-hour usage window", () => {
+  it("by default keeps a copy for a day, past an account's 5-hour usage window", async () => {
     expect(GRACE).toBe(24 * HOUR)
     writeStore(dir, [
       { key: "work:ses_a", ageMs: 23 * HOUR },
@@ -130,31 +131,31 @@ describe("pruneSupersededProfileCopies", () => {
       { key: "personal:ses_a", ageMs: 1_000 },
       { key: "personal:ses_b", ageMs: 1_000 },
     ])
-    expect(prune()).toBe(1)
+    expect(await prune()).toBe(1)
     expect(storedKeys()).toEqual(["personal:ses_a", "personal:ses_b", "work:ses_a"])
   })
 
-  it("groups only configured profile prefixes, never unrelated keys that contain a colon", () => {
+  it("groups only configured profile prefixes, never unrelated keys that contain a colon", async () => {
     writeStore(dir, [
       { key: "unknown:ses_a", ageMs: GRACE + 5 * HOUR },
       { key: "work:ses_a", ageMs: 1_000 },
       { key: "ses_a#title", ageMs: GRACE + 5 * HOUR },
     ])
-    expect(prune()).toBe(0)
+    expect(await prune()).toBe(0)
   })
 
-  it("keeps every copy of a conversation that has a request in flight", () => {
+  it("keeps every copy of a conversation that has a request in flight", async () => {
     writeStore(dir, [
       { key: "work:ses_a", ageMs: GRACE + 5 * HOUR },
       { key: "personal:ses_a", ageMs: 1_000 },
       { key: "work:ses_b", ageMs: GRACE + 5 * HOUR },
       { key: "personal:ses_b", ageMs: 1_000 },
     ])
-    expect(prune({ isConversationActive: (id) => id === "ses_a" })).toBe(1)
+    expect(await prune({ isConversationActive: (id) => id === "ses_a" })).toBe(1)
     expect(storedKeys()).toEqual(["personal:ses_a", "personal:ses_b", "work:ses_a"])
   })
 
-  it("never removes a mapping a priority route depends on", () => {
+  it("never removes a mapping a priority route depends on", async () => {
     writeStore(dir, [
       { key: "work:ses_a", ageMs: GRACE + 5 * HOUR },
       { key: "personal:ses_a", ageMs: 1_000 },
@@ -178,11 +179,11 @@ describe("pruneSupersededProfileCopies", () => {
         priorityRollbackMappings: {},
       }
     })
-    expect(prune()).toBe(0)
+    expect(await prune()).toBe(0)
     expect(storedKeys()).toEqual(["personal:ses_a", "work:ses_a"])
   })
 
-  it("stops once the removed mappings would unpin more transcripts than the budget, oldest first", () => {
+  it("stops once the removed mappings would unpin more transcripts than the budget, oldest first", async () => {
     writeStore(dir, [
       { key: "work:ses_a", ageMs: GRACE + 9 * HOUR },
       { key: "work:ses_b", ageMs: GRACE + 8 * HOUR, transcript: false },
@@ -192,14 +193,14 @@ describe("pruneSupersededProfileCopies", () => {
       { key: "personal:ses_c", ageMs: 1_000 },
     ])
     // ses_a costs 1, ses_b (no transcript) costs 0, ses_c would exceed.
-    expect(prune({ maxUnpinnedTranscripts: 1 })).toBe(2)
+    expect(await prune({ maxUnpinnedTranscripts: 1 })).toBe(2)
     expect(storedKeys()).toEqual(["personal:ses_a", "personal:ses_b", "personal:ses_c", "work:ses_c"])
   })
 
-  it("takes no lock and writes nothing when nothing is superseded", () => {
+  it("takes no lock and writes nothing when nothing is superseded", async () => {
     writeStore(dir, [{ key: "work:ses_a", ageMs: GRACE + 5 * HOUR }])
     const before = readFileSync(join(dir, "sessions.json"), "utf8")
-    expect(prune()).toBe(0)
+    expect(await prune()).toBe(0)
     expect(readFileSync(join(dir, "sessions.json"), "utf8")).toBe(before)
   })
 })
@@ -284,7 +285,7 @@ describe("mass prune through the transcript lifecycle", () => {
       }, options)))
       expect(removed.reduce((sum, value) => sum + value, 0)).toBeLessThanOrEqual(4)
       await reconcile(pins(), options)
-      const sidecar = JSON.parse(readFileSync(join(dir, "session-gc.json"), "utf8")) as { resources: Record<string, { state: string }> }
+      const sidecar = readSessionGcSnapshot(dir)
       expect(Object.values(sidecar.resources).filter(resource => ["prepared", "retired", "deleting"].includes(resource.state)).length).toBeLessThanOrEqual(4)
     } finally {
       setSessionStoreDir(null)
@@ -340,9 +341,7 @@ describe("mass prune through the transcript lifecycle", () => {
         isConversationActive: () => false,
       }, options)
       await reconcile(pins(), options)
-      const sidecar = JSON.parse(readFileSync(join(dir, "session-gc.json"), "utf8")) as {
-        resources: Record<string, { state: string }>
-      }
+      const sidecar = readSessionGcSnapshot(dir)
       const pending = Object.values(sidecar.resources)
         .filter((resource) => ["prepared", "retired", "deleting"].includes(resource.state)).length
       maxObservedPending = Math.max(maxObservedPending, pending)
