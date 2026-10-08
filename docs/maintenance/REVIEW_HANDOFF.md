@@ -3,7 +3,9 @@
 ## Current executable-selection continuation (2026-10-08)
 
 The owner approved the bounded executable-selection contract in
-[#1319](https://github.com/rynfar/meridian/issues/1319); source #1293 remains at
+[#1319](https://github.com/rynfar/meridian/issues/1319). Corrected delivery
+[#1321](https://github.com/rynfar/meridian/pull/1321) is open for final-head CI;
+source #1293 remains at
 `1a201f37ab49261ce9d463d2f43e1182ab66202a`. Its two actual Nowaker commits
 are preserved as `0de23574` and `32f64d54` on current main `74ee5515`, with
 separate correction `bc695a99` and committed headless client harness through

@@ -1112,5 +1112,6 @@
     "No installed-tarball or registry publication acceptance; no release authority",
     "Final delivery-head CI, including test and Windows, still required",
     "Reviewed local screenshots/video retained outside source; no GitHub media upload capability exposed"
-  ]
+  ],
+  "integrationPR": "https://github.com/rynfar/meridian/pull/1321"
 }
