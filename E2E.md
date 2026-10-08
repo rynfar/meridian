@@ -7534,3 +7534,82 @@ their own auth status. A synthetic API key recognition is not inference-key
 validation. The separately isolated HTTP regression file checks supplied setup
 tokens and preserves stored subscription plan, renewal and missing-token rules.
 See [bounded proof](docs/maintenance/evidence/1257-profile-credential-isolation.md).
+## Antigravity imported long-history replay (#1073 / #1314)
+
+`scripts/e2e-antigravity-pi-history.mjs` is an opt-in subscription live gate for
+supported **Pi 1.1.0**, independently verified official **agy 1.2.7**, and
+**Gemini 3.8 Flash Low** on macOS. Build the selected source checkout first and
+run this source-selecting escrow with **Bun 1.3.11**. Install the exact public Pi package in a
+disposable directory with `npm install --ignore-scripts --no-audit --no-fund
+@earendil-works/pi-coding-agent@1.1.0`; use its actual CLI entry. The package's
+published tarball integrity is
+`sha512-SeEi/4hdcHNgA9UWlefZl7ZZpm3dzi2OoxNjDHsBJ9o298LNOtbL4DGKgitlEj6uCTccvtw6f2hlCkTPVJ2RXg==`.
+The operator supplies a ready official agy subscription login through its
+supported configuration; this harness never reads tokens or a user's Pi session.
+
+```sh
+E2E_MERIDIAN_ROOT=/absolute/path/to/built/baseline \
+E2E_PI_BIN=/absolute/path/to/isolated/node_modules/@earendil-works/pi-coding-agent/dist/cli.js \
+E2E_NODE_BIN=/absolute/path/to/node-22.19-or-newer \
+MERIDIAN_AGY_PATH=/absolute/path/to/verified-official-agy-1.2.7 \
+/absolute/path/to/bun-1.3.11 /absolute/path/to/candidate/scripts/e2e-antigravity-pi-history.mjs
+
+# Repeat with E2E_MERIDIAN_ROOT=/absolute/path/to/built/candidate.
+# Retain both printed artifact directories and their report/input hashes.
+```
+
+The same frozen harness creates its own documented v3 Pi JSONL session and
+fixture files. It imports many completed old actions, oversized assistant text,
+the newest typed request, and a completed 100k content-first write with its exact
+result. A whitespace CLI continuation leaves that newest typed request in place;
+actual wire assertions reject incompatible client normalization rather than
+repairing the fixture. Actual Pi translates the history without relay injection.
+Actual client write/read calls must use the latest exact target, produce the
+expected file bytes, and return correlated successful results. Backend replacement
+occurs before forwarding the new write's **pure tool-result tail**; public proxy
+close and sampled owned native group absence are required before replacement.
+No completed write may run again. Client roles have a 240-second deadline,
+one-second escalation and a two-second close grace after exit or stopping.
+Missing close yields a failed/unknown outcome; late or locally destroyed pipe
+closure cannot reclassify it as a native join. No signals use an exited leader.
+One lifecycle owner tracks relay handlers and proxy acquisitions. Retirement
+aborts forwarding before cleanup and forbids new start/fetch operations. The
+client observer connects to that owner before the first artifact await. Stop,
+error, exit, close and unknown-join observations synchronously retire admission
+and retain client failure before physical writes; clean exit/close retires
+without inventing failure. Each
+captured proxy has one cached ten-second close outcome; a later caller cannot
+turn its unknown outcome into success. Already-started late replacements are
+retained and closed without forwarding. Handler/start operations have a
+130-second bound and cleanup drains them for ten seconds; unknown pending
+operations remain failures, rather than proof of native cleanup. Relay close is
+also capped at ten seconds. Immutable artifact snapshots use one serial writer
+with ten-second write/drain bounds; a failed/unknown physical write prevents
+queued writes from overlapping it. A final seal rejects late writes. The final
+snapshot labels its artifact drain pending; the outer command must retain the
+post-drain console result and actual exit/joins. Checkpoints precede waits,
+retain the first upstream stream cause before downstream destruction, and keep
+later client and cleanup errors separately. The CLI exits nonzero after retaining an unknown join; process
+exit itself does not establish native cleanup. Client logs are capped; requests
+are capped at 16 and 2 MiB each. A separate structural check inspects the actual
+translated request's rendered recap and byte-equivalent final history; a baseline
+model choosing correctly does not turn an oversized recap into a proved fix.
+The advisory target check accepts the renderer's bounded 80-character head/tail projection
+on the exact fixture call; real wire targets, correlated results and files remain
+checked against the complete paths.
+The selected built server and pure protocol source are both hashed; the structural
+inspection imports that checkout's pure TypeScript leaf, because normal package
+builds bundle it into `server.js`. This gate does not establish installed Meridian
+package equivalence. Both frozen runtimes require exactly agy 1.2.7; the earlier
+1.3.1 version/catalog preflight was not runtime compatibility or inference proof.
+Do not update or bypass the baseline version guard for this comparison.
+
+This is imported public-history coverage through a supported isolated client.
+The large historical argument was fixture data, not generated by the model.
+Neither a prepared script nor pure fixture tests establish live success. The
+first actual comparison failed on both baseline and candidate: each repeated the
+new write after joined backend replacement. Retain these failed traces; a later
+candidate must pass the unchanged one-write assertion, rather than weakening it.
+The reporter's DeepSeekHarness ACP version and OS are unknown, so Pi success cannot
+establish exact reporter acceptance or close all of #1073. There is no OpenCode
+arm here; any later OpenCode arm must load the installed Meridian AGY integration.
