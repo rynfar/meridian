@@ -602,8 +602,9 @@ describe("Integration: Non-stream usage propagation", () => {
       messages: [{ role: "user", content: "ping" }],
     })
 
+    expect({ status: response.status, body: response.status === 200 ? undefined : await response.clone().text() })
+      .toEqual({ status: 200, body: undefined })
     const body = await response.json() as any
-    expect(response.status).toBe(200)
     expect(body.usage.input_tokens).toBe(0)
     expect(body.usage.output_tokens).toBe(0)
   })

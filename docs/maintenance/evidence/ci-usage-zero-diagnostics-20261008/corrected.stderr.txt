@@ -1,0 +1,49 @@
+
+corrected.test.ts:
+4 | const PLAIN_FAILURE_BODY = "plain synthetic admission failure"
+5 |
+6 | test("JSON500 corrected usage assertion", async () => {
+7 |   const response = new Response(JSON_FAILURE_BODY, { status: 500 })
+8 |   expect({ status: response.status, body: response.status === 200 ? undefined : await response.clone().text() })
+9 |     .toEqual({ status: 200, body: undefined })
+         ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": undefined,
+-   "status": 200,
++   "body": "{"error":{"message":"known synthetic admission failure"}}",
++   "status": 500,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (<fixture>/corrected.test.ts:9:6)
+(fail) JSON500 corrected usage assertion [3.10ms]
+13 | })
+14 |
+15 | test("plain500 corrected usage assertion", async () => {
+16 |   const response = new Response(PLAIN_FAILURE_BODY, { status: 500 })
+17 |   expect({ status: response.status, body: response.status === 200 ? undefined : await response.clone().text() })
+18 |     .toEqual({ status: 200, body: undefined })
+          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": undefined,
+-   "status": 200,
++   "body": "plain synthetic admission failure",
++   "status": 500,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (<fixture>/corrected.test.ts:18:6)
+(fail) plain500 corrected usage assertion [0.28ms]
+
+ 0 pass
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [32.00ms]

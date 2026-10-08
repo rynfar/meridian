@@ -1,5 +1,29 @@
 # Upstream review handoff
 
+## Current CI diagnostics continuation (2026-10-08)
+
+[#1312](https://github.com/rynfar/meridian/pull/1312) merged as
+`048c5e195d237508d71a2723c1249081eb9b4d91`: npm test explicitly discovers
+source tests and runs priority-session-store in its own final stage. Older
+missing-file counts below are dated observations.
+
+The usage-zero integration assertion now retains a cloned error body before
+JSON parsing on unexpected status. Known JSON/plain 500 controls still fail;
+only corrected Received diffs retain their full bodies. The existing guarded
+integration file passed 13 tests / 135 assertions and typecheck passed before
+rebase; the identical diagnostic is retained on current main. See
+[the durable diagnostic evidence](evidence/ci-usage-zero-diagnostics-20261008/README.md)
+for exact fixtures, commands, first logs and native-auth qualifications.
+
+Keep #917 and #933 open. #990 addresses the two recorded timing mechanisms;
+#935 covers the original eleven-victim ownership-backlog cluster. Five of seven
+original fast #917 receipts are matched, two remain missing, and fast 500/marker
+causes remain unknown. The absolute-path plugin change was dropped because its
+original failure had HTTP 200 and a missing marker. #1306's held-writer diagnostics and existing
+MCP/limiter diagnostics remain separate evidence. No timeout, expected status,
+product code or API contract changes are included. Final delivery-head local
+and CI gates remain required; a green suite does not diagnose the older causes.
+
 ## Oldest-first continuation (2026-10-07)
 
 The owner requested oldest PRs and issues first. Use creation date ascending

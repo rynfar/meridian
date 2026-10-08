@@ -1,0 +1,20 @@
+Portable synthetic diagnostic check (deliberately failing; Bash/zsh):
+
+diag_dir="$(mktemp -d -t meridian-ci-diagnostic)"
+cp docs/maintenance/evidence/ci-usage-zero-diagnostics-20261008/baseline.test.ts.txt "$diag_dir/baseline.test.ts"
+cp docs/maintenance/evidence/ci-usage-zero-diagnostics-20261008/corrected.test.ts.txt "$diag_dir/corrected.test.ts"
+cp docs/maintenance/evidence/ci-usage-zero-diagnostics-20261008/bunfig.toml.txt "$diag_dir/bunfig.toml"
+(cd "$diag_dir" && bun test baseline.test.ts)
+(cd "$diag_dir" && bun test corrected.test.ts)
+
+Each command must exit nonzero with exactly two failed tests. The corrected
+Received-value diff, not the surrounding source code frame, must contain both
+full JSON and plain failure bodies. These standalone files import only bun:test
+and use synthetic Response objects. No proxy, client, SDK or model is exercised.
+There is no automatic rerun or timeout override. Keep the first logs.
+
+Actual recorded guarded argv/cwd, elapsed times and results are in results.json.
+For full integration and final gates, use the established credential-guarded
+private config/temp subprocess setup; ordinary direct invocation of that file
+can perform its existing default-account auth-status probe. The tested narrow
+async macOS Keychain guard is not a universal native/provider/network sandbox.

@@ -1,0 +1,22 @@
+import { expect, test } from "bun:test"
+
+const JSON_FAILURE_BODY = JSON.stringify({ error: { message: "known synthetic admission failure" } })
+const PLAIN_FAILURE_BODY = "plain synthetic admission failure"
+
+test("JSON500 corrected usage assertion", async () => {
+  const response = new Response(JSON_FAILURE_BODY, { status: 500 })
+  expect({ status: response.status, body: response.status === 200 ? undefined : await response.clone().text() })
+    .toEqual({ status: 200, body: undefined })
+  const body = await response.json()
+  expect(body.usage.input_tokens).toBe(0)
+  expect(body.usage.output_tokens).toBe(0)
+})
+
+test("plain500 corrected usage assertion", async () => {
+  const response = new Response(PLAIN_FAILURE_BODY, { status: 500 })
+  expect({ status: response.status, body: response.status === 200 ? undefined : await response.clone().text() })
+    .toEqual({ status: 200, body: undefined })
+  const body = await response.json()
+  expect(body.usage.input_tokens).toBe(0)
+  expect(body.usage.output_tokens).toBe(0)
+})

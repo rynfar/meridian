@@ -1,0 +1,31 @@
+
+baseline.test.ts:
+4 | const PLAIN_FAILURE_BODY = "plain synthetic admission failure"
+5 |
+6 | test("JSON500 baseline usage assertion", async () => {
+7 |   const response = new Response(JSON_FAILURE_BODY, { status: 500 })
+8 |   const body = await response.json()
+9 |   expect(response.status).toBe(200)
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (<fixture>/baseline.test.ts:9:27)
+(fail) JSON500 baseline usage assertion [4.12ms]
+11 |   expect(body.usage.output_tokens).toBe(0)
+12 | })
+13 |
+14 | test("plain500 baseline usage assertion", async () => {
+15 |   const response = new Response(PLAIN_FAILURE_BODY, { status: 500 })
+16 |   const body = await response.json()
+                                   ^
+SyntaxError: Failed to parse JSON
+      at <anonymous> (<fixture>/baseline.test.ts:16:31)
+(fail) plain500 baseline usage assertion [0.19ms]
+
+ 0 pass
+ 2 fail
+ 1 expect() calls
+Ran 2 tests across 1 file. [153.00ms]

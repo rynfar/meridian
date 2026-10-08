@@ -1,0 +1,117 @@
+{
+  "scope": "Synthetic diagnostic discrimination and focused existing mocked-SDK tests, not original production reproduction or issue closure.",
+  "focusedBase": "c7b3d619f76cea6ae592ac0e6299bac126cd616d",
+  "deliveryBase": "048c5e195d237508d71a2723c1249081eb9b4d91",
+  "sourceDiagnosticDiffSha256": "f25b03048391407f8ee2690900512521aa518df8cd6cbc960aa3a726e419b09e",
+  "sourceDiffPreservedOnRebase": true,
+  "runtime": "Bun 1.3.11 (af24e281), macOS arm64; existing dependencies; no install.",
+  "commands": [
+    {
+      "id": "synthetic-baseline",
+      "argv": [
+        "/Users/rynfar/repos/meridian-review-evidence-20261006/sse-priority-current-1214-20261007/bin/bun",
+        "test",
+        "baseline.test.ts"
+      ],
+      "cwd": "/Users/rynfar/repos/meridian-review-evidence-20261006/issue917-two-status-diagnostics-20261008-round1/revision2/synthetic-diagnostic-fixture",
+      "exitCode": 1,
+      "elapsedSeconds": 0.336,
+      "counts": {
+        "pass": 0,
+        "fail": 2,
+        "skip": null
+      },
+      "expectedNegativeControl": true,
+      "sourceAndOwnerUnchanged": true
+    },
+    {
+      "id": "synthetic-corrected",
+      "argv": [
+        "/Users/rynfar/repos/meridian-review-evidence-20261006/sse-priority-current-1214-20261007/bin/bun",
+        "test",
+        "corrected.test.ts"
+      ],
+      "cwd": "/Users/rynfar/repos/meridian-review-evidence-20261006/issue917-two-status-diagnostics-20261008-round1/revision2/synthetic-diagnostic-fixture",
+      "exitCode": 1,
+      "elapsedSeconds": 0.229,
+      "counts": {
+        "pass": 0,
+        "fail": 2,
+        "skip": null
+      },
+      "expectedNegativeControl": true,
+      "sourceAndOwnerUnchanged": true
+    },
+    {
+      "id": "integration-full-file",
+      "argv": [
+        "/Users/rynfar/repos/meridian-review-evidence-20261006/sse-priority-current-1214-20261007/bin/bun",
+        "test",
+        "src/__tests__/integration.test.ts"
+      ],
+      "cwd": "/Users/rynfar/repos/meridian-ci-failure-bodies-917-20261008",
+      "exitCode": 0,
+      "elapsedSeconds": 1.542,
+      "counts": {
+        "pass": 13,
+        "fail": 0,
+        "skip": null
+      },
+      "expectedNegativeControl": false,
+      "sourceAndOwnerUnchanged": true
+    },
+    {
+      "id": "typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "/Users/rynfar/repos/meridian-ci-failure-bodies-917-20261008",
+      "exitCode": 0,
+      "elapsedSeconds": 9.104,
+      "counts": {
+        "pass": null,
+        "fail": null,
+        "skip": null
+      },
+      "expectedNegativeControl": false,
+      "sourceAndOwnerUnchanged": true
+    }
+  ],
+  "integrationAssertions": 135,
+  "diagnosticDiscrimination": {
+    "syntheticKnownResponsesOnly": true,
+    "originalProductionCauseReproduced": false,
+    "baseline": {
+      "exitCode": 1,
+      "failures": 2,
+      "jsonFailureActualExpectedReceived": "Expected: 200\nReceived: 500",
+      "plainFailureActualDiagnostic": "SyntaxError: Failed to parse JSON",
+      "receivedBodyDiffLines": [],
+      "plainErrorStringAlsoPresentInSourceCodeFrame": true,
+      "qualification": "The baseline source code frame includes the plain fixture string; the claim concerns actual status/body assertion output, not whole-log string absence."
+    },
+    "corrected": {
+      "exitCode": 1,
+      "failures": 2,
+      "actualReceivedBodyDiffLines": [
+        "+   \"body\": \"{\"error\":{\"message\":\"known synthetic admission failure\"}}\",",
+        "+   \"body\": \"plain synthetic admission failure\","
+      ],
+      "actualJsonAssertionDiff": "\n\n  {\n-   \"body\": undefined,\n-   \"status\": 200,\n+   \"body\": \"{\"error\":{\"message\":\"known synthetic admission failure\"}}\",\n+   \"status\": 500,\n  }\n\n- Expected  - 2\n+ Received  + 2\n\n",
+      "actualPlainAssertionDiff": "\n\n  {\n-   \"body\": undefined,\n-   \"status\": 200,\n+   \"body\": \"plain synthetic admission failure\",\n+   \"status\": 500,\n  }\n\n- Expected  - 2\n+ Received  + 2\n\n",
+      "bothActualStatus500": true
+    },
+    "healthyPath": {
+      "fullExistingIntegrationFile": "13 pass, 0 fail, 135 expect() calls",
+      "specificZeroUsageCase": "(pass) Integration: Non-stream usage propagation > falls back to zeros when no SDK assistant message is produced [25.57ms]",
+      "originalJsonAndZeroUsageAssertionsUnchanged": true,
+      "on200ConditionalBranchAvoidsDiagnosticCloneRead": "Source conditional expression plus passed original usage assertions; no separate dynamic clone-call instrument was introduced."
+    },
+    "qualification": "Synthetic diagnostic discrimination only. Neither HTTP500 root cause nor marker cause or whole #917/#933 resolved."
+  },
+  "stderrSanitization": "The task fixture absolute directory is replaced with <fixture>; trailing spaces on four blank source-code-frame lines are removed after the first staged diff check rejected them. Actual Received-body text is unchanged. Original first logs and diff-check failure remain in the owner evidence packet.",
+  "authStatusQualification": "Existing integration initialization reported default-account claude auth status exiting1 with loggedIn:false. No direct native/provider/model command was issued; the narrow test guard is not universal native/auth/network proof. SDK query responses were mocked.",
+  "finalLocalAndCiGates": "Required separately on delivery final head; not supplied by these pre-rebase focused results."
+}
