@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict"
 import * as childProcess from "node:child_process"
-import { mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -95,6 +95,14 @@ if (!scenario) {
   const { processSessionTurns } = await load("src/proxy/session/turnCoordinator.ts")
   const errors = []
   const coordinatorRoot = join(root, "locks")
+  // createProxyServer owns a different coordinator under the configured
+  // session store. Inspect that real root, not only the explicit control.
+  const httpCoordinatorRoot = join(root, "sessions", "turn-locks")
+  const assertNoHttpLocks = () => {
+    const count = readdirSync(httpCoordinatorRoot).length
+    assert.equal(count, 0, "Denied HTTP capture published a lock")
+    return count
+  }
   const coordinator = new CrossProcessTurnCoordinator(coordinatorRoot)
   const originalError = console.error
   let acquisitionError = ""
@@ -116,9 +124,21 @@ if (!scenario) {
     }))
     console.error = originalError
     const diagnostic = errors.join(" ")
+    const httpPublishedLocks = assertNoHttpLocks()
+    // A populated app-owned root must fail the same assertion. This sentinel
+    // is a checker control, not a real admitted owner or recovered lock.
+    const sentinel = join(httpCoordinatorRoot, "synthetic-published-lock.control")
+    mkdirSync(sentinel)
+    try {
+      assert.throws(assertNoHttpLocks, { name: "AssertionError" })
+    } finally {
+      rmSync(sentinel, { recursive: true })
+    }
+    assertNoHttpLocks()
     const summary = { scenario, acquisitionRefused: acquisitionError.startsWith("cannot capture turn-lock owner process incarnation"),
       httpStatus: response.status, httpLogDiagnostic: diagnostic, acquisitionDiagnostic: acquisitionError,
-      publishedLocks: readdirSync(coordinatorRoot).length, sdkCalls, probeSpawnCalls }
+      publishedLocks: readdirSync(coordinatorRoot).length, httpPublishedLocks,
+      httpLockAssertionNegativeControl: true, sdkCalls, probeSpawnCalls }
     console.log(JSON.stringify(summary))
     assert(summary.acquisitionRefused, "Admission did not fail at the identity gate")
     assert.equal(response.status, 500, "Denied probe changed HTTP admission behavior")

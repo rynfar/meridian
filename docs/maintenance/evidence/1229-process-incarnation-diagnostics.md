@@ -5,7 +5,9 @@ coordinator error and proxy log. It does not replace the native probe, permit a
 sandbox exception, or establish that the reporter's sandbox can serve Claude.
 [Issue #1229](https://github.com/rynfar/meridian/issues/1229) remains open.
 
-## Scope and source
+## Historical preparation — 2026-10-04
+
+### Scope and source
 
 - Unchanged reproduction baseline: `f299fe06e72411b786380b5212edea79cd13966a`.
 - Delivery base: `9d77d8e282cb9c58d99b8962b900777e9f4b0803`.
@@ -70,7 +72,9 @@ Its regression wrapper lives in
 [`src/__tests__/process-incarnation-diagnostics.test.ts`](../../../src/__tests__/process-incarnation-diagnostics.test.ts).
 The harness injects command results at `spawnSync` in fresh independent
 processes, runs the real coordinator and HTTP route, and fences SDK calls.
-It never executes the injected native commands or accesses credentials.
+The injected native commands are not executed. Its SDK double rejects model
+queries; zero query calls do not establish a universal native/auth/network
+census.
 
 Run the same assertions against both source trees:
 
@@ -86,7 +90,7 @@ Both the coordinator error and HTTP request's proxy log contain only
 `cannot capture turn-lock owner process incarnation`.
 The after run passes the unchanged assertion and all five arms:
 
-| Injected observation | Corrected proxy-log suffix | HTTP | Published locks | SDK queries |
+| Injected observation | Corrected proxy-log suffix | HTTP | Explicit coordinator locks | SDK queries |
 |---|---|---:|---:|---:|
 | `/bin/ps` EPERM | `/bin/ps process-identity probe failed (EPERM)` | 500 | 0 | 0 |
 | `/bin/ps` exit 1 | `/bin/ps process-identity probe failed (exit 1)` | 500 | 0 | 0 |
@@ -94,7 +98,9 @@ The after run passes the unchanged assertion and all five arms:
 | Malformed successful output | Original generic capture failure; no invented errno | 500 | 0 | 0 |
 | ioreg EPERM | `/usr/sbin/ioreg process-identity probe failed (EPERM)` | 500 | 0 | 0 |
 
-The baseline also has HTTP 500, zero SDK queries and zero published locks:
+The historical baseline also has HTTP 500, zero SDK queries and zero locks
+in the explicit coordinator control (its original HTTP-root assertion was
+missing; the current correction below adds it):
 the fix changes the explanation, not admission. Every after arm separately
 checks absence of private fixture stderr/arguments, local turn-fence release,
 later successful capture/acquisition without a stale diagnostic, released-lock
@@ -131,9 +137,76 @@ include sysctl denial, invalid PID and another PID's failed capture.
 
 Prepare a **diagnostics-only draft** after local gates. Actual native sandbox
 operation remains unproved: the exact macOS 27.0.1 / nono 0.79.0 / OpenCode
-2.0.21 / plugin 1.11.1 environment, actual denied `/bin/ps` diagnostic, supported
+2.0.21 / plugin 1.11.1 environment, native nono denial/integration, supported
 client/model operation, and independently installed package evidence are
 unavailable. Synthetic injected EPERM does not substitute for those gates.
 No model call, sandbox exception, native dependency, GitHub comment, push, PR,
 merge, issue closure or release was performed by this bounded implementation.
 Do not close #1229 or claim the native sandbox problem is fixed.
+
+
+## Current reconciliation and evidence corrections — 2026-10-08
+
+The existing diagnostics-only draft #1266 remains held. This correction starts
+from current main `458cf15c59dc5ff99f50bf4dea4a002ff44b947f`; both product files
+are byte-identical to the historical delivery base before cherry-picking.
+The actual owned commits retain Trevor Walker's Author and AuthorDate:
+
+| Source | Incorporated |
+| --- | --- |
+| `1703c3f8e6d8452b45208f78920e0e816a8be824` | `e76e1625f642877f3cbdd169f9e1b239146c3f33` |
+| `714b72163ab10f956ec943923d03d30ded2c20de` | `7afad55382c75f983bd515a334d1d746fcb4a457` |
+| `9a1793729fa1f09ee643f646ca3221c738d5ab00` | `45eaa23f60dad99309341f5f664df7da277a5678` |
+
+The injected gate now separately inspects the HTTP app's actual
+`MERIDIAN_SESSION_DIR/turn-locks` root. A missing root fails; it is not reported
+as an invented zero. The original `publishedLocks` field still names only the
+explicit coordinator. New `httpPublishedLocks` must be zero in all five arms.
+A synthetic sentinel in that same app-owned directory must make the identical
+empty-root assertion throw; removing it must restore the empty result. The
+sentinel proves the checker detects a populated root, not that a real owner
+was admitted or recovered. The regression wrapper requires both root counts
+and the negative-checker result for every arm. Corrected focused checks passed
+**16 tests / 3 files / 59 assertions** under **Bun 1.3.11**, including all five
+injected cases and unchanged process recovery/coordinator controls.
+
+The standalone actual-OS probe is now escrowed in
+[`scripts/e2e-process-incarnation-seatbelt.py`](../../../scripts/e2e-process-incarnation-seatbelt.py).
+It uses Python stdlib and the selected Bun executable, imports only the actual
+incarnation module/Node built-ins, and launches two fresh private processes
+with an allowlisted environment and a 15-second outer deadline. It installs no
+package or nono and imports no product server, SDK or client. Reproduce it on
+macOS with an unchanged module extracted from the current base:
+
+```sh
+proof=$(mktemp -d "${TMPDIR:-/tmp}/meridian-process-denial.XXXXXX")
+git show 458cf15c59dc5ff99f50bf4dea4a002ff44b947f:src/proxy/session/processIncarnation.ts > "$proof/baseline.ts"
+python3 -B scripts/e2e-process-incarnation-seatbelt.py \
+  --baseline-module "$proof/baseline.ts" \
+  --bun /absolute/path/to/bun \
+  --out "$proof/results"
+```
+
+The inline probe is byte-identical to the previously observed standalone
+control. The escrowed launcher itself ran successfully on **macOS 26.6.2 /
+25G83 / arm64 / Bun 1.3.14**. Both baseline and corrected modules observed
+available real boot identity and actual `/bin/ps` **EPERM** under an explicit
+Seatbelt deny rule. Both left capture undefined. Baseline emitted no diagnostic;
+corrected emitted the safe path/errno and execution-policy guidance. Both
+commands exited 0 with empty stderr, no expired deadline, joined leaders and
+ESRCH for their owned process groups. These paired arms deliberately expect
+absent vs present diagnostics; they are not a failed-before/passed-after
+same-assertion claim. Hardware/boot values and raw native output were not
+printed. Source hashes/modes stayed unchanged. Safe full observations and
+qualified receipt facts are retained in
+[`1229-process-incarnation-native-seatbelt.json`](1229-process-incarnation-native-seatbelt.json).
+
+This closes the missing *controlled local Darwin diagnostic* receipt and
+runnable-script gaps. It does not close exact **macOS 27.0.1 / nono 0.79.0 /
+OpenCode 2.0.21 / plugin 1.11.1** client/model or independently installed-package
+proof, nor show native sandbox success. No unsandboxed `/bin/ps` exception or
+replacement probe was introduced. Required current-head `npm test`, typecheck,
+build, adversarial review and CI remain separate delivery gates; their final
+receipts belong to the draft/maintenance checkpoint. Keep #1229 open and #1266
+draft pending the affected-flow gates. No public plugin interface changed;
+this internal diagnostic correction needs no new contract approval.

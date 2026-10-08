@@ -1,0 +1,81 @@
+{
+  "scope": "ACTUAL_CONTROLLED_DARWIN_MODULE_DIAGNOSTIC_ONLY",
+  "result": "PASS",
+  "exactReporterNonoClientAcceptance": false,
+  "host": {
+    "macOS": "26.6.2",
+    "build": "25G83",
+    "architecture": "arm64"
+  },
+  "bunVersion": "1.3.14",
+  "baselineSource": {
+    "commit": "048c5e195d237508d71a2723c1249081eb9b4d91",
+    "bytes": 19236,
+    "sha256": "84cb4d8b1e8240916705d047b4cc665d59bd34e79629f2d8476a1845c1d3126b",
+    "mode": "0644"
+  },
+  "correctedSource": {
+    "sourcePRHead": "9a1793729fa1f09ee643f646ca3221c738d5ab00",
+    "bytes": 20499,
+    "sha256": "21ff00ee877c82b34997cb00b920d43d82927a6968b9bd91643c21bf97b4f2d5",
+    "mode": "0644"
+  },
+  "sourceBeforeAfterEqual": true,
+  "runner": "scripts/e2e-process-incarnation-seatbelt.py",
+  "expectations": {
+    "baseline": "absent",
+    "corrected": "present"
+  },
+  "sameAssertionFailedBeforePassedAfter": false,
+  "controls": [
+    {
+      "arm": "01-baseline",
+      "observation": {
+        "bootAvailable": true,
+        "platform": "darwin",
+        "rawProbeErrno": "EPERM",
+        "captureAvailable": false,
+        "diagnostics": []
+      },
+      "exit": 0,
+      "elapsedSeconds": 0.20365725000738166,
+      "deadlineSeconds": 15,
+      "deadlineExpired": false,
+      "leaderWaitJoined": true,
+      "ownedGroupPresenceAfterJoin": "ESRCH_NO_GROUP",
+      "stderrBytes": 0,
+      "stdoutSha256": "24a4a6fb71ce72c952c53b5102c4dbcf3f8b70626714adb9b85e6a4a6b28e25c",
+      "controllerStdoutFileClosed": true,
+      "controllerStderrFileClosed": true
+    },
+    {
+      "arm": "02-corrected",
+      "observation": {
+        "bootAvailable": true,
+        "platform": "darwin",
+        "rawProbeErrno": "EPERM",
+        "captureAvailable": false,
+        "diagnostics": [
+          "/bin/ps process-identity probe failed (EPERM); check process-execution permissions and sandbox restrictions for this required probe"
+        ]
+      },
+      "exit": 0,
+      "elapsedSeconds": 0.13216541599831544,
+      "deadlineSeconds": 15,
+      "deadlineExpired": false,
+      "leaderWaitJoined": true,
+      "ownedGroupPresenceAfterJoin": "ESRCH_NO_GROUP",
+      "stderrBytes": 0,
+      "stdoutSha256": "c5396081a122736c274ec893e7967cf2b8e167e6a602c3cea4fb3ceeb8b6a6ac",
+      "controllerStdoutFileClosed": true,
+      "controllerStderrFileClosed": true
+    }
+  ],
+  "limitations": [
+    "macOS27.0.1/nono0.79.0/OpenCode2.0.21/plugin1.11.1 not exercised",
+    "controlled explicit Seatbelt denial, no native replacement or no-sandbox exception",
+    "module only: no HTTP/client/package acceptance",
+    "group ESRCH observation is not a whole-host descendant census",
+    "Bun1.3.14 native proof is separate from pinnedBun1.3.11 local gates"
+  ]
+}

@@ -16,10 +16,14 @@ test("denied native probes expose only safe diagnostics and keep HTTP/lock admis
       new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited,
     ])
     expect({ exit, stderr }).toEqual({ exit: 0, stderr: "" })
-    const result = JSON.parse(stdout) as { result: string; controls: Array<{ exit: number; result: { sdkCalls: number } }> }
+    const result = JSON.parse(stdout) as { result: string; controls: Array<{ exit: number; result: {
+      sdkCalls: number; publishedLocks: number; httpPublishedLocks: number; httpLockAssertionNegativeControl: boolean
+    } }> }
     expect(result.result).toBe("PASS")
     expect(result.controls).toHaveLength(5)
     expect(result.controls.every(control => control.exit === 0 && control.result.sdkCalls === 0)).toBe(true)
+    expect(result.controls.every(control => control.result.publishedLocks === 0
+      && control.result.httpPublishedLocks === 0 && control.result.httpLockAssertionNegativeControl)).toBe(true)
   } finally {
     clearTimeout(timer)
   }
