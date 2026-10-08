@@ -1458,11 +1458,12 @@ describe("buildModelList", () => {
       expect(model.capabilities!.thinking.types.enabled.supported).toBe(false)
     }
   })
-  it("advertises Sonnet 5.5 and plan-appropriate context", () => {
+  it("advertises Sonnet 5.5 with its native 1M context on every plan (#1212)", () => {
     for (const extended of [false, true]) {
       const model = buildModelList(extended).find(m => m.id === "claude-sonnet-5-5")!
       expect(model.display_name).toBe("Claude Sonnet 5.5")
-      expect(model.context_window).toBe(200_000)
+      expect(model.context_window).toBe(1_000_000)
+      expect(buildModelList(extended).find(m => m.id === "claude-sonnet-5")!.context_window).toBe(1_000_000)
       expect(model.capabilities!.thinking.types.adaptive.supported).toBe(true)
       expect(model.capabilities!.thinking.types.enabled.supported).toBe(true)
     }

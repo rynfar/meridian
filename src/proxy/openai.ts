@@ -1073,9 +1073,10 @@ const FULL_CAPABILITIES: ModelCapabilities = Object.freeze({
  * @param extendedContextIncluded - whether the caller's subscription includes
  *   the 1M window on the Opus/Fable tiers (Max, Team, Enterprise). Callers
  *   derive this from `subscriptionIncludesExtendedContext` in models.ts so the
- *   advertised window matches what the proxy actually routes to. Sonnet stays
- *   200k on every plan because Sonnet 1M is always billed as Extra Usage, and
- *   Haiku has no 1M variant at all.
+ *   advertised window matches what the proxy actually routes to. Sonnet 5+
+ *   runs with a native 1M window on every plan (#1212); Sonnet 4.6 stays 200k
+ *   because its 1M variant is billed as Extra Usage, and Haiku has no 1M
+ *   variant at all.
  */
 export function buildModelList(extendedContextIncluded: boolean, now = Math.floor(Date.now() / 1000)): OpenAiModel[] {
   return [
@@ -1085,7 +1086,7 @@ export function buildModelList(extendedContextIncluded: boolean, now = Math.floo
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Sonnet 5.5",
-      context_window: 200_000,
+      context_window: 1_000_000,
       capabilities: FULL_CAPABILITIES,
     },
     {
@@ -1094,7 +1095,7 @@ export function buildModelList(extendedContextIncluded: boolean, now = Math.floo
       created: now,
       owned_by: "anthropic",
       display_name: "Claude Sonnet 5",
-      context_window: 200_000,
+      context_window: 1_000_000,
       capabilities: FULL_CAPABILITIES,
     },
     {
