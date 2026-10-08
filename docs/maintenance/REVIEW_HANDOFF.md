@@ -23,13 +23,13 @@ No community comments, new release, tags or publishing occurred.
   `dedf4096` and corrected code head `0e7c1df1`: two identical successful writes
   instead of one. Actual joins/pipes are qualified separately. Code-head local
   gates pass 5,521 tests / 35 skip / zero fail, typecheck and build; `cd6b31a7`
-  adds only the failed-evidence record. [The committed proof](antigravity-history-1314-proof.md)
+  adds only the failed-evidence record. [The committed proof](https://github.com/rynfar/meridian/blob/cd6b31a752e2f2d20240fee1e63ea46a39830dd9/docs/maintenance/antigravity-history-1314-proof.md)
   retains the reproducible escrow and product hold. No blind prompt retry,
   installation or green CI resolves that live failure. Exact reporter ACP/OS,
   installed package, broader platform/model and final-head CI remain separate.
   Keep source #1314 and issue #1073 open; investigate deterministic result-tail
   semantics before another actual arm.
-- **Profiles #1316:** root source/browser review accepts the scoped display fix,
+- **Profiles #1316 / [delivery #1318](https://github.com/rynfar/meridian/pull/1318):** root source/browser review accepts the scoped display fix,
   with completed local gates and final-head CI still required. Nowaker <spam@nowaker.net> source
   `67c78683696712f7db714cbc5bb529bde8f5dfc3` is preserved with Author/AuthorDate
   as `b4d8095e2fb998396d4e3a217547888477b23199` in
