@@ -95,10 +95,14 @@ green `rgba(63,185,80,α)`, yellow `rgba(210,153,34,α)`, red
 
 Usage bars and percentage readouts color by value: `< 60%` green,
 `≥ 60%` yellow, `≥ 85%` red. Health dot: healthy green (with soft glow),
-degraded yellow, offline red. With the opt-in `showHostname` setting the pill
-names the machine after its status (`Operational · nwkr-desktop`), first DNS
-label only with the full name on hover; at phone width the name stays beside
-the dot, ellipsized, without the separator.
+degraded yellow, offline red. When Anthropic is unreachable from the host the
+whole health pill becomes a red tinted pill ("Can't reach Anthropic", details on
+hover), and a yellow one ("Rechecking Anthropic") while traffic is let back in;
+both keep their text at phone width, where the plain status shows only its dot.
+With the opt-in `showHostname` setting the pill names the machine after its
+status (`Operational · nwkr-desktop`), first DNS label only with the full name
+on hover; at phone width the name stays, ellipsized, and keeps its separator
+only where the status text stays too.
 
 ## 3. The backsplash
 

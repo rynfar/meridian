@@ -47,11 +47,27 @@ describe("shared site header", () => {
     expect(profileBarJs).toContain("/health")
   })
 
+  // An unreachable upstream renders as an alert pill, and keeps its text at
+  // phone width where the plain status shows only its dot.
+  test("status pill can render an upstream outage", () => {
+    expect(profileBarJs).toContain("statusPillView")
+    expect(profileBarJs).toContain("Can't reach Anthropic")
+    expect(profileBarCss).toContain(".mh-status.outage")
+    expect(profileBarCss).toContain(".mh-status.recovering")
+    expect(profileBarCss).toMatch(/@media \(max-width: 720px\)[\s\S]*\.mh-status\.outage \.mh-status-text[\s\S]*display: inline/)
+  })
+
   test("status pill can name the machine, hidden until /health reports one", () => {
     expect(profileBarHtml).toContain('<span class="mh-host" id="mhHost" hidden></span>')
     expect(profileBarJs).toContain("hostLabelView")
     expect(profileBarJs).toContain("renderHost(h.hostname)")
     expect(settingsPageHtml).toContain("/settings/api/header")
+  })
+
+  // At phone width the plain status drops its text, and the separator before
+  // the hostname with it; an outage keeps its text, so it keeps the separator.
+  test("an outage pill at phone width still separates its text from the hostname", () => {
+    expect(profileBarCss).toMatch(/@media \(max-width: 720px\)[\s\S]*\.mh-status\.outage \.mh-host::before[\s\S]*content: "·"/)
   })
 
   test("header shows active profile chip, not a dropdown", () => {

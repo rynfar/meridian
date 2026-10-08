@@ -12,6 +12,7 @@
 
 import { buildDriftView, buildIdentityView } from "./buildBadge"
 import { hostLabelView } from "./hostLabel"
+import { statusPillView } from "./statusPill"
 
 /**
  * Canonical Meridian theme.
@@ -225,6 +226,20 @@ export const profileBarCss = `
   .meridian-header .mh-dot.healthy { background: var(--green, #3fb950); box-shadow: 0 0 6px rgba(63,185,80,0.5); }
   .meridian-header .mh-dot.degraded { background: var(--yellow, #d29922); }
   .meridian-header .mh-dot.unhealthy { background: var(--red, #f85149); }
+  .meridian-header .mh-status.outage,
+  .meridian-header .mh-status.recovering {
+    font-weight: 500; line-height: 16px; padding: 3px 10px; border-radius: 12px; cursor: help;
+  }
+  .meridian-header .mh-status.outage {
+    color: var(--red, #f85149);
+    background: rgba(248,81,73,0.12);
+    border: 1px solid rgba(248,81,73,0.35);
+  }
+  .meridian-header .mh-status.recovering {
+    color: var(--yellow, #d29922);
+    background: rgba(210,153,34,0.12);
+    border: 1px solid rgba(210,153,34,0.35);
+  }
   .meridian-header .mh-host {
     display: inline-block; min-width: 0; max-width: 24ch;
     overflow: hidden; text-overflow: ellipsis; vertical-align: bottom;
@@ -240,8 +255,12 @@ export const profileBarCss = `
     .meridian-header .mh-nav a { flex-shrink: 0; }
     .meridian-header .mh-right { flex: 1 1 0; }
     .meridian-header .mh-status .mh-status-text { display: none; }
+    .meridian-header .mh-status.outage .mh-status-text,
+    .meridian-header .mh-status.recovering .mh-status-text { display: inline; }
     .meridian-header .mh-host { max-width: 14ch; }
     .meridian-header .mh-host::before { content: none; }
+    .meridian-header .mh-status.outage .mh-host::before,
+    .meridian-header .mh-status.recovering .mh-host::before { content: "·"; }
   }
   /* Wide layout (Settings, Layout): every page drops its centered column and
      spans the window, keeping an edge margin that grows with the screen. The
@@ -284,6 +303,7 @@ export const profileBarJs = `
   var profileChip = document.getElementById('mhProfile');
   var buildChip = document.getElementById('mhBuild');
   var updateChip = document.getElementById('mhUpdate');
+  var statusPill = document.getElementById('mhStatus');
   var statusDot = document.getElementById('mhDot');
   var statusText = document.getElementById('mhStatusText');
   var hostChip = document.getElementById('mhHost');
@@ -302,6 +322,17 @@ export const profileBarJs = `
   // Inlined from src/telemetry/buildBadge.ts, unit-tested in build-badge.test.ts.
   var buildIdentityView = ${buildIdentityView.toString()};
   var buildDriftView = ${buildDriftView.toString()};
+  // Inlined from src/telemetry/statusPill.ts, unit-tested in status-pill.test.ts.
+  var statusPillView = ${statusPillView.toString()};
+
+  function renderStatus(view) {
+    statusPill.className = 'mh-status' + (view.alert ? ' ' + view.alert : '');
+    statusDot.className = 'mh-dot ' + view.tone;
+    statusText.textContent = view.text;
+    if (view.title) statusPill.title = view.title;
+    else statusPill.removeAttribute('title');
+  }
+
   // Inlined from src/telemetry/hostLabel.ts, unit-tested in host-label.test.ts.
   var hostLabelView = ${hostLabelView.toString()};
 
@@ -522,9 +553,7 @@ export const profileBarJs = `
     var generation = ++healthGeneration;
     fetch('/health', { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(h) {
       if (generation !== healthGeneration) return;
-      var st = h.status === 'healthy' ? 'healthy' : h.status === 'degraded' ? 'degraded' : 'unhealthy';
-      statusDot.className = 'mh-dot ' + st;
-      statusText.textContent = st === 'healthy' ? 'Operational' : st === 'degraded' ? 'Degraded' : 'Offline';
+      renderStatus(statusPillView(h));
       renderHost(h.hostname);
       renderBuild(h.build);
       if (h.backend === 'antigravity') {
@@ -533,8 +562,7 @@ export const profileBarJs = `
       }
     }).catch(function() {
       if (generation !== healthGeneration) return;
-      statusDot.className = 'mh-dot unhealthy';
-      statusText.textContent = 'Offline';
+      renderStatus(statusPillView(null));
       renderHost(undefined);
     });
 
