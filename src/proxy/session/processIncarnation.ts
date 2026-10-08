@@ -172,20 +172,37 @@ function linuxLocalBootIdentity(): LocalBootIdentity | undefined {
   }
 }
 
-function runDarwin(command: string, args: readonly string[]): string | undefined {
+type DarwinProbeCommand = "/bin/ps" | "/usr/sbin/ioreg" | "/usr/sbin/sysctl"
+
+function runDarwin(
+  command: DarwinProbeCommand,
+  args: readonly string[],
+  onFailure?: (diagnostic: string) => void,
+): string | undefined {
   const result = spawnSync(command, args, {
     encoding: "utf8",
     env: { ...process.env, LC_ALL: "C", LANG: "C", TZ: "UTC0" },
     timeout: PROBE_TIMEOUT_MS,
     maxBuffer: 1024 * 1024,
   })
-  if (result.error || result.status !== 0 || typeof result.stdout !== "string") return undefined
+  if (result.error || result.status !== 0 || typeof result.stdout !== "string") {
+    // spawn errors can carry command arguments and arbitrary stderr. Only the
+    // known probe path and a bounded errno/exit status belong in diagnostics.
+    const code = result.error && "code" in result.error ? result.error.code : undefined
+    const reason = typeof code === "string" && /^E[A-Z0-9_]{1,31}$/.test(code)
+      ? code
+      : !result.error && typeof result.status === "number" && Number.isSafeInteger(result.status)
+        ? `exit ${result.status}`
+        : "no usable result"
+    onFailure?.(`${command} process-identity probe failed (${reason}); check process-execution permissions and sandbox restrictions for this required probe`)
+    return undefined
+  }
   return result.stdout
 }
 
-function darwinLocalBootIdentity(): LocalBootIdentity | undefined {
-  const ioreg = runDarwin("/usr/sbin/ioreg", ["-rd1", "-c", "IOPlatformExpertDevice"])
-  const boot = runDarwin("/usr/sbin/sysctl", ["-n", "kern.bootsessionuuid"])
+function darwinLocalBootIdentity(onFailure?: (diagnostic: string) => void): LocalBootIdentity | undefined {
+  const ioreg = runDarwin("/usr/sbin/ioreg", ["-rd1", "-c", "IOPlatformExpertDevice"], onFailure)
+  const boot = runDarwin("/usr/sbin/sysctl", ["-n", "kern.bootsessionuuid"], onFailure)
   const machineMatch = ioreg?.match(/"IOPlatformUUID"\s*=\s*"([0-9A-Fa-f-]+)"/)
   const machineId = machineMatch?.[1] ? normalizeUuid(machineMatch[1]) : undefined
   const bootId = boot ? normalizeUuid(boot) : undefined
@@ -272,13 +289,13 @@ function pinnedHostId(): string | undefined {
   return pinnedHostIdFor(process.env.MERIDIAN_HOST_ID)
 }
 
-function getLocalBootIdentity(): LocalBootIdentity | undefined {
+function getLocalBootIdentity(onFailure?: (diagnostic: string) => void): LocalBootIdentity | undefined {
   if (cachedLocalBootIdentity) return cachedLocalBootIdentity
   try {
     const identity = process.platform === "linux"
       ? linuxLocalBootIdentity()
       : process.platform === "darwin"
-        ? darwinLocalBootIdentity()
+        ? darwinLocalBootIdentity(onFailure)
         : process.platform === "win32"
           ? windowsLocalBootIdentity()
           : undefined
@@ -377,8 +394,8 @@ function linuxProcessStart(pid: number): ProcessStartObservation {
   return pidPresence(pid) === "missing" ? { status: "missing" } : { status: "indeterminate" }
 }
 
-function darwinProcessStart(pid: number): ProcessStartObservation {
-  const output = runDarwin("/bin/ps", ["-p", String(pid), "-o", "lstart="])
+function darwinProcessStart(pid: number, onFailure?: (diagnostic: string) => void): ProcessStartObservation {
+  const output = runDarwin("/bin/ps", ["-p", String(pid), "-o", "lstart="], onFailure)
   if (output !== undefined) {
     const startId = output.trimEnd().trimStart()
     if (DARWIN_START_PATTERN.test(startId)) {
@@ -408,7 +425,7 @@ try {
   return pidPresence(pid) === "missing" ? { status: "missing" } : { status: "indeterminate" }
 }
 
-function observeProcessStart(pid: number): ProcessStartObservation {
+function observeProcessStart(pid: number, onFailure?: (diagnostic: string) => void): ProcessStartObservation {
   // The pid is this process, so its start is the one already captured. On
   // win32 and darwin a fresh observation is a synchronous child process that
   // stalls the event loop, and the lifecycle probes this process's own leases
@@ -421,20 +438,27 @@ function observeProcessStart(pid: number): ProcessStartObservation {
     }
   }
   if (process.platform === "linux") return linuxProcessStart(pid)
-  if (process.platform === "darwin") return darwinProcessStart(pid)
+  if (process.platform === "darwin") return darwinProcessStart(pid, onFailure)
   if (process.platform === "win32") return windowsProcessStart(pid)
   return { status: "indeterminate" }
 }
 
-/** Capture metadata for a lock created by `pid` (normally the current process). */
-export function captureProcessIncarnation(pid = process.pid): ProcessIncarnation | undefined {
+/**
+ * Capture metadata for a lock created by `pid` (normally the current process).
+ * Internal callers may collect a sanitized failed-probe diagnostic for their
+ * admission error. This does not change capture or recovery decisions.
+ */
+export function captureProcessIncarnation(
+  pid = process.pid,
+  onProbeFailure?: (diagnostic: string) => void,
+): ProcessIncarnation | undefined {
   if (!isPositivePid(pid)) return undefined
   if (pid === process.pid && cachedCurrentProcessIncarnation) {
     return { ...cachedCurrentProcessIncarnation }
   }
-  const localBoot = getLocalBootIdentity()
+  const localBoot = getLocalBootIdentity(onProbeFailure)
   if (!localBoot) return undefined
-  const start = observeProcessStart(pid)
+  const start = observeProcessStart(pid, onProbeFailure)
   if (start.status !== "found") return undefined
   const identity: ProcessIncarnation = {
     version: PROCESS_INCARNATION_VERSION,

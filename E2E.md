@@ -7534,3 +7534,35 @@ their own auth status. A synthetic API key recognition is not inference-key
 validation. The separately isolated HTTP regression file checks supplied setup
 tokens and preserves stored subscription plan, renewal and missing-token rules.
 See [bounded proof](docs/maintenance/evidence/1257-profile-credential-isolation.md).
+
+## Process-incarnation failure diagnostics (#1229)
+
+Run `bun scripts/e2e-process-incarnation-diagnostics.mjs` for the credentialless
+headless gate. It injects denied Darwin probe results at `spawnSync`, exercises
+the actual cross-process turn coordinator and HTTP route, and requires the
+proxy log to name the known failed probe and sanitized errno/exit status.
+The HTTP body remains the existing generic 500. Require zero SDK queries and
+no published lock, local turn-fence release, successful capture when the probe
+becomes available, and unchanged conservative Darwin recovery. Non-errno text,
+raw stderr/arguments and malformed successful output are negative controls.
+
+Set `E2E_SOURCE_ROOT` to an unchanged checkout with dependencies to repeat the
+same diagnostic assertion before the correction; it must fail because the
+original error hides `/bin/ps` and `EPERM`. The maintained test invokes the gate
+in fresh processes so a cached successful incarnation cannot mask the denial.
+
+This gate simulates probe denial. It does not prove operation inside the
+reporter's macOS 27.0.1 / nono 0.79.0 / OpenCode 2.0.21 / plugin 1.11.1 setup,
+and no sandbox exception or replacement native probe is installed. Actual
+affected-platform/native/client proof remains open; #1229 stays open.
+
+The actual controlled Darwin denial gate is separately escrowed as
+`python3 -B scripts/e2e-process-incarnation-seatbelt.py --baseline-module
+/absolute/path/to/unchanged-processIncarnation.ts --bun /absolute/path/to/bun
+--out /new/private/output`. It uses only Python stdlib, Bun and the actual
+incarnation module with an explicit Seatbelt `/bin/ps` execution deny. It saves
+safe complete stdout/stderr and source hashes, bounds each owned process to
+15 seconds, and tests baseline-absent versus corrected-present diagnostics
+while both captures fail closed. Run on macOS only; the observed macOS 26.6.2 /
+Bun 1.3.14 result is not the reporter's macOS 27.0.1/nono/client acceptance.
+See the same evidence document for a shell command and durable observations.
