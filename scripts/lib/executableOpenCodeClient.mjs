@@ -173,6 +173,12 @@ export async function createExecutableOpenCodeClient({repo, root, proxyURL, env,
     assert.equal(created.status, 200)
     session = (await created.json()).id
     assert(session, 'OpenCode did not create its own session')
+    // Provider initialization invokes the plugin loader; session creation and
+    // `debug config` alone only load configuration on this V1 host.
+    const providers = await fetch(hostURL + '/provider', {signal: AbortSignal.timeout(60000)})
+    assert.equal(providers.status, 200)
+    await providers.arrayBuffer()
+    await new Promise(resolve => setTimeout(resolve, 100))
     assert(hostErrors.split('\n').some(line => line.includes('loading plugin') && line.includes(plugin)),
       'Actual OpenCode did not record loading the expected Meridian plugin')
     const identity = {version: expectedVersion, plugin: '<repo>/dist/meridian',
