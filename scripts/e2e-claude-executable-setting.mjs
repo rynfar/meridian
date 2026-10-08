@@ -15,13 +15,14 @@
 //   npm run build
 //   E2E_PROFILE_CLAUDE_DIR="$HOME/.claude" node scripts/e2e-claude-executable-setting.mjs
 import assert from 'node:assert/strict'
-import {randomUUID} from 'node:crypto'
+import {randomBytes, randomUUID} from 'node:crypto'
 import {chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
 import {homedir, tmpdir} from 'node:os'
 import {basename, dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {spawn} from 'node:child_process'
 import {observeChildClosure, stopAndJoinChild} from './lib/e2eProcessCustody.mjs'
+import {createExecutableOpenCodeClient} from './lib/executableOpenCodeClient.mjs'
 
 assert.equal(process.platform, 'linux', 'Process attribution reads Linux procfs')
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -36,6 +37,7 @@ const sdkVersion = JSON.parse(readFileSync(join(packageDir('claude-agent-sdk'), 
 const systemTarget = realpathSync(process.env.E2E_SYSTEM_CLAUDE ?? bundled)
 const customTarget = realpathSync(process.env.E2E_CUSTOM_CLAUDE ?? bundled)
 const model = process.env.E2E_MODEL ?? 'claude-haiku-4-5'
+const actualOpenCode = process.env.E2E_CLIENT === 'opencode'
 const longLines = Number(process.env.E2E_LONG_LINES ?? 200)
 const SHELLS = new Set(['sh', 'bash', 'dash', 'zsh', 'busybox'])
 const sleep = ms => new Promise(done => setTimeout(done, ms))
@@ -108,6 +110,13 @@ Object.assign(env, {
   MERIDIAN_CREDENTIALS_READONLY: '1', MERIDIAN_DEFAULT_PROFILE: 'owned-exe',
   MERIDIAN_PROFILES: JSON.stringify([{id: 'owned-exe', claudeConfigDir: join(root, 'claude-profile')}]),
 })
+if (actualOpenCode) {
+  assert(process.env.E2E_PLUGIN_PATH, 'Set E2E_PLUGIN_PATH to the independently installed OpenCode server scrub plugin')
+  const pluginConfig = join(root, 'plugins.json')
+  writeFileSync(pluginConfig, JSON.stringify({plugins: [{path: realpathSync(process.env.E2E_PLUGIN_PATH), enabled: true}]}), {mode: 0o600})
+  Object.assign(env, {MERIDIAN_PASSTHROUGH: '1', MERIDIAN_PLUGIN_CONFIG: pluginConfig,
+    MERIDIAN_OPENCODE_ATTESTATION_KEY: randomBytes(32).toString('base64url')})
+}
 
 const server = spawn(process.execPath, [cli], {cwd: join(root, 'project'), env, detached: true, stdio: ['ignore', 'pipe', 'pipe']})
 const serverPid = server.pid
@@ -145,7 +154,7 @@ function observe() {
 const observer = setInterval(observe, 20)
 const kindOf = argv1 => argv1 === '--version' ? 'version' : argv1 === 'auth' ? 'auth' : 'session'
 
-let base
+let base, client
 const request = (path, init = {}) => fetch(base + path, {...init, signal: AbortSignal.timeout(300000)})
 const health = async () => (await request('/health')).json()
 async function settings(method = 'GET', body) {
@@ -176,13 +185,20 @@ const longFixture = receipt => `For this JavaScript integration fixture, what ex
 async function turn({stream, prompt, receipt, maxTokens = 256, during}) {
   const logStart = readLog().length
   const startedAt = Date.now()
+  let text = '', stopped = !stream, responseModel, duringDone, clientResult
+  if (client) {
+    clientResult = await client.turn({prompt, receipt, during})
+    responseModel = clientResult.responseModel
+    stopped = clientResult.stopped
+    text = clientResult.receiptDelivered ? receipt : ''
+    duringDone = Promise.resolve(clientResult.duringResult)
+  } else {
   const response = await request('/v1/messages', {
     method: 'POST',
     headers: {'content-type': 'application/json', 'anthropic-version': '2023-06-01'},
     body: JSON.stringify({model, max_tokens: maxTokens, stream, messages: [{role: 'user', content: prompt}]}),
   })
   if (response.status !== 200) assert.fail(`HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`)
-  let text = '', stopped = !stream, responseModel, duringDone
   if (stream) {
     const decoder = new TextDecoder(), reader = response.body.getReader()
     let buffered = ''
@@ -208,6 +224,7 @@ async function turn({stream, prompt, receipt, maxTokens = 256, during}) {
     responseModel = body.model
     text = body.content.filter(block => block.type === 'text').map(block => block.text).join('')
   }
+  }
   const endedAt = Date.now()
   const duringResult = await duringDone
   await sleep(300)
@@ -216,6 +233,7 @@ async function turn({stream, prompt, receipt, maxTokens = 256, during}) {
   const wrapped = new Map(sessions.map(entry => [entry.pid, entry.name]))
   const processes = [...children.values()].filter(child => child.firstSeen >= startedAt && child.firstSeen <= endedAt && child.exe && kindOf(child.argv1) === 'session')
   return {
+    ...(clientResult ? {actualClient: true, sameSession: clientResult.sameSession, primaryRequests: clientResult.primaryRequests} : {}),
     receiptDelivered: text.includes(receipt), stopped, responseModel, endedAt, durationMs: endedAt - startedAt, duringResult,
     started: {
       system: sessions.filter(entry => entry.name === 'system').length,
@@ -231,7 +249,8 @@ function expectRanOn(result, expected) {
   assert(result.stopped, 'the turn did not finish')
   const started = Object.entries(result.started).filter(([, count]) => count > 0).map(([name]) => name)
   assert.deepEqual(started, [expected], `expected only ${expected} to start Claude Code, saw ${JSON.stringify(result.started)}`)
-  return {ranOn: expected, responseModel: result.responseModel, durationMs: result.durationMs, started: result.started}
+  return {ranOn: expected, responseModel: result.responseModel, durationMs: result.durationMs, started: result.started,
+    ...(result.actualClient ? {actualClient: true, sameSession: result.sameSession, primaryRequests: result.primaryRequests} : {})}
 }
 async function expectActive(body, path, source, version) {
   assert.equal(realpathSync(body.active.path), realpathSync(path))
@@ -258,6 +277,14 @@ try {
     const reported = (await health()).claudeExecutable
     assert.deepEqual(reported, {path: shim, source: 'path-lookup'})
     return {source: reported.source}
+  })
+  if (actualOpenCode) await step('actual-client-preflight', async () => {
+    const loaded = await request('/plugins/list').then(response => response.json())
+    const scrub = loaded.plugins.find(plugin => plugin.name === 'opencode-scrub')
+    assert.equal(scrub?.status, 'active', 'The actual OpenCode server scrub plugin did not load')
+    if (process.env.E2E_PLUGIN_VERSION) assert.equal(scrub.version, process.env.E2E_PLUGIN_VERSION)
+    client = await createExecutableOpenCodeClient({repo, root, proxyURL: base, env, model})
+    return {...client.identity, scrub: {version: scrub.version, status: scrub.status}}
   })
   await step('turn-on-path', async () => {
     const receipt = 'PATH-' + randomUUID()
@@ -338,6 +365,8 @@ if (base) {
   adapters = [...new Set((Array.isArray(recent) ? recent : recent.requests ?? []).map(row => row.adapter).filter(Boolean))]
 }
 clearInterval(observer)
+const clientClosure = client ? await client.close() : undefined
+if (clientClosure && !clientClosure.closed && !failure) failure = {step: 'cleanup', reason: 'client relay did not close'}
 const closure = await stopAndJoinChild(server, serverClosure)
 if (!closure.joined && !failure) failure = {step: 'cleanup', reason: 'server exit/close/captured-pipe custody is unconfirmed'}
 // Every Claude Code process this run started works in the disposable project.
@@ -363,6 +392,7 @@ const summary = clean({
     custom: {path: custom, runs: customTarget, version: customVersion},
   },
   adapters, steps, serverRestarted: false, residualProcesses: residual.length, closure,
+  ...(clientClosure ? {actualClient: 'opencode-v1', clientClosure} : {actualClient: null}),
   operatorProfileMutated: false, credentialSnapshotRemoved: !existsSync(credentialSnapshot),
 })
 writeFileSync(join(root, 'proof.json'), JSON.stringify(summary, null, 2), {mode: 0o600})
