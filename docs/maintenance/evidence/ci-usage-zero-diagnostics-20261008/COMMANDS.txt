@@ -1,6 +1,6 @@
 Portable synthetic diagnostic check (deliberately failing; Bash/zsh):
 
-diag_dir="$(mktemp -d -t meridian-ci-diagnostic)"
+diag_dir="$(mktemp -d "${TMPDIR:-/tmp}/meridian-ci-diagnostic.XXXXXX")"
 cp docs/maintenance/evidence/ci-usage-zero-diagnostics-20261008/baseline.test.ts.txt "$diag_dir/baseline.test.ts"
 cp docs/maintenance/evidence/ci-usage-zero-diagnostics-20261008/corrected.test.ts.txt "$diag_dir/corrected.test.ts"
 cp docs/maintenance/evidence/ci-usage-zero-diagnostics-20261008/bunfig.toml.txt "$diag_dir/bunfig.toml"
