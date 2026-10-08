@@ -4,7 +4,7 @@
 // flight finishes on the executable it started with.
 //
 // Starts the built Node server (dist/cli.js) once, with a disposable config,
-// session store, project, HOME/XDG and port. Credentials come read-only from
+// session store, project, XDG and port. Credentials come read-only from
 // E2E_PROFILE_CLAUDE_DIR. The `claude` on PATH and the custom executable are
 // wrappers that log which of them started and then exec a real Claude Code
 // (E2E_SYSTEM_CLAUDE and E2E_CUSTOM_CLAUDE, the bundled one by default); the
@@ -68,7 +68,7 @@ const systemVersion = await claudeVersion(systemTarget)
 const customVersion = await claudeVersion(customTarget)
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'meridian-exe-setting-')))
-for (const dir of ['bin', 'custom', 'config', 'sessions', 'project', 'home', 'xdg', 'claude-profile']) mkdirSync(join(root, dir), {mode: 0o700})
+for (const dir of ['bin', 'custom', 'config', 'sessions', 'project', 'xdg', 'claude-profile']) mkdirSync(join(root, dir), {mode: 0o700})
 // Borrow only a credential snapshot. Native transcripts/settings belong to
 // this private profile; the operator's profile is never scanned or written.
 const credentialSnapshot = join(root, 'claude-profile', '.credentials.json')
@@ -99,7 +99,6 @@ const readLog = () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(
 const env = {...process.env}
 for (const key of Object.keys(env)) if (/^(MERIDIAN_|CLAUDE|ANTHROPIC_|OPENAI_|OPENCODE_)/.test(key)) delete env[key]
 Object.assign(env, {
-  HOME: join(root, 'home'),
   PATH: `${join(root, 'bin')}:/usr/local/bin:/usr/bin:/bin`,
   XDG_CONFIG_HOME: join(root, 'xdg', 'config'), XDG_DATA_HOME: join(root, 'xdg', 'data'),
   XDG_CACHE_HOME: join(root, 'xdg', 'cache'), XDG_STATE_HOME: join(root, 'xdg', 'state'),
