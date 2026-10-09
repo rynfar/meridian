@@ -104,13 +104,45 @@ the qualified `7960fd62` source. Later commits change escrow/documentation only.
 Selected installed package identities and the dependency lock stay qualified
 separately from final-head delivery/package/release provenance.
 
-The remaining actual affected-flow proof, four E41 modes, broader independently
-installed package flows and required final-head CI remain open.
+All four adjacent E41 modes now pass with escrow
+`3f642f6eaf395e30f67f19351cdf12e475f5f8d5` in image
+`sha256:2b57ddec922dcb8401dc48ccbf0a854d5248e3cffcac34e1f7384ad9b41b7237`.
+These are owned OpenCode-shaped HTTP fixtures using the same real SDK/native
+model, distinct from the actual OpenClaw client flow above. Chain JSON/SSE each
+return three batches of one read and preserve four immutable parent histories;
+parallel JSON/SSE each return one batch of three reads and preserve two parents.
+Every continuation forks the immediately previous working mapping, retains one
+successful real result per call without a forwarding denial, and reads the full
+prior cached prefix (the required floor is 95%). Saved-fork follow-ups complete.
+The four modes make 16 native SDK queries. All original actor/public API/HTTP
+and outer container witnesses join; stopped containers and the unchanged
+read-only access input are removed after terminal audit. Offline thinking
+fidelity also retains its three baseline failures and three corrected passes.
+
+A fresh build from the exact tracked `3f642f6e` source archive produces candidate
+tarball SHA256 `dcadf6b9bfec56fbca90878325a4a1acd83767d0af611856d68783290db873f2`,
+byte-identical to the independently installed and live-tested package. All 452
+selected members' contents, types and modes match. The compiler/dependencies
+and original build process are qualified; archive builds do not claim local Git
+certification or published release provenance. Later evidence-only commits
+do not change package/build inputs.
+
+Fresh root adversarial delivery review checks the complete production diff,
+regression controls, raw/SDK proof separation, fallback/namespace/undo/checkpoint
+paths, ordinary/atomic storage, fixture failures, actual before/after assertions,
+four-mode history/cache evidence and package identity. No material scoped finding
+remains. This is root review; archived independent acceptance retains its original
+source scope. A focused delivery can proceed through required final-head CI.
+The broader historical Kubernetes/native tuple, undisclosed classifier and
+fresh same-window off/on/off remain issue gates.
 The separately accepted scrub candidate remains unlanded. The undisclosed
 September classifier trigger and missing fresh off/on/off controls prevent a
 billing/classifier resolution claim or issue closure.
 
 Supplemental source identities, gate logs and all failed/passing preparation
 receipts remain in `meridian-review-evidence-20261006/core769-current-main-20261009-round1`
-and `core769-current-main-20261009-round2-native`.
+and `core769-current-main-20261009-round2-native`, with the E41 matrix in
+`core769-e41-matrix-20261009-round1` and fresh package proof in
+`core769-final-package-20261009-round1`. A portable sanitized
+[native evidence receipt](openclaw769-native-contract-20261009.json) is committed.
 No release, community comment, owner-checkout mutation or classifier rule was added.

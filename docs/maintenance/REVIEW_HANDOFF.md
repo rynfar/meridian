@@ -57,8 +57,12 @@ arms exit zero with original process/query/HTTP custody joined. Read-only
 access input and stopped owned containers are removed after audit. This is
 bounded contract acceptance; no classifier/billing resolution is claimed and
 no new PR was created.
-Actual client/model/SDK/platform, E41, installed-package and final-head CI gates
-remain open. Keep #769 open: its new classifier trigger is undisclosed and its
+All four adjacent E41 modes pass with exact chain/parallel batches, immutable
+parents, one real answer per call, previous-fork continuation and full prior
+cache reads. The fresh source-archive package is byte-identical to all 452
+installed/live-tested candidate members. Required final-head CI remains a
+delivery gate. The original historical Kubernetes/native tuple remains separate.
+Keep #769 open: its new classifier trigger is undisclosed and its
 current same-window off/on/off evidence is incomplete. No new delivery PR yet.
 
 Draft #1322 and the older native/product/client/package holds remain separate.
