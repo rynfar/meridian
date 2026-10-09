@@ -1,0 +1,96 @@
+{
+  "focusedInitial": {
+    "session": 66180,
+    "exit": 1,
+    "joined": true
+  },
+  "focusedCorrected": {
+    "session": 97158,
+    "exit": 0,
+    "joined": true
+  },
+  "native": [
+    {
+      "case": "interrupt-source",
+      "session": 25742,
+      "exit": 1,
+      "driverJoined": true
+    },
+    {
+      "case": "interrupt-resume-source",
+      "session": 39296,
+      "exit": 0,
+      "driverJoined": true
+    },
+    {
+      "case": "interrupt-resume-installed",
+      "session": 69779,
+      "exit": 0,
+      "driverJoined": true
+    },
+    {
+      "case": "interrupt-settled-source",
+      "session": 88404,
+      "exit": 1,
+      "driverJoined": true
+    },
+    {
+      "case": "interrupt-settled-qualified-source",
+      "session": 7543,
+      "exit": 1,
+      "driverJoined": true
+    }
+  ],
+  "initialLocalGates": [
+    {
+      "name": "test",
+      "session": 70502,
+      "exit": 2,
+      "joined": true
+    },
+    {
+      "name": "typecheck",
+      "session": 5691,
+      "exit": 2,
+      "joined": true
+    },
+    {
+      "name": "build",
+      "session": 27669,
+      "exit": 0,
+      "joined": true
+    }
+  ],
+  "correctedLocalGates": [
+    {
+      "name": "typecheck",
+      "session": 95635,
+      "exit": 0,
+      "joined": true
+    },
+    {
+      "name": "build",
+      "session": 32495,
+      "exit": 0,
+      "joined": true
+    },
+    {
+      "name": "compiled",
+      "session": 42162,
+      "exit": 0,
+      "joined": true
+    },
+    {
+      "name": "test",
+      "session": 5475,
+      "exit": 0,
+      "joined": true
+    }
+  ],
+  "pending": [],
+  "rehearsals": {
+    "session": 40240,
+    "exit": 0,
+    "driverJoined": true
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "triggerCorrection": "Require both exact owned error tool_result receipts containing the fixture hook denial, in addition to complete generation and both hooks.",
+  "priorMechanism": "hooks-complete interruption returned aborted_tools",
+  "productionChanges": false,
+  "actualModelAcceptance": false
+}

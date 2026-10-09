@@ -5084,3 +5084,41 @@ Next: qualify exact handback message, parent-launch instruction and parent-resul
 encoding separately; investigate/enforce native generation bounds without
 raising them. Continue cancellation/parent-abort and caption/reporter gates.
 No source closure, merge or release is authorized by these failed proofs.
+
+### 2026-10-09: handback diagnostics and interrupted-checkpoint discovery
+
+Existing draft #1322 continues oldest original #1211. The
+[current diagnostic/discovery packet](evidence/1211-handback-diagnostics-interrupt-20261009/README.md)
+binds code head `49d8a0a9`: 5,889 pass / 36 skip / zero failures across all 22
+npm-isolated batches, including pretest, standalone typecheck/build and compiled
+request-context control. Thirty-five focused checks, twenty-eight synthetic
+executions and three zero-query source/package/baseline rehearsals pass. The
+initial new test-expectation and JS declaration failures are retained.
+
+New facts distinguish exact child input, launch-prompt naming/report text,
+parent structured result identity/disposition/report/warning and caller-message
+occurrences. Inputs, prompts, IDs, reports and warnings stay private. None changes
+the original strict acceptance predicates: structured and inbox controls still
+FAIL that gate. The actual mixed source proof remains FAIL 24/27; its missing
+historical private facts cannot be reconstructed.
+
+Network-disabled public SDK/native discovery at SDK 0.2.141 with native 2.1.284
+and independently installed 2.1.295 shows that interrupt after full generation
+and hooks yields `error_during_execution` / `aborted_tools`, preserves both
+parallel calls, and supports a distinct fork with both real client results once
+and unchanged original public history. This is direct SDK/native discovery,
+not integrated proxy/client/model acceptance. Later full-denial settlement yields
+`aborted_streaming`; a second direct API round can race an interrupt issued at
+round one. Both later attempts remain FAIL; their fork/resume and installed
+later-phase counterpart are UNEXECUTED. Seven exploratory queries/eight local
+API rounds total; zero real credentials or models. All original actors, pipes,
+iterators, listeners, private runtimes, fake grants and stopped containers join
+or are removed. No production interrupt/result/cap change is made.
+
+Next investigate owned stop timing around full forwarded generation and held
+denial release; do not infer provider-request counts from public generation IDs.
+Then implement/verify production and qualify handback format in a bounded real
+run with renewed profile-qualified auth. All inherited cancellation/parent-abort,
+caption/reporter, platform/client/package/history and final-head CI holds remain.
+Owner checkout and all eighteen contributor records remain exact. No new PR,
+worktree, merge, source closure, release or external comment.

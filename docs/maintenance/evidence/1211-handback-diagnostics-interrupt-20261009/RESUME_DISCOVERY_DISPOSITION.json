@@ -1,0 +1,16 @@
+{
+  "status": "PUBLIC_INTERRUPTED_CHECKPOINT_FORK_DISCOVERY_QUALIFIED_PRODUCTION_HELD",
+  "sourceNative": "2.1.284",
+  "installedNative": "2.1.295",
+  "sdk": "0.2.141",
+  "queries": 4,
+  "directLoopbackApiRounds": 4,
+  "publicOriginalAndForkHistoryAssertions": "PASS",
+  "originalInterruptedResult": "error_during_execution / is_error true / aborted_tools / native num_turns 4",
+  "resumeResult": "success / is_error false / completed / native num_turns 1",
+  "rawTranscriptReads": 0,
+  "productionIntegration": "UNIMPLEMENTED",
+  "existingPredicateChanged": false,
+  "actualClientAndModelAcceptance": false,
+  "earlierNegativeInterruptProbeRetained": true
+}

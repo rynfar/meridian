@@ -6734,6 +6734,21 @@ controls reproduce five loopback API rounds versus four with normal text,
 without credentials or actual model calls. The [current qualified packet](docs/maintenance/evidence/1211-mixed-auto-handback-20261009/README.md)
 retains all original failures, exact joins, runtime-mechanism limits and holds.
 
+**Current diagnostic/discovery checkpoint (2026-10-09):** observer `49d8a0a9`
+adds private-input/launch-prompt/structured-result/caller-message facts without
+changing report, ownership or generation acceptance. Its full local gates pass
+(5,889 / 36 / zero), with 35 focused checks, 28 synthetic executions and three
+zero-query rehearsals. Structured and inbox controls still fail the strict gate.
+The [new packet](docs/maintenance/evidence/1211-handback-diagnostics-interrupt-20261009/README.md)
+escrows seven offline SDK queries/eight directly counted loopback API rounds.
+Earlier hook-completion interrupts preserve a public fork on native 2.1.284 and
+2.1.295, but return an error, not normal success. Later denial settlement returns
+`aborted_streaming` and can race another API round without another complete
+public generation. Both later attempts remain FAIL. Production stop timing,
+integrated checkpoint acceptance, actual handback format and affected-flow live
+proof remain open. Existing caps and predicates are unchanged; no real models or
+credential reads occur in these discovery controls, and all owned custody joins.
+
 ## E73: Unknown thinking display values
 
 **What it proves:** a request whose `thinking.display` the bundled Claude Code

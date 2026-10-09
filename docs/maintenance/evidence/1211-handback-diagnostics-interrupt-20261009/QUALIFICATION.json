@@ -1,0 +1,22 @@
+{
+  "atUTC": "2026-10-09T22:16:57.170701+00:00",
+  "head": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+  "previousHead": "fc2a48c706114e1b103cd1fcd8a900a99980a853",
+  "productionPackageLockAndPluginDeltaEmpty": true,
+  "focusedTests": 35,
+  "syntheticHarnessExecutions": 28,
+  "handbackGateUnchanged": true,
+  "diagnosticControlsRetainStructuredAndInboxDeliveryRejection": true,
+  "sourceAndInstalledPublicInterruptAndForkEvidenceQualified": true,
+  "nativeExploratoryQueries": 7,
+  "nativeLoopbackApiRounds": 8,
+  "realCredentialReads": 0,
+  "actualModelAcceptance": false,
+  "publicSessionApiOnly": true,
+  "canonicalInterruptAcceptanceUnchanged": true,
+  "allOriginalNativeActorsAndContainersJoinedRemoved": true,
+  "nextAction": "Investigate attempt-owned interruption around complete forwarded generation and held-denial release; account for raced provider calls and exactly owned aborted result. No production integration or handback acceptance is established.",
+  "earlierHookCompletionPhaseScopeOnly": true,
+  "laterSettledDenialPhaseAcceptance": "FAIL / stopped before fork",
+  "laterPhaseInstalled": "UNEXECUTED"
+}

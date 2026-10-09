@@ -1,0 +1,9 @@
+{
+  "atUTC": "2026-10-09T22:10:56.978178+00:00",
+  "originalTestSession": 66180,
+  "exit": 1,
+  "pass": 33,
+  "fail": 2,
+  "reason": "New assertions mistakenly expected nativeReceipts false; canonical native custody remains valid while actualAgentAndBashReceipts and nativeHandbackReports reject both structured and inbox delivery. Corrected only this new test expectation. Initial 28 synthetic proof files retained under controls.",
+  "acceptanceChanged": false
+}

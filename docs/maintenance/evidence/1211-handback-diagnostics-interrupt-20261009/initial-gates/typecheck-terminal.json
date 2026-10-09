@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T22:12:53.153786+00:00",
+  "head": "b5bfcb9dd30cc8f94e9afeeb6774cac258a24f2c",
+  "argv": [
+    "npm",
+    "run",
+    "typecheck"
+  ],
+  "driverPid": 11030,
+  "childPid": 11133,
+  "originalProcessJoined": true,
+  "exitCode": 2,
+  "headAfter": "b5bfcb9dd30cc8f94e9afeeb6774cac258a24f2c",
+  "cleanAfter": true
+}

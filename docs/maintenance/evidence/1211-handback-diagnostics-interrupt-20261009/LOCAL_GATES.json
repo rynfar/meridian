@@ -1,0 +1,73 @@
+{
+  "head": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+  "pass": 5889,
+  "skip": 36,
+  "fail": 0,
+  "isolatedBunBatches": 22,
+  "npmPretestTypecheckIncluded": true,
+  "standaloneTypecheckBuildAndCompiledControlPass": true,
+  "allOriginalDriversJoined": true,
+  "receipts": {
+    "test": {
+      "atUTC": "2026-10-09T22:32:38.415263+00:00",
+      "head": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "driverPid": 14766,
+      "childPid": 14890,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "cleanAfter": true
+    },
+    "typecheck": {
+      "atUTC": "2026-10-09T22:14:12.822396+00:00",
+      "head": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "driverPid": 14767,
+      "childPid": 14889,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "cleanAfter": true
+    },
+    "build": {
+      "atUTC": "2026-10-09T22:13:58.706142+00:00",
+      "head": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "driverPid": 14768,
+      "childPid": 14891,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "cleanAfter": true
+    },
+    "compiled": {
+      "atUTC": "2026-10-09T22:15:20.181136+00:00",
+      "head": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "argv": [
+        "bun",
+        "test",
+        "src/__tests__/claude-auto-mode-harness.test.ts",
+        "-t",
+        "binds existing certified compiled HTTP requests"
+      ],
+      "driverPid": 22255,
+      "childPid": 22306,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+      "cleanAfter": true
+    }
+  }
+}

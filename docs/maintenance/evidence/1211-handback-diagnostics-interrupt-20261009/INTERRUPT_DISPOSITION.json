@@ -1,0 +1,17 @@
+{
+  "atUTC": "2026-10-09T22:12:23.855670+00:00",
+  "status": "NOT_FIT_FOR_CANONICAL_CHECKPOINT_REPLACEMENT",
+  "observed": "Public interrupt acknowledged after complete two-tool generation and both hooks; one loopback API round, error_during_execution/is_error true/terminal_reason aborted_tools/num_turns 4, iterator exception exactly matched prior result, native exit 1.",
+  "canonicalAcceptance": "Existing canonical predicate does not accept this subtype; no production interruption or predicate change made.",
+  "limitations": [
+    "Public session durability/resume was not inspected in this exploratory case.",
+    "The result is source native 2.1.284 only; installed 2.1.295 and actual model are unexecuted."
+  ],
+  "queries": 1,
+  "localApiRounds": 1,
+  "modelNetworkDisabled": true,
+  "realCredentialReads": 0,
+  "originalDriverAndAttachJoined": true,
+  "ownedNativeAndStdioIteratorJoins": true,
+  "privateRuntimeAndStoppedContainerRemoved": true
+}
