@@ -53,9 +53,11 @@ const report = {
 }
 let retired = false, phase = 'preparation', mode = 'noop', token
 let instance, relay, sdk, currentClient
+let startup, startupSettled = false
 const controls = new Set(), sockets = new Set(), socketClosures = [], handlers = new Set(), children = []
 const childIndex = new WeakMap(), spies = []
 const reads = new Set(), realSpawn = cp.spawn
+const deliveredCalls = new Set()
 let proxyClosed = false
 function fail(code) {
   retired = true
@@ -135,6 +137,7 @@ function observeQuery() {
       const serialized = JSON.stringify(value)
       facts.inputMarker ||= serialized.includes(marker)
       facts.inputReceipt ||= serialized.includes(receipt)
+      facts.inputToolPair ||= [...deliveredCalls].some(id => serialized.includes(id)) && serialized.includes(receipt)
       facts.inputDigests.push(digest(serialized))
     }
     let prompt = params.prompt
@@ -232,6 +235,13 @@ async function forward(request, response) {
     const bytes = Buffer.concat(chunks), body = JSON.parse(bytes)
     need(body.model === 'opus[1m]' && body.stream === true, 'actual-client-model-stream-mismatch')
     need(report.requests.length < 16, 'native-request-bound')
+    const blocks = body.messages.flatMap(message => Array.isArray(message.content) ? message.content : [])
+    for (const block of blocks) {
+      if (block.type !== 'tool_result' || block.is_error || !JSON.stringify(block.content).includes(receipt)) continue
+      const call = blocks.find(item => item.type === 'tool_use' && item.id === block.tool_use_id && item.name === 'read'
+        && (item.input?.path === fixture || item.input?.file_path === fixture))
+      if (call) deliveredCalls.add(call.id)
+    }
     const facts = { phase, mode, rawCount: body.messages.length, toolCount: body.tools?.length ?? 0, model: body.model, stream: body.stream,
       bodyDigest: digest(bytes), toolReceiptPresent: JSON.stringify(body.messages).includes(receipt), status: null, responseJoined: false }
     report.requests.push(facts)
@@ -325,11 +335,15 @@ try {
     const pluginConfig = join(output, 'plugins.json')
     writeFileSync(pluginConfig, JSON.stringify({ plugins: [{ path: input.SCRUB_ENTRY, enabled: true }, { path: pluginPath, enabled: true }] }), { mode: 0o600 })
     const product = await import(pathToFileURL(input.MERIDIAN_ENTRY).href)
-    instance = await bounded(product.startProxyServer({ port: 0, host: '127.0.0.1', silent: true, backend: 'claude',
+    startup = product.startProxyServer({ port: 0, host: '127.0.0.1', silent: true, backend: 'claude',
       profiles: [{ id: 'taskoauth', type: 'oauth-token', oauthToken: token }], defaultProfile: 'taskoauth',
-      pluginDir: join(output, 'empty-plugins'), pluginConfigPath: pluginConfig, installProcessErrorHandlers: false }), 30_000, 'proxy-start-deadline')
-    trackServer(instance.server)
-    instance.server.once('close', () => { proxyClosed = true })
+      pluginDir: join(output, 'empty-plugins'), pluginConfigPath: pluginConfig, installProcessErrorHandlers: false })
+      .then(proxy => {
+        instance = proxy; startupSettled = true
+        trackServer(proxy.server); proxy.server.once('close', () => { proxyClosed = true })
+        return proxy
+      }, error => { startupSettled = true; throw error })
+    await bounded(startup, 30_000, 'proxy-start-deadline')
     const pluginsResponse = await fetch(`http://127.0.0.1:${instance.server.address().port}/plugins/list`, { signal: AbortSignal.timeout(5000) })
     need(pluginsResponse.ok, 'installed-plugin-status-unavailable')
     const installedPlugins = await pluginsResponse.json()
@@ -368,6 +382,8 @@ try {
       need(queries.length > 0, 'real-query-missing-' + stage)
       const facts = { stage, markerInInput: queries.some(query => query.inputMarker), markerInSupportedHistory: history.includes(marker),
         receiptInSupportedHistory: history.includes(receipt), sdkPrefixProved: Boolean(mapping.lineageHash), rawOnlyProof: Boolean(mapping.clientLineageHash),
+        toolPairInSupportedHistory: [...deliveredCalls].some(id => history.includes(id)) && history.includes(receipt),
+        toolPairInInput: queries.some(query => query.inputToolPair),
         anyResume: queries.some(query => query.resume), rawCount: mapping.messageCount, workingSessionDigest: digest(mapping.claudeSessionId) }
       report.stages.push(facts)
       need(facts.receiptInSupportedHistory, 'supported-history-tool-receipt-lost-' + stage)
@@ -375,7 +391,10 @@ try {
         need(report.pluginObservations.some(row => row.phase === stage && row.markerRequested && !row.rawMarker), 'benign-transform-not-requested-or-raw-history-mutated')
         const expected = input.EXPECT === 'candidate'
         need(facts.markerInInput === expected && facts.markerInSupportedHistory === expected, 'execution-history-consumption-expectation-failed')
-        if (expected) need(!facts.anyResume && !facts.sdkPrefixProved && facts.rawOnlyProof, 'transformed-prefix-reuse-was-granted')
+        if (expected) {
+          need(!facts.anyResume && !facts.sdkPrefixProved && facts.rawOnlyProof, 'transformed-prefix-reuse-was-granted')
+          need(facts.toolPairInInput && facts.toolPairInSupportedHistory, 'transformed-actual-tool-pair-was-lost')
+        }
       }
       if (stage === 'restore-prefix' && input.EXPECT === 'candidate') need(!facts.anyResume && facts.sdkPrefixProved && !facts.rawOnlyProof, 'unchanged-full-replay-proof-not-restored')
       if (stage === 'normal-resume') need(facts.anyResume && facts.sdkPrefixProved && !facts.rawOnlyProof, 'equivalent-history-normal-resume-not-retained')
@@ -395,6 +414,10 @@ try {
 } catch (error) { fail(error.message) }
 finally {
   retired = true; clearTimeout(deadline)
+  if (startup && !startupSettled) {
+    try { await bounded(startup, 15_000, 'proxy-acquisition-settlement-deadline') }
+    catch (error) { fail(error.message) }
+  }
   for (const query of controls) { try { query.close() } catch (error) { fail('query-close-failed') } }
   if (currentClient) { const actor = childIndex.get(currentClient); if (actor) await stopAndJoinChild(currentClient, actor.witness, { graceMs: 3000, forceMs: 3000 }) }
   if (relay) {
@@ -414,7 +437,8 @@ finally {
   }
   try { await bounded(Promise.all(socketClosures), 3000, 'owned-socket-close-deadline'); await bounded(Promise.allSettled([...handlers]), 3000, 'owned-handler-close-deadline'); await bounded(Promise.allSettled([...reads]), 3000, 'supported-read-settlement-deadline') }
   catch (error) { fail(error.message) }
-  report.httpJoined = prepareOnly || (proxyClosed && !relay.listening && sockets.size === 0 && handlers.size === 0)
+  report.startupSettled = !startup || startupSettled
+  report.httpJoined = prepareOnly || (startupSettled && proxyClosed && (!relay || !relay.listening) && sockets.size === 0 && handlers.size === 0)
   report.queryJoins = prepareOnly || report.queries.every(query => query.constructed && query.iteratorSettled && query.closeCalled && query.publicSpawn)
   if (!report.httpJoined || !report.queryJoins) fail('native-actor-custody-incomplete')
   for (const spy of spies.reverse()) spy.mockRestore()
