@@ -112,7 +112,7 @@
       "sha256": "0d622e001125defc92187eb7a8d2f2a35fc31c4456956f841a4d73c8d6a524af"
     },
     {
-      "path": "initial-gates/typecheck.log",
+      "path": "initial-gates/typecheck-failure.txt",
       "bytes": 1350,
       "sha256": "7f384488e5ee3404cece99dcdbad7857031d7f2871c5c39114ad48787da09ead"
     },
