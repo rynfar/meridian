@@ -1,5 +1,45 @@
 # Upstream review handoff
 
+## Current oldest #1211 / existing #1322 pinned counter control (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first through existing draft #1322;
+it inherits #1211's age. Source heads and main `11dc1556` were refreshed and
+remain unchanged. Expanded #1231 stays excluded; #1283 is only the demonstrated
+MCP dependency. Owner checkout/index/twelve dirty files and eighteen raw
+contributor identities remain exact. Three retained worktrees remain sufficient.
+
+[Pinned counter evidence and adversarial review](evidence/1211-native-turn-counter-20261009/README.md)
+qualify twelve scripted cases each for SDK 0.2.141/native 2.1.284 and installed
+SDK/native 2.1.295 on Linux/x64. Both arms produce the same observations:
+cap-one tool handoffs make one API request/one distinct public generation but
+report `error_max_turns`/`num_turns: 2`; a three-tool response then text makes
+two requests but reports four turns. Repeated-tool negatives make two requests
+and two generations at cap two, reporting three turns. Every scripted response
+ID matches the public SDK ID set; all thirty-six requests stay within their caps.
+Result counters cannot establish actual API-round counts for these tuples.
+
+Both early discovery failures are preserved. The SDK replaces a post-result
+exit error with the preceding native result text; corrected controls compare it
+privately and require actual exit one, max-turn flags/reason and physical joins.
+All four original driver/attach handles, native/stdio/iterator/listener witnesses
+join; containers and private runtimes are removed, immutable inputs exact.
+Network is disabled and real credential/model calls are zero. The installed arm
+uses installed SDK/CLI with source query-options, not the installed proxy.
+
+The original twenty-check background gate and canonical predicate remain intact.
+Anthropic's frozen 2.1.277 changelog confirms TaskOutput removal in favor of Read;
+the prior actual 2.1.287 catalog agrees. A separate versioned Read proof design
+requires owned launch paths, exact final assistant reports bound to child HTTP
+terminals, original execution receipts/ordering/overlap/resume/MCP/model/custody
+and negative controls. Prompt substrings alone cannot qualify completion.
+Its implementation and actual native baseline/source/installed proof remain
+UNEXECUTED. Next implement it, run final local code gates, then actual E72.
+Current application code is unchanged from `a80fac56`'s 5,819/35/0 local gates;
+runtime remains `15f44351`. No production cap/predicate change, merge, closure,
+new PR or release. Historical 9,256 ms lease wait remains un-attributed; all
+background/mixed-auto/cancellation/caption/reporter/platform/gateway/package
+and final delivery-head CI holds remain explicit.
+
 ## Current oldest #1211 / existing #1322 public background diagnostics (2026-10-09 UTC)
 
 Continue combined original-creation oldest-first. The fresh paginated discovery

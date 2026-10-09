@@ -1,0 +1,238 @@
+{
+  "kind": "credential-free-pinned-runtime-discovery",
+  "actualModelAcceptance": false,
+  "actualClientAcceptance": false,
+  "platform": "linux/x64",
+  "bun": "1.3.11",
+  "startedAt": "2026-10-09T16:26:15.004Z",
+  "cases": [
+    {
+      "name": "text-cap1-stream",
+      "cap": 1,
+      "firstResponseTools": 0,
+      "permission": "deny",
+      "repeatedTools": false,
+      "apiRequests": [
+        {
+          "ordinal": 1,
+          "atMs": 5498.21,
+          "stream": true,
+          "toolResults": 0,
+          "errorToolResults": 0,
+          "scriptedToolCalls": 0
+        }
+      ],
+      "modelApiRounds": 1,
+      "publicGenerationIdsExactlyMatchScriptedResponses": true,
+      "generations": {
+        "assistantEvents": 1,
+        "streamStarts": 1,
+        "distinctGenerations": 1,
+        "missingGenerationIds": 0,
+        "missingToolIds": 0,
+        "conflictingToolOwners": 0,
+        "overflow": false,
+        "completeGenerationIds": true,
+        "uncorrelatedHooks": 0,
+        "generations": [
+          {
+            "number": 1,
+            "firstEventMs": 5537.28,
+            "lastEventMs": 5596.007,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "distinctTools": 0,
+            "toolHooks": 0,
+            "forwardedHooks": 0,
+            "droppedHooks": 0,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": null
+          }
+        ]
+      },
+      "hooks": 0,
+      "handlerCalls": 0,
+      "mcpConnected": true,
+      "sdkPartialEventsRequested": true,
+      "result": {
+        "subtype": "success",
+        "isError": false,
+        "numTurns": 1,
+        "terminalReason": "completed",
+        "atMs": 5627.171
+      },
+      "iteratorError": null,
+      "exactProcessExitOneError": false,
+      "closeError": null,
+      "iteratorSettled": true,
+      "nativeProcess": {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null
+      }
+    },
+    {
+      "name": "deny1-cap1-stream",
+      "cap": 1,
+      "firstResponseTools": 1,
+      "permission": "deny",
+      "repeatedTools": false,
+      "apiRequests": [
+        {
+          "ordinal": 1,
+          "atMs": 8183.994,
+          "stream": true,
+          "toolResults": 0,
+          "errorToolResults": 0,
+          "scriptedToolCalls": 1
+        }
+      ],
+      "modelApiRounds": 1,
+      "publicGenerationIdsExactlyMatchScriptedResponses": true,
+      "generations": {
+        "assistantEvents": 1,
+        "streamStarts": 1,
+        "distinctGenerations": 1,
+        "missingGenerationIds": 0,
+        "missingToolIds": 0,
+        "conflictingToolOwners": 0,
+        "overflow": false,
+        "completeGenerationIds": true,
+        "uncorrelatedHooks": 0,
+        "generations": [
+          {
+            "number": 1,
+            "firstEventMs": 8218.939,
+            "lastEventMs": 8229.132,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "distinctTools": 1,
+            "toolHooks": 1,
+            "forwardedHooks": 0,
+            "droppedHooks": 1,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": 8254.04
+          }
+        ]
+      },
+      "hooks": 1,
+      "handlerCalls": 0,
+      "mcpConnected": true,
+      "sdkPartialEventsRequested": true,
+      "result": {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "numTurns": 2,
+        "terminalReason": "max_turns",
+        "atMs": 8401.264
+      },
+      "iteratorError": "Error",
+      "exactProcessExitOneError": false,
+      "closeError": null,
+      "iteratorSettled": true,
+      "nativeProcess": {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 1,
+        "signal": null
+      }
+    }
+  ],
+  "outcome": "FAILED",
+  "cliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+  "cliVersion": "2.1.284",
+  "sdkVersion": "0.2.141",
+  "errorClass": "AssertionError",
+  "otherApiRequests": 2,
+  "cleanup": {
+    "admissionClosed": true,
+    "childrenJoined": true,
+    "iteratorsJoined": true,
+    "listenerClosed": true,
+    "children": [
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null,
+        "stderrBytes": 0
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null,
+        "stderrBytes": 0
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 1,
+        "signal": null,
+        "stderrBytes": 0
+      }
+    ],
+    "privateRuntimeRemoved": true
+  },
+  "environmentRestored": true,
+  "completedAt": "2026-10-09T16:26:21.956Z",
+  "exitCode": 1
+}

@@ -1,0 +1,42 @@
+{
+  "kind": "bounded-pinned-runtime-counter-semantics",
+  "arms": [
+    {
+      "packet": "pr1211-native-turn-counter-20261009-round3",
+      "sdkVersion": "0.2.141",
+      "cliVersion": "2.1.284",
+      "cliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+      "cases": 12,
+      "modelApiRequests": 18,
+      "allActualApiResponseIdsMatchedPublicSdkIds": true,
+      "allNativeAndIteratorAndListenerCustodyJoinedAndRemoved": true
+    },
+    {
+      "packet": "pr1211-native-turn-counter-installed-20261009-round1",
+      "sdkVersion": "0.2.141",
+      "cliVersion": "2.1.295",
+      "cliSha256": "4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358",
+      "cases": 12,
+      "modelApiRequests": 18,
+      "allActualApiResponseIdsMatchedPublicSdkIds": true,
+      "allNativeAndIteratorAndListenerCustodyJoinedAndRemoved": true
+    }
+  ],
+  "sameTwelveObservedTuplesAcrossTwoNativeVersions": true,
+  "controlledApiBudgetNeverExceeded": true,
+  "resultCounterNotEqualToApiRounds": true,
+  "postResultSdkErrorExactBoundToNativeResultAndExit": true,
+  "priorFailedDiscoveryAttemptsPreserved": [
+    "pr1211-native-turn-counter-20261009-round1",
+    "pr1211-native-turn-counter-20261009-round2"
+  ],
+  "originalE72TwentyChecksUnchanged": true,
+  "actualBackgroundAcceptance": "HELD",
+  "actualModelAcceptance": false,
+  "nativeProductAcceptance": false,
+  "sdkEntryByteIdentity": {
+    "sourceEarlierNativeWitnessAndInstalledControlMatch": true,
+    "sha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+    "sourceWitness": "../1211-background-public-diagnostics-20261009/native/output/e72-source-r1/claude-subagent-results.json"
+  }
+}

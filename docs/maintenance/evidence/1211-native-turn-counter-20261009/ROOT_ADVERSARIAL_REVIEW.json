@@ -1,0 +1,49 @@
+{
+  "scope": "Pinned SDK/native counter discovery, portable evidence and proposed separate Read completion proof; no whole-change acceptance",
+  "reviewer": "root adversarial pass; no delegated agents",
+  "materialFindingsResolved": [
+    {
+      "finding": "The discovery assumed a max-turn result would be followed by a clean iterator.",
+      "resolution": "R1 is preserved as failed; both CLI versions independently expose exit code one after the max-turn result. R3 records the error, binds it exactly to the preceding native result using the public SDK behavior, and requires physical process/stdio joins. Unrelated iterator errors fail. No E72 predicate changed."
+    },
+    {
+      "finding": "The second discovery assumed the iterator error would retain the plain native process-exit message.",
+      "resolution": "R2 is preserved as failed. The public SDK replaces that exception with prior result error text. R3 compares privately and emits only a binding boolean; actual exit code and signal witnesses stay independent."
+    },
+    {
+      "finding": "A proposed Read completion test based on substring output labels would also pass on the launch prompt or an incomplete output file.",
+      "resolution": "The design now requires an unambiguous final assistant report parsed from the actual public Read response and bound to the child's observed HTTP end-turn response, with role/record order and independent Bash receipts. Prompt-only, quoted and foreign-report negative controls are explicit. Implementation and native acceptance remain held."
+    }
+  ],
+  "checks": {
+    "counterCases": 24,
+    "scriptedModelApiRequestsInQualifiedArms": 36,
+    "twoEarlierFailedAttemptsPreserved": true,
+    "apiCountsCapturedAtOwnedEndpoint": true,
+    "allApiResponseIdsExactlyMatchPublicSdkGenerationIds": true,
+    "parallelFragmentsAreNotAdditionalModelGenerations": true,
+    "repeatedTwoGenerationNegativeControlsRetained": true,
+    "configuredApiCapsNotExceeded": true,
+    "nativeMcpCatalogAndHookReceiptsExact": true,
+    "permissionDenialAndActualInMemoryHandlerControlsCompared": true,
+    "noPartialsDoesNotClaimUpstreamJson": true,
+    "allExitCloseStdioIteratorListenerAndContainerJoinsVerified": true,
+    "zeroNativeSignalAttempts": true,
+    "privateOwnedRuntimesRemoved": true,
+    "readOnlyInputIdentitiesMatch": true,
+    "modelNetworkDisabledAndNoRealCredentialReads": true,
+    "originalTwentyBackgroundAssertionsAndPredicateUnchanged": true,
+    "ownerAndEighteenContributorIdentitiesExact": true,
+    "noNewPublicInterfaceOrProductionChange": true
+  },
+  "limitations": [
+    "Only SDK 0.2.141 with CLI 2.1.284 and 2.1.295 on Linux/x64 is qualified; no universal num_turns contract is inferred.",
+    "The installed arm uses installed SDK/CLI with the source query-options builder; it is not installed Meridian proxy acceptance.",
+    "Scripted API controls are not actual Claude Code/model/background product proof.",
+    "Read output-file syntax and public response record structure require actual-client observation and parser controls before acceptance.",
+    "Original TaskOutput and historical 9256 ms wait failures remain preserved; no lease cause or fix is inferred.",
+    "Read scenario implementation, local code gates after that change, baseline/source/installed live proof and final-head CI remain required.",
+    "All inherited mixed-auto, cancellation, caption, reporter/platform/gateway and broader package holds remain."
+  ],
+  "disposition": "PINNED_COUNTER_DIAGNOSTIC_QUALIFIED_WITH_BACKGROUND_AND_WHOLE_CHANGE_HOLDS"
+}

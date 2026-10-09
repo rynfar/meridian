@@ -6527,6 +6527,16 @@ body, SDK result and iterator timing can locate overlap with a later request;
 iterator settlement and a close call do not establish physical native exit or
 the exact lease-release instant. These diagnostics do not alter any of the
 twenty acceptance checks or qualify a noncanonical max-turn result.
+The [network-disabled pinned counter controls](docs/maintenance/evidence/1211-native-turn-counter-20261009/README.md)
+now directly count API requests for SDK 0.2.141 with native 2.1.284/2.1.295.
+One capped tool generation reports two turns; two API rounds with three parallel
+tools then text report four. Both repeated-tool negatives and physical joins are
+retained. These observations do not change the original predicate or establish
+actual background acceptance. A [separate Read completion proof design](docs/maintenance/evidence/1211-native-turn-counter-20261009/READ_COMPLETION_DESIGN.md)
+requires owned output paths and final assistant reports bound to actual child
+terminals; labels also present in the initial prompt cannot qualify completion.
+Implementation, local code gates and native baseline/source/installed execution
+of that versioned scenario remain required.
 Version probes are included in those owned handles. No background, mixed-auto or
 cancellation acceptance is established until exact actual-client/source/installed
 proof is run and audited; existing prior proof retains its original observer SHA.
