@@ -16,21 +16,26 @@ import { createQueryMcpReadinessWitness } from './lib/e2eMcpReadiness.mjs'
 import { createOwnedClientProcess } from './lib/e2eOwnedClient.mjs'
 import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/e2ePublicSdkDiagnostics.mjs'
 import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
+import { createRequestModelWitness } from './e2e-claude-code-auto-mode.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork } from './lib/e2eMixedAuto.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
-const names = new Set(['scenario', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
+const names = new Set(['scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
 const args = {}
 for (let i = 2; i < process.argv.length; i++) {
   const key = process.argv[i].replace(/^--/, '')
   assert(process.argv[i].startsWith('--') && (switches.has(key) || names.has(key)) && !(key in args), 'Unknown or repeated harness option')
   args[key] = switches.has(key) ? true : process.argv[++i]
 }
-for (const key of names) if (!['source-head', 'scenario'].includes(key)) assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
+for (const key of names) if (!['source-head', 'scenario', 'classifier-model', 'classifier-served-model'].includes(key)) assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
 const scenario = args.scenario ?? 'foreground'
-assert(['foreground', 'background', 'background-read-v2'].includes(scenario), 'Invalid E72 scenario')
+assert(['foreground', 'background', 'background-read-v2', 'mixed-auto-v1'].includes(scenario), 'Invalid E72 scenario')
+const mixedAuto = scenario === 'mixed-auto-v1'
 const readBackground = scenario === 'background-read-v2'
-const background = scenario !== 'foreground'
-if (readBackground) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295'].includes(args['native-cli-version']) && args.model === 'claude-sonnet-5-5' && args['served-model'] === args.model, 'Read scenario requires counter-qualified SDK/native/model tuple')
+const background = ['background', 'background-read-v2'].includes(scenario)
+if (readBackground || mixedAuto) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295'].includes(args['native-cli-version']) && args.model === 'claude-sonnet-5-5' && args['served-model'] === args.model, 'Versioned scenario requires counter-qualified SDK/native/model tuple')
+if (mixedAuto) assert([args.model, 'claude-sonnet-5'].includes(args['classifier-model']) && /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(args['classifier-served-model']), 'Mixed scenario requires one explicit requested/served classifier model arm')
+else assert(args['classifier-model'] === undefined && args['classifier-served-model'] === undefined, 'Classifier models belong only to the mixed scenario')
 const synthetic = args.synthetic === true, rehearsal = args.rehearsal === true
 assert(synthetic || (process.platform === 'linux' && process.arch === 'x64'), 'Native E72 acceptance requires Linux x64')
 assert(args['client-version'] === '2.1.287', 'E72 requires the implicated Claude Code client 2.1.287')
@@ -50,6 +55,7 @@ const proofDescriptor = openSync(join(output, 'claude-subagent-results.json'), '
 try { verifyProofDescriptor(proofDescriptor) }
 catch (error) { closeSync(proofDescriptor); throw error }
 const proof = { kind: synthetic ? 'synthetic-harness-control' : rehearsal ? 'zero-query-rehearsal' : 'native-affected-flow', expected: args['expect-unfixed'] ? 'unfixed' : 'fixed', platform: `${process.platform}/${process.arch}`, runtime: { bun: Bun.version, node: process.version }, scenario, requestedModel: args.model, requiredServedModel: args['served-model'], limits: { queries: maximum, sdkEstimatedCostUsd: costLimit, perQueryBudgetUsd: costLimit / maximum, totalMilliseconds: timeout, wireRequests: maximum, requestBytes: 2 * 1024 * 1024, clientStreamBytes: 2 * 1024 * 1024, clientInvocations: 2, ownedProcesses: 96 }, queries: [], turns: [], checks: {}, result: 'INCOMPLETE', acceptance: false }
+if (mixedAuto) { proof.requestedClassifierModel = args['classifier-model']; proof.requiredServedClassifierModel = args['classifier-served-model']; proof.classifierModelScope = 'One explicitly pinned native classifier arm only; demotion/fallback and another served model cannot qualify this run.' }
 const saved = { log: console.log, error: console.error, warn: console.warn, debug: console.debug }
 const publicLog = saved.log.bind(console), records = [], traceIds = new Map(), decisionSessions = new Map()
 const startedAt = performance.now(), elapsed = () => Math.round((performance.now() - startedAt) * 1000) / 1000
@@ -119,9 +125,10 @@ async function requestBody(request, maximumBytes) {
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
 const childOwners = new WeakMap(), clientOwners = []
 const sdkTools = new Map(), sdkToolOwners = new Map(), sdkHookReceipts = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
+const requestModels = new Map(), relayWork = createOwnedRelayWork()
 const sessionOrdinal = value => { if (typeof value !== 'string' || !value.length) return undefined; if (!sdkSessionIds.has(value)) sdkSessionIds.set(value, sdkSessionIds.size + 1); return sdkSessionIds.get(value) }
-let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup
-let startupSettled = false
+let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup, modelWitness
+let startupSettled = false, proxyJoined = false
 let inputs = []
 async function duringRun(operation, milliseconds, label) {
   assert(!stop.signal.aborted, 'Total execution deadline reached')
@@ -306,8 +313,9 @@ try {
   assert(typeof grant?.accessToken === 'string' && grant.accessToken.length > 0 && grant.expiresAt > Date.now() + timeout + 60000 && Array.isArray(grant.scopes), 'Owned grant absent/malformed/insufficient full-run expiry; no query started')
   assert(!synthetic || grant.accessToken.startsWith('synthetic-'), 'Synthetic control requires a non-auth synthetic grant')
   scratch = realpathSync(mkdtempSync(join(tmpdir(), 'meridian-e72-')))
-  const account = join(scratch, 'runtime-account'), config = join(scratch, 'proxy-config'), clientConfig = join(scratch, 'client-config'), project = join(scratch, 'client-project'), work = join(scratch, 'proxy-work')
-  for (const directory of [account, config, clientConfig, project, work, join(scratch, 'store'), join(scratch, 'proxy-home'), join(scratch, 'client-home'), join(scratch, 'unlinked-default'), join(scratch, 'plugins')]) mkdirSync(directory, { mode: 0o700 })
+  const account = join(scratch, 'runtime-account'), config = join(scratch, 'proxy-config'), clientConfig = join(scratch, 'client-config'), project = join(scratch, 'client-project'), work = join(scratch, 'proxy-work'), outside = join(scratch, 'outside-project')
+  for (const directory of [account, config, clientConfig, project, work, ...(mixedAuto ? [outside] : []), join(scratch, 'store'), join(scratch, 'proxy-home'), join(scratch, 'client-home'), join(scratch, 'unlinked-default'), join(scratch, 'plugins')]) mkdirSync(directory, { mode: 0o700 })
+  const mixedCommands = mixedAuto ? mixedAutoCommands(outside) : undefined
   // Do not give a native runtime refresh authority or the immutable source file.
   const { refreshToken: _removedRefresh, ...readOnlyGrant } = grant
   writeFileSync(join(account, '.credentials.json'), JSON.stringify({ claudeAiOauth: readOnlyGrant }), { mode: 0o400, flag: 'wx' })
@@ -337,12 +345,14 @@ try {
     proof.readinessStatus = ready.status; await ready.body?.cancel(); assert(ready.ok, 'Owned grant readiness failed; no generation started')
   }
   const sdk = await import(pathToFileURL(sdkPath).href), original = sdk.query
+  if (mixedAuto) modelWitness = createRequestModelWitness(requestModels)
   observer = spyOn(sdk, 'query').mockImplementation(input => {
     assert(!rehearsal, 'Rehearsal fenced SDK generation')
     assert(!stop.signal.aborted && proof.queries.length < maximum, 'Generation count/deadline bound reached')
     assert(input.options.env?.CLAUDE_CONFIG_DIR === account && input.options.pathToClaudeCodeExecutable === native, 'SDK escaped explicit account/executable')
     assert(!input.options.env?.ANTHROPIC_API_KEY && !input.options.env?.ANTHROPIC_BASE_URL && !input.options.env?.CLAUDE_CODE_OAUTH_TOKEN, 'SDK inherited another authentication/provider override')
-    const row = { turn, requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', versionPin: input.options.env?.ANTHROPIC_DEFAULT_SONNET_MODEL === undefined ? undefined : /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL) ? input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL : 'invalid-version-pin', resumed: typeof input.options.resume === 'string', resumedSession: sessionOrdinal(input.options.resume), forked: input.options.forkSession === true, requestedSession: sessionOrdinal(input.options.sessionId), maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultFlagValid: false, resultIsError: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
+    const owned = mixedAuto ? modelWitness.capture() : undefined
+    const row = { turn: owned?.turn ?? turn, ...(mixedAuto ? { request: owned.request, role: owned.role, wireRequested: owned.requestedModel } : {}), requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', versionPin: input.options.env?.ANTHROPIC_DEFAULT_SONNET_MODEL === undefined ? undefined : /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL) ? input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL : 'invalid-version-pin', resumed: typeof input.options.resume === 'string', resumedSession: sessionOrdinal(input.options.resume), forked: input.options.forkSession === true, requestedSession: sessionOrdinal(input.options.sessionId), maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultFlagValid: false, resultIsError: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
     row.createdMs = elapsed(); row.allowedToolCapabilities = publicToolCapabilities(input.options.allowedTools)
     row.nativeInitToolCapabilities = []
     const generations = createPublicSdkGenerationWitness({ now: elapsed })
@@ -435,7 +445,7 @@ try {
       return agentIds.get(header)
     }
     const resultText = content => typeof content === 'string' ? content : Array.isArray(content) ? content.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n') : ''
-    relay = Bun.serve({ hostname: '127.0.0.1', port: 0, idleTimeout: 255, async fetch(request) {
+    relay = Bun.serve({ hostname: '127.0.0.1', port: 0, idleTimeout: 255, fetch: relayWork.wrap(async request => {
       const url = new URL(request.url), text = ['GET', 'HEAD'].includes(request.method) ? undefined : await requestBody(request, 2 * 1024 * 1024)
       const headers = new Headers(request.headers)
       let row, receiptOwnsActive = false
@@ -447,6 +457,12 @@ try {
         let identity = body.metadata?.user_id
         if (typeof identity === 'string') { try { identity = JSON.parse(identity) } catch { identity = undefined } }
         row = { request: requestNumber, turn, actor, requestedModelMatched: body.model === args.model, sessionKeyMatched: identity?.session_id === session, tools: Array.isArray(body.tools) ? body.tools.length : 0 }
+        if (mixedAuto) {
+          Object.assign(row, mixedAutoRequest(body, request.headers.get('x-claude-code-request-class') ?? 'none', row.sessionKeyMatched))
+          row.requestedModel = /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(body.model) ? body.model : 'invalid-wire-model'
+          row.requestedModelMatched = body.model === (row.role === 'classifier' ? args['classifier-model'] : args.model)
+          requestModels.set(requestId, row)
+        }
         row.requestStartedMs = elapsed(); row.clientToolCapabilities = publicToolCapabilities(Array.isArray(body.tools) ? body.tools.map(tool => tool?.name) : undefined)
         if (background) row.startEvent = ++wireEvents
         wire.push(row)
@@ -457,8 +473,8 @@ try {
           if (earlier && (earlier.actor !== receipt.actor || earlier.text !== receipt.text || earlier.successful !== receipt.successful)) proof.toolResultChanged = true
           if (!earlier) toolResults.set(block.tool_use_id, receipt)
         }
-        if (actor > 0) { activeAgents++; peakAgents = Math.max(peakAgents, activeAgents) }
-        else if (actor === 0) activeMain++
+        if (row.role !== 'classifier' && actor > 0) { activeAgents++; peakAgents = Math.max(peakAgents, activeAgents) }
+        else if (row.role !== 'classifier' && actor === 0) activeMain++
         if (activeMain > 0 && activeAgents > 0) peakParentChild = Math.max(peakParentChild, activeMain + activeAgents)
       }
       try {
@@ -470,20 +486,20 @@ try {
           row.responseHeadersMs = elapsed()
           const receipt = requestBody(response.clone(), 2 * 1024 * 1024).then(body => { row.responseBodyTerminalMs = elapsed(); if (background) row.terminalEvent = ++wireEvents; httpToolTerminal(status, contentType, body, row.request) }).catch(error => { proof.httpReceiptFailure = true; proof.httpReceiptFailureType = ['SyntaxError', 'TypeError', 'AssertionError', 'Error'].includes(error?.name) ? error.name : 'other' })
           receiptOwnsActive = true
-          pendingHttp.add(receipt); receipt.finally(() => { pendingHttp.delete(receipt); if (row.actor > 0) activeAgents--; else if (row.actor === 0) activeMain-- })
+          pendingHttp.add(receipt); receipt.finally(() => { pendingHttp.delete(receipt); if (row.role !== 'classifier' && row.actor > 0) activeAgents--; else if (row.role !== 'classifier' && row.actor === 0) activeMain-- })
         }
         return response
-      } finally { if (row && !receiptOwnsActive) { if (row.actor > 0) activeAgents--; else if (row.actor === 0) activeMain-- } }
-    } })
+      } finally { if (row && !receiptOwnsActive) { if (row.role !== 'classifier' && row.actor > 0) activeAgents--; else if (row.role !== 'classifier' && row.actor === 0) activeMain-- } }
+    }) })
     for (turn = 1; turn <= 2; turn++) {
-      const firstAlpha = background ? 'sleep 2 && echo alpha-1' : 'echo alpha-1'
-      const firstBeta = background ? 'sleep 2 && echo beta-1' : 'echo beta-1'
+      const firstAlpha = mixedAuto ? mixedCommands.firstAlpha : background ? 'sleep 2 && echo alpha-1' : 'echo alpha-1'
+      const firstBeta = mixedAuto ? mixedCommands.firstBeta : background ? 'sleep 2 && echo beta-1' : 'echo beta-1'
       const prompt = turn === 1 ? [
         'Use the Agent tool to launch exactly two general-purpose subagents in parallel, in one message,',
         background ? 'both in the background (run_in_background true).' : 'both in the foreground (run_in_background false).',
         `Subagent ALPHA must run the exact shell command \`${firstAlpha}\`, then in a separate Bash call run`,
-        '`echo alpha-2`, then report both outputs.',
-        `Subagent BETA must do the same with \`${firstBeta}\` and \`echo beta-2\`.`,
+        `\`${mixedAuto ? mixedCommands.secondAlpha : 'echo alpha-2'}\`, then report both outputs.`,
+        `Subagent BETA must do the same with \`${firstBeta}\` and \`${mixedAuto ? mixedCommands.secondBeta : 'echo beta-2'}\`.`,
         ...(background ? [
           'Immediately after launching them, run exactly one Bash command `echo parent-overlap` in the parent while they work.',
           ...(readBackground ? [
@@ -495,8 +511,8 @@ try {
           ]),
         ] : []),
         'When both have reported, reply with exactly the word DONE.',
-      ].join(' ') : 'Reply with exactly the word AGAIN.'
-      const command = [turn === 1 ? '--session-id' : '--resume', session, '-p', prompt, '--model', args.model, '--permission-mode', 'default', '--allowedTools', 'Bash(echo:*)', 'Agent', ...(background ? ['Bash(sleep:*)', readBackground ? 'Read' : 'TaskOutput'] : [])]
+      ].join(' ') : mixedAuto ? `Run exactly one Bash command \`${mixedCommands.parent}\`, then reply with exactly the word AGAIN.` : 'Reply with exactly the word AGAIN.'
+      const command = [turn === 1 ? '--session-id' : '--resume', session, '-p', prompt, '--model', args.model, '--permission-mode', mixedAuto ? 'auto' : 'default', '--allowedTools', ...(mixedAuto ? ['Agent'] : ['Bash(echo:*)', 'Agent', ...(background ? ['Bash(sleep:*)', readBackground ? 'Read' : 'TaskOutput'] : [])])]
       const result = await childRun(client, command, { ...clientEnv, ANTHROPIC_BASE_URL: `http://127.0.0.1:${relay.port}` }, project, Math.min(timeout, 300000))
       proof.turns.push({ number: turn, status: result.status, answered: new RegExp(`\\b${turn === 1 ? 'DONE' : 'AGAIN'}\\b`).test(result.out), refused: /API Error: [45][0-9][0-9]/.test(`${result.out}\n${result.err}`) })
       assert(!stop.signal.aborted, 'Execution deadline/output bound reached')
@@ -521,25 +537,28 @@ try {
       row.toolRequest = tools.size > 0 && requests.size === 1 && !requests.has(undefined) ? [...requests][0] : undefined
       row.toolCount = tools.size
       row.acceptedCanonicalResult = row.resultFlagValid && ((row.resultSubtype === 'success' && row.resultIsError === false) || (row.resultSubtype === 'error_max_turns' && row.resultIsError === true && row.maxTurns === 1 && row.nativeTurns === 1 && ['absent', 'max_turns'].includes(row.terminalReason) && row.canonicalHttpToolTerminal))
-      if (readBackground) {
+      if (readBackground || mixedAuto) {
         row.originalCanonicalResult = row.acceptedCanonicalResult
         row.acceptedCanonicalResult = backgroundReadNativeResult(row, { sdkVersion: args['sdk-version'], nativeVersion: args['native-cli-version'] })
       }
     }
     proof.wire = wire; proof.lineage = records; proof.peakParallelAgentRequests = peakAgents; if (background) proof.peakParentChildRequests = peakParentChild
     const decision = row => records.filter(record => record.request === row.request)
-    const mains = wire.filter(row => row.actor === 0), agents = new Map()
-    for (const row of wire.filter(row => row.actor > 0)) agents.set(row.actor, [...(agents.get(row.actor) ?? []), row])
+    const working = wire.filter(row => row.role !== 'classifier'), classifiers = wire.filter(row => row.role === 'classifier')
+    const mains = working.filter(row => row.actor === 0), agents = new Map()
+    for (const row of working.filter(row => row.actor > 0)) agents.set(row.actor, [...(agents.get(row.actor) ?? []), row])
     const resumed = rows => rows.length >= 2 && rows.slice(1).every(row => decision(row).length === 1 && decision(row)[0].lineage === 'continuation')
     const privateReceipts = [...httpTools].map(([id, tool]) => {
       const request = wire.find(row => row.request === tool.request), sdkRows = proof.queries.filter(row => sdkTools.get(row).has(id)), result = toolResults.get(id)
       return { id, tool, actor: request?.actor, row: sdkRows.length === 1 ? sdkRows[0] : undefined, result, paired: sdkRows.length === 1 && sdkTools.get(sdkRows[0]).get(id)?.input === tool.input && sdkTools.get(sdkRows[0]).get(id)?.name === tool.name, resultMatched: !!result && result.actor === request?.actor && result.request > tool.request && result.successful }
     })
     const launches = privateReceipts.filter(receipt => receipt.tool.name === 'Agent')
-    const commands = [background ? 'sleep 2 && echo alpha-1' : 'echo alpha-1', 'echo alpha-2', background ? 'sleep 2 && echo beta-1' : 'echo beta-1', 'echo beta-2']
+    const commands = mixedAuto ? [mixedCommands.firstAlpha, mixedCommands.secondAlpha, mixedCommands.firstBeta, mixedCommands.secondBeta] : [background ? 'sleep 2 && echo alpha-1' : 'echo alpha-1', 'echo alpha-2', background ? 'sleep 2 && echo beta-1' : 'echo beta-1', 'echo beta-2']
     const bash = commands.map(command => privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === command))
     const foregroundLaunchReceipts = launches.length === 2 && ['alpha', 'beta'].every(label => launches.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.subagent_type === 'general-purpose' && receipt.tool.privateInput.run_in_background !== true && typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`) && receipt.result.text.includes(`${label}-1`) && receipt.result.text.includes(`${label}-2`)).length === 1)
     const bashReceipts = bash.every((rows, index) => rows.length === 1 && rows[0].actor > 0 && rows[0].paired && rows[0].resultMatched && rows[0].result.text.includes(['alpha-1', 'alpha-2', 'beta-1', 'beta-2'][index])) && bash[0][0]?.actor === bash[1][0]?.actor && bash[2][0]?.actor === bash[3][0]?.actor && bash[0][0]?.actor !== bash[2][0]?.actor
+    const mixedParent = mixedAuto ? privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === mixedCommands.parent) : []
+    const mixedParentWorked = mixedAuto && mixedParent.length === 1 && mixedParent[0].actor === 0 && mixedParent[0].paired && mixedParent[0].resultMatched && mixedParent[0].result.text.includes('parent-2') && wire.find(row => row.request === mixedParent[0].tool.request)?.turn === 2
     // Background launch handles stay private and must identify the actual wire
     // child. A foreground result or a generated completion word cannot qualify.
     const backgroundLaunches = ['alpha', 'beta'].map((label, index) => {
@@ -591,26 +610,29 @@ try {
     const queryRequests = new Map(), usedRequests = new Set()
     for (const row of proof.queries) {
       const prefix = row.resumed ? privatePrefix(row.resumedSession) : 'new'
-      const candidates = wire.filter(request => !usedRequests.has(request.request) && request.turn === row.turn && decision(request).length === 1 && decisionSessions.get(request.request) === prefix && (row.toolCount > 0 ? row.toolRequest === request.request : sdkTexts.get(row)?.length > 0 && sdkTexts.get(row) === httpTexts.get(request.request)))
+      const candidates = wire.filter(request => !usedRequests.has(request.request) && request.turn === row.turn && decision(request).length === 1 &&
+        (mixedAuto ? request.request === row.request && request.role === row.role && request.requestedModel === row.wireRequested : decisionSessions.get(request.request) === prefix) &&
+        (row.toolCount > 0 ? row.toolRequest === request.request : sdkTexts.get(row)?.length > 0 && sdkTexts.get(row) === httpTexts.get(request.request)))
       if (candidates.length === 1) { queryRequests.set(row, candidates[0]); usedRequests.add(candidates[0].request) }
     }
     const actorQueries = new Map()
-    for (const [row, request] of queryRequests) actorQueries.set(request.actor, [...(actorQueries.get(request.actor) ?? []), row])
-    const allQueriesCorrelated = !proof.sessionPrefixAmbiguous && !proof.textReceiptAmbiguous && queryRequests.size === proof.queries.length && usedRequests.size === wire.length
+    for (const [row, request] of queryRequests) if (request.role !== 'classifier') actorQueries.set(request.actor, [...(actorQueries.get(request.actor) ?? []), row])
+    const allQueriesCorrelated = (mixedAuto || !proof.sessionPrefixAmbiguous && !proof.textReceiptAmbiguous) && queryRequests.size === proof.queries.length && usedRequests.size === wire.length
     const actorSessionSets = [...actorQueries.values()].map(rows => new Set(rows.map(row => row.session)))
     const distinctSessionMappings = allQueriesCorrelated && actorQueries.size === 3 && actorSessionSets.every(values => !values.has(undefined)) && actorSessionSets.every((values, index) => actorSessionSets.slice(index + 1).every(other => [...values].every(value => !other.has(value)))) && [...actorQueries].every(([actor, queries]) => {
       const rows = [...queries].sort((left, right) => queryRequests.get(left).request - queryRequests.get(right).request)
-      return rows.length === wire.filter(request => request.actor === actor).length && (
+      return rows.length === working.filter(request => request.actor === actor).length && (
         !rows[0].resumed || background && actor > 0 && rows[0].forked && rows[0].session !== rows[0].resumedSession &&
         (actorQueries.get(0) ?? []).some(parent => parent.session === rows[0].resumedSession && queryRequests.get(parent).request < queryRequests.get(rows[0]).request)
       ) && rows.slice(1).every((row, index) => row.resumed && row.resumedSession === rows[index].session)
     })
-    proof.queryReceipts = proof.queries.map((row, index) => ({ number: index + 1, request: queryRequests.get(row)?.request, actor: queryRequests.get(row)?.actor, kind: row.toolCount > 0 ? 'tools' : 'text', paired: queryRequests.has(row) }))
+    proof.queryReceipts = proof.queries.map((row, index) => ({ number: index + 1, request: queryRequests.get(row)?.request, actor: queryRequests.get(row)?.actor, ...(mixedAuto ? { role: row.role } : {}), kind: row.toolCount > 0 ? 'tools' : 'text', paired: queryRequests.has(row) }))
     // Same-actor public lifecycle overlap locates a wait without claiming that
     // iterator completion is the physical native exit or the lease-release instant.
     proof.queryLifecycle = [...queryRequests].map(([row, request]) => {
-      const previous = [...queryRequests].filter(([, prior]) => prior.actor === request.actor && prior.request < request.request).sort((left, right) => right[1].request - left[1].request)[0]
+      const previous = [...queryRequests].filter(([, prior]) => prior.role !== 'classifier' && request.role !== 'classifier' && prior.actor === request.actor && prior.request < request.request).sort((left, right) => right[1].request - left[1].request)[0]
       return { query: proof.queries.indexOf(row) + 1, request: request.request, actor: request.actor, priorRequest: previous?.[1].request ?? null,
+        ...(mixedAuto ? { role: request.role } : {}),
         priorHttpBodyCompleteBeforeRequest: previous ? Number.isFinite(previous[1].responseBodyTerminalMs) && previous[1].responseBodyTerminalMs <= request.requestStartedMs : null,
         priorResultOverlapMs: previous && Number.isFinite(previous[0].resultEventMs) ? Math.max(0, previous[0].resultEventMs - request.requestStartedMs) : null,
         priorIteratorOverlapMs: previous && Number.isFinite(previous[0].iteratorSettledMs) ? Math.max(0, previous[0].iteratorSettledMs - request.requestStartedMs) : null }
@@ -622,15 +644,35 @@ try {
       invocationsSucceeded: proof.turns.length === 2 && proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), noRefusal: proof.turns.every(row => !row.refused) && wire.every(row => row.status === 200),
       requestedModelIdentity: wire.length > 0 && wire.every(row => row.requestedModelMatched), rootedWireIdentity: wire.length > 0 && wire.every(row => row.sessionKeyMatched && row.actor >= 0), requestDecisionsComplete: wire.length > 0 && wire.every(row => decision(row).length === 1) && records.length === wire.length,
       twoMultiturnAgents: agents.size === 2 && [...agents.values()].every(rows => rows.length >= 3 && rows.every(row => row.turn === 1)), [background ? 'backgroundParallelism' : 'foregroundParallelism']: peakAgents >= 2,
-      actualAgentAndBashReceipts: !proof.toolResultChanged && (background ? backgroundLaunchReceipts : foregroundLaunchReceipts) && bashReceipts && privateReceipts.length === (background ? 9 : 6),
+      actualAgentAndBashReceipts: !proof.toolResultChanged && (background ? backgroundLaunchReceipts : foregroundLaunchReceipts) && bashReceipts && (!mixedAuto || mixedParentWorked) && privateReceipts.length === (background ? 9 : mixedAuto ? 7 : 6),
       sdkToolHookCustody: proof.queries.every(row => row.sdkToolHookCustody),
       allQueriesCorrelated, distinctSessionMappings, subagentResume: agents.size === 2 && [...agents.values()].every(resumed), mainResume: mains.length >= 3 && mains.some(row => row.turn === 2) && resumed(mains),
       noCollision: !records.some(row => ['unrelated-history', 'concurrent-race'].includes(row.divergence)), boundedLeaseWait: records.length === wire.length && records.every(row => Number.isFinite(row.sessionWaitMs) && row.sessionWaitMs >= 0 && row.sessionWaitMs <= 1000),
-      nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === args.model || (row.requested === 'sonnet' && row.versionPin === args.model)) && row.completed && row.iteratorSettled && row.sdkToolHookCustody && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
+      nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === (mixedAuto ? row.wireRequested : args.model) || (row.requested === 'sonnet' && row.versionPin === (mixedAuto ? row.wireRequested : args.model))) && row.completed && row.iteratorSettled && row.sdkToolHookCustody && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === (mixedAuto && row.role === 'classifier' ? args['classifier-served-model'] : args['served-model'])) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
+    }
+    if (mixedAuto) {
+      const childWorking = working.filter(row => row.actor > 0)
+      const childStart = Math.min(...childWorking.map(row => row.requestStartedMs)), childEnd = Math.max(...childWorking.map(row => row.responseBodyTerminalMs))
+      const classifierQueries = proof.queries.filter(row => row.role === 'classifier'), workingSessions = new Set(proof.queries.filter(row => row.role === 'working').map(row => row.session))
+      proof.requestModelWitness = modelWitness.summary()
+      proof.mixedAutoFacts = { classifiers: classifiers.length, classifierActors: [...new Set(classifiers.map(row => row.actor))].sort((a, b) => a - b), workingRequests: working.length,
+        turnOneClassifiers: classifiers.filter(row => row.turn === 1).length, turnTwoClassifiers: classifiers.filter(row => row.turn === 2).length,
+        duringChildWorkflow: classifiers.filter(row => row.turn === 1 && row.requestStartedMs >= childStart && row.requestStartedMs <= childEnd).length,
+        completedOutsideWrites: mixedCommands.stamps.filter(file => { try { const row = lstatSync(file); return row.isFile() && !row.isSymbolicLink() && row.uid === process.getuid() && row.nlink === 1 && row.size > 0 && row.size < 256 } catch { return false } }).length }
+      Object.assign(proof.checks, {
+        genuineClassifiers: classifiers.length > 0 && classifiers.every(row => row.classifier && row.systemEnvelope),
+        mixedClassifierCoverage: proof.mixedAutoFacts.duringChildWorkflow > 0 && proof.mixedAutoFacts.turnTwoClassifiers > 0,
+        classifierIsolation: classifiers.length > 0 && classifiers.every(row => decision(row).length === 1 && decision(row)[0].auxiliary) && working.every(row => decision(row).length === 1 && !decision(row)[0].auxiliary),
+        classifierNoWorkingLeaseWait: classifiers.length > 0 && classifiers.every(row => decision(row).length === 1 && decision(row)[0].sessionWaitMs === 0),
+        independentClassifierSessions: allQueriesCorrelated && classifierQueries.length === classifiers.length && classifierQueries.every(row => !row.resumed && !row.forked && row.session !== undefined && !workingSessions.has(row.session)) && new Set(classifierQueries.map(row => row.session)).size === classifierQueries.length,
+        exactRequestModelOwnership: proof.requestModelWitness.capturedRequests === wire.length && !proof.requestModelWitness.missingContext && !proof.requestModelWitness.duplicateContext && !proof.requestModelWitness.otherLoggerStore,
+        outsideWritesAndParentReceipt: proof.mixedAutoFacts.completedOutsideWrites === 5 && mixedParentWorked,
+      })
     }
     if (background) proof.checks.backgroundParentChildOverlap = peakParentChild >= 2
     if (readBackground) proof.checks.backgroundReadCapabilities = wire.every(row => row.clientToolCapabilities.catalogValid && row.clientToolCapabilities.read && !row.clientToolCapabilities.taskOutput) && proof.queries.every(row => !row.nativeInitCapabilitiesOverflow && row.nativeInitToolCapabilities.length > 0 && row.nativeInitToolCapabilities.every(catalog => catalog.catalogValid && catalog.clientMcpRead && !catalog.clientMcpTaskOutput && !catalog.taskOutput))
     const defects = new Set(['distinctSessionMappings', 'subagentResume', 'mainResume', 'noCollision'])
+    if (mixedAuto) defects.add('classifierIsolation')
     if (args['require-mcp-readiness']) proof.checks.nativeMcpReadiness = proof.queries.some(row => row.mcpReadiness?.declaredServers.length > 0) && proof.queries.every(row => row.mcpReadiness?.ready === true)
     for (const [name, actual] of Object.entries(proof.checks)) {
       if (args['expect-unfixed'] && name === 'boundedLeaseWait') continue // Measure the baseline wait; fix remains bounded.
@@ -662,9 +704,10 @@ try {
   proof.clientProcesses = clientOwners.map(owner => owner.snapshot())
   if (proof.clientProcesses.some(owner => owner.signalFailures > 0)) cleanup.push('client signal')
   try { relay?.stop(true) } catch { cleanup.push('relay close') }
+  try { await bounded(relayWork.join(), 3000, 'Relay operation cleanup did not join'); proof.relayOperationsJoined = relayWork.pendingCount() === 0; if (!proof.relayOperationsJoined) cleanup.push('relay operation join') } catch { cleanup.push('relay operation join') }
   try { await bounded(Promise.all([...pendingHttp]), 3000, 'HTTP receipt cleanup did not join'); if (pendingHttp.size) cleanup.push('HTTP receipt join') } catch { cleanup.push('HTTP receipt join') }
   try { if (startup && !startupSettled) await bounded(startup, 3000, 'Proxy startup did not join') } catch { cleanup.push('proxy startup join') }
-  try { if (proxy) await bounded(proxy.close(), 10000, 'Proxy cleanup deadline exceeded') } catch { cleanup.push('proxy close/join') }
+  try { if (proxy) await bounded(proxy.close(), 10000, 'Proxy cleanup deadline exceeded'); proxyJoined = !startup || startupSettled } catch { cleanup.push('proxy close/join') }
   try {
     for (const signal of ['SIGTERM', 'SIGKILL']) {
       for (const [pid, row] of ownedProcesses()) { if (ownedProcesses().get(pid)?.start !== row.start) continue; try { process.kill(pid, signal) } catch (error) { if (error.code !== 'ESRCH') throw error } }
@@ -674,6 +717,14 @@ try {
     proof.ownedResidualProcesses = ownedProcesses().size
     if (proof.ownedResidualProcesses || children.size || active.size) cleanup.push('unjoined owned work')
   } catch { cleanup.push('owned process join') }
+  if (modelWitness) {
+    proof.requestModelWitness = modelWitness.summary()
+    try {
+      assert(proxyJoined && (!startup || startupSettled) && active.size === 0 && children.size === 0 && proof.ownedResidualProcesses === 0 && relayWork.pendingCount() === 0 && pendingHttp.size === 0 && !proof.processCensusFailed, 'Logger context restoration requires all owned work to join')
+      modelWitness.restore()
+    } catch { cleanup.push('logger context restoration') }
+    proof.loggerContextDescriptorRestored = modelWitness.isRestored()
+  }
   try { observer?.mockRestore() } catch { cleanup.push('SDK observer restore') }
   try { proof.targetIdentityUnchanged = inputs.length > 0 && inputs.every(unchanged); if (inputs.length && !proof.targetIdentityUnchanged) cleanup.push('target identity invariance') } catch { cleanup.push('target identity invariance') }
   try { proof.ownerGrantUnchanged = source ? unchanged(source) : null; if (source && !proof.ownerGrantUnchanged) cleanup.push('owner grant invariance') } catch { cleanup.push('owner grant invariance') }
