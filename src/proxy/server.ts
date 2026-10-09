@@ -4108,7 +4108,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), replaying as fresh session`)
                     managedForkSuperseded = true
                     await abandonManagedFork("resume_replay")
-                    if (!isIndependentSession) {
+                    // A namespace-mismatched legacy slot was not this turn's
+                    // mapping. Keep its CAS generation for fresh publication;
+                    // there is no owned mapping to evict or refresh.
+                    if (!isIndependentSession && durableMappingAtTurn.status === "found") {
                       if (!evictSession(
                         profileSessionId,
                         profileScopedCwd,
@@ -5451,7 +5454,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       plog(`[PROXY] ${requestMeta.requestId} session unusable (${refusal}), replaying as fresh session`)
                       managedForkSuperseded = true
                       await abandonManagedFork("resume_replay")
-                      if (!isIndependentSession) {
+                      // Protected legacy slots retain their CAS generation;
+                      // only an owned mapping can be evicted and refreshed.
+                      if (!isIndependentSession && durableMappingAtTurn.status === "found") {
                         if (!evictSession(
                           profileSessionId,
                           profileScopedCwd,

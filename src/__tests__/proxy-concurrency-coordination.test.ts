@@ -26,7 +26,7 @@ let activeQueries = 0
 let maxActiveQueries = 0
 let queryCalls = 0
 let controls: AttemptControl[] = []
-let capturedParams: Array<{ options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; env?: Record<string, string> } }> = []
+let capturedParams: Array<{ options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; model?: string; env?: Record<string, string> } }> = []
 let rateLimitWorkQueries = false
 let autoCompleteQueries = false
 let queryFailures = new Map<number, string>()
@@ -852,6 +852,45 @@ describe("SDK and Session concurrency coordination", () => {
         expect(published.status).toBe("found")
         if (published.status !== "found") throw new Error("Normal continuation did not publish")
         expect(published.generation).not.toBe(original.generation)
+      })
+    }
+  }
+
+  for (const stream of [false, true]) {
+    for (const failure of ["checkpoint", "extended-context"] as const) {
+      it(`retries a fresh namespaced request without evicting a colliding legacy mapping (stream=${stream}, failure=${failure})`, async () => {
+        const { resetExtendedContextUnavailable } = await import("../proxy/models")
+        resetExtendedContextUnavailable()
+        try {
+          autoCompleteQueries = true
+          const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+          const sessionId = `collision-retry-${crypto.randomUUID()}`
+          const agentId = "retry-agent"
+          const opening = [{ role: "user", content: "read a fixture" }]
+          const key = claudeCodeSubagentKey(sessionId, agentId)
+          expect(storeSession(key, opening, "legacy-unproven-sdk", undefined, ["legacy-uuid"])).toBeTruthy()
+          queryFailures.set(1, failure === "checkpoint"
+            ? "No message found with message.uuid of: checkpoint-uuid"
+            : "Extra usage required for 1m")
+          const response = await app.fetch(claudeCodeRequest(opening, sessionId, {
+            "x-claude-code-agent-id": agentId,
+          }, stream, failure === "extended-context" ? { model: "claude-opus-4-6" } : {}))
+          expect(response.status).toBe(200)
+          const wire = await response.text()
+          expect(wire).not.toContain("event: error")
+          expect(capturedParams).toHaveLength(2)
+          for (const call of capturedParams) expect(call.options?.resume).toBeUndefined()
+          if (failure === "extended-context") {
+            expect(capturedParams[0]?.options?.model).toContain("[1m]")
+            expect(capturedParams[1]?.options?.model).not.toContain("[1m]")
+          }
+          const stored = readSessionStoreSnapshot()[key]
+          expect(stored?.claudeSessionId).not.toBe("legacy-unproven-sdk")
+          expect(stored?.previousClaudeSessionId).toBeUndefined()
+          expect(stored?.keyNamespace).toBeDefined()
+        } finally {
+          resetExtendedContextUnavailable()
+        }
       })
     }
   }
