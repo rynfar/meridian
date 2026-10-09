@@ -1,0 +1,34 @@
+[
+  {
+    "case": "e72-source",
+    "qualified": true,
+    "observerHead": "a80fac562d462bc0010a792bb62adf07cc3987d6",
+    "originalAttachPid": 64269,
+    "originalAttachJoined": true,
+    "originalExit": 0,
+    "queries": 0,
+    "networkDisabled": true,
+    "realCredentialReads": 0,
+    "privateRuntimeRemoved": true,
+    "originalOwnedClientsAndPipesJoined": true,
+    "reportSHA256": "549c34c71af974e2cc73f32cebfedd61faa56419cd4502f97fb462d34f8863aa",
+    "taskFakeGrantUnchanged": true,
+    "ownedStoppedContainerRemoved": true
+  },
+  {
+    "case": "e72-package",
+    "qualified": true,
+    "observerHead": "a80fac562d462bc0010a792bb62adf07cc3987d6",
+    "originalAttachPid": 64436,
+    "originalAttachJoined": true,
+    "originalExit": 0,
+    "queries": 0,
+    "networkDisabled": true,
+    "realCredentialReads": 0,
+    "privateRuntimeRemoved": true,
+    "originalOwnedClientsAndPipesJoined": true,
+    "reportSHA256": "5730a57b8e876e59e5eed7f7f51d080c43806f91e7aaf32bcdd7a4197f5eb4b2",
+    "taskFakeGrantUnchanged": true,
+    "ownedStoppedContainerRemoved": true
+  }
+]

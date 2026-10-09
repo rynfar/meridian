@@ -1,6 +1,45 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 per-query native MCP checkpoint (2026-10-09 UTC)
+## Current oldest #1211 / existing #1322 public background diagnostics (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first. The fresh paginated discovery
+covers six managed repositories, 29 open PRs and 22 issues; earlier holds remain.
+#1322 inherits #1211's age; expanded #1231 remains excluded, and #1283 remains
+only the demonstrated MCP dependency. No new PR, merge, source closure or release.
+
+[Public diagnostic evidence and root adversarial review](evidence/1211-background-public-diagnostics-20261009/README.md)
+at observer/test `a80fac56` retain unchanged production `15f44351` on main `11dc1556`.
+All 22 npm batches pass: 5,819 tests / 35 skips / zero failures, with pretest,
+standalone typecheck/build and all original gate processes joined. Forty-six
+focused controls and six exact-expression timing controls pass. Source and
+installed startup rehearsals have zero queries/real credential reads and all
+owned custody removed. The first typecheck declaration failure is preserved.
+
+One actual Linux/x64 source case makes eleven SDK 0.2.141/Sonnet5-5 queries
+through two Claude Code 2.1.287 invocations/backend 2.1.284 (estimated $0.605717).
+All eleven valid client catalogs advertise Read and omit TaskOutput; public
+SDK/native catalogs agree. Four child queries each expose one distinct public
+model-message ID but report `error_max_turns`/`num_turns: 2` at cap one. Streamed
+starts/fragments are deduplicated, not counted as additional generations. The
+original twenty checks remain unchanged: strict TaskOutput/canonical-result
+acceptance fails, despite correct child results, overlaps, mappings/resume/MCP.
+Maximum lease wait is 7 ms; the historical 9,256 ms wait is not reproduced,
+attributed or fixed. All original driver/attach/auditor/client-pipe/iterator
+witnesses join; source/observer identities are exact and the owned grant,
+container and private runtime are removed. Package native remains UNEXECUTED.
+
+Next establish the pinned SDK/CLI counter semantics with a network-disabled
+scripted API control, then define a separate actual-client completion proof for
+the observed advertised mechanism. Preserve owned handles, exact child outputs,
+terminal ordering, parent/child overlap, model/MCP/custody and cost bounds; retain
+the original TaskOutput failure and historical wait. Background, mixed-auto,
+cancellation, caption, reporter/client/model/platform/gateway, broader package
+and final delivery-head CI holds remain. All eighteen raw contributor identities
+and the owner's checkout/index/twelve dirty-file identities remain exact.
+Worktree cleanup leaves owner main/desktop and the current backlog workspace;
+recreate retired trees from their recorded external recovery refs before reuse.
+
+## Earlier #1211 / #1322 per-query native MCP checkpoint (2026-10-09 UTC)
 
 Continue combined original-creation oldest-first; #1322 inherits source #1211's
 age. Newer #1283 remains its necessary MCP dependency. Older owner deferrals,
