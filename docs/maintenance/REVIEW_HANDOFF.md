@@ -41,6 +41,14 @@ found no material production blocker; local gates passed 5,552 tests / 35 skips 
 zero failures, typecheck and build. The separately reviewed scrub correction
 remains unlanded. Exact OpenClaw 2026.6.11 client/config/loopback preparation is
 qualified separately in [the current review](evidence/openclaw769-current-main-20261009.md).
+The independently installed native baseline completed a real read/result/reply
+on Linux arm64 / SDK 0.2.141 / Claude Code 2.1.284 / `claude-opus-5-5[1m]`.
+Its fixture failed by requiring the intentionally unchanged headerless tool
+checkpoint mapping to advance; public SDK diagnosis and E54 explain the
+answering branch. That first failure is retained. The committed native escrow
+now qualifies the terminal-verified serving branch separately from durable
+publication and explicitly joins owned Bun socket wrappers. Fresh bounded
+baseline/candidate contract acceptance remains pending; no new PR was created.
 Actual client/model/SDK/platform, E41, installed-package and final-head CI gates
 remain open. Keep #769 open: its new classifier trigger is undisclosed and its
 current same-window off/on/off evidence is incomplete. No new delivery PR yet.

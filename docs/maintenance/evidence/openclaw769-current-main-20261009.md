@@ -49,12 +49,46 @@ Its qualified public base image and inherited layer prefix match before/after.
 This is Linux client preparation, without live Meridian/SDK/model or Kubernetes
 acceptance; it does not widen the scope of the mocked core gates.
 
-Actual implicated OpenClaw/model/SDK/platform proof, four E41 modes, independently
-installed Meridian/scrub package flows and required final-head CI remain open.
+The native escrow now uses independently built and installed current-main and
+candidate tarballs, the same corrected scrub tarball, SDK 0.2.141 and genuine
+Claude Code 2.1.284 on Linux arm64. Every tarball-selected installed member was
+independently verified: baseline 450 files, candidate 452, OpenClaw 8,944 and
+scrub 19. The exact nested dependency lock is retained separately. This proves
+selected installation identity, without claiming registry release provenance.
+
+Native baseline R2 failed startup before any SDK query because the owned
+container lacked `/etc/machine-id`. R3 adds only a proper read-only fixture
+machine-id and completes an actual OpenClaw read/result/reply on
+`claude-opus-5-5[1m]`, with two original SDK/native queries. The fixture then
+fails `supported-history-tool-receipt-lost-read-canary`; its HTTP join verdict
+is also false. Both failures, first causes and custody qualifications remain
+retained. Original containers exited, Docker waits joined, stopped containers
+were removed, and private access-only inputs were removed after terminal audit.
+
+Public SDK diagnosis reads only those owned sessions, without credentials or
+model calls. It finds the actual receipt in the answering branch, while the
+saved mapping remains at the initial tool checkpoint. This is the existing
+E54 headerless-result limitation: checkpoint recovery changes the lineage but
+the request remains independent, so publication is deliberately skipped.
+R3 therefore failed an overbroad fixture assertion, not a newly established
+production publication defect. The corrected escrow observes the original
+query's preallocated, terminal-verified answering branch for that one control;
+ordinary subsequent turns still require the working mapping to match the
+actual answering branch. No synthetic OpenCode session headers are added.
+
+A separate credentialless Bun 1.3.11 HTTP probe reproduces listener closure
+with an unclosed observed socket wrapper. Explicitly destroying the original
+owned wrapper produces its required close event. The corrected escrow retains
+those witnesses and records granular HTTP custody; it does not erase failed
+R3 witnesses. Fresh baseline/candidate contract acceptance remains pending.
+
+The remaining actual affected-flow proof, four E41 modes, broader independently
+installed package flows and required final-head CI remain open.
 The separately accepted scrub candidate remains unlanded. The undisclosed
 September classifier trigger and missing fresh off/on/off controls prevent a
 billing/classifier resolution claim or issue closure.
 
 Supplemental source identities, gate logs and all failed/passing preparation
-receipts remain in `meridian-review-evidence-20261006/core769-current-main-20261009-round1`.
+receipts remain in `meridian-review-evidence-20261006/core769-current-main-20261009-round1`
+and `core769-current-main-20261009-round2-native`.
 No release, community comment, owner-checkout mutation or classifier rule was added.

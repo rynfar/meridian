@@ -57,6 +57,7 @@ let startup, startupSettled = false
 const controls = new Set(), sockets = new Set(), socketClosures = [], handlers = new Set(), children = []
 const childIndex = new WeakMap(), spies = []
 const reads = new Set(), realSpawn = cp.spawn
+const servedLocators = new WeakMap()
 const deliveredCalls = new Set()
 let proxyClosed = false
 function fail(code) {
@@ -133,6 +134,10 @@ function observeQuery() {
     need(facts.privateGrantMatched && facts.configOwned && facts.cwdOwned, 'sdk-private-grant-or-workdir-mismatch')
     need(opts.model === 'opus[1m]' || opts.model === 'claude-opus-5-5[1m]', 'sdk-model-or-window-mismatch')
     need(!opts.env?.ANTHROPIC_API_KEY && !opts.env?.ANTHROPIC_AUTH_TOKEN && !opts.env?.ANTHROPIC_BASE_URL, 'sdk-unexpected-provider-credential')
+    need(typeof opts.sessionId === 'string' && /^[0-9a-f-]{36}$/i.test(opts.sessionId), 'owned-preallocated-sdk-target-required')
+    const locator = { claudeSessionId: opts.sessionId, currentTranscript: { configDir: opts.env.CLAUDE_CONFIG_DIR, projectDir: opts.cwd }, terminal: false }
+    servedLocators.set(facts, locator)
+    facts.targetSessionDigest = digest(opts.sessionId)
     const recordInput = value => {
       const serialized = JSON.stringify(value)
       facts.inputMarker ||= serialized.includes(marker)
@@ -163,7 +168,16 @@ function observeQuery() {
     actual.close = () => { facts.closeCalled = true; return originalClose() }
     const iterate = actual[Symbol.asyncIterator].bind(actual)
     actual[Symbol.asyncIterator] = async function* () {
-      try { for await (const event of { [Symbol.asyncIterator]: iterate }) yield event }
+      try {
+        for await (const event of { [Symbol.asyncIterator]: iterate }) {
+          if (event.type === 'result') {
+            need(event.session_id === locator.claudeSessionId, 'native-terminal-not-preallocated-owned-target')
+            locator.terminal = true
+            facts.terminalSessionMatched = true
+          }
+          yield event
+        }
+      }
       finally { facts.iteratorSettled = true }
     }
     controls.add(actual)
@@ -374,19 +388,33 @@ try {
       need(result.payloads?.some(payload => typeof payload.text === 'string' && payload.text.includes(receipt)), 'actual-client-receipt-missing-' + stage)
       need(result.meta?.completion?.stopReason !== 'error' && !result.meta?.aborted, 'actual-client-completion-failed-' + stage)
       await settleQueries()
+      const queries = report.queries.slice(queryStart)
+      need(queries.length > 0, 'real-query-missing-' + stage)
+      const served = servedLocators.get(queries.at(-1))
+      need(served?.terminal, 'actual-served-terminal-session-unverified-' + stage)
+      const servedHistory = await supportedHistory(served)
       const sessions = JSON.parse(readFileSync(join(output, 'sessions', 'sessions.json')))
       const mappings = Object.entries(sessions).filter(([key, value]) => key !== '__meridian_store_meta__' && value?.claudeSessionId)
       need(mappings.length === 1, 'working-mapping-not-unique')
       const mapping = mappings[0][1], history = await supportedHistory(mapping)
-      const queries = report.queries.slice(queryStart)
-      need(queries.length > 0, 'real-query-missing-' + stage)
       const facts = { stage, markerInInput: queries.some(query => query.inputMarker), markerInSupportedHistory: history.includes(marker),
         receiptInSupportedHistory: history.includes(receipt), sdkPrefixProved: Boolean(mapping.lineageHash), rawOnlyProof: Boolean(mapping.clientLineageHash),
+        servedReceiptInSupportedHistory: servedHistory.includes(receipt), servedMatchesWorkingMapping: served.claudeSessionId === mapping.claudeSessionId,
+        servedToolPairInSupportedHistory: [...deliveredCalls].some(id => servedHistory.includes(id)) && servedHistory.includes(receipt),
         toolPairInSupportedHistory: [...deliveredCalls].some(id => history.includes(id)) && history.includes(receipt),
         toolPairInInput: queries.some(query => query.inputToolPair),
         anyResume: queries.some(query => query.resume), rawCount: mapping.messageCount, workingSessionDigest: digest(mapping.claudeSessionId) }
       report.stages.push(facts)
-      need(facts.receiptInSupportedHistory, 'supported-history-tool-receipt-lost-' + stage)
+      need(facts.servedReceiptInSupportedHistory && facts.servedToolPairInSupportedHistory, 'supported-served-tool-receipt-or-pair-lost-' + stage)
+      if (stage === 'read-canary') {
+        // E2E.md E54 documents this exact headerless checkpoint limitation:
+        // the tool-result continuation is independent and does not publish its
+        // answering fork. Do not manufacture OpenCode headers or select an
+        // arbitrary listed session to make the working mapping appear current.
+        need(facts.rawCount === 1 && !facts.servedMatchesWorkingMapping && !facts.receiptInSupportedHistory, 'headerless-checkpoint-control-changed')
+      } else {
+        need(facts.servedMatchesWorkingMapping && facts.receiptInSupportedHistory, 'working-mapping-not-actual-answering-branch-' + stage)
+      }
       if (stage === 'transformed') {
         need(report.pluginObservations.some(row => row.phase === stage && row.markerRequested && !row.rawMarker), 'benign-transform-not-requested-or-raw-history-mutated')
         const expected = input.EXPECT === 'candidate'
@@ -430,6 +458,10 @@ finally {
     try { await bounded(instance.close(), 15_000, 'proxy-close-deadline') }
     catch (error) { fail(error.message); for (const socket of sockets) socket.destroy() }
   }
+  // Bun 1.3.11's Node HTTP shim can emit listener close/callback while its
+  // observed socket wrappers omit close. Explicitly destroy the original
+  // owned handles and still require their close events; never erase witnesses.
+  for (const socket of sockets) socket.destroy()
   for (const actor of children) {
     const closure = await stopAndJoinChild(actor.child, actor.witness, { graceMs: 3000, forceMs: 3000 })
     report.children.push({ ...actor.facts, closure })
@@ -438,6 +470,9 @@ finally {
   try { await bounded(Promise.all(socketClosures), 3000, 'owned-socket-close-deadline'); await bounded(Promise.allSettled([...handlers]), 3000, 'owned-handler-close-deadline'); await bounded(Promise.allSettled([...reads]), 3000, 'supported-read-settlement-deadline') }
   catch (error) { fail(error.message) }
   report.startupSettled = !startup || startupSettled
+  report.httpWitnesses = { proxyCloseSeen: proxyClosed, proxyListening: instance?.server.listening ?? false,
+    relayListening: relay?.listening ?? false, remainingSockets: sockets.size, remainingHandlers: handlers.size,
+    observedSocketCount: socketClosures.length }
   report.httpJoined = prepareOnly || (startupSettled && proxyClosed && (!relay || !relay.listening) && sockets.size === 0 && handlers.size === 0)
   report.queryJoins = prepareOnly || report.queries.every(query => query.constructed && query.iteratorSettled && query.closeCalled && query.publicSpawn)
   if (!report.httpJoined || !report.queryJoins) fail('native-actor-custody-incomplete')

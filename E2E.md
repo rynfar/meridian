@@ -42,6 +42,47 @@ the Agent SDK, real Claude, Kubernetes, billing or the undisclosed classifier
 trigger. Actual affected-flow proof, all four E41 modes, package verification and
 final-head CI remain separate gates. See [current source review and qualifications](docs/maintenance/evidence/openclaw769-current-main-20261009.md).
 
+## OpenClaw #769 native plugin-message contract
+
+[`scripts/e2e-openclaw-native.mjs`](scripts/e2e-openclaw-native.mjs) runs the
+reported OpenClaw 2026.6.11 client against independently installed baseline or
+candidate Meridian and the same corrected scrub package. The qualified tuple
+is Linux arm64, Bun 1.3.11, Node 22.22.3, Agent SDK 0.2.141, native Claude Code
+2.1.284 and literal wire model `opus[1m]`, observed as `claude-opus-5-5[1m]`.
+The reporter's original SDK/native versions and architecture were not supplied.
+
+Set absolute `E2E_MERIDIAN_ENTRY`, `E2E_SDK_ENTRY`, `E2E_NATIVE_BIN`,
+`E2E_OPENCLAW_BIN`, `E2E_SCRUB_ENTRY`, and a fresh `E2E_OUTPUT_DIR`; set
+`E2E_EXPECT=baseline` or `candidate`. Run `bun scripts/e2e-openclaw-native.mjs
+--prepare-only` without credentials to qualify versions/imports. The live run
+omits that flag and requires `E2E_TOKEN_FILE` pointing to an owned private
+access-only file in a private directory, mounted read-only. Isolate the runtime
+in an owned container with a valid machine-id, private writable fixture paths
+and no shared user configuration. Never substitute the client-only preparation
+image's placeholder for the qualified native ELF executable.
+
+The real client reads a random owned receipt, then sends a benign transformed
+follow-up, an unchanged follow-up and a normal resume. Observe actual SDK inputs,
+original native children, terminal session IDs and supported public SDK history.
+The transformed input must be ignored on baseline and consumed on candidate;
+candidate replay preserves the actual read call/result, withholds SDK-prefix
+proof, restores that proof on unchanged replay and resumes subsequently.
+Raw client ancestry remains separate from the plugin edit.
+
+The first headerless tool-result turn has the existing E54 limitation: it can
+resume the checkpoint but does not publish its answering branch. Require the
+receipt and matching tool pair in the preallocated, terminal-verified answering
+session; retain the unchanged working mapping as a separate control. Subsequent
+ordinary user turns must publish the branch that actually answered. Do not add
+synthetic client session headers or choose an arbitrary listed session.
+
+Retire admission on the first failure and retain original process, pipe, public
+query, history-read, listener, socket and handler witnesses. Bun 1.3.11 can omit
+socket-wrapper close events after listener closure; explicitly destroy original
+owned handles and still require their close events. No classifier/billing
+resolution, Kubernetes certification, wider E41 acceptance or final-head CI is
+implied by this bounded contract probe.
+
 > **Droid tests (D1–D10)** additionally require `droid` installed (`droid --version` ≥ 0.89.0) and a Factory AI account for BYOK configuration. Tests D1–D10 cover internal mode (the default). Passthrough mode for Droid is opt-in via `MERIDIAN_PASSTHROUGH=1` and requires `droid` ≥ 0.109 — see "Droid passthrough mode" below.
 
 ## Required Meridian OpenCode plugin preflight
