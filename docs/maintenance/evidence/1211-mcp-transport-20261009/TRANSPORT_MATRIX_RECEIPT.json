@@ -1,0 +1,21 @@
+{
+  "baselineSpecificFailure": "second oc failed; second catalog empty despite successful result",
+  "candidateOverlap": "both oc connected; identical complete catalog; true overlap",
+  "sharedNegative": "same baseline cause reproduced on corrected source when deliberately sharing one server",
+  "cancel": "original held query cancelled and joined",
+  "preRequestFailure": "exact42 exit retained",
+  "initTimeout": "timed-out acquisition classified; original child joined",
+  "termResistant": "original SIGKILL escalation and close witnessed",
+  "sameBaselineCandidateFirstCatalog": true,
+  "originalChildren": 17,
+  "publicSdkTransportEntries": 10,
+  "externalModelQueries": 0,
+  "grantsStaged": 0,
+  "allSevenOriginalAttachHandlesTerminalAndJoined": true,
+  "allSevenOriginalProbeChildrenIteratorsListenerJoins": true,
+  "allSevenSandboxAndOwnedContainersRemoved": true,
+  "currentSourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "baseImmutableImageHead": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "actualAffectedModelClientAcceptance": "HELD",
+  "finalHeadCI": "HELD"
+}

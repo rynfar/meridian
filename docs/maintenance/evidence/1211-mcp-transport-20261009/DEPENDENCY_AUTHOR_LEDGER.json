@@ -1,0 +1,31 @@
+{
+  "sourcePR": 1283,
+  "source": "571a671676d6b8604cde932199d77c34bc6a46f3",
+  "incorporated": "52965e1139b443139976bff93c8d482affdae335",
+  "author": "Nowaker",
+  "email": "spam@nowaker.net",
+  "authorDate": "2026-10-04T00:57:11-05:00",
+  "rawAuthorHeaderSha256": "51ad0012276b538b8f1086dc5d0ee334a7cda047c32431ede6bc321b36850af0",
+  "fullMessageSha256": "30ba16edab4829dba485fd62f215b1be226cbc5d3ec6164029cfce9af3c7c78d",
+  "authorDateFullMessagePreserved": true,
+  "dependencyReason": "Fresh actual SDK/native loopback probe reproduces shared transport failure on existing1211 production snapshot. Complete source change is incorporated in existing1322, inheriting oldest1211 delivery age rather than creating a new PR.",
+  "maintainerFixtureFiles": [
+    {
+      "path": "scripts/e2e-passthrough-mcp-overlap.mjs",
+      "sha256": "fdb0958f482ca26821387b4a7530bc175cc116c197788849ee3809f34cfcfc53",
+      "copiedFromReviewedPreparation": "b430674915221a6e7a3199b07f2513610e0d8cc3"
+    },
+    {
+      "path": "scripts/lib-passthrough-mcp-fixture.mjs",
+      "sha256": "5cdc2fa58c855d2533e0522066e84bab089f5269e6829ee650e33d7fb910e2a5",
+      "copiedFromReviewedPreparation": "b430674915221a6e7a3199b07f2513610e0d8cc3"
+    },
+    {
+      "path": "src/__tests__/passthrough-mcp-per-query.test.ts",
+      "sha256": "3ede7d775e3fcd18feddf436bb6ef15b0c8c4ce37042421f8fb56a1ef56c69cf",
+      "copiedFromReviewedPreparation": "b430674915221a6e7a3199b07f2513610e0d8cc3"
+    }
+  ],
+  "otherPrepared1283ProductionCorrectionsIncluded": false,
+  "liveAcceptance": "HELD"
+}

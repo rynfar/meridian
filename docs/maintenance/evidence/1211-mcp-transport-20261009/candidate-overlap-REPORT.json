@@ -1,0 +1,139 @@
+{
+  "scope": "credential-free real SDK/native CLI with loopback responder; no OpenCode, Meridian client plugin, or model acceptance",
+  "startedAt": "2026-10-09T12:01:52.526Z",
+  "case": "overlap",
+  "sharedInstance": false,
+  "sourceRoot": "/opt/e71/candidate",
+  "sourceHead": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "platform": "linux",
+  "architecture": "x64",
+  "bun": "1.3.11",
+  "nodeCompatibility": "24.3.0",
+  "sdk": "0.2.141",
+  "cli": {
+    "executable": "/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "version": "2.1.284 (Claude Code)",
+    "sha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f"
+  },
+  "sourceFiles": {
+    "src/proxy/query.ts": "9ad6a132a14b19c10c4d7851a915db6aa7a53c087dd3ecdc29456929b34f6bfd",
+    "src/proxy/passthroughTools.ts": "b8f56a5f87b0478f5ae673fc4337bc426f348034100f6a0304ecb105998c1cba",
+    "harness:./e2e-passthrough-mcp-overlap.mjs": "fdb0958f482ca26821387b4a7530bc175cc116c197788849ee3809f34cfcfc53",
+    "harness:./lib-passthrough-mcp-fixture.mjs": "5cdc2fa58c855d2533e0522066e84bab089f5269e6829ee650e33d7fb910e2a5"
+  },
+  "outcome": "passed",
+  "error": null,
+  "environmentRestored": true,
+  "secondRanWhileFirstOpen": true,
+  "captureSealed": true,
+  "finalCatalogValidation": "passed",
+  "queryCloseError": null,
+  "logs": {
+    "status": "unavailable",
+    "discovered": 0,
+    "read": 0,
+    "failures": 0,
+    "unreadable": 0,
+    "malformed": 0
+  },
+  "mcpLogFailureCheck": "unavailable",
+  "limitations": [
+    "MCP log diagnostics unavailable or incomplete; zero CLI log failures is not established"
+  ],
+  "requests": [
+    {
+      "turn": "first",
+      "toolNames": [
+        "mcp__oc__bash"
+      ],
+      "toolDefinitionsSha256": "e6a1fe2fcde35c3a24c06adcb29a684bc1792e54dabbbdc2b08e119975b60e49"
+    },
+    {
+      "turn": "second",
+      "toolNames": [
+        "mcp__oc__bash"
+      ],
+      "toolDefinitionsSha256": "e6a1fe2fcde35c3a24c06adcb29a684bc1792e54dabbbdc2b08e119975b60e49"
+    }
+  ],
+  "untaggedModelRequests": 0,
+  "otherRequests": [
+    {
+      "method": "HEAD",
+      "path": "/api/hello"
+    },
+    {
+      "method": "HEAD",
+      "path": "/api/hello"
+    }
+  ],
+  "queries": [
+    {
+      "turn": "first",
+      "mcpServers": [
+        {
+          "name": "oc",
+          "status": "connected"
+        }
+      ],
+      "result": "success",
+      "errorClass": null,
+      "closeErrorClass": null,
+      "intentionalCancellation": false,
+      "settled": true
+    },
+    {
+      "turn": "second",
+      "mcpServers": [
+        {
+          "name": "oc",
+          "status": "connected"
+        }
+      ],
+      "result": "success",
+      "errorClass": null,
+      "closeErrorClass": null,
+      "intentionalCancellation": false,
+      "settled": true
+    }
+  ],
+  "cleanup": {
+    "childrenJoined": true,
+    "iteratorsJoined": true,
+    "listenerClosed": true,
+    "children": [
+      {
+        "pid": 39,
+        "closed": true,
+        "exitCode": 0,
+        "signal": null,
+        "spawnError": null,
+        "stderrBytes": 0,
+        "signals": []
+      },
+      {
+        "pid": 40,
+        "closed": true,
+        "exitCode": 0,
+        "signal": null,
+        "spawnError": null,
+        "stderrBytes": 0,
+        "signals": []
+      },
+      {
+        "pid": 55,
+        "closed": true,
+        "exitCode": 0,
+        "signal": null,
+        "spawnError": null,
+        "stderrBytes": 0,
+        "signals": []
+      }
+    ],
+    "sandboxRemoved": true,
+    "retainedSandbox": null
+  },
+  "completedAt": "2026-10-09T12:01:56.605Z",
+  "elapsedMs": 4079,
+  "exitCode": 0
+}

@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--platform",
+    "linux/amd64",
+    "--network=none",
+    "--read-only",
+    "--name",
+    "meridian1211-mcp-qualify-r2-faf9b794",
+    "--tmpfs",
+    "/tmp:rw,mode=1777,size=64m",
+    "--mount",
+    "type=bind,source=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-mcp-transport-20261009-round1,target=/proof",
+    "sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5",
+    "bun",
+    "/proof/qualify-image-package.mjs"
+  ],
+  "containerId": "59f08bdaa02c7ba984a960bf50e9ee821ab72ac31eb9d4a1cfb1349e28478f7c"
+}

@@ -1,0 +1,23 @@
+{
+  "disposition": "PASS_BOUNDED_INSTALLED_E55",
+  "assertions": 11,
+  "queries": 5,
+  "actualClientInvocations": 3,
+  "originalChildrenJoined": 9,
+  "originalAttachJoined": true,
+  "ownedContainerRemoved": true,
+  "privateSourceAndGrantUnchanged": true,
+  "estimatedSdkCostUsd": 0.119127,
+  "productionSourceHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "currentTestOnlyHead": "69374accc89cbe00d8173db589a29c968b37ffd8",
+  "installedBackend": "2.1.295",
+  "sdk": "0.2.141",
+  "actualClient": "2.1.287",
+  "model": "claude-sonnet-5-5",
+  "scopeLimitations": [
+    "No actual OpenCode/OpenClaw/LiteLLM flow",
+    "MCP readiness not observed per real query",
+    "Inherited product acceptance and final-head CI remain open"
+  ],
+  "taskGrantRemoved": true
+}

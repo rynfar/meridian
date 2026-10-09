@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T12:19:54.431232+00:00",
+  "sourceImageCodeHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "imageId": "sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5",
+  "compiledFileCount": 432,
+  "allCompiledAndTrackedSourceIdentityChecksPassed": true,
+  "independentTarballSHA256": "9196379796dcc354115dbe0f4772308551e4100d48fa2c703afb1839ffe5e9c0",
+  "sourceSdkBackend": "0.2.141/2.1.284",
+  "installedSdkBackend": "0.2.141/2.1.295",
+  "originalAttachJoinedAndOwnedStoppedContainerRemoved": true,
+  "firstLauncherFailureRetained": true,
+  "externalModelQueries": 0,
+  "liveAcceptance": "HELD",
+  "currentTestOnlyCorrectionHead": "69374accc89cbe00d8173db589a29c968b37ffd8"
+}

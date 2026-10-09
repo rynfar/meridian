@@ -1,0 +1,13 @@
+{
+  "originalAttachPid": 20314,
+  "originalAttachJoined": true,
+  "exit": 1,
+  "seconds": 1.9407818750478327,
+  "containerId": "e358af5aeec1db076de17dbb39376905d94d88844303a889dfba4f9a49c0bd7a",
+  "specificCauseAndOriginalJoinsVerified": true,
+  "ownedStoppedContainerRemoved": true,
+  "case": "pre-request-failure",
+  "externalModelQueries": 0,
+  "grantStaged": false,
+  "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e"
+}

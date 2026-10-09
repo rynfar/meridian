@@ -1,0 +1,607 @@
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 995B done
+#1 DONE 0.1s
+
+#2 [internal] load metadata for docker.io/library/meridian1211-e41:20261009-r11
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context:
+#3 transferring context: 2B done
+#3 DONE 0.2s
+
+#4 [internal] load build context
+#4 ...
+
+#5 [1/9] FROM docker.io/library/meridian1211-e41:20261009-r11
+#5 DONE 1.2s
+
+#4 [internal] load build context
+#4 transferring context: 1.04GB 4.7s done
+#4 DONE 4.8s
+
+#6 [2/9] RUN rm -rf /opt/e71/candidate /opt/e41-package && mkdir /opt/e71/candidate /opt/e41-package && chown 501:501 /opt/e71/candidate /opt/e41-package
+#6 DONE 6.1s
+
+#7 [3/9] COPY --chown=501:501 candidate/ /opt/e71/candidate/
+#7 DONE 3.1s
+
+#8 [4/9] WORKDIR /opt/e71/candidate
+#8 DONE 0.3s
+
+#9 [5/9] RUN bun install --frozen-lockfile --ignore-scripts && node node_modules/@anthropic-ai/claude-code/install.cjs && test -z "$(git status --porcelain)" && npm run build
+#9 0.288 bun install v1.3.11 (af24e281)
+#9 2.876
+#9 2.876 + @hono/node-server@1.19.15
+#9 2.876 + @opencode-ai/plugin@0.0.0-beta-18314
+#9 2.876 + @types/bun@1.3.11
+#9 2.876 + @types/cross-spawn@6.0.6
+#9 2.876 + @types/node@22.19.7
+#9 2.876 + bun2nix@2.0.8
+#9 2.876 + glob@13.0.0
+#9 2.876 + hono@4.12.34
+#9 2.876 + typescript@5.9.3
+#9 2.876 + @anthropic-ai/claude-agent-sdk@0.2.141
+#9 2.876 + @anthropic-ai/claude-code@2.1.284
+#9 2.876 + ajv@8.20.0
+#9 2.876 + ajv-formats@3.0.1
+#9 2.876 + cross-spawn@7.0.6
+#9 2.876 + jsonc-parser@3.3.1
+#9 2.876 + libsql@0.5.29
+#9 2.876 + zod@4.4.3
+#9 2.876
+#9 2.876 206 packages installed [2.62s]
+#9 4.485
+#9 4.485 > @rynfar/meridian@1.80.0 build
+#9 4.485 > bun scripts/build.ts
+#9 4.485
+#9 6.755 Bundled 564 modules in 324ms
+#9 6.755
+#9 6.755   cli.js                          15.85 KB   (entry point)
+#9 6.755   cli-fp5ex9sw.js                 2.28 MB    (chunk)
+#9 6.755   cli-1s25p10d.js                 4.82 KB    (chunk)
+#9 6.755   cli-kvzyq9qz.js                 1.1 KB     (chunk)
+#9 6.755   cli-vmh8k6kq.js                 75.60 KB   (chunk)
+#9 6.755   cli-9e27vb02.js                 33.15 KB   (chunk)
+#9 6.755   cli-zh659m8r.js                 19.93 KB   (chunk)
+#9 6.755   cli-x8vwbg1f.js                 14.95 KB   (chunk)
+#9 6.755   cli-15q5qaay.js                 22.90 KB   (chunk)
+#9 6.755   cli-1jstkdj9.js                 0.82 KB    (chunk)
+#9 6.755   cli-3zwfvexc.js                 2.13 KB    (chunk)
+#9 6.755   cli-xw1vv642.js                 16.49 KB   (chunk)
+#9 6.755   cli-xcg0b6my.js                 8.25 KB    (chunk)
+#9 6.755   cli-4nmmvs9q.js                 1.58 KB    (chunk)
+#9 6.755   cli-sry5aqdj.js                 1.41 KB    (chunk)
+#9 6.755   cli-yybp09jr.js                 32.19 KB   (chunk)
+#9 6.755   cli-p9swy5t3.js                 2.35 KB    (chunk)
+#9 6.755   organizationName-g3k9h4t9.js    0.75 KB    (chunk)
+#9 6.755   socketActivation-s3xh5s16.js    256 bytes  (chunk)
+#9 6.755   profileCli-b635c0k4.js          1.33 KB    (chunk)
+#9 6.755   antigravitySetup-esmq6zee.js    10.77 KB   (chunk)
+#9 6.755   setup-rd1qe555.js               0.90 KB    (chunk)
+#9 6.755   tokenRefresh-269eckh2.js        1.0 KB     (chunk)
+#9 6.755   index-h1gbpvq6.js               487 bytes  (chunk)
+#9 6.755   statusProbe-9x9q261e.js         5.38 KB    (chunk)
+#9 6.755   cliDashboard-c0dvkj4y.js        11.59 KB   (chunk)
+#9 6.755   profiles-f04ny5y0.js            0.95 KB    (chunk)
+#9 6.755   server.js                       0.95 KB    (entry point)
+#9 6.755   meridian-v2.js                  0.69 MB    (entry point)
+#9 6.755   profilePage-mpdx0q78.js         68.1 KB    (chunk)
+#9 6.755   profileRename-a9dzdyz6.js       457 bytes  (chunk)
+#9 6.755   loginCallbackPage-bjrsnkps.js   2.1 KB     (chunk)
+#9 6.755   stats-4c4ewmdh.js               310 bytes  (chunk)
+#9 6.755   pluginPage-xbws24rt.js          17.31 KB   (chunk)
+#9 6.755
+#9 7.001 Bundled 87 modules in 218ms
+#9 7.001
+#9 7.001   buildObservationWorker.js  0.50 MB  (entry point)
+#9 7.001
+#9 7.111 Bundled 3 modules in 87ms
+#9 7.111
+#9 7.111   index.js  9.25 KB  (entry point)
+#9 7.111
+#9 7.308 Bundled 116 modules in 175ms
+#9 7.308
+#9 7.308   index.js  0.69 MB  (entry point)
+#9 7.308
+#9 20.70   fixed: cli-fp5ex9sw.js
+#9 20.71 fix-bun-exports: patched 1 file(s)
+#9 23.14 Certified local build 1 (6338db22-0453-4399-8140-4fa9f8fc7cda)
+#9 DONE 24.0s
+
+#10 [6/9] RUN npm pack --ignore-scripts --pack-destination /opt/e41-package
+#10 2.400 npm notice
+#10 2.400 npm notice package: @rynfar/meridian@1.80.0
+#10 2.400 npm notice Tarball Contents
+#10 2.410 npm notice 8.3kB README.md
+#10 2.410 npm notice 1.5kB assets/banner.svg
+#10 2.410 npm notice 26.1kB assets/bot-icon-512.png
+#10 2.410 npm notice 3.2kB assets/bot-icon.svg
+#10 2.410 npm notice 409.4kB assets/desktop-dashboard.jpg
+#10 2.410 npm notice 2.0kB assets/how-it-works.svg
+#10 2.410 npm notice 30.0kB assets/icon-512.png
+#10 2.410 npm notice 858B assets/icon.svg
+#10 2.410 npm notice 25.7kB assets/logo-512.png
+#10 2.410 npm notice 741B assets/logo.svg
+#10 2.410 npm notice 71.9kB assets/providers/antigravity.png
+#10 2.410 npm notice 14.0kB assets/providers/claude.png
+#10 2.410 npm notice 509B assets/providers/README.md
+#10 2.410 npm notice 470B assets/trayTemplate.png
+#10 2.410 npm notice 953B assets/trayTemplate@2x.png
+#10 2.410 npm notice 1.6kB assets/trayTemplate@3x.png
+#10 2.410 npm notice 5.4kB bin/meridian-launchd.sh
+#10 2.410 npm notice 9.7kB dist/antigravity-clients/opencode.js
+#10 2.410 npm notice 1.2kB dist/antigravity-clients/pi.js
+#10 2.410 npm notice 10.8kB dist/antigravitySetup-esmq6zee.js
+#10 2.410 npm notice 42.4kB dist/build-provenance.json
+#10 2.410 npm notice 499.1kB dist/buildObservationWorker.js
+#10 2.410 npm notice 818B dist/cli-1jstkdj9.js
+#10 2.410 npm notice 4.8kB dist/cli-1s25p10d.js
+#10 2.410 npm notice 2.1kB dist/cli-3zwfvexc.js
+#10 2.410 npm notice 1.6kB dist/cli-4nmmvs9q.js
+#10 2.410 npm notice 33.1kB dist/cli-9e27vb02.js
+#10 2.410 npm notice 22.9kB dist/cli-15q5qaay.js
+#10 2.410 npm notice 2.3MB dist/cli-fp5ex9sw.js
+#10 2.410 npm notice 1.1kB dist/cli-kvzyq9qz.js
+#10 2.410 npm notice 2.4kB dist/cli-p9swy5t3.js
+#10 2.410 npm notice 1.4kB dist/cli-sry5aqdj.js
+#10 2.410 npm notice 75.6kB dist/cli-vmh8k6kq.js
+#10 2.410 npm notice 15.0kB dist/cli-x8vwbg1f.js
+#10 2.410 npm notice 8.3kB dist/cli-xcg0b6my.js
+#10 2.410 npm notice 16.5kB dist/cli-xw1vv642.js
+#10 2.410 npm notice 32.2kB dist/cli-yybp09jr.js
+#10 2.410 npm notice 19.9kB dist/cli-zh659m8r.js
+#10 2.410 npm notice 15.8kB dist/cli.js
+#10 2.410 npm notice 11.6kB dist/cliDashboard-c0dvkj4y.js
+#10 2.410 npm notice 1.5kB dist/configDir.d.ts
+#10 2.410 npm notice 313B dist/configDir.d.ts.map
+#10 2.410 npm notice 1.7kB dist/env.d.ts
+#10 2.410 npm notice 498B dist/env.d.ts.map
+#10 2.410 npm notice 2.0kB dist/errorReporting/deliver.d.ts
+#10 2.410 npm notice 883B dist/errorReporting/deliver.d.ts.map
+#10 2.410 npm notice 3.8kB dist/errorReporting/event.d.ts
+#10 2.410 npm notice 2.4kB dist/errorReporting/event.d.ts.map
+#10 2.410 npm notice 3.7kB dist/errorReporting/index.d.ts
+#10 2.410 npm notice 932B dist/errorReporting/index.d.ts.map
+#10 2.410 npm notice 244B dist/errorReporting/rejectionPolicy.d.ts
+#10 2.410 npm notice 250B dist/errorReporting/rejectionPolicy.d.ts.map
+#10 2.410 npm notice 584B dist/grepTool.d.ts
+#10 2.410 npm notice 262B dist/grepTool.d.ts.map
+#10 2.410 npm notice 492B dist/headerSettings.d.ts
+#10 2.410 npm notice 271B dist/headerSettings.d.ts.map
+#10 2.410 npm notice 487B dist/index-h1gbpvq6.js
+#10 2.410 npm notice 251B dist/logger.d.ts
+#10 2.410 npm notice 306B dist/logger.d.ts.map
+#10 2.410 npm notice 2.1kB dist/loginCallbackPage-bjrsnkps.js
+#10 2.410 npm notice 793B dist/mcpTools.d.ts
+#10 2.410 npm notice 157B dist/mcpTools.d.ts.map
+#10 2.410 npm notice 688.0kB dist/meridian-v2.js
+#10 2.410 npm notice 687.7kB dist/meridian-v2/index.js
+#10 2.410 npm notice 115B dist/meridian-v2/package.json
+#10 2.410 npm notice 9.3kB dist/meridian/index.js
+#10 2.410 npm notice 115B dist/meridian/package.json
+#10 2.410 npm notice 748B dist/organizationName-g3k9h4t9.js
+#10 2.410 npm notice 17.3kB dist/pluginPage-xbws24rt.js
+#10 2.410 npm notice 1.3kB dist/profileCli-b635c0k4.js
+#10 2.410 npm notice 68.1kB dist/profilePage-mpdx0q78.js
+#10 2.410 npm notice 457B dist/profileRename-a9dzdyz6.js
+#10 2.410 npm notice 950B dist/profiles-f04ny5y0.js
+#10 2.410 npm notice 15.3kB dist/proxy/adapter.d.ts
+#10 2.410 npm notice 3.3kB dist/proxy/adapter.d.ts.map
+#10 2.410 npm notice 2.9kB dist/proxy/adapterInstances.d.ts
+#10 2.410 npm notice 893B dist/proxy/adapterInstances.d.ts.map
+#10 2.410 npm notice 2.1kB dist/proxy/adapters/cherry.d.ts
+#10 2.410 npm notice 389B dist/proxy/adapters/cherry.d.ts.map
+#10 2.410 npm notice 7.4kB dist/proxy/adapters/claudecode.d.ts
+#10 2.410 npm notice 1.1kB dist/proxy/adapters/claudecode.d.ts.map
+#10 2.410 npm notice 786B dist/proxy/adapters/claudecodeProgress.d.ts
+#10 2.410 npm notice 240B dist/proxy/adapters/claudecodeProgress.d.ts.map
+#10 2.410 npm notice 1.2kB dist/proxy/adapters/codex.d.ts
+#10 2.410 npm notice 235B dist/proxy/adapters/codex.d.ts.map
+#10 2.410 npm notice 1.0kB dist/proxy/adapters/crush.d.ts
+#10 2.410 npm notice 309B dist/proxy/adapters/crush.d.ts.map
+#10 2.410 npm notice 1.2kB dist/proxy/adapters/detect.d.ts
+#10 2.410 npm notice 351B dist/proxy/adapters/detect.d.ts.map
+#10 2.410 npm notice 867B dist/proxy/adapters/droid.d.ts
+#10 2.410 npm notice 305B dist/proxy/adapters/droid.d.ts.map
+#10 2.410 npm notice 1.5kB dist/proxy/adapters/forgecode.d.ts
+#10 2.410 npm notice 329B dist/proxy/adapters/forgecode.d.ts.map
+#10 2.410 npm notice 574B dist/proxy/adapters/jcode.d.ts
+#10 2.410 npm notice 362B dist/proxy/adapters/jcode.d.ts.map
+#10 2.410 npm notice 3.3kB dist/proxy/adapters/letta.d.ts
+#10 2.410 npm notice 475B dist/proxy/adapters/letta.d.ts.map
+#10 2.410 npm notice 3.1kB dist/proxy/adapters/openai.d.ts
+#10 2.410 npm notice 388B dist/proxy/adapters/openai.d.ts.map
+#10 2.410 npm notice 587B dist/proxy/adapters/opencode.d.ts
+#10 2.410 npm notice 494B dist/proxy/adapters/opencode.d.ts.map
+#10 2.410 npm notice 960B dist/proxy/adapters/passthrough.d.ts
+#10 2.410 npm notice 322B dist/proxy/adapters/passthrough.d.ts.map
+#10 2.410 npm notice 1.4kB dist/proxy/adapters/pi.d.ts
+#10 2.410 npm notice 309B dist/proxy/adapters/pi.d.ts.map
+#10 2.410 npm notice 1.9kB dist/proxy/adapters/polytoken.d.ts
+#10 2.410 npm notice 416B dist/proxy/adapters/polytoken.d.ts.map
+#10 2.410 npm notice 5.2kB dist/proxy/adapters/prime.d.ts
+#10 2.410 npm notice 716B dist/proxy/adapters/prime.d.ts.map
+#10 2.410 npm notice 376B dist/proxy/adapters/sessionIdentity.d.ts
+#10 2.410 npm notice 396B dist/proxy/adapters/sessionIdentity.d.ts.map
+#10 2.410 npm notice 2.6kB dist/proxy/agentDefs.d.ts
+#10 2.410 npm notice 978B dist/proxy/agentDefs.d.ts.map
+#10 2.410 npm notice 1.6kB dist/proxy/agentMatch.d.ts
+#10 2.410 npm notice 330B dist/proxy/agentMatch.d.ts.map
+#10 2.410 npm notice 1.1kB dist/proxy/auth.d.ts
+#10 2.410 npm notice 377B dist/proxy/auth.d.ts.map
+#10 2.410 npm notice 2.7kB dist/proxy/authDiscovery.d.ts
+#10 2.410 npm notice 391B dist/proxy/authDiscovery.d.ts.map
+#10 2.410 npm notice 767B dist/proxy/authStatusOwnership.d.ts
+#10 2.410 npm notice 694B dist/proxy/authStatusOwnership.d.ts.map
+#10 2.410 npm notice 1.3kB dist/proxy/authStatusProcess.d.ts
+#10 2.410 npm notice 906B dist/proxy/authStatusProcess.d.ts.map
+#10 2.410 npm notice 425B dist/proxy/backends/antigravity.d.ts
+#10 2.410 npm notice 451B dist/proxy/backends/antigravity.d.ts.map
+#10 2.410 npm notice 684B dist/proxy/backends/antigravityAttachments.d.ts
+#10 2.410 npm notice 719B dist/proxy/backends/antigravityAttachments.d.ts.map
+#10 2.410 npm notice 491B dist/proxy/backends/antigravityGrammar.d.ts
+#10 2.410 npm notice 444B dist/proxy/backends/antigravityGrammar.d.ts.map
+#10 2.410 npm notice 995B dist/proxy/backends/antigravityJobs.d.ts
+#10 2.410 npm notice 968B dist/proxy/backends/antigravityJobs.d.ts.map
+#10 2.410 npm notice 492B dist/proxy/backends/antigravityMedia.d.ts
+#10 2.410 npm notice 481B dist/proxy/backends/antigravityMedia.d.ts.map
+#10 2.410 npm notice 495B dist/proxy/backends/antigravityNative.d.ts
+#10 2.410 npm notice 435B dist/proxy/backends/antigravityNative.d.ts.map
+#10 2.410 npm notice 554B dist/proxy/backends/antigravityOpenai.d.ts
+#10 2.410 npm notice 584B dist/proxy/backends/antigravityOpenai.d.ts.map
+#10 2.410 npm notice 366B dist/proxy/backends/antigravityOpenaiMedia.d.ts
+#10 2.410 npm notice 399B dist/proxy/backends/antigravityOpenaiMedia.d.ts.map
+#10 2.410 npm notice 1.4kB dist/proxy/backends/antigravityPlugins.d.ts
+#10 2.410 npm notice 1.2kB dist/proxy/backends/antigravityPlugins.d.ts.map
+#10 2.410 npm notice 650B dist/proxy/backends/antigravityProbe.d.ts
+#10 2.410 npm notice 638B dist/proxy/backends/antigravityProbe.d.ts.map
+#10 2.410 npm notice 343B dist/proxy/backends/antigravityProcess.d.ts
+#10 2.410 npm notice 389B dist/proxy/backends/antigravityProcess.d.ts.map
+#10 2.410 npm notice 23.0kB dist/proxy/backends/antigravityProtocol.d.ts
+#10 2.410 npm notice 2.8kB dist/proxy/backends/antigravityProtocol.d.ts.map
+#10 2.410 npm notice 1.7kB dist/proxy/backends/antigravityReplay.d.ts
+#10 2.410 npm notice 1.6kB dist/proxy/backends/antigravityReplay.d.ts.map
+#10 2.410 npm notice 1.3kB dist/proxy/backends/antigravityResponses.d.ts
+#10 2.410 npm notice 1.1kB dist/proxy/backends/antigravityResponses.d.ts.map
+#10 2.410 npm notice 6.3kB dist/proxy/backends/antigravityRuntime.d.ts
+#10 2.410 npm notice 5.8kB dist/proxy/backends/antigravityRuntime.d.ts.map
+#10 2.410 npm notice 624B dist/proxy/backends/antigravitySchema.d.ts
+#10 2.410 npm notice 561B dist/proxy/backends/antigravitySchema.d.ts.map
+#10 2.410 npm notice 1.1kB dist/proxy/backends/antigravitySessions.d.ts
+#10 2.410 npm notice 991B dist/proxy/backends/antigravitySessions.d.ts.map
+#10 2.410 npm notice 816B dist/proxy/backends/antigravityState.d.ts
+#10 2.410 npm notice 954B dist/proxy/backends/antigravityState.d.ts.map
+#10 2.410 npm notice 318B dist/proxy/backends/antigravityStops.d.ts
+#10 2.410 npm notice 357B dist/proxy/backends/antigravityStops.d.ts.map
+#10 2.410 npm notice 534B dist/proxy/backends/antigravityTokens.d.ts
+#10 2.410 npm notice 265B dist/proxy/backends/antigravityTokens.d.ts.map
+#10 2.410 npm notice 402B dist/proxy/backends/antigravityUrl.d.ts
+#10 2.410 npm notice 397B dist/proxy/backends/antigravityUrl.d.ts.map
+#10 2.410 npm notice 883B dist/proxy/backends/providerStatus.d.ts
+#10 2.410 npm notice 729B dist/proxy/backends/providerStatus.d.ts.map
+#10 2.410 npm notice 3.4kB dist/proxy/betas.d.ts
+#10 2.410 npm notice 673B dist/proxy/betas.d.ts.map
+#10 2.410 npm notice 1.3kB dist/proxy/buildArtifacts.d.ts
+#10 2.410 npm notice 639B dist/proxy/buildArtifacts.d.ts.map
+#10 2.410 npm notice 788B dist/proxy/buildFingerprint.d.ts
+#10 2.410 npm notice 560B dist/proxy/buildFingerprint.d.ts.map
+#10 2.410 npm notice 4.5kB dist/proxy/buildInfo.d.ts
+#10 2.410 npm notice 1.6kB dist/proxy/buildInfo.d.ts.map
+#10 2.410 npm notice 181B dist/proxy/buildLock.d.ts
+#10 2.410 npm notice 259B dist/proxy/buildLock.d.ts.map
+#10 2.410 npm notice 535B dist/proxy/buildObserver.d.ts
+#10 2.410 npm notice 533B dist/proxy/buildObserver.d.ts.map
+#10 2.410 npm notice 351B dist/proxy/buildProvenanceError.d.ts
+#10 2.410 npm notice 326B dist/proxy/buildProvenanceError.d.ts.map
+#10 2.410 npm notice 615B dist/proxy/buildRuntime.d.ts
+#10 2.410 npm notice 595B dist/proxy/buildRuntime.d.ts.map
+#10 2.410 npm notice 493B dist/proxy/buildSnapshot.d.ts
+#10 2.410 npm notice 323B dist/proxy/buildSnapshot.d.ts.map
+#10 2.410 npm notice 2.0kB dist/proxy/claudeExecutablePreference.d.ts
+#10 2.410 npm notice 655B dist/proxy/claudeExecutablePreference.d.ts.map
+#10 2.410 npm notice 1.2kB dist/proxy/claudeExecutableSettings.d.ts
+#10 2.410 npm notice 325B dist/proxy/claudeExecutableSettings.d.ts.map
+#10 2.410 npm notice 480B dist/proxy/claudeProbeOwnership.d.ts
+#10 2.410 npm notice 426B dist/proxy/claudeProbeOwnership.d.ts.map
+#10 2.410 npm notice 587B dist/proxy/claudeResolverOwnership.d.ts
+#10 2.410 npm notice 421B dist/proxy/claudeResolverOwnership.d.ts.map
+#10 2.410 npm notice 2.1kB dist/proxy/concurrency.d.ts
+#10 2.410 npm notice 998B dist/proxy/concurrency.d.ts.map
+#10 2.410 npm notice 4.1kB dist/proxy/credentialsMode.d.ts
+#10 2.410 npm notice 430B dist/proxy/credentialsMode.d.ts.map
+#10 2.410 npm notice 2.0kB dist/proxy/cwd.d.ts
+#10 2.410 npm notice 569B dist/proxy/cwd.d.ts.map
+#10 2.410 npm notice 3.4kB dist/proxy/design.d.ts
+#10 2.410 npm notice 2.4kB dist/proxy/design.d.ts.map
+#10 2.410 npm notice 1.0kB dist/proxy/effort.d.ts
+#10 2.410 npm notice 309B dist/proxy/effort.d.ts.map
+#10 2.410 npm notice 2.2kB dist/proxy/envelopeIntegrity.d.ts
+#10 2.410 npm notice 751B dist/proxy/envelopeIntegrity.d.ts.map
+#10 2.410 npm notice 12.2kB dist/proxy/errors.d.ts
+#10 2.410 npm notice 3.0kB dist/proxy/errors.d.ts.map
+#10 2.410 npm notice 402B dist/proxy/executionHistory.d.ts
+#10 2.410 npm notice 446B dist/proxy/executionHistory.d.ts.map
+#10 2.410 npm notice 3.3kB dist/proxy/fileChanges.d.ts
+#10 2.410 npm notice 986B dist/proxy/fileChanges.d.ts.map
+#10 2.410 npm notice 12.3kB dist/proxy/followActive.d.ts
+#10 2.410 npm notice 3.1kB dist/proxy/followActive.d.ts.map
+#10 2.410 npm notice 3.8kB dist/proxy/idleStallCeiling.d.ts
+#10 2.410 npm notice 1.2kB dist/proxy/idleStallCeiling.d.ts.map
+#10 2.410 npm notice 2.6kB dist/proxy/inflight.d.ts
+#10 2.410 npm notice 1.2kB dist/proxy/inflight.d.ts.map
+#10 2.410 npm notice 5.3kB dist/proxy/limitDetection.d.ts
+#10 2.410 npm notice 1.5kB dist/proxy/limitDetection.d.ts.map
+#10 2.410 npm notice 782B dist/proxy/localBuildInfo.d.ts
+#10 2.410 npm notice 767B dist/proxy/localBuildInfo.d.ts.map
+#10 2.410 npm notice 9.1kB dist/proxy/messages.d.ts
+#10 2.410 npm notice 1.7kB dist/proxy/messages.d.ts.map
+#10 2.410 npm notice 15.9kB dist/proxy/models.d.ts
+#10 2.410 npm notice 4.9kB dist/proxy/models.d.ts.map
+#10 2.410 npm notice 3.2kB dist/proxy/oauthPlan.d.ts
+#10 2.410 npm notice 852B dist/proxy/oauthPlan.d.ts.map
+#10 2.410 npm notice 8.6kB dist/proxy/oauthUsage.d.ts
+#10 2.410 npm notice 2.4kB dist/proxy/oauthUsage.d.ts.map
+#10 2.410 npm notice 14.1kB dist/proxy/openai.d.ts
+#10 2.410 npm notice 8.2kB dist/proxy/openai.d.ts.map
+#10 2.410 npm notice 10.2kB dist/proxy/openaiResponses.d.ts
+#10 2.410 npm notice 4.3kB dist/proxy/openaiResponses.d.ts.map
+#10 2.410 npm notice 162B dist/proxy/operationalLog.d.ts
+#10 2.410 npm notice 238B dist/proxy/operationalLog.d.ts.map
+#10 2.410 npm notice 3.7kB dist/proxy/organizationName.d.ts
+#10 2.410 npm notice 1.4kB dist/proxy/organizationName.d.ts.map
+#10 2.410 npm notice 676B dist/proxy/passthroughDenial.d.ts
+#10 2.410 npm notice 412B dist/proxy/passthroughDenial.d.ts.map
+#10 2.410 npm notice 10.2kB dist/proxy/passthroughEarlyStop.d.ts
+#10 2.410 npm notice 2.7kB dist/proxy/passthroughEarlyStop.d.ts.map
+#10 2.410 npm notice 8.6kB dist/proxy/passthroughTools.d.ts
+#10 2.410 npm notice 2.4kB dist/proxy/passthroughTools.d.ts.map
+#10 2.410 npm notice 3.6kB dist/proxy/planAllowance.d.ts
+#10 2.410 npm notice 755B dist/proxy/planAllowance.d.ts.map
+#10 2.410 npm notice 404B dist/proxy/plugins/loader.d.ts
+#10 2.410 npm notice 455B dist/proxy/plugins/loader.d.ts.map
+#10 2.410 npm notice 295B dist/proxy/plugins/pluginPage.d.ts
+#10 2.410 npm notice 178B dist/proxy/plugins/pluginPage.d.ts.map
+#10 2.410 npm notice 2.2kB dist/proxy/plugins/stats.d.ts
+#10 2.410 npm notice 1.0kB dist/proxy/plugins/stats.d.ts.map
+#10 2.410 npm notice 513B dist/proxy/plugins/types.d.ts
+#10 2.410 npm notice 645B dist/proxy/plugins/types.d.ts.map
+#10 2.410 npm notice 244B dist/proxy/plugins/validation.d.ts
+#10 2.410 npm notice 341B dist/proxy/plugins/validation.d.ts.map
+#10 2.410 npm notice 1.7kB dist/proxy/priorityAttestation.d.ts
+#10 2.410 npm notice 1.0kB dist/proxy/priorityAttestation.d.ts.map
+#10 2.410 npm notice 4.2kB dist/proxy/probes.d.ts
+#10 2.410 npm notice 824B dist/proxy/probes.d.ts.map
+#10 2.410 npm notice 3.2kB dist/proxy/profileAdd.d.ts
+#10 2.410 npm notice 1.3kB dist/proxy/profileAdd.d.ts.map
+#10 2.410 npm notice 11.1kB dist/proxy/profileCli.d.ts
+#10 2.410 npm notice 4.4kB dist/proxy/profileCli.d.ts.map
+#10 2.410 npm notice 698B dist/proxy/profileConfigStore.d.ts
+#10 2.410 npm notice 560B dist/proxy/profileConfigStore.d.ts.map
+#10 2.410 npm notice 5.3kB dist/proxy/profileHealth.d.ts
+#10 2.410 npm notice 1.9kB dist/proxy/profileHealth.d.ts.map
+#10 2.410 npm notice 12.0kB dist/proxy/profileLogin.d.ts
+#10 2.410 npm notice 2.8kB dist/proxy/profileLogin.d.ts.map
+#10 2.410 npm notice 498B dist/proxy/profileOAuthBody.d.ts
+#10 2.410 npm notice 284B dist/proxy/profileOAuthBody.d.ts.map
+#10 2.410 npm notice 3.5kB dist/proxy/profileRename.d.ts
+#10 2.410 npm notice 1.6kB dist/proxy/profileRename.d.ts.map
+#10 2.410 npm notice 8.9kB dist/proxy/profiles.d.ts
+#10 2.410 npm notice 2.4kB dist/proxy/profiles.d.ts.map
+#10 2.410 npm notice 11.6kB dist/proxy/query.d.ts
+#10 2.410 npm notice 3.9kB dist/proxy/query.d.ts.map
+#10 2.410 npm notice 4.7kB dist/proxy/rateLimitStore.d.ts
+#10 2.410 npm notice 1.0kB dist/proxy/rateLimitStore.d.ts.map
+#10 2.410 npm notice 1.9kB dist/proxy/replay.d.ts
+#10 2.410 npm notice 1.0kB dist/proxy/replay.d.ts.map
+#10 2.410 npm notice 1.5kB dist/proxy/replayBudget.d.ts
+#10 2.410 npm notice 655B dist/proxy/replayBudget.d.ts.map
+#10 2.410 npm notice 2.3kB dist/proxy/requestAbort.d.ts
+#10 2.410 npm notice 800B dist/proxy/requestAbort.d.ts.map
+#10 2.410 npm notice 4.6kB dist/proxy/retryAfter.d.ts
+#10 2.410 npm notice 1.1kB dist/proxy/retryAfter.d.ts.map
+#10 2.410 npm notice 11.6kB dist/proxy/routing.d.ts
+#10 2.410 npm notice 3.3kB dist/proxy/routing.d.ts.map
+#10 2.410 npm notice 3.0kB dist/proxy/sanitize.d.ts
+#10 2.410 npm notice 439B dist/proxy/sanitize.d.ts.map
+#10 2.410 npm notice 4.2kB dist/proxy/sdkFeatures.d.ts
+#10 2.410 npm notice 1.3kB dist/proxy/sdkFeatures.d.ts.map
+#10 2.410 npm notice 1.0kB dist/proxy/server.d.ts
+#10 2.410 npm notice 915B dist/proxy/server.d.ts.map
+#10 2.410 npm notice 5.1kB dist/proxy/session/cache.d.ts
+#10 2.410 npm notice 2.6kB dist/proxy/session/cache.d.ts.map
+#10 2.410 npm notice 1.9kB dist/proxy/session/crossProcessTurnCoordinator.d.ts
+#10 2.410 npm notice 1.2kB dist/proxy/session/crossProcessTurnCoordinator.d.ts.map
+#10 2.410 npm notice 1.2kB dist/proxy/session/durableFileSystem.d.ts
+#10 2.410 npm notice 495B dist/proxy/session/durableFileSystem.d.ts.map
+#10 2.410 npm notice 2.9kB dist/proxy/session/fingerprint.d.ts
+#10 2.410 npm notice 623B dist/proxy/session/fingerprint.d.ts.map
+#10 2.410 npm notice 629B dist/proxy/session/lifecycleErrors.d.ts
+#10 2.410 npm notice 392B dist/proxy/session/lifecycleErrors.d.ts.map
+#10 2.410 npm notice 1.0kB dist/proxy/session/lifecycleLockQueue.d.ts
+#10 2.410 npm notice 1.1kB dist/proxy/session/lifecycleLockQueue.d.ts.map
+#10 2.410 npm notice 15.3kB dist/proxy/session/lineage.d.ts
+#10 2.410 npm notice 5.0kB dist/proxy/session/lineage.d.ts.map
+#10 2.410 npm notice 5.7kB dist/proxy/session/processIncarnation.d.ts
+#10 2.410 npm notice 1.8kB dist/proxy/session/processIncarnation.d.ts.map
+#10 2.410 npm notice 1.1kB dist/proxy/session/recoveryClaim.d.ts
+#10 2.410 npm notice 902B dist/proxy/session/recoveryClaim.d.ts.map
+#10 2.410 npm notice 1.4kB dist/proxy/session/sdkProcessGate.d.ts
+#10 2.410 npm notice 780B dist/proxy/session/sdkProcessGate.d.ts.map
+#10 2.410 npm notice 1.3kB dist/proxy/session/turnCoordinator.d.ts
+#10 2.410 npm notice 734B dist/proxy/session/turnCoordinator.d.ts.map
+#10 2.410 npm notice 9.8kB dist/proxy/sessionLifecycle.d.ts
+#10 2.410 npm notice 4.3kB dist/proxy/sessionLifecycle.d.ts.map
+#10 2.410 npm notice 14.6kB dist/proxy/sessionStore.d.ts
+#10 2.410 npm notice 7.5kB dist/proxy/sessionStore.d.ts.map
+#10 2.410 npm notice 6.2kB dist/proxy/sessionTree.d.ts
+#10 2.410 npm notice 1.8kB dist/proxy/sessionTree.d.ts.map
+#10 2.410 npm notice 6.8kB dist/proxy/setup.d.ts
+#10 2.410 npm notice 2.0kB dist/proxy/setup.d.ts.map
+#10 2.410 npm notice 790B dist/proxy/shutdown.d.ts
+#10 2.410 npm notice 596B dist/proxy/shutdown.d.ts.map
+#10 2.410 npm notice 2.3kB dist/proxy/socketActivation.d.ts
+#10 2.410 npm notice 485B dist/proxy/socketActivation.d.ts.map
+#10 2.410 npm notice 3.7kB dist/proxy/streamIdleGuard.d.ts
+#10 2.410 npm notice 1.0kB dist/proxy/streamIdleGuard.d.ts.map
+#10 2.410 npm notice 1.3kB dist/proxy/structuredOutput.d.ts
+#10 2.410 npm notice 576B dist/proxy/structuredOutput.d.ts.map
+#10 2.410 npm notice 2.0kB dist/proxy/supervision.d.ts
+#10 2.410 npm notice 469B dist/proxy/supervision.d.ts.map
+#10 2.410 npm notice 1.1kB dist/proxy/tokenHealth.d.ts
+#10 2.410 npm notice 740B dist/proxy/tokenHealth.d.ts.map
+#10 2.410 npm notice 9.6kB dist/proxy/tokenRefresh.d.ts
+#10 2.410 npm notice 2.4kB dist/proxy/tokenRefresh.d.ts.map
+#10 2.410 npm notice 2.1kB dist/proxy/tokenUsage.d.ts
+#10 2.410 npm notice 429B dist/proxy/tokenUsage.d.ts.map
+#10 2.410 npm notice 1.9kB dist/proxy/tools.d.ts
+#10 2.410 npm notice 460B dist/proxy/tools.d.ts.map
+#10 2.410 npm notice 7.0kB dist/proxy/transform.d.ts
+#10 2.410 npm notice 4.3kB dist/proxy/transform.d.ts.map
+#10 2.410 npm notice 660B dist/proxy/transforms/cherry.d.ts
+#10 2.410 npm notice 239B dist/proxy/transforms/cherry.d.ts.map
+#10 2.410 npm notice 920B dist/proxy/transforms/claudecode.d.ts
+#10 2.410 npm notice 249B dist/proxy/transforms/claudecode.d.ts.map
+#10 2.410 npm notice 1.3kB dist/proxy/transforms/codex.d.ts
+#10 2.410 npm notice 251B dist/proxy/transforms/codex.d.ts.map
+#10 2.410 npm notice 133B dist/proxy/transforms/crush.d.ts
+#10 2.410 npm notice 215B dist/proxy/transforms/crush.d.ts.map
+#10 2.410 npm notice 133B dist/proxy/transforms/droid.d.ts
+#10 2.410 npm notice 216B dist/proxy/transforms/droid.d.ts.map
+#10 2.410 npm notice 141B dist/proxy/transforms/forgecode.d.ts
+#10 2.410 npm notice 225B dist/proxy/transforms/forgecode.d.ts.map
+#10 2.410 npm notice 139B dist/proxy/transforms/opencode.d.ts
+#10 2.410 npm notice 223B dist/proxy/transforms/opencode.d.ts.map
+#10 2.410 npm notice 145B dist/proxy/transforms/passthrough.d.ts
+#10 2.410 npm notice 229B dist/proxy/transforms/passthrough.d.ts.map
+#10 2.410 npm notice 127B dist/proxy/transforms/pi.d.ts
+#10 2.410 npm notice 210B dist/proxy/transforms/pi.d.ts.map
+#10 2.410 npm notice 947B dist/proxy/transforms/polytoken.d.ts
+#10 2.410 npm notice 248B dist/proxy/transforms/polytoken.d.ts.map
+#10 2.410 npm notice 133B dist/proxy/transforms/prime.d.ts
+#10 2.410 npm notice 216B dist/proxy/transforms/prime.d.ts.map
+#10 2.410 npm notice 174B dist/proxy/transforms/registry.d.ts
+#10 2.410 npm notice 244B dist/proxy/transforms/registry.d.ts.map
+#10 2.410 npm notice 8.0kB dist/proxy/turnOutcome.d.ts
+#10 2.410 npm notice 1.8kB dist/proxy/turnOutcome.d.ts.map
+#10 2.410 npm notice 4.7kB dist/proxy/types.d.ts
+#10 2.410 npm notice 2.2kB dist/proxy/types.d.ts.map
+#10 2.410 npm notice 519B dist/proxy/unstreamedAssistant.d.ts
+#10 2.410 npm notice 420B dist/proxy/unstreamedAssistant.d.ts.map
+#10 2.410 npm notice 1.8kB dist/proxy/updateCheck.d.ts
+#10 2.410 npm notice 746B dist/proxy/updateCheck.d.ts.map
+#10 2.410 npm notice 697B dist/sameOrigin.d.ts
+#10 2.410 npm notice 188B dist/sameOrigin.d.ts.map
+#10 2.410 npm notice 947B dist/server.js
+#10 2.410 npm notice 5.9kB dist/settings.d.ts
+#10 2.410 npm notice 1.4kB dist/settings.d.ts.map
+#10 2.410 npm notice 902B dist/setup-rd1qe555.js
+#10 2.410 npm notice 256B dist/socketActivation-s3xh5s16.js
+#10 2.410 npm notice 310B dist/stats-4c4ewmdh.js
+#10 2.410 npm notice 5.4kB dist/statusProbe-9x9q261e.js
+#10 2.410 npm notice 1.8kB dist/telemetry/buildBadge.d.ts
+#10 2.410 npm notice 1.1kB dist/telemetry/buildBadge.d.ts.map
+#10 2.410 npm notice 199B dist/telemetry/dashboard.d.ts
+#10 2.410 npm notice 169B dist/telemetry/dashboard.d.ts.map
+#10 2.410 npm notice 780B dist/telemetry/hostLabel.d.ts
+#10 2.410 npm notice 305B dist/telemetry/hostLabel.d.ts.map
+#10 2.410 npm notice 666B dist/telemetry/icon.d.ts
+#10 2.410 npm notice 279B dist/telemetry/icon.d.ts.map
+#10 2.410 npm notice 1.7kB dist/telemetry/index.d.ts
+#10 2.410 npm notice 907B dist/telemetry/index.d.ts.map
+#10 2.410 npm notice 499B dist/telemetry/landing.d.ts
+#10 2.410 npm notice 170B dist/telemetry/landing.d.ts.map
+#10 2.410 npm notice 993B dist/telemetry/loginCallbackPage.d.ts
+#10 2.410 npm notice 335B dist/telemetry/loginCallbackPage.d.ts.map
+#10 2.410 npm notice 1.7kB dist/telemetry/logStore.d.ts
+#10 2.410 npm notice 933B dist/telemetry/logStore.d.ts.map
+#10 2.410 npm notice 1.6kB dist/telemetry/pageLayout.d.ts
+#10 2.410 npm notice 534B dist/telemetry/pageLayout.d.ts.map
+#10 2.410 npm notice 778B dist/telemetry/percentiles.d.ts
+#10 2.410 npm notice 467B dist/telemetry/percentiles.d.ts.map
+#10 2.410 npm notice 3.4kB dist/telemetry/pricing.d.ts
+#10 2.410 npm notice 957B dist/telemetry/pricing.d.ts.map
+#10 2.410 npm notice 1.8kB dist/telemetry/pricingStore.d.ts
+#10 2.410 npm notice 653B dist/telemetry/pricingStore.d.ts.map
+#10 2.410 npm notice 16.1kB dist/telemetry/profileBar.d.ts
+#10 2.410 npm notice 427B dist/telemetry/profileBar.d.ts.map
+#10 2.410 npm notice 2.7kB dist/telemetry/profileFacts.d.ts
+#10 2.410 npm notice 187B dist/telemetry/profileFacts.d.ts.map
+#10 2.410 npm notice 4.0kB dist/telemetry/profileFind.d.ts
+#10 2.410 npm notice 194B dist/telemetry/profileFind.d.ts.map
+#10 2.410 npm notice 15.2kB dist/telemetry/profileOrder.d.ts
+#10 2.410 npm notice 823B dist/telemetry/profileOrder.d.ts.map
+#10 2.410 npm notice 200B dist/telemetry/profilePage.d.ts
+#10 2.410 npm notice 173B dist/telemetry/profilePage.d.ts.map
+#10 2.410 npm notice 1.6kB dist/telemetry/profileSort.d.ts
+#10 2.410 npm notice 637B dist/telemetry/profileSort.d.ts.map
+#10 2.410 npm notice 3.6kB dist/telemetry/profileSpent.d.ts
+#10 2.410 npm notice 1.1kB dist/telemetry/profileSpent.d.ts.map
+#10 2.410 npm notice 3.8kB dist/telemetry/profileUsage.d.ts
+#10 2.410 npm notice 1.4kB dist/telemetry/profileUsage.d.ts.map
+#10 2.410 npm notice 411B dist/telemetry/prometheus.d.ts
+#10 2.410 npm notice 245B dist/telemetry/prometheus.d.ts.map
+#10 2.410 npm notice 89B dist/telemetry/providerPage.d.ts
+#10 2.410 npm notice 163B dist/telemetry/providerPage.d.ts.map
+#10 2.410 npm notice 430B dist/telemetry/providerSetup.d.ts
+#10 2.410 npm notice 412B dist/telemetry/providerSetup.d.ts.map
+#10 2.410 npm notice 7.1kB dist/telemetry/providerView.d.ts
+#10 2.410 npm notice 1.3kB dist/telemetry/providerView.d.ts.map
+#10 2.410 npm notice 1.5kB dist/telemetry/routeChain.d.ts
+#10 2.410 npm notice 362B dist/telemetry/routeChain.d.ts.map
+#10 2.410 npm notice 873B dist/telemetry/routes.d.ts
+#10 2.410 npm notice 351B dist/telemetry/routes.d.ts.map
+#10 2.410 npm notice 223B dist/telemetry/settingsPage.d.ts
+#10 2.410 npm notice 177B dist/telemetry/settingsPage.d.ts.map
+#10 2.410 npm notice 286B dist/telemetry/sqlite.d.ts
+#10 2.410 npm notice 269B dist/telemetry/sqlite.d.ts.map
+#10 2.410 npm notice 1.9kB dist/telemetry/store.d.ts
+#10 2.410 npm notice 907B dist/telemetry/store.d.ts.map
+#10 2.410 npm notice 16.7kB dist/telemetry/types.d.ts
+#10 2.410 npm notice 6.5kB dist/telemetry/types.d.ts.map
+#10 2.410 npm notice 1.0kB dist/tokenRefresh-269eckh2.js
+#10 2.410 npm notice 1.0kB dist/utils/lruMap.d.ts
+#10 2.410 npm notice 1.0kB dist/utils/lruMap.d.ts.map
+#10 2.410 npm notice 5.2kB package.json
+#10 2.410 npm notice 32.6kB plugin/meridian-v2.ts
+#10 2.410 npm notice 44B plugin/meridian-v2/index.js
+#10 2.410 npm notice 115B plugin/meridian-v2/package.json
+#10 2.410 npm notice 8.8kB plugin/meridian.ts
+#10 2.410 npm notice 41B plugin/meridian/index.js
+#10 2.410 npm notice 115B plugin/meridian/package.json
+#10 2.410 npm notice 5.5kB plugin/priority-attestation.ts
+#10 2.410 npm notice Tarball Details
+#10 2.412 npm notice name: @rynfar/meridian
+#10 2.412 npm notice version: 1.80.0
+#10 2.412 npm notice filename: rynfar-meridian-1.80.0.tgz
+#10 2.412 npm notice package size: 1.6 MB
+#10 2.412 npm notice unpacked size: 6.1 MB
+#10 2.413 npm notice shasum: d2b4fb5af28451459a4db7de4fc4f82cd850fc75
+#10 2.413 npm notice integrity: sha512-itQO/3bwbGNp5[...]PdZzogXJBDzUA==
+#10 2.413 npm notice total files: 457
+#10 2.413 npm notice
+#10 2.413 rynfar-meridian-1.80.0.tgz
+#10 DONE 2.6s
+
+#11 [7/9] WORKDIR /opt/e41-package
+#11 DONE 0.1s
+
+#12 [8/9] RUN npm install --prefix /opt/e41-package/installed --ignore-scripts --no-audit --no-fund /opt/e41-package/rynfar-meridian-1.80.0.tgz && npm install --prefix /opt/e41-package/installed --ignore-scripts --no-audit --no-fund @anthropic-ai/claude-agent-sdk@0.2.141 @anthropic-ai/claude-code@2.1.295 && node /opt/e41-package/installed/node_modules/@anthropic-ai/claude-code/install.cjs
+#12 11.50
+#12 11.50 added 109 packages in 11s
+#12 12.79
+#12 12.79 up to date in 733ms
+#12 DONE 14.3s
+
+#13 [9/9] WORKDIR /opt/e71/candidate
+#13 DONE 0.2s
+
+#14 exporting to image
+#14 exporting layers
+#14 exporting layers 5.7s done
+#14 writing image sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5
+#14 writing image sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5 done
+#14 naming to docker.io/library/meridian1211-mcp:20261009-r12 done
+#14 DONE 5.7s

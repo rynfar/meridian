@@ -1,0 +1,14 @@
+{
+  "originalNativeAttachmentsJoined": 2,
+  "originalChildrenJoined": 18,
+  "allOwnedNativeContainersRemoved": true,
+  "taskAccessOnlyGrantRemoved": true,
+  "privateQualificationRemoved": true,
+  "privateSdkRuntimeDirectoriesRemoved": true,
+  "retainedReportsOnly": true,
+  "estimatedSdkCostUsd": 0.2348176,
+  "queries": 10,
+  "actualClientInvocations": 6,
+  "nativeMcpReadinessPerRealQuery": "NOT_OBSERVED",
+  "currentAffectedProductAndFinalHeadCiAcceptance": "HELD"
+}

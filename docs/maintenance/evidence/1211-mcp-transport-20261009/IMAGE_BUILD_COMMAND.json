@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "docker",
+    "build",
+    "--platform",
+    "linux/amd64",
+    "--progress=plain",
+    "-t",
+    "meridian1211-mcp:20261009-r12",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-mcp-transport-20261009-round1/image-context-r1"
+  ],
+  "baseImage": "sha256:5d1cc1baa71cc21f3a7046811c029b6906b684f52406c73befc5be8f4022dac1",
+  "head": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "purpose": "Fresh certified Linux build and independently installed tarball, explicit own SDK141/backend295 pins; no credentials/models/publication."
+}

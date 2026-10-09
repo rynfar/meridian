@@ -1,0 +1,13 @@
+{
+  "expectedSpecificSharedTransportFailure": true,
+  "allOriginalObservedChildIteratorListenerJoins": true,
+  "probeSandboxRemoved": true,
+  "originalAttachTerminalExit": 1,
+  "containerStoppedPid0": true,
+  "externalModelQueries": 0,
+  "credentialGrantStaged": false,
+  "deliveryHead": "2353333259858979b57486c585676148147bd919",
+  "productionHead": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "broaderAcceptance": "HELD",
+  "ownedContainerRemoved": true
+}

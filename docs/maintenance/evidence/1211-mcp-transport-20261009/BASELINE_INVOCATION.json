@@ -1,0 +1,47 @@
+{
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--platform",
+    "linux/amd64",
+    "--network=none",
+    "--read-only",
+    "--pids-limit",
+    "128",
+    "--memory",
+    "4g",
+    "--name",
+    "meridian1211-mcp-baseline-4760385c",
+    "--tmpfs",
+    "/tmp:rw,mode=1777,size=256m",
+    "--mount",
+    "type=bind,source=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-mcp-transport-20261009-round1/output,target=/proof",
+    "--mount",
+    "type=bind,source=/Users/rynfar/repos/meridian-mcp-current-main-1283-20261008/scripts/e2e-passthrough-mcp-overlap.mjs,target=/probe/e2e-passthrough-mcp-overlap.mjs,readonly",
+    "--mount",
+    "type=bind,source=/Users/rynfar/repos/meridian-mcp-current-main-1283-20261008/scripts/lib-passthrough-mcp-fixture.mjs,target=/probe/lib-passthrough-mcp-fixture.mjs,readonly",
+    "sha256:5d1cc1baa71cc21f3a7046811c029b6906b684f52406c73befc5be8f4022dac1",
+    "bun",
+    "/probe/e2e-passthrough-mcp-overlap.mjs",
+    "--source-root=/opt/e71/candidate",
+    "--evidence-dir=/proof/source-overlap",
+    "--claude-executable=/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "--step-ms=15000"
+  ],
+  "containerId": "2147a7f511ee6348716782f3a04e9a612bf46e36416215b71f410ba9180ddf43",
+  "atUTC": "2026-10-09T11:56:08.874451+00:00",
+  "deliveryHead": "2353333259858979b57486c585676148147bd919",
+  "productionImageHead": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "qualification": "Current query and passthroughTools source unchanged from production image; two previously reviewed native probe/helper files mounted read-only. Network disabled; no real credentials/client/model acceptance.",
+  "harnessIdentities": [
+    {
+      "path": "/Users/rynfar/repos/meridian-mcp-current-main-1283-20261008/scripts/e2e-passthrough-mcp-overlap.mjs",
+      "sha256": "fdb0958f482ca26821387b4a7530bc175cc116c197788849ee3809f34cfcfc53"
+    },
+    {
+      "path": "/Users/rynfar/repos/meridian-mcp-current-main-1283-20261008/scripts/lib-passthrough-mcp-fixture.mjs",
+      "sha256": "5cdc2fa58c855d2533e0522066e84bab089f5269e6829ee650e33d7fb910e2a5"
+    }
+  ]
+}

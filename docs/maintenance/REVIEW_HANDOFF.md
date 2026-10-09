@@ -1,6 +1,55 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 checkpoint (2026-10-09 UTC)
+## Current oldest #1211 / existing #1322 MCP dependency checkpoint (2026-10-09 UTC)
+
+Continue one combined queue ordered by original issue/PR creation ascending.
+Replacement delivery inherits source age. Older thirteen items retain explicit
+owner deferrals, no-review or concrete missing-proof/release holds. Current source
+#1211 remains22566e8a; existing draft #1322 is its delivery. Fresh six-repository
+pagination finds29 PRs and21 issues. No new PR or independent newer backlog item.
+
+[Current MCP dependency evidence and root review](evidence/1211-mcp-transport-20261009/README.md)
+record why newer #1283 is necessary: unchanged productiond367 reproduces a failed
+second SDK MCP connection with an empty tool catalog despite result success.
+Complete authored source571a6716 is incorporated as52965e11, preserving Nowaker's
+raw Author/AuthorDate/full message; three reviewed bounded fixture files form
+separate maintainer commit15f44351. Other old prepared1283 production corrections
+are excluded. Current test correction is69374acc. Eighteen contributor records
+remain exact and in ancestry; expanded #1231 at5afedf10 remains excluded.
+
+The same credential-free real SDK/native overlap harness qualifies candidate
+catalog/readiness continuity and reproduces the same failure when deliberately
+sharing a server. Seven transport cases include cancellation, exit42, timeout and
+TERM-resistant forced-kill controls. All seven original attaches/seventeen
+observed original children/iterators/listeners joined and owned containers/sandboxes
+were removed. Ten transport entries are not external model or actual-client proof.
+
+Fresh certified Linux source image15f and independent tarball match432 compiled
+files and1,849 tracked source rows. Current693 changes only the caption test;
+production/scripts are byte-identical to15f. Both current original E55 native arms
+pass11 assertions, three actual client2.1.287 invocations and five Sonnet5-5 queries
+each, SDK0.2.141/source backend2.1.284/installed2.1.295. Original18 child witnesses
+and two attaches joined; task grant/containers/private SDK runtime removed after
+sanitized escrow. Credential source unchanged. SDK-estimated cost$0.234818.
+This does not establish actual OpenCode/OpenClaw/LiteLLM or MCP readiness per inference.
+
+First full15f fails one obsolete caption server-identity expectation;693 preserves
+catalog ownership while checking distinct query servers. Focused42/274 passes.
+Final full693 passes5,774 tests/35 skips/zero failures across22 isolated batches,
+with pretest and standalone typecheck/build; every original handle joined.
+First failures, exact commands, logs/excerpts and artifact hashes are retained.
+Root adversarial increment review finds no surviving material source finding;
+prior independent reviews retain their recorded scopes. Owner checkout/index/status
+and all12 dirty files remain unchanged.
+
+**Held:** fresh changed-code E41 four-mode source/installed proof; impact-appropriate
+E71/E72/caption/background/mixed/cancellation gates; actual historical tuple and
+native inference MCP readiness; older unattributed CI failures; and required final-head
+CI. Earlier E71/E72/E41 proofs remain qualified only at their explicit older heads.
+Keep #1322 draft and source reports open. Continue current dependency acceptance in
+this existing delivery; no new PR, merge, release or community comment.
+
+## Earlier #1211 / #1322 checkpoint at23533332 (2026-10-09 UTC)
 
 Continue the combined original-creation oldest-first queue. Original source
 [#1211](https://github.com/rynfar/meridian/pull/1211) is unchanged at `22566e8a`;
