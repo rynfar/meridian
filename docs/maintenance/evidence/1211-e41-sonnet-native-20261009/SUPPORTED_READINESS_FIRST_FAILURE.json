@@ -1,0 +1,10 @@
+{
+  "atUTC": "2026-10-09T10:37:18.374228+00:00",
+  "supportedWorkExactAccountRead": "SUCCEEDED",
+  "readOnlyUsageReadinessStatus": 429,
+  "originalHeaderAndBodyNotRetained": true,
+  "accessOnlyGrantCreated": false,
+  "modelQueriesStarted": 0,
+  "sourceLoginRefreshWrites": false,
+  "disposition": "LIVE_GENERATION_HELD_PENDING_SUPPORTED_READINESS"
+}

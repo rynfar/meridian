@@ -5,7 +5,8 @@
 Continue the combined original-creation oldest-first queue. Original source
 [#1211](https://github.com/rynfar/meridian/pull/1211) is unchanged at `22566e8a`;
 existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues it.
-Main remains `11dc1556`; native/code head is `c7828d8b`. All nine production
+Main remains `11dc1556`; foreground E72 head is `c7828d8b` and the current
+E41 harness/native head is `d3676c64`. All nine production
 files match the preceding qualified E71 correction exactly. All seventeen raw
 contributor author records and full commit messages remain exact and in ancestry;
 expanded #1231 at `5afedf10` is excluded. Source #1292 remains `21e028a5`.
@@ -30,6 +31,24 @@ Across thirteen retained native frames, 122 actual SDK queries have original
 custody joined, zero owned residuals and removed access grants/containers;
 supported source credentials remain unchanged. This is bounded proof only.
 
+[Current bounded Sonnet E41 matrix and root adversarial review](evidence/1211-e41-sonnet-native-20261009/README.md)
+pass all four chain/parallel × JSON/SSE modes on both source and independently
+installed tarball at `d3676c64`: 32 real SDK queries, approximately $0.436726
+SDK-estimated cost. Exact model is Sonnet5-5, SDK 0.2.141, source backend 2.1.284
+and installed backend 2.1.295, Linux/x64 guest on the ARM Docker host. Exact
+three-file answer batching, unique preceding-parent continuations, immutable
+original histories, saved-fork follow-up and 95% cache-prefix reuse pass. This
+is an owned OpenCode protocol fixture, not an actual OpenCode/OpenClaw client.
+The fresh tarball matches all 432 compiled files and all 1,767 tracked source
+files; both original clone/build handles joined. All eight original native
+attach/child/pipe/iterator/public-read/HTTP witnesses joined. Owned stopped
+containers and the access-only grant were removed after audit; task-owned
+private runtime files were removed after sanitized escrow. Source credentials
+remain unchanged. The read-only usage endpoint 429 remains retained; actual
+model access is established by these queries, not endpoint recovery.
+Root incremental review finds no additional material source finding; prior
+independent reviews retain their scopes.
+
 Full unchanged local npm gate passes 5,765 tests / 35 skips / zero failures
 in 22 isolated batches
 at `c7828d8b`, with certified compiled-context lane, pretest and standalone
@@ -41,9 +60,11 @@ controlled delay on unchanged main establish sensitivity to unequal fsync work;
 that original unprofiled failure remains unattributed, and the green rerun is
 not called a correction. Root incremental adversarial review finds no additional
 material source defect; prior independent reviews retain their source-only scope.
+The fresh full npm gate at `d3676c64` also passes 5,765 / 35 skipped / zero fail
+in 22 batches, with original child joined, pretest and standalone typecheck/build.
 
 **Held:** historical reporter model/host; background/mixed-auto child flows;
-root/scoped/nested cancellation and incidental parent abort; all four E41 modes;
+root/scoped/nested cancellation and incidental parent abort;
 E55/MCP; caption baseline discovery/hints0/overlap/abort/cache requirements;
 unspecified #1288 tuple; broader package parity; the undiagnosed older remote
 E72 PID-zero CI failure; and required final-head CI. Keep #1322 draft and source

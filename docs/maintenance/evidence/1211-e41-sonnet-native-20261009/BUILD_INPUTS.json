@@ -1,0 +1,11 @@
+{
+  "head": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "harnessSHA256": "aecd6b3135a85804984e4b058ca03ac495cc0a89dda32fa6d0c4ba726968d553",
+  "model": "claude-sonnet-5-5",
+  "sourceBackend": "2.1.284",
+  "installedBackendRequired": "2.1.295",
+  "sdk": "0.2.141",
+  "imageBase": "sha256:27bf8ba22dac95c6cf81bd12b5a3705d6204e01a61403c9d0e47b2f57c57f920",
+  "buildContext": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-e41-sonnet-native-20261009-round1/context",
+  "noGrantInContext": true
+}

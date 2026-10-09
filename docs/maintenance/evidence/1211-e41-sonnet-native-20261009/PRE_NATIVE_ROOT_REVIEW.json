@@ -1,0 +1,22 @@
+{
+  "atUTC": "2026-10-09T10:26:32.481776+00:00",
+  "reviewer": "root adversarial; no delegation",
+  "beforeHead": "20eca333290cb85b9a9365134f5b973e59527d90",
+  "changedFiles": [
+    "scripts/e2e-openclaw-native.mjs",
+    "E2E.md"
+  ],
+  "allNineProductionFilesUnchanged": true,
+  "findingsAddressed": [
+    "Reject E41 model/native selection outside explicit mode before any grant read",
+    "Validate literal known models/native versions without latest/alias fallback",
+    "Bind Sonnet alias to exact environment pin plus strict original native-init and public-history model",
+    "Retain all exact batches, actor/fork, immutable-source, cache95%, child/pipe/iterator/HTTP/read/socket assertions",
+    "Bound E41 SDK admission before construction to8 and set original SDK maxBudgetUsd0.5; sum original terminal estimated cost <=4",
+    "Require complete original model/usage/canonical completion with boolean result flag; duplicate results fail"
+  ],
+  "existingOpenClawGate": "Original Opus284 model/version/default client and scrub assertions retained; selection controls are E41-only",
+  "zeroQueryConfigControls": "4PASS; no grant or target provided",
+  "liveAcceptance": "NOT_YET_EXECUTED",
+  "rootCustodyRisksRemain": "Actor scope records observed original handles; external global descendant absence unknown. Outer container custody is a separate requirement."
+}

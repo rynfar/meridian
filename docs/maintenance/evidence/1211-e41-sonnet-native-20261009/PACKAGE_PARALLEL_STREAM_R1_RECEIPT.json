@@ -1,0 +1,64 @@
+{
+  "atUTC": "2026-10-09T10:56:53.828306+00:00",
+  "target": "package",
+  "mode": "parallel",
+  "stream": true,
+  "qualified": true,
+  "disposition": "PASS_E41_PARALLEL_STREAM",
+  "nativeVersion": "2.1.295",
+  "sdkVersion": "0.2.141",
+  "model": "claude-sonnet-5-5",
+  "queries": 3,
+  "estimatedSdkCostUsd": 0.03984360000000001,
+  "verdict": {
+    "batches": [
+      3
+    ],
+    "realAnswers": 3,
+    "immutableParents": 2,
+    "distinctContinuations": 2,
+    "cachedPrefixFloor": 0.95,
+    "actualModel": "claude-sonnet-5-5",
+    "savedForkFollowup": true
+  },
+  "originalAttachJoined": true,
+  "originalContainerTerminal": true,
+  "originalContainerExit": 0,
+  "originalChildrenPipesQueryAndPublicReadWitnessesJoined": true,
+  "httpWitnesses": {
+    "proxyCloseSeen": true,
+    "proxyListening": false,
+    "relayListening": false,
+    "remainingSockets": 0,
+    "remainingHandlers": 0,
+    "observedSocketCount": 1
+  },
+  "sourceCredentialAndGrantUnchanged": true,
+  "reportSHA256": "a2c7b827f2f3784a2178e68a58629ed3b77e0bd9683c48bd00e7aa101950ffbe",
+  "inputFiles": {
+    "MERIDIAN_ENTRY": {
+      "path": "/opt/e41-package/installed/node_modules/@rynfar/meridian/dist/server.js",
+      "sha256": "f113ca8beb9fe262af774147051fba05d20782c81e74fd23c0f371268ca6f218"
+    },
+    "SDK_ENTRY": {
+      "path": "/opt/e41-package/installed/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
+      "sha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97"
+    },
+    "NATIVE_BIN": {
+      "path": "/opt/e41-package/installed/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+      "sha256": "4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358"
+    },
+    "OPENCLAW_BIN": {
+      "path": "/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs",
+      "sha256": "f1f1c6ae5745ba0cb71bfbb72f4ae43f9b3bdb5ca0af84d5fcdf60eb5ab71430"
+    },
+    "SCRUB_ENTRY": {
+      "path": "/opt/e41/sidecars/node_modules/@rynfar/meridian-plugin-openclaw-scrub/dist/index.js",
+      "sha256": "f8d987dfaf15a19b2ea203c0cb26e907182f6411867433ccd47b15341dcbfb48"
+    }
+  },
+  "actorScope": "Original observed child handles, SDK factory/iterator/close, and owned HTTP resources. External/global descendant absence is unknown.",
+  "usageEndpoint429Retained": true,
+  "actualModelAccessEstablishedByThisArm": true,
+  "ownedStoppedContainerRemoved": true
+}

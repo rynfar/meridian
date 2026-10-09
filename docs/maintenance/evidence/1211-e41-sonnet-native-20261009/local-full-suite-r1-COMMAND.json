@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "npm",
+    "test"
+  ],
+  "cwd": "/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008",
+  "head": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "environmentOverrides": {
+    "E71_COMPILED_CONTEXT_CONTROL": "1"
+  },
+  "startedAtUnix": 1791542292.040647
+}

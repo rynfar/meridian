@@ -1,0 +1,412 @@
+{
+  "atUTC": "2026-10-09T10:54:54.291596+00:00",
+  "coverage": "Previously discovered six managed repositories; no new discovery claim",
+  "allPagesSuccessful": true,
+  "originalCreationOrder": [
+    {
+      "repository": "rynfar/meridian",
+      "number": 650,
+      "kind": "issue",
+      "createdAt": "2026-07-17T17:49:40Z",
+      "url": "https://github.com/rynfar/meridian/issues/650",
+      "title": "Wire event-driven plugin-input bumps (repository_dispatch from plugin repos)"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 769,
+      "kind": "issue",
+      "createdAt": "2026-08-07T12:40:44Z",
+      "url": "https://github.com/rynfar/meridian/issues/769",
+      "title": "Official OpenClaw scrub plugin (meridian-plugin-openclaw-scrub) \u2014 follow-up to #495"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 917,
+      "kind": "issue",
+      "createdAt": "2026-08-31T22:35:41Z",
+      "url": "https://github.com/rynfar/meridian/issues/917",
+      "title": "Intermittent CI failures: concurrency tests fail fast, never the same one twice"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 933,
+      "kind": "issue",
+      "createdAt": "2026-09-04T09:50:00Z",
+      "url": "https://github.com/rynfar/meridian/issues/933",
+      "title": "npm test is flaky on CI (~1 in 3 runs) and blocked the 1.67.0 npm publish"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1011,
+      "kind": "issue",
+      "createdAt": "2026-09-10T21:04:46Z",
+      "url": "https://github.com/rynfar/meridian/issues/1011",
+      "title": "Land the two passthrough commits held back from #980"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1050,
+      "kind": "PR",
+      "createdAt": "2026-09-18T17:07:46Z",
+      "url": "https://github.com/rynfar/meridian/pull/1050",
+      "title": "test: investigate subscription-backed Antigravity CLI bridge"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1073,
+      "kind": "issue",
+      "createdAt": "2026-09-19T02:52:31Z",
+      "url": "https://github.com/rynfar/meridian/issues/1073",
+      "title": "Subscription-backed Antigravity and unified provider experience"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1094,
+      "kind": "issue",
+      "createdAt": "2026-09-21T16:12:13Z",
+      "url": "https://github.com/rynfar/meridian/issues/1094",
+      "title": "opencode: unpin v2 version"
+    },
+    {
+      "repository": "rynfar/meridian-plugin-opencode-scrub",
+      "number": 18,
+      "kind": "PR",
+      "createdAt": "2026-09-27T21:43:13Z",
+      "url": "https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/18",
+      "title": "fix: only scrub requests that target Claude models"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1193,
+      "kind": "PR",
+      "createdAt": "2026-09-29T13:17:10Z",
+      "url": "https://github.com/rynfar/meridian/pull/1193",
+      "title": "feat: optional prompt-cache keepalive for idle sessions"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1201,
+      "kind": "PR",
+      "createdAt": "2026-10-01T01:07:39Z",
+      "url": "https://github.com/rynfar/meridian/pull/1201",
+      "title": "fix: resume a tool checkpoint settled as per-call echo/result pairs"
+    },
+    {
+      "repository": "rynfar/meridian-plugin-pi-scrub",
+      "number": 15,
+      "kind": "PR",
+      "createdAt": "2026-10-01T06:33:17Z",
+      "url": "https://github.com/rynfar/meridian-plugin-pi-scrub/pull/15",
+      "title": "chore(main): release meridian-plugin-pi-scrub 0.2.3"
+    },
+    {
+      "repository": "rynfar/meridian-plugin-opencode-scrub",
+      "number": 20,
+      "kind": "PR",
+      "createdAt": "2026-10-01T07:53:08Z",
+      "url": "https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/20",
+      "title": "chore(main): release meridian-plugin-opencode-scrub 0.3.0"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1211,
+      "kind": "PR",
+      "createdAt": "2026-10-01T15:00:01Z",
+      "url": "https://github.com/rynfar/meridian/pull/1211",
+      "title": "fix(session): isolate Claude Code auto-mode classifier requests from session resume"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1212,
+      "kind": "issue",
+      "createdAt": "2026-10-01T15:51:28Z",
+      "url": "https://github.com/rynfar/meridian/issues/1212",
+      "title": "Sonnet 5+ has native 1M with no Extra Usage, but Meridian still advertises and budgets it at 200k"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1213,
+      "kind": "PR",
+      "createdAt": "2026-10-01T16:29:05Z",
+      "url": "https://github.com/rynfar/meridian/pull/1213",
+      "title": "fix: treat Sonnet 5+ as a native 1M-context model"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1214,
+      "kind": "PR",
+      "createdAt": "2026-10-01T17:19:34Z",
+      "url": "https://github.com/rynfar/meridian/pull/1214",
+      "title": "fix: preserve account failover across SSE keepalives"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1219,
+      "kind": "PR",
+      "createdAt": "2026-10-01T19:28:33Z",
+      "url": "https://github.com/rynfar/meridian/pull/1219",
+      "title": "feat(session): add opt-in SQLite bookkeeping with offline recovery"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1220,
+      "kind": "PR",
+      "createdAt": "2026-10-01T20:04:09Z",
+      "url": "https://github.com/rynfar/meridian/pull/1220",
+      "title": "fix(session): stop session store writes from freezing the proxy"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1224,
+      "kind": "PR",
+      "createdAt": "2026-10-01T20:08:54Z",
+      "url": "https://github.com/rynfar/meridian/pull/1224",
+      "title": "feat: POST /drain holds new requests so a restart can find nothing in flight"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1229,
+      "kind": "issue",
+      "createdAt": "2026-10-01T21:15:24Z",
+      "url": "https://github.com/rynfar/meridian/issues/1229",
+      "title": "macOS/nono.sh: process-incarnation capture fails on setuid /bin/ps"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1231,
+      "kind": "PR",
+      "createdAt": "2026-10-01T22:58:44Z",
+      "url": "https://github.com/rynfar/meridian/pull/1231",
+      "title": "fix(claude-code): key each Agent-tool subagent apart from its parent session"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1232,
+      "kind": "PR",
+      "createdAt": "2026-10-02T02:44:20Z",
+      "url": "https://github.com/rynfar/meridian/pull/1232",
+      "title": "feat: fail readiness while Anthropic is unreachable from the host"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1243,
+      "kind": "PR",
+      "createdAt": "2026-10-02T20:47:01Z",
+      "url": "https://github.com/rynfar/meridian/pull/1243",
+      "title": "fix(session): keep the session store in SQLite instead of rewriting it whole on every change"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1244,
+      "kind": "issue",
+      "createdAt": "2026-10-02T21:03:30Z",
+      "url": "https://github.com/rynfar/meridian/issues/1244",
+      "title": "Decide async completion for exported session-cache cleanup (#1220)"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1260,
+      "kind": "PR",
+      "createdAt": "2026-10-04T08:32:39Z",
+      "url": "https://github.com/rynfar/meridian/pull/1260",
+      "title": "feat(profiles): track each login's lifetime and say when it needs renewing"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1261,
+      "kind": "PR",
+      "createdAt": "2026-10-04T12:04:02Z",
+      "url": "https://github.com/rynfar/meridian/pull/1261",
+      "title": "fix: delete old Claude Code transcripts again"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1266,
+      "kind": "PR",
+      "createdAt": "2026-10-04T21:24:34Z",
+      "url": "https://github.com/rynfar/meridian/pull/1266",
+      "title": "fix: explain denied process identity probes without weakening locks"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1270,
+      "kind": "issue",
+      "createdAt": "2026-10-04T22:27:43Z",
+      "url": "https://github.com/rynfar/meridian/issues/1270",
+      "title": "Track approved per-profile Claude expiry fields and qualified renewal UI (#1260)"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1277,
+      "kind": "issue",
+      "createdAt": "2026-10-05T00:42:51Z",
+      "url": "https://github.com/rynfar/meridian/issues/1277",
+      "title": "feat: define opt-in SQLite bookkeeping and embedding lifecycle contract"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1281,
+      "kind": "issue",
+      "createdAt": "2026-10-05T05:58:59Z",
+      "url": "https://github.com/rynfar/meridian/issues/1281",
+      "title": "feat: define passive Claude reachability and bounded readiness controls (#1232)"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1282,
+      "kind": "issue",
+      "createdAt": "2026-10-05T06:42:51Z",
+      "url": "https://github.com/rynfar/meridian/issues/1282",
+      "title": "feat: define bounded per-instance admission hold for restart supervisors (#1224)"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1283,
+      "kind": "PR",
+      "createdAt": "2026-10-05T13:35:03Z",
+      "url": "https://github.com/rynfar/meridian/pull/1283",
+      "title": "fix(passthrough): give every query its own MCP server"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1288,
+      "kind": "issue",
+      "createdAt": "2026-10-06T16:46:30Z",
+      "url": "https://github.com/rynfar/meridian/issues/1288",
+      "title": "Claude Code progress captions overwrite Agent session lineage and force full replay"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1292,
+      "kind": "PR",
+      "createdAt": "2026-10-06T19:40:57Z",
+      "url": "https://github.com/rynfar/meridian/pull/1292",
+      "title": "fix(claude-code): keep progress captions and session-state calls out of working sessions"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1294,
+      "kind": "PR",
+      "createdAt": "2026-10-06T20:20:15Z",
+      "url": "https://github.com/rynfar/meridian/pull/1294",
+      "title": "fix(stream): stop killing healthy turns as upstream stalls"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1297,
+      "kind": "PR",
+      "createdAt": "2026-10-07T01:13:33Z",
+      "url": "https://github.com/rynfar/meridian/pull/1297",
+      "title": "fix(session): let auxiliary replays reuse their cached prefix"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1299,
+      "kind": "PR",
+      "createdAt": "2026-10-07T04:55:05Z",
+      "url": "https://github.com/rynfar/meridian/pull/1299",
+      "title": "chore(main): release meridian 1.81.0"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1301,
+      "kind": "PR",
+      "createdAt": "2026-10-07T12:57:21Z",
+      "url": "https://github.com/rynfar/meridian/pull/1301",
+      "title": "fix(opencode): resume the checkpoint when an instruction update trails the tool results"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1302,
+      "kind": "issue",
+      "createdAt": "2026-10-07T16:33:52Z",
+      "url": "https://github.com/rynfar/meridian/issues/1302",
+      "title": "Feature request: detached start and stop commands for programmatic auto-start"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1303,
+      "kind": "issue",
+      "createdAt": "2026-10-07T17:19:49Z",
+      "url": "https://github.com/rynfar/meridian/issues/1303",
+      "title": "Session persistence rewrites the full store, including unchanged transcript locators"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1310,
+      "kind": "issue",
+      "createdAt": "2026-10-07T22:48:36Z",
+      "url": "https://github.com/rynfar/meridian/issues/1310",
+      "title": "Fresh replay can amplify byte-identical historical images through SDK attachment read-back"
+    },
+    {
+      "repository": "rynfar/meridian-plugin-opencode-scrub",
+      "number": 21,
+      "kind": "issue",
+      "createdAt": "2026-10-07T23:01:19Z",
+      "url": "https://github.com/rynfar/meridian-plugin-opencode-scrub/issues/21",
+      "title": "keepClientCwd misses Primary working directory form \u2014 env cwd dropped from scrubbed prompt"
+    },
+    {
+      "repository": "rynfar/meridian-plugin-opencode-scrub",
+      "number": 22,
+      "kind": "PR",
+      "createdAt": "2026-10-07T23:03:09Z",
+      "url": "https://github.com/rynfar/meridian-plugin-opencode-scrub/pull/22",
+      "title": "fix(scrub): capture Primary working directory form in keepClientCwd"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1311,
+      "kind": "issue",
+      "createdAt": "2026-10-08T01:20:38Z",
+      "url": "https://github.com/rynfar/meridian/issues/1311",
+      "title": "Feature: client-neutral agent role/name headers for Pi integrations"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1314,
+      "kind": "PR",
+      "createdAt": "2026-10-08T09:44:47Z",
+      "url": "https://github.com/rynfar/meridian/pull/1314",
+      "title": "fix: keep the latest user request in focus on long Antigravity histories"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1315,
+      "kind": "issue",
+      "createdAt": "2026-10-08T17:52:14Z",
+      "url": "https://github.com/rynfar/meridian/issues/1315",
+      "title": "/v1/models advertises Opus 4.7+ and Fable at 200k on Pro, although they run with 1M on every plan"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1317,
+      "kind": "PR",
+      "createdAt": "2026-10-08T22:20:29Z",
+      "url": "https://github.com/rynfar/meridian/pull/1317",
+      "title": "fix: bound Antigravity history recaps and preserve current requests"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1322,
+      "kind": "PR",
+      "createdAt": "2026-10-09T03:50:50Z",
+      "url": "https://github.com/rynfar/meridian/pull/1322",
+      "title": "fix: preserve Claude working checkpoints across native side calls"
+    },
+    {
+      "repository": "rynfar/meridian",
+      "number": 1323,
+      "kind": "PR",
+      "createdAt": "2026-10-09T05:03:52Z",
+      "url": "https://github.com/rynfar/meridian/pull/1323",
+      "title": "fix(auth): honor explicit logout instead of cached login"
+    }
+  ],
+  "replacementAgeRule": "Existing1322 inherits original1211 creation age; full delivery mappings remain in the root ledger",
+  "counts": {
+    "PR": 29,
+    "issue": 21
+  }
+}

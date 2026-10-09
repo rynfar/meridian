@@ -1,0 +1,30 @@
+{
+  "beforeNativeOrCredentialAccess": true,
+  "controls": [
+    {
+      "label": "unknown-model",
+      "exit": 1,
+      "expectedFailure": "Unsupported E41 model",
+      "noTargetOrGrantPathsSupplied": true
+    },
+    {
+      "label": "unknown-native-version",
+      "exit": 1,
+      "expectedFailure": "Unsupported E41 native version",
+      "noTargetOrGrantPathsSupplied": true
+    },
+    {
+      "label": "model-without-mode",
+      "exit": 1,
+      "expectedFailure": "requires an explicit E41 mode",
+      "noTargetOrGrantPathsSupplied": true
+    },
+    {
+      "label": "invalid-response-mode",
+      "exit": 1,
+      "expectedFailure": "explicit 0/1 stream setting",
+      "noTargetOrGrantPathsSupplied": true
+    }
+  ],
+  "initialTransportFailure": "Restricted PATH lacked Bun; no child/generation started, corrected by resolving the existing absolute binary"
+}
