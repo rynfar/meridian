@@ -6392,7 +6392,11 @@ auto-mode classifier flow.
   only to their exact client names. Each tool ID/name/canonical input matches one complete HTTP
   tool terminal and a successful subsequent native client tool result on its
   own actor. Agent results contain both child outputs. SDK tool ownership and
-  HTTP terminal IDs cannot be reused across requests. Advertised tool counts
+  HTTP terminal IDs cannot be reused across requests. Exactly named SDK `ToolSearch`
+  runs internally and is omitted by Meridian from both HTTP response shapes. Its
+  IDs remain owned and counted separately; none may appear as a client tool or
+  result, and similarly named or unknown SDK tools receive no exemption.
+  Advertised tool counts
   and generated prose do not substitute for these receipts.
 - Every tool-bearing SDK query pairs through its tool IDs. Tool-less final and
   resumed queries pair through exact SDK/HTTP text held only in memory and
