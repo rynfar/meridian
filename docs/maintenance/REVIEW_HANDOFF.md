@@ -4911,3 +4911,53 @@ actual candidate proof. #1211/#1231/#1292 and #1288 stay open. Expanded #1231
 is excluded. No merge, source closure, release or community comment occurred.
 Next native/package invocation must refresh commit/tree provenance to the actual
 current head; no old compiled build or green CI is promoted to a new-head claim.
+
+
+### 2026-10-09: versioned background Read source/installed proof
+
+Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues
+the original oldest-source #1211 lane, without a new PR or worktree.
+[Read evidence](evidence/1211-background-read-v2-20261009/README.md) records
+observer/control head `3da52f210fdc602a2d7f063f8371a7fb0e98d4ca` and unchanged
+production source/package `15f44351bbc8ddfd669db3254eac86736b61a02e`.
+Local gates: 5,852 pass / 35 skip / zero fail, 22 npm-isolated batches,
+standalone typecheck and build; all original gate processes joined.
+
+The actual Claude Code 2.1.287 / SDK 0.2.141 / Sonnet 5.5 Linux x64 source
+(native 2.1.284) and independently installed candidate (native 2.1.295) each
+pass all 21 versioned Read checks. Each uses 13 original SDK queries and
+two actual client invocations; nine original tool/execution receipts bind
+two unique background launches, four child Bash results, overlapping parent
+work and two completed numbered-record Read reports to the owned child
+HTTP final reports. Session resumes, model, MCP, hook, cost and physical
+cleanup/custody gates pass. Owned native clients/pipes, SDK iterators,
+listeners and censuses joined; immutable targets/grants stayed exact;
+private runtimes, grants and stopped containers were removed.
+
+Prior cap-four failures remain unchanged. Network-disabled source/installed
+native controls measured four API rounds / four public generations / counter
+five and qualified only first handoff followed by three single-tool drops.
+The corrected versioned proof retains its existing generation bounds, original
+foreground/TaskOutput predicates and production caps. Three Read positives
+and 23 faulty Read executions remain respectively PASS/FAIL in 100 sanitized
+maintained-harness execution receipts. Root adversarial review is escrowed;
+no delegated review or whole-change merge acceptance is asserted.
+
+**New baseline hold:** corrected unchanged-main baseline still fails the
+native public-generation guard: one successful cap-four query emitted five
+complete public generations. Both owned Read completions and all four named
+lineage defects were observed. The baseline cohort stopped and stayed FAIL;
+a separate first corrected candidate cohort used the same assertions, with
+installed execution admitted only after source audit. Direct provider API
+counts/root cause of the extra generation remain unqualified; complete
+before/after acceptance remains held. Do not raise the bound or erase
+these failures. SDK-estimated cost across all five attempts is $7.4444
+(64 SDK queries / ten client invocations); it is not a billing receipt.
+
+Owner head/index/all twelve dirty-file identities and all eighteen raw
+contributor author/date/full-message/ancestry records stay exact. Expanded
+#1231 remains excluded; source heads were refreshed and all source PRs stay
+open. #1322 stays draft. Baseline budget qualification, mixed-auto/classifier,
+root/scoped/nested cancellation and parent-abort, caption/reporter tuple,
+broader packaging/platform/client proof, historical wait attribution and
+final delivery-head CI remain open. No merge, release or external comment.

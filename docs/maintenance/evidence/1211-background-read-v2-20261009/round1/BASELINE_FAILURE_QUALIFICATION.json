@@ -1,0 +1,50 @@
+{
+  "baselineHead": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+  "observerHead": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+  "disposition": "NEGATIVE_BASELINE_NATIVE_RESULT_NOT_QUALIFIED",
+  "originalResultUnchanged": "FAIL",
+  "allFourOriginalLineageDefectsObserved": true,
+  "bothReadCompletionsQualified": true,
+  "failedNativeQueries": [
+    {
+      "query": 1,
+      "maxTurns": 4,
+      "nativeTurns": 5,
+      "publicGenerations": 4,
+      "resultSubtype": "error_max_turns",
+      "terminalReason": "max_turns",
+      "ownedCanonicalHttpTerminal": true,
+      "hookCustody": true,
+      "forwardedHooks": 2,
+      "droppedHooks": 3
+    },
+    {
+      "query": 4,
+      "maxTurns": 4,
+      "nativeTurns": 5,
+      "publicGenerations": 4,
+      "resultSubtype": "error_max_turns",
+      "terminalReason": "max_turns",
+      "ownedCanonicalHttpTerminal": true,
+      "hookCustody": true,
+      "forwardedHooks": 1,
+      "droppedHooks": 3
+    },
+    {
+      "query": 11,
+      "maxTurns": 4,
+      "nativeTurns": 5,
+      "publicGenerations": 4,
+      "resultSubtype": "error_max_turns",
+      "terminalReason": "max_turns",
+      "ownedCanonicalHttpTerminal": true,
+      "hookCustody": true,
+      "forwardedHooks": 2,
+      "droppedHooks": 3
+    }
+  ],
+  "baselineBoundedLeaseWait": false,
+  "originalCohortStoppedAfterFirstAuditFailure": true,
+  "sourceInstalledArmsInOriginalCohort": "UNEXECUTED",
+  "nextIndependentScope": "First candidate-source affected flow with unchanged maintained assertions and cap-one tuple; installed arm only after source audit. Baseline qualification stays held and no before/after acceptance is claimed."
+}

@@ -1,0 +1,41 @@
+{
+  "head": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+  "inputs": [
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 65241,
+      "sha256": "19fa24c949f986e4e747cc63b0f775f45e0f9ffbe36d0df74135bd5b97f36d74",
+      "mode": "0444"
+    },
+    {
+      "path": "scripts/lib/e2eMcpReadiness.mjs",
+      "bytes": 4382,
+      "sha256": "31c92572277279102681d1519a2b6198808396c4d4c15fc61d76f9736affdae7",
+      "mode": "0444"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430",
+      "mode": "0444"
+    },
+    {
+      "path": "scripts/lib/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 4132,
+      "sha256": "00c97ea9f404c15889dacb795bf20a0715c8b91744dec3b9dbee59c961c123af",
+      "mode": "0444"
+    },
+    {
+      "path": "scripts/lib/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815",
+      "mode": "0444"
+    },
+    {
+      "path": "src/proxy/passthroughDenial.ts",
+      "bytes": 1398,
+      "sha256": "6158e21da0b5559b00f465b6749a7f9753d323237fc21820b61a6a21ef247560",
+      "mode": "0444"
+    }
+  ]
+}

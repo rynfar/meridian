@@ -1,0 +1,98 @@
+{
+  "baselineHead": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+  "observerHead": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+  "disposition": "NEGATIVE_BASELINE_PUBLIC_GENERATION_BUDGET_OVERSHOOT",
+  "originalResultUnchanged": "FAIL",
+  "allFourOriginalLineageDefectsObserved": true,
+  "bothReadCompletionsQualified": true,
+  "unsupportedNativeQueries": [
+    {
+      "query": 4,
+      "maxTurns": 4,
+      "nativeTurns": 5,
+      "resultSubtype": "success",
+      "resultIsError": false,
+      "terminalReason": "other",
+      "toolCount": 1,
+      "explicitlyDroppedSdkToolCount": 2,
+      "publicGenerations": 5,
+      "completePublicGenerationIds": true,
+      "allGenerationHookCounts": [
+        {
+          "number": 1,
+          "firstEventMs": 36340.984,
+          "lastEventMs": 37039.801,
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctTools": 1,
+          "toolHooks": 1,
+          "forwardedHooks": 1,
+          "droppedHooks": 0,
+          "unknownHooks": 0,
+          "repeatedHookEvents": 0,
+          "firstHookMs": 37097.838
+        },
+        {
+          "number": 2,
+          "firstEventMs": 37923.896,
+          "lastEventMs": 38201.743,
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctTools": 1,
+          "toolHooks": 1,
+          "forwardedHooks": 0,
+          "droppedHooks": 1,
+          "unknownHooks": 0,
+          "repeatedHookEvents": 0,
+          "firstHookMs": 38205.78
+        },
+        {
+          "number": 3,
+          "firstEventMs": 39217.832,
+          "lastEventMs": 39517.612,
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctTools": 1,
+          "toolHooks": 1,
+          "forwardedHooks": 0,
+          "droppedHooks": 1,
+          "unknownHooks": 0,
+          "repeatedHookEvents": 0,
+          "firstHookMs": 39523.1
+        },
+        {
+          "number": 4,
+          "firstEventMs": 40256.565,
+          "lastEventMs": 40473.71,
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctTools": 0,
+          "toolHooks": 0,
+          "forwardedHooks": 0,
+          "droppedHooks": 0,
+          "unknownHooks": 0,
+          "repeatedHookEvents": 0,
+          "firstHookMs": null
+        },
+        {
+          "number": 5,
+          "firstEventMs": 41154.969,
+          "lastEventMs": 42737.762,
+          "assistantEvents": 2,
+          "streamStarts": 1,
+          "distinctTools": 0,
+          "toolHooks": 0,
+          "forwardedHooks": 0,
+          "droppedHooks": 0,
+          "unknownHooks": 0,
+          "repeatedHookEvents": 0,
+          "firstHookMs": null
+        }
+      ]
+    }
+  ],
+  "sourceInstalledArmsInOriginalCohort": "UNEXECUTED",
+  "assertionsRemainUnchanged": true,
+  "newFinding": "A successful query reports five complete public generations despite maxTurns four. Direct actual-provider API counting is not established by SDK receipts; runtime controls do not explain this extra generation. Keep the bound closed and do not qualify this baseline or claim a before/after PASS.",
+  "independentNextScope": "First corrected candidate-source run under all same assertions. First installed candidate only after source qualifies; original baseline remains held and no repeat baseline or relaxed budget is admitted."
+}

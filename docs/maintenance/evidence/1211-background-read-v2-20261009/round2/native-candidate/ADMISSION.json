@@ -1,0 +1,11 @@
+{
+  "atUTC": "2026-10-09T18:32:12.259218+00:00",
+  "originalDriverPid": 63826,
+  "cases": 2,
+  "coversAllComplete600sBoundsPlus60sMargin": true,
+  "sourceSerializationChangedSincePriorQualification": true,
+  "readOnlySupportedSource": true,
+  "taskAccessOnlyGrant": true,
+  "localFinalCodeGatesPass": true,
+  "observerHead": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca"
+}

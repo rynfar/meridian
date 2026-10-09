@@ -1,0 +1,11 @@
+[
+  {
+    "case": "e72-baseline",
+    "originalAttachPid": 27760,
+    "originalAttachJoined": true,
+    "nativeExit": 1,
+    "originalAuditorPid": 90713,
+    "originalAuditorJoined": true,
+    "auditExit": 2
+  }
+]

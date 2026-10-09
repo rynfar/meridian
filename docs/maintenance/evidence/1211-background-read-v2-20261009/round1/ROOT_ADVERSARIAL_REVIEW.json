@@ -1,0 +1,103 @@
+{
+  "atUTC": "2026-10-09T17:46:30.169510+00:00",
+  "reviewedHead": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+  "incrementBase": "2cd7c351934739f20c42202980d44feec336513d",
+  "sourceReview": "READ_COMPLETION_OBSERVED_NATIVE_RESULT_GATE_HELD_FOR_CAP4_QUALIFICATION",
+  "wholeChangeSourceAcceptance": "HELD",
+  "reviewerScope": "Root adversarial inspection of the complete five-file increment, existing generation/MCP/tool/HTTP/session/custody gates and maintained fixture; no delegated review or new product-code acceptance claimed.",
+  "productionSourceHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "productionFilesChangedThisIncrement": false,
+  "materialScopedFindingsRemaining": [],
+  "resolvedControls": [
+    "Exact complete final HTTP report prevents prompt-label, quoted, partial and foreign-report PASS.",
+    "Exact launch handle/advertised path and unique paths prevent missing/swapped/shared ownership PASS.",
+    "Child terminal must precede Read request start; successful result must follow the original owned parent tool call.",
+    "Pinned native cap-one counter-two results require one complete public generation and canonical original HTTP/hook custody; original foreground/TaskOutput predicate remains intact.",
+    "Missing or excess generations, malformed native flags, unqualified tuples and orphan/conflicting hooks stay failures.",
+    "New Read aliases remain restricted to mcp__oc__; parent fork, direct/foreign borrowing, changed commands, reused IDs, routing/hook failures, preissued results and absent parent overlap retain rejection.",
+    "Paths, handles, model prose and prompts remain in memory; only fixed-format names, booleans, ordinal IDs and counts are emitted.",
+    "Read helper never opens output/transcript/session files; actual client Read frames supply the proof."
+  ],
+  "iterationErrorsCorrected": [
+    "Initial integration assertions used nativeResults instead of the nativeReceipts report key; both fault executions were already FAIL, and the assertion was corrected.",
+    "Initial pure fixture referenced an unchecked array element; typecheck found and the known populated fixture element was made explicit."
+  ],
+  "verificationSoFar": {
+    "pureAndOriginalHarnessTests": {
+      "pass": 58,
+      "fail": 0,
+      "expects": 2638,
+      "seconds": 171.39
+    },
+    "additionalReadInheritedControls": {
+      "pass": 11,
+      "fail": 0,
+      "expects": 330,
+      "seconds": 21.34
+    },
+    "standaloneTypecheckExit": 0,
+    "zeroQueryRehearsalsQualified": 3,
+    "fullFinalCodeGates": {
+      "full-test-r1": {
+        "head": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+        "originalPid": 66228,
+        "exit": 0,
+        "originalChildJoined": true,
+        "seconds": 923.0593161670258,
+        "logSHA256": "2934f5512b4b194dcac95cf64d39ba2e9a9e0628e1649bd0224c593cd431ecdb",
+        "headAfter": "e5d1f7662e5997dc8f2afde64119f4020719f61e"
+      },
+      "typecheck-r1": {
+        "head": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+        "originalPid": 67630,
+        "exit": 0,
+        "originalChildJoined": true,
+        "seconds": 14.330168291984592,
+        "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7",
+        "headAfter": "e5d1f7662e5997dc8f2afde64119f4020719f61e"
+      },
+      "build-r1": {
+        "head": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+        "originalPid": 69493,
+        "exit": 0,
+        "originalChildJoined": true,
+        "seconds": 9.819107000017539,
+        "logSHA256": "d5d4c7bf4c7e74177ebc86d3a78c0db36c05a23e5c37680c2a194c9107d7960a",
+        "headAfter": "e5d1f7662e5997dc8f2afde64119f4020719f61e"
+      }
+    },
+    "fullSuite": {
+      "head": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+      "pass": 5846,
+      "fail": 0,
+      "skip": 35,
+      "batches": 22,
+      "syntheticExecutionsEscrowed": 95,
+      "ReadPositiveCases": 2,
+      "ReadFaultCasesRejected": 19
+    },
+    "nativeCohort": {
+      "baseline": "FAIL_NATIVE_RECEIPTS_WITH_TWO_MATCHED_READ_REPORTS",
+      "independentSource": "FAIL_NATIVE_RECEIPTS_ONLY_WITH_TWO_MATCHED_READ_REPORTS",
+      "installed": "UNEXECUTED",
+      "originalDriversJoined": true,
+      "ownedContainersAndAccessGrantsRemoved": true,
+      "actualQueries": 25,
+      "sdkEstimatedUsd": 2.3326728
+    }
+  },
+  "limitations": [
+    "Exact native Read result layout has not yet been exercised by this versioned scenario. Unrecognized layouts fail closed.",
+    "Source/installed native versions are deliberately bounded; public-generation receipts do not directly count real-model provider API calls.",
+    "No actual background acceptance until matching baseline/source/installed native probes qualify.",
+    "Historical long lease wait remains un-attributed. Mixed auto, cancellation, caption, reporter tuple, broader packaging and final-head CI remain separate gates.",
+    "Observed baseline/source cap-four terminal requires its own qualification; the cap-one-only predicate deliberately remains FAIL. Do not relax it or silently ignore these failures."
+  ],
+  "rehearsalCustody": {
+    "cases": 3,
+    "allQualified": true,
+    "fakeGrantRemoved": true,
+    "queries": 0,
+    "realCredentialReads": 0
+  }
+}

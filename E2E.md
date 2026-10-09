@@ -6547,8 +6547,15 @@ generations fail. Credential-free controls qualify both native 2.1.284 and
 2.1.295; this changes the versioned proof, never the production turn cap.
 Direct and maintained-harness controls exercise path ownership, early/partial
 reads, prompt-only or foreign output and public-generation bounds. These are
-synthetic controls; local code gates and native baseline/source/installed execution
-of that versioned scenario remain required.
+synthetic controls. The [versioned Read evidence](docs/maintenance/evidence/1211-background-read-v2-20261009/README.md)
+records corrected source and independently installed candidate **PASS on all
+21 checks**, following full local gates. Both actual client arms matched their
+own two completed numbered-record reports. The baseline remains **FAIL** at
+the public-generation bound: one successful query emitted five generations
+under cap four. Its four named lineage defects remain reproduced, and full
+before/after acceptance stays held pending that budget qualification. Earlier
+cap-four negatives are preserved; no production cap or original predicate was
+changed. Broader scenario/model/client/CI gates remain separate.
 Version probes are included in those owned handles. No background, mixed-auto or
 cancellation acceptance is established until exact actual-client/source/installed
 proof is run and audited; existing prior proof retains its original observer SHA.
