@@ -759,6 +759,53 @@ describe("auth-status warnings", () => {
     expect(warnings().join("\n")).not.toContain('"email"')
   })
 
+  it("replaces a remembered login when the CLI explicitly reports logged out", async () => {
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    const verifiedAt = getAuthCacheInfo(p).lastSuccessAt
+
+    authBehavior = "exit1"
+    await failAgain(p)
+
+    expect((await getClaudeAuthStatusAsync(p))?.loggedIn).toBe(false)
+    expect(getAuthCacheInfo(p).lastSuccessAt).toBe(verifiedAt)
+    expect(getAuthCacheInfo(p).isFailure).toBe(false)
+  })
+
+  it("keeps an explicit logout when the following check times out", async () => {
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    authBehavior = "exit1"
+    await failAgain(p)
+
+    authBehavior = "timeout"
+    await failAgain(p)
+
+    expect((await getClaudeAuthStatusAsync(p))?.loggedIn).toBe(false)
+  })
+
+  it("reports a cold explicit logout rather than an unknown status", async () => {
+    authBehavior = "exit1"
+
+    const status = await getClaudeAuthStatusAsync(nextProfile())
+
+    expect(status?.loggedIn).toBe(false)
+  })
+
+  it("does not advance the default account's successful-check time on logout", async () => {
+    await getClaudeAuthStatusAsync()
+    const verifiedAt = getAuthCacheInfo().lastSuccessAt
+    setSystemTime(verifiedAt + 60_000)
+    authBehavior = "exit1"
+    expireAuthStatusCache()
+
+    await getClaudeAuthStatusAsync()
+    await pendingAuthStatusRefresh()
+
+    expect((await getClaudeAuthStatusAsync())?.loggedIn).toBe(false)
+    expect(getAuthCacheInfo().lastSuccessAt).toBe(verifiedAt)
+  })
+
   it("reports a non-zero exit whose output is not JSON by its code alone", async () => {
     authBehavior = "exit2"
     await getClaudeAuthStatusAsync(nextProfile())
