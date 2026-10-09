@@ -6476,6 +6476,32 @@ the exact `ANTHROPIC_DEFAULT_SONNET_MODEL` version pin; an exact full SDK model
 ID also qualifies. The harness
 does not discover credentials, client binaries, profiles or configuration.
 
+**Prepared background scenario (native UNEXECUTED):** append
+`--scenario background --require-mcp-readiness` to the explicit E72 invocation.
+Foreground remains the default. The new scenario requires two actual background
+Agent launches with handles identifying the corresponding observed wire children,
+four exact child Bash results, one parent `echo parent-overlap` result and two
+blocking TaskOutput results on those handles. Child first commands are exactly
+`sleep 2 && echo alpha-1` / `sleep 2 && echo beta-1`, followed by each separate
+second echo. Parent and child response bodies must overlap; overlapping children
+alone cannot pass. Each task completion result must arrive after every original
+response body on its own child's chain has completed. All original model, hook,
+query/session/history/admission/cleanup requirements remain required, plus MCP
+readiness. The background assertion set has twenty checks in this mode.
+
+The public [tool reference](https://code.claude.com/docs/en/tools-reference)
+deprecates TaskOutput. This explicitly pinned probe retains its strict path;
+missing/deprecated tool behavior is a failed or missing gate, not permission to
+substitute another tool and claim success. Raw task handles/launch output stay in
+memory; only tool names, ordinal aliases, event order and receipt facts are saved.
+Meaningful synthetic controls reject foreground results, missing/borrowed handles,
+unknown task owners, unbounded waits, absent/early completion and serial parent
+work. Their success is not native acceptance. The E71/E72 client helper now retires
+birth-PID signal authority at exit and retains explicit exit/close/stdio witnesses.
+Version probes are included in those owned handles. No background, mixed-auto or
+cancellation acceptance is established until exact actual-client/source/installed
+proof is run and audited; existing prior proof retains its original observer SHA.
+
 **Separate mixed-auto/ancillary model gate:** actual classifier requests need
 separate exact model identities and per-request SDK/wire/served correlation.
 The official 2.1.286 auto-mode selector can use `claude-sonnet-5` for a

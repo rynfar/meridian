@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// E72: bounded native foreground Agent subagents and resumed parent on baseline/fix.
+// E72: bounded native Agent subagents and resumed parent on baseline/fix.
 // Explicit inputs only. Never discovers auth or prints client/provider prose.
 import assert from 'node:assert/strict'
 import { createHash, randomUUID } from 'node:crypto'
@@ -13,16 +13,20 @@ import { spawn, spawnSync } from 'node:child_process'
 import { spyOn } from 'bun:test'
 import { PASSTHROUGH_DENY_REASON } from '../src/proxy/passthroughDenial.ts'
 import { createQueryMcpReadinessWitness } from './lib/e2eMcpReadiness.mjs'
+import { createOwnedClientProcess } from './lib/e2eOwnedClient.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
-const names = new Set(['target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
+const names = new Set(['scenario', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
 const args = {}
 for (let i = 2; i < process.argv.length; i++) {
   const key = process.argv[i].replace(/^--/, '')
   assert(process.argv[i].startsWith('--') && (switches.has(key) || names.has(key)) && !(key in args), 'Unknown or repeated harness option')
   args[key] = switches.has(key) ? true : process.argv[++i]
 }
-for (const key of names) if (key !== 'source-head') assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
+for (const key of names) if (!['source-head', 'scenario'].includes(key)) assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
+const scenario = args.scenario ?? 'foreground'
+assert(['foreground', 'background'].includes(scenario), 'Invalid E72 scenario')
+const background = scenario === 'background'
 const synthetic = args.synthetic === true, rehearsal = args.rehearsal === true
 assert(synthetic || (process.platform === 'linux' && process.arch === 'x64'), 'Native E72 acceptance requires Linux x64')
 assert(args['client-version'] === '2.1.287', 'E72 requires the implicated Claude Code client 2.1.287')
@@ -41,7 +45,7 @@ function verifyProofDescriptor(fd) {
 const proofDescriptor = openSync(join(output, 'claude-subagent-results.json'), 'wx', 0o600)
 try { verifyProofDescriptor(proofDescriptor) }
 catch (error) { closeSync(proofDescriptor); throw error }
-const proof = { kind: synthetic ? 'synthetic-harness-control' : rehearsal ? 'zero-query-rehearsal' : 'native-affected-flow', expected: args['expect-unfixed'] ? 'unfixed' : 'fixed', platform: `${process.platform}/${process.arch}`, runtime: { bun: Bun.version, node: process.version }, requestedModel: args.model, requiredServedModel: args['served-model'], limits: { queries: maximum, sdkEstimatedCostUsd: costLimit, perQueryBudgetUsd: costLimit / maximum, totalMilliseconds: timeout, wireRequests: maximum, requestBytes: 2 * 1024 * 1024, clientStreamBytes: 2 * 1024 * 1024, clientInvocations: 2, ownedProcesses: 96 }, queries: [], turns: [], checks: {}, result: 'INCOMPLETE', acceptance: false }
+const proof = { kind: synthetic ? 'synthetic-harness-control' : rehearsal ? 'zero-query-rehearsal' : 'native-affected-flow', expected: args['expect-unfixed'] ? 'unfixed' : 'fixed', platform: `${process.platform}/${process.arch}`, runtime: { bun: Bun.version, node: process.version }, scenario, requestedModel: args.model, requiredServedModel: args['served-model'], limits: { queries: maximum, sdkEstimatedCostUsd: costLimit, perQueryBudgetUsd: costLimit / maximum, totalMilliseconds: timeout, wireRequests: maximum, requestBytes: 2 * 1024 * 1024, clientStreamBytes: 2 * 1024 * 1024, clientInvocations: 2, ownedProcesses: 96 }, queries: [], turns: [], checks: {}, result: 'INCOMPLETE', acceptance: false }
 const saved = { log: console.log, error: console.error, warn: console.warn, debug: console.debug }
 const publicLog = saved.log.bind(console), records = [], traceIds = new Map(), decisionSessions = new Map()
 let turn = 0, suppressed = 0
@@ -108,6 +112,7 @@ async function requestBody(request, maximumBytes) {
   } finally { await reader.cancel(); reader.releaseLock() }
 }
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
+const childOwners = new WeakMap(), clientOwners = []
 const sdkTools = new Map(), sdkToolOwners = new Map(), sdkHookReceipts = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
 const sessionOrdinal = value => { if (typeof value !== 'string' || !value.length) return undefined; if (!sdkSessionIds.has(value)) sdkSessionIds.set(value, sdkSessionIds.size + 1); return sdkSessionIds.get(value) }
 let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup
@@ -153,32 +158,44 @@ function ownedProcesses() {
   return owned
 }
 function signalGroup(child, signal) {
-  if (!child.pid) return
-  try { process.kill(-child.pid, signal) } catch (error) { if (error.code !== 'ESRCH') throw new Error('Owned client group signal failed') }
+  const owner = childOwners.get(child)
+  assert(owner, 'Client signaling requires an observed owned handle')
+  return owner.signal(signal)
 }
 async function childRun(executable, command, env, cwd, milliseconds) {
   assert(!stop.signal.aborted, 'Owned client refused after execution deadline')
   const child = spawn(executable, command, { env, cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  const owner = createOwnedClientProcess(child)
+  childOwners.set(child, owner); clientOwners.push(owner)
   children.add(child)
   const onAbort = () => signalGroup(child, 'SIGTERM')
   stop.signal.addEventListener('abort', onAbort, { once: true })
+  child.once('spawn', () => { if (stop.signal.aborted) onAbort() })
   const exit = new Promise((resolveExit, reject) => { child.once('error', () => reject(new Error('Owned client spawn failed'))); child.once('close', code => resolveExit(code)) })
   const text = { out: '', err: '' }
   for (const [key, stream] of [['out', child.stdout], ['err', child.stderr]]) stream.on('data', bytes => {
     text[key] += bytes.toString()
     if (Buffer.byteLength(text[key]) > 2 * 1024 * 1024) { signalGroup(child, 'SIGTERM'); stop.abort(new Error('Client output bound exceeded')) }
   })
+  let operationFailed = false
   try { return { status: await duringRun(exit, milliseconds, 'Owned client deadline exceeded'), ...text } }
+  catch (error) { operationFailed = true; throw error }
   finally {
-    signalGroup(child, 'SIGTERM')
-    try { await bounded(exit, 1000, 'Owned client join deadline exceeded') }
-    catch { signalGroup(child, 'SIGKILL'); await bounded(exit, 5000, 'Owned client failed to join') }
-    signalGroup(child, 'SIGKILL')
-    stop.signal.removeEventListener('abort', onAbort)
-    children.delete(child)
+    try {
+      signalGroup(child, 'SIGTERM')
+      try { await bounded(owner.joined, 1000, 'Owned client join deadline exceeded') }
+      catch { signalGroup(child, 'SIGKILL'); await bounded(owner.joined, 5000, 'Owned client failed to join') }
+    } catch (error) {
+      // Failed cleanup cannot replace the original deadline/spawn failure.
+      // Outer physical-join and signal receipts keep cleanup failure visible.
+      if (!operationFailed) throw error
+    } finally {
+      stop.signal.removeEventListener('abort', onAbort)
+      if (owner.isJoined()) children.delete(child)
+    }
   }
 }
-const sdkClientToolName = name => /^mcp__oc__(Agent|Bash)$/.exec(name)?.[1] ?? name
+const sdkClientToolName = name => /^mcp__oc__(Agent|Bash|TaskOutput)$/.exec(name)?.[1] ?? name
 const objectInput = value => value && typeof value === 'object' && !Array.isArray(value)
 function inputIdentity(value) {
   if (Array.isArray(value)) return value.map(inputIdentity)
@@ -390,7 +407,7 @@ try {
   else {
     const wire = [], agentIds = new Map(), toolResults = new Map()
     const session = randomUUID()
-    let activeAgents = 0, peakAgents = 0
+    let activeAgents = 0, activeMain = 0, peakAgents = 0, peakParentChild = 0, wireEvents = 0
     const actorOf = header => {
       if (header === null) return 0
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(header)) return -1
@@ -410,15 +427,18 @@ try {
         let identity = body.metadata?.user_id
         if (typeof identity === 'string') { try { identity = JSON.parse(identity) } catch { identity = undefined } }
         row = { request: requestNumber, turn, actor, requestedModelMatched: body.model === args.model, sessionKeyMatched: identity?.session_id === session, tools: Array.isArray(body.tools) ? body.tools.length : 0 }
+        if (background) row.startEvent = ++wireEvents
         wire.push(row)
         for (const message of body.messages ?? []) for (const block of Array.isArray(message.content) ? message.content : []) {
           if (block?.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue
-          const receipt = { request: requestNumber, actor, text: resultText(block.content), successful: block.is_error === undefined || block.is_error === false }
+          const receipt = { request: requestNumber, actor, ...(background ? { event: row.startEvent } : {}), text: resultText(block.content), successful: block.is_error === undefined || block.is_error === false }
           const earlier = toolResults.get(block.tool_use_id)
           if (earlier && (earlier.actor !== receipt.actor || earlier.text !== receipt.text || earlier.successful !== receipt.successful)) proof.toolResultChanged = true
           if (!earlier) toolResults.set(block.tool_use_id, receipt)
         }
         if (actor > 0) { activeAgents++; peakAgents = Math.max(peakAgents, activeAgents) }
+        else if (actor === 0) activeMain++
+        if (activeMain > 0 && activeAgents > 0) peakParentChild = Math.max(peakParentChild, activeMain + activeAgents)
       }
       try {
         const response = await fetch(`http://127.0.0.1:${address.port}${url.pathname}${url.search}`, { method: request.method, headers, body: text, signal: AbortSignal.any([request.signal, stop.signal]), decompress: false })
@@ -426,23 +446,30 @@ try {
           // Bun may consume headers when returning the original response.
           const status = response.status, contentType = response.headers.get('content-type') ?? ''
           row.status = status
-          const receipt = requestBody(response.clone(), 2 * 1024 * 1024).then(body => httpToolTerminal(status, contentType, body, row.request)).catch(error => { proof.httpReceiptFailure = true; proof.httpReceiptFailureType = ['SyntaxError', 'TypeError', 'AssertionError', 'Error'].includes(error?.name) ? error.name : 'other' })
+          const receipt = requestBody(response.clone(), 2 * 1024 * 1024).then(body => { if (background) row.terminalEvent = ++wireEvents; httpToolTerminal(status, contentType, body, row.request) }).catch(error => { proof.httpReceiptFailure = true; proof.httpReceiptFailureType = ['SyntaxError', 'TypeError', 'AssertionError', 'Error'].includes(error?.name) ? error.name : 'other' })
           receiptOwnsActive = true
-          pendingHttp.add(receipt); receipt.finally(() => { pendingHttp.delete(receipt); if (row.actor > 0) activeAgents-- })
+          pendingHttp.add(receipt); receipt.finally(() => { pendingHttp.delete(receipt); if (row.actor > 0) activeAgents--; else if (row.actor === 0) activeMain-- })
         }
         return response
-      } finally { if (row?.actor > 0 && !receiptOwnsActive) activeAgents-- }
+      } finally { if (row && !receiptOwnsActive) { if (row.actor > 0) activeAgents--; else if (row.actor === 0) activeMain-- } }
     } })
     for (turn = 1; turn <= 2; turn++) {
+      const firstAlpha = background ? 'sleep 2 && echo alpha-1' : 'echo alpha-1'
+      const firstBeta = background ? 'sleep 2 && echo beta-1' : 'echo beta-1'
       const prompt = turn === 1 ? [
         'Use the Agent tool to launch exactly two general-purpose subagents in parallel, in one message,',
-        'both in the foreground (run_in_background false).',
-        'Subagent ALPHA must run the shell command `echo alpha-1`, then in a separate Bash call run',
+        background ? 'both in the background (run_in_background true).' : 'both in the foreground (run_in_background false).',
+        `Subagent ALPHA must run the exact shell command \`${firstAlpha}\`, then in a separate Bash call run`,
         '`echo alpha-2`, then report both outputs.',
-        'Subagent BETA must do the same with `echo beta-1` and `echo beta-2`.',
+        `Subagent BETA must do the same with \`${firstBeta}\` and \`echo beta-2\`.`,
+        ...(background ? [
+          'Immediately after launching them, run exactly one Bash command `echo parent-overlap` in the parent while they work.',
+          'Then use exactly one blocking TaskOutput call per launched agent ID, timeout at most 30000 milliseconds, to collect both completed reports.',
+          'Do not use Read, TaskStop, SendMessage or other tools in this bounded task.',
+        ] : []),
         'When both have reported, reply with exactly the word DONE.',
       ].join(' ') : 'Reply with exactly the word AGAIN.'
-      const command = [turn === 1 ? '--session-id' : '--resume', session, '-p', prompt, '--model', args.model, '--permission-mode', 'default', '--allowedTools', 'Bash(echo:*)', 'Agent']
+      const command = [turn === 1 ? '--session-id' : '--resume', session, '-p', prompt, '--model', args.model, '--permission-mode', 'default', '--allowedTools', 'Bash(echo:*)', 'Agent', ...(background ? ['Bash(sleep:*)', 'TaskOutput'] : [])]
       const result = await childRun(client, command, { ...clientEnv, ANTHROPIC_BASE_URL: `http://127.0.0.1:${relay.port}` }, project, Math.min(timeout, 300000))
       proof.turns.push({ number: turn, status: result.status, answered: new RegExp(`\\b${turn === 1 ? 'DONE' : 'AGAIN'}\\b`).test(result.out), refused: /API Error: [45][0-9][0-9]/.test(`${result.out}\n${result.err}`) })
       assert(!stop.signal.aborted, 'Execution deadline/output bound reached')
@@ -468,7 +495,7 @@ try {
       row.toolCount = tools.size
       row.acceptedCanonicalResult = row.resultFlagValid && ((row.resultSubtype === 'success' && row.resultIsError === false) || (row.resultSubtype === 'error_max_turns' && row.resultIsError === true && row.maxTurns === 1 && row.nativeTurns === 1 && ['absent', 'max_turns'].includes(row.terminalReason) && row.canonicalHttpToolTerminal))
     }
-    proof.wire = wire; proof.lineage = records; proof.peakParallelAgentRequests = peakAgents
+    proof.wire = wire; proof.lineage = records; proof.peakParallelAgentRequests = peakAgents; if (background) proof.peakParentChildRequests = peakParentChild
     const decision = row => records.filter(record => record.request === row.request)
     const mains = wire.filter(row => row.actor === 0), agents = new Map()
     for (const row of wire.filter(row => row.actor > 0)) agents.set(row.actor, [...(agents.get(row.actor) ?? []), row])
@@ -478,10 +505,24 @@ try {
       return { id, tool, actor: request?.actor, row: sdkRows.length === 1 ? sdkRows[0] : undefined, result, paired: sdkRows.length === 1 && sdkTools.get(sdkRows[0]).get(id)?.input === tool.input && sdkTools.get(sdkRows[0]).get(id)?.name === tool.name, resultMatched: !!result && result.actor === request?.actor && result.request > tool.request && result.successful }
     })
     const launches = privateReceipts.filter(receipt => receipt.tool.name === 'Agent')
-    const commands = ['echo alpha-1', 'echo alpha-2', 'echo beta-1', 'echo beta-2']
+    const commands = [background ? 'sleep 2 && echo alpha-1' : 'echo alpha-1', 'echo alpha-2', background ? 'sleep 2 && echo beta-1' : 'echo beta-1', 'echo beta-2']
     const bash = commands.map(command => privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === command))
-    const launchReceipts = launches.length === 2 && ['alpha', 'beta'].every(label => launches.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.subagent_type === 'general-purpose' && receipt.tool.privateInput.run_in_background !== true && typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`) && receipt.result.text.includes(`${label}-1`) && receipt.result.text.includes(`${label}-2`)).length === 1)
-    const bashReceipts = bash.every((rows, index) => rows.length === 1 && rows[0].actor > 0 && rows[0].paired && rows[0].resultMatched && rows[0].result.text.includes(commands[index].slice(5))) && bash[0][0]?.actor === bash[1][0]?.actor && bash[2][0]?.actor === bash[3][0]?.actor && bash[0][0]?.actor !== bash[2][0]?.actor
+    const foregroundLaunchReceipts = launches.length === 2 && ['alpha', 'beta'].every(label => launches.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.subagent_type === 'general-purpose' && receipt.tool.privateInput.run_in_background !== true && typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`) && receipt.result.text.includes(`${label}-1`) && receipt.result.text.includes(`${label}-2`)).length === 1)
+    const bashReceipts = bash.every((rows, index) => rows.length === 1 && rows[0].actor > 0 && rows[0].paired && rows[0].resultMatched && rows[0].result.text.includes(['alpha-1', 'alpha-2', 'beta-1', 'beta-2'][index])) && bash[0][0]?.actor === bash[1][0]?.actor && bash[2][0]?.actor === bash[3][0]?.actor && bash[0][0]?.actor !== bash[2][0]?.actor
+    // Background launch handles stay private and must identify the actual wire
+    // child. A foreground result or a generated completion word cannot qualify.
+    const backgroundLaunches = ['alpha', 'beta'].map((label, index) => {
+      const matches = launches.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.subagent_type === 'general-purpose' && receipt.tool.privateInput.run_in_background === true && typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`))
+      if (matches.length !== 1) return undefined
+      const ids = [...matches[0].result.text.matchAll(/\bagentId:\s*([A-Za-z0-9_-]{1,128})\b/g)]
+      if (ids.length !== 1 || agentIds.get(ids[0][1]) !== bash[index * 2][0]?.actor) return undefined
+      return { id: ids[0][1], actor: agentIds.get(ids[0][1]), launch: matches[0], label }
+    })
+    const taskOutputs = privateReceipts.filter(receipt => receipt.tool.name === 'TaskOutput')
+    const completedBackground = backgroundLaunches.every(child => child && taskOutputs.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.task_id === child.id && receipt.tool.privateInput.block === true && Number.isFinite(receipt.tool.privateInput.timeout) && receipt.tool.privateInput.timeout > 0 && receipt.tool.privateInput.timeout <= 30000 && receipt.tool.request > child.launch.result.request && wire.filter(row => row.actor === child.actor).every(row => Number.isInteger(row.terminalEvent) && row.terminalEvent < receipt.result.event) && receipt.result.text.includes(`${child.label}-1`) && receipt.result.text.includes(`${child.label}-2`)).length === 1)
+    const parentWork = privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === 'echo parent-overlap')
+    const parentWorked = parentWork.length === 1 && parentWork[0].actor === 0 && parentWork[0].paired && parentWork[0].resultMatched && parentWork[0].result.text.includes('parent-overlap')
+    const backgroundLaunchReceipts = launches.length === 2 && backgroundLaunches.every(Boolean) && taskOutputs.length === 2 && completedBackground && parentWorked
     const privatePrefix = ordinal => [...sdkSessionIds].find(([, value]) => value === ordinal)?.[0].slice(0, 8)
     const prefixes = [...sdkSessionIds.keys()].map(id => id.slice(0, 8))
     proof.sessionPrefixAmbiguous = new Set(prefixes).size !== prefixes.length
@@ -504,17 +545,18 @@ try {
     proof.queryReceipts = proof.queries.map((row, index) => ({ number: index + 1, request: queryRequests.get(row)?.request, actor: queryRequests.get(row)?.actor, kind: row.toolCount > 0 ? 'tools' : 'text', paired: queryRequests.has(row) }))
     // Only ordinal aliases and deterministic facts leave memory; no real
     // agent/session/tool IDs, prompts, tool arguments or generated prose.
-    proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash'].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))
+    proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash', 'TaskOutput'].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))
     proof.checks = {
       invocationsSucceeded: proof.turns.length === 2 && proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), noRefusal: proof.turns.every(row => !row.refused) && wire.every(row => row.status === 200),
       requestedModelIdentity: wire.length > 0 && wire.every(row => row.requestedModelMatched), rootedWireIdentity: wire.length > 0 && wire.every(row => row.sessionKeyMatched && row.actor >= 0), requestDecisionsComplete: wire.length > 0 && wire.every(row => decision(row).length === 1) && records.length === wire.length,
-      twoMultiturnAgents: agents.size === 2 && [...agents.values()].every(rows => rows.length >= 3 && rows.every(row => row.turn === 1)), foregroundParallelism: peakAgents >= 2,
-      actualAgentAndBashReceipts: !proof.toolResultChanged && launchReceipts && bashReceipts && privateReceipts.length === 6,
+      twoMultiturnAgents: agents.size === 2 && [...agents.values()].every(rows => rows.length >= 3 && rows.every(row => row.turn === 1)), [background ? 'backgroundParallelism' : 'foregroundParallelism']: peakAgents >= 2,
+      actualAgentAndBashReceipts: !proof.toolResultChanged && (background ? backgroundLaunchReceipts : foregroundLaunchReceipts) && bashReceipts && privateReceipts.length === (background ? 9 : 6),
       sdkToolHookCustody: proof.queries.every(row => row.sdkToolHookCustody),
       allQueriesCorrelated, distinctSessionMappings, subagentResume: agents.size === 2 && [...agents.values()].every(resumed), mainResume: mains.length >= 3 && mains.some(row => row.turn === 2) && resumed(mains),
       noCollision: !records.some(row => ['unrelated-history', 'concurrent-race'].includes(row.divergence)), boundedLeaseWait: records.length === wire.length && records.every(row => Number.isFinite(row.sessionWaitMs) && row.sessionWaitMs >= 0 && row.sessionWaitMs <= 1000),
       nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === args.model || (row.requested === 'sonnet' && row.versionPin === args.model)) && row.completed && row.iteratorSettled && row.sdkToolHookCustody && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
     }
+    if (background) proof.checks.backgroundParentChildOverlap = peakParentChild >= 2
     const defects = new Set(['distinctSessionMappings', 'subagentResume', 'mainResume', 'noCollision'])
     if (args['require-mcp-readiness']) proof.checks.nativeMcpReadiness = proof.queries.some(row => row.mcpReadiness?.declaredServers.length > 0) && proof.queries.every(row => row.mcpReadiness?.ready === true)
     for (const [name, actual] of Object.entries(proof.checks)) {
@@ -540,6 +582,12 @@ try {
   if (proof.sdkAbortSignalFailed || proof.sdkAbortCloseFailed) cleanup.push('SDK abort failure')
   for (const query of active) { try { query.close() } catch { cleanup.push('SDK query close') } }
   for (const child of children) { try { signalGroup(child, 'SIGKILL') } catch { cleanup.push('client signal') } }
+  try {
+    await bounded(Promise.all(clientOwners.map(owner => owner.joined)), 5000, 'Owned client physical join deadline exceeded')
+    for (const child of children) if (childOwners.get(child)?.isJoined()) children.delete(child)
+  } catch { cleanup.push('client physical join') }
+  proof.clientProcesses = clientOwners.map(owner => owner.snapshot())
+  if (proof.clientProcesses.some(owner => owner.signalFailures > 0)) cleanup.push('client signal')
   try { relay?.stop(true) } catch { cleanup.push('relay close') }
   try { await bounded(Promise.all([...pendingHttp]), 3000, 'HTTP receipt cleanup did not join'); if (pendingHttp.size) cleanup.push('HTTP receipt join') } catch { cleanup.push('HTTP receipt join') }
   try { if (startup && !startupSettled) await bounded(startup, 3000, 'Proxy startup did not join') } catch { cleanup.push('proxy startup join') }
