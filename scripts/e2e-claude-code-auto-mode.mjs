@@ -533,7 +533,7 @@ try {
     proof.wire = wire; proof.lineage = records
     const classifiers = wire.filter(row => row.classifier || row.requestClass === 'auxiliary'), shape = classifiers.filter(row => row.turn < 4), labelled = wire.filter(row => row.turn === 4 && row.requestClass === 'auxiliary'), mains = records.filter(row => row.tools > 0 && !row.auxiliary)
     const decision = row => records.filter(record => record.request === row.request)
-    const isolated = row => decision(row).length === 1 && decision(row)[0].auxiliary === true && decision(row)[0].lineage === 'diverged'
+    const isolated = row => decision(row).length === 1 && decision(row)[0].auxiliary === true && decision(row)[0].lineage === 'new'
     proof.checks = {
       invocationsSucceeded: proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), outsideToolWrites: proof.turns.every(row => row.outsideWrite), noRefusal: proof.turns.every(row => !row.refused), classifierOccurred: shape.length > 0 && labelled.length > 0 && classifiers.every(row => row.sessionKeyMatched),
       shapeHeadersAbsent: wire.filter(row => row.turn < 4).every(row => row.requestClass === 'none'), headerPathPresent: wire.some(row => row.turn === 4) && wire.filter(row => row.turn === 4).every(row => row.requestClass !== 'none'),
