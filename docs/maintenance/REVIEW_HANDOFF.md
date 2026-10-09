@@ -1,5 +1,35 @@
 # Upstream review handoff
 
+## Current oldest #1211 / existing #1322 native generation-limit diagnosis (2026-10-09 UTC)
+
+This current checkpoint supersedes earlier pending/unexecuted descriptions below.
+Existing draft #1322 continues original-creation oldest-first. Main `11dc1556`,
+source heads, owner checkout/index/twelve dirty files and eighteen raw contributor
+records remain exact; expanded #1231 stays excluded. Three worktrees remain.
+
+[Native generation-retry evidence](evidence/1211-native-generation-retry-20261009/README.md)
+reproduces five directly counted API requests at cap four on both pinned
+SDK0.2.141/native2.1.284 and2.1.295. A text-only fourth response marked tool_use
+triggers a native retry; changing that stop to end_turn makes four requests.
+Eight final credential-free/network-disabled controls make 36 local API requests.
+The existing versioned Read guard accepts normal responses and rejects overflows.
+Production source `15f44351`, caps and all original acceptance predicates remain
+unchanged. Observer/test `0cf7aa70` adds only fixed public stop enums and content
+presence/uncertainty diagnostics. Non-partial SDK fragments lack terminal stop
+reasons; the failed source diagnostic control and unexecuted installed counterpart
+are preserved. All original native/stdio/iterator/listener/container custody joins.
+
+The historical real-model baseline is still FAIL: its observer did not retain
+stop reasons, so this controlled possible cause cannot qualify that old query.
+Source/installed live Read proofs retain their original observer/head and scope.
+Prior delivery-head `021bfe2e` now has successful required test and terminal CI;
+new delivery-head checks remain a separate gate. Local code gates, scoped root
+review and new delivery identity are recorded in the linked evidence. Mixed-auto,
+root/scoped/nested cancellation/parent abort, caption/reporter, broader package/
+client/platform, historical wait and full before-after holds remain open.
+Next advance independent affected-flow gates or qualify a newly instrumented
+causal observation; no uninstrumented baseline rerun. No new PR or merge.
+
 ## Current oldest #1211 / existing #1322 pinned counter control (2026-10-09 UTC)
 
 Continue combined original-creation oldest-first through existing draft #1322;

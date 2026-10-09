@@ -1,0 +1,17 @@
+{
+  "qualified": true,
+  "sdk": "0.2.141",
+  "native": "2.1.295",
+  "queries": 4,
+  "directScriptedApiRequests": 18,
+  "expectedLimitBypassCases": 2,
+  "existingBoundRejectedBothBypasses": true,
+  "normalCasesAccepted": 2,
+  "publicSdkStopReasonsQualifiedOnlyWithPartialEvents": true,
+  "sourceBuildQueryOptionsOnlyNotInstalledProxy": true,
+  "modelNetworkDisabled": true,
+  "realCredentialReads": 0,
+  "actualModelClientOrProductAcceptance": false,
+  "originalNativeProcessesStdioIteratorsListenerContainerJoinedRemoved": true,
+  "fixtureFailureRound2Preserved": false
+}

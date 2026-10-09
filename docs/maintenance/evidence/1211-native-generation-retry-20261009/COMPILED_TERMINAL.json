@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T19:18:06.550778+00:00",
+  "head": "0cf7aa708bf55c459109537bf84c468e72f91c1a",
+  "argv": [
+    "bun",
+    "test",
+    "src/__tests__/claude-auto-mode-harness.test.ts",
+    "-t",
+    "binds existing certified compiled HTTP requests"
+  ],
+  "driverPid": 19878,
+  "childPid": 19916,
+  "originalProcessJoined": true,
+  "exitCode": 0
+}

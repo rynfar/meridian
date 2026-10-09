@@ -6556,6 +6556,15 @@ under cap four. Its four named lineage defects remain reproduced, and full
 before/after acceptance stays held pending that budget qualification. Earlier
 cap-four negatives are preserved; no production cap or original predicate was
 changed. Broader scenario/model/client/CI gates remain separate.
+The [malformed native retry controls](docs/maintenance/evidence/1211-native-generation-retry-20261009/README.md)
+reproduce a separate cap bypass in SDK 0.2.141/native 2.1.284 and 2.1.295:
+three tool generations followed by a text-only `tool_use` stop cause a fifth
+API request at cap four; an ordinary fourth `end_turn` stops after four.
+The same guard rejects every overflow. Public stop-reason diagnostics require
+partial stream events; non-partial assistant fragments omit terminal reasons.
+The historical baseline observer lacked those fields, so this possible cause
+is not retrospective attribution or acceptance. Preserve its failure and bounds.
+
 Version probes are included in those owned handles. No background, mixed-auto or
 cancellation acceptance is established until exact actual-client/source/installed
 proof is run and audited; existing prior proof retains its original observer SHA.
