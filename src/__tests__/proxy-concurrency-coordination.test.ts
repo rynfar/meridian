@@ -71,7 +71,7 @@ installSdkMock(() => ({
     })()
     return Object.assign(generator, { close: () => {} })
   },
-  createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
+  createSdkMcpServer: (config: { tools: Array<{ name: string }> }) => ({ type: "sdk", name: "test", instance: { tools: config.tools } }),
   tool: () => ({}),
 }), "proxy-concurrency-coordination.test.ts")
 
@@ -735,7 +735,7 @@ describe("SDK and Session concurrency coordination", () => {
 
   // An SDK MCP server instance accepts one transport at a time: a second query
   // connecting the same instance fails and runs without the client's tools.
-  it("gives a progress caption its own tool server while the working turn keeps the session's", async () => {
+  it("isolates each caption and working query's server while retaining the working tool definitions", async () => {
     process.env.MERIDIAN_MAX_CONCURRENT = "2"
     resetProcessSdkSemaphoreForTests()
     const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
@@ -743,7 +743,7 @@ describe("SDK and Session concurrency coordination", () => {
     const agentId = "progress-agent"
     const toolServer = (index: number) => {
       const options = capturedParams[index]?.options as {
-        mcpServers?: Record<string, { type?: unknown; name?: unknown }>
+        mcpServers?: Record<string, { type?: unknown; name?: unknown; instance?: { tools?: Array<{ name: string }> } }>
       } | undefined
       return Object.values(options?.mcpServers ?? {})
         .find(server => server.type === "sdk" && server.name !== "opencode")
@@ -762,14 +762,20 @@ describe("SDK and Session concurrency coordination", () => {
     await (await workP).text()
 
     expect(toolServer(0)).toBeDefined()
-    expect(toolServer(1)).toBe(toolServer(0))
+    expect(toolServer(1)).not.toBe(toolServer(0))
+    expect(toolServer(0)?.instance?.tools?.map(tool => tool.name)).toEqual(["Read"])
+    expect(toolServer(1)?.instance?.tools).toBe(toolServer(0)?.instance?.tools)
     expect(toolServer(2)).toBeDefined()
     expect(toolServer(2)).not.toBe(toolServer(1))
+    expect(toolServer(2)?.instance?.tools).not.toBe(toolServer(1)?.instance?.tools)
 
     const nextP = app.fetch(claudeCodeCaptionRequest([...answered, { role: "user", content: "continue" }, { role: "assistant", content: "ok" }, { role: "user", content: "next" }], sessionId, agentId))
     ;(await waitForControl(3)).release()
     await (await nextP).text()
-    expect(toolServer(3)).toBe(toolServer(0))
+    expect(toolServer(3)).not.toBe(toolServer(0))
+    expect(toolServer(3)).not.toBe(toolServer(1))
+    expect(toolServer(3)).not.toBe(toolServer(2))
+    expect(toolServer(3)?.instance?.tools).toBe(toolServer(0)?.instance?.tools)
   })
 
   it("does not queue a progress summary behind its subagent's running turn", async () => {
