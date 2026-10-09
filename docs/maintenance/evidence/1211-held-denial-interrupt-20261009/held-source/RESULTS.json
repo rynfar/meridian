@@ -1,0 +1,69 @@
+{
+  "kind": "credential-free-pinned-runtime-discovery",
+  "actualModelAcceptance": false,
+  "actualClientAcceptance": false,
+  "platform": "linux/x64",
+  "bun": "1.3.11",
+  "startedAt": "2026-10-09T22:42:46.330Z",
+  "cases": [],
+  "outcome": "FAILED",
+  "cliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+  "cliVersion": "2.1.284",
+  "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+  "sdkVersion": "0.2.141",
+  "errorClass": "Error",
+  "otherApiRequests": 1,
+  "cleanup": {
+    "admissionClosed": true,
+    "childrenJoined": true,
+    "iteratorsJoined": true,
+    "listenerClosed": true,
+    "children": [
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null,
+        "stderrBytes": 0
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 1,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [
+          {
+            "signal": "SIGTERM",
+            "result": "SENT"
+          }
+        ],
+        "join": "JOINED",
+        "exitCode": 143,
+        "signal": null,
+        "stderrBytes": 0
+      }
+    ],
+    "privateRuntimeRemoved": true
+  },
+  "environmentRestored": true,
+  "completedAt": "2026-10-09T22:43:13.629Z",
+  "exitCode": 1
+}

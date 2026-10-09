@@ -1,8 +1,49 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 native generation-limit diagnosis (2026-10-09 UTC)
+## Current oldest #1211 / existing #1322 final-hook interrupt discovery (2026-10-09 UTC)
 
-This current checkpoint supersedes earlier pending/unexecuted descriptions below.
+Existing draft #1322 remains held, at reviewed delivery `20336b22`, base
+`11dc1556`, unchanged production/artifact `15f44351`. The
+[current runnable discovery packet](evidence/1211-held-denial-interrupt-20261009/README.md)
+falsifies holding every denial while waiting for every hook: the diagnostic
+failure has a full two-tool generation and metadata but only one held hook.
+Release complete observed prefix denials so serial dispatch can continue; retain
+the final observed hook until owned public interrupt acknowledgement.
+
+Source native 2.1.284 and independently installed native 2.1.295, both SDK 0.2.141,
+pass that mechanism and the final public-event-only observer. The final trigger
+uses public tool IDs, all block closures, same-generation assistant metadata and
+UUID, and exact hook IDs/inputs. Each interrupted query uses one API round,
+observes both owned iterator results once, then returns error_during_execution /
+is_error true / aborted_tools / native num_turns four / exit one. Existing
+canonical acceptance still rejects it. Supported public history retains both
+calls and UUID; a distinct successful fork contains both client results once,
+no denial tail, and exact unchanged original public history.
+
+Ten exploratory queries ran in six network-disabled containers. Nine API rounds
+are directly recorded plus an unrecorded count from the initial failed attempt;
+do not infer a total. Both all-held failures remain FAIL with forks UNEXECUTED.
+All original drivers, native/stdios, iterators and listeners join; owned runtime
+and container custody is removed. No real credentials or models were used.
+Installed arms run installed SDK/native with SOURCE options, not installed proxy.
+
+The [scoped adversarial review](evidence/1211-held-denial-interrupt-20261009/ROOT_REVIEW.md)
+retains the fixture-oracle correction, missing first count and production holds.
+Next implement the [attempt-owned stop contract](evidence/1211-held-denial-interrupt-20261009/PRODUCTION_STOP_CONTRACT.md),
+including tagged hooks, exact session/result/error binding and lifecycle fencing.
+Then verify actual integrated source/package and remaining affected flows. The
+previous active-code local gates remain 5,889 pass / 36 skip / zero fail,
+typecheck/build pass; this packet changes documentation/escrow only. Owner
+head/index/all twelve dirty identities and all eighteen raw contributor records
+match. Original #1211/#1231/#1283/#1292 heads remain unchanged/open; expanded
+#1231 stays excluded. Work login renewal is NOT ASSUMED; command is
+`meridian profile login work`. All live, handback, cancellation/parent-abort,
+caption/reporter, platform/client/package/history and final-head CI gates remain
+held. No new PR/worktree, merge, source closure, release or external comment.
+
+## Earlier oldest #1211 / existing #1322 native generation-limit diagnosis (2026-10-09 UTC)
+
+That earlier checkpoint superseded the then-pending/unexecuted descriptions below.
 Existing draft #1322 continues original-creation oldest-first. Main `11dc1556`,
 source heads, owner checkout/index/twelve dirty files and eighteen raw contributor
 records remain exact; expanded #1231 stays excluded. Three worktrees remain.
@@ -30,7 +71,7 @@ client/platform, historical wait and full before-after holds remain open.
 Next advance independent affected-flow gates or qualify a newly instrumented
 causal observation; no uninstrumented baseline rerun. No new PR or merge.
 
-## Current oldest #1211 / existing #1322 pinned counter control (2026-10-09 UTC)
+## Earlier oldest #1211 / existing #1322 pinned counter control (2026-10-09 UTC)
 
 Continue combined original-creation oldest-first through existing draft #1322;
 it inherits #1211's age. Source heads and main `11dc1556` were refreshed and
@@ -70,7 +111,7 @@ new PR or release. Historical 9,256 ms lease wait remains un-attributed; all
 background/mixed-auto/cancellation/caption/reporter/platform/gateway/package
 and final delivery-head CI holds remain explicit.
 
-## Current oldest #1211 / existing #1322 public background diagnostics (2026-10-09 UTC)
+## Earlier oldest #1211 / existing #1322 public background diagnostics (2026-10-09 UTC)
 
 Continue combined original-creation oldest-first. The fresh paginated discovery
 covers six managed repositories, 29 open PRs and 22 issues; earlier holds remain.

@@ -1,0 +1,12 @@
+{
+  "status": "ORIGINAL_SCOPE_DESCRIPTION_QUALIFIED",
+  "arms": [
+    "public-terminal-source",
+    "public-terminal-installed"
+  ],
+  "originalDescription": "Independent script oracle retained only in post-result assertions.",
+  "correction": "The stop decision uses only public stream/metadata/hook sets, generation boundary, all block closures and input equality. A retained fixture metadata ID-membership assertion also executes during observation, before the decision; fixed count does not define stop completeness. Production must omit that fixture-only assertion.",
+  "observerBytesChanged": false,
+  "originalScopesAndInvocationsRetained": true,
+  "actualModelClientAcceptance": false
+}

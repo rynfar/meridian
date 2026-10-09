@@ -1,0 +1,86 @@
+{
+  "allTerminal": true,
+  "pending": [],
+  "actors": [
+    {
+      "arm": "held-source",
+      "driverPid": 51471,
+      "attachPid": 51512,
+      "nativeQueries": 1,
+      "reportedLoopbackApiRounds": 0,
+      "apiCountKnown": false,
+      "outcome": "FAILED",
+      "originalDriverAndAttachJoined": true,
+      "allNativeStdioIteratorsAndListenerJoined": true,
+      "ownPrivateRuntimeAndContainerRemoved": true
+    },
+    {
+      "arm": "held-source-observed",
+      "driverPid": 54766,
+      "attachPid": 54849,
+      "nativeQueries": 1,
+      "reportedLoopbackApiRounds": 1,
+      "apiCountKnown": true,
+      "outcome": "FAILED",
+      "originalDriverAndAttachJoined": true,
+      "allNativeStdioIteratorsAndListenerJoined": true,
+      "ownPrivateRuntimeAndContainerRemoved": true
+    },
+    {
+      "arm": "held-terminal-source",
+      "driverPid": 58591,
+      "attachPid": 58626,
+      "nativeQueries": 2,
+      "reportedLoopbackApiRounds": 2,
+      "apiCountKnown": true,
+      "outcome": "DISCOVERY_COMPLETED",
+      "originalDriverAndAttachJoined": true,
+      "allNativeStdioIteratorsAndListenerJoined": true,
+      "ownPrivateRuntimeAndContainerRemoved": true
+    },
+    {
+      "arm": "held-terminal-installed",
+      "driverPid": 59797,
+      "attachPid": 59876,
+      "nativeQueries": 2,
+      "reportedLoopbackApiRounds": 2,
+      "apiCountKnown": true,
+      "outcome": "DISCOVERY_COMPLETED",
+      "originalDriverAndAttachJoined": true,
+      "allNativeStdioIteratorsAndListenerJoined": true,
+      "ownPrivateRuntimeAndContainerRemoved": true
+    },
+    {
+      "arm": "public-terminal-source",
+      "driverPid": 68025,
+      "attachPid": 68132,
+      "nativeQueries": 2,
+      "reportedLoopbackApiRounds": 2,
+      "apiCountKnown": true,
+      "outcome": "DISCOVERY_COMPLETED",
+      "originalDriverAndAttachJoined": true,
+      "allNativeStdioIteratorsAndListenerJoined": true,
+      "ownPrivateRuntimeAndContainerRemoved": true
+    },
+    {
+      "arm": "public-terminal-installed",
+      "driverPid": 71624,
+      "attachPid": 71848,
+      "nativeQueries": 2,
+      "reportedLoopbackApiRounds": 2,
+      "apiCountKnown": true,
+      "outcome": "DISCOVERY_COMPLETED",
+      "originalDriverAndAttachJoined": true,
+      "allNativeStdioIteratorsAndListenerJoined": true,
+      "ownPrivateRuntimeAndContainerRemoved": true
+    }
+  ],
+  "originalExecSessionHandles": {
+    "held-source": 67291,
+    "held-source-observed": 78421,
+    "held-terminal-source": 61461,
+    "held-terminal-installed": 76030,
+    "public-terminal-source": 29854,
+    "public-terminal-installed": 26987
+  }
+}

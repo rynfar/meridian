@@ -6734,7 +6734,7 @@ controls reproduce five loopback API rounds versus four with normal text,
 without credentials or actual model calls. The [current qualified packet](docs/maintenance/evidence/1211-mixed-auto-handback-20261009/README.md)
 retains all original failures, exact joins, runtime-mechanism limits and holds.
 
-**Current diagnostic/discovery checkpoint (2026-10-09):** observer `49d8a0a9`
+**Earlier diagnostic/discovery checkpoint (2026-10-09):** observer `49d8a0a9`
 adds private-input/launch-prompt/structured-result/caller-message facts without
 changing report, ownership or generation acceptance. Its full local gates pass
 (5,889 / 36 / zero), with 35 focused checks, 28 synthetic executions and three
@@ -6748,6 +6748,21 @@ public generation. Both later attempts remain FAIL. Production stop timing,
 integrated checkpoint acceptance, actual handback format and affected-flow live
 proof remain open. Existing caps and predicates are unchanged; no real models or
 credential reads occur in these discovery controls, and all owned custody joins.
+
+**Current final-hook discovery checkpoint (2026-10-09):** the
+[public-event-only stop packet](docs/maintenance/evidence/1211-held-denial-interrupt-20261009/README.md)
+falsifies holding all denials until all hooks arrive. Releasing complete observed
+prefix denials and retaining the final hook through owned interrupt acknowledgement
+passes on SDK 0.2.141/native 2.1.284 and 2.1.295. Public IDs, all block closures,
+same-generation metadata/UUID and exact hook-input custody define the final
+trigger; each stopped query makes one API round and observes both owned iterator
+results once. Its error result remains rejected by existing product acceptance.
+Both public forks retain both real client results exactly once and exact unchanged
+original history. Ten exploratory queries, nine recorded API rounds plus one
+failed attempt's unknown count; no real credentials/models. All custody joins or
+is removed. This is a mechanism discovery with frozen source options, not an
+integrated proxy/client/model fix. Production implementation, actual mixed-source
+24/27 failure and all inherited live/CI holds remain open.
 
 ## E73: Unknown thinking display values
 

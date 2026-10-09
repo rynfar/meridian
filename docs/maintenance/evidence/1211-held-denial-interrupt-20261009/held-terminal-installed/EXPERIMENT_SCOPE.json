@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T22:42:22.480940+00:00",
+  "deliveryHead": "20336b22da7f3eec759347acfe9a434ec67475ea",
+  "baselineProbe": "held-source-observed: one hook waits with complete two-tool generation and metadata; no interrupt",
+  "delta": "Exact same terminal-hook observer bytes; independently installed SDK and native 2.1.295, with unchanged frozen source query-options. No installed proxy execution or product acceptance.",
+  "maximumQueries": 2,
+  "capPerQuery": 4,
+  "maximumLoopbackApiRoundsPerQuery": 8,
+  "hostDeadlineSeconds": 400,
+  "queryDeadlineSeconds": 25,
+  "network": "none",
+  "credentials": "fake ephemeral fixture only; no real reads",
+  "actualModelClientAcceptance": false,
+  "forkAfterFailure": "UNEXECUTED"
+}

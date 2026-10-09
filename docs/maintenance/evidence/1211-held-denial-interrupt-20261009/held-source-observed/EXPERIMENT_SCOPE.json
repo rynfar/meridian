@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T22:42:22.480940+00:00",
+  "deliveryHead": "20336b22da7f3eec759347acfe9a434ec67475ea",
+  "baselineProbe": "held-source exact failed first attempt",
+  "delta": "Only add bounded pre-cleanup cardinality/boundary/interrupt/result diagnostics; keep trigger, deadlines, result/API/fork assertions identical.",
+  "maximumQueries": 2,
+  "capPerQuery": 4,
+  "maximumLoopbackApiRoundsPerQuery": 8,
+  "hostDeadlineSeconds": 400,
+  "queryDeadlineSeconds": 25,
+  "network": "none",
+  "credentials": "fake ephemeral fixture only; no real reads",
+  "actualModelClientAcceptance": false,
+  "forkAfterFailure": "UNEXECUTED"
+}

@@ -1,0 +1,30 @@
+{
+  "atUTC": "2026-10-09T22:49:39.426752+00:00",
+  "status": "MECHANISM_QUALIFIED_IMPLEMENTATION_AND_ACCEPTANCE_HELD",
+  "reviewedDeliveryHead": "20336b22da7f3eec759347acfe9a434ec67475ea",
+  "base": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+  "productionSource": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "productionAcceptancePredicatesBudgetsAndKillSwitchChanged": false,
+  "initialAllHoldAttempts": "FAIL twice; full two-tool generation/metadata but only first held hook; no interrupt; fork UNEXECUTED",
+  "finalPublicWitnessArms": [
+    "public-terminal-source",
+    "public-terminal-installed"
+  ],
+  "finalPublicWitnessQueries": 4,
+  "finalPublicWitnessApiRounds": 4,
+  "allExploratoryQueries": 10,
+  "allExploratoryDirectApiCount": "9 directly recorded rounds plus first failed probe unrecorded; no total inference",
+  "realCredentialReads": 0,
+  "actualModelClientAcceptance": false,
+  "installedArm": "installed SDK/native 2.1.295 with frozen SOURCE query options; not installed proxy execution",
+  "canonicalInterruptedResult": "error_during_execution/is_error true/aborted_tools/native num_turns 4/exit 1; existing acceptance false",
+  "finalBoundary": "public tool IDs + all block closures + same-generation assistant metadata/UUID + privately exact hook inputs; release completed prefix, interrupt while final owned hook held, acknowledge then release",
+  "iteratorResults": "both owned tool results once",
+  "publicHistory": "both tools and final assistant UUID; distinct successful fork; both real client results once; no error tail; original public history JSON exact",
+  "actorsJoinedAndOwnedCustodyRemoved": true,
+  "owner12DirtyAnd18AuthorRecordsExact": true,
+  "renewal": "meridian profile login work; NOT_ASSUMED",
+  "wholeChangeAcceptance": "HELD",
+  "CI": "No current-head CI result inspected; app-owned watch retained",
+  "requiredNext": "Implement attempt-owned protocol without oracle counts or hook-order assumptions; negative controls and integrated source/installed affected-flow verification before merging"
+}

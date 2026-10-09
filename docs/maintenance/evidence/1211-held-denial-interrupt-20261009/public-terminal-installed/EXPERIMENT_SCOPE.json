@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T22:42:22.480940+00:00",
+  "deliveryHead": "20336b22da7f3eec759347acfe9a434ec67475ea",
+  "baselineProbe": "held-terminal-source passed, but trigger used fixture response ID list and count",
+  "delta": "Exact same public-event-only observer bytes; independently installed SDK/native 2.1.295 with frozen source query options. No installed proxy/client/model acceptance.",
+  "maximumQueries": 2,
+  "capPerQuery": 4,
+  "maximumLoopbackApiRoundsPerQuery": 8,
+  "hostDeadlineSeconds": 400,
+  "queryDeadlineSeconds": 25,
+  "network": "none",
+  "credentials": "fake ephemeral fixture only; no real reads",
+  "actualModelClientAcceptance": false,
+  "forkAfterFailure": "UNEXECUTED"
+}

@@ -1,0 +1,377 @@
+{
+  "schemaVersion": 1,
+  "members": [
+    {
+      "path": "INITIAL_HELD_FAILURE.json",
+      "bytes": 485,
+      "sha256": "c7a990018fe17baa71794de4435c8d99ee166dcd7d214d1bb14a215645918f8a"
+    },
+    {
+      "path": "OWNER_AUTHOR_REQUALIFICATION.json",
+      "bytes": 247,
+      "sha256": "ffcf823c9372c9822bc1e0809e1b4f1099fa4a20c447cf0b4a5f85203628bdd6"
+    },
+    {
+      "path": "PROCESS_JOINS.json",
+      "bytes": 2608,
+      "sha256": "64179ba07804a77fe1005a1227bd6f241aaf5faf25abf1013a3128d69656c7a8"
+    },
+    {
+      "path": "PRODUCTION_STOP_CONTRACT.md",
+      "bytes": 4398,
+      "sha256": "682988a4a09a62382fe8f6fbbd80c40bdabb5d673138777522117112457d58f2"
+    },
+    {
+      "path": "QUALIFICATION.json",
+      "bytes": 2045,
+      "sha256": "647dbb94912f0f66c92ca2d40ae2ed0115a73bd0174b1e3d19f21945ec296a57"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4948,
+      "sha256": "80f31d77955365ecac4ff6151e61d3c216e533b44fdd088a411e23bef6e0f440"
+    },
+    {
+      "path": "ROOT_REVIEW.md",
+      "bytes": 3734,
+      "sha256": "127207d63decf27d0634209acc668c252b54d92ae18abbbf47f31e9c2e9a36e4"
+    },
+    {
+      "path": "SCOPE_QUALIFICATION.json",
+      "bytes": 695,
+      "sha256": "86247eefc0f6815d1adc82140448637df84156035bb63c41fb365c58c1394023"
+    },
+    {
+      "path": "held-source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "fa9416ae01d2e13a89dbc2ace6ae77866723f3a1b7d03f5fa608f3f15ffc5c5d"
+    },
+    {
+      "path": "held-source/EXPERIMENT_SCOPE.json",
+      "bytes": 747,
+      "sha256": "37d6ee36aa8b41134495fb386bf153425debf97b4c88ad89955adf6ba5acbcdb"
+    },
+    {
+      "path": "held-source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "10f6cbc3b5d44ab5a8d3d77e6b5699b98f488c7b26771ea8d48933eac549af73"
+    },
+    {
+      "path": "held-source/INVOCATION.json",
+      "bytes": 1133,
+      "sha256": "98d4d221c26b116b23282b37d213d5793a859e6f61993472f246d0261b65b878"
+    },
+    {
+      "path": "held-source/RESULTS.json",
+      "bytes": 1784,
+      "sha256": "127b9caba26775232dcca60598d55b750b4028ee935c033ae871a722dbbcbc8e"
+    },
+    {
+      "path": "held-source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "466b582bef1bd24384f4380ec42f6592b4df738b629bb8169d92a8527d8d5c16"
+    },
+    {
+      "path": "held-source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "held-source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "held-source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "held-source/probe/native-turn-counter.mjs",
+      "bytes": 27605,
+      "sha256": "d92fa2a6279cb90c0773c0427e44779076f473c7d7e79bf6c66e4cd295ee8f0e"
+    },
+    {
+      "path": "held-source/run-control.py",
+      "bytes": 3472,
+      "sha256": "cbf4255fb88d6d9dbbfb9c75f9bf43727489a67ae0894b47542579e80e0b3738"
+    },
+    {
+      "path": "held-source-observed/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "ea557dd39dd556836b5c4673d83dc535321667e4f8856cd06f3bf423c44e7265"
+    },
+    {
+      "path": "held-source-observed/EXPERIMENT_SCOPE.json",
+      "bytes": 634,
+      "sha256": "4566fcf4245c73c1d08efd9094176a94dcdfadecefae39e18ea7255e512615b0"
+    },
+    {
+      "path": "held-source-observed/INPUTS.json",
+      "bytes": 945,
+      "sha256": "9f2e45ced4a0f7397059945f0b797d1e114df3cbb8bbd9f630776b532541dd3e"
+    },
+    {
+      "path": "held-source-observed/INVOCATION.json",
+      "bytes": 1160,
+      "sha256": "6cd1dc500fab3d3f3cd85952357dab552977eeaaee865e0fcdc07fb2c430a7de"
+    },
+    {
+      "path": "held-source-observed/RESULTS.json",
+      "bytes": 3244,
+      "sha256": "132474537d98f2cb944bf4a7c6a3e26c1ed6c18131eb20922c125773395ce7b7"
+    },
+    {
+      "path": "held-source-observed/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "78e87f6e98d219a5480723888c6b240c34f9df06f1c4cc778d5dcfb51d32d2ed"
+    },
+    {
+      "path": "held-source-observed/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "held-source-observed/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "held-source-observed/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "held-source-observed/probe/native-turn-counter.mjs",
+      "bytes": 28228,
+      "sha256": "ae64ab7ff33ee646b6e4ea22c2977b03f8168074c258d60ac931a9f33ec239a0"
+    },
+    {
+      "path": "held-source-observed/run-control.py",
+      "bytes": 3481,
+      "sha256": "5456cf1613f92101312e7861153a4e8da83ab11ef5bf81643cbfd74c15a59417"
+    },
+    {
+      "path": "held-terminal-installed/CONTAINER_TERMINAL.json",
+      "bytes": 442,
+      "sha256": "d488a8e1823a7d9062d8c71f6f5afb42a2343bd5f9563d6a28eb29eb900060d6"
+    },
+    {
+      "path": "held-terminal-installed/EXPERIMENT_SCOPE.json",
+      "bytes": 735,
+      "sha256": "c1bb1b23c09da77e114ae96275b507448626ae07c98ab2f507f84cf29e1e83c3"
+    },
+    {
+      "path": "held-terminal-installed/INPUTS.json",
+      "bytes": 945,
+      "sha256": "8c9fe97789a782e36b2b056f5f2ca5c2ab67c52607e6013548a93a10828c9c52"
+    },
+    {
+      "path": "held-terminal-installed/INVOCATION.json",
+      "bytes": 1215,
+      "sha256": "bf842f974db195ba72551f86955aba23a5606ea547ee3201d16253716c333aab"
+    },
+    {
+      "path": "held-terminal-installed/RESULTS.json",
+      "bytes": 12292,
+      "sha256": "e76942ac7132d3cdbfc97a303d6ed2fb4b8dcb4a22660aedaec782a62faa3920"
+    },
+    {
+      "path": "held-terminal-installed/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "b0c328ec559729887050c11436f38bcfcaeac72f387ea07e9c878af89d983308"
+    },
+    {
+      "path": "held-terminal-installed/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "held-terminal-installed/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "held-terminal-installed/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "held-terminal-installed/probe/native-turn-counter.mjs",
+      "bytes": 29109,
+      "sha256": "fe524d5e37b809034e7daeb45b268f1aa9bc98278d7b268de37fe4d05e8df8d0"
+    },
+    {
+      "path": "held-terminal-installed/run-control.py",
+      "bytes": 3530,
+      "sha256": "02e3cb3821b1dab8543784f50fab7487b47270cbad22506138acca2013c60074"
+    },
+    {
+      "path": "held-terminal-source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "3c37bd196cd3547fe4da7873b7be48261bc2034d912fb884098ba2252a01bbc1"
+    },
+    {
+      "path": "held-terminal-source/EXPERIMENT_SCOPE.json",
+      "bytes": 858,
+      "sha256": "34d17de1061c803c8a29e07d86300a35bb1a29709269e3486b98ea2315cbc174"
+    },
+    {
+      "path": "held-terminal-source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "8c9fe97789a782e36b2b056f5f2ca5c2ab67c52607e6013548a93a10828c9c52"
+    },
+    {
+      "path": "held-terminal-source/INVOCATION.json",
+      "bytes": 1160,
+      "sha256": "2dd444d298a199123acc742d19fe4061fc99e7aa1786707d704a663518427142"
+    },
+    {
+      "path": "held-terminal-source/RESULTS.json",
+      "bytes": 12281,
+      "sha256": "cd808969b7b1b3dc3d7cab8a15de05310fcd276caedfa9b4fd1c6ecf82563ae9"
+    },
+    {
+      "path": "held-terminal-source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "5e714c1cf065bdab87910777e9492e21793bc91980dbfa4962d7416f6b196c96"
+    },
+    {
+      "path": "held-terminal-source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "held-terminal-source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "held-terminal-source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "held-terminal-source/probe/native-turn-counter.mjs",
+      "bytes": 29109,
+      "sha256": "fe524d5e37b809034e7daeb45b268f1aa9bc98278d7b268de37fe4d05e8df8d0"
+    },
+    {
+      "path": "held-terminal-source/run-control.py",
+      "bytes": 3481,
+      "sha256": "5cbd5e3a3e284d3d492b931fe59f878aa996af1155643ded909592199f089c15"
+    },
+    {
+      "path": "public-terminal-installed/CONTAINER_TERMINAL.json",
+      "bytes": 442,
+      "sha256": "19535764034a6069bebc697b13f1593a1514e9a5da2d327ea37db622c5cdc692"
+    },
+    {
+      "path": "public-terminal-installed/EXPERIMENT_SCOPE.json",
+      "bytes": 699,
+      "sha256": "3788aa9167c10b102e0a0ce1bfd3f5322b0458893644bc24d625ead9f59ca2b3"
+    },
+    {
+      "path": "public-terminal-installed/INPUTS.json",
+      "bytes": 945,
+      "sha256": "b996b76fc4d6fe5381771a40fdc236f57b36040cd220d03c2e196908bab5960d"
+    },
+    {
+      "path": "public-terminal-installed/INVOCATION.json",
+      "bytes": 1221,
+      "sha256": "a7c9ec401737388a411dcfbcf9e0dde090e3dc3f57469cd2941a1fa908e0cf1a"
+    },
+    {
+      "path": "public-terminal-installed/RESULTS.json",
+      "bytes": 12602,
+      "sha256": "cf820c6d429c26b00146793cc24698c5fda16afc2d6dad49f11e8ec9ffb718cf"
+    },
+    {
+      "path": "public-terminal-installed/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "d155326974e0148b8d0ecd13072a6b22e35ce17253cdfa05cac984fb46b06916"
+    },
+    {
+      "path": "public-terminal-installed/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "public-terminal-installed/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "public-terminal-installed/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "public-terminal-installed/probe/native-turn-counter.mjs",
+      "bytes": 31569,
+      "sha256": "790a79f3f8833d8e708caba150e041cb2410a89f2172c82ae22043fd93c16858"
+    },
+    {
+      "path": "public-terminal-installed/run-control.py",
+      "bytes": 3532,
+      "sha256": "f282a5c452753adfe16e24a867f6baf5426432daf2cc6f7edc1b81c535aa8cbc"
+    },
+    {
+      "path": "public-terminal-source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "9dda8405a9821bf6a276cbec717e758560c6f78931725e196ebb3d8a2928e0bc"
+    },
+    {
+      "path": "public-terminal-source/EXPERIMENT_SCOPE.json",
+      "bytes": 880,
+      "sha256": "50f1136b8ea430230a1d1f0326e133e6906211c7ac41f0b35e5cea9a7e848345"
+    },
+    {
+      "path": "public-terminal-source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "b996b76fc4d6fe5381771a40fdc236f57b36040cd220d03c2e196908bab5960d"
+    },
+    {
+      "path": "public-terminal-source/INVOCATION.json",
+      "bytes": 1166,
+      "sha256": "affb02502da4dcbc12e771c5d9ffa20e5a572d1a9278e7a59523e75de479c1b8"
+    },
+    {
+      "path": "public-terminal-source/RESULTS.json",
+      "bytes": 12598,
+      "sha256": "6731a82702fbae1d0f88e704b21cf785e98ab579b692d5a275a4bd1fc64f73c7"
+    },
+    {
+      "path": "public-terminal-source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "2e9423480a42db01cab9523417756e4344e10990aa1562694a982cb2360444bd"
+    },
+    {
+      "path": "public-terminal-source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "public-terminal-source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "public-terminal-source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "public-terminal-source/probe/native-turn-counter.mjs",
+      "bytes": 31569,
+      "sha256": "790a79f3f8833d8e708caba150e041cb2410a89f2172c82ae22043fd93c16858"
+    },
+    {
+      "path": "public-terminal-source/run-control.py",
+      "bytes": 3483,
+      "sha256": "205da292e2cd0e6a24d456b437f882c770a4a7c5f7680609cae70b58d6470e0f"
+    }
+  ],
+  "totalPayloadMembers": 74,
+  "manifestExcludesSelf": true
+}

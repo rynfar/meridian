@@ -1,0 +1,33 @@
+{
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--platform",
+    "linux/amd64",
+    "--network=none",
+    "--read-only",
+    "--pids-limit",
+    "128",
+    "--memory",
+    "4g",
+    "--name",
+    "meridian1211-held-source-20261009-r5",
+    "--tmpfs",
+    "/tmp:rw,mode=1777,size=256m",
+    "--mount",
+    "type=bind,src=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-held-denial-interrupt-20261009-round5/held-source/output,dst=/proof",
+    "--mount",
+    "type=bind,src=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-held-denial-interrupt-20261009-round5/held-source/probe,dst=/probe,readonly",
+    "sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5",
+    "bun",
+    "/probe/native-turn-counter.mjs",
+    "--source-root=/opt/e71/candidate",
+    "--options-root=/opt/e71/candidate",
+    "--evidence-dir=/proof",
+    "--claude-executable=/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "--expected-cli-version=2.1.284"
+  ],
+  "containerId": "70ed1d7c04572f926ae33f9783bfac8a769dd669f363bb488edb7eee419c2359",
+  "originalDriverPid": 51471
+}
