@@ -15,6 +15,7 @@ import { PASSTHROUGH_DENY_REASON } from '../src/proxy/passthroughDenial.ts'
 import { createQueryMcpReadinessWitness } from './lib/e2eMcpReadiness.mjs'
 import { createOwnedClientProcess } from './lib/e2eOwnedClient.mjs'
 import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/e2ePublicSdkDiagnostics.mjs'
+import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['scenario', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -26,8 +27,10 @@ for (let i = 2; i < process.argv.length; i++) {
 }
 for (const key of names) if (!['source-head', 'scenario'].includes(key)) assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
 const scenario = args.scenario ?? 'foreground'
-assert(['foreground', 'background'].includes(scenario), 'Invalid E72 scenario')
-const background = scenario === 'background'
+assert(['foreground', 'background', 'background-read-v2'].includes(scenario), 'Invalid E72 scenario')
+const readBackground = scenario === 'background-read-v2'
+const background = scenario !== 'foreground'
+if (readBackground) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295'].includes(args['native-cli-version']) && args.model === 'claude-sonnet-5-5' && args['served-model'] === args.model, 'Read scenario requires counter-qualified SDK/native/model tuple')
 const synthetic = args.synthetic === true, rehearsal = args.rehearsal === true
 assert(synthetic || (process.platform === 'linux' && process.arch === 'x64'), 'Native E72 acceptance requires Linux x64')
 assert(args['client-version'] === '2.1.287', 'E72 requires the implicated Claude Code client 2.1.287')
@@ -197,7 +200,7 @@ async function childRun(executable, command, env, cwd, milliseconds) {
     }
   }
 }
-const sdkClientToolName = name => /^mcp__oc__(Agent|Bash|TaskOutput)$/.exec(name)?.[1] ?? name
+const sdkClientToolName = name => /^mcp__oc__(Agent|Bash|TaskOutput|Read)$/.exec(name)?.[1] ?? name
 const objectInput = value => value && typeof value === 'object' && !Array.isArray(value)
 function inputIdentity(value) {
   if (Array.isArray(value)) return value.map(inputIdentity)
@@ -483,12 +486,17 @@ try {
         `Subagent BETA must do the same with \`${firstBeta}\` and \`echo beta-2\`.`,
         ...(background ? [
           'Immediately after launching them, run exactly one Bash command `echo parent-overlap` in the parent while they work.',
-          'Then use exactly one TaskOutput call per launched agent ID, with block true and timeout 30000, to collect both completed reports.',
-          'Do not use Read, TaskStop, SendMessage or other tools in this bounded task.',
+          ...(readBackground ? [
+            'Wait for both background completion notifications. After each child is complete, use exactly one Read call on that launched child\'s advertised output_file path to collect its complete final report, reading from the beginning.',
+            'Do not poll partial files and do not use TaskOutput, TaskStop, SendMessage or other tools in this bounded task.',
+          ] : [
+            'Then use exactly one TaskOutput call per launched agent ID, with block true and timeout 30000, to collect both completed reports.',
+            'Do not use Read, TaskStop, SendMessage or other tools in this bounded task.',
+          ]),
         ] : []),
         'When both have reported, reply with exactly the word DONE.',
       ].join(' ') : 'Reply with exactly the word AGAIN.'
-      const command = [turn === 1 ? '--session-id' : '--resume', session, '-p', prompt, '--model', args.model, '--permission-mode', 'default', '--allowedTools', 'Bash(echo:*)', 'Agent', ...(background ? ['Bash(sleep:*)', 'TaskOutput'] : [])]
+      const command = [turn === 1 ? '--session-id' : '--resume', session, '-p', prompt, '--model', args.model, '--permission-mode', 'default', '--allowedTools', 'Bash(echo:*)', 'Agent', ...(background ? ['Bash(sleep:*)', readBackground ? 'Read' : 'TaskOutput'] : [])]
       const result = await childRun(client, command, { ...clientEnv, ANTHROPIC_BASE_URL: `http://127.0.0.1:${relay.port}` }, project, Math.min(timeout, 300000))
       proof.turns.push({ number: turn, status: result.status, answered: new RegExp(`\\b${turn === 1 ? 'DONE' : 'AGAIN'}\\b`).test(result.out), refused: /API Error: [45][0-9][0-9]/.test(`${result.out}\n${result.err}`) })
       assert(!stop.signal.aborted, 'Execution deadline/output bound reached')
@@ -513,6 +521,10 @@ try {
       row.toolRequest = tools.size > 0 && requests.size === 1 && !requests.has(undefined) ? [...requests][0] : undefined
       row.toolCount = tools.size
       row.acceptedCanonicalResult = row.resultFlagValid && ((row.resultSubtype === 'success' && row.resultIsError === false) || (row.resultSubtype === 'error_max_turns' && row.resultIsError === true && row.maxTurns === 1 && row.nativeTurns === 1 && ['absent', 'max_turns'].includes(row.terminalReason) && row.canonicalHttpToolTerminal))
+      if (readBackground) {
+        row.originalCanonicalResult = row.acceptedCanonicalResult
+        row.acceptedCanonicalResult = backgroundReadNativeResult(row, { sdkVersion: args['sdk-version'], nativeVersion: args['native-cli-version'] })
+      }
     }
     proof.wire = wire; proof.lineage = records; proof.peakParallelAgentRequests = peakAgents; if (background) proof.peakParentChildRequests = peakParentChild
     const decision = row => records.filter(record => record.request === row.request)
@@ -535,7 +547,9 @@ try {
       if (matches.length !== 1) return undefined
       const ids = [...matches[0].result.text.matchAll(/\bagentId:\s*([A-Za-z0-9_-]{1,128})\b/g)]
       if (ids.length !== 1 || agentIds.get(ids[0][1]) !== bash[index * 2][0]?.actor) return undefined
-      return { id: ids[0][1], actor: agentIds.get(ids[0][1]), launch: matches[0], label }
+      const output = readBackground ? backgroundLaunchOutput(matches[0].result.text) : undefined
+      if (readBackground && (!output || output.id !== ids[0][1])) return undefined
+      return { id: ids[0][1], actor: agentIds.get(ids[0][1]), launch: matches[0], label, ...(output ? { path: output.path } : {}) }
     })
     const taskOutputs = privateReceipts.filter(receipt => receipt.tool.name === 'TaskOutput')
     const boundedTaskWait = receipt => receipt.tool.privateInput.block === true && Number.isFinite(receipt.tool.privateInput.timeout) && receipt.tool.privateInput.timeout > 0 && receipt.tool.privateInput.timeout <= 30000
@@ -547,7 +561,16 @@ try {
     const completedBackground = backgroundLaunches.every(child => child && taskOutputs.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && taskHandleMatches(receipt, child) && boundedTaskWait(receipt) && taskAfterLaunch(receipt, child) && childCompleted(receipt, child) && receipt.result.text.includes(`${child.label}-1`) && receipt.result.text.includes(`${child.label}-2`)).length === 1)
     const parentWork = privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === 'echo parent-overlap')
     const parentWorked = parentWork.length === 1 && parentWork[0].actor === 0 && parentWork[0].paired && parentWork[0].resultMatched && parentWork[0].result.text.includes('parent-overlap')
-    const backgroundLaunchReceipts = launches.length === 2 && backgroundLaunches.every(Boolean) && taskOutputs.length === 2 && completedBackground && parentWorked
+    const reads = privateReceipts.filter(receipt => receipt.tool.name === 'Read')
+    const readFacts = readBackground ? backgroundLaunches.map((child, index) => {
+      const childRequests = child ? wire.filter(row => row.actor === child.actor) : []
+      const finalRequest = childRequests.at(-1)
+      const candidates = reads.filter(receipt => child && receipt.tool.privateInput.file_path === child.path)
+      return candidates.length === 1 ? backgroundReadCompletion({ receipt: { ...candidates[0], startEvent: wire.find(row => row.request === candidates[0].tool.request)?.startEvent }, launch: child, childRequests,
+        finalReport: finalRequest ? httpTexts.get(finalRequest.request) : undefined, executionIds: [bash[index * 2][0]?.id, bash[index * 2 + 1][0]?.id] }) : { accepted: false, ownedPath: false, afterLaunch: false, childCompleteBeforeRead: false, matchedReport: false, format: 'unknown' }
+    }) : []
+    const readLaunchesUnique = readBackground && backgroundLaunches.every(Boolean) && new Set(backgroundLaunches.map(child => child.id)).size === 2 && new Set(backgroundLaunches.map(child => child.path)).size === 2
+    const backgroundLaunchReceipts = launches.length === 2 && backgroundLaunches.every(Boolean) && parentWorked && (readBackground ? readLaunchesUnique && taskOutputs.length === 0 && reads.length === 2 && readFacts.every(row => row.accepted) : taskOutputs.length === 2 && completedBackground)
     if (background) proof.backgroundReceiptFacts = {
       launches: launches.length, ownedLaunchHandles: backgroundLaunches.filter(Boolean).length,
       taskOutputs: taskOutputs.length,
@@ -557,6 +580,9 @@ try {
       childBodiesCompleteBeforeTaskResults: taskOutputs.filter(receipt => backgroundLaunches.some(child => taskHandleMatches(receipt, child) && childCompleted(receipt, child))).length,
       parentWorked, childBashReceipts: bashReceipts, forwardedReceipts: privateReceipts.length,
     }
+    if (readBackground) proof.backgroundReadFacts = { ownedLaunchPaths: backgroundLaunches.filter(child => child?.path).length, uniqueLaunchPathsAndHandles: readLaunchesUnique, reads: reads.length,
+      ownedReads: readFacts.filter(row => row.ownedPath).length, readsAfterLaunch: readFacts.filter(row => row.afterLaunch).length, childCompleteBeforeRead: readFacts.filter(row => row.childCompleteBeforeRead).length,
+      matchedFinalReports: readFacts.filter(row => row.matchedReport).length, completedReads: readFacts.filter(row => row.accepted).length, formats: readFacts.map(row => row.format) }
     const privatePrefix = ordinal => [...sdkSessionIds].find(([, value]) => value === ordinal)?.[0].slice(0, 8)
     const prefixes = [...sdkSessionIds.keys()].map(id => id.slice(0, 8))
     proof.sessionPrefixAmbiguous = new Set(prefixes).size !== prefixes.length
@@ -591,7 +617,7 @@ try {
     })
     // Only ordinal aliases and deterministic facts leave memory; no real
     // agent/session/tool IDs, prompts, tool arguments or generated prose.
-    proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash', 'TaskOutput'].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))
+    proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash', 'TaskOutput', 'Read'].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))
     proof.checks = {
       invocationsSucceeded: proof.turns.length === 2 && proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), noRefusal: proof.turns.every(row => !row.refused) && wire.every(row => row.status === 200),
       requestedModelIdentity: wire.length > 0 && wire.every(row => row.requestedModelMatched), rootedWireIdentity: wire.length > 0 && wire.every(row => row.sessionKeyMatched && row.actor >= 0), requestDecisionsComplete: wire.length > 0 && wire.every(row => decision(row).length === 1) && records.length === wire.length,
@@ -603,6 +629,7 @@ try {
       nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === args.model || (row.requested === 'sonnet' && row.versionPin === args.model)) && row.completed && row.iteratorSettled && row.sdkToolHookCustody && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
     }
     if (background) proof.checks.backgroundParentChildOverlap = peakParentChild >= 2
+    if (readBackground) proof.checks.backgroundReadCapabilities = wire.every(row => row.clientToolCapabilities.catalogValid && row.clientToolCapabilities.read && !row.clientToolCapabilities.taskOutput) && proof.queries.every(row => !row.nativeInitCapabilitiesOverflow && row.nativeInitToolCapabilities.length > 0 && row.nativeInitToolCapabilities.every(catalog => catalog.catalogValid && catalog.clientMcpRead && !catalog.clientMcpTaskOutput && !catalog.taskOutput))
     const defects = new Set(['distinctSessionMappings', 'subagentResume', 'mainResume', 'noCollision'])
     if (args['require-mcp-readiness']) proof.checks.nativeMcpReadiness = proof.queries.some(row => row.mcpReadiness?.declaredServers.length > 0) && proof.queries.every(row => row.mcpReadiness?.ready === true)
     for (const [name, actual] of Object.entries(proof.checks)) {

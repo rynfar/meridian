@@ -6535,7 +6535,12 @@ retained. These observations do not change the original predicate or establish
 actual background acceptance. A [separate Read completion proof design](docs/maintenance/evidence/1211-native-turn-counter-20261009/READ_COMPLETION_DESIGN.md)
 requires owned output paths and final assistant reports bound to actual child
 terminals; labels also present in the initial prompt cannot qualify completion.
-Implementation, local code gates and native baseline/source/installed execution
+The versioned `--scenario background-read-v2` implements this proof with one
+Read per advertised launch path, exact complete final-report matching, child
+terminal-before-Read ordering and the separately pinned counter-two rule.
+Direct and maintained-harness controls exercise path ownership, early/partial
+reads, prompt-only or foreign output and public-generation bounds. These are
+synthetic controls; local code gates and native baseline/source/installed execution
 of that versioned scenario remain required.
 Version probes are included in those owned handles. No background, mixed-auto or
 cancellation acceptance is established until exact actual-client/source/installed
