@@ -12,6 +12,7 @@ import { createRequire } from 'node:module'
 import { spawn, spawnSync } from 'node:child_process'
 import { spyOn } from 'bun:test'
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createQueryMcpReadinessWitness } from './lib/e2eMcpReadiness.mjs'
 
 // Observe the existing private logger context rather than adding a product
 // field or inferring ownership from query timing. Imported controls exercise
@@ -113,7 +114,7 @@ export function createOwnedClientProcess(child, sendSignal = process.kill.bind(p
 // Importing the factories performs no environment, config, auth, SDK or I/O work.
 if (import.meta.main) {
 
-const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic'])
+const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'classifier-model', 'classifier-served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
 const args = {}
 for (let i = 2; i < process.argv.length; i++) {
@@ -437,6 +438,7 @@ try {
     const owned = modelWitness.capture()
     const row = { turn: owned.turn, request: owned.request, role: owned.role, wireRequested: owned.requestedModel, requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', versionPin: input.options.env?.ANTHROPIC_DEFAULT_SONNET_MODEL === undefined ? undefined : /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL) ? input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL : 'invalid-version-pin', resumed: typeof input.options.resume === 'string', maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultFlagValid: false, resultIsError: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
     const tools = new Map(); sdkTools.set(row, tools)
+    const mcpWitness = args['require-mcp-readiness'] ? createQueryMcpReadinessWitness(input.options) : undefined
     proof.queries.push(row)
     const query = original({ ...input, options: { ...input.options, maxBudgetUsd: costLimit / maximum } }); active.add(query)
     const abort = () => { input.options.abortController?.abort(new Error('E71 execution bound')); query.close() }
@@ -445,6 +447,7 @@ try {
       if (key === Symbol.asyncIterator) return async function* () {
         try {
           for await (const event of query) {
+            mcpWitness?.observe(event)
             const model = event.type === 'assistant' ? event.message?.model : event.type === 'stream_event' && event.event?.type === 'message_start' ? event.event.message?.model : undefined
             if (typeof model === 'string' && !row.nativeModels.includes(model)) row.nativeModels.push(/^claude-[a-z0-9.-]+$/.test(model) ? model : 'invalid-native-model')
             if (event.type === 'assistant') {
@@ -466,7 +469,7 @@ try {
             }
             yield event
           }
-        } finally { row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
+        } finally { if (mcpWitness) row.mcpReadiness = mcpWitness.summary(); row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
       }
       const value = Reflect.get(targetQuery, key, targetQuery); return typeof value === 'function' ? value.bind(targetQuery) : value
     } })
@@ -546,6 +549,7 @@ try {
       nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length > 0 && proof.queries.every(row => (row.requested === row.wireRequested || (row.requested === 'sonnet' && row.versionPin === row.wireRequested)) && row.completed && row.iteratorSettled && row.acceptedCanonicalResult && !row.assistantError && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === (row.role === 'classifier' ? args['classifier-served-model'] : args['served-model'])) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
     }
     const defects = new Set(['shapeIsolation', 'headerIsolation', 'mainResume', 'noCollision'])
+    if (args['require-mcp-readiness']) proof.checks.nativeMcpReadiness = proof.queries.some(row => row.mcpReadiness?.declaredServers.length > 0) && proof.queries.every(row => row.mcpReadiness?.ready === true)
     for (const [name, actual] of Object.entries(proof.checks)) {
       if (args['expect-unfixed'] && name === 'auxiliaryZeroLeaseWait') continue // Measured baseline wait; fixed MUST be zero.
       assert(actual === !(args['expect-unfixed'] && defects.has(name)), `Affected-flow assertion failed: ${name}`)

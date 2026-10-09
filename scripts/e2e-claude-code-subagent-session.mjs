@@ -12,8 +12,9 @@ import { createRequire } from 'node:module'
 import { spawn, spawnSync } from 'node:child_process'
 import { spyOn } from 'bun:test'
 import { PASSTHROUGH_DENY_REASON } from '../src/proxy/passthroughDenial.ts'
+import { createQueryMcpReadinessWitness } from './lib/e2eMcpReadiness.mjs'
 
-const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic'])
+const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
 const args = {}
 for (let i = 2; i < process.argv.length; i++) {
@@ -321,6 +322,7 @@ try {
     assert(!input.options.env?.ANTHROPIC_API_KEY && !input.options.env?.ANTHROPIC_BASE_URL && !input.options.env?.CLAUDE_CODE_OAUTH_TOKEN, 'SDK inherited another authentication/provider override')
     const row = { turn, requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', versionPin: input.options.env?.ANTHROPIC_DEFAULT_SONNET_MODEL === undefined ? undefined : /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL) ? input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL : 'invalid-version-pin', resumed: typeof input.options.resume === 'string', resumedSession: sessionOrdinal(input.options.resume), forked: input.options.forkSession === true, requestedSession: sessionOrdinal(input.options.sessionId), maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultFlagValid: false, resultIsError: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
     const tools = new Map(), hookReceipts = new Map(); sdkTools.set(row, tools); sdkHookReceipts.set(row, hookReceipts)
+    const mcpWitness = args['require-mcp-readiness'] ? createQueryMcpReadinessWitness(input.options) : undefined
     proof.queries.push(row)
     const dropReason = 'This tool call has already been handled by the client-facing turn — do not repeat it. Do not call additional tools and do not generate further text — end your turn now.'
     const preToolHooks = input.options.hooks?.PreToolUse
@@ -347,6 +349,7 @@ try {
       if (key === Symbol.asyncIterator) return async function* () {
         try {
           for await (const event of query) {
+            mcpWitness?.observe(event)
             const eventSession = sessionOrdinal(event.session_id)
             if (eventSession !== undefined) { if (row.session !== undefined && row.session !== eventSession) row.sessionChanged = true; row.session = eventSession }
             const model = event.type === 'assistant' ? event.message?.model : event.type === 'stream_event' && event.event?.type === 'message_start' ? event.event.message?.model : undefined
@@ -372,7 +375,7 @@ try {
             }
             yield event
           }
-        } finally { row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
+        } finally { if (mcpWitness) row.mcpReadiness = mcpWitness.summary(); row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
       }
       const value = Reflect.get(targetQuery, key, targetQuery); return typeof value === 'function' ? value.bind(targetQuery) : value
     } })
@@ -513,6 +516,7 @@ try {
       nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === args.model || (row.requested === 'sonnet' && row.versionPin === args.model)) && row.completed && row.iteratorSettled && row.sdkToolHookCustody && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
     }
     const defects = new Set(['distinctSessionMappings', 'subagentResume', 'mainResume', 'noCollision'])
+    if (args['require-mcp-readiness']) proof.checks.nativeMcpReadiness = proof.queries.some(row => row.mcpReadiness?.declaredServers.length > 0) && proof.queries.every(row => row.mcpReadiness?.ready === true)
     for (const [name, actual] of Object.entries(proof.checks)) {
       if (args['expect-unfixed'] && name === 'boundedLeaseWait') continue // Measure the baseline wait; fix remains bounded.
       assert(actual === !(args['expect-unfixed'] && defects.has(name)), `Affected-flow assertion failed: ${name}`)

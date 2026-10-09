@@ -6244,6 +6244,17 @@ bun scripts/e2e-claude-code-auto-mode.mjs \
   --max-queries 20 --max-cost-usd 10 --timeout-ms 1200000
 ```
 
+For changes to per-query MCP construction, append `--require-mcp-readiness`.
+It adds a per-query public SDK `system/init` witness and requires every declared
+MCP server to be connected with its complete declared tool catalog. The init
+must belong to that query's canonical final session. Missing/failed/pending
+servers, empty or changed catalogs, duplicate init/result receipts and borrowed
+sessions fail even if the model returns success. Only owned namespace names,
+counts, statuses and catalog digests are retained; raw sessions, config and
+provider diagnostics stay private. The existing model, hook, history, admission
+and cleanup assertions remain required. Historical/default baseline controls
+without this explicit option retain their original assertion set.
+
 Pin the actual implicated model IDs; a nearby model cannot establish acceptance.
 The source report used the `sonnet` alias and did not escrow its exact served
 ID. The explicit model above is a current candidate, not a replacement for
@@ -6419,6 +6430,17 @@ bun scripts/e2e-claude-code-subagent-session.mjs \
   --grant-file /owned/read-only-grant.json --proof-dir /owned/private/e72-fixed \
   --max-queries 20 --max-cost-usd 10 --timeout-ms 1200000
 ```
+
+For changes to per-query MCP construction, append `--require-mcp-readiness`.
+It adds a per-query public SDK `system/init` witness and requires every declared
+MCP server to be connected with its complete declared tool catalog. The init
+must belong to that query's canonical final session. Missing/failed/pending
+servers, empty or changed catalogs, duplicate init/result receipts and borrowed
+sessions fail even if the model returns success. Only owned namespace names,
+counts, statuses and catalog digests are retained; raw sessions, config and
+provider diagnostics stay private. The existing model, hook, history, admission
+and cleanup assertions remain required. Historical/default baseline controls
+without this explicit option retain their original assertion set.
 
 Pin the actual implicated native executable and model identities. The example
 Sonnet ID is a candidate, not a reconstruction of the contributor's `sonnet`
