@@ -1,0 +1,13 @@
+{
+  "allRetainedNativeFrames": 13,
+  "allRetainedSdkQueries": 122,
+  "allRetainedEstimatedSdkCostUsd": 7.1775970000000004,
+  "nativeE72SourceQueries": 63,
+  "nativeE72SourcePairQueries": 18,
+  "installedE71E72Queries": 19,
+  "allNativeCommandsTerminalJoined": true,
+  "allOwnedContainersAbsent": true,
+  "allAccessGrantsAbsent": true,
+  "sourceKeychainUnchanged": true,
+  "wholeChangeProductAndCIStillHeld": true
+}

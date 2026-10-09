@@ -1,0 +1,732 @@
+{
+  "originalFailure": {
+    "pass": 5656,
+    "skip": 35,
+    "fail": 1,
+    "batchesExecuted": 17,
+    "head": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+    "terminal": "EXIT1 original session4293 joined",
+    "failure": "Existing store-mutation-loop-lag ratio 11.115167ms against10.912125ms bound"
+  },
+  "testUnchangedFromMain": true,
+  "timingAssertionUnchanged": "median(warm) < median(full_document)*0.75",
+  "pairedSamples": [
+    {
+      "run": 1,
+      "arm": "main",
+      "exit": 0,
+      "log": "1-main.log",
+      "samples": [
+        {
+          "synchronousMs": 16.80374999999998,
+          "timerTailMs": 0.11608300000000327,
+          "totalMs": 16.919832999999983
+        },
+        {
+          "synchronousMs": 14.379333000000003,
+          "timerTailMs": 0.01779199999998582,
+          "totalMs": 14.397124999999988
+        },
+        {
+          "synchronousMs": 13.88570900000002,
+          "timerTailMs": 0.011415999999996984,
+          "totalMs": 13.897125000000017
+        },
+        {
+          "synchronousMs": 4.325625000000002,
+          "timerTailMs": 0.029375000000015916,
+          "totalMs": 4.355000000000018
+        },
+        {
+          "synchronousMs": 8.01179099999996,
+          "timerTailMs": 0.014334000000019387,
+          "totalMs": 8.026124999999979
+        },
+        {
+          "synchronousMs": 3.7021670000000313,
+          "timerTailMs": 0.009292000000016287,
+          "totalMs": 3.7114590000000476
+        },
+        {
+          "synchronousMs": 3.610541000000012,
+          "timerTailMs": 0.00791700000002038,
+          "totalMs": 3.6184580000000324
+        },
+        {
+          "synchronousMs": 3.8225830000000087,
+          "timerTailMs": 0.00637499999999136,
+          "totalMs": 3.828958
+        },
+        {
+          "synchronousMs": 3.7012080000000083,
+          "timerTailMs": 0.009417000000041753,
+          "totalMs": 3.71062500000005
+        }
+      ],
+      "phases": {
+        "baselines": [
+          16.919832999999983,
+          14.397124999999988,
+          13.897125000000017
+        ],
+        "lags": [
+          4.355000000000018,
+          8.026124999999979,
+          3.7114590000000476,
+          3.6184580000000324,
+          3.828958,
+          3.71062500000005
+        ]
+      }
+    },
+    {
+      "run": 2,
+      "arm": "candidate",
+      "exit": 0,
+      "log": "2-candidate.log",
+      "samples": [
+        {
+          "synchronousMs": 25.606250000000003,
+          "timerTailMs": 0.0992909999999938,
+          "totalMs": 25.705540999999997
+        },
+        {
+          "synchronousMs": 31.207290999999998,
+          "timerTailMs": 0.019750000000001933,
+          "totalMs": 31.227041
+        },
+        {
+          "synchronousMs": 23.679249999999982,
+          "timerTailMs": 0.020833000000010315,
+          "totalMs": 23.700082999999992
+        },
+        {
+          "synchronousMs": 12.20112499999999,
+          "timerTailMs": 0.023291000000000395,
+          "totalMs": 12.22441599999999
+        },
+        {
+          "synchronousMs": 5.780583000000007,
+          "timerTailMs": 0.011791999999985592,
+          "totalMs": 5.792374999999993
+        },
+        {
+          "synchronousMs": 4.330250000000007,
+          "timerTailMs": 0.007125000000002046,
+          "totalMs": 4.337375000000009
+        },
+        {
+          "synchronousMs": 7.1683749999999975,
+          "timerTailMs": 0.009917000000001508,
+          "totalMs": 7.178291999999999
+        },
+        {
+          "synchronousMs": 12.115874999999988,
+          "timerTailMs": 0.012458000000009406,
+          "totalMs": 12.128332999999998
+        },
+        {
+          "synchronousMs": 9.915832999999992,
+          "timerTailMs": 0.012249999999994543,
+          "totalMs": 9.928082999999987
+        }
+      ],
+      "phases": {
+        "baselines": [
+          25.705540999999997,
+          31.227041,
+          23.700082999999992
+        ],
+        "lags": [
+          12.22441599999999,
+          5.792374999999993,
+          4.337375000000009,
+          7.178291999999999,
+          12.128332999999998,
+          9.928082999999987
+        ]
+      }
+    },
+    {
+      "run": 3,
+      "arm": "candidate",
+      "exit": 0,
+      "log": "3-candidate.log",
+      "samples": [
+        {
+          "synchronousMs": 25.883666000000005,
+          "timerTailMs": 0.08208399999999472,
+          "totalMs": 25.96575
+        },
+        {
+          "synchronousMs": 20.929917000000003,
+          "timerTailMs": 0.016832999999991216,
+          "totalMs": 20.946749999999994
+        },
+        {
+          "synchronousMs": 20.627042000000003,
+          "timerTailMs": 0.01654099999998948,
+          "totalMs": 20.643582999999992
+        },
+        {
+          "synchronousMs": 12.236541999999986,
+          "timerTailMs": 0.02054100000000858,
+          "totalMs": 12.257082999999994
+        },
+        {
+          "synchronousMs": 25.737875000000003,
+          "timerTailMs": 0.012000000000000455,
+          "totalMs": 25.749875000000003
+        },
+        {
+          "synchronousMs": 12.685625000000016,
+          "timerTailMs": 0.008457999999990307,
+          "totalMs": 12.694083000000006
+        },
+        {
+          "synchronousMs": 10.606832999999995,
+          "timerTailMs": 0.009375000000005684,
+          "totalMs": 10.616208
+        },
+        {
+          "synchronousMs": 13.57545799999997,
+          "timerTailMs": 0.009708000000046013,
+          "totalMs": 13.585166000000015
+        },
+        {
+          "synchronousMs": 13.917874999999981,
+          "timerTailMs": 0.009334000000023934,
+          "totalMs": 13.927209000000005
+        }
+      ],
+      "phases": {
+        "baselines": [
+          25.96575,
+          20.946749999999994,
+          20.643582999999992
+        ],
+        "lags": [
+          12.257082999999994,
+          25.749875000000003,
+          12.694083000000006,
+          10.616208,
+          13.585166000000015,
+          13.927209000000005
+        ]
+      }
+    },
+    {
+      "run": 4,
+      "arm": "main",
+      "exit": 0,
+      "log": "4-main.log",
+      "samples": [
+        {
+          "synchronousMs": 30.156875,
+          "timerTailMs": 0.10208400000000495,
+          "totalMs": 30.258959000000004
+        },
+        {
+          "synchronousMs": 16.742625000000004,
+          "timerTailMs": 0.01679099999999778,
+          "totalMs": 16.759416
+        },
+        {
+          "synchronousMs": 14.592832999999999,
+          "timerTailMs": 0.014624999999995225,
+          "totalMs": 14.607457999999994
+        },
+        {
+          "synchronousMs": 12.418542000000002,
+          "timerTailMs": 0.021000000000015007,
+          "totalMs": 12.439542000000017
+        },
+        {
+          "synchronousMs": 4.070291000000026,
+          "timerTailMs": 0.01029199999999264,
+          "totalMs": 4.0805830000000185
+        },
+        {
+          "synchronousMs": 2.990083999999996,
+          "timerTailMs": 0.006457999999980757,
+          "totalMs": 2.9965419999999767
+        },
+        {
+          "synchronousMs": 2.812291999999985,
+          "timerTailMs": 0.003708000000017364,
+          "totalMs": 2.8160000000000025
+        },
+        {
+          "synchronousMs": 6.306375000000003,
+          "timerTailMs": 0.005875000000003183,
+          "totalMs": 6.312250000000006
+        },
+        {
+          "synchronousMs": 5.700917000000004,
+          "timerTailMs": 0.005750000000006139,
+          "totalMs": 5.70666700000001
+        }
+      ],
+      "phases": {
+        "baselines": [
+          30.258959000000004,
+          16.759416,
+          14.607457999999994
+        ],
+        "lags": [
+          12.439542000000017,
+          4.0805830000000185,
+          2.9965419999999767,
+          2.8160000000000025,
+          6.312250000000006,
+          5.70666700000001
+        ]
+      }
+    },
+    {
+      "run": 5,
+      "arm": "main",
+      "exit": 0,
+      "log": "5-main.log",
+      "samples": [
+        {
+          "synchronousMs": 17.284334,
+          "timerTailMs": 0.08887500000000159,
+          "totalMs": 17.373209000000003
+        },
+        {
+          "synchronousMs": 16.591666000000004,
+          "timerTailMs": 0.0153749999999917,
+          "totalMs": 16.607040999999995
+        },
+        {
+          "synchronousMs": 13.197707999999992,
+          "timerTailMs": 0.011959000000004494,
+          "totalMs": 13.209666999999996
+        },
+        {
+          "synchronousMs": 3.359833000000009,
+          "timerTailMs": 0.01683399999998869,
+          "totalMs": 3.3766669999999976
+        },
+        {
+          "synchronousMs": 4.826583999999997,
+          "timerTailMs": 0.0095410000000129,
+          "totalMs": 4.83612500000001
+        },
+        {
+          "synchronousMs": 4.215583000000009,
+          "timerTailMs": 0.005334000000004835,
+          "totalMs": 4.220917000000014
+        },
+        {
+          "synchronousMs": 3.3110829999999964,
+          "timerTailMs": 0.005124999999992497,
+          "totalMs": 3.316207999999989
+        },
+        {
+          "synchronousMs": 3.060625000000016,
+          "timerTailMs": 0.0049999999999954525,
+          "totalMs": 3.0656250000000114
+        },
+        {
+          "synchronousMs": 3.5203329999999937,
+          "timerTailMs": 0.0050420000000030996,
+          "totalMs": 3.525374999999997
+        }
+      ],
+      "phases": {
+        "baselines": [
+          17.373209000000003,
+          16.607040999999995,
+          13.209666999999996
+        ],
+        "lags": [
+          3.3766669999999976,
+          4.83612500000001,
+          4.220917000000014,
+          3.316207999999989,
+          3.0656250000000114,
+          3.525374999999997
+        ]
+      }
+    },
+    {
+      "run": 6,
+      "arm": "candidate",
+      "exit": 0,
+      "log": "6-candidate.log",
+      "samples": [
+        {
+          "synchronousMs": 19.498500000000007,
+          "timerTailMs": 0.11395799999999667,
+          "totalMs": 19.612458000000004
+        },
+        {
+          "synchronousMs": 14.354250000000008,
+          "timerTailMs": 0.016874999999998863,
+          "totalMs": 14.371125000000006
+        },
+        {
+          "synchronousMs": 16.886124999999993,
+          "timerTailMs": 0.017707999999998947,
+          "totalMs": 16.90383299999999
+        },
+        {
+          "synchronousMs": 4.106957999999992,
+          "timerTailMs": 0.0191250000000025,
+          "totalMs": 4.126082999999994
+        },
+        {
+          "synchronousMs": 4.842500000000001,
+          "timerTailMs": 0.011916999999982636,
+          "totalMs": 4.854416999999984
+        },
+        {
+          "synchronousMs": 7.142458000000005,
+          "timerTailMs": 0.009166999999990821,
+          "totalMs": 7.151624999999996
+        },
+        {
+          "synchronousMs": 9.5685,
+          "timerTailMs": 0.011208000000010543,
+          "totalMs": 9.57970800000001
+        },
+        {
+          "synchronousMs": 7.147041999999999,
+          "timerTailMs": 0.013583000000011225,
+          "totalMs": 7.16062500000001
+        },
+        {
+          "synchronousMs": 7.260290999999995,
+          "timerTailMs": 0.012042000000008102,
+          "totalMs": 7.272333000000003
+        }
+      ],
+      "phases": {
+        "baselines": [
+          19.612458000000004,
+          14.371125000000006,
+          16.90383299999999
+        ],
+        "lags": [
+          4.126082999999994,
+          4.854416999999984,
+          7.151624999999996,
+          9.57970800000001,
+          7.16062500000001,
+          7.272333000000003
+        ]
+      }
+    }
+  ],
+  "syncSamples": [
+    {
+      "arm": "candidate",
+      "exit": 0,
+      "samples": [
+        {
+          "syncMs": 9.563417000000015,
+          "syncCalls": 1,
+          "synchronousMs": 25.368291999999997,
+          "timerTailMs": 0.20816600000000562,
+          "totalMs": 25.576458000000002
+        },
+        {
+          "syncMs": 10.124916999999982,
+          "syncCalls": 1,
+          "synchronousMs": 23.219875000000002,
+          "timerTailMs": 0.014375000000001137,
+          "totalMs": 23.234250000000003
+        },
+        {
+          "syncMs": 9.88987499999999,
+          "syncCalls": 1,
+          "synchronousMs": 22.720124999999996,
+          "timerTailMs": 0.013374999999996362,
+          "totalMs": 22.733499999999992
+        },
+        {
+          "syncMs": 10.670998999999966,
+          "syncCalls": 3,
+          "synchronousMs": 13.12545799999998,
+          "timerTailMs": 0.029125000000021828,
+          "totalMs": 13.154583000000002
+        },
+        {
+          "syncMs": 7.793459000000041,
+          "syncCalls": 3,
+          "synchronousMs": 12.301500000000033,
+          "timerTailMs": 0.009542000000010376,
+          "totalMs": 12.311042000000043
+        },
+        {
+          "syncMs": 8.011665999999991,
+          "syncCalls": 3,
+          "synchronousMs": 10.614291999999978,
+          "timerTailMs": 0.01037500000001046,
+          "totalMs": 10.624666999999988
+        },
+        {
+          "syncMs": 7.648875000000032,
+          "syncCalls": 3,
+          "synchronousMs": 9.75058299999995,
+          "timerTailMs": 0.008459000000016204,
+          "totalMs": 9.759041999999965
+        },
+        {
+          "syncMs": 0.9093349999999987,
+          "syncCalls": 3,
+          "synchronousMs": 3.0556250000000205,
+          "timerTailMs": 0.006874999999979536,
+          "totalMs": 3.0625
+        },
+        {
+          "syncMs": 1.1277509999999893,
+          "syncCalls": 3,
+          "synchronousMs": 3.4669580000000337,
+          "timerTailMs": 0.007957999999973708,
+          "totalMs": 3.4749160000000074
+        }
+      ]
+    },
+    {
+      "arm": "main",
+      "exit": 0,
+      "samples": [
+        {
+          "syncMs": 8.649999999999991,
+          "syncCalls": 1,
+          "synchronousMs": 27.394667000000005,
+          "timerTailMs": 0.11695799999999679,
+          "totalMs": 27.511625000000002
+        },
+        {
+          "syncMs": 1.165292000000008,
+          "syncCalls": 1,
+          "synchronousMs": 16.82904099999999,
+          "timerTailMs": 0.01845900000000711,
+          "totalMs": 16.847499999999997
+        },
+        {
+          "syncMs": 0.9579590000000024,
+          "syncCalls": 1,
+          "synchronousMs": 16.408125,
+          "timerTailMs": 0.016166999999995824,
+          "totalMs": 16.424291999999994
+        },
+        {
+          "syncMs": 0.7830840000000023,
+          "syncCalls": 3,
+          "synchronousMs": 3.262625000000014,
+          "timerTailMs": 0.013166999999981499,
+          "totalMs": 3.2757919999999956
+        },
+        {
+          "syncMs": 0.9159589999999866,
+          "syncCalls": 3,
+          "synchronousMs": 3.0650830000000155,
+          "timerTailMs": 0.01033299999997439,
+          "totalMs": 3.07541599999999
+        },
+        {
+          "syncMs": 0.9917929999999728,
+          "syncCalls": 3,
+          "synchronousMs": 4.702167000000003,
+          "timerTailMs": 0.009374999999977263,
+          "totalMs": 4.71154199999998
+        },
+        {
+          "syncMs": 1.0686249999999973,
+          "syncCalls": 3,
+          "synchronousMs": 3.201334000000003,
+          "timerTailMs": 0.008416000000011081,
+          "totalMs": 3.209750000000014
+        },
+        {
+          "syncMs": 1.1157499999999914,
+          "syncCalls": 3,
+          "synchronousMs": 3.6662919999999986,
+          "timerTailMs": 0.007000000000005002,
+          "totalMs": 3.6732920000000036
+        },
+        {
+          "syncMs": 1.00537300000002,
+          "syncCalls": 3,
+          "synchronousMs": 3.6320829999999944,
+          "timerTailMs": 0.007374999999996135,
+          "totalMs": 3.6394579999999905
+        }
+      ]
+    },
+    {
+      "arm": "main",
+      "exit": 0,
+      "samples": [
+        {
+          "syncMs": 1.2431250000000063,
+          "syncCalls": 1,
+          "synchronousMs": 17.660042000000004,
+          "timerTailMs": 0.08525000000000205,
+          "totalMs": 17.745292000000006
+        },
+        {
+          "syncMs": 1.1626250000000056,
+          "syncCalls": 1,
+          "synchronousMs": 15.489457999999999,
+          "timerTailMs": 0.014375000000001137,
+          "totalMs": 15.503833
+        },
+        {
+          "syncMs": 1.184958999999992,
+          "syncCalls": 1,
+          "synchronousMs": 14.881917000000001,
+          "timerTailMs": 0.01012500000000216,
+          "totalMs": 14.892042000000004
+        },
+        {
+          "syncMs": 16.397415999999993,
+          "syncCalls": 3,
+          "synchronousMs": 19.089084000000014,
+          "timerTailMs": 0.022124999999988404,
+          "totalMs": 19.111209000000002
+        },
+        {
+          "syncMs": 1.7399159999999938,
+          "syncCalls": 3,
+          "synchronousMs": 4.922084000000012,
+          "timerTailMs": 0.009874999999993861,
+          "totalMs": 4.931959000000006
+        },
+        {
+          "syncMs": 3.082958000000019,
+          "syncCalls": 3,
+          "synchronousMs": 5.075999999999993,
+          "timerTailMs": 0.005375000000015007,
+          "totalMs": 5.081375000000008
+        },
+        {
+          "syncMs": 5.629373999999984,
+          "syncCalls": 3,
+          "synchronousMs": 7.632583000000011,
+          "timerTailMs": 0.006791999999990139,
+          "totalMs": 7.639375000000001
+        },
+        {
+          "syncMs": 9.590167000000008,
+          "syncCalls": 3,
+          "synchronousMs": 12.168499999999995,
+          "timerTailMs": 0.006875000000007958,
+          "totalMs": 12.175375000000003
+        },
+        {
+          "syncMs": 2.6812909999999874,
+          "syncCalls": 3,
+          "synchronousMs": 5.364417000000003,
+          "timerTailMs": 0.49770800000001714,
+          "totalMs": 5.86212500000002
+        }
+      ]
+    },
+    {
+      "arm": "candidate",
+      "exit": 0,
+      "samples": [
+        {
+          "syncMs": 9.387374999999992,
+          "syncCalls": 1,
+          "synchronousMs": 25.298333000000007,
+          "timerTailMs": 0.08170899999998937,
+          "totalMs": 25.380041999999996
+        },
+        {
+          "syncMs": 9.06216599999999,
+          "syncCalls": 1,
+          "synchronousMs": 22.582958000000005,
+          "timerTailMs": 0.022582999999997355,
+          "totalMs": 22.605541000000002
+        },
+        {
+          "syncMs": 9.465416000000005,
+          "syncCalls": 1,
+          "synchronousMs": 22.599166999999994,
+          "timerTailMs": 0.01316699999999571,
+          "totalMs": 22.61233399999999
+        },
+        {
+          "syncMs": 10.545290999999992,
+          "syncCalls": 3,
+          "synchronousMs": 13.174167000000011,
+          "timerTailMs": 0.017042000000003554,
+          "totalMs": 13.191209000000015
+        },
+        {
+          "syncMs": 12.927667000000014,
+          "syncCalls": 3,
+          "synchronousMs": 16.366000000000014,
+          "timerTailMs": 0.009582999999992126,
+          "totalMs": 16.375583000000006
+        },
+        {
+          "syncMs": 9.827124999999995,
+          "syncCalls": 3,
+          "synchronousMs": 12.089124999999996,
+          "timerTailMs": 0.008041999999989002,
+          "totalMs": 12.097166999999985
+        },
+        {
+          "syncMs": 9.103959000000003,
+          "syncCalls": 3,
+          "synchronousMs": 11.533874999999995,
+          "timerTailMs": 0.010083000000008724,
+          "totalMs": 11.543958000000003
+        },
+        {
+          "syncMs": 15.184042000000005,
+          "syncCalls": 3,
+          "synchronousMs": 17.977791999999994,
+          "timerTailMs": 0.011499999999983856,
+          "totalMs": 17.989291999999978
+        },
+        {
+          "syncMs": 8.153960000000012,
+          "syncCalls": 3,
+          "synchronousMs": 11.202583000000033,
+          "timerTailMs": 0.011958999999990283,
+          "totalMs": 11.214542000000023
+        }
+      ]
+    }
+  ],
+  "finding": "Observed timer tail generally under0.1ms; full-document comparison calls fsync once while actual warm locked durable mutation calls fsync three times. Per-sample fsync varies about1\u201316ms on unchanged main/candidate. No original-run syscall profile exists; causality for that exact failure remains unproven. Unchanged passing targeted reruns do not establish a correction.",
+  "disposition": "UNCHANGED_FULL_GATE_PASS_WITH_ORIGINAL_UNATTRIBUTED_FAILURE_RETAINED",
+  "controlledDiskDelayOnUnchangedMain": {
+    "baseline": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+    "testAssertionUnchanged": true,
+    "productionAlgorithmUnchanged": true,
+    "injection": "5ms synchronous delay at each original fsync; all original syscalls still execute",
+    "expected": "same original timing assertion fails because baseline performs one sync and warm mutation three",
+    "exit": 1,
+    "qualification": "Controlled sensitivity proof, not an attribution of the original unprofiled suite failure"
+  },
+  "localRuntime": {
+    "bun": "1.3.14",
+    "node": "v22.22.3",
+    "platform": "Darwin arm64"
+  },
+  "unchangedCompleteRerun": {
+    "head": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+    "exit": 0,
+    "durationSeconds": 518.5990178585052,
+    "logSHA256": "c0dceb0f02f02b1f70ec0fdd120ee4730fff7816e966e7e291456ac3aa07ba93",
+    "originalChildJoined": true,
+    "headAfter": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+    "pass": 5765,
+    "skip": 35,
+    "fail": 0,
+    "batchesExecuted": 22,
+    "timingAssertionUnchanged": true,
+    "originalTimingFailureRetained": true,
+    "intermittentFailureFixedClaim": false
+  }
+}

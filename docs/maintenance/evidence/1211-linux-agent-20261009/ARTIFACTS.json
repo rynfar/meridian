@@ -1,0 +1,147 @@
+{
+  "scope": "Bounded native foreground E72 and independent installed E71/E72; docs-only escrow; no whole-change acceptance",
+  "nativeCodeHead": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+  "manifestSelfExcluded": true,
+  "files": [
+    {
+      "path": "ALL_NATIVE_CUSTODY_FINAL.json",
+      "bytes": 415,
+      "sha256": "d31c5d847a159057b2668973636d0daf74e6d93a7a0aa08897ddfad7b2c7b99e"
+    },
+    {
+      "path": "E71-package-r1.json",
+      "bytes": 17643,
+      "sha256": "56c43b6140431a909baf07b71e4d8ba2dc1b0d3d38e7a9375e0c45be5527ff6d"
+    },
+    {
+      "path": "E72-baseline-r1.json",
+      "bytes": 14652,
+      "sha256": "dbabbe00834cebd633ce42c7e8a3e19731c0c921440df5f9ea9118d31cdf05aa"
+    },
+    {
+      "path": "E72-baseline-r2.json",
+      "bytes": 14701,
+      "sha256": "4cd711c545b00362282a26c898d887bed6679be7d2d633d1f00fa71e5a3db966"
+    },
+    {
+      "path": "E72-baseline-r3.json",
+      "bytes": 15826,
+      "sha256": "8ec058582a40f9ffdbd62eb8ac0a92a5f99266cf2bd57d75c588923bd4dbb636"
+    },
+    {
+      "path": "E72-candidate-diagnostic-r1.json",
+      "bytes": 17112,
+      "sha256": "36a62c975037322fdce1caba35049cdbc18091b6ac1151ed275c5e46f635e085"
+    },
+    {
+      "path": "E72-candidate-r1.json",
+      "bytes": 14590,
+      "sha256": "b1398fca25e7cfdf8083a1ddd713a211d4a70d0525d1c73ce57ae6fe7902044f"
+    },
+    {
+      "path": "E72-candidate-r2.json",
+      "bytes": 14646,
+      "sha256": "b0b8da8698615ab24db3d37ccf205644bdb015cf969e87379974ad623e16d8fe"
+    },
+    {
+      "path": "E72-candidate-r3.json",
+      "bytes": 15759,
+      "sha256": "8224fa9deffe9bfdda934ed1b64dff8d5e7145f38ee7c3d5adc74dee83d3858b"
+    },
+    {
+      "path": "E72-package-r1.json",
+      "bytes": 15647,
+      "sha256": "9306335a8f5e49f894e2261144e9fed90839a48a13be22ee6c4a4043d8c33404"
+    },
+    {
+      "path": "E72_NATIVE_PAIR_RECEIPT.json",
+      "bytes": 1521,
+      "sha256": "84f5f00dd398c58ccab53f02fcfeb0cef6a662cfa00ae6d92c99277c3927f2a9"
+    },
+    {
+      "path": "E72_ORIGINAL_HOOK_FULL_SUITE_R1_FAILED_RECEIPT.json",
+      "bytes": 268,
+      "sha256": "2d61333ca16041ab00f6d9bbd32db92233b0807b5cde03b105326a2def10a654"
+    },
+    {
+      "path": "E72_ORIGINAL_HOOK_FULL_SUITE_R2_RECEIPT.json",
+      "bytes": 470,
+      "sha256": "35d3107f6186d01dea85dec88187f395b837c601d5ce9f02d351e9db2e8833e2"
+    },
+    {
+      "path": "INDEPENDENT_PACKAGE_SCOPED_NATIVE_RECEIPT.json",
+      "bytes": 1642,
+      "sha256": "9c7a35bc8412c9aace7a7811623815f1434190bcbe09390baf2e8703decbed19"
+    },
+    {
+      "path": "LOCAL_GATES.json",
+      "bytes": 1014,
+      "sha256": "61cf3eb4d00204d7afb7ef8dbb37e283f1f53e55c5fabb4d492042090de2c456"
+    },
+    {
+      "path": "NATIVE_INVOCATIONS.json",
+      "bytes": 7034,
+      "sha256": "9f1670a744de4c36b2b61d5d26f9ae5eef18e1cb2078b09508903d67b4e80082"
+    },
+    {
+      "path": "PERFORMANCE_DIAGNOSIS.json",
+      "bytes": 21337,
+      "sha256": "4720739a325e6c7d437ef092b2ab1049e27a9cb84425da5ccdd63fdffb7c2c51"
+    },
+    {
+      "path": "PRODUCTION_IDENTITY.json",
+      "bytes": 1448,
+      "sha256": "56a101402cbcf2657708f35693d077ba6cdc331ae99c30f118b60990f0cab1bb"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5673,
+      "sha256": "083e61997910ae377ac5fa2769e1a49faf6e266ca747f9fec52a5053e9cdaa0c"
+    },
+    {
+      "path": "REVIEW.md",
+      "bytes": 4544,
+      "sha256": "a9d0494289385f88c5cdf2c5f4e65c969c9028cab2fd22fdc25060bde31d7d96"
+    },
+    {
+      "path": "SOURCE_REVIEW.json",
+      "bytes": 2852,
+      "sha256": "cd9fc3ab8d9ccf99a88b15a442703b8f94a6e14832417f84218dfbd4db124d1a"
+    },
+    {
+      "path": "e72-original-hook-build-r1.log.gz",
+      "bytes": 815,
+      "sha256": "474a983c90fe6dedd5d41b09cc6b1e4a90d74fd55161c65adddb24cab9adb2fa"
+    },
+    {
+      "path": "e72-original-hook-controls-r1.log.gz",
+      "bytes": 1532,
+      "sha256": "35eeb8ed639b790494198922351b1be43946313167c246a01185d6ec082cadb7"
+    },
+    {
+      "path": "e72-original-hook-full-suite-r1.log.gz",
+      "bytes": 211186,
+      "sha256": "5fb1ffa3694747fa8c9ccb8ae802013252da2aa2450156a0e9833bbbc1a6356f"
+    },
+    {
+      "path": "e72-original-hook-full-suite-r2.log.gz",
+      "bytes": 215328,
+      "sha256": "874f89e6a6a7922dc1757876e48dfbdc749a1e2c62553d45146bd4a2f63e1004"
+    },
+    {
+      "path": "e72-original-hook-typecheck-r1.log.gz",
+      "bytes": 73,
+      "sha256": "afb7a1d88b4d1875198db63d10647f464105362f6b27e01e0aeb8d3c38f28e0e"
+    },
+    {
+      "path": "main-disk-delay.log.gz",
+      "bytes": 1031,
+      "sha256": "4e92c8ad10b8f8811630c12dfee76c44fc353cccd3e2d955b726ec6192033a8f"
+    },
+    {
+      "path": "main-disk-delay.test.ts.gz",
+      "bytes": 2346,
+      "sha256": "d27af705cdae08ce759b56880fb700506613419d7db76a769a49aef469af5e52"
+    }
+  ]
+}

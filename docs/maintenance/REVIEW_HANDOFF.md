@@ -2,27 +2,54 @@
 
 ## Current oldest #1211 / existing #1322 checkpoint (2026-10-09 UTC)
 
-Source #1211 remains `22566e8a`. Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322)
-now has local current-main reconciliation `cbd5d7ca` and separate fixture
-corrections `72793323`, `cc3a06f5`; 17 actual contributor identities/messages remain
-exact. Expanded #1231 is excluded. Full local gates at `cc3a06f5` pass 5,762 tests,
-35 skips, zero failures, 22 isolated npm batches, typecheck and build, with the
-certified compiled-context control enabled. The same corrected native E71
-harness reproduces the baseline defects and passes the complete corrected arm
-on Linux/x64 guest execution under an ARM Docker host: actual CLI 2.1.286,
-SDK 0.2.141/backend 2.1.284, main Sonnet5-5 and classifier Sonnet5, ten queries per
-arm, complete owned custody and removed private grants. Both earlier native
-failures and their concrete fixture/turn-limit qualifications remain preserved.
-[The portable review and proof](evidence/1211-linux-auto-mode-20261009/README.md)
-contain exact source/harness identity, complete receipts and local gates.
+Continue the combined original-creation oldest-first queue. Original source
+[#1211](https://github.com/rynfar/meridian/pull/1211) is unchanged at `22566e8a`;
+existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues it.
+Main remains `11dc1556`; native/code head is `c7828d8b`. All nine production
+files match the preceding qualified E71 correction exactly. All seventeen raw
+contributor author records and full commit messages remain exact and in ancestry;
+expanded #1231 at `5afedf10` is excluded. Source #1292 remains `21e028a5`.
 
-This accepts only the current bounded E71 tuple. Original served/deployment
-identity, E72, four E41 modes, E55/MCP, installed package and final-head CI remain
-open. Separate E72 CLI 2.1.287 startup is zero-query preparation. Keep #1322 draft;
-source #1211/#1292 and expanded #1231 stay open. No new PR, merge or release.
-Continue the combined original-creation oldest-first queue after recording older
-concrete holds; preserve the owner's checkout and all owner deferrals.
+[Current foreground E72 source/package proof and root adversarial review](evidence/1211-linux-agent-20261009/README.md)
+qualify the same-harness Linux/x64 baseline failure and all-eighteen-check
+candidate pass: client 2.1.287, SDK 0.2.141/backend 2.1.284, Bun 1.3.11 and exact
+requested/served Sonnet5-5. Each arm makes nine queries and two actual invocations,
+with two parallel foreground children, exact Agent/Bash results, separate
+resumable chains and bounded leases. Five earlier failed source frames and the
+reverted ToolSearch hypothesis remain retained. The corrected observer returns
+every original public SDK hook outcome unchanged and accounts for all later
+already-handled SDK calls; ten baseline and eight candidate drops remain visible.
+All thirty focused controls pass.
 
+Independent installed tarball matches all 431 certified compiled artifacts at
+`c7828d8b` and uses its own SDK 0.2.141/backend 2.1.295. Installed E71 and foreground
+E72 each pass all eighteen checks, ten and nine queries respectively. Source
+[bounded E71 before/after](evidence/1211-linux-auto-mode-20261009/README.md)
+remains qualified separately with client 2.1.286, main Sonnet5-5/classifier Sonnet5.
+Across thirteen retained native frames, 122 actual SDK queries have original
+custody joined, zero owned residuals and removed access grants/containers;
+supported source credentials remain unchanged. This is bounded proof only.
+
+Full unchanged local npm gate passes 5,765 tests / 35 skips / zero failures
+in 22 isolated batches
+at `c7828d8b`, with certified compiled-context lane, pretest and standalone
+typecheck/build. Local runtime is Darwin arm64 / Bun 1.3.14 / Node 22.22.3. The first
+complete attempt stopped at 17 batches with 5,656 passes / 35 skips / one
+unchanged store
+performance failure. Its log is retained. Paired syscall diagnostics and a
+controlled delay on unchanged main establish sensitivity to unequal fsync work;
+that original unprofiled failure remains unattributed, and the green rerun is
+not called a correction. Root incremental adversarial review finds no additional
+material source defect; prior independent reviews retain their source-only scope.
+
+**Held:** historical reporter model/host; background/mixed-auto child flows;
+root/scoped/nested cancellation and incidental parent abort; all four E41 modes;
+E55/MCP; caption baseline discovery/hints0/overlap/abort/cache requirements;
+unspecified #1288 tuple; broader package parity; the undiagnosed older remote
+E72 PID-zero CI failure; and required final-head CI. Keep #1322 draft and source
+reports open. No new PR, merge, release or community comment. The owner checkout
+and all twelve dirty items remain untouched. Refreshed six-repo inventory has 29
+PRs and 21 issues; older concrete blockers and owner deferrals remain recorded.
 
 ## Current queue reduction and ordering (2026-10-09 UTC)
 

@@ -1,0 +1,32 @@
+{
+  "qualifiedCodeHead": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+  "focused": {
+    "pass": 30,
+    "fail": 0,
+    "expectCalls": 1058
+  },
+  "npmTest": {
+    "head": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+    "exit": 0,
+    "durationSeconds": 518.5990178585052,
+    "logSHA256": "c0dceb0f02f02b1f70ec0fdd120ee4730fff7816e966e7e291456ac3aa07ba93",
+    "originalChildJoined": true,
+    "headAfter": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+    "pass": 5765,
+    "skip": 35,
+    "fail": 0,
+    "batchesExecuted": 22,
+    "timingAssertionUnchanged": true,
+    "originalTimingFailureRetained": true,
+    "intermittentFailureFixedClaim": false
+  },
+  "typecheck": "PASS at c7828d8b standalone and pretest",
+  "build": {
+    "result": "PASS",
+    "counter": 11,
+    "attemptId": "734e4b00-e95e-4c12-87e0-b29225ab2a40"
+  },
+  "originalFailedNpmReceipt": "E72_ORIGINAL_HOOK_FULL_SUITE_R1_FAILED_RECEIPT.json",
+  "originalFailureNotDeclaredFixed": true,
+  "docOnlyFollowupRequiresContentLinkDiffChecks": true
+}

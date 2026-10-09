@@ -1225,8 +1225,8 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E66 | [Interrupted turn after a settled checkpoint](#e66-interrupted-turn-after-a-settled-checkpoint) | **Automated, real proxy + SDK + Claude Max**: `bun scripts/e2e-checkpoint-interrupted-turn.mjs`. An OpenCode-keyed tool round whose complete result is followed by a partial assistant turn (what a dropped stream leaves) must resume the stored session; a result for an unknown call is the negative control and must still take the fresh replay. **Run before releases touching the passthrough early-stop checkpoint or checkpoint replay** | 2026-09-26 |
 | E67 | [OpenCode V2 interrupted tool turn](#e67-opencode-v2-interrupted-tool-turn) | **Actual OpenCode 2.0.16 client and Meridian V2 plugin, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-checkpoint-fault.mjs`. Inject one partial SSE failure after the real client tool call; require the client's exact retry shape and SDK resume, plus a same-session recovery. **Run before releases touching keyed checkpoint recovery** | 2026-09-26 |
 | E68 | [OpenCode V2 user-invoked skill](#e68-opencode-v2-user-invoked-skill) | **Actual OpenCode V2 server, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-skill-content.mjs`. A skill invoked with no typed text must reach the SDK prompt inside `<skill_content>` and drive the reply. **Run before releases touching user-text sanitization** | 2026-09-27 |
-| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Prepared native Linux x64 gate**, explicit target/client/SDK, separate requested/served main and classifier pins, and owned read-only grant: `bun scripts/e2e-claude-code-auto-mode.mjs` with the required E71 options below. Actual Claude Code CLI in `--permission-mode auto`; synthetic controls and historical contributor observations do not establish current acceptance. Exact request witnesses bind each SDK query to its classified wire request. Requires shape and header isolation, later main resume, no collisions/refusals, and the selected single classifier arm; selector changes and internal retries remain qualified separately. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
-| E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Prepared native Linux x64 foreground gate**, explicit target/Claude Code 2.1.287/SDK/Sonnet and owned read-only grant: `bun scripts/e2e-claude-code-subagent-session.mjs` with the E72 options below. Requires two observed parallel foreground Agent children, exact Agent/Bash SDK + HTTP + execution receipts, distinct session chains, later child/parent resume, complete request decisions and bounded waits. Background, mixed auto-mode and native cancellation gates remain open. **Run before releases touching session identity, the turn lease, account routing, or Claude Code detection** | 2026-10-01 |
+| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Bounded native Linux x64 before/after PASS**, explicit target/client/SDK, separate requested/served main and classifier pins, and owned read-only grant: `bun scripts/e2e-claude-code-auto-mode.mjs` with the required E71 options below. Actual Claude Code CLI in `--permission-mode auto`; synthetic controls and historical contributor observations do not establish current acceptance. Exact request witnesses bind each SDK query to its classified wire request. Requires shape and header isolation, later main resume, no collisions/refusals, and the selected single classifier arm; selector changes and internal retries remain qualified separately. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-10-09 |
+| E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Bounded native Linux x64 foreground before/after PASS**, explicit target/Claude Code 2.1.287/SDK/Sonnet and owned read-only grant: `bun scripts/e2e-claude-code-subagent-session.mjs` with the E72 options below. Requires two observed parallel foreground Agent children, exact Agent/Bash SDK + HTTP + execution receipts, distinct session chains, later child/parent resume, complete request decisions and bounded waits. Background, mixed auto-mode and native cancellation gates remain open. **Run before releases touching session identity, the turn lease, account routing, or Claude Code detection** | 2026-10-09 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -6138,9 +6138,9 @@ overflow from the model. Those remain covered only by the mocked envelope tests.
 
 **Purpose:** prove that the actual Claude Code auto-mode classifier can run
 beside its conversation without replacing its mapping, waiting for its turn
-lease, or breaking subsequent resume. The current corrected delivery has no
-new native acceptance claim. The historical observations below concern the
-contributor's earlier implementation.
+lease, or breaking subsequent resume. The corrected delivery has bounded
+Linux/x64 native coverage recorded below; the historical observations remain
+qualified separately.
 
 The classifier shares the conversation's `metadata.user_id` session key.
 The native `x-claude-code-request-class` header is authoritative when present.
@@ -6286,6 +6286,18 @@ restored exactly after joined work. Restorable descriptor drift still fails
 cleanup qualification, even when restoration succeeds; failed restoration
 must be reported as failed rather than inferred from joined process counts.
 
+**Current bounded proof (2026-10-09):** unchanged baseline `11dc1556` versus
+corrected source `cc3a06f5`, same maintained harness, Linux/x64 guest executables
+under an ARM Docker host, Bun 1.3.11, client 2.1.286, SDK 0.2.141/backend 2.1.284,
+main `claude-sonnet-5-5` and classifier `claude-sonnet-5`. Baseline reproduces the
+four named isolation/resume/collision defects; candidate passes all eighteen
+checks, ten queries per arm. [Sanitized source frames and review](docs/maintenance/evidence/1211-linux-auto-mode-20261009/README.md)
+preserve earlier failures, complete original custody and scope. The independently
+installed `c7828d8b` tarball also passes all eighteen checks with its own
+SDK 0.2.141/backend 2.1.295 and ten queries; [the installed receipt](docs/maintenance/evidence/1211-linux-agent-20261009/README.md)
+retains exact package hashes. Historical deployment/model identity, selector
+variants, broader parity and final-head CI remain open.
+
 **Contributor-reported historical before/after (2026-09-30, Linux x64, Bun 1.2.20, Agent SDK 0.2.141, Claude
 Code 2.1.286, `sonnet`).** Baseline `0ec52a2`: FAIL, 4 checks. 0 of 10
 requests isolated; all 3 classifier requests (`tools=0 stream=false
@@ -6318,10 +6330,10 @@ mapping), and one `modified-history` from an interrupted turn.
 
 **Purpose:** demonstrate that two actual foreground Claude Code Agent children
 keep separate resumable SDK session chains while the parent continues after
-their work and through a native `--resume` invocation. The corrected delivery
-has no new native acceptance claim. Its bounded harness and independent
-synthetic controls are prepared; the historical contributor report below is
-not current acceptance evidence.
+their work and through a native `--resume` invocation. Current bounded
+Linux/x64 source before/after and independently installed foreground coverage
+pass with exact requested/served Sonnet5-5. The historical contributor report
+remains qualified separately.
 
 The client sends its root conversation ID in `metadata.user_id` and stamps
 `x-claude-code-agent-id` on native child requests. The adapter preserves root
@@ -6387,7 +6399,7 @@ auto-mode classifier flow.
   overlap through their completed response bodies, including staggered SSE
   headers. Every wire request has exactly one adapter decision, and no extra
   decision can hide behind an aggregate count.
-- The actual implicated SDK emits exactly two Agent launches and four exact
+- The actual implicated SDK forwards exactly two Agent launches and four exact
   Bash tool uses. The supported SDK `mcp__oc__Agent`/`mcp__oc__Bash` names are normalized
   only to their exact client names. Each tool ID/name/canonical input matches one complete HTTP
   tool terminal and a successful subsequent native client tool result on its
@@ -6452,8 +6464,20 @@ Escrow native baseline/fixed reports as durable PR/CI artifacts and link them
 from the review handoff. [Prepared synthetic correction evidence](docs/maintenance/evidence/1231-claude-subagent-20261004/harness-controls/REPORT.md)
 does not establish native acceptance.
 
-**Remaining native gates:** actual Linux x64/client 2.1.287/target SDK/implicated
-Sonnet before and after this corrected head; background child/main overlap;
+**Current bounded proof (2026-10-09):** the same original-hook observer runs
+baseline `11dc1556` and corrected `c7828d8b`, client 2.1.287, SDK 0.2.141/backend 2.1.284,
+Bun 1.3.11, requested/served `claude-sonnet-5-5`, Linux/x64 guest under ARM Docker.
+Each arm makes nine queries and two actual client invocations. Baseline reproduces
+the four named mapping/resume/collision defects; candidate passes all eighteen
+checks, including exact forwarded tool receipts and accounted SDK-only drops.
+An independently installed matching tarball also passes all eighteen foreground
+checks using its own SDK 0.2.141/backend 2.1.295, nine queries.
+[The source/package frames, original failures and root adversarial review](docs/maintenance/evidence/1211-linux-agent-20261009/README.md)
+retain the exact assertion correction, original custody and bounds. No broader
+foreground/background or historical-platform acceptance follows from this tuple.
+
+**Remaining native gates:** the historical reporter's exact served model and
+original host; background child/main overlap;
 mixed auto-mode classifier + child traffic; explicit root/scoped/nested cancel;
 incidental parent HTTP abort independence; and all four affected E41 modes.
 Native acceptance of this foreground harness applies only to its stated
@@ -6468,8 +6492,8 @@ turns resumed, the later parent diverged, and child waits were 1.7–8.9s. The
 contributor branch reported four of four later child and two of two later main
 requests continuing across nine requests, no collisions and a longest wait of
 1ms. That prior harness imported source directly, used default auth/config and
-omitted the bounded exact model/tool/cleanup proof now required. No native
-rerun of the corrected delivery is claimed.
+omitted the bounded exact model/tool/cleanup proof now required. The current
+bounded rerun is recorded above; historical served identity remains unescrowed.
 
 ## E73: Unknown thinking display values
 
