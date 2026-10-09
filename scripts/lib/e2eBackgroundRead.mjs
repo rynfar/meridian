@@ -71,5 +71,15 @@ export function backgroundReadNativeResult(row, { sdkVersion, nativeVersion }) {
   const complete = g?.completeGenerationIds === true && !g.overflow && g.missingGenerationIds === 0 && g.missingToolIds === 0 && g.conflictingToolOwners === 0 && g.uncorrelatedHooks === 0
   if (!qualified || !complete || !Number.isInteger(row.maxTurns) || row.maxTurns < 1 || !Number.isInteger(g.distinctGenerations) || g.distinctGenerations < 1 || g.distinctGenerations > row.maxTurns || !row.resultFlagValid || !row.sdkToolHookCustody) return false
   if (row.resultSubtype === 'success' && row.resultIsError === false) return true
-  return row.resultSubtype === 'error_max_turns' && row.resultIsError === true && row.maxTurns === 1 && row.nativeTurns === 2 && row.terminalReason === 'max_turns' && g.distinctGenerations === 1 && row.canonicalHttpToolTerminal === true
+  if (row.resultSubtype !== 'error_max_turns' || row.resultIsError !== true || row.terminalReason !== 'max_turns' || row.canonicalHttpToolTerminal !== true) return false
+  if (row.maxTurns === 1) return row.nativeTurns === 2 && g.distinctGenerations === 1
+  // The pinned cap-four controls qualify one client handoff followed by
+  // three single-tool generations denied by the original drop policy.
+  // Every generation stays inside the existing cap; no production cap changes.
+  if (row.maxTurns !== 4 || row.nativeTurns !== 5 || g.distinctGenerations !== 4 || !Array.isArray(g.generations) || g.generations.length !== 4 || !Number.isInteger(row.toolCount) || row.toolCount < 1 || row.toolCount > 3 || row.explicitlyDroppedSdkToolCount !== 3) return false
+  return g.generations.every((generation, index) => {
+    const count = index === 0 ? row.toolCount : 1
+    return generation.number === index + 1 && generation.distinctTools === count && generation.toolHooks === count && generation.unknownHooks === 0 && generation.repeatedHookEvents === 0 &&
+      generation.forwardedHooks === (index === 0 ? count : 0) && generation.droppedHooks === (index === 0 ? 0 : count)
+  })
 }

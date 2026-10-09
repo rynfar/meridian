@@ -6537,7 +6537,14 @@ requires owned output paths and final assistant reports bound to actual child
 terminals; labels also present in the initial prompt cannot qualify completion.
 The versioned `--scenario background-read-v2` implements this proof with one
 Read per advertised launch path, exact complete final-report matching, child
-terminal-before-Read ordering and the separately pinned counter-two rule.
+terminal-before-Read ordering and separately pinned native counter rules.
+The cap-one handoff requires one generation/counter two. The cap-four handoff
+requires four generations/counter five, with one original forwarded generation
+containing one to three tools and three subsequent single-tool generations
+explicitly dropped by the original policy. All per-generation hook counts and
+fates must agree; missing hooks, another forwarded generation or excess
+generations fail. Credential-free controls qualify both native 2.1.284 and
+2.1.295; this changes the versioned proof, never the production turn cap.
 Direct and maintained-harness controls exercise path ownership, early/partial
 reads, prompt-only or foreign output and public-generation bounds. These are
 synthetic controls; local code gates and native baseline/source/installed execution

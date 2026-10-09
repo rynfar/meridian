@@ -67,6 +67,20 @@ describe('versioned E72 background Read proof', () => {
     expect(backgroundReadNativeResult(value, { ...tuple, nativeVersion: '2.1.296' })).toBe(false)
     expect(backgroundReadNativeResult(value, { ...tuple, sdkVersion: '0.2.142' })).toBe(false)
   })
+  it('qualifies only one cap-four handoff followed by three single-tool dropped generations', () => {
+    const first = { number: 1, distinctTools: 2, toolHooks: 2, forwardedHooks: 2, droppedHooks: 0, unknownHooks: 0, repeatedHookEvents: 0 }
+    const later = [2, 3, 4].map(number => ({ ...first, number, distinctTools: 1, toolHooks: 1, forwardedHooks: 0, droppedHooks: 1 }))
+    const value = { ...native(), maxTurns: 4, nativeTurns: 5, toolCount: 2, explicitlyDroppedSdkToolCount: 3, generations: { ...native().generations, distinctGenerations: 4, generations: [first, ...later] } }
+    const tuple = { sdkVersion: '0.2.141', nativeVersion: '2.1.284' }
+    for (const nativeVersion of ['2.1.284', '2.1.295']) expect(backgroundReadNativeResult(value, { ...tuple, nativeVersion })).toBe(true)
+    for (const bad of [
+      { ...value, nativeTurns: 4 }, { ...value, maxTurns: 3 }, { ...value, toolCount: 4 }, { ...value, explicitlyDroppedSdkToolCount: 2 },
+      ...[{ distinctGenerations: 3 }, { distinctGenerations: 5 }, { generations: [first, ...later.slice(0, 2)] }, { generations: undefined },
+        ...[{ forwardedHooks: 1, droppedHooks: 0 }, { unknownHooks: 1 }, { repeatedHookEvents: 1 }, { toolHooks: 0 }, { distinctTools: 2 }, { number: 7 }].map(change => ({ generations: [first, { ...later[0], ...change }, ...later.slice(1)] })),
+        { generations: [{ ...first, forwardedHooks: 0, droppedHooks: 2 }, ...later] },
+      ].map(change => ({ ...value, generations: { ...value.generations, ...change } })),
+    ]) expect(backgroundReadNativeResult(bad, tuple)).toBe(false)
+  })
   it('keeps normal success bounded by complete public generations and rejects a success error flag', () => {
     const value = { ...native(), resultSubtype: 'success', resultIsError: false, maxTurns: 4, nativeTurns: 4, generations: { ...native().generations, distinctGenerations: 3 } }, tuple = { sdkVersion: '0.2.141', nativeVersion: '2.1.284' }
     expect(backgroundReadNativeResult(value, tuple)).toBe(true)
