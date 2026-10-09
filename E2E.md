@@ -5550,6 +5550,22 @@ conversation fingerprint, exactly as a direct Claude Code request already does.
 bun scripts/e2e-passthrough-claude-code-session.mjs
 ```
 
+The bounded observer `scripts/e2e-passthrough-claude-code-native.mjs` runs these
+same three client invocations and eleven assertions against an explicit source
+or independently installed target. Supply absolute `E55_ENTRY`, `E55_SDK_ENTRY`,
+`E55_NATIVE_BIN`, `E55_CLIENT_BIN`, and a new private `E55_OUTPUT_DIR`;
+`E55_CLIENT_VERSION=2.1.287` and `E55_NATIVE_VERSION=2.1.284|2.1.295` pin actual
+executables. Run `--prepare-only` without credentials first. Native execution
+requires a task-owned read-only access-only `E55_TOKEN_FILE` and supported-source
+`E55_GRANT_EXPIRES_AT` in epoch milliseconds covering the full run plus one minute.
+The observer pins exact Sonnet5-5, uses a dynamically bound loopback port,
+isolates runtime/client state and supplies only dummy client authentication.
+It bounds SDK admission to sixteen queries, $0.50 SDK-estimated per query and
+$8 total, with an eight-minute execution deadline. Canonical native results,
+model/usage/target receipts and original child/stdio/iterator/socket/listener
+joins are additional requirements. Preparation is not live acceptance, and
+this remains a real Claude Code client parity gate rather than a LiteLLM test.
+
 `MERIDIAN_DEFAULT_AGENT=passthrough` resolves the ambiguous `claude-cli/`
 User-Agent to the passthrough adapter, reproducing the reported topology
 without a LiteLLM instance: same adapter, same absent `x-litellm-session-id`,

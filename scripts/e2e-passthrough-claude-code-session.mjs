@@ -47,19 +47,23 @@
 import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import * as cp from 'node:child_process'
+import { Readable } from 'node:stream'
 import { randomUUID } from 'node:crypto'
 import { setSessionStoreDir } from '../src/proxy/sessionStore.ts'
 
 const say = console.log.bind(console)
 
-const which = spawnSync('command', ['-v', 'claude'], { shell: true, encoding: 'utf8' })
+// The bounded native observer supplies explicit client/auth/target inputs;
+// ordinary invocations retain the original PATH and source behavior.
+const nativeFixture = globalThis[Symbol.for('meridian.e55.native-fixture')]
+const which = nativeFixture ? { status: 0, stdout: nativeFixture.client } : cp.spawnSync('command', ['-v', 'claude'], { shell: true, encoding: 'utf8' })
 if (which.status !== 0 || !which.stdout.trim()) {
   say('SKIP: the `claude` CLI is not on PATH; this gate drives the real client')
   process.exit(1)
 }
 const CLI = which.stdout.trim()
-const version = spawnSync(CLI, ['--version'], { encoding: 'utf8' }).stdout.trim()
+const version = cp.spawnSync(CLI, ['--version'], { encoding: 'utf8' }).stdout.trim()
 
 const WORKDIR = realpathSync(mkdtempSync(join(tmpdir(), 'mccsess-')))
 process.env.MERIDIAN_WORKDIR = WORKDIR
@@ -70,14 +74,15 @@ process.env.MERIDIAN_PASSTHROUGH = '1'
 // which is where a gateway would have landed it.
 process.env.MERIDIAN_DEFAULT_AGENT = 'passthrough'
 
-const { startProxyServer } = await import('../src/proxy/server.ts')
+const { startProxyServer } = nativeFixture ?? await import('../src/proxy/server.ts')
 
-const PORT = Number(process.env.PROBE_PORT ?? 3557)
+let PORT = Number(process.env.PROBE_PORT ?? 3557)
 const MODEL = process.env.PROBE_MODEL ?? 'claude-haiku-4-5-20251001'
 
 const proxyLog = []
 for (const k of ['log', 'error', 'debug', 'warn']) console[k] = (...a) => { proxyLog.push(a.map(String).join(' ')) }
 const inst = await startProxyServer({ port: PORT, host: '127.0.0.1' })
+if (PORT === 0) PORT = inst.server.address().port
 
 const failures = []
 const check = (ok, label, detail) => {
@@ -124,21 +129,24 @@ function childEnv(configDir) {
  * once a buffer fills. Measured as an indefinite hang with no output at all.
  */
 async function runClient(cwd, configDir, args) {
-  const proc = Bun.spawn([CLI, ...args, '--model', MODEL, '--permission-mode', 'bypassPermissions'], {
+  const proc = cp.spawn(CLI, [...args, '--model', MODEL, '--permission-mode', 'bypassPermissions'], {
     cwd,
     env: childEnv(configDir),
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const exited = new Promise((resolve, reject) => {
+    proc.once('error', reject)
+    proc.once('close', resolve)
   })
   const timer = setTimeout(() => proc.kill(), 300000)
-  const [out, err, status] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  clearTimeout(timer)
-  return { status, out: out.trim(), err: err.trim() }
+  try {
+    const [out, err, status] = await Promise.all([
+      new Response(Readable.toWeb(proc.stdout)).text(),
+      new Response(Readable.toWeb(proc.stderr)).text(),
+      exited,
+    ])
+    return { status, out: out.trim(), err: err.trim() }
+  } finally { clearTimeout(timer) }
 }
 
 say(`\n=== gateway-fronted Claude Code session identity ===`)
