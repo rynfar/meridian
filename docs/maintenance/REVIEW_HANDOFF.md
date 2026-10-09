@@ -4322,3 +4322,32 @@ reproduce, retain contributor authorship, correct separately, run real affected-
 E2E plus npm test/typecheck/build, inspect exact-head CI and finish only within the
 owner's authorized scope. If the required model/platform/environment or product
 decision is missing, record the precise blocker and leave that item incomplete.
+
+
+## Current continuation — 2026-10-08 (current Claude side-call stack)
+
+[#1292](https://github.com/rynfar/meridian/pull/1292) is reconciled from current
+`21e028a5` on main `74ee5515`, with the corrected original #1211/#1231 parent
+subset. The expanded current #1231 proposal is excluded. [Current review and
+proof](evidence/1292-current-main-20261008/REVIEW.md) records seventeen exact
+raw Author/AuthorDate/full-message mappings, separate maintainer corrections,
+492 unchanged inherited escrow files, six corrected source/control findings
+and passing focused preservation controls. The mapping WeakMap is private
+ownership bookkeeping; classification uses an internal adapter hook. The
+executable-selection approval in #1319 supplies no authority for other public
+proposals.
+
+The first full local gates pass at `50923ff0`; a subsequent direct control
+reproduced a protected-legacy-slot fresh-retry failure in both response modes.
+Separate correction `b6a1c6eb` retains that slot's CAS fence without pretending
+it was evicted, passes all four collision/fallback controls and preserves
+namespace, auxiliary and canonical recovery controls. Repeated final local
+gates remain required at the current clean head. Native E71/E72 caption and
+state-card proof, both overlap orders, cancellation custody, E41/E55 parity,
+installed-package proof and final delivery-head CI remain open. The older
+caption harness must observe the actual namespaced agent mapping before reuse;
+#1288's reporter tuple remains unspecified, and #1283's separately recorded
+shared SDK MCP-instance limitation still qualifies retries/main followups.
+Historical login/runtime/custody failures remain recorded. Source PRs/issues
+stay open. No model call, credential grant/refresh, delegation, push, merge,
+source closure, release or community message occurred in this correction turn.

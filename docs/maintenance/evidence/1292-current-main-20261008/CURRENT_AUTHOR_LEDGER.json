@@ -1,0 +1,181 @@
+{
+  "base": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+  "source1211": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+  "original1231SubsetHead": "50d4a59d0ca5e55e625ec801fa2a9eb187d508ed",
+  "expanded1231Excluded": true,
+  "source1292": "21e028a5a0c288aa0e17ce9e3a9f722eec4d83b2",
+  "contributors": [
+    {
+      "source": "b06c0aab235ee01e9b2c17715deeabbd08c22a81",
+      "incorporated": "421b1c3afdf371ee02a65fe214bb4cfc9b35b718",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:13:30-05:00",
+      "fullMessageSha256": "00ade44d43e2ea3a1532c6bda48ebea441e34b73465d25dd3056506685b1b1ab",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "b935e804169645967ba3b16a1229ca5e1a6d812a92a8b4247e1f6cf1cf2a7a78"
+    },
+    {
+      "source": "b8d2bbeeeb37fa1d797981c0da17efc1d871014d",
+      "incorporated": "c2441459d5f46c30f0e1bec00bc90b0059fa6654",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:16:40-05:00",
+      "fullMessageSha256": "0634eaae7b5f9d2e02bf77cfc05102b6f47571441ffa9ff473b0c88ae616e59a",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "16c474686a9cb1777397a6a8dd0cf6dc045fcea6e520bc1194e55fcb6be9b2ec"
+    },
+    {
+      "source": "cdb7dce8299c137f0adc677d012f99e8db412f95",
+      "incorporated": "a9b9ff6226f1bd67c2eebf42e754cf0e8e79658f",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:20:53-05:00",
+      "fullMessageSha256": "35e4ccffab58668d264af111cf4c7446a8718aa2a9916bd2cf36637def8b0835",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "17874ed6f9571b4c173d77de1290510a63406a5cd17657369ae681086d4def24"
+    },
+    {
+      "source": "76d72bac5a0482dbd4e797a7ff670fb30cde6c56",
+      "incorporated": "130ccd0393e9a5896baf3cec2b1e0fa7dfa2a05f",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:37:55-05:00",
+      "fullMessageSha256": "e35951a71c6f10138e6da5d10298f721628d85b643e36268c020f99849deeb03",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "3ebae9dd64e31a0d8ddbaa91ef3652ec95f94b4189abdba25ebe51237999782f"
+    },
+    {
+      "source": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+      "incorporated": "15847995fd270c8abb7c520e5d7ce3ce2354151c",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T21:11:01-05:00",
+      "fullMessageSha256": "8befb63bb8cf57ff9c3474c4f30fde2e1b535b262cee8c4a5e6286f7a5b7ba39",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "4558b89b58ea488adcd779064c961e530be8eec29adc74e8509704616cb8c54d"
+    },
+    {
+      "source": "28974dca1d7d2aa1f3bf0067fd97b4120938fbeb",
+      "incorporated": "72d8ee2b0cf1c51c159a8e62f7bef04ea5340dc4",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:18:19-05:00",
+      "fullMessageSha256": "95ada49ae2f523263fb6c1b64625a8bd71d0b4c11cccf88842f33989271ae6bd",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "8bce857d203f40fe949d8a99d228e182add80142014290d55ddbdac2c88db78a"
+    },
+    {
+      "source": "91f70e64aca345da4e7e3c51efa382a11d57749a",
+      "incorporated": "9fa6590e46e9a2a7c1a4e482e7969c4773152cb2",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:31:47-05:00",
+      "fullMessageSha256": "b9b481c8d02f567e7c1ca82de7bb16e7fe975b4c664ee73b14082bafcf349231",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "51353b5ea084b61f09d5d5d8ade7cd9f145418ee32751f1bb3a84acbadeb61aa"
+    },
+    {
+      "source": "78b40833d20b86204cfa0fdd4e15cd43f8c63a97",
+      "incorporated": "62ebef56111a6e05f05a304a9628308743baa029",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:34:24-05:00",
+      "fullMessageSha256": "3302939c69e9b560b0e7d0034a32415c6d307e2eff4acabc99e3f40fd2f0faa2",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "7e42660b219fd63b15199061805f973ad2aa86d6b916d9f12e980691da0ce3ad"
+    },
+    {
+      "source": "cb8d1a59a103e006359e048a9d0275cf814351ee",
+      "incorporated": "a5a1c388376867784e14644e17b58758eec50d51",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:51:19-05:00",
+      "fullMessageSha256": "0c563770e77d775459d72a455bb170c0f5479337a8eee2aa617d4cfc10a3d1b9",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "b9504dcd5bdb726ebb24ddca3e14859d04d9e048a0ecab25424170e7a387f3a1"
+    },
+    {
+      "source": "50d4a59d0ca5e55e625ec801fa2a9eb187d508ed",
+      "incorporated": "cf97368e1aaedeb30c7c01227c0564e5fe784fbc",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-10-01T15:56:41-05:00",
+      "fullMessageSha256": "630bf8adcefc6130aea66fa1c9a934ef83a02ab952a39cb191e2c10f6d315381",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "fdc8fb9dd4eaa4dbf700047325e28b76fdece0aaaf3d0726c315578bf890e92e"
+    },
+    {
+      "source": "8724e70af180b79f874a59c34a253a99a7c71a25",
+      "incorporated": "f9549678f638f4ce1019794ebbe23806806ccf38",
+      "author": "Aleksey Proshutinskiy",
+      "email": "alexey.prosh@fluence.one",
+      "authorDate": "2026-10-06T20:45:01+04:00",
+      "fullMessageSha256": "cfa0d7aba2ef63bf992bd9fe840a497767446a7662f1b380857d0ecce4a6c846",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "a66a166cfd8f6639d527f8107b733c706bf3ec80318c24fbc60fc9dc15a6d972"
+    },
+    {
+      "source": "960c188eb4e6edd0ce4d2002de8354efce7840f1",
+      "incorporated": "daf82fdac50c9d0de222814f103d68165f42d737",
+      "author": "Aleksey Proshutinskiy",
+      "email": "alexey.prosh@fluence.one",
+      "authorDate": "2026-10-06T20:52:40+04:00",
+      "fullMessageSha256": "241b70921e7b7873f0d0e948214226388faa4053637e991f60f6ca3ba2340fa9",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "ed07a0eb2511e79545472341c37966c861bc293a3eb45f353eec322e21715190"
+    },
+    {
+      "source": "c81832ca50543ad2ed823a0d8a08ab4ce6e0d8d2",
+      "incorporated": "e8390ec86dabb2dde994b1fbdde1da16c77103f8",
+      "author": "Aleksey Proshutinskiy",
+      "email": "alexey.prosh@fluence.one",
+      "authorDate": "2026-10-07T00:44:18+04:00",
+      "fullMessageSha256": "5f7dab42032753afe43862398f39d846023556477efb58b219a7c1ac653b0529",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "5212af5bdba4a5015693f9a904cddba05fbf11764cb9f9fe42d55463e9c17ed7"
+    },
+    {
+      "source": "215203fe0b6dcafc459bfa55b8028408579e435f",
+      "incorporated": "1b82f7bb4b5ef3e5d7865c8a60dfb4100246b28f",
+      "author": "Aleksey Proshutinskiy",
+      "email": "alexey.prosh@fluence.one",
+      "authorDate": "2026-10-07T01:05:03+04:00",
+      "fullMessageSha256": "67f3583a88b7e984d208c080317629b8c2b6a5f35c3f790d29036a067578a1ef",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "781e08297ecf0bfb1c1dd257f051b92f50b58d8015e281417ee09ec17fd43799"
+    },
+    {
+      "source": "aaaf1e333dec8f69d12609bb3b451e94aa24981f",
+      "incorporated": "e266be035f895d234eafff8efa50a175cbe97c1f",
+      "author": "Aleksey Proshutinskiy",
+      "email": "alexey.prosh@fluence.one",
+      "authorDate": "2026-10-07T05:51:07+04:00",
+      "fullMessageSha256": "8d0423109fae8607e197ebdcbb30773a9969cd8e1576fae4e1e723e25fc0dcd8",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "edd3f1c3224045ae5308d5af78c2320135073ffc2d42e1bb422a731555589e75"
+    },
+    {
+      "source": "6d93d79d42c05abcfb6554f41512e05df80607f6",
+      "incorporated": "b851bc9f115d35038b7526ed59acc04cc683ab5d",
+      "author": "Aleksey Proshutinskiy",
+      "email": "alexey.prosh@fluence.one",
+      "authorDate": "2026-10-07T06:48:32+04:00",
+      "fullMessageSha256": "5f688846831103d1612b8447833e1d7e376b0ae35b9aec172a4488a3bec9b034",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "54ce7fc14ededabaa94cb09216563a455e4fc9e88274f2b4274353c2a5255220"
+    },
+    {
+      "source": "21e028a5a0c288aa0e17ce9e3a9f722eec4d83b2",
+      "incorporated": "2ba229f72dd9038ff63a3e32a52181c1e50f275c",
+      "author": "Aleksey Proshutinskiy",
+      "email": "alexey.prosh@fluence.one",
+      "authorDate": "2026-10-07T11:35:14+04:00",
+      "fullMessageSha256": "3470a32ce89014b57b0ad7a07101e3b18716bd8dc33c29cc8c10c0394b0410e3",
+      "authorDateFullMessagePreserved": true,
+      "rawAuthorHeaderSha256": "29f04acd91b459df71cede1dda0dcb53dcb71cad9f2f2a06522ce0cca7b1f8f9"
+    }
+  ],
+  "maintainerReplayedCount": 21,
+  "verification": "Exact raw author header and complete commit-message bytes compared independently, including trailing whitespace/newlines."
+}

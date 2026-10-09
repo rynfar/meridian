@@ -1,0 +1,173 @@
+{
+  "qualification": "Current correction/focused evidence and historical pre-correction complete gates; no native product acceptance",
+  "files": {
+    "CLASSIFIER_RED.json": {
+      "bytes": 334,
+      "sha256": "08e0e419d571fdbb6f534b27eb2dcbe876ed4568eed990b8d848e24952a971b9"
+    },
+    "r5-silent-turn-recovery.log.gz": {
+      "bytes": 2172,
+      "sha256": "a7da8fa6e3753cd4de4d4673e31cfbdaff4b334afef39cd118da9a4e2413827b"
+    },
+    "r7-typecheck.log.gz": {
+      "bytes": 73,
+      "sha256": "afb7a1d88b4d1875198db63d10647f464105362f6b27e01e0aeb8d3c38f28e0e"
+    },
+    "FOCUSED_R5_CHECKS.json": {
+      "bytes": 3001,
+      "sha256": "b954389a2dab786f867d0c81dcf88c22db2c418574c169f9289674071abee986"
+    },
+    "collision-control-red.log.gz": {
+      "bytes": 692,
+      "sha256": "449455cece2286f344486cbdc7cd5588d73258f2927bd10ecb2791e6549640ba"
+    },
+    "final-build.log.gz": {
+      "bytes": 814,
+      "sha256": "767e420b958dd9cee619872df26f88daa7282a8dc5ce54d4d03b27bd37afe7ee"
+    },
+    "classifier-new-control-red.log.gz": {
+      "bytes": 2522,
+      "sha256": "b12bc22ac882159138bd665dd2b159d3a380aa5565d612b94d4b43a01e5bd22a"
+    },
+    "collision-control-cause.log.gz": {
+      "bytes": 819,
+      "sha256": "435abf260ef1ff56b81465307262dd4b30451b0051b2830a47beb5561fa5db10"
+    },
+    "FOCUSED_R6_CHECKS.json": {
+      "bytes": 541,
+      "sha256": "dd945815457c1b9cd445324d57e2a22c02d64499e1feb65891ac812274931934"
+    },
+    "CORRECTED_CODE_IDENTITY.json": {
+      "bytes": 1157,
+      "sha256": "9a1b3497ee0f2a63638e0ec97797189c0b5ae46c449839faa50d98f3fe819bac"
+    },
+    "r7-concurrency.log.gz": {
+      "bytes": 1877,
+      "sha256": "4e4911c5cfd0b499804ff41760eb7e45c66659ae0d6d32ae35182a0b84db489e"
+    },
+    "r5-claude-subagent-isolation.log.gz": {
+      "bytes": 530,
+      "sha256": "78af5d01f2f9be3191733ebf5ef39cfd31598c26a17f88742933526a76575d4d"
+    },
+    "r5-proxy-claude-auxiliary-recovery.log.gz": {
+      "bytes": 640,
+      "sha256": "5919b189614d4b9e20f9102ae89d5c0002200b81d4198ebdbbc34c01f6681244"
+    },
+    "r7-auxiliary-recovery.log.gz": {
+      "bytes": 637,
+      "sha256": "6d07764f0a2bc56cac764332cf9b56b11ca00fb32d818500b43254e5259878f8"
+    },
+    "final-npm-test.log.gz": {
+      "bytes": 212095,
+      "sha256": "4058a73920b02dcc2506a88aec2bbe8c7bfa0467f30947a581a0954a08545323"
+    },
+    "r5-proxy-session-tree-cancellation.log.gz": {
+      "bytes": 880,
+      "sha256": "a57d21fae0bc5849f8502172ec2a7ee2f26d7c4f5c31c273922e5beb3b23e4eb"
+    },
+    "r7-namespace.log.gz": {
+      "bytes": 516,
+      "sha256": "1e8cdc2a1ffeb0902401b561772b94b168ae6826f6c5836f4a04147c34a57719"
+    },
+    "FOCUSED_R3_CHECKS.json": {
+      "bytes": 924,
+      "sha256": "4a2d6251ad8773aa1ab3ce6365c14579ffe3ad71e17c4b8c032fc69fa69784cf"
+    },
+    "r6-auxiliary-retry-bound.log.gz": {
+      "bytes": 1773,
+      "sha256": "e23e9e4576fe45e3dc66f6cb227e161f534def2a37140891389d84fb71e7e1c2"
+    },
+    "r3-classifier.log.gz": {
+      "bytes": 1934,
+      "sha256": "c6dadc399835959431edfeec2f286204620c2a0f838abb2ba51948e7b5bea369"
+    },
+    "classifier-baseline.log.gz": {
+      "bytes": 2377,
+      "sha256": "82a185866ddbf87a3854bba59a4b284a09f25679cd11a718e1facc8b68699af4"
+    },
+    "r5-passthrough-early-stop-integration.log.gz": {
+      "bytes": 13716,
+      "sha256": "46a0d62962c16d75f5ee26b5ccff7e0ee4250712be8bf178c962c63e1e6e4343"
+    },
+    "PARENT_ESCROW_PRESERVATION.json": {
+      "bytes": 58655,
+      "sha256": "156cb83293c8f366fafbf2b220df0e1ff608bde8af89f2682f9f1a54378f4db1"
+    },
+    "r7-canonical-recovery.log.gz": {
+      "bytes": 448,
+      "sha256": "e90b1a801c6bd4b8bb7e59aad5af2e04e2068b9b2b8975b0c0f0e43a9490aaeb"
+    },
+    "COLLISION_CONTROL_RED.json": {
+      "bytes": 649,
+      "sha256": "592c12b5c2aba64929c56db775f65704cdcf0c460d82b17c179a11bfcbb9d947"
+    },
+    "r4-passthrough-early-stop-integration.log.gz": {
+      "bytes": 13921,
+      "sha256": "bdb3c6fa00dcc7c494e349709ba4e0fe14bde3a2755f4ddc9584a20abe539633"
+    },
+    "FOCUSED_R4_CHECKS.json": {
+      "bytes": 864,
+      "sha256": "f9ceceb4315a8e3a4c4eb3da76016644e759eeb69558b873e61686d4a7d202fe"
+    },
+    "r5-sticky-routing-integration.log.gz": {
+      "bytes": 2075,
+      "sha256": "d2149a1d4300a00e4f44b70a85dbc87bc4ab48c9d7b3c2ae0bcd338387d9331b"
+    },
+    "COLLISION_FOUR_RED.json": {
+      "bytes": 329,
+      "sha256": "24d4ae141380b8fe4070506a070f808cda99b99eff88fdc18c7564352178c44e"
+    },
+    "HANDOFF_SCOPE_QUALIFICATION.json": {
+      "bytes": 575,
+      "sha256": "085acfad7f2f587ec6acdfb2794e0e5588d942584fb233d0782691e108521886"
+    },
+    "r5-session-key-namespace.log.gz": {
+      "bytes": 519,
+      "sha256": "e3f05180846919b28f8e84632b8c93fedcf092e6ca027f907aade449bb05a09e"
+    },
+    "r5-proxy-idle-stall-ceiling.log.gz": {
+      "bytes": 723,
+      "sha256": "502928d7c0a01d09f7145a78593e32e4487772863a31e12c13175c166f3bce5f"
+    },
+    "r5-priority-routing-integration.log.gz": {
+      "bytes": 9599,
+      "sha256": "321ef54c6d686a024ca5c1908b34e2ecc751bb99ec6a36b421f0ac40de929748"
+    },
+    "REVIEW.md": {
+      "bytes": 4240,
+      "sha256": "7f38271ba0349158ed4d07218b5fa76e9f694bc649f264951da7de8fa7735764"
+    },
+    "ROOT_ADVERSARIAL_REVIEW.json": {
+      "bytes": 8091,
+      "sha256": "ab57df9c90c597c49396741833a4ee9bf3176b23cb396a626a257b93064ef882"
+    },
+    "r3-proxy-concurrency-coordination.log.gz": {
+      "bytes": 2147,
+      "sha256": "acd37ac24b5d7137833d2b343d3f3889a6669e0acfba99f4dff196f36974793f"
+    },
+    "r5-claude-code-session-identity.log.gz": {
+      "bytes": 599,
+      "sha256": "e2e3440f71b6beb2430090da8064a7844fabed16fbf7e1165b20a2b1f79d90df"
+    },
+    "final-typecheck.log.gz": {
+      "bytes": 73,
+      "sha256": "afb7a1d88b4d1875198db63d10647f464105362f6b27e01e0aeb8d3c38f28e0e"
+    },
+    "FOCUSED_R7_CHECKS.json": {
+      "bytes": 1388,
+      "sha256": "73388b4274637bc5ce9fc7677a17332364adc68e97934254d1c2c321d7f7f0cc"
+    },
+    "collision-four-controls-red.log.gz": {
+      "bytes": 887,
+      "sha256": "10394a4a54d2caa7d619a5400ca5596b038a95e207474b9a3d44887bfef22b8c"
+    },
+    "CURRENT_AUTHOR_LEDGER.json": {
+      "bytes": 9098,
+      "sha256": "be48aae2f3d44f3ec0e4e4791b46ecacbe51afd7c23ef849fa391de552ba88d2"
+    },
+    "PRE_NAMESPACE_CORRECTION_LOCAL_GATES.json": {
+      "bytes": 1344,
+      "sha256": "06ccfd2e8ec9e3985ef1d75da53f215c9618d789270f486cbc2c2b8d609a13db"
+    }
+  }
+}

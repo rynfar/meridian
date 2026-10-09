@@ -1,0 +1,108 @@
+{
+  "reviewer": "Root agent, fresh adversarial inspection; not a delegated or independent second-agent review",
+  "atUTC": "2026-10-09T00:38:13.914474+00:00",
+  "identity": {
+    "base": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+    "head": "b6a1c6eb4af95769fe753acf94c3575d4d59a44c",
+    "diffSha256": "5466f122490638d29027a29d6aa76d19b7426f42510787c6384e4d33196e41ae",
+    "productionFiles": {
+      "src/proxy/adapter.ts": "148a6b3641b5e5ea957d40d0587cc725d8df9b95d3df60d6bdb372923737a375",
+      "src/proxy/adapters/claudecode.ts": "f36ab662073946ed664483e1f35746b94dbb8e1c9f933f52878ec0ecb7835267",
+      "src/proxy/adapters/claudecodeProgress.ts": "0051140944e4f2545b0cc82fd423df4bf914c10230e4ea84f66abb49c3ee21f9",
+      "src/proxy/adapters/sessionIdentity.ts": "c698910e2b149811c3d0fb57ce3104548ec1485939c0e96fb2b8396d7a67b10c",
+      "src/proxy/server.ts": "2c11e397619afaa60d7e4ca6056cc46cfe0f689a59b67908e072fd7411445ab6",
+      "src/proxy/session/cache.ts": "470fa86e596da25e0c7593980a12f93d27f2339ebd9d6092b33d4c2d7041a9ca",
+      "src/proxy/session/lineage.ts": "75382271c1c6b1d23f624241e41df0f1f189a445eadfcbca1b48dff17111fa86",
+      "src/proxy/sessionStore.ts": "b0de6ca4abc119381ba83f035378d232376cc95377f15e05e42b8ed377fa986b",
+      "src/proxy/sessionTree.ts": "c1b3cfb6c8fb41ba3fffae254a7794c32adab201debfa058623e95c0bbc1de5a"
+    }
+  },
+  "scope": "Complete eight changed production files plus new pure helper against fresh main; adapter classification/shape, all server diff hunks and mutation/cancellation/retry callers, pure lineage/session tree, mapping namespace/CAS/rollback, routing authority, public exports, changed focused controls and exact inherited escrow preservation.",
+  "resolvedFindings": [
+    {
+      "id": "R1",
+      "priority": "P2",
+      "status": "CORRECTED",
+      "finding": "Current 21e028 fallback accepts ordinary XML verdict-shaped turns without a classifier permissions envelope, accepts malformed tools/stream fields, and loses the optional-stop Stage 2 classifier boundary.",
+      "before": "CLASSIFIER_RED.json; classifier-baseline.log; classifier-new-control-red.log",
+      "resolution": "Retain strict non-CLI envelope/exact optional verdict checks and reject malformed tools/stream fields; native-header tool-less/unstreamed state cards and narrow agent captions remain recognized.",
+      "after": "r3-classifier.log (62 pass) plus final full-suite gate pending."
+    },
+    {
+      "id": "R2",
+      "priority": "P2",
+      "status": "CORRECTED",
+      "finding": "Auxiliary exclusion from both missing-message fresh-target retry branches removes retained one-shot recovery even though the working mapping is never resumed.",
+      "before": "r3-proxy-concurrency-coordination.log (34 pass, 2 fail)",
+      "resolution": "Restore a bounded request-local fresh-target retry and keep all independent requests outside working-map eviction/generation refresh.",
+      "after": "r6-auxiliary-retry-bound.log (38 pass); repeated refusals exhaust at two queries, and the identical ordinary continuation still resumes the preserved main checkpoint."
+    },
+    {
+      "id": "R3",
+      "priority": "P2",
+      "status": "CORRECTED",
+      "finding": "Submitted rootSessionIdOf implementation resides in interface-only adapter.ts.",
+      "resolution": "Move it to the pure adapter sessionIdentity module; retain direct root/fallback tests."
+    },
+    {
+      "id": "R4",
+      "priority": "P2",
+      "status": "CORRECTED",
+      "finding": "Incoming checkpoint and silent-caption controls retain superseded concatenated keys; the silent control can compare an unrelated legacy mapping while the real namespaced map is unobserved.",
+      "before": "r4-passthrough-early-stop-integration.log; classification/e2e reconciliation boundary records",
+      "resolution": "Derive actual adapter keys and seed silent controls through real mocked HTTP publication, without exporting or forging the private namespace."
+    },
+    {
+      "id": "R5",
+      "priority": "P2",
+      "status": "CORRECTED",
+      "finding": "Incoming auxiliary cancellation test uses elapsed sleeps and unbounded request joins; concurrency test uses forbidden as any.",
+      "resolution": "Use existing bounded parent ownership cleanup/barriers and typed MCP instance assertions; preserve idle overlap guards and all prior parent controls."
+    },
+    {
+      "id": "R6",
+      "priority": "P2",
+      "status": "CORRECTED",
+      "finding": "A namespace-mismatched legacy mapping is correctly protected from eviction, but a fresh-target retry still refreshes the generation as if eviction occurred. The request fails with HTTP 500 instead of one safe retry.",
+      "evidence": "COLLISION_CONTROL_RED.json and collision-control-cause.log; 500, one attempt, Session mapping changed while it was being evicted.",
+      "affected": "Missing-message fresh-target retries in streaming/nonstreaming paths. Extended-context fallbacks are preserved passing negative controls, not reproduced failures.",
+      "resolution": "Invalidate/refresh only a namespace-owned mapping actually found at turn admission; retain the protected legacy slot generation for fenced fresh publication.",
+      "after": "r7-concurrency.log: 42 pass, including both previously failing checkpoint controls; two extended-context controls remain golden. Namespace/auxiliary/canonical recovery checks and typecheck pass."
+    }
+  ],
+  "openMaterialProductionFindings": [],
+  "disposition": "SOURCE_CORRECTIONS_REVIEWED_REPEATED_FINAL_LOCAL_NATIVE_PACKAGE_CI_HELD",
+  "inheritedEvidence": {
+    "exactUnchangedFiles": 492,
+    "sameBeforeAfterHistoricalScope": true,
+    "priorNativeAcceptanceNotReused": true
+  },
+  "remainingGates": [
+    "Complete final local npm test/typecheck/build at named clean code head",
+    "Current caption harness correction and static/control review before any fresh native invocation; old harness snapshot selects the root instead of the namespaced agent",
+    "Actual E71/E72 classifier/caption/state-card/overlap/cancellation affected client, SDK, model and platform proof; #1288 reporter tuple unknown",
+    "E41 four modes/E55 parity/installed package proof",
+    "Final delivery-head CI including test; no merge or source closure",
+    "Separately recorded #1283 shared SDK MCP-instance transport limitation: a per-request caption server does not establish per-attempt retry/main-followup tool readiness."
+  ],
+  "modelCalls": 0,
+  "delegations": 0,
+  "publicComments": 0,
+  "priorIdentity": {
+    "base": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+    "head": "50923ff0f7c4b85c064c34f35404bc594bf53ae5",
+    "diffSha256": "622f0960911007c8089390d020e67416e7426d91113a7a001a6e75abd226ff28",
+    "productionFiles": {
+      "src/proxy/adapter.ts": "148a6b3641b5e5ea957d40d0587cc725d8df9b95d3df60d6bdb372923737a375",
+      "src/proxy/adapters/claudecode.ts": "f36ab662073946ed664483e1f35746b94dbb8e1c9f933f52878ec0ecb7835267",
+      "src/proxy/adapters/claudecodeProgress.ts": "0051140944e4f2545b0cc82fd423df4bf914c10230e4ea84f66abb49c3ee21f9",
+      "src/proxy/adapters/sessionIdentity.ts": "c698910e2b149811c3d0fb57ce3104548ec1485939c0e96fb2b8396d7a67b10c",
+      "src/proxy/server.ts": "4ab27d215f8f4a011573a1ee9ad83c910002778feefb4e56a8514029d6be7309",
+      "src/proxy/session/cache.ts": "470fa86e596da25e0c7593980a12f93d27f2339ebd9d6092b33d4c2d7041a9ca",
+      "src/proxy/session/lineage.ts": "75382271c1c6b1d23f624241e41df0f1f189a445eadfcbca1b48dff17111fa86",
+      "src/proxy/sessionStore.ts": "b0de6ca4abc119381ba83f035378d232376cc95377f15e05e42b8ed377fa986b",
+      "src/proxy/sessionTree.ts": "c1b3cfb6c8fb41ba3fffae254a7794c32adab201debfa058623e95c0bbc1de5a"
+    }
+  },
+  "currentCorrectionReview": "Fresh review of the complete two-guard delta and actual-key HTTP controls: only a mapping found in this turn namespace may be evicted/refreshed. Protected slot generation remains the fresh publication CAS fence; no resume/previous-history authority is borrowed. The extended-context branches already require a resume target and are unchanged."
+}

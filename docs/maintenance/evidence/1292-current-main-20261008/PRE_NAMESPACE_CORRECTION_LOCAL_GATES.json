@@ -1,0 +1,48 @@
+{
+  "head": "50923ff0f7c4b85c064c34f35404bc594bf53ae5",
+  "startedUTC": "2026-10-09T00:38:12.742207+00:00",
+  "isolatedFixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-dependencies-d8h0519t",
+  "modelCalls": 0,
+  "checks": [
+    {
+      "label": "final-npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 499.25,
+      "sha256": "e226baa68f4f274b292535e6f2f5a1ff58108745e4faf52dbccb82a19b98a285"
+    },
+    {
+      "label": "final-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 5.358,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "label": "final-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 3.719,
+      "sha256": "13b8ba4ffed31a6300aa3fe30f361bdaf4bfc3b7a92578762899c01b03455a05"
+    }
+  ],
+  "status": "PASS",
+  "finishedUTC": "2026-10-09T00:46:41.079398+00:00",
+  "headUnchanged": true,
+  "worktreeClean": true,
+  "qualification": "All gates passed at 50923ff0 before a new namespace-retry control reproduced two missing-message failures. These green gates do not validate the subsequent correction."
+}

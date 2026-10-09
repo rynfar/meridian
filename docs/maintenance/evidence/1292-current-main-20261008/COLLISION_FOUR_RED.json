@@ -1,0 +1,13 @@
+{
+  "exit": 1,
+  "joined": true,
+  "argv": [
+    "bun",
+    "test",
+    "src/__tests__/proxy-concurrency-coordination.test.ts",
+    "-t",
+    "retries a fresh namespaced request"
+  ],
+  "productionHead": "50923ff0f7c4b85c064c34f35404bc594bf53ae5",
+  "sha256": "f0a8c53932d9bbc6e0f322823719782f01c614dcebc454ef84c2d70d4318a572"
+}
