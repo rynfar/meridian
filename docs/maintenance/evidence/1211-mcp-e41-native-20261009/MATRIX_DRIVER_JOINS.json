@@ -1,0 +1,114 @@
+[
+  {
+    "case": "source-chain-nonstream-r1",
+    "phase": "execute",
+    "originalChildPid": 53214,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "source-chain-nonstream-r1",
+    "phase": "audit",
+    "originalChildPid": 53856,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "source-chain-stream-r1",
+    "phase": "execute",
+    "originalChildPid": 53861,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "source-chain-stream-r1",
+    "phase": "audit",
+    "originalChildPid": 54513,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "source-parallel-nonstream-r1",
+    "phase": "execute",
+    "originalChildPid": 54550,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "source-parallel-nonstream-r1",
+    "phase": "audit",
+    "originalChildPid": 55804,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "source-parallel-stream-r1",
+    "phase": "execute",
+    "originalChildPid": 55808,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "source-parallel-stream-r1",
+    "phase": "audit",
+    "originalChildPid": 56693,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-chain-nonstream-r1",
+    "phase": "execute",
+    "originalChildPid": 56697,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-chain-nonstream-r1",
+    "phase": "audit",
+    "originalChildPid": 57307,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-chain-stream-r1",
+    "phase": "execute",
+    "originalChildPid": 57316,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-chain-stream-r1",
+    "phase": "audit",
+    "originalChildPid": 58216,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-parallel-nonstream-r1",
+    "phase": "execute",
+    "originalChildPid": 58225,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-parallel-nonstream-r1",
+    "phase": "audit",
+    "originalChildPid": 58500,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-parallel-stream-r1",
+    "phase": "execute",
+    "originalChildPid": 58504,
+    "originalChildJoined": true,
+    "exit": 0
+  },
+  {
+    "case": "package-parallel-stream-r1",
+    "phase": "audit",
+    "originalChildPid": 59125,
+    "originalChildJoined": true,
+    "exit": 0
+  }
+]

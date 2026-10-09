@@ -1,6 +1,38 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 MCP dependency checkpoint (2026-10-09 UTC)
+## Current oldest #1211 / existing #1322 E41 parity checkpoint (2026-10-09 UTC)
+
+Continue the combined original-creation oldest-first queue. The unchanged older
+#1211 source22566e8a continues through existing draft #1322; #1283 is a necessary
+recorded dependency, not a newer queue item. No new PR or merge.
+
+[Current MCP-corrected E41 source/installed matrix](evidence/1211-mcp-e41-native-20261009/README.md)
+passes all four chain/parallel × JSON/SSE modes on both arms:32 real SDK queries,
+three uniquely paired file-read answers per case, immutable parent histories,
+preceding working-session continuation, saved-fork follow-up and95% cache-prefix
+reuse. Exact Sonnet5-5/SDK0.2.141/source backend2.1.284/installed2.1.295/Bun1.3.11,
+Linux/x64 guest. This is an owned OpenCode protocol fixture, not an actual
+OpenCode/OpenClaw actor. All8 original attaches,64 observed children/stdio,
+SDK/public-history/HTTP witnesses and16 matrix-driver children joined. Grant,
+owned containers and private SDK/runtime files were removed after audit;
+supported credential source unchanged. SDK-estimated cost$0.437776.
+
+Runtime remains certified image15f44351, tarball91963797, all432 compiled and1,849
+tracked source rows qualified. Incoming documentation4535e09a/current test69374acc
+change no runtime or harness bytes. Current full code gate remains5,774/35/0 in22
+isolated npm batches plus typecheck/build. This increment is proof/documentation
+only; prior causal MCP controls, actual E55, author18 and owner-checkout invariants
+remain preserved. Root adversarial evidence review finds no material new finding.
+
+**Held:** current-code E71/E72/caption/background/mixed/root/scoped/nested
+cancellation/incidental parent abort; actual historical reporter tuple/gateway;
+native MCP readiness per real inference; broader package/registry parity; older
+unattributed local/CI failures; required final-head CI. Earlier E71/E72 results
+retain only their explicit earlier heads. Current E55 and E41 qualify their
+bounded current scopes. Keep #1322 draft and source reports open. Continue
+current native side-call acceptance in this delivery; no release/community comment.
+
+## Earlier #1211 / #1322 MCP dependency checkpoint at4535e09a (2026-10-09 UTC)
 
 Continue one combined queue ordered by original issue/PR creation ascending.
 Replacement delivery inherits source age. Older thirteen items retain explicit

@@ -1,0 +1,66 @@
+[
+  {
+    "target": "source",
+    "originalAttachPid": 51199,
+    "originalAttachJoined": true,
+    "ownedContainerRemoved": true,
+    "grantRead": false,
+    "queries": 0,
+    "nativeCaseExecuted": false,
+    "inputFiles": {
+      "MERIDIAN_ENTRY": {
+        "path": "/opt/e71/candidate/dist/server.js",
+        "sha256": "220b1e7ec4800998f9b1debc88f49b2568a87e169bad9bcaf89dc8f4fe5b1c80"
+      },
+      "SDK_ENTRY": {
+        "path": "/opt/e71/candidate/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
+        "sha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97"
+      },
+      "NATIVE_BIN": {
+        "path": "/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+        "sha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f"
+      },
+      "OPENCLAW_BIN": {
+        "path": "/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs",
+        "sha256": "f1f1c6ae5745ba0cb71bfbb72f4ae43f9b3bdb5ca0af84d5fcdf60eb5ab71430"
+      },
+      "SCRUB_ENTRY": {
+        "path": "/opt/e41/sidecars/node_modules/@rynfar/meridian-plugin-openclaw-scrub/dist/index.js",
+        "sha256": "f8d987dfaf15a19b2ea203c0cb26e907182f6411867433ccd47b15341dcbfb48"
+      }
+    },
+    "seconds": 2.0377822499722242
+  },
+  {
+    "target": "package",
+    "originalAttachPid": 51216,
+    "originalAttachJoined": true,
+    "ownedContainerRemoved": true,
+    "grantRead": false,
+    "queries": 0,
+    "nativeCaseExecuted": false,
+    "inputFiles": {
+      "MERIDIAN_ENTRY": {
+        "path": "/opt/e41-package/installed/node_modules/@rynfar/meridian/dist/server.js",
+        "sha256": "220b1e7ec4800998f9b1debc88f49b2568a87e169bad9bcaf89dc8f4fe5b1c80"
+      },
+      "SDK_ENTRY": {
+        "path": "/opt/e41-package/installed/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
+        "sha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97"
+      },
+      "NATIVE_BIN": {
+        "path": "/opt/e41-package/installed/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+        "sha256": "4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358"
+      },
+      "OPENCLAW_BIN": {
+        "path": "/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs",
+        "sha256": "f1f1c6ae5745ba0cb71bfbb72f4ae43f9b3bdb5ca0af84d5fcdf60eb5ab71430"
+      },
+      "SCRUB_ENTRY": {
+        "path": "/opt/e41/sidecars/node_modules/@rynfar/meridian-plugin-openclaw-scrub/dist/index.js",
+        "sha256": "f8d987dfaf15a19b2ea203c0cb26e907182f6411867433ccd47b15341dcbfb48"
+      }
+    },
+    "seconds": 1.9835952499997802
+  }
+]
