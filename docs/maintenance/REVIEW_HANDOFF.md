@@ -1,6 +1,44 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 E41 parity checkpoint (2026-10-09 UTC)
+## Current oldest #1211 / existing #1322 native side-call checkpoint (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first order through existing draft
+#1322 for source #1211. Newer #1283 remains its recorded necessary dependency;
+older explicit deferrals/no-review/missing-proof holds remain. No new PR or merge.
+
+[Current MCP-corrected E71/E72 source/installed proof](evidence/1211-mcp-sidecalls-native-20261009/README.md)
+passes all 18 original assertions per arm: source and installed auto-classifier
+E71, plus source and installed foreground Agent E72. Actual client 2.1.286/E71
+and 2.1.287/E72, SDK 0.2.141, source backend 2.1.284/installed 2.1.295, Bun 1.3.11,
+Linux/x64 guest. Main requested/served Sonnet5-5; classifier requested/served
+Sonnet5. All four unchanged readiness responses are 200. Thirty-eight actual SDK
+queries/twelve real client invocations cost approximately$3.616100
+by SDK estimates. E71 independent auxiliary mappings/resume/logger ownership pass;
+E72 exact two parallel foreground Agent/four Bash receipts and disjoint resumable
+chains pass. Each E72 arm retains nine canonical later SDK drops in visible counters.
+
+Original attaches/auditors and maintained harness SDK/client/HTTP/Linux owned
+census/private-runtime witnesses joined; task grant/containers/private qualification
+removed after audit; supported credential source unchanged. Four startup rehearsals
+use only a fake grant and make zero queries. First external result-tag audit mistake
+is retained; its successful original native rehearsal was audited without repeat.
+
+Runtime/harness remains certified image15f44351; current test 693/incoming docs aae2
+change no production or harness bytes. Fresh source/package qualification retains
+432 compiled/1,849 tracked-source identities. Local full code gate remains
+5,774/35/0 in 22 npm-isolated batches plus typecheck/build. Root evidence review
+finds no surviving material new finding; previous independent scopes remain.
+Owner checkout and all 18 raw contributor records remain unchanged.
+
+**Held:** historical reporter tuple; background/mixed-auto and root/scoped/nested
+cancellation/incidental parent abort; caption baseline/hints0/overlap/abort/cache;
+MCP readiness per actual inference; broader package/registry parity; older
+unattributed local/CI failures; required final-head CI. Current E71/E72/E41/E55
+qualify only their exact recorded scopes. Keep #1322 draft and source reports open.
+Continue background/mixed/cancellation/caption and MCP-readiness work in this
+existing delivery; no release or community comment.
+
+## Earlier #1211 / #1322 E41 parity checkpoint ataae2e280 (2026-10-09 UTC)
 
 Continue the combined original-creation oldest-first queue. The unchanged older
 #1211 source22566e8a continues through existing draft #1322; #1283 is a necessary
