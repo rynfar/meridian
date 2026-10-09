@@ -20,6 +20,7 @@ Example shape (replace every absolute path with the exact selected input):
 /path/to/bun-1.3.11 scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs \
   --live-authorized --case sequential --expect fixed --hints 1 \
   --model claude-opus-5-5 \
+  --backend-sdk-model 'opus[1m]' --backend-model 'claude-opus-5-5[1m]' \
   --entry /accepted/source/src/proxy/server.ts \
   --adapter-entry /accepted/source/src/proxy/adapters/claudecode.ts \
   --gate-entry /accepted/source/src/proxy/session/sdkProcessGate.ts \
@@ -38,9 +39,11 @@ access-only grant file (0600, no refresh token). This gate never logs in,
 refreshes the owner login or deletes grants/config/history. Its clean worker
 environment preserves HOME/home/CODEX_HOME. Provenance schema 1 supplies
 `kind: source`, `codeCommit`, `codeTree`, the exact SDK/client/backend/Bun/model/
-platform/arch tuple, and canonical SHA256-pinned input rows including each
+platform/arch tuple, plus exact `backendSdkModel: opus[1m]` and
+`backendModel: claude-opus-5-5[1m]`, and canonical SHA256-pinned input rows including each
 supplied entry role, including `adapter-entry`, and a `hono-entry` row for
-the Hono entry resolved from the selected server source. The fixed baseline is `ae470d511f1f170168c7b95140ba0bb56d99d179`
+the Hono entry resolved from the selected server source, and the
+`native-observation-helper` input row for the committed helper. The fixed baseline is `ae470d511f1f170168c7b95140ba0bb56d99d179`
 with tree `0fef592183db00ce0bc81c988d51124b76bd374a`, equivalent to main
 `30c738d77d5e7839577ebc5d144b74da4590e319`. Supplied rows are not an implied full
 transitive or whole-OS closure. Root must qualify that scope in its receipt.
@@ -105,3 +108,15 @@ It reproduces the old false negative, recognizes the captured shape and rejects
 non-native, repeated, malformed and ordinary suffixes. It supplies no native
 acceptance. Exact model-label and accepted-socket close observations still need
 correction and review before another live attempt.
+
+
+Current native labels must be checked separately: client `claude-opus-5-5`,
+backend SDK `opus[1m]`, exact SDK environment pin `claude-opus-5-5` and backend
+native init `claude-opus-5-5[1m]`. No context stripping or easier model qualifies.
+These are admitted future pins; the historical discarded labels remain unknown.
+Model mismatch remains acceptance failure even when physical custody joins.
+The observer helper and its canonical hash must be in fresh input provenance.
+The exact cleanup-block controller takes absolute before/after harness paths
+and the pinned Node binary, runs only on the reviewed Darwin/Bun tuple, and
+spawns four credential-free owned TCP peers. Its control PASS supplies no live
+product acceptance. See the current-main evidence for the frozen before archive.

@@ -12,6 +12,7 @@ import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';
 import { selectWorkingMapping, MappingObservationError } from './working-mapping.ts';
+import { modelLabel, exactBackendModel, queryCustodyJoined } from './native-observations.ts';
 
 const SELF = fileURLToPath(import.meta.url);
 const PROFILE = 'taskoauth-token';
@@ -30,7 +31,7 @@ class GateError extends Error {
 }
 function need(condition, code, status = 'FAIL') { if (!condition) throw new GateError(code, status); }
 function options(argv) {
-  const allowed = ['entry', 'adapter-entry', 'gate-entry', 'sdk', 'state-entry', 'tree-entry', 'native', 'node', 'model', 'task-root', 'output', 'token-file', 'provenance', 'case', 'expect', 'hints', 'deadline-ms', 'join-ms', 'hold-ms'];
+  const allowed = ['entry', 'adapter-entry', 'gate-entry', 'sdk', 'state-entry', 'tree-entry', 'native', 'node', 'model', 'backend-sdk-model', 'backend-model', 'task-root', 'output', 'token-file', 'provenance', 'case', 'expect', 'hints', 'deadline-ms', 'join-ms', 'hold-ms'];
   const out = {};
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i].replace(/^--/, '');
@@ -39,10 +40,11 @@ function options(argv) {
     need(typeof argv[i + 1] === 'string' && !argv[i + 1].startsWith('--'), 'missing-option-value');
     out[key] = argv[++i];
   }
-  for (const key of ['entry', 'adapter-entry', 'gate-entry', 'sdk', 'native', 'node', 'model', 'task-root', 'output', 'token-file', 'provenance', 'case', 'expect', 'hints']) need(out[key], `required-${key}`);
+  for (const key of ['entry', 'adapter-entry', 'gate-entry', 'sdk', 'native', 'node', 'model', 'backend-sdk-model', 'backend-model', 'task-root', 'output', 'token-file', 'provenance', 'case', 'expect', 'hints']) need(out[key], `required-${key}`);
   for (const key of ['entry', 'adapter-entry', 'gate-entry', 'sdk', 'state-entry', 'tree-entry', 'native', 'node', 'task-root', 'output', 'token-file', 'provenance']) if (out[key]) need(isAbsolute(out[key]), `absolute-${key}`);
   need(CASES.includes(out.case) && ['baseline', 'fixed'].includes(out.expect) && ['0', '1'].includes(out.hints), 'invalid-arm');
-  need(/^claude-[A-Za-z0-9.-]+$/.test(out.model), 'full-model-fixture-required');
+  need(/^claude-opus-[0-9][a-z0-9.-]+$/.test(out.model), 'full-opus-model-fixture-required');
+  need(out['backend-sdk-model'] === 'opus[1m]' && out['backend-model'] === `${out.model}[1m]`, 'exact-backend-context-fixture-required');
   for (const [key, fallback, min, max] of [['deadline-ms', 240000, 90000, 600000], ['join-ms', 15000, 5000, 30000], ['hold-ms', 40000, 35000, 60000]]) {
     out[key] = Number(out[key] ?? fallback);
     need(Number.isSafeInteger(out[key]) && out[key] >= min && out[key] <= max, `invalid-${key}`);
@@ -83,7 +85,7 @@ function writer(path) {
       const value = JSON.parse(line);
       if (plain(value)) {
         for (const key of ['type', 'subtype', 'status', 'model', 'claude_code_version']) {
-          const selected = safeName(value[key]); if (selected) item[key] = selected;
+          const selected = key === 'model' ? modelLabel(value[key]) : safeName(value[key]); if (selected) item[key] = selected;
         }
         if (typeof value.is_error === 'boolean') item.isError = value.is_error;
       }
@@ -248,7 +250,7 @@ function wirePublic(r) {
     nativeUserAgent: /^[\x20-\x7e]{1,256}$/.test(ua) && /^claude-cli\/\d+\.\d+\.\d+/.test(ua) ? ua : null,
     nativeUserAgentDigest: digest(ua), requestClass: ['main', 'subagent', 'auxiliary'].includes(r.headers.get('x-claude-code-request-class')) ? r.headers.get('x-claude-code-request-class') : null,
     requestClassPresent: r.headers.has('x-claude-code-request-class'), clientSessionHeaderDigest: idDigest(r.headers.get('x-claude-code-session-id')),
-    captionShape: r.caption, stream: r.body.stream === true, toolSchemaDigest: digest(r.body.tools ?? []),
+    captionShape: r.caption, requestedModel: modelLabel(r.body.model), stream: r.body.stream === true, toolSchemaDigest: digest(r.body.tools ?? []),
     toolNames: (r.body.tools ?? []).map(t => safeName(t.name)), bodyDigest: r.bodyDigest,
     messages: (r.body.messages ?? []).map(m => ({ role: safeName(m.role), contentDigest: digest(m.content ?? null), blocks: Array.isArray(m.content) ? m.content.map(b => ({ type: safeName(b.type), idDigest: idDigest(b.id ?? b.tool_use_id), digest: digest(b) })) : [] })),
     productObserverSeen: Boolean(r.contextSeen), adapter: r.adapter ?? null,
@@ -371,7 +373,7 @@ async function worker(o) {
   function validateProvenance() {
     const p = JSON.parse(fs.readFileSync(o.provenance, 'utf8'));
     need(p.schema === 1 && plain(p.tuple) && Array.isArray(p.inputs) && p.inputs.length <= 2000, 'invalid-provenance');
-    need(p.tuple.sdk === '0.2.141' && p.tuple.client === '2.1.292' && p.tuple.backend === '2.1.292' && p.tuple.bun === '1.3.11' && p.tuple.model === o.model, 'reviewed-tuple-required');
+    need(p.tuple.sdk === '0.2.141' && p.tuple.client === '2.1.292' && p.tuple.backend === '2.1.292' && p.tuple.bun === '1.3.11' && p.tuple.model === o.model && p.tuple.backendSdkModel === o['backend-sdk-model'] && p.tuple.backendModel === o['backend-model'], 'reviewed-tuple-required');
     need(p.tuple.platform === process.platform && p.tuple.arch === process.arch && process.platform === 'darwin' && process.arch === 'arm64', 'runtime-platform-not-admitted');
     need(/^[0-9a-f]{40}$/.test(p.codeCommit) && /^[0-9a-f]{40}$/.test(p.codeTree), 'code-identity-required');
     need(p.kind === 'source', 'bundled-package-gate-observer-not-implemented', 'MISSING');
@@ -386,10 +388,15 @@ async function worker(o) {
     need(fileHash(o.native) === '97a01e5bc74a199e67189435d0331ea3a24eac2e07db4b76d9148c5b0386138f' && fileHash(o.sdk) === '48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97', 'candidate-native-sdk-hash');
     need(fs.realpathSync(createRequire(o.entry).resolve('@anthropic-ai/claude-agent-sdk')) === o.sdk, 'entry-sdk-import-must-match-observed-sdk');
     if (o.expect === 'baseline') need(p.codeCommit === 'ae470d511f1f170168c7b95140ba0bb56d99d179' && p.codeTree === '0fef592183db00ce0bc81c988d51124b76bd374a', 'supplied-baseline-identity');
-    report.provenance = { schema: p.schema, kind: p.kind, codeCommit: p.codeCommit, codeTree: p.codeTree, tuple: Object.fromEntries(['sdk', 'client', 'backend', 'bun', 'model', 'platform', 'arch'].map(k => [k, p.tuple[k]])), inputs: p.inputs.map(i => ({ role: safeName(i.role), path: i.path, sha256: i.sha256 })), closureCompleteness: 'root declaration; not inferred from entry hash', gateSha256: fileHash(SELF), observerSha256: fileHash(join(dirname(SELF), 'request-observer.mjs')), mappingObserverSha256: fileHash(join(dirname(SELF), 'working-mapping.ts')) };
+    const nativeHelper = fs.realpathSync(join(dirname(SELF), 'native-observations.ts'));
+    need(p.inputs.some(i => i.role === 'native-observation-helper' && i.path === nativeHelper), 'provenance-native-observation-helper-missing');
+    report.provenance = { schema: p.schema, kind: p.kind, codeCommit: p.codeCommit, codeTree: p.codeTree, tuple: Object.fromEntries(['sdk', 'client', 'backend', 'bun', 'model', 'backendSdkModel', 'backendModel', 'platform', 'arch'].map(k => [k, p.tuple[k]])), inputs: p.inputs.map(i => ({ role: safeName(i.role), path: i.path, sha256: i.sha256 })), closureCompleteness: 'root declaration; not inferred from entry hash', gateSha256: fileHash(SELF), observerSha256: fileHash(join(dirname(SELF), 'request-observer.mjs')), mappingObserverSha256: fileHash(join(dirname(SELF), 'working-mapping.ts')), nativeObservationHelperSha256: fileHash(nativeHelper) };
+  }
+  function backendModelMatches(q) {
+    return exactBackendModel({ requested: q.wire?.body.model, sdk: q.options.model, pin: q.modelPin, native: q.nativeModel, version: q.nativeVersion }, { requested: o.model, sdk: o['backend-sdk-model'], native: o['backend-model'], version: '2.1.292' });
   }
   function publicQuery(q) {
-    return { n: q.n, role: q.role, wire: q.wire?.n ?? null, gate: q.gate?.n ?? null, createdAt: q.createdAt ?? null, creationError: q.creationError ?? null, startAt: q.startAt, initAt: q.initAt ?? null, resultAt: q.resultAt ?? null, iteratorSettledAt: q.iteratorSettledAt ?? null, closeAt: q.closeAt ?? null, abortAt: q.abortAt ?? null, resumeDigest: idDigest(q.options.resume), checkpointDigest: idDigest(q.options.resumeSessionAt), forkSession: q.options.forkSession === true, modelOption: safeName(q.options.model), nativeModel: q.nativeModel ?? null, nativeVersion: q.nativeVersion ?? null, process: q.handle?.n ?? null, mcp: q.mcp ?? null, mcpSamples: q.mcpSamples ?? [], factories: q.factoryIds, strictMcpAdded: q.strictMcpAdded, terminal: q.terminal ?? null };
+    return { n: q.n, role: q.role, wire: q.wire?.n ?? null, gate: q.gate?.n ?? null, createdAt: q.createdAt ?? null, creationError: q.creationError ?? null, startAt: q.startAt, initAt: q.initAt ?? null, resultAt: q.resultAt ?? null, iteratorSettledAt: q.iteratorSettledAt ?? null, closeAt: q.closeAt ?? null, abortAt: q.abortAt ?? null, resumeDigest: idDigest(q.options.resume), checkpointDigest: idDigest(q.options.resumeSessionAt), forkSession: q.options.forkSession === true, modelOption: modelLabel(q.options.model), modelPin: modelLabel(q.modelPin), nativeModel: q.nativeModel ?? null, nativeVersion: q.nativeVersion ?? null, process: q.handle?.n ?? null, mcp: q.mcp ?? null, mcpSamples: q.mcpSamples ?? [], factories: q.factoryIds, strictMcpAdded: q.strictMcpAdded, terminal: q.terminal ?? null };
   }
   async function statusWitness(q) {
     need(q.query && typeof q.query.mcpServerStatus === 'function', 'public-mcp-status-unavailable', 'MISSING');
@@ -541,7 +548,7 @@ async function worker(o) {
     const querySpy = spyOn(sdk, 'query').mockImplementation(params => {
       const wire = scopes.getStore();
       const opts = params.options ?? {};
-      const q = { n: queries.length + 1, role: 'backend', wire, options: { resume: opts.resume, resumeSessionAt: opts.resumeSessionAt, forkSession: opts.forkSession, model: opts.model, sessionId: opts.sessionId }, startAt: now(), factoryIds: [], mcpNames: Object.keys(opts.mcpServers ?? {}) };
+      const q = { n: queries.length + 1, role: 'backend', wire, options: { resume: opts.resume, resumeSessionAt: opts.resumeSessionAt, forkSession: opts.forkSession, model: opts.model, sessionId: opts.sessionId }, modelPin: opts.env?.ANTHROPIC_DEFAULT_OPUS_MODEL, startAt: now(), factoryIds: [], mcpNames: Object.keys(opts.mcpServers ?? {}) };
       queries.push(q);
       if (!wire?.contextSeen) failure(new GateError('backend-query-request-correlation-missing', 'MISSING'));
       need(opts.pathToClaudeCodeExecutable === o.native && opts.env?.CLAUDE_CONFIG_DIR === backendConfig && opts.env?.CLAUDE_CODE_OAUTH_TOKEN === token && !opts.env?.ANTHROPIC_AUTH_TOKEN && !opts.env?.ANTHROPIC_API_KEY && !opts.env?.ANTHROPIC_BASE_URL, 'backend-private-grant-scope');
@@ -577,7 +584,7 @@ async function worker(o) {
         try {
           for await (const event of { [Symbol.asyncIterator]: iterate }) {
             if (event.type === 'system' && event.subtype === 'init') {
-              q.initAt = now(); q.nativeVersion = event.claude_code_version; q.nativeModel = safeName(event.model);
+              q.initAt = now(); q.nativeVersion = event.claude_code_version; q.nativeModel = modelLabel(event.model);
               if (overlap?.selected.includes(wire?.n)) {
                 bus.emit('changed'); void overlapWitness();
                 await bounded(overlap.release.promise, 15000, 'overlap-init-barrier-deadline', signal ?? control.signal);
@@ -768,7 +775,7 @@ async function worker(o) {
           for await (const event of q) {
             need(c.events.length < 1024, 'client-event-count-bound');
             c.events.push({ type: safeName(event.type), subtype: safeName(event.subtype), taskDigest: idDigest(event.task_id), toolDigest: idDigest(event.tool_use_id), at: now(), summaryPresent: typeof event.summary === 'string' && event.summary.length > 0 });
-            if (event.type === 'system' && event.subtype === 'init') { c.nativeVersion = event.claude_code_version; c.nativeModel = safeName(event.model); }
+            if (event.type === 'system' && event.subtype === 'init') { c.nativeVersion = event.claude_code_version; c.nativeModel = modelLabel(event.model); }
             if (event.type === 'result') { c.terminal = { subtype: safeName(event.subtype), isError: event.is_error === true }; }
             bus.emit('changed');
           }
@@ -870,7 +877,7 @@ async function worker(o) {
       report.actualParentArm = { status: 'MISSING', declaredParentObserved: ancestry.length > 0, reason: ancestry.length ? 'declared native ancestor abort arm not executed' : 'native metadata declares no parent; no invented ancestry', separateUnitProof: 'root-owned HTTP/unit gate' };
     }
     need(queries.length && queries.every(q => q.wire?.contextSeen && q.wire.adapter === 'claude-code'), 'product-request-observer-or-sdk-export-not-connected', 'MISSING');
-    need(queries.every(q => q.nativeVersion === '2.1.292' && q.nativeModel === o.model), 'backend-native-version-model-confirmation', 'MISSING');
+    need(queries.every(backendModelMatches), 'backend-native-version-model-context-confirmation', 'MISSING');
     report.status = report.firstFailure?.status ?? 'PASS';
   } catch (error) { failure(error); report.status = report.firstFailure.status; }
   finally {
@@ -886,7 +893,12 @@ async function worker(o) {
     catch (error) { failure(error); report.cleanup.queryHttpSettlement = 'UNKNOWN'; }
     try {
       if (instance) {
-        await bounded(instance.close(), o['join-ms'], 'proxy-public-close-deadline');
+        const publicClose = instance.close();
+        // Public close retires admission. Destroy only sockets accepted by this
+        // exact owned listener; Bun close alone can omit their close events.
+        for (const socket of proxySockets) socket.destroy();
+        await bounded(publicClose, o['join-ms'], 'proxy-public-close-deadline');
+        for (const socket of proxySockets) socket.destroy();
         await waitFor(() => listeners.proxy.closeObserved && proxySockets.size === 0 && listeners.proxy.accepted === listeners.proxy.closed, 3000, 'proxy-listener-sockets-close-deadline', new AbortController().signal);
       }
       report.cleanup.proxyClose = instance ? 'JOINED' : 'NOT_STARTED';
@@ -901,6 +913,7 @@ async function worker(o) {
       if (relay) {
         const closed = new Promise((r, j) => relay.close(error => { listeners.relay.closeCallback = true; if (error) j(error); else r(); }));
         relay.closeIdleConnections();
+        for (const socket of sockets) socket.destroy();
         await bounded(closed, o['join-ms'], 'relay-listener-close-deadline');
         await waitFor(() => listeners.relay.closeObserved && listeners.relay.closeCallback && !sockets.size && listeners.relay.accepted === listeners.relay.closed, 3000, 'relay-socket-close-deadline', new AbortController().signal);
       }
@@ -909,7 +922,7 @@ async function worker(o) {
     try { await bounded(new Promise(r => { const check = () => { if (handles.every(joined)) { bus.off('changed', check); r(); } }; bus.on('changed', check); check(); }), o['join-ms'], 'owned-process-stream-callback-join-deadline'); report.cleanup.directProcesses = 'JOINED'; }
     catch (error) { failure(error); report.cleanup.directProcesses = 'UNKNOWN'; }
     try {
-      await waitFor(() => gates.length > 0 && queries.length > 0 && gates.every(gateJoined) && queries.every(q => q.gate && q.initAt && q.nativeVersion === '2.1.292' && q.nativeModel === o.model && q.handle === q.gate.handle && q.iteratorSettledAt && q.closeAt), o['join-ms'], 'real-source-gate-publication-executor-query-join-deadline', new AbortController().signal);
+      await waitFor(() => gates.length > 0 && queries.length > 0 && gates.every(gateJoined) && queries.every(queryCustodyJoined), o['join-ms'], 'real-source-gate-publication-executor-query-join-deadline', new AbortController().signal);
       report.cleanup.sourceSdkGates = 'JOINED';
     } catch (error) { failure(error); report.cleanup.sourceSdkGates = 'UNKNOWN'; }
     for (const restore of spyRestores.reverse()) { try { restore(); } catch (error) { failure(error, 'observer-restore-exception'); } }
@@ -923,6 +936,9 @@ async function worker(o) {
       }
     } catch (error) { failure(error, 'token-preservation-check-exception'); }
     token = undefined;
+    report.modelVerification = { backend: queries.length > 0 && queries.every(backendModelMatches) ? 'MATCH' : 'MISSING_OR_MISMATCH', client: clients.length > 0 && clients.every(c => c.nativeVersion === '2.1.292' && c.nativeModel === o.model) ? 'MATCH' : 'MISSING_OR_MISMATCH', scope: 'Exact requested wire model, SDK alias, version pin, backend native context label and client label; independent of physical custody' };
+    if (report.modelVerification.backend !== 'MATCH') failure(new GateError('backend-native-version-model-context-confirmation', 'MISSING'));
+    if (report.modelVerification.client !== 'MATCH') failure(new GateError('client-native-version-model-confirmation', 'MISSING'));
     report.wire = wires.map(wirePublic); report.queries = queries.map(publicQuery); report.sourceGates = gates.map(publicGate);
     report.clients = clients.map(c => ({ group: c.group, clientSessionDigest: idDigest(c.sessionId), nativePathConfirmed: c.nativePathConfirmed === true, summaryEnabled: c.summaryEnabled, nativeVersion: c.nativeVersion ?? null, nativeModel: c.nativeModel ?? null, barrierAt: c.barrierAt ?? null, workerDigest: idDigest(c.worker?.agent), agentCallDigest: idDigest(c.agentCall?.id), workerStopAt: c.workerStop?.at ?? null, terminal: c.terminal ?? null, iteratorSettledAt: c.iteratorSettledAt ?? null, closeAt: c.closeAt ?? null, events: c.events, receipts: c.receipts.map(r => ({ index: r.index, idDigest: idDigest(r.id), agentDigest: idDigest(r.agent), at: r.at, resultDigest: r.resultDigest })) }));
     report.processes = handles.map(h => ({ n: h.n, kind: h.kind, gate: h.gate ?? null, createdAt: h.createdAt, exit: h.exit, exitAt: h.exitAt ?? null, code: h.code ?? null, signal: h.signal ?? null, close: h.close, closeAt: h.closeAt ?? null, callbackExpected: h.callbackExpected, callback: h.callback, stdinClose: h.stdinClose, stdinAbsent: h.stdinAbsent === true, stdoutEnd: h.stdoutEnd, stdoutClose: h.stdoutClose, stdoutAbsent: h.stdoutAbsent === true, stderrEnd: h.stderrEnd, stderrClose: h.stderrClose, stderrAbsent: h.stderrAbsent === true, nativeResultAt: h.nativeResultAt, afterExitSignalPrevented: h.afterExitSignalPrevented ?? 0, join: joined(h) ? 'JOINED' : 'UNKNOWN', raw: h.writers.map(closeWriter) }));
@@ -932,7 +948,7 @@ async function worker(o) {
     report.cleanup.ownedSessionTreeObserver = tree?.processSessionTree ? { available: true, finalStats: tree.processSessionTree.stats() } : { available: false };
     report.actualParentArm ??= { status: 'MISSING', declaredParentObserved: wires.some(r => r.parent), reason: 'actual declared-ancestor cancellation not executed; separate root-owned HTTP/unit gate' };
     report.privateRaw = closeWriter(raw);
-    const scopedJoin = report.cleanup.queryHttpSettlement === 'JOINED' && report.cleanup.proxyClose === 'JOINED' && report.cleanup.sdkIterators === 'JOINED' && report.cleanup.relayRequests === 'JOINED' && report.cleanup.relayClose === 'JOINED' && report.cleanup.directProcesses === 'JOINED' && report.cleanup.sourceSdkGates === 'JOINED' && pending.size === 0 && report.processes.every(h => h.join === 'JOINED' && h.raw.every(w => w.flushed === true)) && report.privateRaw.flushed === true && clients.length > 0 && clients.every(c => c.nativePathConfirmed && c.handle && joined(c.handle) && c.iteratorSettledAt && c.closeAt && c.nativeVersion === '2.1.292' && c.nativeModel === o.model);
+    const scopedJoin = report.cleanup.queryHttpSettlement === 'JOINED' && report.cleanup.proxyClose === 'JOINED' && report.cleanup.sdkIterators === 'JOINED' && report.cleanup.relayRequests === 'JOINED' && report.cleanup.relayClose === 'JOINED' && report.cleanup.directProcesses === 'JOINED' && report.cleanup.sourceSdkGates === 'JOINED' && pending.size === 0 && report.processes.every(h => h.join === 'JOINED' && h.raw.every(w => w.flushed === true)) && report.privateRaw.flushed === true && clients.length > 0 && clients.every(c => c.nativePathConfirmed && c.handle && joined(c.handle) && c.iteratorSettledAt && c.closeAt);
     report.cleanup.scopedOwnedJoin = scopedJoin ? 'JOINED' : 'UNKNOWN';
     report.cleanup.grantCleanupAllowed = scopedJoin && report.grant.inputRead && report.grant.preserved === true;
     report.cleanup.grantCleanupScope = 'root review only: preserved access-only task input after actual source SDK gate publication/executor, direct native/sidecheck handles, queries, local HTTP resources and private writers joined; no deletion is performed and global descendants/config/session/history remain outside this claim';

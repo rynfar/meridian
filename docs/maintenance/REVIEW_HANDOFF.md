@@ -4400,3 +4400,15 @@ reproducible prior/current refusal control are
 pass and all runners join. The original full FAIL and unknown historical OS
 errno remain qualified. New full local gates and native model/socket observer
 corrections still precede another live attempt. No merge or gate waiver.
+
+
+Native caption model/socket observer corrections are now statically reviewed
+and credential-free controlled. Exact wire/SDK/env-pin/native-context labels
+and a canonical helper row are required; model acceptance remains independent
+of physical source/client custody. The exact old/new cleanup snippets reproduce
+old socket deadlines and witness all current closures on pinned Bun/Node, with
+all four peers joined. See the
+[root review](evidence/1292-current-main-20261008/NATIVE_MODEL_CUSTODY_OBSERVER_ROOT_REVIEW.json).
+Ten controls, typecheck, syntax and existing causality controls pass. No new
+model call or grant. New full local gates and fresh invocation/provenance
+qualification still precede actual before/after proof; inherited holds remain.

@@ -1,5 +1,5 @@
 {
-  "qualification": "Scoped owned E71 client correction and deterministic before/after proof. Historical failures retained; new complete local/native/product/package/CI gates remain.",
+  "qualification": "Owned client and exact model/socket observers corrected and controlled; earlier failures retained. Complete local, fresh native invocation/product/package/CI remain held.",
   "files": {
     "BUN_1311_OWNED_SOCKET_CLOSE_CAUSAL_CONTROL.json": {
       "bytes": 2558,
@@ -113,6 +113,22 @@
       "bytes": 544,
       "sha256": "fbc62f966ad222291e9ac07845b5185c28403385a88fa49df51f4e955853b9c5"
     },
+    "NATIVE_MODEL_CUSTODY_OBSERVER_FOCUSED_CHECKS.json": {
+      "bytes": 1842,
+      "sha256": "ed7de7b7c0ce6ed141c80f4582094785ea0d39e218cf14c43a8d587c8a69c0dd"
+    },
+    "NATIVE_MODEL_CUSTODY_OBSERVER_ROOT_REVIEW.json": {
+      "bytes": 3915,
+      "sha256": "03569d14d019a3aef58ce56057bed3b8b2a5b13632af07756ad178c36337bf6f"
+    },
+    "NATIVE_MODEL_SOCKET_EXACT_CAUSAL_R1.json": {
+      "bytes": 3423,
+      "sha256": "1c8422df91a8a3be257657be1746942b526923451191d2ec1589d9384659ec89"
+    },
+    "NATIVE_MODEL_SOCKET_EXACT_CAUSAL_R2.json": {
+      "bytes": 3809,
+      "sha256": "94748a918980c342e6437e3c2d608449cff40e0c2cb10ba9e2a051b7eeb84626"
+    },
     "NATIVE_OBSERVER_NEXT_CORRECTION_PLAN.json": {
       "bytes": 2912,
       "sha256": "389c57a3f88d724fc3e7e1df058ddbef56cd0d4105e1864354eb5f8b5000f6d5"
@@ -178,8 +194,8 @@
       "sha256": "06ccfd2e8ec9e3985ef1d75da53f215c9618d789270f486cbc2c2b8d609a13db"
     },
     "REVIEW.md": {
-      "bytes": 12409,
-      "sha256": "5ff999c7a26a5c3967986e977e5495788459633f8434d3792aa2853565e86dc8"
+      "bytes": 14928,
+      "sha256": "8668ea095d9cd83dd35390a7eeae73bb984e39537c8158860fd4b3bb66c7ea79"
     },
     "ROOT_ADVERSARIAL_REVIEW.json": {
       "bytes": 8091,
@@ -304,6 +320,30 @@
     "native-frame-typecheck.log.gz": {
       "bytes": 73,
       "sha256": "2d932dcc095e2d03c96533364e4ff649cfc12e4262003cc707a8e19bfc320998"
+    },
+    "native-observation-caption-control.log.gz": {
+      "bytes": 339,
+      "sha256": "8d976257f93f997b96bfecc905056da15b029e32444e52b62c8e3b5a139c6fd4"
+    },
+    "native-observation-focused.log.gz": {
+      "bytes": 591,
+      "sha256": "ee0467352c203f7740e712ee8645f822863e91164eab8caac1ecf8296895aa60"
+    },
+    "native-observation-mapping-control.log.gz": {
+      "bytes": 388,
+      "sha256": "48ee9ff37e0178091279e4888236ffad2585577a3c647df062646177c335642e"
+    },
+    "native-observation-syntax.log.gz": {
+      "bytes": 20,
+      "sha256": "f1b651238a58fe290baec6c5e32f3bdb1943dd2bd582f02569231f7a757c7837"
+    },
+    "native-observation-typecheck.log.gz": {
+      "bytes": 195,
+      "sha256": "fd4ef9357945dc6876dc1db24f4833215371c817ee24a3d16f7ffe6880bb974c"
+    },
+    "native-observer-before-model-custody.mjs.gz": {
+      "bytes": 23578,
+      "sha256": "b7f21030d0ecb2ada3b8cd4bc8b0d14461867f8474a36afaec8439c1ea02d48e"
     },
     "native-task-budget-frame-red.log.gz": {
       "bytes": 959,

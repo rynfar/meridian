@@ -142,3 +142,42 @@ The credential-free reproducer is committed as
 `e71-owned-before-harness.mjs.gz` into a new owned file, then pass its absolute
 path, the repository root and a new owned output directory to the controller.
 The controller verifies the exact frozen before-source SHA256 before execution.
+
+
+### Exact native model and socket observer correction
+
+Model labels now retain literal extended-context suffixes under a bounded
+sanitizer. The admitted source fixture separately pins the client core ID,
+backend SDK `opus[1m]`, full native Opus ID plus `[1m]`, exact requested wire ID
+and SDK environment version pin. The two backend labels and canonical helper
+hash are mandatory provenance inputs. Wrong models, versions or context labels
+remain failures. Historical discarded labels remain unknown; these explicit
+future pins do not rewrite them or provide an easier model/context lane.
+
+Physical source gate/query/handle/iterator and client/pipe joins are evaluated
+independently of model acceptance. Missing model evidence remains a finding
+and cannot turn product acceptance green. Proxy public close retires admission;
+only its recorded accepted sockets are destroyed. Relay listener close likewise
+precedes destruction of its own recorded sockets. Every close event and count
+still must match. Broader descendants/network absence and config/history
+cleanup remain outside the gate. Access-input cleanup remains root-owned review.
+
+Ten pure mapping/observation controls pass, as do typecheck, syntax and existing
+mapping/caption causality controls. An exact-snippet control on pinned Darwin
+arm64 Bun 1.3.11 and the pinned Node binary reproduces both old listener/socket
+deadlines and verifies current proxy/relay closure blocks. All four exact Node
+peers, streams and sockets join. It also reproduces old model-label loss and
+model/custody conflation while keeping missing model acceptance refused. R1's
+relay-callback observation timing is qualified and retained; R2 records it at
+the correct point. Root adversarial review finds no remaining scoped observer
+blocker. No real model/native SDK call or grant was staged during these controls.
+
+A fresh complete local run and exact source/harness/helper/runtime provenance
+still precede another bounded native attempt. Baseline/candidate acceptance,
+hint fallback, both overlap orders, cancellation, E41/E55, the unknown reporter
+tuple, shared-MCP limitation, package behavior and final-head CI remain open.
+The runnable exact-snippet controller is
+`scripts/e2e-claude-code-progress-captions/native-observer-causal-control.mjs`.
+Decompress the committed `native-observer-before-model-custody.mjs.gz` into
+a new owned before file; invoke with pinned Bun, passing absolute before/after
+harness paths and the exact reviewed Node binary. It performs no model call.

@@ -1,0 +1,66 @@
+{
+  "status": "PASS",
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-native-observation-checks-gea3ngt1",
+  "checks": [
+    {
+      "label": "native-observation-focused",
+      "argv": [
+        "bun",
+        "test",
+        "src/__tests__/caption-native-observations.test.ts",
+        "src/__tests__/caption-native-working-mapping.test.ts"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.176,
+      "sha256": "c17bf211c42e8cfccdcaa4c67eb90281510c651985da004939a5f81634fd8062"
+    },
+    {
+      "label": "native-observation-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 4.144,
+      "sha256": "172c72be53806f5bcec98d00a341de376e68a7eb3dfaa60e8b14c70326c9f0bc"
+    },
+    {
+      "label": "native-observation-syntax",
+      "argv": [
+        "node",
+        "--check",
+        "scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.026,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "native-observation-mapping-control",
+      "argv": [
+        "bun",
+        "scripts/e2e-claude-code-progress-captions/mapping-observer-control.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.043,
+      "sha256": "7d783e1161a4ddd9099c3128b5cc85dd8c20a0d76752e29fc7be3fcb3ccddf21"
+    },
+    {
+      "label": "native-observation-caption-control",
+      "argv": [
+        "node",
+        "scripts/e2e-claude-code-progress-captions/caption-shape-control.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.038,
+      "sha256": "b0294b61514a5974faa0bf43c4329b7c7f901b7b9bf09371dbc7a92a4f33ba69"
+    }
+  ],
+  "modelCalls": 0
+}
