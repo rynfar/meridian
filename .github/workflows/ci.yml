@@ -132,8 +132,8 @@ jobs:
             for ($i = 0; $i -lt 30; $i++) {
               Start-Sleep -Seconds 1
               try {
-                $r = Invoke-WebRequest -Uri "http://127.0.0.1:3458/health" -UseBasicParsing -TimeoutSec 2
-                if ($r.StatusCode -eq 200) { $ok = $true; break }
+                $r = Invoke-WebRequest -Uri "http://127.0.0.1:3458/health" -SkipHttpErrorCheck -TimeoutSec 2
+                if ($r.StatusCode -eq 200 -or $r.StatusCode -eq 503) { $ok = $true; break }
               } catch { }
             }
             if (-not $ok) {
@@ -143,9 +143,12 @@ jobs:
               if (Test-Path "meridian.err.log") { Get-Content "meridian.err.log" }
               throw "Meridian did not respond on /health within 30s — resolver or startup likely failed on Windows"
             }
-            $body = Invoke-RestMethod -Uri "http://127.0.0.1:3458/health" -TimeoutSec 5
+            $body = $r.Content | ConvertFrom-Json
             Write-Host "/health response: $($body | ConvertTo-Json -Compress)"
             if (-not $body.version) { throw "/health missing version field" }
+            if ($r.StatusCode -eq 503 -and ($body.status -ne "unhealthy" -or $body.auth.loggedIn -ne $false)) {
+              throw "/health 503 must identify the unauthenticated CI account"
+            }
             Write-Host "OK — meridian booted on Windows and /health returned a version."
           }
           finally {
