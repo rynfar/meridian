@@ -83,6 +83,17 @@ owned handles and still require their close events. No classifier/billing
 resolution, Kubernetes certification, wider E41 acceptance or final-head CI is
 implied by this bounded contract probe.
 
+The same owned native fixture can run the adjacent E41 matrix by setting
+`E2E_EXPECT=candidate`, `E2E_E41_MODE=chain` or `parallel`, and an explicit
+`E2E_E41_STREAM=0` or `1`. Use a fresh artifact directory for each of the four
+combinations. These arms send owned OpenCode-shaped HTTP requests rather than
+launching a real client. They retain signed/redacted assistant blocks with E41's
+shared parser, perform three distinct owned file reads, and require exact
+chain/parallel batches, a fork of the previous working mapping at each result
+round, one successful real result per call, immutable parent history, a saved-fork
+follow-up, and at least 95% of the previous cached prefix on every continuation.
+They use the same real SDK/native model and original actor/HTTP custody gates.
+
 > **Droid tests (D1–D10)** additionally require `droid` installed (`droid --version` ≥ 0.89.0) and a Factory AI account for BYOK configuration. Tests D1–D10 cover internal mode (the default). Passthrough mode for Droid is opt-in via `MERIDIAN_PASSTHROUGH=1` and requires `droid` ≥ 0.109 — see "Droid passthrough mode" below.
 
 ## Required Meridian OpenCode plugin preflight
