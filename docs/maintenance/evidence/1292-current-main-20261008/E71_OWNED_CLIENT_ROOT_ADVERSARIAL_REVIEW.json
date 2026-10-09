@@ -1,0 +1,46 @@
+{
+  "status": "FIT_FOR_COMPLETE_LOCAL_CHECKS_WITH_NATIVE_PRODUCT_PACKAGE_CI_HOLDS",
+  "reviewer": "Root adversarial review, no new delegated independent review",
+  "parentHead": "2254cdf67e74210f22a009af50e04f3d50664de4",
+  "findingsCorrected": [
+    "Post-exit client group signaling uses retired leader authority",
+    "Signal exception interrupts child/pipe joins and owned bookkeeping",
+    "Bounded signal observations can otherwise discard later failure authority",
+    "Cleanup failure can replace the first operation failure"
+  ],
+  "implementation": "Observed spawn captures immutable valid birth PID. Exit or close retires signaling. Physical join requires exit (or failed unstarted spawn), close and both expected pipe end/close events. Non-ESRCH signaling failure remains a sticky counter and cleanup error; signal invocation never establishes a join. Original operation failure is preserved.",
+  "inspection": [
+    "No product, SDK options, prompt, model, auth, public API or query assertions changed",
+    "Existing native Linux incarnation/cwd/ancestry census is unchanged; no new global process-absence claim",
+    "Signals are limited to currently live exact constructed detached client groups; invalid/missing/retired birth authority sends none",
+    "Independent bounded outer control joins exact process and stdio on failure/timeout; never treats a deadline as a close witness",
+    "Controller uses owned empty HOME/config and no ambient credential keys",
+    "All original E71 retention and acceptance expectations remain; failed custody retains runtime",
+    "Five direct ownership controls include genuine owned Node child, failed signal, failed spawn, immutable birth and failure beyond bounded list"
+  ],
+  "checks": {
+    "focusedPass": 38,
+    "focusedSkip": 1,
+    "focusedFail": 0,
+    "typecheck": 0,
+    "syntax": 0,
+    "allRunnerSessionsJoined": [
+      45705,
+      45961,
+      49108
+    ],
+    "causalControl": "Exact prior/current harness old FAIL/new PASS under identical synthetic retired-owned-group EPERM refusal; exact child and pipe joins witnessed"
+  },
+  "historicalQualification": "The original failed run did not retain its OS signal errno. The current controlled refusal demonstrates and corrects the same cleanup path; it does not retroactively establish that historical errno. Earlier failed native and full local runs remain immutable.",
+  "sourceIdentity": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "47defb21025680b9acaf6a66a7e779f5a835f2383ad79cb32b3a6af325e79ac8",
+    "scripts/e71-retired-signal-control.mjs": "ee0e7de0bdc13625829cfc3e3e2711ebf027b8657fa8e00b1fe424627e4d28c1",
+    "src/__tests__/e71-owned-client-process.test.ts": "b96ec486109a66df54d6bdd015e8ea8c5715f7205efe26f30bf06f7104dfe6c8"
+  },
+  "modelCalls": 0,
+  "holds": [
+    "Current complete npm/type/build gates",
+    "Native model labels and accepted-socket close observer corrections",
+    "Actual affected-flow baseline/candidate/native parity/reporter tuple/shared MCP/package/final-head CI"
+  ]
+}

@@ -110,3 +110,35 @@ control arms then join their exact Node peers, pipes and sockets. The runnable
 control is escrowed here; it prepares a native observer correction and does not
 validate the product or rewrite the failed native attempt. No additional live
 model attempt ran. The local test, native, package and CI gates remain open.
+
+
+### Owned E71 client correction
+
+The harness now binds signaling to each exact spawned client's immutable birth
+PID and retires that authority on observed exit/close. Cleanup awaits explicit
+child and both expected pipe end/close events. A signal never implies a join.
+Non-ESRCH errors remain sticky even beyond the bounded observation list, and
+cleanup cannot replace the first operation failure. Existing Linux ancestry/
+incarnation custody checks, prompts, model/auth/SDK settings and acceptance
+assertions remain unchanged. No global absence claim is added.
+
+The exact prior/current harness causal control injects the same EPERM refusal
+only for an owned group whose leader has exited. The old harness reproduces
+client-signal/unjoined-work/runtime-retention failures. The corrected harness
+issues no retired-group signal, joins three actual clients and their pipes,
+and passes the unchanged test expectations. The controller also joins both
+outer processes and streams. Its empty owned HOME/config carries no ambient
+credentials. Historical OS errno remains unknown; the injected control is not
+a claim about that errno or native acceptance.
+
+Five direct ownership controls and the complete E71 file pass 38 tests / 1
+compiled-artifact skip / 0 fail. Typecheck and syntax pass; all runners joined.
+Root adversarial review finds the scoped findings corrected. A new complete
+local run, native model/socket observer corrections and all inherited product,
+package and final-head CI gates remain required. The original red run is kept.
+
+The credential-free reproducer is committed as
+`scripts/e71-retired-signal-control.mjs` (invoke with Bun). Decompress
+`e71-owned-before-harness.mjs.gz` into a new owned file, then pass its absolute
+path, the repository root and a new owned output directory to the controller.
+The controller verifies the exact frozen before-source SHA256 before execution.

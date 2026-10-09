@@ -4390,3 +4390,13 @@ for the failed receipts, separate post-close signal concern and executed pinned
 Bun socket control. Fix the exact E71 ownership failure and remaining native
 model/socket observer issues before relying on a green rerun or a new live arm.
 The executable #1319 approval and #1321 final-head CI hold remain unchanged.
+
+
+E71 ownership correction: exact observed birth PID, signaling retirement at
+exit, explicit child/pipe joins and sticky signal failures. Root review and
+reproducible prior/current refusal control are
+[escrowed](evidence/1292-current-main-20261008/E71_OWNED_CLIENT_ROOT_ADVERSARIAL_REVIEW.json).
+38 E71/ownership controls pass, one compiled control skips, typecheck/syntax
+pass and all runners join. The original full FAIL and unknown historical OS
+errno remain qualified. New full local gates and native model/socket observer
+corrections still precede another live attempt. No merge or gate waiver.

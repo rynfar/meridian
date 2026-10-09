@@ -65,7 +65,52 @@ export function createRequestModelWitness(requests) {
   }
 }
 
-// Importing the factory performs no environment, config, auth, SDK or I/O work.
+// Own one actual detached client handle. Birth identity is immutable; exit
+// retires signaling before stdio joins. A signal call never establishes a join.
+export function createOwnedClientProcess(child, sendSignal = process.kill.bind(process)) {
+  const facts = { spawned: false, spawnError: false, exit: false, close: false,
+    stdoutEnd: !child.stdout, stdoutClose: !child.stdout,
+    stderrEnd: !child.stderr, stderrClose: !child.stderr,
+    signalAttempts: 0, signalFailures: 0, signals: [] }
+  let birthPid, resolveJoin
+  const joined = new Promise(resolve => { resolveJoin = resolve })
+  const isJoined = () => (facts.exit || facts.spawnError && !facts.spawned) && facts.close
+    && facts.stdoutEnd && facts.stdoutClose && facts.stderrEnd && facts.stderrClose
+  const check = () => { if (isJoined()) resolveJoin() }
+  child.once('spawn', () => { birthPid = child.pid; facts.spawned = true })
+  child.once('error', () => { facts.spawnError = true; check() })
+  child.once('exit', () => { facts.exit = true; check() })
+  child.once('close', () => { facts.close = true; check() })
+  for (const name of ['stdout', 'stderr']) if (child[name]) {
+    child[name].once('end', () => { facts[`${name}End`] = true; check() })
+    child[name].once('close', () => { facts[`${name}Close`] = true; check() })
+  }
+  return {
+    joined, isJoined,
+    signal(signal) {
+      if (!facts.spawned || facts.exit || facts.close) return 'RETIRED_OR_NOT_STARTED'
+      const observation = { signal, result: 'FAILED' }
+      // A missing/invalid birth PID confers no group authority.
+      if (!Number.isSafeInteger(birthPid) || birthPid <= 1) observation.code = 'INVALID_BIRTH_PID'
+      else {
+        try { sendSignal(-birthPid, signal); observation.result = 'SENT' }
+        catch (error) {
+          observation.code = /^[A-Z0-9_]{1,48}$/.test(error?.code) ? error.code : 'UNKNOWN_SIGNAL_ERROR'
+          if (error?.code === 'ESRCH') observation.result = 'NOT_FOUND'
+        }
+      }
+      facts.signalAttempts++
+      if (observation.result === 'FAILED') facts.signalFailures++
+      if (facts.signals.length < 16) facts.signals.push(observation)
+      return observation.result
+    },
+    snapshot() {
+      return { ...facts, signals: facts.signals.map(value => ({ ...value })), join: isJoined() ? 'JOINED' : 'UNKNOWN' }
+    },
+  }
+}
+
+// Importing the factories performs no environment, config, auth, SDK or I/O work.
 if (import.meta.main) {
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic'])
@@ -161,6 +206,7 @@ async function requestBody(request, maximumBytes) {
   } finally { await reader.cancel(); reader.releaseLock() }
 }
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
+const childOwners = new WeakMap(), clientOwners = []
 const sdkTools = new Map(), sdkToolOwners = new Map(), httpTools = new Map(), pendingHttp = new Set()
 const relayHandlers = new Set()
 let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup, modelWitness
@@ -207,29 +253,41 @@ function ownedProcesses() {
   return owned
 }
 function signalGroup(child, signal) {
-  if (!child.pid) return
-  try { process.kill(-child.pid, signal) } catch (error) { if (error.code !== 'ESRCH') throw new Error('Owned client group signal failed') }
+  const owner = childOwners.get(child)
+  assert(owner, 'Client signaling requires an observed owned handle')
+  return owner.signal(signal)
 }
 async function childRun(executable, command, env, cwd, milliseconds) {
   assert(!stop.signal.aborted, 'Owned client refused after execution deadline')
   const child = spawn(executable, command, { env, cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  const owner = createOwnedClientProcess(child)
+  childOwners.set(child, owner); clientOwners.push(owner)
   children.add(child)
   const onAbort = () => signalGroup(child, 'SIGTERM')
   stop.signal.addEventListener('abort', onAbort, { once: true })
+  child.once('spawn', () => { if (stop.signal.aborted) onAbort() })
   const exit = new Promise((resolveExit, reject) => { child.once('error', () => reject(new Error('Owned client spawn failed'))); child.once('close', code => resolveExit(code)) })
   const text = { out: '', err: '' }
   for (const [key, stream] of [['out', child.stdout], ['err', child.stderr]]) stream.on('data', bytes => {
     text[key] += bytes.toString()
     if (Buffer.byteLength(text[key]) > 2 * 1024 * 1024) { signalGroup(child, 'SIGTERM'); stop.abort(new Error('Client output bound exceeded')) }
   })
+  let operationFailed = false
   try { return { status: await duringRun(exit, milliseconds, 'Owned client deadline exceeded'), ...text } }
+  catch (error) { operationFailed = true; throw error }
   finally {
-    signalGroup(child, 'SIGTERM')
-    try { await bounded(exit, 1000, 'Owned client join deadline exceeded') }
-    catch { signalGroup(child, 'SIGKILL'); await bounded(exit, 5000, 'Owned client failed to join') }
-    signalGroup(child, 'SIGKILL')
-    stop.signal.removeEventListener('abort', onAbort)
-    children.delete(child)
+    try {
+      signalGroup(child, 'SIGTERM')
+      try { await bounded(owner.joined, 1000, 'Owned client join deadline exceeded') }
+      catch { signalGroup(child, 'SIGKILL'); await bounded(owner.joined, 5000, 'Owned client failed to join') }
+    } catch (error) {
+      // Failed cleanup cannot replace the original deadline/spawn failure.
+      // Outer physical-join and signal receipts keep cleanup failure visible.
+      if (!operationFailed) throw error
+    } finally {
+      stop.signal.removeEventListener('abort', onAbort)
+      if (owner.isJoined()) children.delete(child)
+    }
   }
 }
 const objectInput = value => value && typeof value === 'object' && !Array.isArray(value)
@@ -511,6 +569,12 @@ try {
   clearTimeout(deadline); clearInterval(census); stop.abort(new Error('E71 cleanup'))
   for (const query of active) { try { query.close() } catch { cleanup.push('SDK query close') } }
   for (const child of children) { try { signalGroup(child, 'SIGKILL') } catch { cleanup.push('client signal') } }
+  try {
+    await bounded(Promise.all(clientOwners.map(owner => owner.joined)), 5000, 'Owned client physical join deadline exceeded')
+    for (const child of children) if (childOwners.get(child)?.isJoined()) children.delete(child)
+  } catch { cleanup.push('client physical join') }
+  proof.clientProcesses = clientOwners.map(owner => owner.snapshot())
+  if (proof.clientProcesses.some(owner => owner.signalFailures > 0)) cleanup.push('client signal')
   relayAdmissionClosed = true
   try { relay?.stop(true) } catch { cleanup.push('relay close') }
   try { if (startup && !startupSettled) await bounded(startup, 3000, 'Proxy startup did not join') } catch { cleanup.push('proxy startup join') }

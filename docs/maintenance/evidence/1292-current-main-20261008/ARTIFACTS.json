@@ -1,5 +1,5 @@
 {
-  "qualification": "Actual native task-budget source correction; current full npm FAIL preserved. Diagnostic reproduces E71 client-signal cleanup failure. All acceptance holds remain.",
+  "qualification": "Scoped owned E71 client correction and deterministic before/after proof. Historical failures retained; new complete local/native/product/package/CI gates remain.",
   "files": {
     "BUN_1311_OWNED_SOCKET_CLOSE_CAUSAL_CONTROL.json": {
       "bytes": 2558,
@@ -29,9 +29,25 @@
       "bytes": 9098,
       "sha256": "be48aae2f3d44f3ec0e4e4791b46ecacbe51afd7c23ef849fa391de552ba88d2"
     },
+    "E71_HUNG_CLIENT_CORRECTED_CLEANUP.json": {
+      "bytes": 277,
+      "sha256": "dfc4cb48d321d728c44cf12fcaea1516ac9ab8bf71f5aa7bea40d4f721ca9e0e"
+    },
     "E71_HUNG_CLIENT_FAILED_CLEANUP.json": {
       "bytes": 339,
       "sha256": "31aa5b50e8e148fecb6efd4d9c2f2a31e1b7b98cf0cfd4b9a157e8fd7dbb9c8a"
+    },
+    "E71_OWNED_CLIENT_FOCUSED_CHECKS.json": {
+      "bytes": 1151,
+      "sha256": "75b30d9ade44611dbc028c1f1b62f9d4e7fb5d9fa67b25ce3377387cda7f5b14"
+    },
+    "E71_OWNED_CLIENT_ROOT_ADVERSARIAL_REVIEW.json": {
+      "bytes": 3031,
+      "sha256": "113e4daaddb601359c2727c9b1ab00f49dde95d204e47a8494615071228fce17"
+    },
+    "E71_RETIRED_SIGNAL_CAUSAL_CONTROL.json": {
+      "bytes": 3627,
+      "sha256": "f54893fc063ec7361967ca3d5e7cd81309b988ddd9a835e23c648dd3dd461c36"
     },
     "E71_SELECTED_CLEANUP_DIAGNOSTIC_ROOT_REVIEW.json": {
       "bytes": 1589,
@@ -162,8 +178,8 @@
       "sha256": "06ccfd2e8ec9e3985ef1d75da53f215c9618d789270f486cbc2c2b8d609a13db"
     },
     "REVIEW.md": {
-      "bytes": 10513,
-      "sha256": "ed105eb8fd16526d8e28effd960ddadfb2d3ab8c27b2d174acf64fa6b2097537"
+      "bytes": 12409,
+      "sha256": "5ff999c7a26a5c3967986e977e5495788459633f8434d3792aa2853565e86dc8"
     },
     "ROOT_ADVERSARIAL_REVIEW.json": {
       "bytes": 8091,
@@ -200,6 +216,30 @@
     "corrected-final-npm-test.log.gz": {
       "bytes": 190845,
       "sha256": "41b9d55acf4ddf4bfeea2ec511e07c7b0a8da83767be6ef9eb1b5c2a4bd6ad45"
+    },
+    "e71-owned-before-harness.mjs.gz": {
+      "bytes": 14782,
+      "sha256": "6ede37b092b330c6afc1a6aba928790a6fe8eeceb8d0210517eaf5b7bfeccd29"
+    },
+    "e71-owned-full-focused.log.gz": {
+      "bytes": 1900,
+      "sha256": "bd6cbe290a3a0573d92a980ab4b343aefd8d1b4278d9695e3017a990b83712ae"
+    },
+    "e71-owned-syntax.log.gz": {
+      "bytes": 20,
+      "sha256": "f1b651238a58fe290baec6c5e32f3bdb1943dd2bd582f02569231f7a757c7837"
+    },
+    "e71-owned-typecheck.log.gz": {
+      "bytes": 195,
+      "sha256": "fd4ef9357945dc6876dc1db24f4833215371c817ee24a3d16f7ffe6880bb974c"
+    },
+    "e71-retired-signal-after.log.gz": {
+      "bytes": 306,
+      "sha256": "f7d707d9e66c55a35aa24893a34f102d665806759f96c0a8974b629693f09f84"
+    },
+    "e71-retired-signal-before.log.gz": {
+      "bytes": 649,
+      "sha256": "bff8c1b2ce0ade2d832733509ae74fbe7700d229ee3475b6e35e737c378fd685"
     },
     "e71-selected-cleanup-focused.log.gz": {
       "bytes": 623,

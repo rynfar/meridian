@@ -1,0 +1,136 @@
+{
+  "status": "PASS",
+  "scope": "Exact old/new harnesses under the same synthetic retired-owned-group EPERM refusal; demonstrates ownership/cleanup path, not the historical OS error or native/model acceptance",
+  "results": [
+    {
+      "arm": "before",
+      "code": 1,
+      "outerJoins": {
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true
+      },
+      "inner": {
+        "acceptance": false,
+        "cleanupFailures": [
+          "client signal",
+          "unjoined owned work",
+          "private runtime retained after cleanup failure"
+        ],
+        "privateRuntimeRemoved": false,
+        "ownedResidualProcesses": 0
+      },
+      "retiredSignalAttempts": [
+        {
+          "signal": "SIGTERM",
+          "exit": true,
+          "close": true,
+          "stdoutEnd": true,
+          "stdoutClose": true,
+          "stderrEnd": true,
+          "stderrClose": true
+        },
+        {
+          "signal": "SIGTERM",
+          "exit": true,
+          "close": true,
+          "stdoutEnd": true,
+          "stdoutClose": true,
+          "stderrEnd": true,
+          "stderrClose": true
+        },
+        {
+          "signal": "SIGKILL",
+          "exit": true,
+          "close": true,
+          "stdoutEnd": true,
+          "stdoutClose": true,
+          "stderrEnd": true,
+          "stderrClose": true
+        }
+      ],
+      "harnessSha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765"
+    },
+    {
+      "arm": "after",
+      "code": 0,
+      "outerJoins": {
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true
+      },
+      "inner": {
+        "acceptance": false,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "ownedResidualProcesses": 0,
+        "clientProcesses": [
+          {
+            "spawned": true,
+            "spawnError": false,
+            "exit": true,
+            "close": true,
+            "stdoutEnd": true,
+            "stdoutClose": true,
+            "stderrEnd": true,
+            "stderrClose": true,
+            "signalAttempts": 0,
+            "signalFailures": 0,
+            "signals": [],
+            "join": "JOINED"
+          },
+          {
+            "spawned": true,
+            "spawnError": false,
+            "exit": true,
+            "close": true,
+            "stdoutEnd": true,
+            "stdoutClose": true,
+            "stderrEnd": true,
+            "stderrClose": true,
+            "signalAttempts": 0,
+            "signalFailures": 0,
+            "signals": [],
+            "join": "JOINED"
+          },
+          {
+            "spawned": true,
+            "spawnError": false,
+            "exit": true,
+            "close": true,
+            "stdoutEnd": true,
+            "stdoutClose": true,
+            "stderrEnd": true,
+            "stderrClose": true,
+            "signalAttempts": 3,
+            "signalFailures": 0,
+            "signals": [
+              {
+                "signal": "SIGTERM",
+                "result": "SENT"
+              },
+              {
+                "signal": "SIGTERM",
+                "result": "SENT"
+              },
+              {
+                "signal": "SIGKILL",
+                "result": "SENT"
+              }
+            ],
+            "join": "JOINED"
+          }
+        ]
+      },
+      "retiredSignalAttempts": [],
+      "harnessSha256": "47defb21025680b9acaf6a66a7e779f5a835f2383ad79cb32b3a6af325e79ac8"
+    }
+  ],
+  "modelCalls": 0
+}
