@@ -6481,7 +6481,10 @@ does not discover credentials, client binaries, profiles or configuration.
 Foreground remains the default. The new scenario requires two actual background
 Agent launches with handles identifying the corresponding observed wire children,
 four exact child Bash results, one parent `echo parent-overlap` result and two
-blocking TaskOutput results on those handles. Child first commands are exactly
+blocking TaskOutput results on those handles. An initial child may fork an earlier
+observed parent checkpoint only with an explicit SDK fork, distinct returned
+session and subsequent own-chain resumes; direct parent borrowing or an unowned
+checkpoint fails. Child first commands are exactly
 `sleep 2 && echo alpha-1` / `sleep 2 && echo beta-1`, followed by each separate
 second echo. Parent and child response bodies must overlap; overlapping children
 alone cannot pass. Each task completion result must arrive after every original

@@ -540,7 +540,10 @@ try {
     const actorSessionSets = [...actorQueries.values()].map(rows => new Set(rows.map(row => row.session)))
     const distinctSessionMappings = allQueriesCorrelated && actorQueries.size === 3 && actorSessionSets.every(values => !values.has(undefined)) && actorSessionSets.every((values, index) => actorSessionSets.slice(index + 1).every(other => [...values].every(value => !other.has(value)))) && [...actorQueries].every(([actor, queries]) => {
       const rows = [...queries].sort((left, right) => queryRequests.get(left).request - queryRequests.get(right).request)
-      return rows.length === wire.filter(request => request.actor === actor).length && !rows[0].resumed && rows.slice(1).every((row, index) => row.resumed && row.resumedSession === rows[index].session)
+      return rows.length === wire.filter(request => request.actor === actor).length && (
+        !rows[0].resumed || background && actor > 0 && rows[0].forked && rows[0].session !== rows[0].resumedSession &&
+        (actorQueries.get(0) ?? []).some(parent => parent.session === rows[0].resumedSession && queryRequests.get(parent).request < queryRequests.get(rows[0]).request)
+      ) && rows.slice(1).every((row, index) => row.resumed && row.resumedSession === rows[index].session)
     })
     proof.queryReceipts = proof.queries.map((row, index) => ({ number: index + 1, request: queryRequests.get(row)?.request, actor: queryRequests.get(row)?.actor, kind: row.toolCount > 0 ? 'tools' : 'text', paired: queryRequests.has(row) }))
     // Only ordinal aliases and deterministic facts leave memory; no real
