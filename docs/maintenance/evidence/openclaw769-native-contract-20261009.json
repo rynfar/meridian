@@ -1,0 +1,571 @@
+{
+  "scope": "Existing onRequest.messages execution contract; issue769 classifier/billing resolution remains held",
+  "base": "aee79ae3966b8b1d32f8d2a7fde3ec01f7ec2686",
+  "productionCorrection": "7960fd62bf226cd8707440d9efc7083319614d2e",
+  "actualClientFixtureHead": "d29c4fbb5eb4246ce7a3e64facc6bfa113dfa5af",
+  "E41FixtureAndFreshArchivePackageHead": "3f642f6eaf395e30f67f19351cdf12e475f5f8d5",
+  "runtime": {
+    "platform": "Linux",
+    "architecture": "arm64",
+    "Bun": "1.3.11",
+    "Node": "22.22.3",
+    "OpenClaw": "2026.6.11(e085fa1)",
+    "SDK": "0.2.141",
+    "nativeCLI": "2.1.284",
+    "wireModel": "opus[1m]",
+    "nativeInitModel": "claude-opus-5-5[1m]"
+  },
+  "packages": {
+    "candidateSHA256": "dcadf6b9bfec56fbca90878325a4a1acd83767d0af611856d68783290db873f2",
+    "candidateMembers": 452,
+    "freshArchiveTarballExactlyMatchesLiveTestedTarball": true,
+    "selectedMemberContentTypeAndModeMatch": true,
+    "localGitCertification": false,
+    "releasePublicationClaim": false,
+    "OpenClawSHA256": "3b3165508391b82b38e62189979df589a45a2d8019a8ef7910fccc554649ce7b",
+    "scrubSHA256": "b1585f7c890cfe419f997a1a1607f93bfb05e2f64d6a422eb3cad655cb7719a2",
+    "sameCorrectedScrubInBothArms": true
+  },
+  "actualClientBeforeAfter": {
+    "baseline": {
+      "disposition": "REPRODUCED_IGNORED_EXECUTION_HISTORY",
+      "firstFailure": null,
+      "nativeSDKQueries": 5,
+      "stages": [
+        {
+          "stage": "read-canary",
+          "markerInInput": false,
+          "markerInSupportedHistory": false,
+          "receiptInSupportedHistory": false,
+          "sdkPrefixProved": true,
+          "rawOnlyProof": false,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": false,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": false,
+          "toolPairInInput": true,
+          "anyResume": true,
+          "rawCount": 1,
+          "workingSessionDigest": "9469a59cae03d9c37d3f23651ea27ede87143e0ce9d3734e72a0d938c2f18b78"
+        },
+        {
+          "stage": "transformed",
+          "markerInInput": false,
+          "markerInSupportedHistory": false,
+          "receiptInSupportedHistory": true,
+          "sdkPrefixProved": true,
+          "rawOnlyProof": false,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": true,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": true,
+          "toolPairInInput": true,
+          "anyResume": true,
+          "rawCount": 5,
+          "workingSessionDigest": "8d52258c050abd4f2dfd0096c1f94b1fe47014e2ff0d0ef6b99e64b1abfadf75"
+        },
+        {
+          "stage": "restore-prefix",
+          "markerInInput": false,
+          "markerInSupportedHistory": false,
+          "receiptInSupportedHistory": true,
+          "sdkPrefixProved": true,
+          "rawOnlyProof": false,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": true,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": true,
+          "toolPairInInput": false,
+          "anyResume": true,
+          "rawCount": 7,
+          "workingSessionDigest": "aa16030a0061795aeeea8a638beec4bb91f464eacc9d556362f04bca53030eff"
+        },
+        {
+          "stage": "normal-resume",
+          "markerInInput": false,
+          "markerInSupportedHistory": false,
+          "receiptInSupportedHistory": true,
+          "sdkPrefixProved": true,
+          "rawOnlyProof": false,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": true,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": true,
+          "toolPairInInput": false,
+          "anyResume": true,
+          "rawCount": 9,
+          "workingSessionDigest": "b43250ef0028a885410a60e0a1b44425ada0977c409b6f45c232ac26201ecff3"
+        }
+      ],
+      "httpWitnesses": {
+        "proxyCloseSeen": true,
+        "proxyListening": false,
+        "relayListening": false,
+        "remainingSockets": 0,
+        "remainingHandlers": 0,
+        "observedSocketCount": 6
+      },
+      "queryJoins": true,
+      "scrubHook": {
+        "invocations": 5,
+        "errors": 0,
+        "totalMs": 1.1170080000024427
+      },
+      "modelInit": [
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        }
+      ]
+    },
+    "candidate": {
+      "disposition": "PASS_SCOPED_EXECUTION_HISTORY_CLASSIFIER_HELD",
+      "firstFailure": null,
+      "nativeSDKQueries": 5,
+      "stages": [
+        {
+          "stage": "read-canary",
+          "markerInInput": false,
+          "markerInSupportedHistory": false,
+          "receiptInSupportedHistory": false,
+          "sdkPrefixProved": true,
+          "rawOnlyProof": false,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": false,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": false,
+          "toolPairInInput": true,
+          "anyResume": true,
+          "rawCount": 1,
+          "workingSessionDigest": "2b342a2c5654b3eb375eabd34c86ed6539b6aecbb9cf883e4ad1f93d098a3423"
+        },
+        {
+          "stage": "transformed",
+          "markerInInput": true,
+          "markerInSupportedHistory": true,
+          "receiptInSupportedHistory": true,
+          "sdkPrefixProved": false,
+          "rawOnlyProof": true,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": true,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": true,
+          "toolPairInInput": true,
+          "anyResume": false,
+          "rawCount": 5,
+          "workingSessionDigest": "578a65d1ecdea3a6f2573df5fb150e94100f5989dfc3a2fb8990551a9392ec78"
+        },
+        {
+          "stage": "restore-prefix",
+          "markerInInput": false,
+          "markerInSupportedHistory": false,
+          "receiptInSupportedHistory": true,
+          "sdkPrefixProved": true,
+          "rawOnlyProof": false,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": true,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": true,
+          "toolPairInInput": true,
+          "anyResume": false,
+          "rawCount": 7,
+          "workingSessionDigest": "3f539a4570b873555837486f040fef6720b574b8a35b92e84a48ff701ed5115f"
+        },
+        {
+          "stage": "normal-resume",
+          "markerInInput": false,
+          "markerInSupportedHistory": false,
+          "receiptInSupportedHistory": true,
+          "sdkPrefixProved": true,
+          "rawOnlyProof": false,
+          "servedReceiptInSupportedHistory": true,
+          "servedMatchesWorkingMapping": true,
+          "servedToolPairInSupportedHistory": true,
+          "toolPairInSupportedHistory": true,
+          "toolPairInInput": false,
+          "anyResume": true,
+          "rawCount": 9,
+          "workingSessionDigest": "2beeb8f29edf1b595059d0437d321491591cdca7bd44c4590fea3c4091302991"
+        }
+      ],
+      "httpWitnesses": {
+        "proxyCloseSeen": true,
+        "proxyListening": false,
+        "relayListening": false,
+        "remainingSockets": 0,
+        "remainingHandlers": 0,
+        "observedSocketCount": 6
+      },
+      "queryJoins": true,
+      "scrubHook": {
+        "invocations": 5,
+        "errors": 0,
+        "totalMs": 1.3784270000032848
+      },
+      "modelInit": [
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        },
+        {
+          "model": "claude-opus-5-5[1m]",
+          "version": "2.1.284"
+        }
+      ]
+    }
+  },
+  "E41": {
+    "kind": "Direct owned OpenCode-shaped protocol fixtures, not actual-client proof",
+    "status": "PASS_ALL_FOUR_E41_NATIVE_MODES",
+    "nativeSDKQueries": 16,
+    "modes": [
+      {
+        "mode": "chain-nonstream",
+        "qualified": true,
+        "verdict": {
+          "batches": [
+            1,
+            1,
+            1
+          ],
+          "realAnswers": 3,
+          "immutableParents": 4,
+          "distinctContinuations": 4,
+          "cachedPrefixFloor": 0.95,
+          "actualModel": "claude-opus-5-5",
+          "savedForkFollowup": true
+        },
+        "stages": [
+          {
+            "stage": "e41-chain-turn-1",
+            "rawCount": 1,
+            "lineage": "diverged",
+            "cacheRead": 0,
+            "cacheWrite": 2667,
+            "workingSessionDigest": "ed4289ad07fd64cae1527e50f11e94c7f30dc014ea37dd150986f06ce748985c",
+            "historyDigest": "e5b64b118b832948bed22b3682f2907d92f88a1cc150a92ab2fd17d36ede3061",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-chain-turn-2",
+            "rawCount": 3,
+            "lineage": "continuation",
+            "cacheRead": 2667,
+            "cacheWrite": 122,
+            "workingSessionDigest": "dee7243e2e1cb533614f9238f0443b3c40cf558290980f2eadd9236ee405639a",
+            "historyDigest": "f7e9542ee3224c0b5a110f4bbed7e18d5a7130119ad12feb8cf63c745afb4f80",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-chain-turn-3",
+            "rawCount": 5,
+            "lineage": "continuation",
+            "cacheRead": 2789,
+            "cacheWrite": 129,
+            "workingSessionDigest": "52d95544fef739fe70b3c8ea814a25e70e0323f90c9d495f7b8e06687b9a80da",
+            "historyDigest": "648090148696449fd1e1545bf66aef264e865e608e3381dc8088d567ee3355f3",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-chain-turn-4",
+            "rawCount": 7,
+            "lineage": "continuation",
+            "cacheRead": 2918,
+            "cacheWrite": 129,
+            "workingSessionDigest": "ccc7e4beef6139b15282841a176b0844c267ee153618520ba47eb4309ac77d32",
+            "historyDigest": "1d80481b535ca641382998b3fb563b92bd7d8cf343c114353544af3d3480eed2",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-saved-fork-followup",
+            "rawCount": 9,
+            "lineage": "continuation",
+            "cacheRead": 3047,
+            "cacheWrite": 133,
+            "workingSessionDigest": "56759234333e619ea3249ff538976c9003b3f992e5c857e293a33d34f15a08ea",
+            "historyDigest": "722e6a1812108686c000a39fa46ebc2516fad638e4f16128973182b02923abf5",
+            "responseJoined": true
+          }
+        ],
+        "httpWitnesses": {
+          "proxyCloseSeen": true,
+          "proxyListening": false,
+          "relayListening": false,
+          "remainingSockets": 0,
+          "remainingHandlers": 0,
+          "observedSocketCount": 1
+        },
+        "nativeSDKQueries": 5
+      },
+      {
+        "mode": "chain-stream",
+        "qualified": true,
+        "verdict": {
+          "batches": [
+            1,
+            1,
+            1
+          ],
+          "realAnswers": 3,
+          "immutableParents": 4,
+          "distinctContinuations": 4,
+          "cachedPrefixFloor": 0.95,
+          "actualModel": "claude-opus-5-5",
+          "savedForkFollowup": true
+        },
+        "stages": [
+          {
+            "stage": "e41-chain-turn-1",
+            "rawCount": 1,
+            "lineage": "diverged",
+            "cacheRead": 749,
+            "cacheWrite": 1906,
+            "workingSessionDigest": "4f250c5a822ae0f8e5cbb9cfa2d38c8f3571addaf17929cbd387e3d135ca5c13",
+            "historyDigest": "90a54bc154d4dca4c256a7b3fcaf1ff2ed54f21834d9db33442bc034a969a7fd",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-chain-turn-2",
+            "rawCount": 3,
+            "lineage": "continuation",
+            "cacheRead": 2655,
+            "cacheWrite": 125,
+            "workingSessionDigest": "ad329472065d4e617717c98566bc06aad413bd3036fd40dd56ea209dc9e3aef0",
+            "historyDigest": "6c17a73adfb64df3b5c7144e46711b9aa7fff4dd7d217335f318ec18ccdc8e81",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-chain-turn-3",
+            "rawCount": 5,
+            "lineage": "continuation",
+            "cacheRead": 2780,
+            "cacheWrite": 122,
+            "workingSessionDigest": "59e3d42bb1234eaf6d4a7f57105be52e94f33d9ab176f605f6294acd13461bb7",
+            "historyDigest": "278cf9dc3a306ff0fb0061e337d2a2f535a9d41abae2edf884ff8e536f0992b5",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-chain-turn-4",
+            "rawCount": 7,
+            "lineage": "continuation",
+            "cacheRead": 2902,
+            "cacheWrite": 126,
+            "workingSessionDigest": "3996d6f3140d792290ddabbaf18408f8775b602d91620c31b18c464718bed995",
+            "historyDigest": "d1cbed0d20aeea446a7285e13ee783a4e705845e85b693449077a9fc47e66624",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-saved-fork-followup",
+            "rawCount": 9,
+            "lineage": "continuation",
+            "cacheRead": 3028,
+            "cacheWrite": 132,
+            "workingSessionDigest": "974939f200d7c3174542e4e63d8d8915e9c65f37a78fededa0a6aa5e25ca5470",
+            "historyDigest": "91ff529d79a30e3750dd40e34a135b4842e0fb9ce8c32616292232f26ec62bd9",
+            "responseJoined": true
+          }
+        ],
+        "httpWitnesses": {
+          "proxyCloseSeen": true,
+          "proxyListening": false,
+          "relayListening": false,
+          "remainingSockets": 0,
+          "remainingHandlers": 0,
+          "observedSocketCount": 1
+        },
+        "nativeSDKQueries": 5
+      },
+      {
+        "mode": "parallel-nonstream",
+        "qualified": true,
+        "verdict": {
+          "batches": [
+            3
+          ],
+          "realAnswers": 3,
+          "immutableParents": 2,
+          "distinctContinuations": 2,
+          "cachedPrefixFloor": 0.95,
+          "actualModel": "claude-opus-5-5",
+          "savedForkFollowup": true
+        },
+        "stages": [
+          {
+            "stage": "e41-parallel-turn-1",
+            "rawCount": 1,
+            "lineage": "diverged",
+            "cacheRead": 749,
+            "cacheWrite": 1898,
+            "workingSessionDigest": "89bd80c019021d08a08fc389ea8f376640b61660e6e3188292917228238774bb",
+            "historyDigest": "20ef5e61ab5197dee71e272306a2cffa6f1aa098c7a86d0f31e3a327481ae5f3",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-parallel-turn-2",
+            "rawCount": 3,
+            "lineage": "continuation",
+            "cacheRead": 2647,
+            "cacheWrite": 465,
+            "workingSessionDigest": "85cc5e53f19fa182e6e19b5e42d4b80a9d481e1b9f0bf3222a32b8ed57943475",
+            "historyDigest": "b9f9c0604f257c837994db959a905ce0cea7291505c8c7d1d82fe904987bc445",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-saved-fork-followup",
+            "rawCount": 5,
+            "lineage": "continuation",
+            "cacheRead": 3112,
+            "cacheWrite": 140,
+            "workingSessionDigest": "8d2714d9ee62ff19c4f8c2bc1e6fbecd66c00dbe8054e19884f2d01b078fdd74",
+            "historyDigest": "084f2b5a6e00abaec1d699b257b011dcf0893e38e0f28cc9a2d86e3c172ecfb0",
+            "responseJoined": true
+          }
+        ],
+        "httpWitnesses": {
+          "proxyCloseSeen": true,
+          "proxyListening": false,
+          "relayListening": false,
+          "remainingSockets": 0,
+          "remainingHandlers": 0,
+          "observedSocketCount": 1
+        },
+        "nativeSDKQueries": 3
+      },
+      {
+        "mode": "parallel-stream",
+        "qualified": true,
+        "verdict": {
+          "batches": [
+            3
+          ],
+          "realAnswers": 3,
+          "immutableParents": 2,
+          "distinctContinuations": 2,
+          "cachedPrefixFloor": 0.95,
+          "actualModel": "claude-opus-5-5",
+          "savedForkFollowup": true
+        },
+        "stages": [
+          {
+            "stage": "e41-parallel-turn-1",
+            "rawCount": 1,
+            "lineage": "diverged",
+            "cacheRead": 749,
+            "cacheWrite": 1886,
+            "workingSessionDigest": "89be6507e46e3974327561aa1e95d9e8cb96c8dc92ff8ca9ae7df85d3885be6e",
+            "historyDigest": "2792a5bb90d19ae6cd1cc93a5e53c61cd2629dfe5f0b6f3924fbd5c5180cd9da",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-parallel-turn-2",
+            "rawCount": 3,
+            "lineage": "continuation",
+            "cacheRead": 2635,
+            "cacheWrite": 455,
+            "workingSessionDigest": "1a980a33ad39ad3134c1dd177c3bfeb34383ec3eb0fcf22c664396f9b0378bf6",
+            "historyDigest": "6a5bdaa5ba87f52023f3de3aace16a6c52031420f2f73f0753279df9e75e4295",
+            "responseJoined": true
+          },
+          {
+            "stage": "e41-saved-fork-followup",
+            "rawCount": 5,
+            "lineage": "continuation",
+            "cacheRead": 3090,
+            "cacheWrite": 136,
+            "workingSessionDigest": "cfd0ee0e3b630a6f43d92edbc8f045a2530c69a4926effc23391bf1b4299e92e",
+            "historyDigest": "a835a7140477fcbe4695539e13904a0613d574c9b47b8dcb452fffbe5270c648",
+            "responseJoined": true
+          }
+        ],
+        "httpWitnesses": {
+          "proxyCloseSeen": true,
+          "proxyListening": false,
+          "relayListening": false,
+          "remainingSockets": 0,
+          "remainingHandlers": 0,
+          "observedSocketCount": 1
+        },
+        "nativeSDKQueries": 3
+      }
+    ]
+  },
+  "localGates": {
+    "npmTest": {
+      "pretest": true,
+      "isolatedGroups": 21,
+      "pass": 5552,
+      "skip": 35,
+      "fail": 0,
+      "sourceHead": "7960fd62bf226cd8707440d9efc7083319614d2e"
+    },
+    "focusedPass": 50,
+    "typecheckExit": 0,
+    "buildExit": 0,
+    "productionAndTestInputsUnchangedAtLaterEscrowHeads": true
+  },
+  "fixtureFailuresRetained": [
+    {
+      "round": "R2",
+      "failure": "missing owned fixture /etc/machine-id",
+      "nativeQueries": 0,
+      "correction": "proper read-only standard machine-id fixture"
+    },
+    {
+      "round": "R3",
+      "failure": "supported-history-tool-receipt-lost-read-canary; httpJoinedfalse",
+      "nativeQueries": 2,
+      "diagnosis": "Existing E54 independent headerless checkpoint branch; public SDK confirms receipt in answering branch. Bun listener close omits wrapper close event.",
+      "correction": "Terminal-verified preallocated serving branch plus unchanged mapping control; explicit original socket destruction with close witnesses"
+    }
+  ],
+  "custody": {
+    "allQualifiedOriginalChildrenPipesPublicQueryAndHistoryHTTPWitnessesJoined": true,
+    "outerContainerWaitsJoined": true,
+    "stoppedOwnedContainersRemoved": true,
+    "readOnlyAccessInputUnchangedAndRemovedAfterTerminalAudits": true,
+    "sourceCredentialLoginRefreshWrites": false,
+    "refreshTokenCopied": false,
+    "globalDescendants": "unknown"
+  },
+  "review": {
+    "freshReviewer": "root adversarial pass",
+    "newDelegatedIndependentReview": false,
+    "archivedIndependentSourceAcceptanceRetainsOriginalScope": true,
+    "materialScopedFindingsRemaining": 0
+  },
+  "remainingGates": [
+    "Required final-head CI before merge",
+    "Original historical Kubernetes/native/SDK tuple not supplied",
+    "Undisclosed current classifier trigger and fresh same-window off/on/off"
+  ],
+  "issue769Closed": false,
+  "releaseAuthorizedByThisProof": false
+}

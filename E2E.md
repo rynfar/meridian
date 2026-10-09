@@ -15,6 +15,85 @@ Live tests against the real proxy + Claude Max SDK. These verify the full reques
 
 **Prerequisites:** Claude Max subscription, `claude auth status` shows `loggedIn: true`, `opencode` installed with the generation-matching Meridian OpenCode plugin. Successful auth readiness does not establish model access.
 
+## OpenClaw #769 credentialless client preparation
+
+Independently install the reported `openclaw@2026.6.11` into a disposable prefix
+using Node >=22.19.0, with `--ignore-scripts --omit=optional`. The qualified
+registry tarball SHA256 is
+`3b3165508391b82b38e62189979df589a45a2d8019a8ef7910fccc554649ce7b`.
+
+```sh
+E2E_OPENCLAW_BIN=<absolute-prefix>/node_modules/openclaw/openclaw.mjs \
+E2E_OUTPUT_DIR=<new-absolute-artifact-directory> \
+node scripts/e2e-openclaw-client-protocol.mjs
+```
+
+The bounded loopback SSE fixture validates the actual client version and config,
+then requires one declared file-read call, its matching result with a random
+owned receipt, and final client output. It isolates HOME, state, configuration,
+workspace and XDG directories, supplies only a local fixture key, and records
+original CLI exit/close/captured-pipe witnesses plus owned listener/socket/handler
+joins. Tool IDs are alphanumeric because this client normalizes punctuation.
+Failures retain their first cause and retire request admission before artifact
+writes. Existing output directories are rejected.
+
+This preparation uses an owned simulated provider. It does not validate Meridian,
+the Agent SDK, real Claude, Kubernetes, billing or the undisclosed classifier
+trigger. Actual affected-flow proof, all four E41 modes, package verification and
+final-head CI remain separate gates. See [current source review and qualifications](docs/maintenance/evidence/openclaw769-current-main-20261009.md).
+
+## OpenClaw #769 native plugin-message contract
+
+[`scripts/e2e-openclaw-native.mjs`](scripts/e2e-openclaw-native.mjs) runs the
+reported OpenClaw 2026.6.11 client against independently installed baseline or
+candidate Meridian and the same corrected scrub package. The qualified tuple
+is Linux arm64, Bun 1.3.11, Node 22.22.3, Agent SDK 0.2.141, native Claude Code
+2.1.284 and literal wire model `opus[1m]`, observed as `claude-opus-5-5[1m]`.
+The reporter's original SDK/native versions and architecture were not supplied.
+
+Set absolute `E2E_MERIDIAN_ENTRY`, `E2E_SDK_ENTRY`, `E2E_NATIVE_BIN`,
+`E2E_OPENCLAW_BIN`, `E2E_SCRUB_ENTRY`, and a fresh `E2E_OUTPUT_DIR`; set
+`E2E_EXPECT=baseline` or `candidate`. Run `bun scripts/e2e-openclaw-native.mjs
+--prepare-only` without credentials to qualify versions/imports. The live run
+omits that flag and requires `E2E_TOKEN_FILE` pointing to an owned private
+access-only file in a private directory, mounted read-only. Isolate the runtime
+in an owned container with a valid machine-id, private writable fixture paths
+and no shared user configuration. Never substitute the client-only preparation
+image's placeholder for the qualified native ELF executable.
+
+The real client reads a random owned receipt, then sends a benign transformed
+follow-up, an unchanged follow-up and a normal resume. Observe actual SDK inputs,
+original native children, terminal session IDs and supported public SDK history.
+The transformed input must be ignored on baseline and consumed on candidate;
+candidate replay preserves the actual read call/result, withholds SDK-prefix
+proof, restores that proof on unchanged replay and resumes subsequently.
+Raw client ancestry remains separate from the plugin edit.
+
+The first headerless tool-result turn has the existing E54 limitation: it can
+resume the checkpoint but does not publish its answering branch. Require the
+receipt and matching tool pair in the preallocated, terminal-verified answering
+session; retain the unchanged working mapping as a separate control. Subsequent
+ordinary user turns must publish the branch that actually answered. Do not add
+synthetic client session headers or choose an arbitrary listed session.
+
+Retire admission on the first failure and retain original process, pipe, public
+query, history-read, listener, socket and handler witnesses. Bun 1.3.11 can omit
+socket-wrapper close events after listener closure; explicitly destroy original
+owned handles and still require their close events. No classifier/billing
+resolution, Kubernetes certification, wider E41 acceptance or final-head CI is
+implied by this bounded contract probe.
+
+The same owned native fixture can run the adjacent E41 matrix by setting
+`E2E_EXPECT=candidate`, `E2E_E41_MODE=chain` or `parallel`, and an explicit
+`E2E_E41_STREAM=0` or `1`. Use a fresh artifact directory for each of the four
+combinations. These arms send owned OpenCode-shaped HTTP requests rather than
+launching a real client. They retain signed/redacted assistant blocks with E41's
+shared parser, perform three distinct owned file reads, and require exact
+chain/parallel batches, a fork of the previous working mapping at each result
+round, one successful real result per call, immutable parent history, a saved-fork
+follow-up, and at least 95% of the previous cached prefix on every continuation.
+They use the same real SDK/native model and original actor/HTTP custody gates.
+
 > **Droid tests (D1–D10)** additionally require `droid` installed (`droid --version` ≥ 0.89.0) and a Factory AI account for BYOK configuration. Tests D1–D10 cover internal mode (the default). Passthrough mode for Droid is opt-in via `MERIDIAN_PASSTHROUGH=1` and requires `droid` ≥ 0.109 — see "Droid passthrough mode" below.
 
 ## Required Meridian OpenCode plugin preflight
@@ -7766,6 +7845,37 @@ The wrapper observes the real SDK, and only the owned consumer dependency is
 replaced. It does not rewrite provider output or inspect SDK persistence. See
 [versions, commands, causal failures and limits](docs/maintenance/evidence/1246-claude-path-resolution.md).
 
+## Claude Code executable setting
+
+For changes to Settings, Claude Code Executable (`/settings/api/claude-executable`)
+or to how a turn picks its executable, build and run
+`scripts/e2e-claude-executable-setting.mjs` with `E2E_PROFILE_CLAUDE_DIR`
+(read-only credentials) and optional `E2E_SYSTEM_CLAUDE`/`E2E_CUSTOM_CLAUDE`.
+It starts the built Node server once and sends real turns on system, bundled
+and custom, switching through the settings API without a restart, then switches
+while a streaming turn is still answering. Require every exact receipt, procfs
+attribution of each turn's Claude Code process to the chosen executable only,
+matching `/health` and settings state, a 400 for an unusable custom path, the
+in-flight turn finishing on its original executable, the next turn on the new
+one, and zero residual processes. The turns carry no client headers, so this is
+HTTP evidence for logic every adapter shares, not an OpenCode-flow proof. Render
+the settings card at phone and desktop widths when it changes. See
+[the evidence record](docs/maintenance/evidence/claude-executable-setting.md).
+
+The actual OpenCode V1 arm runs the same assertions with
+`E2E_CLIENT=opencode`, an absolute `E2E_OPENCODE_BIN`, the pinned
+`E2E_OPENCODE_VERSION`, and an independently installed server scrub plugin at
+`E2E_PLUGIN_PATH` (optionally assert `E2E_PLUGIN_VERSION`). It runs the tested
+CLI's `setup --v1`, verifies the effective configuration contains exactly one
+matching built plugin and provider relay, then checks valid plugin-generated
+signed session/agent headers before forwarding to the SDK. It uses one actual
+OpenCode server and saved session, requires completed assistant state through
+OpenCode's public session API plus streamed `message_stop`, and joins every
+client command, server and captured pipe. It does not manufacture client headers
+or inspect private SDK transcripts. Both arms borrow only a private credential
+snapshot, retain the account's native HOME, and leave the operator profile alone.
+See [the corrected before/after proof and limits](docs/maintenance/evidence/claude-executable-selection-review-20261008.md).
+
 ## Antigravity catalogs above 128 client tools
 
 For catalog-validation changes, run `scripts/e2e-antigravity-tool-catalog.mjs`
@@ -7867,3 +7977,16 @@ their own auth status. A synthetic API key recognition is not inference-key
 validation. The separately isolated HTTP regression file checks supplied setup
 tokens and preserves stored subscription plan, renewal and missing-token rules.
 See [bounded proof](docs/maintenance/evidence/1257-profile-credential-isolation.md).
+
+## Home Manager service environment rendering
+
+For the opt-in `unsetEnvironment` configuration, run native Nix with the existing
+lock: `nix build --no-link --no-update-lock-file .#checks.x86_64-linux.home-module`.
+This uses the real locked Home Manager renderer and asserts default omission,
+repeated removal directives, explicit config/login directories, disabled-service
+omission and invalid-name rejection. The check is Linux-only: verify the Darwin
+check set with `nix eval --no-update-lock-file --json .#checks.aarch64-darwin
+--apply 'checks: builtins.attrNames checks'` and require an empty array.
+[Before/after proof and platform limits](docs/maintenance/evidence/home-manager-isolation-1305.md)
+retain the native failed-before missing-service assertion and the corrected build.
+No model/credential flow is implicated by this generated-unit-only change.

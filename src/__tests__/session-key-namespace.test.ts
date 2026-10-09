@@ -58,7 +58,7 @@ describe("Mapping namespace ownership", () => {
   it("freshly replaces an ambiguous legacy slot without inheriting checkpoint/recovery/transcript ownership", () => {
     const { generation, transcript } = seedLegacy()
     expect(storeSession(key, opening, "fresh-sdk-id", directory,
-      [null], undefined, null, null, undefined, undefined, generation, undefined, namespace)).toBeTruthy()
+      [null], undefined, null, null, undefined, undefined, generation, undefined, true, namespace)).toBeTruthy()
     const fresh = readSessionStoreSnapshot()[key]
     expect(fresh?.keyNamespace).toBe(namespace)
     expect(fresh?.claudeSessionId).toBe("fresh-sdk-id")
@@ -92,13 +92,13 @@ describe("Mapping namespace ownership", () => {
     expect(storeSharedSession(key, "other-main-sdk-id", 1)).toBeTruthy()
     const before = readSessionStoreSnapshot()[key]
     expect(storeSession(key, opening, "fresh-sdk-id", directory,
-      undefined, undefined, null, null, undefined, undefined, generation, undefined, namespace)).toBe(false)
+      undefined, undefined, null, null, undefined, undefined, generation, undefined, true, namespace)).toBe(false)
     expect(readSessionStoreSnapshot()[key]).toEqual(before)
   })
 
   it.each([undefined, namespace])("limits read-error memory fallback to its exact private namespace: %s", expectedNamespace => {
     expect(storeSession(key, opening, "cached-owned-sdk", directory,
-      undefined, undefined, null, null, undefined, undefined, undefined, undefined, expectedNamespace)).toBeTruthy()
+      undefined, undefined, null, null, undefined, undefined, undefined, undefined, true, expectedNamespace)).toBeTruthy()
     const loaded = lookupSession(key, continuation, directory, expectedNamespace)
     expect(loaded.type).toBe("continuation")
     if (loaded.type !== "continuation") throw new Error("expected owned cached continuation")

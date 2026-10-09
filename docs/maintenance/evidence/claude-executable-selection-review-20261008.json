@@ -1,0 +1,1117 @@
+{
+  "schema": 1,
+  "status": "ACCEPT_SCOPED_CORRECTION_WITH_FINAL_HEAD_CI_HOLD",
+  "ownerApproval": {
+    "issue": "https://github.com/rynfar/meridian/issues/1319",
+    "decision": "Approve the bounded contract",
+    "date": "2026-10-08"
+  },
+  "sourcePR": "https://github.com/rynfar/meridian/pull/1293",
+  "sourceHead": "1a201f37ab49261ce9d463d2f43e1182ab66202a",
+  "base": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+  "productCodeHead": "bc695a9976eefd638815853b0e792fe55d4f1958",
+  "nativeCandidateHead": "97ec04a873d96ee5864e8716d578a811b282f85d",
+  "clientHarnessHead": "6fdd002abd2f9af9cc47027ab2a55d39b7e58f40",
+  "authorReplay": {
+    "c5811dc7270644ed207daf8be3108b402f91cd2f": "0de23574229e58d2b2a3489d7e876b4a6a3874d8",
+    "1a201f37ab49261ce9d463d2f43e1182ab66202a": "32f64d54e09f64594b8897020bf7f72c6e244020"
+  },
+  "contributor": {
+    "name": "Nowaker",
+    "email": "spam@nowaker.net",
+    "AuthorAndAuthorDatePreserved": true
+  },
+  "local": {
+    "head": "bc695a9976eefd638815853b0e792fe55d4f1958",
+    "steps": [
+      {
+        "command": [
+          "npm",
+          "test"
+        ],
+        "exit": 0,
+        "durationSeconds": 482.684,
+        "log": "0-local.log",
+        "sha256": "bf5f845c7c6ee1cd340208fb2353bf8c249dfbaacdcbd189a8b7ca55e0b15d2d"
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        "exit": 0,
+        "durationSeconds": 3.879,
+        "log": "1-local.log",
+        "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+      },
+      {
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exit": 0,
+        "durationSeconds": 3.249,
+        "log": "2-local.log",
+        "sha256": "79e4bfc20bb6d65f8ecf35cc7282ca05829becf6a20c3232e945e6557f0306e8"
+      },
+      {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "origin/main...HEAD"
+        ],
+        "exit": 0,
+        "durationSeconds": 0.048,
+        "log": "3-local.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "testCounts": {
+      "pass": 5502,
+      "skip": 35,
+      "fail": 0
+    },
+    "qualification": "Later commits change only headless harness/docs, not src/plugin/bin/package/build inputs; local product/test tree remains identical."
+  },
+  "native": {
+    "httpBefore": {
+      "receiptSha256": "ac12e07cdf42fc0aac1bf2776b4c0f915bdf937413091ee64e92ace50a9b8c96",
+      "receipt": {
+        "arm": "main74",
+        "cid": "e27c0cdd3dc841e8afcbe57554aface711943dccaa6c33635b6d10e9ced8863f",
+        "image": "sha256:e736e09c6b3d9ab72f2fe0605b5ba7417d058d69336a28a065dd5495a02b447a",
+        "harnessSha256": "d2d400ab534a059ce633e0f26afd5ef4d1da62ec0ff1a49aa4c54817750cac3d",
+        "source": {
+          "head": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+          "archiveSha256": "40e6497aa750f4294930a1efda598c5978caaa61c7520ea35a60b5fd8997f6c4",
+          "packageLockSha256": "bc2d2507c29e1b2a932c46851e16907539c64508af2cf8d194d9ede0e123ae76"
+        },
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 1,
+          "Error": "",
+          "StartedAt": "2026-10-08T23:22:27.200647762Z",
+          "FinishedAt": "2026-10-08T23:22:31.982652468Z"
+        },
+        "accessOnly": true,
+        "operatorProfileWrites": false,
+        "model": "claude-haiku-4-5",
+        "privateGrantUnchanged": true,
+        "proofArtifacts": [
+          "tmp/meridian-exe-setting-zNmEOr/proof.json"
+        ],
+        "proof": {
+          "result": "FAIL",
+          "failure": {
+            "step": "settings-state",
+            "reason": "GET /settings/api/claude-executable answered 404"
+          },
+          "node": "v22.22.3",
+          "platform": "linux",
+          "arch": "arm64",
+          "model": "claude-haiku-4-5",
+          "sdk": "0.2.141",
+          "executables": {
+            "bundled": {
+              "path": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            },
+            "system": {
+              "path": "<fixture>/bin/claude",
+              "runs": "/opt/tools/node_modules/@anthropic-ai/claude-code-linux-arm64/claude",
+              "version": "2.1.292"
+            },
+            "custom": {
+              "path": "<fixture>/custom/claude",
+              "runs": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            }
+          },
+          "adapters": [
+            "opencode"
+          ],
+          "steps": [
+            {
+              "step": "startup",
+              "healthy": true
+            },
+            {
+              "step": "starts-on-path",
+              "source": "path-lookup"
+            },
+            {
+              "step": "turn-on-path",
+              "ranOn": "system",
+              "responseModel": "claude-haiku-4-5",
+              "durationMs": 3493,
+              "started": {
+                "system": 1,
+                "custom": 0,
+                "bundled": 0,
+                "other": 0
+              }
+            }
+          ],
+          "serverRestarted": false,
+          "residualProcesses": 0,
+          "closure": {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": true,
+            "killSent": false,
+            "signalFailure": null
+          },
+          "operatorProfileMutated": false,
+          "credentialSnapshotRemoved": true
+        }
+      }
+    },
+    "httpAfter": {
+      "receiptSha256": "58a44b93d8291c34f413d2d0422ecd48569cd4da2475f387980560e34019e637",
+      "receipt": {
+        "arm": "candidate97",
+        "cid": "1d4f2f8db874375d8295c103dfcd4f504d4c3a9ace09247a9dba903cc89b941a",
+        "image": "sha256:3a31babce09e2532efe054730f331591654347188e20b1e243765046bc27bc60",
+        "harnessSha256": "d2d400ab534a059ce633e0f26afd5ef4d1da62ec0ff1a49aa4c54817750cac3d",
+        "source": {
+          "head": "97ec04a873d96ee5864e8716d578a811b282f85d",
+          "archiveSha256": "4fe354e9ddb6baffa0da32b7980a822d824500de7b873b96fa4fefb11b5c5a55",
+          "packageLockSha256": "bc2d2507c29e1b2a932c46851e16907539c64508af2cf8d194d9ede0e123ae76"
+        },
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-08T23:23:34.971877422Z",
+          "FinishedAt": "2026-10-08T23:23:56.164163057Z"
+        },
+        "accessOnly": true,
+        "operatorProfileWrites": false,
+        "model": "claude-haiku-4-5",
+        "privateGrantUnchanged": true,
+        "proofArtifacts": [
+          "tmp/meridian-exe-setting-dCa0We/proof.json"
+        ],
+        "proof": {
+          "result": "PASS",
+          "node": "v22.22.3",
+          "platform": "linux",
+          "arch": "arm64",
+          "model": "claude-haiku-4-5",
+          "sdk": "0.2.141",
+          "executables": {
+            "bundled": {
+              "path": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            },
+            "system": {
+              "path": "<fixture>/bin/claude",
+              "runs": "/opt/tools/node_modules/@anthropic-ai/claude-code-linux-arm64/claude",
+              "version": "2.1.292"
+            },
+            "custom": {
+              "path": "<fixture>/custom/claude",
+              "runs": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            }
+          },
+          "adapters": [
+            "opencode"
+          ],
+          "steps": [
+            {
+              "step": "startup",
+              "healthy": true
+            },
+            {
+              "step": "starts-on-path",
+              "source": "path-lookup"
+            },
+            {
+              "step": "turn-on-path",
+              "ranOn": "system",
+              "responseModel": "claude-haiku-4-5",
+              "durationMs": 3061,
+              "started": {
+                "system": 1,
+                "custom": 0,
+                "bundled": 0,
+                "other": 0
+              }
+            },
+            {
+              "step": "settings-state",
+              "mode": "system",
+              "systemVersion": "2.1.292",
+              "bundledVersion": "2.1.284"
+            },
+            {
+              "step": "refuses-unusable-path",
+              "status": 400
+            },
+            {
+              "step": "switch-to-bundled",
+              "status": 200,
+              "active": "bundled"
+            },
+            {
+              "step": "turn-on-bundled",
+              "ranOn": "bundled",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 2991,
+              "started": {
+                "system": 0,
+                "custom": 0,
+                "bundled": 1,
+                "other": 0
+              }
+            },
+            {
+              "step": "switch-to-custom",
+              "status": 200,
+              "active": "custom"
+            },
+            {
+              "step": "turn-on-custom",
+              "ranOn": "custom",
+              "responseModel": "claude-haiku-4-5",
+              "durationMs": 2469,
+              "started": {
+                "system": 0,
+                "custom": 1,
+                "bundled": 0,
+                "other": 0
+              }
+            },
+            {
+              "step": "switch-during-turn",
+              "ranOn": "custom",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 7931,
+              "started": {
+                "system": 0,
+                "custom": 1,
+                "bundled": 0,
+                "other": 0
+              },
+              "switchedTo": "system",
+              "switchLandedMsBeforeTurnEnded": 5234
+            },
+            {
+              "step": "next-turn-on-path",
+              "ranOn": "system",
+              "responseModel": "claude-haiku-4-5",
+              "durationMs": 2250,
+              "started": {
+                "system": 1,
+                "custom": 0,
+                "bundled": 0,
+                "other": 0
+              }
+            },
+            {
+              "step": "same-process",
+              "restarted": false
+            }
+          ],
+          "serverRestarted": false,
+          "residualProcesses": 0,
+          "closure": {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": true,
+            "killSent": false,
+            "signalFailure": null
+          },
+          "operatorProfileMutated": false,
+          "credentialSnapshotRemoved": true
+        }
+      }
+    },
+    "clientBefore": {
+      "receiptSha256": "a8f11b669d6c60d46f12799d48dc38768f5e064c5b706a24338441389c7b7ff7",
+      "receipt": {
+        "arm": "main74",
+        "cid": "fd513624471284ebdc92e025c67d7bac2d5fc1271f564a5f2283204226609f9d",
+        "image": "sha256:e736e09c6b3d9ab72f2fe0605b5ba7417d058d69336a28a065dd5495a02b447a",
+        "harnessSha256": "5240f39c690b22872caf474f52282884308862f9715d80a87a3bbed2698e547b",
+        "source": {
+          "head": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+          "archiveSha256": "40e6497aa750f4294930a1efda598c5978caaa61c7520ea35a60b5fd8997f6c4",
+          "packageLockSha256": "bc2d2507c29e1b2a932c46851e16907539c64508af2cf8d194d9ede0e123ae76"
+        },
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 1,
+          "Error": "",
+          "StartedAt": "2026-10-08T23:37:18.972720581Z",
+          "FinishedAt": "2026-10-08T23:37:33.38357904Z"
+        },
+        "client": "OpenCode V1 1.18.32",
+        "harnessHead": "6fdd002abd2f9af9cc47027ab2a55d39b7e58f40",
+        "helperHashes": {
+          "observe-sdk-models.mjs": "c94aa6dc442ca310a5295a3c9078f513b47ecbcf4adcf407efaad9520b900091",
+          "executableOpenCodeClient.mjs": "2287d100cda08cb287191ef483bf5c11901749ebcfcc7b5804c57544749467bf",
+          "e2eProcessCustody.mjs": "89b4c276fba3d3b3a5b473ace061fc3ae2107d3ca80d8611696bfd5ee284b361",
+          "opencode-tool-roster.mjs": "52920d7bdbce47ef9981f017205b3a9e76e4e7f88b3e0e65d1ac81234c374cb5"
+        },
+        "accessOnly": true,
+        "operatorProfileWrites": false,
+        "model": "claude-haiku-4-5",
+        "privateGrantUnchanged": true,
+        "proofArtifacts": [
+          "tmp/meridian-exe-setting-N8OuV0/proof.json"
+        ],
+        "proof": {
+          "result": "FAIL",
+          "failure": {
+            "step": "settings-state",
+            "reason": "GET /settings/api/claude-executable answered 404"
+          },
+          "node": "v22.22.3",
+          "platform": "linux",
+          "arch": "arm64",
+          "model": "claude-haiku-4-5",
+          "sdk": "0.2.141",
+          "executables": {
+            "bundled": {
+              "path": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            },
+            "system": {
+              "path": "<fixture>/bin/claude",
+              "runs": "/opt/tools/node_modules/@anthropic-ai/claude-code-linux-arm64/claude",
+              "version": "2.1.292"
+            },
+            "custom": {
+              "path": "<fixture>/custom/claude",
+              "runs": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            }
+          },
+          "adapters": [
+            "opencode"
+          ],
+          "steps": [
+            {
+              "step": "startup",
+              "healthy": true
+            },
+            {
+              "step": "starts-on-path",
+              "source": "path-lookup"
+            },
+            {
+              "step": "actual-client-preflight",
+              "version": "1.18.32",
+              "plugin": "<repo>/dist/meridian",
+              "pluginSha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+              "setupExit": 0,
+              "effectiveEntries": 1,
+              "runtimeLoadWitness": "signed hook checked before relay forwarding",
+              "providerTargetsRelay": true,
+              "scrub": {
+                "version": "0.2.3",
+                "status": "active"
+              }
+            },
+            {
+              "step": "turn-on-path",
+              "ranOn": "system",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 3788,
+              "started": {
+                "system": 1,
+                "custom": 0,
+                "bundled": 0,
+                "other": 0
+              },
+              "actualClient": true,
+              "sameSession": true,
+              "primaryRequests": 1
+            }
+          ],
+          "serverRestarted": false,
+          "residualProcesses": 0,
+          "closure": {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": true,
+            "killSent": false,
+            "signalFailure": null
+          },
+          "actualClient": "opencode-v1",
+          "clientClosure": {
+            "closed": true,
+            "hostClosure": {
+              "exitSeen": true,
+              "closeSeen": true,
+              "stdoutClosed": true,
+              "stderrClosed": true,
+              "spawnFailed": false,
+              "exitCode": null,
+              "exitSignal": "SIGTERM",
+              "joined": true,
+              "termSent": true,
+              "killSent": false,
+              "signalFailure": null
+            },
+            "handlersJoined": true,
+            "closures": [
+              {
+                "label": "opencode-version",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-setup",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-preflight",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-turn-1",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              }
+            ],
+            "requests": [
+              {
+                "route": "/v1/messages",
+                "model": "claude-haiku-4-5",
+                "streaming": true,
+                "agent": "build",
+                "mode": "primary",
+                "requestIdentity": true,
+                "attested": true,
+                "hasCurrentReceipt": true,
+                "pluginLoadedBeforeForward": true,
+                "status": 200,
+                "responseModel": "claude-haiku-4-5-20251001",
+                "messageStopped": true,
+                "sessionCaptured": true
+              }
+            ]
+          },
+          "operatorProfileMutated": false,
+          "credentialSnapshotRemoved": true
+        }
+      }
+    },
+    "clientAfter": {
+      "receiptSha256": "af14a55bf6039297ba11cf10bc21ae1b57a7be6405075d7bb62f634f75b215ce",
+      "receipt": {
+        "arm": "candidate97",
+        "cid": "eeb6c0ab33596ab15cd8e2415cf98aa41ee9dec509cc605390e0a877877a4563",
+        "image": "sha256:3a31babce09e2532efe054730f331591654347188e20b1e243765046bc27bc60",
+        "harnessSha256": "5240f39c690b22872caf474f52282884308862f9715d80a87a3bbed2698e547b",
+        "source": {
+          "head": "97ec04a873d96ee5864e8716d578a811b282f85d",
+          "archiveSha256": "4fe354e9ddb6baffa0da32b7980a822d824500de7b873b96fa4fefb11b5c5a55",
+          "packageLockSha256": "bc2d2507c29e1b2a932c46851e16907539c64508af2cf8d194d9ede0e123ae76"
+        },
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-08T23:38:03.594726661Z",
+          "FinishedAt": "2026-10-08T23:38:32.445524493Z"
+        },
+        "client": "OpenCode V1 1.18.32",
+        "harnessHead": "6fdd002abd2f9af9cc47027ab2a55d39b7e58f40",
+        "helperHashes": {
+          "observe-sdk-models.mjs": "c94aa6dc442ca310a5295a3c9078f513b47ecbcf4adcf407efaad9520b900091",
+          "executableOpenCodeClient.mjs": "2287d100cda08cb287191ef483bf5c11901749ebcfcc7b5804c57544749467bf",
+          "e2eProcessCustody.mjs": "89b4c276fba3d3b3a5b473ace061fc3ae2107d3ca80d8611696bfd5ee284b361",
+          "opencode-tool-roster.mjs": "52920d7bdbce47ef9981f017205b3a9e76e4e7f88b3e0e65d1ac81234c374cb5"
+        },
+        "accessOnly": true,
+        "operatorProfileWrites": false,
+        "model": "claude-haiku-4-5",
+        "privateGrantUnchanged": true,
+        "proofArtifacts": [
+          "tmp/meridian-exe-setting-Wwd0dF/proof.json"
+        ],
+        "proof": {
+          "result": "PASS",
+          "node": "v22.22.3",
+          "platform": "linux",
+          "arch": "arm64",
+          "model": "claude-haiku-4-5",
+          "sdk": "0.2.141",
+          "executables": {
+            "bundled": {
+              "path": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            },
+            "system": {
+              "path": "<fixture>/bin/claude",
+              "runs": "/opt/tools/node_modules/@anthropic-ai/claude-code-linux-arm64/claude",
+              "version": "2.1.292"
+            },
+            "custom": {
+              "path": "<fixture>/custom/claude",
+              "runs": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+              "version": "2.1.284"
+            }
+          },
+          "adapters": [
+            "opencode"
+          ],
+          "steps": [
+            {
+              "step": "startup",
+              "healthy": true
+            },
+            {
+              "step": "starts-on-path",
+              "source": "path-lookup"
+            },
+            {
+              "step": "actual-client-preflight",
+              "version": "1.18.32",
+              "plugin": "<repo>/dist/meridian",
+              "pluginSha256": "c640cc02817d9ad05d5b61f6bd906fdccdb4ef71be42d11981aecaeb84bc434e",
+              "setupExit": 0,
+              "effectiveEntries": 1,
+              "runtimeLoadWitness": "signed hook checked before relay forwarding",
+              "providerTargetsRelay": true,
+              "scrub": {
+                "version": "0.2.3",
+                "status": "active"
+              }
+            },
+            {
+              "step": "turn-on-path",
+              "ranOn": "system",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 3574,
+              "started": {
+                "system": 1,
+                "custom": 0,
+                "bundled": 0,
+                "other": 0
+              },
+              "actualClient": true,
+              "sameSession": true,
+              "primaryRequests": 1
+            },
+            {
+              "step": "settings-state",
+              "mode": "system",
+              "systemVersion": "2.1.292",
+              "bundledVersion": "2.1.284"
+            },
+            {
+              "step": "refuses-unusable-path",
+              "status": 400
+            },
+            {
+              "step": "switch-to-bundled",
+              "status": 200,
+              "active": "bundled"
+            },
+            {
+              "step": "turn-on-bundled",
+              "ranOn": "bundled",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 2448,
+              "started": {
+                "system": 0,
+                "custom": 0,
+                "bundled": 1,
+                "other": 0
+              },
+              "actualClient": true,
+              "sameSession": true,
+              "primaryRequests": 1
+            },
+            {
+              "step": "switch-to-custom",
+              "status": 200,
+              "active": "custom"
+            },
+            {
+              "step": "turn-on-custom",
+              "ranOn": "custom",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 2195,
+              "started": {
+                "system": 0,
+                "custom": 1,
+                "bundled": 0,
+                "other": 0
+              },
+              "actualClient": true,
+              "sameSession": true,
+              "primaryRequests": 1
+            },
+            {
+              "step": "switch-during-turn",
+              "ranOn": "custom",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 8025,
+              "started": {
+                "system": 0,
+                "custom": 1,
+                "bundled": 0,
+                "other": 0
+              },
+              "actualClient": true,
+              "sameSession": true,
+              "primaryRequests": 1,
+              "switchedTo": "system",
+              "switchLandedMsBeforeTurnEnded": 5240
+            },
+            {
+              "step": "next-turn-on-path",
+              "ranOn": "system",
+              "responseModel": "claude-haiku-4-5-20251001",
+              "durationMs": 2564,
+              "started": {
+                "system": 1,
+                "custom": 0,
+                "bundled": 0,
+                "other": 0
+              },
+              "actualClient": true,
+              "sameSession": true,
+              "primaryRequests": 1
+            },
+            {
+              "step": "same-process",
+              "restarted": false
+            }
+          ],
+          "serverRestarted": false,
+          "residualProcesses": 0,
+          "closure": {
+            "exitSeen": true,
+            "closeSeen": true,
+            "stdoutClosed": true,
+            "stderrClosed": true,
+            "spawnFailed": false,
+            "exitCode": 0,
+            "exitSignal": null,
+            "joined": true,
+            "termSent": true,
+            "killSent": false,
+            "signalFailure": null
+          },
+          "actualClient": "opencode-v1",
+          "clientClosure": {
+            "closed": true,
+            "hostClosure": {
+              "exitSeen": true,
+              "closeSeen": true,
+              "stdoutClosed": true,
+              "stderrClosed": true,
+              "spawnFailed": false,
+              "exitCode": null,
+              "exitSignal": "SIGTERM",
+              "joined": true,
+              "termSent": true,
+              "killSent": false,
+              "signalFailure": null
+            },
+            "handlersJoined": true,
+            "closures": [
+              {
+                "label": "opencode-version",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-setup",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-preflight",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-turn-1",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-turn-2",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-turn-3",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-turn-4",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              },
+              {
+                "label": "opencode-turn-5",
+                "exitSeen": true,
+                "closeSeen": true,
+                "stdoutClosed": true,
+                "stderrClosed": true,
+                "spawnFailed": false,
+                "exitCode": 0,
+                "exitSignal": null,
+                "joined": true,
+                "termSent": false,
+                "killSent": false,
+                "signalFailure": null
+              }
+            ],
+            "requests": [
+              {
+                "route": "/v1/messages",
+                "model": "claude-haiku-4-5",
+                "streaming": true,
+                "agent": "build",
+                "mode": "primary",
+                "requestIdentity": true,
+                "attested": true,
+                "hasCurrentReceipt": true,
+                "pluginLoadedBeforeForward": true,
+                "status": 200,
+                "responseModel": "claude-haiku-4-5-20251001",
+                "messageStopped": true,
+                "sessionCaptured": true
+              },
+              {
+                "route": "/v1/messages",
+                "model": "claude-haiku-4-5",
+                "streaming": true,
+                "agent": "build",
+                "mode": "primary",
+                "requestIdentity": true,
+                "attested": true,
+                "hasCurrentReceipt": true,
+                "pluginLoadedBeforeForward": true,
+                "status": 200,
+                "responseModel": "claude-haiku-4-5-20251001",
+                "messageStopped": true,
+                "sessionCaptured": true
+              },
+              {
+                "route": "/v1/messages",
+                "model": "claude-haiku-4-5",
+                "streaming": true,
+                "agent": "build",
+                "mode": "primary",
+                "requestIdentity": true,
+                "attested": true,
+                "hasCurrentReceipt": true,
+                "pluginLoadedBeforeForward": true,
+                "status": 200,
+                "responseModel": "claude-haiku-4-5-20251001",
+                "messageStopped": true,
+                "sessionCaptured": true
+              },
+              {
+                "route": "/v1/messages",
+                "model": "claude-haiku-4-5",
+                "streaming": true,
+                "agent": "build",
+                "mode": "primary",
+                "requestIdentity": true,
+                "attested": true,
+                "hasCurrentReceipt": true,
+                "pluginLoadedBeforeForward": true,
+                "status": 200,
+                "responseModel": "claude-haiku-4-5-20251001",
+                "messageStopped": true,
+                "sessionCaptured": true
+              },
+              {
+                "route": "/v1/messages",
+                "model": "claude-haiku-4-5",
+                "streaming": true,
+                "agent": "build",
+                "mode": "primary",
+                "requestIdentity": true,
+                "attested": true,
+                "hasCurrentReceipt": true,
+                "pluginLoadedBeforeForward": true,
+                "status": 200,
+                "responseModel": "claude-haiku-4-5-20251001",
+                "messageStopped": true,
+                "sessionCaptured": true
+              }
+            ]
+          },
+          "operatorProfileMutated": false,
+          "credentialSnapshotRemoved": true
+        }
+      }
+    }
+  },
+  "retainedSetupFailures": [
+    {
+      "artifact": "native-main74",
+      "sha256": "f971c50f5f82dfe5af0a5cf2c9a2c60f2fd252fea0b9085feb134d285ca9243d",
+      "exit": 1,
+      "failure": null,
+      "modelCompletionEstablished": false,
+      "reason": "Inherited ignored-postinstall placeholder failed --version before inference; native installer applied identically to both arms"
+    },
+    {
+      "artifact": "native-main74-r3",
+      "sha256": "9fcb4624100c33f1bc2dd3b7a529e1acc3e6b5b6cc322e730a418e238a62357c",
+      "exit": 1,
+      "failure": {
+        "step": "actual-client-preflight",
+        "reason": "ENOENT: no such file or directory, lstat '<repo>/file:'"
+      },
+      "modelCompletionEstablished": false,
+      "reason": "Effective file-URL plugin path was treated as a filesystem path; normalized without changing product or assertions"
+    },
+    {
+      "artifact": "native-main74-r4",
+      "sha256": "45333047256edb0d196691315c6270960a52e2d1755f737ceea2e9d3656dbd6f",
+      "exit": 1,
+      "failure": {
+        "step": "actual-client-preflight",
+        "reason": "Actual OpenCode did not record loading the expected Meridian plugin"
+      },
+      "modelCompletionEstablished": false,
+      "reason": "V1 1.18.32 loader emits no success log; obsolete log witness rejected before inference"
+    },
+    {
+      "artifact": "native-main74-r5",
+      "sha256": "2ec2fa968360eb061caa891bc369fbaa32635e05d51a9d6d4f5cdb317ed1cf28",
+      "exit": 1,
+      "failure": {
+        "step": "actual-client-preflight",
+        "reason": "Actual OpenCode did not record loading the expected Meridian plugin"
+      },
+      "modelCompletionEstablished": false,
+      "reason": "Provider preflight also emits no successful load log; retained pre-inference refusal"
+    },
+    {
+      "artifact": "native-main74-r6",
+      "sha256": "36a92bbcc51f91fc4f16065680c53eab3229340e0885be775ca9bc5556792663",
+      "exit": 1,
+      "failure": {
+        "step": "turn-on-path",
+        "reason": "the turn did not finish"
+      },
+      "modelCompletionEstablished": true,
+      "reason": "Real client/model completion succeeded; obsolete CLI step_finish event assertion failed; replaced by message_stop and public saved completion"
+    }
+  ],
+  "ui": {
+    "scope": "Actual product UI/settings route with synthetic version probe; no model inference",
+    "desktop": {
+      "width": 1280,
+      "documentWidth": 1280,
+      "cardRight": 1066
+    },
+    "phone375": {
+      "width": 375,
+      "documentWidth": 375,
+      "cardLeft": 24,
+      "cardRight": 351
+    },
+    "phone320": {
+      "width": 320,
+      "documentWidth": 323,
+      "cardLeft": 24,
+      "cardRight": 296,
+      "cardOverflowElements": 0
+    },
+    "unchangedMain320": {
+      "head": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+      "documentWidth": 323,
+      "featureRowRight": 322.9140625,
+      "newCardPresent": false
+    },
+    "interactions": [
+      "System to Bundled persisted through actual UI select",
+      "GET 503 displayed alert and Retry without false selection",
+      "Retry recovered Bundled selection and enabled controls"
+    ],
+    "videoSeconds": 30.973133,
+    "media": {
+      "desktop.png": "2b5f1197b95f9f77b234813a06e56845f6e11dd13250d8e8505718a846a5e68d",
+      "phone-375.png": "3c4199bd79a178ebe147320acc046772328fc634a91705f40f1e932d128c388a",
+      "phone-320.png": "d4494255dd5a60a7a1af6138c6e3139cc686cdf1381181aea6d3fc1ac6513cf5",
+      "before-320.png": "1acaa1af8d3fe6e8a223b6f8eda950d0cb90f895f7ee97b2583c354c2a27d743",
+      "selection-retry.mp4": "7f3d7e6ed8d8d384d32250b3b5d184379ef4264aa4f52201156c7beef9e5d3e6",
+      "retry-error.png": "8017a6dd9cec512c633ab6e3d5a91b725e4dfefc8be86b7f1eae80e4e5454b83",
+      "retry-recovered.png": "2b5f1197b95f9f77b234813a06e56845f6e11dd13250d8e8505718a846a5e68d",
+      "retry-targeted.mp4": "b33831eab64d0d2881968ab18b3461b8e1500f7c9bd91b903c0ce76b132df861"
+    },
+    "mediaUpload": "No GitHub media uploader exposed; reviewed local artifacts retained outside source"
+  },
+  "adversarialReview": {
+    "owner": "root agent, full final diff review; no delegated review claimed",
+    "resolved": [
+      "request/instance probe ownership and unknown joins",
+      "shared probe leases and bounded slots",
+      "stale partial writes and mixed active snapshots",
+      "bounded original-child process/pipe joins and earliest failure retention",
+      "UI reload failure and Retry"
+    ],
+    "remainingMaterialSourceFindings": []
+  },
+  "limits": [
+    "Live model/client acceptance is Linux arm64, Node 22.22.3, SDK 0.2.141, Haiku 4.5, OpenCode V1 1.18.32; no Windows/macOS model or original Opus-version remedy is claimed",
+    "No installed-tarball or registry publication acceptance; no release authority",
+    "Final delivery-head CI, including test and Windows, still required",
+    "Reviewed local screenshots/video retained outside source; no GitHub media upload capability exposed"
+  ],
+  "integrationPR": "https://github.com/rynfar/meridian/pull/1321"
+}

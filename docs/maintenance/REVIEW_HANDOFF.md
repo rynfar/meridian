@@ -1,5 +1,119 @@
 # Upstream review handoff
 
+## Current queue reduction and ordering (2026-10-09 UTC)
+
+The owner's order is **PRs and issues combined by original creation date,
+oldest first** across the managed repositories. This overrides the backlog
+skill's default. Preserve explicit owner deferrals, drafts and no-review
+requests; record an older item's concrete blocker before advancing to the next
+oldest actionable item. Existing correction deliveries inherit their source
+item's age. Finish existing deliveries before creating further review drafts.
+
+[Executable-selection #1321](https://github.com/rynfar/meridian/pull/1321)
+merged exact reviewed head `05d49566c6a4cfefb8d997008aa5b38cc187c9b6` as
+`0d86379b42cf6ad26979d146c755eb858553d1f0` after all executed final-head CI
+checks passed, including [test](https://github.com/rynfar/meridian/actions/runs/37861198992/job/113597062501).
+The landed tree `af3b3e29afc54f576151e03c0b079f4993ba796c` exactly matches
+the reviewed candidate. GitHub verified the signature and Nowaker's explicit
+human coauthor trailer. Source #1293 was rechecked unchanged at
+`1a201f37ab49261ce9d463d2f43e1182ab66202a` and closed as incorporated without
+a comment. [The committed adversarial review and live before/after proof](evidence/claude-executable-selection-review-20261008.md)
+retain the bounded Linux arm64/OpenCode V1/Haiku acceptance and broader limits.
+
+[Home Manager #1320](https://github.com/rynfar/meridian/pull/1320) merged reviewed
+head `94ab30b11ba78eb1993f95273ac5f87be16e5dfe` as
+`aee79ae3966b8b1d32f8d2a7fde3ec01f7ec2686`, with exact landed tree and Can H.
+Tartanoglu's human coauthor trailer verified. Fresh combined local gates passed
+5,502 tests / 35 skips / zero failures, typecheck and build. Final-head
+[test](https://github.com/rynfar/meridian/actions/runs/37882257433/job/113664326961)
+and [native Nix](https://github.com/rynfar/meridian/actions/runs/37882257435/job/113664342289)
+passed alongside the other relevant checks. The cancelled same-head push Nix
+run was superseded by that successful PR run under declared concurrency.
+Unchanged source #1305 was closed. [Its native proof and authorship receipt](evidence/home-manager-isolation-1305.md)
+retain their scope. The implemented bounded contract #1319 is closed.
+
+The integrations reduced the managed queue from 32 to 28 open PRs. A fresh
+refresh now has 29 PRs and 21 issues: contributor Nowaker opened
+[#1323](https://github.com/rynfar/meridian/pull/1323) at 2026-10-09 05:03:52 UTC.
+No new PR was created by this #769 continuation; #1323 remains in its original
+creation-date position. #650 remains owner-deferred.
+The oldest actionable item is [#769](https://github.com/rynfar/meridian/issues/769).
+Its archived core correction `f09cd586` was applied cleanly to current main as
+`7960fd62`, with Author/AuthorDate preserved. Fresh root adversarial source review
+found no material production blocker; local gates passed 5,552 tests / 35 skips /
+zero failures, typecheck and build. The separately reviewed scrub correction
+remains unlanded. Exact OpenClaw 2026.6.11 client/config/loopback preparation is
+qualified separately in [the current review](evidence/openclaw769-current-main-20261009.md).
+The independently installed native baseline completed a real read/result/reply
+on Linux arm64 / SDK 0.2.141 / Claude Code 2.1.284 / `claude-opus-5-5[1m]`.
+Its fixture failed by requiring the intentionally unchanged headerless tool
+checkpoint mapping to advance; public SDK diagnosis and E54 explain the
+answering branch. That first failure is retained. The committed native escrow
+now qualifies the terminal-verified serving branch separately from durable
+publication and explicitly joins owned Bun socket wrappers. Fresh R4 baseline
+reproduces the ignored edit; candidate consumes it, preserves the real tool pair,
+withholds then restores SDK-prefix proof and resumes normally. Both four-stage
+arms exit zero with original process/query/HTTP custody joined. Read-only
+access input and stopped owned containers are removed after audit. This is
+bounded contract acceptance; no classifier/billing resolution is claimed and
+no new PR was created.
+All four adjacent E41 modes pass with exact chain/parallel batches, immutable
+parents, one real answer per call, previous-fork continuation and full prior
+cache reads. The fresh source-archive package is byte-identical to all 452
+installed/live-tested candidate members. Required final-head CI remains a
+delivery gate. The original historical Kubernetes/native tuple remains separate.
+Keep #769 open: its new classifier trigger is undisclosed and its
+current same-window off/on/off evidence is incomplete.
+[Core delivery #1324](https://github.com/rynfar/meridian/pull/1324) is open for
+the existing plugin-message execution contract, with committed native before/after,
+four-mode E41 and exact package proof. Required final-head CI must pass before
+integration; the broader issue remains open. This is the only new delivery in
+this continuation, created after those acceptance prerequisites completed.
+
+Draft #1322 and the older native/product/client/package holds remain separate.
+No release or community comments are authorized by this checkpoint. The
+owner's checkout is preserved; no new review PR is created by this reconciliation.
+
+## Executable-selection pre-merge checkpoint (2026-10-08; historical)
+
+The owner approved the bounded executable-selection contract in
+[#1319](https://github.com/rynfar/meridian/issues/1319). Corrected delivery
+[#1321](https://github.com/rynfar/meridian/pull/1321) is open for final-head CI;
+source #1293 remains at
+`1a201f37ab49261ce9d463d2f43e1182ab66202a`. Its two actual Nowaker commits
+are preserved as `0de23574` and `32f64d54` on current main `74ee5515`, with
+separate correction `bc695a99` and committed headless client harness through
+`6fdd002a` in `codex/claude-executable-1293-20261008`. Root full-diff
+adversarial review corrected unowned/missing-join probes, stale writes/mixed
+snapshots and unbounded/bare-PID harness cleanup; no material source finding
+remains. This was root review, not a delegated independent review.
+
+Local gates passed 5,502 tests / 35 skips / zero failures, pretest, typecheck
+and build. Actual Linux arm64 / Node 22.22.3 / SDK 0.2.141 / Haiku 4.5 proof
+passed both HTTP and OpenCode V1 1.18.32 arms: five turns, all three selections,
+in-flight retention, next-turn change and no server restart. The actual client
+uses the tested `setup --v1` plugin, valid signed outbound session/agent headers,
+independently installed scrub 0.2.3 and a single saved session. Unchanged main
+completed a real control turn, then failed the settings route with 404. Actual
+leader/pipe/client/relay joins, zero residuals and credential isolation are
+retained in [the corrected review and portable receipt](evidence/claude-executable-selection-review-20261008.md).
+UI selection/error/Retry and desktop/phone card fit passed; inherited 320px SDK
+row overflow is qualified against unchanged main. Final delivery-head CI remains
+held. No Windows/macOS model, Opus remedy, installed-package or release claim.
+Recheck main, delivery head, source head and CI before integrating; preserve
+Nowaker coauthor credit and close source #1293 only if unchanged.
+
+Profiles delivery #1318 has merged as `74ee5515`, with tested/landed tree and
+Nowaker credit verified; unchanged source #1316 was closed without a comment.
+Home Manager delivery [#1320](https://github.com/rynfar/meridian/pull/1320),
+head `0f75be7c`, remains monitored for final-head CI. Its authored source #1305
+and separate Darwin check-registration correction have local and locked native
+Nix proof recorded in that delivery; do not infer merge readiness from this
+dated checkpoint. SQLite #1219, AGY #1314/#1073, #769, transcript #1261 and
+existing owner defer/no-review/release holds remain unchanged. The combined
+oldest-first queue is active and is not claimed cleared. The owner's checkout
+is preserved at `446a0f16`; all work remains isolated.
+
 ## Current recovered continuation (2026-10-08)
 
 The owner resumed the combined oldest-first PR/issue queue. The dirty checkout

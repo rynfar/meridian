@@ -106,6 +106,7 @@ import { buildQueryOptions, isCliThinkingDisplay, resolveQueryConfigDir, singleT
 import { normalizeEffort } from "./effort"
 import { parseOutputFormat, structuredOutputText } from "./structuredOutput"
 import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
+import { inspectExecutionHistory } from "./executionHistory"
 import { getAdapterTransforms } from "./transforms/registry"
 import { loadPlugins, getActiveTransforms } from "./plugins/loader"
 import type { LoadedPlugin } from "./plugins/types"
@@ -142,6 +143,8 @@ import {
 } from "./retryAfter"
 import { getSetting, setSetting, TELEMETRY_SETTING_LIMITS } from "../settings" 
 import { headerSettingsResponse, healthHostname } from "../headerSettings"
+import { claudeExecutableSettingsResponse } from "./claudeExecutableSettings"
+import { createClaudeProbeOwner } from "./claudeProbeOwnership"
 import { startProfileLogin, completeProfileLogin, completeProfileLoginFromCallback, getProfileLoginStatus } from "./profileLogin"
 import { startProfileAdd, completeProfileAdd } from "./profileAdd"
 import { profileStartBody, profileLoginCompleteBody, profileAddCompleteBody } from "./profileOAuthBody"
@@ -238,8 +241,6 @@ export type { LineageResult }
 
 
 const exec = promisify(execCallback)
-
-let claudeExecutable = ""
 
 // Max gap between real upstream messages before we treat the stream as stalled.
 // Must be > slowest legitimate TTFB / server-side thinking pause, and < the
@@ -674,6 +675,7 @@ export function createProxyServer(config: Partial<ProxyConfig> = {}): ProxyServe
 }
 
 function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner: ReturnType<typeof createAuthStatusOwner>): ProxyServer {
+  const executableProbeOwner = createClaudeProbeOwner()
   if (resolveBackendConfig(config).backend === "antigravity") return createAntigravityServer(resolveBackendConfig(config))
   const getInstanceAuthStatus = (profileId?: string, envOverrides?: Record<string, string>) =>
     authOwner.run(() => getClaudeAuthStatusAsync(profileId, envOverrides))
@@ -2303,17 +2305,27 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const adapterBase = adapter.baseName ?? adapter.name
         const adapterTransforms = getAdapterTransforms(adapterBase)
         const pipeline = buildPipeline(adapterTransforms, pluginTransforms)
+        // A plugin's modifiable history must not alias the raw client ancestry.
+        const hookMessages = pluginTransforms.some(transform => transform.onRequest
+          && (!transform.adapters || transform.adapters.includes(adapterBase)))
+          ? structuredClone(body.messages)
+          : body.messages
         const pipelineCtx = runTransformHook(pipeline, "onRequest", createRequestContext({
           adapter: adapterBase,
           body,
           headers: c.req.raw.headers,
           model,
-          messages: body.messages || [],
+          messages: hookMessages,
           systemContext,
           tools: body.tools,
           stream: body.stream ?? false,
           workingDirectory,
         }), adapterBase)
+        const executionHistory = inspectExecutionHistory(body.messages, pipelineCtx.messages)
+        if (!executionHistory.ok) {
+          return c.json({ type: "error", error: { type: "invalid_request_error", message: "messages: Plugin history must contain at least one message with role and content" } }, 400)
+        }
+        const executionMessages = executionHistory.messages
 
         // Allow transform pipeline to override streaming preference (e.g. LiteLLM requires non-streaming)
         const stream = pipelineCtx.prefersStreaming !== undefined ? pipelineCtx.prefersStreaming : (body.stream ?? false)
@@ -3002,6 +3014,23 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           undoRollbackUuid = undefined
           resumeSessionId = undefined
         }
+        // Raw lineage still decides ownership and concurrency. Its offsets do
+        // not address a filtered/rewritten execution history, nor an SDK
+        // transcript previously published without complete raw-prefix proof.
+        // Tool inheritance is retained only for a namespace-qualified request
+        // that would otherwise resume this exact SDK session.
+        const executionReplay = executionHistory.changed || Boolean(cachedSession && !cachedSession.lineageHash)
+        const executionReplayToolSessionId = executionReplay && isResume ? resumeSessionId : undefined
+        if (executionReplay) {
+          claudeLog("session.execution_replay", {
+            reason: executionHistory.changed ? "transformed_history" : "unproved_sdk_prefix",
+          })
+          isResume = false
+          isUndo = false
+          sdkUndo = false
+          undoRollbackUuid = undefined
+          resumeSessionId = undefined
+        }
         // Early-stopped sessions resume at the assistant tool-use turn, before synthetic denials.
         let passthroughToolCallAssistantUuid = passthrough && isResume ? cachedSession?.passthroughToolCallAssistantUuid : undefined
         const passthroughToolCallIds = passthrough && isResume ? cachedSession?.passthroughToolCallIds : undefined
@@ -3111,10 +3140,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           }
         } else {
           // Undo without a valid SDK boundary is a fresh structured replay.
-          messagesToConvert = allMessages
+          messagesToConvert = executionMessages
         }
       } else {
-        messagesToConvert = allMessages
+        messagesToConvert = executionMessages
       }
 
       if (passthroughToolCallAssistantUuid) {
@@ -3170,7 +3199,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           isResume = false
           resumeSessionId = undefined
           passthroughToolCallAssistantUuid = undefined
-          messagesToConvert = allMessages
+          messagesToConvert = executionMessages
         }
       }
 
@@ -3343,7 +3372,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             plog(`[PROXY] ${requestMeta.requestId} tools_restored: recovered tool-result continuation reused ${requestTools.length} declared tools`)
           }
         }
-        if (profileSessionId && isResume && requestTools.length === 0 && cached && cached.sdkSessionId === resumeSessionId && cached.tools.length > 0) {
+        const toolInheritanceSessionId = isResume ? resumeSessionId : executionReplayToolSessionId
+        if (profileSessionId && toolInheritanceSessionId
+          && requestTools.length === 0 && cached && cached.sdkSessionId === toolInheritanceSessionId && cached.tools.length > 0) {
           requestTools = cached.tools
           plog(`[PROXY] ${requestMeta.requestId} tools_restored: client sent 0 tools but continued branch had ${cached.tools.length} — reusing cached tools to preserve prompt cache`)
         }
@@ -3437,7 +3468,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           // Tool-result attribution is indexed from the FULL history so ids
           // resolve even when the originating call sits before a resume-delta
           // boundary (#552).
-          const toolIndex = buildToolUseIndex(allMessages ?? messagesToConvert ?? [])
+          const toolIndex = buildToolUseIndex(executionMessages)
           // NEVER render 'Human:'/'Assistant:' transcript lines — the model
           // imitates that format, emitting 'Human: ...' turns itself and
           // self-approving actions (#496 self-talk). Match the structured
@@ -3886,6 +3917,12 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           claudeLog("subprocess.stderr", { line: data.trimEnd() })
         }
 
+        // The Claude Code executable this turn runs. Each path resolves it once,
+        // inside its own error handling, and every attempt and recovery of the
+        // turn reuses it: a change in Settings applies to the next turn, and a
+        // turn already running keeps the binary it started with.
+        let claudeExecutable = ""
+
         if (!stream) {
           const contentBlocks: Array<Record<string, unknown>> = []
           let assistantMessages = 0
@@ -3949,10 +3986,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
           }
 
           try {
-            // Lazy-resolve executable if not already set (e.g. when using createProxyServer directly)
-            if (!claudeExecutable) {
-              claudeExecutable = await resolveClaudeExecutableAsync()
-            }
+            claudeExecutable = await executableProbeOwner.run(requestAbort.controller.signal, resolveClaudeExecutableAsync)
 
             // Wrap SDK call with transparent retry for recoverable errors.
             // Both stale-UUID and rate-limit retries happen inside the generator,
@@ -4125,7 +4159,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "non_stream_resume_replay"),
+                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "non_stream_resume_replay"),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -4188,7 +4222,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     sdkUuidMap.length = 0
                     for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                     yield* runSdkQueryAttempt(buildQueryOptions({
-                      prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "non_stream_model_fallback"),
+                      prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "non_stream_model_fallback"),
                       model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                       passthrough, stream: false, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                       resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -4873,6 +4907,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     managedForkTarget?.sessionId === currentSessionId ? managedForkSource : undefined,
                     mappingExpectedGeneration,
                     options.priorityPublication,
+                    !executionHistory.changed,
                     sessionNamespace,
                       )
                         if (stored) {
@@ -5333,6 +5368,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
             }
 
             try {
+              claudeExecutable = await executableProbeOwner.run(requestAbort.controller.signal, resolveClaudeExecutableAsync)
+
               // Same transparent retry wrapper as the non-streaming path.
               // Rate-limit retry strategy:
               //   1. Strip [1m] context (immediate, different model tier)
@@ -5470,7 +5507,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "stream_resume_replay"),
+                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "stream_resume_replay"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -5529,7 +5566,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                       sdkUuidMap.length = 0
                       for (let i = 0; i < allMessages.length; i++) sdkUuidMap.push(null)
                       yield* runSdkQueryAttempt(buildQueryOptions({
-                        prompt: buildFreshPrompt(allMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "stream_model_fallback"),
+                        prompt: buildFreshPrompt(executionMessages, sanitizeOpts, renderReplayToolName, replayBudgetFor(model), "stream_model_fallback"),
                         model, workingDirectory, clientWorkingDirectory: promptClientWorkingDirectory, clientEnvironmentMayDifferFromProxy, systemContext, claudeExecutable,
                         passthrough, stream: true, sdkAgents, passthroughMcp, cleanEnv: profileEnv, envOverrides, hasDeferredTools, earlyStop: earlyStopEnabled,
                         resumeSessionId: undefined, isUndo: false, resumeSessionAtUuid: undefined, forkSessionId: managedForkTarget?.sessionId, sdkHooks, blockedTools: pipelineCtx.blockedTools, incompatibleTools: pipelineCtx.incompatibleTools, mcpServerName: adapter.getMcpServerName(), allowedMcpTools: pipelineCtx.allowedMcpTools, onStderr,
@@ -6266,6 +6303,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     managedForkTarget?.sessionId === currentSessionId ? managedForkSource : undefined,
                     mappingExpectedGeneration,
                     options.priorityPublication,
+                    !executionHistory.changed,
                     sessionNamespace,
                       )
                       if (stored) {
@@ -6601,6 +6639,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     recoveryForkSource,
                     mappingExpectedGeneration,
                     options.priorityPublication,
+                    !executionHistory.changed,
                     sessionNamespace,
                       )
                       if (stored) {
@@ -7319,6 +7358,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     managedForkTarget?.sessionId === currentSessionId ? managedForkSource : undefined,
                     mappingExpectedGeneration,
                     options.priorityPublication,
+                    !executionHistory.changed,
                     sessionNamespace,
                       )
                       if (stored) {
@@ -8514,6 +8554,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     return c.json(layoutSettingsState())
   })
 
+  // Each turn resolves its executable as it starts, so a change applies to the
+  // next turn without a restart; see claudeExecutableSettings.ts.
+  const executableSettings = (request: Request) => executableProbeOwner.run(request.signal, () => claudeExecutableSettingsResponse(request))
+    .catch((error: unknown) => Response.json({ error: error instanceof Error ? error.message : String(error) },
+      { status: 503, headers: { "Cache-Control": "no-store" } }))
+  app.get("/settings/api/claude-executable", (c) => executableSettings(c.req.raw))
+  app.put("/settings/api/claude-executable", (c) => executableSettings(c.req.raw))
+
   app.get("/settings/api/pricing", (c) => {
     const { BUILTIN_MODEL_PRICING } = require("../telemetry/pricing") as typeof import("../telemetry/pricing")
     const { getPricingOverrides } = require("../telemetry/pricingStore") as typeof import("../telemetry/pricingStore")
@@ -8586,7 +8634,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // probes on the HTTP event loop. Startup and concurrent probes share the
     // asynchronous resolver; a miss keeps the existing unready response.
     const executableResolved = getResolvedClaudeExecutableInfo() !== null
-      || await resolveClaudeExecutableAsync().then(() => true, () => false)
+      || await executableProbeOwner.run(c.req.raw.signal, resolveClaudeExecutableAsync).then(() => true, () => false)
     const report = readinessReport({
       profileCount: listProfiles(finalConfig.profiles, finalConfig.defaultProfile).length,
       claudeExecutableResolved: executableResolved,
@@ -9999,7 +10047,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     config: finalConfig,
     initPlugins: initPluginsAsync,
     closeBackend: async () => {
-      const results = await Promise.allSettled([authOwner.close(), antigravity?.closeBackend()])
+      const results = await Promise.allSettled([executableProbeOwner.close(), authOwner.close(), antigravity?.closeBackend()])
       for (const result of results) if (result.status === "rejected") throw result.reason
     },
     beginDrain: () => { draining = true; antigravity?.beginDrain?.() },
@@ -10114,7 +10162,8 @@ export async function startProxyServer(config: Partial<ProxyConfig> = {}): Promi
     )
   }
   logCredentialsModeBanner()
-  claudeExecutable = await resolveClaudeExecutableAsync()
+  // Resolved now, not on the first turn, so the startup line and /health name it.
+  await resolveClaudeExecutableAsync()
   const authOwner = createAuthStatusOwner()
   const getInstanceAuthStatus = (profileId?: string, envOverrides?: Record<string, string>) =>
     authOwner.run(() => getClaudeAuthStatusAsync(profileId, envOverrides))

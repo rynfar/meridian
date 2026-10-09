@@ -1075,4 +1075,32 @@ describe('auth refresh owns the actual asynchronous resolver path', () => {
     resolverChildren[0]!.callback(null, { stdout: ownedExecutable, stderr: '' }); resolverChildren[0]!.witnesses()
     await tick(); expect(pendingAuthStatusRefresh(profile)).toBeNull()
   })
+  it('a preference change cannot bypass an older resolver with unconfirmed custody', async () => {
+    const { getSetting, setSetting } = await import('../settings')
+    const saved = getSetting('claudeExecutable')
+    const owner = (await owners())()
+    const answer = owner.run(() => getClaudeAuthStatusAsync(nextProfile())); await tick()
+    try {
+      await expect(owner.close()).rejects.toThrow('cleanup is unconfirmed')
+      await answer
+      setSetting('claudeExecutable', 'bundled')
+      await expect(resolveClaudeExecutableAsync()).rejects.toThrow('cleanup is unconfirmed')
+      expect(resolverLookups).toBe(1); expect(resolverVersions).toBe(0)
+    } finally { setSetting('claudeExecutable', saved) }
+  })
+  it('settings retain a failed version slot and bounded shutdown until real pipe witnesses arrive', async () => {
+    const { readClaudeVersion } = await import('../proxy/models')
+    const { createClaudeProbeOwner } = await import('../proxy/claudeProbeOwnership')
+    const owner = createClaudeProbeOwner()
+    const pending = owner.run(new AbortController().signal, () => readClaudeVersion(ownedExecutable, 10))
+    void pending.catch(() => undefined)
+    await expect(pending).rejects.toThrow('cleanup is unconfirmed')
+    expect(resolverVersions).toBe(1)
+    await expect(owner.close()).rejects.toThrow('cleanup is unconfirmed')
+    await expect(owner.close()).rejects.toThrow('cleanup is unconfirmed')
+    await expect(readClaudeVersion(ownedExecutable, 10)).rejects.toThrow('cleanup is unconfirmed')
+    expect(resolverVersions).toBe(1)
+    resolverChildren[0]!.callback(null, { stdout: '2.1.999 (Claude Code)', stderr: '' })
+    resolverChildren[0]!.witnesses(); await tick()
+  })
 })

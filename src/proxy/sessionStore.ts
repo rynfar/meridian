@@ -73,6 +73,8 @@ export interface StoredSession {
   messageCount: number
   /** Hash of messages[0..messageCount-1] for conversation lineage verification */
   lineageHash?: string
+  /** Raw client proof when lineageHash cannot certify the SDK execution prefix. */
+  clientLineageHash?: string
   /** Per-message content hashes for precise diff-based compaction detection */
   messageHashes?: string[]
   /** Per-message hashes of individual content blocks for append-only tool results */
@@ -715,6 +717,9 @@ function validateStoredSession(key: string, value: unknown): asserts value is St
   if (entry.keyNamespace !== undefined
     && (typeof entry.keyNamespace !== "string" || entry.keyNamespace.length === 0)) {
     throw new Error(`session store entry ${JSON.stringify(key)} has invalid keyNamespace`)
+  }
+  if (entry.clientLineageHash !== undefined && typeof entry.clientLineageHash !== "string") {
+    throw new Error(`session store entry ${JSON.stringify(key)} has invalid clientLineageHash`)
   }
   const stringArrays = ["messageHashes", "passthroughToolCallIds"] as const
   for (const field of stringArrays) {
@@ -1364,6 +1369,7 @@ export function storeSharedSession(
   currentTranscript?: TranscriptLocator,
   sourceTranscript?: TranscriptLocator,
   expectedGeneration?: StoredSessionGeneration | null,
+  clientLineageHash?: string | null,
   keyNamespace?: string,
 ): StoredSessionGeneration | false {
   if (keyNamespace !== undefined && (typeof keyNamespace !== "string" || keyNamespace.length === 0)) {
@@ -1423,6 +1429,9 @@ export function storeSharedSession(
       lastUsedAt: Date.now(),
       messageCount: messageCount ?? existing?.messageCount ?? 0,
       lineageHash: lineageHash ?? existing?.lineageHash,
+      clientLineageHash: clientLineageHash === undefined
+        ? existing?.clientLineageHash
+        : clientLineageHash ?? undefined,
       messageHashes: messageHashes ?? existing?.messageHashes,
       messageBlockHashes: messageBlockHashes ?? existing?.messageBlockHashes,
       sdkMessageUuids: sdkMessageUuids ?? existing?.sdkMessageUuids,
@@ -1634,6 +1643,7 @@ export interface SharedSessionAndPriorityAssignmentOptions {
   keyNamespace?: string
   messageCount: number
   lineageHash: string
+  clientLineageHash?: string
   messageHashes: string[]
   sdkMessageUuids?: Array<string | null>
   contextUsage?: TokenUsage
@@ -1761,6 +1771,7 @@ export function storeSharedSessionAndPriorityAssignment(
       lastUsedAt: Date.now(),
       messageCount: options.messageCount,
       lineageHash: options.lineageHash,
+      clientLineageHash: options.clientLineageHash,
       messageHashes: options.messageHashes,
       messageBlockHashes: options.messageBlockHashes,
       sdkMessageUuids: options.sdkMessageUuids,

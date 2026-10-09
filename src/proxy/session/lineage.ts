@@ -44,6 +44,9 @@ export interface SessionState {
    *  When the full prefix matches, the conversation is a strict continuation
    *  and we skip the per-message diff entirely. */
   lineageHash: string
+  /** Raw client ancestry when the SDK transcript does not contain that prefix.
+   * Empty lineageHash deliberately withholds SDK reuse proof from old readers. */
+  clientLineageHash?: string
   /** Per-message content hashes from the last stored request.
    *  Used for precise diff-based mutation classification when the aggregate
    *  lineageHash mismatches. */
@@ -607,14 +610,17 @@ export function verifyLineage(
   options: { compactionSurvival?: boolean } = {},
 ): LineageResult {
   // A legacy entry cannot prove which client history its SDK session contains.
-  if (!cached.lineageHash || cached.messageCount === 0) {
+  // Partial/legacy writers may preserve an unknown optional raw-only field.
+  // A nonempty SDK-prefix hash takes precedence over that stale field.
+  const clientLineageHash = cached.lineageHash || cached.clientLineageHash
+  if (!clientLineageHash || cached.messageCount === 0) {
     return { type: "diverged", reason: "unverifiable" }
   }
 
   // --- Fast path: aggregate lineage hash ---
   const prefix = messages.slice(0, cached.messageCount)
   const prefixHash = computeLineageHash(prefix)
-  if (prefixHash === cached.lineageHash) {
+  if (prefixHash === clientLineageHash) {
     // Same or fewer messages with matching hash = replay/retry, not continuation.
     // Without this guard, identical requests resume the old SDK session and
     // re-send the last user message, causing ghost context accumulation.

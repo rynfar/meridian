@@ -469,7 +469,7 @@ describe("Claude Code Agent key and checkpoint isolation", () => {
     if (!sdkSessionId) throw new Error("Agent checkpoint fixture was not published")
     expect(storeSession(agentAKey, opening, sdkSessionId, undefined, [null], undefined,
       "owned-agent-checkpoint", ["toolu-owned-agent"], undefined, undefined, undefined, undefined,
-      original[agentAKey]?.keyNamespace)).toBeTruthy()
+      true, original[agentAKey]?.keyNamespace)).toBeTruthy()
     const checkpoint = lookupSharedSessionResult(agentAKey)
     const continuation = [...opening,
       { role: "assistant", content: [{ type: "tool_use", id: "toolu-owned-agent", name: "Read", input: { file_path: "fixture.txt" } }] },
