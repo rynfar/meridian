@@ -420,6 +420,12 @@ try {
   report.sdkVersion = sdkPackage.version; need(report.sdkVersion === '0.2.141', 'sdk-version-mismatch')
   const scrub = (await import(pathToFileURL(input.SCRUB_ENTRY).href)).default
   need(scrub?.name === 'openclaw-scrub' && typeof scrub.onRequest === 'function', 'installed-scrub-hook-required')
+  if (e41Mode) {
+    const parser = await import('./lib/e41-assistant-response.ts')
+    const denial = await import('../src/proxy/passthroughDenial.ts')
+    need(typeof parser.parseAssistantResponse === 'function' && typeof parser.replayAssistantBlocks === 'function' && typeof denial.isForwardedDenial === 'function', 'e41-original-pure-helper-imports-required')
+    report.e41.helpersImported = true
+  }
   if (!prepareOnly) {
     need(input.TOKEN_FILE && isAbsolute(input.TOKEN_FILE), 'private-access-only-file-required')
     const stat = lstatSync(input.TOKEN_FILE)
