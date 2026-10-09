@@ -1,0 +1,43 @@
+{
+  "atUTC": "2026-10-09T03:00:20.524790+00:00",
+  "status": "PASS_NAMED_RUNTIME_READINESS_NOT_MODEL_OR_NATIVE_GATE_ACCEPTANCE",
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-current-runtime-preflight-vi72wcvg",
+  "checks": [
+    {
+      "role": "bun",
+      "path": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1290/tooling/bun-1.3.11/package/bin/bun",
+      "sha256": "1d77af7bfd811aebb7d37bec496a5eed14fe227ded3ab7866d2f39786e8107b6",
+      "bytes": 61069216,
+      "version": "1.3.11",
+      "exit": 0,
+      "joined": true,
+      "stdoutBytes": 7,
+      "stderrBytes": 0
+    },
+    {
+      "role": "node",
+      "path": "/Users/rynfar/.hermes/node/bin/node",
+      "sha256": "5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c",
+      "bytes": 112915776,
+      "version": "v22.22.3",
+      "exit": 0,
+      "joined": true,
+      "stdoutBytes": 9,
+      "stderrBytes": 0
+    },
+    {
+      "role": "native",
+      "path": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-corrected-independent-package-preparation-20261007/consumer/node_modules/@anthropic-ai/claude-code-darwin-arm64/claude",
+      "sha256": "97a01e5bc74a199e67189435d0331ea3a24eac2e07db4b76d9148c5b0386138f",
+      "bytes": 235017328,
+      "version": "2.1.292 (Claude Code)",
+      "exit": 0,
+      "joined": true,
+      "stdoutBytes": 22,
+      "stderrBytes": 0
+    }
+  ],
+  "modelCalls": 0,
+  "sourceCredentialReadsWritesRefreshLogin": false,
+  "secondaryOrGlobalAbsence": "UNKNOWN"
+}

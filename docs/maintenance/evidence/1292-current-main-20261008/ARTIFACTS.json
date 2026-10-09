@@ -1,5 +1,5 @@
 {
-  "qualification": "Owned client and exact model/socket observers corrected and controlled; earlier failures retained. Complete local, fresh native invocation/product/package/CI remain held.",
+  "qualification": "Complete local PASS at 465c3589 with all six commands joined; historical failures unchanged. Fresh native preparation only, no grant or model call; product/package/CI held.",
   "files": {
     "BUN_1311_OWNED_SOCKET_CLOSE_CAUSAL_CONTROL.json": {
       "bytes": 2558,
@@ -181,9 +181,33 @@
       "bytes": 796,
       "sha256": "e1d8b16824eb67242d2634c24b4a93ac17b94b34de35e4e5048f16e4d6a4f8a5"
     },
+    "OWNED_OBSERVER_FINAL_LOCAL_GATES.json": {
+      "bytes": 2656,
+      "sha256": "ca01746da94217d82435c94b451461293e79990315a93c7ae50b67110e383f2e"
+    },
+    "OWNED_OBSERVER_FINAL_LOCAL_SUMMARY.json": {
+      "bytes": 1173,
+      "sha256": "be8f7de6e9b1c0ef5fd55dcd3f90d50de96505a6fc975048ccdcbab6610833de"
+    },
+    "OWNED_OBSERVER_NATIVE_INPUT_PLAN.json": {
+      "bytes": 2163,
+      "sha256": "4505138ad446b81ba4d156087ec768d7b6ec65bc6b3095ee49818c7c455cbc50"
+    },
+    "OWNED_OBSERVER_RUNTIME_PREFLIGHT.json": {
+      "bytes": 1529,
+      "sha256": "c3b0aa5946af62ef8c342b4f4eec48b0fe1cbb141fe13150e03e7f021e229422"
+    },
+    "OWNED_OBSERVER_SUPPORTED_AUTH_READ.json": {
+      "bytes": 522,
+      "sha256": "6aa70c46240cee5d443ddd4eedc94bbaf762b928b51b52072c25c6d567aed627"
+    },
     "OWNER_AFTER_NATIVE_BUDGET_CORRECTION.json": {
       "bytes": 3081,
       "sha256": "7077b24f83f76d92b4dcf5443fb67fd3ce34282daf375ffdcacd023dbb37affa"
+    },
+    "OWNER_AFTER_OWNED_OBSERVER_CORRECTIONS.json": {
+      "bytes": 3019,
+      "sha256": "306e9e1ec34fc9a52ce0d21eaf0cc6a5467e174db0c216f4c11d8a933e16a854"
     },
     "PARENT_ESCROW_PRESERVATION.json": {
       "bytes": 58655,
@@ -194,8 +218,8 @@
       "sha256": "06ccfd2e8ec9e3985ef1d75da53f215c9618d789270f486cbc2c2b8d609a13db"
     },
     "REVIEW.md": {
-      "bytes": 14928,
-      "sha256": "8668ea095d9cd83dd35390a7eeae73bb984e39537c8158860fd4b3bb66c7ea79"
+      "bytes": 16149,
+      "sha256": "eef6b8709e0ad1781251a43d77ec624c3e33c0eaf8dcf5abbaf5f2468e34cce5"
     },
     "ROOT_ADVERSARIAL_REVIEW.json": {
       "bytes": 8091,
@@ -388,6 +412,30 @@
     "observer-typecheck.log.gz": {
       "bytes": 820,
       "sha256": "f3217efbe233f736ad1c5e23a1096c583d6ba29cefa7a905b1878c8e9e26c5eb"
+    },
+    "owned-observer-final-build.log.gz": {
+      "bytes": 814,
+      "sha256": "481a8507e3803d6e5bed8e701bcd6cdf02e2efbaf20623343e02aec614bb7ce7"
+    },
+    "owned-observer-final-caption-control.log.gz": {
+      "bytes": 339,
+      "sha256": "8d976257f93f997b96bfecc905056da15b029e32444e52b62c8e3b5a139c6fd4"
+    },
+    "owned-observer-final-mapping-control.log.gz": {
+      "bytes": 388,
+      "sha256": "48ee9ff37e0178091279e4888236ffad2585577a3c647df062646177c335642e"
+    },
+    "owned-observer-final-native-causal-control.log.gz": {
+      "bytes": 860,
+      "sha256": "a539bbaa3c0d587b3c00586336422d33233ad7e8524fd9acdc07e267cfa825b3"
+    },
+    "owned-observer-final-npm-test.log.gz": {
+      "bytes": 213017,
+      "sha256": "c1a4cc779c32f6028a94b016916b1ab26e2f66a14413b0d46cead8edc6395943"
+    },
+    "owned-observer-final-typecheck.log.gz": {
+      "bytes": 73,
+      "sha256": "2d932dcc095e2d03c96533364e4ff649cfc12e4262003cc707a8e19bfc320998"
     },
     "r3-classifier.log.gz": {
       "bytes": 1934,

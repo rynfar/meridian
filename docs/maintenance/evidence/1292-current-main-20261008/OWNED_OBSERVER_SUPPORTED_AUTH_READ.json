@@ -1,0 +1,14 @@
+{
+  "atUTC": "2026-10-09T03:05:06.188241+00:00",
+  "operation": "SUPPORTED_DEFAULT_STORE_READ_ONLY",
+  "storeReturnedObject": true,
+  "accessPresent": true,
+  "expiryPresent": true,
+  "expiryAboveTenMinutes": true,
+  "sourceLoginRefreshWrites": false,
+  "serviceEnumeration": false,
+  "grantStaged": false,
+  "modelCalls": 0,
+  "tokenPrinted": false,
+  "qualification": "Fresh supported-read metadata only; no model entitlement or invocation claim. Access must be freshly re-read and deadline-qualified before staging."
+}

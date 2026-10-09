@@ -181,3 +181,24 @@ The runnable exact-snippet controller is
 Decompress the committed `native-observer-before-model-custody.mjs.gz` into
 a new owned before file; invoke with pinned Bun, passing absolute before/after
 harness paths and the exact reviewed Node binary. It performs no model call.
+
+
+### Current complete local gates
+
+At `465c35895cbef922669a6bb745d86438f9941c4d`, all 21 npm batches pass: 5,684 pass /
+36 skip / 0 fail, including pretest typecheck. Standalone typecheck,
+build, exact caption/mapping controls and the pinned Bun/Node socket/model
+control also pass. All six commands and runner session 19888 join. Head and
+worktree remain unchanged throughout verification. The earlier full and native
+failures remain escrowed; this is a fresh complete result after the reviewed
+corrections, not an unexplained isolated rerun.
+
+The owner HEAD, index and twelve dirty/untracked items remain exact. Named
+runtime bytes and version probes pass, and a supported read-only default-store
+check finds unexpired access; neither establishes model entitlement. Fresh
+baseline/candidate input plans bind 550/566 named or tracked inputs, including
+the helper and exact backend context pins. They are preparation, not invocation
+or a full transitive/OS closure. No grant is staged and no new real model call
+ran. Refresh commit/tree provenance after this evidence-only checkpoint before
+another bounded native attempt. Native/product, unknown reporter tuple, shared
+MCP, package and final-head CI gates remain open.

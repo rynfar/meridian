@@ -4412,3 +4412,16 @@ all four peers joined. See the
 Ten controls, typecheck, syntax and existing causality controls pass. No new
 model call or grant. New full local gates and fresh invocation/provenance
 qualification still precede actual before/after proof; inherited holds remain.
+
+
+Current combined #1292 correction passes complete local gates at
+`465c35895cbef922669a6bb745d86438f9941c4d`: all 21 npm batches, 5,684 pass / 36 skip /
+0 fail, pretest and standalone typecheck, build and all three causality controls.
+All commands and session 19888 join; source/head stay clean and exact.
+[Summary](evidence/1292-current-main-20261008/OWNED_OBSERVER_FINAL_LOCAL_SUMMARY.json)
+retains earlier failures and separate acceptance holds. Source/SDK/helper/Hono/
+runtime plans and read-only access readiness are prepared; no new native call
+or grant. Refresh provenance to the evidence-checkpoint head before a new
+unique baseline attempt, then actual candidate proof. Reporter tuple, shared
+MCP, overlap/cancellation/native parity, package and final-head CI remain open.
+The owner checkout remains exact; #1320/#1321 CI watches are retained.
