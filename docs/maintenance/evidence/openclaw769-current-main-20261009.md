@@ -37,6 +37,18 @@ and logs remain retained. The corrected alphanumeric fixture passes; these
 failures are not Meridian before/after evidence. Lifecycle scripts and optional
 native client features were omitted; no provider credential was supplied.
 
+The same committed probe at `b356123702c4a50dddcd4538f1cce08d159bfeb4`
+also passes on Linux arm64 / Node 22.22.3 in a read-only owned container with
+external networking disabled. The independently installed exact client sends
+two streaming requests and preserves the read/result pairing and final output.
+All original CLI/pipe and owned listener/socket/handler witnesses pass; the
+container exits zero, its original Docker wait joins, and the stopped container
+is removed. Image identity is
+`sha256:53c2c93dc65a0e6bc10009017a06d7d467fb60a79eab601193f63ecb58436174`.
+Its qualified public base image and inherited layer prefix match before/after.
+This is Linux client preparation, without live Meridian/SDK/model or Kubernetes
+acceptance; it does not widen the scope of the mocked core gates.
+
 Actual implicated OpenClaw/model/SDK/platform proof, four E41 modes, independently
 installed Meridian/scrub package flows and required final-head CI remain open.
 The separately accepted scrub candidate remains unlanded. The undisclosed
