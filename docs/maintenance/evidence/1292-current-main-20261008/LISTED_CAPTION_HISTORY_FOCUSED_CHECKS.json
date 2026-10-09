@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-listed-caption-controls-w6w1yqxp",
+  "checks": [
+    {
+      "label": "listed-caption-mapping-control",
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.181,
+      "sha256": "09881ad5a6f0bd33dce0d9dfd5369fc677b5aebb72a2912dd76c8abc1f397098"
+    },
+    {
+      "label": "listed-caption-typecheck",
+      "exit": 0,
+      "joined": true,
+      "seconds": 6.055,
+      "sha256": "172c72be53806f5bcec98d00a341de376e68a7eb3dfaa60e8b14c70326c9f0bc"
+    },
+    {
+      "label": "listed-caption-syntax",
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.024,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "modelCalls": 0,
+  "scope": "Exact extracted snapshot/functions with supported-SDK fixtures. Prior false failure reproduced; fixed/working listing and nonempty-history controls remain strict."
+}

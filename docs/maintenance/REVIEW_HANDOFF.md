@@ -4425,3 +4425,18 @@ or grant. Refresh provenance to the evidence-checkpoint head before a new
 unique baseline attempt, then actual candidate proof. Reporter tuple, shared
 MCP, overlap/cancellation/native parity, package and final-head CI remain open.
 The owner checkout remains exact; #1320/#1321 CI watches are retained.
+
+
+Latest #1292 native status: **R2 baseline MISSING / candidate unexecuted**.
+Actual caption and exact model/context witnesses now work; all scoped physical
+joins are positive and the private access-only input has been removed after
+review. The observed baseline caption replaced the working session and cleared
+its checkpoint; the replacement has two messages through public SDK reads but
+is absent from discovery. A separately reviewed bounded observer correction
+records this defect only in the pinned baseline after-caption phase, retains all
+fixed/working/nonempty-history assertions, and strengthens baseline replacement
+requirements. See [root review](evidence/1292-current-main-20261008/LISTED_CAPTION_HISTORY_ROOT_REVIEW.json).
+New full local gates and fresh provenance/native baseline/candidate proof remain
+required. Earlier local PASS is historical after this harness-only change.
+No active jobs or staged grant; the owner checkout remains exact. CI watches
+were stopped on the manual approval handback; #1320/#1321 gates remain open.

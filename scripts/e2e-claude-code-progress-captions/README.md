@@ -61,7 +61,7 @@ this source-only observer.
 
 The exact two scripts passed independent static review after three corrections
 (second MCP status check, real client UUID attribution and sticky PostToolUse
-first failure). They have **not yet run live**. On 2026-10-07 the supported work
+first failure). At that preparation checkpoint they had **not yet run live**. On 2026-10-07 the supported work
 and personal reads returned no credential object, and default had no
 subscription access token. No grant was staged and no model query ran. A ready
 owner login location is needed; no token should be sent in chat. Those facts describe the historical preparation; current status is recorded below.
@@ -106,8 +106,8 @@ node scripts/e2e-claude-code-progress-captions/caption-shape-control.mjs
 
 It reproduces the old false negative, recognizes the captured shape and rejects
 non-native, repeated, malformed and ordinary suffixes. It supplies no native
-acceptance. Exact model-label and accepted-socket close observations still need
-correction and review before another live attempt.
+acceptance. The subsequently reviewed model/socket corrections now observe exact labels and
+accepted-socket closure; actual before/after acceptance remains open.
 
 
 Current native labels must be checked separately: client `claude-opus-5-5`,
@@ -120,3 +120,15 @@ The exact cleanup-block controller takes absolute before/after harness paths
 and the pinned Node binary, runs only on the reviewed Darwin/Bun tuple, and
 spawns four credential-free owned TCP peers. Its control PASS supplies no live
 product acceptance. See the current-main evidence for the frozen before archive.
+
+
+The second native baseline recognizes the genuine caption and exact context
+labels, then reports `owned-sdk-session-not-listed`. Public owned-store/SDK reads
+show its caption replaced the working checkpoint with a readable two-message
+session omitted by discovery. The current snapshot records this only in the
+pinned baseline after-caption phase; every fixed/working snapshot still requires
+listing, and all snapshots require nonempty supported history. Baseline proof
+also requires changed session, cleared checkpoint and the original subsequent
+replay/read assertions. The committed mapping control includes the frozen old
+snapshot and strict fixed/working/empty-history negative controls. Native fixed,
+full matrix, package and CI acceptance remain open.

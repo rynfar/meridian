@@ -347,7 +347,8 @@ async function worker(o) {
   function publicGate(g) {
     return { n: g.n, wire: g.wire?.n ?? null, enteredAt: g.enteredAt, constructed: g.constructed === true, constructedAt: g.constructedAt ?? null, creationSettledAt: g.creationSettledAt ?? null, creationError: g.creationError ?? null, attachCalledAt: g.attachCalledAt ?? null, attachSettledAt: g.attachSettledAt ?? null, attachError: g.attachError ?? null, executor: g.executor ? { version: g.executor.version, pid: g.executor.pid, hostDigest: idDigest(g.executor.hostId), bootDigest: idDigest(g.executor.bootId), startDigest: idDigest(g.executor.startId), startIdKind: safeName(g.executor.startIdKind) } : null, recoverableAfterCrash: g.recoverableAfterCrash ?? null, process: g.handle?.n ?? null, queryNumbers: g.queries.map(q => q.n), spawnCalls: g.spawnCalls, closeCalls: g.closeCalls, problems: g.problems, join: gateJoined(g) ? 'JOINED' : 'UNKNOWN', scope: 'real source gate, exact observed POSIX wrapper/exec handle and publication join; no native secondary-process/global census' };
   }
-  async function snapshot(wire) {
+  async function snapshot(wire, phase = 'working') {
+    need(['working', 'after-caption'].includes(phase), 'invalid-snapshot-phase');
     need(state?.readSessionStoreSnapshot && state?.readSessionStoreGenerationSnapshot && adapter?.getSessionId && Context, 'owned-mapping-helper-unavailable', 'MISSING');
     need(wire?.headers instanceof Headers && wire.session && wire.agent, 'owned-working-wire-identity-missing', 'MISSING');
     // Derive identity with the selected product source, including its namespace
@@ -363,11 +364,16 @@ async function worker(o) {
     const { key, mapping } = selected;
     need(mapping.currentTranscript?.configDir === join(privateRoot, 'config', 'profiles', PROFILE) && mapping.currentTranscript?.projectDir === join(privateRoot, 'backend-work'), 'owned-locator-scope');
     const sessions = await sdk.listSessions({ dir: join(privateRoot, 'backend-work'), includeWorktrees: false });
-    need(sessions.some(s => s.sessionId === mapping.claudeSessionId), 'owned-sdk-session-not-listed', 'MISSING');
+    const sdkListed = sessions.some(s => s.sessionId === mapping.claudeSessionId);
+    // Baseline caption publication can replace the working checkpoint with a
+    // readable two-message session omitted by listSessions metadata discovery.
+    // Observe that defect only after its caption; working/fixed snapshots still
+    // require discovery, and every snapshot requires real positive SDK history.
+    need(sdkListed || o.expect === 'baseline' && phase === 'after-caption', 'owned-sdk-session-not-listed', 'MISSING');
     const history = await sdk.getSessionMessages(mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
     need(history.length > 0, 'owned-sdk-history-empty', 'MISSING');
     const generations = state.readSessionStoreGenerationSnapshot(adapterSessionId, [PROFILE]);
-    return { key, mapping: structuredClone(mapping), generations, history, public: { adapterSessionDigest: idDigest(adapterSessionId), storageKeyDigest: idDigest(key), mappingDigest: digest(mapping), generationsDigest: digest(generations), sdkSessionDigest: idDigest(mapping.claudeSessionId), lineageDigest: idDigest(mapping.lineageHash), messageCount: mapping.messageCount, checkpointDigest: idDigest(mapping.passthroughToolCallAssistantUuid), pendingIdDigests: (mapping.passthroughToolCallIds ?? []).map(idDigest), historyDigest: digest(history), historyLength: history.length } };
+    return { key, mapping: structuredClone(mapping), generations, history, public: { adapterSessionDigest: idDigest(adapterSessionId), storageKeyDigest: idDigest(key), mappingDigest: digest(mapping), generationsDigest: digest(generations), sdkSessionDigest: idDigest(mapping.claudeSessionId), lineageDigest: idDigest(mapping.lineageHash), messageCount: mapping.messageCount, checkpointDigest: idDigest(mapping.passthroughToolCallAssistantUuid), pendingIdDigests: (mapping.passthroughToolCallIds ?? []).map(idDigest), historyDigest: digest(history), historyLength: history.length, sdkListed } };
   }
   function exactPreserved(before, after) { return digest(before.mapping) === digest(after.mapping) && digest(before.generations) === digest(after.generations) && digest(before.history) === digest(after.history); }
   function validateProvenance() {
@@ -816,6 +822,7 @@ async function worker(o) {
       const prior = wires.filter(r => r.n < caption.n && !r.caption && r.agent === caption.agent && r.session === caption.session && r.group === c.group);
       need(prior.length > 0 && c.worker?.agent === caption.agent && c.receipts[0]?.agent === caption.agent, 'caption-working-agent-session-binding', 'MISSING');
       const before = await snapshot(caption);
+      report.workingSnapshots = { before: before.public };
       need(before.mapping.passthroughToolCallAssistantUuid && before.mapping.passthroughToolCallIds?.includes(c.reads.get(1)?.id), 'actual-second-read-checkpoint-missing', 'MISSING');
       if (c.prepareOverlap) {
         const pair = await bounded(c.pairReady.promise, 18000, 'native-request-pair-missing');
@@ -833,8 +840,10 @@ async function worker(o) {
         c.captionForward.resolve();
         await bounded(caption.done.promise, 90000, 'caption-http-settlement-deadline');
         need(caption.status === 200 && !caption.clientAbortAt && caption.responseEvents?.message_stop === 1 && !caption.responseEvents?.error, 'caption-http-success-required', 'MISSING');
-        const after = await snapshot(caption);
+        const after = await snapshot(caption, 'after-caption');
+        report.workingSnapshots.afterCaption = after.public;
         need(o.expect === 'fixed' ? exactPreserved(before, after) : !exactPreserved(before, after), o.expect === 'fixed' ? 'caption-mutated-working-state' : 'baseline-caption-mutation-not-reproduced', o.expect === 'fixed' ? 'FAIL' : 'MISSING');
+        if (o.expect === 'baseline') need(after.mapping.claudeSessionId !== before.mapping.claudeSessionId && !after.mapping.passthroughToolCallAssistantUuid && !after.mapping.passthroughToolCallIds?.length, 'baseline-working-checkpoint-replacement-not-reproduced', 'MISSING');
         const captionQueries = queries.filter(q => q.wire === caption);
         need(captionQueries.length === 1, 'caption-backend-query-count');
         if (o.expect === 'fixed') need(!captionQueries[0].options.resume && !captionQueries[0].options.resumeSessionAt, 'caption-had-working-resume-authority');
@@ -846,6 +855,7 @@ async function worker(o) {
         if (o.expect === 'fixed') need(nextQuery.options.resume === before.mapping.claudeSessionId && nextQuery.options.resumeSessionAt === before.mapping.passthroughToolCallAssistantUuid && nextQuery.options.forkSession, 'working-checkpoint-not-resumed');
         else need(!nextQuery.options.resume && !nextQuery.options.resumeSessionAt, 'baseline-next-working-replay-not-reproduced', 'MISSING');
         const final = await snapshot(caption);
+        report.workingSnapshots.afterWork = final.public;
         const sourceAgain = await sdk.getSessionMessages(before.mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
         need(digest(sourceAgain) === digest(before.history), 'source-history-mutated');
         for (const receipt of c.receipts) {

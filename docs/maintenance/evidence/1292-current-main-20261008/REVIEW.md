@@ -202,3 +202,31 @@ or a full transitive/OS closure. No grant is staged and no new real model call
 ran. Refresh commit/tree provenance after this evidence-only checkpoint before
 another bounded native attempt. Native/product, unknown reporter tuple, shared
 MCP, package and final-head CI gates remain open.
+
+
+### Native R2 baseline and bounded history observer correction
+
+The new baseline attempt is terminal with `owned-sdk-session-not-listed`; its
+original report is preserved. Unlike the first attempt, it recognizes the real
+native caption, observes exact client/backend context labels, and joins every
+observed gate, direct process, query, pipe, local socket/listener, writer and
+parent. The private access-only input was removed after root custody review;
+secondary/global absence and config/history cleanup remain outside that scope.
+
+Supported SDK APIs and the owned product-store snapshot show the caption replaced
+the working SDK session and cleared its pending checkpoint. That new session has
+two readable messages but is omitted by `listSessions` metadata discovery. The
+probe therefore now permits this observation only for the pinned baseline's
+after-caption snapshot. Working and fixed snapshots still require listing and
+every snapshot requires positive supported history and the exact owned locator.
+Baseline acceptance additionally requires session replacement and checkpoint
+clearing, followed by the existing actual replay/read/source-history assertions.
+Before/after public digests persist immediately to retain evidence of later failure.
+
+The frozen prior/current snapshot control reproduces the old refusal, verifies
+the bounded observation, and retains strict working/fixed/empty-history negative
+controls plus all identity/generation controls. Typecheck and syntax pass. Root
+adversarial review finds no remaining scoped observer blocker. No candidate
+attempt ran; new complete local checks and fresh native before/after proof remain
+required. All inherited product/package/reporter/shared-MCP/final-head CI holds
+remain open. No integration, source closure, release or community message occurred.
