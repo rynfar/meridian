@@ -1,5 +1,5 @@
 {
-  "qualification": "Current final local gates PASS at 3cd230cc; historical PASS and causal FAIL retained; native/package/CI acceptance remains held",
+  "qualification": "Observer correction/focused source proof; previous full local PASS retained; new complete checks and native/package/CI remain required",
   "files": {
     "CLASSIFIER_RED.json": {
       "bytes": 334,
@@ -61,6 +61,22 @@
       "bytes": 1139,
       "sha256": "22d720a19558cf720f3d967f806b14c41cc02f8a47d3e741c054b8a7bb2ae8f4"
     },
+    "OBSERVER_FOCUSED_CHECKS.json": {
+      "bytes": 718,
+      "sha256": "a72b4d67d16544834cac588b7f81f7fa2e8297d63d5b50cdba3317b376490fa2"
+    },
+    "OBSERVER_PORTABLE_CAUSAL_CONTROL.json": {
+      "bytes": 717,
+      "sha256": "816ca0322679cdb0623eae1100a81f0c2261b81ec7c1d9262d557397f201f132"
+    },
+    "OBSERVER_R2_FOCUSED_CHECKS.json": {
+      "bytes": 1032,
+      "sha256": "67069d4e8986ca19c051d8ddc085c7093086099ffe208a70a52ac533c419d833"
+    },
+    "OBSERVER_ROOT_ADVERSARIAL_REVIEW.json": {
+      "bytes": 3299,
+      "sha256": "3f2ade54c47e875f139d1f337e8fb92ebd182931d8108973d748bc803bcff90b"
+    },
     "OWNED_FIXTURE_CLEANUP.json": {
       "bytes": 796,
       "sha256": "e1d8b16824eb67242d2634c24b4a93ac17b94b34de35e4e5048f16e4d6a4f8a5"
@@ -74,8 +90,8 @@
       "sha256": "06ccfd2e8ec9e3985ef1d75da53f215c9618d789270f486cbc2c2b8d609a13db"
     },
     "REVIEW.md": {
-      "bytes": 5483,
-      "sha256": "304e842d8be6b1188954a26463fe8af1d28369ba7d58caed442f5c2249904f4e"
+      "bytes": 6219,
+      "sha256": "4e25225fa9de6ffc75fa541c696ce0684257819dc19536af58c96c2d4deed31d"
     },
     "ROOT_ADVERSARIAL_REVIEW.json": {
       "bytes": 8091,
@@ -128,6 +144,30 @@
     "isolated-final-typecheck.log.gz": {
       "bytes": 73,
       "sha256": "afb7a1d88b4d1875198db63d10647f464105362f6b27e01e0aeb8d3c38f28e0e"
+    },
+    "observer-focused.log.gz": {
+      "bytes": 396,
+      "sha256": "27b8bf77fb637ab0a1e57d104cbd2353ddf5f933159ef52703b3d4dbdff5d3d3"
+    },
+    "observer-portable-causal-control.log.gz": {
+      "bytes": 388,
+      "sha256": "441b7532dc79c89e7f30456d672c007673651fd5e9f28031f5abf57b06b9d33c"
+    },
+    "observer-r2-focused.log.gz": {
+      "bytes": 400,
+      "sha256": "d4077b448ada867161ee113983627ecb6e29dcbbf1a4c339f2ce77fe65fefcab"
+    },
+    "observer-r2-syntax.log.gz": {
+      "bytes": 20,
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    "observer-r2-typecheck.log.gz": {
+      "bytes": 73,
+      "sha256": "afb7a1d88b4d1875198db63d10647f464105362f6b27e01e0aeb8d3c38f28e0e"
+    },
+    "observer-typecheck.log.gz": {
+      "bytes": 820,
+      "sha256": "f3217efbe233f736ad1c5e23a1096c583d6ba29cefa7a905b1878c8e9e26c5eb"
     },
     "r3-classifier.log.gz": {
       "bytes": 1934,

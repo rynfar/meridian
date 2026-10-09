@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "scope": "Executed exact extracted snapshot functions with credential-free state/public-SDK fixtures; not a native/model acceptance claim",
+  "historicalSnapshotSha256": "57677ad97fc91eee6bbf403c22f8cf44df344c74a4a1b341350d313a4e1c876d",
+  "currentSnapshotSha256": "013fe05b0226ce209b7d3a91fc512fbd7667c537456e29f591d4c7315ec79d2e",
+  "historicalFalsePassReproduced": true,
+  "historicalFalseFailureReproduced": true,
+  "correctedAgentMutationDetected": true,
+  "correctedRootMutationIgnored": true,
+  "correctedGenerationIdentityExact": true,
+  "actualAdapterAndHonoSource": true,
+  "modelCalls": 0,
+  "nativeChildren": 0,
+  "exit": 0,
+  "joined": true,
+  "portableRepositoryControl": true
+}

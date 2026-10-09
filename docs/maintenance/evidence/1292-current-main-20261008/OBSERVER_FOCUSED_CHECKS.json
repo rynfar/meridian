@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "label": "observer-focused",
+      "argv": [
+        "bun",
+        "test",
+        "--timeout",
+        "30000",
+        "src/__tests__/caption-native-working-mapping.test.ts"
+      ],
+      "exit": 0,
+      "joined": true,
+      "sha256": "ad09eb1c9751120fb8c8cf9df877020a5824e7c1dc2ef5f42aeec429407979b9"
+    },
+    {
+      "label": "observer-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 2,
+      "joined": true,
+      "sha256": "0988972e933bfe10621c9992448a353f69a0f46092895d6aff72cce3477bf881"
+    }
+  ],
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-observer-checks-gvulg5_6",
+  "modelCalls": 0
+}

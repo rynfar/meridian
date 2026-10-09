@@ -4361,5 +4361,7 @@ complete gates pass at `3cd230cc`; no production change accompanies this isolati
 Both exact owned local fixtures were removed after all commands joined. The
 owner checkout, index and twelve dirty/untracked files remain unchanged. Current
 local receipts and logs are escrowed with the historical PASS and causal FAIL.
-The native caption mapping observer still requires correction and review before
-invocation; all inherited native/product/package/CI holds remain.
+The native caption mapping observer now has an actual adapter-key correction
+and root review, with six focused controls and exact-function false-pass/false-fail
+causality proof. The changed harness/test requires new full local checks. Exact
+native runtime/custody and all inherited native/product/package/CI holds remain.

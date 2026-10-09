@@ -1,0 +1,14 @@
+  async function snapshot(session) {
+    need(state?.readSessionStoreSnapshot && state?.readSessionStoreGenerationSnapshot, 'owned-mapping-helper-unavailable', 'MISSING');
+    const all = state.readSessionStoreSnapshot();
+    const rows = Object.entries(all).filter(([key]) => key === session || key === `${PROFILE}:${session}`);
+    need(rows.length === 1, 'owned-working-mapping-not-unique', 'MISSING');
+    const [key, mapping] = rows[0];
+    need(mapping.currentTranscript?.configDir === join(privateRoot, 'config', 'profiles', PROFILE) && mapping.currentTranscript?.projectDir === join(privateRoot, 'backend-work'), 'owned-locator-scope');
+    const sessions = await sdk.listSessions({ dir: join(privateRoot, 'backend-work'), includeWorktrees: false });
+    need(sessions.some(s => s.sessionId === mapping.claudeSessionId), 'owned-sdk-session-not-listed', 'MISSING');
+    const history = await sdk.getSessionMessages(mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
+    need(history.length > 0, 'owned-sdk-history-empty', 'MISSING');
+    const generations = state.readSessionStoreGenerationSnapshot(session, [PROFILE]);
+    return { key, mapping: structuredClone(mapping), generations, history, public: { mappingDigest: digest(mapping), generationsDigest: digest(generations), sdkSessionDigest: idDigest(mapping.claudeSessionId), lineageDigest: idDigest(mapping.lineageHash), messageCount: mapping.messageCount, checkpointDigest: idDigest(mapping.passthroughToolCallAssistantUuid), pendingIdDigests: (mapping.passthroughToolCallIds ?? []).map(idDigest), historyDigest: digest(history), historyLength: history.length } };
+  }

@@ -1,0 +1,41 @@
+{
+  "checks": [
+    {
+      "label": "observer-r2-focused",
+      "argv": [
+        "bun",
+        "test",
+        "--timeout",
+        "30000",
+        "src/__tests__/caption-native-working-mapping.test.ts"
+      ],
+      "exit": 0,
+      "joined": true,
+      "sha256": "cca52de9b54bd857b8a5f012e023db1533a0f1e230cf6af9031dc421a10b1f90"
+    },
+    {
+      "label": "observer-r2-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "label": "observer-r2-syntax",
+      "argv": [
+        "node",
+        "--check",
+        "scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-observer-checks-gvulg5_6",
+  "modelCalls": 0
+}
