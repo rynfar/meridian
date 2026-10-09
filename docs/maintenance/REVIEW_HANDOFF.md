@@ -20,16 +20,30 @@ human coauthor trailer. Source #1293 was rechecked unchanged at
 a comment. [The committed adversarial review and live before/after proof](evidence/claude-executable-selection-review-20261008.md)
 retain the bounded Linux arm64/OpenCode V1/Haiku acceptance and broader limits.
 
-[Home Manager #1320](https://github.com/rynfar/meridian/pull/1320) is being
-reconciled onto that landed main in its existing isolated feature branch.
-Its original delivery had successful final-head test and native Nix checks;
-the cancelled push-triggered Nix run was superseded by a successful PR-triggered
-run of the same workflow and exact head under its declared concurrency group.
-Only the handoff document conflicted. Module, renderer assertions and lock
-remain unchanged; fresh combined local gates and final-head CI are required
-before its guarded squash. Source #1305 stays open until landing and unchanged
-source verification. [Its native proof and authorship receipt](evidence/home-manager-isolation-1305.md)
-remain valid for the unchanged configuration inputs.
+[Home Manager #1320](https://github.com/rynfar/meridian/pull/1320) merged reviewed
+head `94ab30b11ba78eb1993f95273ac5f87be16e5dfe` as
+`aee79ae3966b8b1d32f8d2a7fde3ec01f7ec2686`, with exact landed tree and Can H.
+Tartanoglu's human coauthor trailer verified. Fresh combined local gates passed
+5,502 tests / 35 skips / zero failures, typecheck and build. Final-head
+[test](https://github.com/rynfar/meridian/actions/runs/37882257433/job/113664326961)
+and [native Nix](https://github.com/rynfar/meridian/actions/runs/37882257435/job/113664342289)
+passed alongside the other relevant checks. The cancelled same-head push Nix
+run was superseded by that successful PR run under declared concurrency.
+Unchanged source #1305 was closed. [Its native proof and authorship receipt](evidence/home-manager-isolation-1305.md)
+retain their scope. The implemented bounded contract #1319 is closed.
+
+The refreshed managed queue has 28 open PRs and 21 issues, down from 32 PRs;
+no new PR was added during these integrations. #650 remains owner-deferred.
+The oldest actionable item is [#769](https://github.com/rynfar/meridian/issues/769).
+Its archived core correction `f09cd586` was applied cleanly to current main as
+`7960fd62`, with Author/AuthorDate preserved. Fresh root adversarial source review
+found no material production blocker; local gates passed 5,552 tests / 35 skips /
+zero failures, typecheck and build. The separately reviewed scrub correction
+remains unlanded. Exact OpenClaw 2026.6.11 client/config/loopback preparation is
+qualified separately in [the current review](evidence/openclaw769-current-main-20261009.md).
+Actual client/model/SDK/platform, E41, installed-package and final-head CI gates
+remain open. Keep #769 open: its new classifier trigger is undisclosed and its
+current same-window off/on/off evidence is incomplete. No new delivery PR yet.
 
 Draft #1322 and the older native/product/client/package holds remain separate.
 No release or community comments are authorized by this checkpoint. The

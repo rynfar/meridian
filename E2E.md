@@ -15,6 +15,33 @@ Live tests against the real proxy + Claude Max SDK. These verify the full reques
 
 **Prerequisites:** Claude Max subscription, `claude auth status` shows `loggedIn: true`, `opencode` installed with the generation-matching Meridian OpenCode plugin. Successful auth readiness does not establish model access.
 
+## OpenClaw #769 credentialless client preparation
+
+Independently install the reported `openclaw@2026.6.11` into a disposable prefix
+using Node >=22.19.0, with `--ignore-scripts --omit=optional`. The qualified
+registry tarball SHA256 is
+`3b3165508391b82b38e62189979df589a45a2d8019a8ef7910fccc554649ce7b`.
+
+```sh
+E2E_OPENCLAW_BIN=<absolute-prefix>/node_modules/openclaw/openclaw.mjs \
+E2E_OUTPUT_DIR=<new-absolute-artifact-directory> \
+node scripts/e2e-openclaw-client-protocol.mjs
+```
+
+The bounded loopback SSE fixture validates the actual client version and config,
+then requires one declared file-read call, its matching result with a random
+owned receipt, and final client output. It isolates HOME, state, configuration,
+workspace and XDG directories, supplies only a local fixture key, and records
+original CLI exit/close/captured-pipe witnesses plus owned listener/socket/handler
+joins. Tool IDs are alphanumeric because this client normalizes punctuation.
+Failures retain their first cause and retire request admission before artifact
+writes. Existing output directories are rejected.
+
+This preparation uses an owned simulated provider. It does not validate Meridian,
+the Agent SDK, real Claude, Kubernetes, billing or the undisclosed classifier
+trigger. Actual affected-flow proof, all four E41 modes, package verification and
+final-head CI remain separate gates. See [current source review and qualifications](docs/maintenance/evidence/openclaw769-current-main-20261009.md).
+
 > **Droid tests (D1–D10)** additionally require `droid` installed (`droid --version` ≥ 0.89.0) and a Factory AI account for BYOK configuration. Tests D1–D10 cover internal mode (the default). Passthrough mode for Droid is opt-in via `MERIDIAN_PASSTHROUGH=1` and requires `droid` ≥ 0.109 — see "Droid passthrough mode" below.
 
 ## Required Meridian OpenCode plugin preflight
