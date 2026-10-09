@@ -80,7 +80,29 @@ A separate credentialless Bun 1.3.11 HTTP probe reproduces listener closure
 with an unclosed observed socket wrapper. Explicitly destroying the original
 owned wrapper produces its required close event. The corrected escrow retains
 those witnesses and records granular HTTP custody; it does not erase failed
-R3 witnesses. Fresh baseline/candidate contract acceptance remains pending.
+R3 witnesses.
+
+Fresh R4 uses identical escrow `d29c4fbb5eb4246ce7a3e64facc6bfa113dfa5af`
+in image `sha256:f4d378a34a8bf314ba3a51d5b048a3177a0630a14c4064a2d7e80930af18f235`
+for both installed source arms. Unchanged main reproduces the ignored benign
+edit in actual SDK input and public saved history. Candidate consumes that edit,
+preserves the actual tool call/result in replay and saved history, withholds
+SDK-prefix reuse on the changed turn, restores proof on unchanged replay, and
+resumes the next equivalent turn. Both preserve raw stored counts 1/5/7/9.
+The initial independent headerless branch remains the explicitly separate E54
+control. Each arm makes five actual SDK/native queries and exits zero. All
+original child/pipe, query factory/iterator/close, public history read and owned
+listener/socket/handler witnesses join. Original Docker waits join, stopped
+containers are removed, and the unchanged read-only access input is removed
+after both arms' terminal custody audits. External/global descendants remain
+unknown; neither source credentials nor login/refresh state is written.
+
+This accepts the bounded existing plugin-message execution contract. It does
+not establish that the undisclosed classifier or billing failure is resolved.
+Package build source is `be4edc82`; its production core is byte-identical to
+the qualified `7960fd62` source. Later commits change escrow/documentation only.
+Selected installed package identities and the dependency lock stay qualified
+separately from final-head delivery/package/release provenance.
 
 The remaining actual affected-flow proof, four E41 modes, broader independently
 installed package flows and required final-head CI remain open.
