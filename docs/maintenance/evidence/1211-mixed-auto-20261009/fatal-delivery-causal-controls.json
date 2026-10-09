@@ -1,0 +1,19 @@
+{
+  "atUTC": "2026-10-09T19:59:28.590034+00:00",
+  "observedFullGateFailure": "error-reporting.test.ts fatal-delivery assertion observed .json.sending-76286 after JSON-only wait had returned. Original first npm process remains live; not restarted.",
+  "productionSource": "deliverSpool renames the JSON to .sending-PID before fetch, removes the claim only after a delivered/rejected response, and restores JSON after retry. Product code unchanged.",
+  "deterministicControl": "Hold a real loopback collector response after the crashed real child exits. Require one claim while JSON-only view is empty. Old wait returns and fails; corrected wait requires all queue entries gone after response release.",
+  "oldWaitControl": {
+    "originalExecSession": 58355,
+    "terminalExit": 1,
+    "expected": "FAIL at full queue empty assertion"
+  },
+  "correctedControl": {
+    "originalExecSession": 63185,
+    "terminalExit": 0,
+    "expected": "PASS with full queue empty after explicit response release"
+  },
+  "actualRepositoryCorrection": "Pending original full-gate join; proposal is external to preserve original exact-head test custody.",
+  "actualModelCalls": 0,
+  "issue917933Causality": "No broad issue or historical CI attribution claimed."
+}

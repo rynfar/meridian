@@ -1,0 +1,75 @@
+{
+  "atUTC": "2026-10-09T20:23:56.402359+00:00",
+  "head": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+  "counts": {
+    "pass": 5869,
+    "skip": 36,
+    "fail": 0
+  },
+  "npmBatches": 22,
+  "gates": {
+    "test": {
+      "atUTC": "2026-10-09T20:22:59.957282+00:00",
+      "head": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "driverPid": 43298,
+      "childPid": 43310,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "cleanAfter": true
+    },
+    "typecheck": {
+      "atUTC": "2026-10-09T20:08:45.776633+00:00",
+      "head": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "driverPid": 43299,
+      "childPid": 43308,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "cleanAfter": true
+    },
+    "build": {
+      "atUTC": "2026-10-09T20:08:39.748395+00:00",
+      "head": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "driverPid": 43300,
+      "childPid": 43309,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "cleanAfter": true
+    },
+    "compiled": {
+      "atUTC": "2026-10-09T20:12:18.682568+00:00",
+      "head": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "argv": [
+        "bun",
+        "test",
+        "src/__tests__/claude-auto-mode-harness.test.ts",
+        "-t",
+        "binds existing certified compiled HTTP requests"
+      ],
+      "driverPid": 60789,
+      "childPid": 60795,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+      "cleanAfter": true
+    }
+  },
+  "initialFailedGatePreserved": true,
+  "fatalCorrectionCauseQualified": true
+}

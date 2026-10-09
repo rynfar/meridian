@@ -17,7 +17,7 @@ import { createOwnedClientProcess } from './lib/e2eOwnedClient.mjs'
 import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/e2ePublicSdkDiagnostics.mjs'
 import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
 import { createRequestModelWitness } from './e2e-claude-code-auto-mode.mjs'
-import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork } from './lib/e2eMixedAuto.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch } from './lib/e2eMixedAuto.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -408,7 +408,7 @@ try {
               for (const block of event.message?.content ?? []) if (block.type === 'tool_use' && typeof block.id === 'string' && objectInput(block.input)) {
                 if (sdkToolOwners.has(block.id) && sdkToolOwners.get(block.id) !== row) proof.sdkToolIdReused = true
                 sdkToolOwners.set(block.id, row)
-                tools.set(block.id, { name: sdkClientToolName(block.name), input: JSON.stringify(inputIdentity(block.input)) })
+                tools.set(block.id, { name: sdkClientToolName(block.name), rawName: block.name, input: JSON.stringify(inputIdentity(block.input)) })
               }
             }
             if (event.type === 'result') {
@@ -640,6 +640,13 @@ try {
     // Only ordinal aliases and deterministic facts leave memory; no real
     // agent/session/tool IDs, prompts, tool arguments or generated prose.
     proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash', 'TaskOutput', 'Read'].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))
+    if (mixedAuto) proof.toolReceiptDiagnostics = privateReceipts.map((receipt, index) => {
+      const sdkTool = receipt.row && sdkTools.get(receipt.row).get(receipt.id)
+      const hook = receipt.row && sdkHookReceipts.get(receipt.row).get(receipt.id)
+      return { number: index + 1, ...publicToolReceiptMatch({ wireName: receipt.tool.name, sdkRawName: sdkTool?.rawName, observerSdkName: sdkTool?.name,
+        wireInput: receipt.tool.input, sdkInput: sdkTool?.input, hookFate: hook?.fate, hookInput: hook?.input,
+        sdkIdOwners: proof.queries.filter(row => sdkTools.get(row).has(receipt.id)).length }) }
+    })
     proof.checks = {
       invocationsSucceeded: proof.turns.length === 2 && proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), noRefusal: proof.turns.every(row => !row.refused) && wire.every(row => row.status === 200),
       requestedModelIdentity: wire.length > 0 && wire.every(row => row.requestedModelMatched), rootedWireIdentity: wire.length > 0 && wire.every(row => row.sessionKeyMatched && row.actor >= 0), requestDecisionsComplete: wire.length > 0 && wire.every(row => decision(row).length === 1) && records.length === wire.length,

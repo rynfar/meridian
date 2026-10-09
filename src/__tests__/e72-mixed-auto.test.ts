@@ -4,11 +4,22 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import { PASSTHROUGH_DENY_REASON } from '../proxy/passthroughDenial'
-import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork } from '../../scripts/lib/e2eMixedAuto.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch } from '../../scripts/lib/e2eMixedAuto.mjs'
 import { createOwnedClientProcess } from '../../scripts/lib/e2eOwnedClient.mjs'
 
 const envelope = 'You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\n</cc_automode_permissions>'
 describe('mixed auto observer structural controls', () => {
+  it('distinguishes name normalization, changed inputs and missing owners without exposing payloads', () => {
+    const receipt = { wireName: 'SendMessage', sdkRawName: 'mcp__oc__SendMessage', observerSdkName: 'mcp__oc__SendMessage', wireInput: 'private input', sdkInput: 'private input', hookFate: 'forwarded', hookInput: 'private input', sdkIdOwners: 1 }
+    expect(publicToolReceiptMatch(receipt)).toMatchObject({ wireName: 'SendMessage', sdkName: 'SendMessage', sdkNamespace: 'client-mcp', observerNameMatched: false, singleClientPrefixNameMatched: true, inputMatched: true, hookInputMatched: true, hookForwarded: true })
+    expect(publicToolReceiptMatch({ ...receipt, wireName: 'Bash' }).singleClientPrefixNameMatched).toBe(false)
+    expect(publicToolReceiptMatch({ ...receipt, sdkInput: 'changed input' }).inputMatched).toBe(false)
+    expect(publicToolReceiptMatch({ ...receipt, sdkRawName: undefined, sdkInput: undefined, sdkIdOwners: 0 })).toMatchObject({ sdkNamespace: 'missing', singleClientPrefixNameMatched: false, inputMatched: false })
+    const unknown = publicToolReceiptMatch({ ...receipt, wireName: 'private tool', sdkRawName: 'mcp__oc__private tool' })
+    expect(unknown).toMatchObject({ wireName: 'other', sdkName: 'other', singleClientPrefixNameMatched: true })
+    expect(JSON.stringify(unknown)).not.toContain('private')
+    expect(publicToolReceiptMatch({ ...receipt, sdkRawName: 'mcp__private__SendMessage' }).sdkNamespace).toBe('other-mcp')
+  })
   it('requires the native system envelope, exact root and bounded classifier shape', () => {
     const body = { system: envelope, tools: [], stream: false, stop_sequences: ['</block>'] }
     expect(mixedAutoRequest(body, 'none', true).classifier).toBe(true)
@@ -127,6 +138,20 @@ describe('actual mixed observer against marked synthetic client, proxy and SDK',
     expect(result.code).toBe(1)
     expect(result.proof.result).toBe('FAIL')
     expect(result.proof.requestModelWitness[mode === 'noLoggerContext' ? 'missingContext' : 'duplicateContext']).toBe(true)
+  })
+  for (const mode of ['unexpectedClientTool', 'changedClientToolName', 'changedClientToolInput']) it('retains failed acceptance and diagnoses ' + mode, async () => {
+    const result = await runControl({ [mode]: true })
+    expect(result.code).toBe(1)
+    expect(result.proof.result).toBe('FAIL')
+    expect(result.proof.checks.actualAgentAndBashReceipts).toBe(false)
+    expect(result.proof.checks.nativeReceipts).toBe(false)
+    const rows = result.proof.toolReceiptDiagnostics
+    if (mode === 'unexpectedClientTool') {
+      expect(result.proof.toolReceipts).toHaveLength(9)
+      expect(rows.filter((row: { wireName: string }) => row.wireName === 'SendMessage')).toHaveLength(2)
+      expect(rows.filter((row: { wireName: string }) => row.wireName === 'SendMessage').every((row: { observerNameMatched: boolean; singleClientPrefixNameMatched: boolean; inputMatched: boolean; hookForwarded: boolean }) => !row.observerNameMatched && row.singleClientPrefixNameMatched && row.inputMatched && row.hookForwarded)).toBe(true)
+    } else if (mode === 'changedClientToolName') expect(rows.some((row: { singleClientPrefixNameMatched: boolean }) => !row.singleClientPrefixNameMatched)).toBe(true)
+    else expect(rows.some((row: { inputMatched: boolean; hookInputMatched: boolean }) => !row.inputMatched && !row.hookInputMatched)).toBe(true)
   })
   it('holds restoration and the fixture when a rejected duplicate leaves an unconsumed SDK query', async () => {
     const result = await runControl({ duplicateBeforeConsume: true }, true)

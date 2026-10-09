@@ -18,6 +18,7 @@ export async function startProxyServer(config) {
       if (classifier) text = 'allow'
       else if (actor === 'main' && count === 1) tools = ['alpha', 'beta'].map(label => tool('launch-' + label, 'Agent', { subagent_type: 'general-purpose', run_in_background: false, prompt: label + '-1 ' + label + '-2' }))
       else if (actor !== 'main' && count <= 2) tools = [tool(actor + '-' + count, 'Bash', { command: body.commands[count - 1] })]
+      else if (actor !== 'main' && count === 3 && (mode.unexpectedClientTool || mode.changedClientToolName || mode.changedClientToolInput)) tools = [tool(actor + '-unexpected', 'SendMessage', { recipient: 'synthetic-parent', content: actor + '-1 ' + actor + '-2' })]
       else if (actor === 'main' && count === 3) tools = [tool('parent-write', 'Bash', { command: body.commands[0] })]
       else text = actor === 'main' ? count === 2 ? 'DONE' : 'AGAIN' : actor + '-1 ' + actor + '-2'
       if (mode.changedCommand && tools[0]?.name === 'Bash') tools[0].input.command += ' && echo changed-command'
@@ -36,6 +37,8 @@ export async function startProxyServer(config) {
       console.log('[PROXY] ' + request.headers['x-request-id'] + ' adapter=claude-code msgCount=2 tools=' + tools.length + ' lineage=' + (resume ? 'continuation' : 'new') + ' diverged=' + (classifier && !mode.classifierNotIsolated ? 'independent-request:auxiliary-request' : 'none') + ' session=' + (resume ? resume.slice(0, 8) : 'new') + ' sessionWait=' + (classifier && mode.classifierWait ? 20 : 0) + 'ms')
       if (actor !== 'main' && count === 1) await new Promise(resolve => setTimeout(resolve, 100))
       response.writeHead(200, { 'content-type': 'application/json' })
+      if (mode.changedClientToolName && tools[0]?.name === 'SendMessage') tools[0].name = 'TaskStop'
+      if (mode.changedClientToolInput && tools[0]?.name === 'SendMessage') tools[0].input = { recipient: 'synthetic-parent', content: 'synthetic-changed-http-input' }
       response.end(JSON.stringify({ type: 'message', role: 'assistant', content: tools.length ? tools : [{ type: 'text', text }], stop_reason: tools.length ? 'tool_use' : 'end_turn' }))
     }
     try {

@@ -1,0 +1,9 @@
+# Root scoped adversarial review of mixed tool diagnostics
+
+Reviewed the full delta from `6cb1516`: the observer, mixed helper, direct tests and synthetic proxy fixture. This is a root review, not a delegated independent review or whole-PR acceptance.
+
+The original native source failure is preserved byte-for-byte. Two extra HTTP calls survive in the same strict count and remain unpaired; there is no widened normalizer, tool allowlist, retry, model/cap fallback, altered result predicate or ignored failure. Added diagnostics compare native assistant tool ownership by existing ID with HTTP inputs and forwarding-hook inputs. Namespace and name facts use only fixed literals; raw strings, IDs and arguments remain in memory. Duplicate/missing owners remain distinguishable. No diagnostic field is referenced by acceptance or request classification.
+
+The three negative controls run the actual maintained observer, fake SDK hook/assistant events and fake HTTP responses. Extra SendMessage calls fail; a substituted wire name and changed wire arguments produce different match booleans and still fail. Their mutations occur only after the genuine fake SDK/hook observations, so the disagreement is meaningful. Existing positive stamp writes remain bound to the HTTP command, and every previous negative control remains intact. Nineteen focused tests passed after that preservation correction. Synthetic acceptance remains false.
+
+Only verification files change; production/session/profile/public API modules are unchanged. Prior exact-head full-suite gates remain historical and are not promoted to this new head. Full local gates, frozen rehearse and real diagnostic evidence are required next. No material scoped source finding remains; actual unknown-call causality and all inherited whole-change acceptance holds remain open.

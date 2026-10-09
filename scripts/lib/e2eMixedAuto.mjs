@@ -1,5 +1,26 @@
 import assert from 'node:assert/strict'
 
+const publicToolNames = new Set(['Agent', 'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TaskOutput', 'TaskStop', 'SendMessage', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'ToolSearch', 'TodoWrite', 'Skill', 'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'WebFetch', 'WebSearch', 'NotebookEdit'])
+const toolName = value => publicToolNames.has(value) ? value : 'other'
+
+// Diagnostic facts only. Unknown names, IDs and inputs never leave the
+// observer, and these facts cannot qualify an unexpected tool as accepted.
+export function publicToolReceiptMatch({ wireName, sdkRawName, observerSdkName, wireInput, sdkInput, hookFate, hookInput, sdkIdOwners }) {
+  const present = typeof sdkRawName === 'string'
+  const clientPrefix = present && sdkRawName.startsWith('mcp__oc__')
+  return {
+    wireName: toolName(wireName),
+    sdkName: toolName(clientPrefix ? sdkRawName.slice('mcp__oc__'.length) : sdkRawName),
+    sdkNamespace: !present ? 'missing' : clientPrefix ? 'client-mcp' : sdkRawName.startsWith('mcp__') ? 'other-mcp' : 'bare',
+    sdkIdOwners,
+    observerNameMatched: present && observerSdkName === wireName,
+    singleClientPrefixNameMatched: present && (sdkRawName === wireName || sdkRawName === 'mcp__oc__' + wireName),
+    inputMatched: typeof sdkInput === 'string' && sdkInput === wireInput,
+    hookForwarded: hookFate === 'forwarded',
+    hookInputMatched: typeof hookInput === 'string' && hookInput === wireInput,
+  }
+}
+
 // Verification data only; this does not classify product requests or persist
 // prompts. The pinned native monitor envelope must be structural, not quoted.
 export function mixedAutoRequest(body, rawClass, sessionKeyMatched) {

@@ -1,0 +1,155 @@
+{
+  "atUTC": "2026-10-09T20:35:41.002059+00:00",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 5788,
+      "sha256": "666258a56976f7276460346e6c1f2c02f0c44c7ecae13547915469e6a0b43ac6"
+    },
+    {
+      "path": "ROOT_REVIEW.md",
+      "bytes": 1831,
+      "sha256": "dc6fd07dad9fcebc9af94192071c6f8ca126dfd40430cf7f90bcb9e597c2a8e1"
+    },
+    {
+      "path": "failed-cohort-terminal.json",
+      "bytes": 121,
+      "sha256": "09549ccbd3e789f419eecbb4e047231f724691f29253b5dc193c6bae00024683"
+    },
+    {
+      "path": "failed-source-custody.json",
+      "bytes": 360,
+      "sha256": "c2be2cf65afbcb92151526dd6b6786ae639240219dab86fb050365575411035b"
+    },
+    {
+      "path": "failed-source-qualification.json",
+      "bytes": 2067,
+      "sha256": "b6fdddc6559fe2736a3ef5e7ec7d25110dc0d885e089466ebdcc4d370425a809"
+    },
+    {
+      "path": "failed-source-receipt.json",
+      "bytes": 2855,
+      "sha256": "f738c3754d42f382a59769062a5935b7ff0fad24116a1e734a2ab1a0d9421f46"
+    },
+    {
+      "path": "failed-source-results.json",
+      "bytes": 105068,
+      "sha256": "32c2301ee6417faae07e795abb2d48a9ad24097247c8d02eb4416c2cce816c8a"
+    },
+    {
+      "path": "fatal-delivery-causal-controls.json",
+      "bytes": 1246,
+      "sha256": "a9eda152072deb6c24ce5fce1b459aaaccd58fb38b535c40538916459dcaf446"
+    },
+    {
+      "path": "focused-controls.txt",
+      "bytes": 2698,
+      "sha256": "42222bc881dbd2c60b2c9055efc63248a346e7cecf2a6862eb4b49899c11f83d"
+    },
+    {
+      "path": "initial-duplicate-control-cleanup.json",
+      "bytes": 314,
+      "sha256": "23a7a1a3fb0d6ee81114d752bc12c041f361f4154e67bc8c200acd229eb3a752"
+    },
+    {
+      "path": "initial-duplicate-control-failure.json",
+      "bytes": 9239,
+      "sha256": "717566014195b46e600d665834e1cbce7625cc502e097266778f6e2c938c429b"
+    },
+    {
+      "path": "initial-full-gate-failure.json",
+      "bytes": 683,
+      "sha256": "c0bd9b6aa5910cea45b83c0f772af75c1b59c6342d886552bfd934053dcdbd24"
+    },
+    {
+      "path": "owner-author-requalification.json",
+      "bytes": 247,
+      "sha256": "ddf7b8bf353cee8eca5ecf835427e67cd77787a1991cafa5f754fcf234ff0201"
+    },
+    {
+      "path": "prior-final-local-gates.json",
+      "bytes": 1992,
+      "sha256": "a7ed7c68ce5676a346cb6292c236d6e5207d61afc9c441a3e569b147bdf518f8"
+    },
+    {
+      "path": "prior-scoped-review.md",
+      "bytes": 3801,
+      "sha256": "246c19acf6f8399e6168434c422c35eff6a25f90864f915c4cad51c6ff69d73f"
+    },
+    {
+      "path": "synthetic-controls/borrowedClassifierSession.json",
+      "bytes": 73946,
+      "sha256": "73125dbafe97bacc151d8a45409867ad981bfb2cc5e3f19f9fef57b9a64e530b"
+    },
+    {
+      "path": "synthetic-controls/changedClientToolInput.json",
+      "bytes": 74948,
+      "sha256": "5fab5a6d24615ee7e7bfbcf88a2ac35c070f2636964a7eb9e18658c3ecec217b"
+    },
+    {
+      "path": "synthetic-controls/changedClientToolName.json",
+      "bytes": 74914,
+      "sha256": "36f2069c19343d57cee23af9d83a72af35a62d042432716629cb8499488c0a1f"
+    },
+    {
+      "path": "synthetic-controls/changedCommand.json",
+      "bytes": 73889,
+      "sha256": "2ebd46ef6a887060d8986afb7e61bfac5df3040101ba93c2a48d358bd2ae22a0"
+    },
+    {
+      "path": "synthetic-controls/classifierNotIsolated.json",
+      "bytes": 73748,
+      "sha256": "4fc3e4d5e6062bf0ec7c28186a87f7a92805d3b77e77c8ecd0dd81b17c5d0d39"
+    },
+    {
+      "path": "synthetic-controls/classifierWait.json",
+      "bytes": 73845,
+      "sha256": "75dc369c4a442244a5d73342ed97ab9b09aea0554feab5d265f4933f097cc1a1"
+    },
+    {
+      "path": "synthetic-controls/duplicateBeforeConsume.json",
+      "bytes": 10028,
+      "sha256": "f2b132f14e8b1f260d95a2b736e59c37ea4f7e25a8974898c2609275ea23d41c"
+    },
+    {
+      "path": "synthetic-controls/duplicateQuery.json",
+      "bytes": 14662,
+      "sha256": "612ac7dcbf59eea9d851b2aca323551095a78f8d6200094793a8dea3df83dc13"
+    },
+    {
+      "path": "synthetic-controls/forgedClassifier.json",
+      "bytes": 73880,
+      "sha256": "35dedf01221102568d8b6838cce34f9212ea8a546c3a337bf5d51583b6f6696f"
+    },
+    {
+      "path": "synthetic-controls/missingWrite.json",
+      "bytes": 73925,
+      "sha256": "3568b96f7bc3cd3095a7459f75898c6b9fecda58abb2b43d07871903e1830f34"
+    },
+    {
+      "path": "synthetic-controls/noClassifiers.json",
+      "bytes": 59260,
+      "sha256": "3217c67af0a4e115455ae05a370faad780be1ed68b92f62a2b427435bdf99d12"
+    },
+    {
+      "path": "synthetic-controls/noLoggerContext.json",
+      "bytes": 7324,
+      "sha256": "40eea1bbfe33f5cc72ea605d0221462183a38b00d919a45ad16983807e91df5d"
+    },
+    {
+      "path": "synthetic-controls/positive.json",
+      "bytes": 73694,
+      "sha256": "fd36b5aea599af54b771351c5d72773df40a8f839b47fce951b7e945036e2e75"
+    },
+    {
+      "path": "synthetic-controls/unexpectedClientTool.json",
+      "bytes": 74951,
+      "sha256": "39a31cbda8b6e089991d83f60c411edd4a64303c95445cef5f5526b33712627b"
+    },
+    {
+      "path": "synthetic-controls/wrongClassifierModel.json",
+      "bytes": 73921,
+      "sha256": "32d10b9b78e624ebeecda61283490c505aa0feee7efe499ac241ee668a5ecbfa"
+    }
+  ]
+}

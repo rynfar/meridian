@@ -6582,6 +6582,21 @@ carry-over remains a separate qualification if actual classifier traffic appears
 Existing synthetic successes are not native acceptance and do not close
 mixed-flow acceptance.
 
+**Mixed auto-mode native failure and diagnostic gate:** opt-in
+`--scenario mixed-auto-v1 --require-mcp-readiness` additionally requires
+explicit `--classifier-model claude-sonnet-5` and
+`--classifier-served-model claude-sonnet-5` for this pinned arm. It keeps
+Sonnet 5.5 working requests, uses actual auto permission mode with only Agent
+preapproved, and requires five fresh Bash writes outside the project. The
+[mixed evidence](docs/maintenance/evidence/1211-mixed-auto-20261009/README.md)
+preserves an actual source FAIL: all seven expected calls match, but two extra
+HTTP tools do not match SDK name/input receipts. Twenty-four of twenty-six
+checks pass; installed and baseline cases are UNEXECUTED after that failure.
+Sanitized tool-name/namespace/input diagnostics are verification facts only;
+the strict seven-call predicate and every original acceptance check remain.
+Actual cause qualification and source/installed/baseline acceptance remain
+open. Existing foreground and Read results retain their original scope.
+
 Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
 ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs
 `echo beta-1` and `echo beta-2`. Turn 2 resumes the same parent and requests

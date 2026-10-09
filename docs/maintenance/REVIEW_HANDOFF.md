@@ -4991,3 +4991,34 @@ open. #1322 stays draft. Baseline budget qualification, mixed-auto/classifier,
 root/scoped/nested cancellation and parent-abort, caption/reporter tuple,
 broader packaging/platform/client proof, historical wait attribution and
 final delivery-head CI remain open. No merge, release or external comment.
+
+### 2026-10-09: mixed auto-mode source failure preserved
+
+Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues
+oldest original #1211 without another PR or worktree. The
+[mixed packet](evidence/1211-mixed-auto-20261009/README.md) escrows the original
+source FAIL, custody and audit, synthetic controls, fatal-delivery test cause
+and root scoped review. Production source remains `15f44351`; observer content
+was `63f90fa3`, full local gate head `6cb15163` (5,869 pass / 36 skip / zero
+fail, typecheck/build/compiled context control, all original processes joined).
+
+Actual Linux x64 Claude Code 2.1.287 / SDK 0.2.141 / native CLI 2.1.284 used
+Sonnet 5.5 working requests and nine Sonnet 5 classifiers. Nineteen queries
+across two client turns completed. All seven required Agent/Bash calls and
+five outside-project writes matched; two additional unmatched client-visible
+tools fail both tool-receipt gates. All other twenty-four checks pass. The
+original packet lacks their raw names/inputs, so normalization, changed-input
+and client-behavior attribution remain open. Installed and baseline mixed
+cases were UNEXECUTED after this source audit failed. Original process/pipe,
+SDK and container joins, unchanged targets/grants and private cleanup qualify.
+
+Diagnostics now add only fixed tool-name enums, namespaces, ownership counts
+and input/name/hook match booleans. Acceptance predicates and bounds are
+unchanged. Nineteen focused synthetic controls pass; all three new unexpected
+tool/name/input negatives retain FAIL and cannot establish native acceptance.
+New final local gates and frozen rehearsal are prerequisites to the next
+bounded diagnostic source run. Preserve the original failure and qualify its
+cause before altering normalization or the scenario. Owner checkout and all
+eighteen contributor mappings requalify exactly. Expanded #1231 stays excluded;
+all inherited baseline, cancellation/parent-abort, caption/reporter, package,
+platform/client and delivery-head CI holds remain. No merge or source closure.
