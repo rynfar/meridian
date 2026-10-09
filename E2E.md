@@ -5565,6 +5565,9 @@ $8 total, with an eight-minute execution deadline. Canonical native results,
 model/usage/target receipts and original child/stdio/iterator/socket/listener
 joins are additional requirements. Preparation is not live acceptance, and
 this remains a real Claude Code client parity gate rather than a LiteLLM test.
+The SDK result's `num_turns` counter is retained separately from its `maxTurns`
+option. A one-round tool checkpoint must contain exactly one original unique
+assistant response ID; it cannot qualify by matching a turn counter alone.
 
 `MERIDIAN_DEFAULT_AGENT=passthrough` resolves the ambiguous `claude-cli/`
 User-Agent to the passthrough adapter, reproducing the reported topology

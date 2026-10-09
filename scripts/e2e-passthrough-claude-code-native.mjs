@@ -12,9 +12,13 @@ import { observeChildClosure, stopAndJoinChild } from './lib/e2eProcessCustody.m
 export function isE55CanonicalCompletion(row) {
   return row.completed === true && row.flagValid === true && row.terminalTargetMatched === true && row.inputTokens > 0 && row.outputTokens > 0
     && row.models.length > 0 && row.models.every(model => model === row.requiredModel)
+    && Number.isSafeInteger(row.nativeTurns) && row.nativeTurns >= 1 && row.assistantResponses > 0
     && Number.isFinite(row.cost) && row.cost >= 0
     && (row.subtype === 'success' && row.isError === false
-      || row.subtype === 'error_max_turns' && row.isError === true && row.maxTurns === 1 && row.nativeTurns === 1 && row.toolCalls > 0)
+      // num_turns is the SDK's result counter, not a guaranteed copy of the
+      // option budget. E55's actual capped frames report2 at maxTurns1.
+      // Require one actual model response independently of that counter.
+      || row.subtype === 'error_max_turns' && row.isError === true && row.maxTurns === 1 && row.assistantResponses === 1 && row.toolCalls > 0)
 }
 
 if (import.meta.main) {
@@ -137,7 +141,8 @@ try {
       need(!opts.env.ANTHROPIC_API_KEY && !opts.env.ANTHROPIC_AUTH_TOKEN && !opts.env.ANTHROPIC_BASE_URL, 'sdk-unexpected-provider-credential-or-route')
       need(opts.model === requiredModel || opts.model === 'sonnet' && opts.env.ANTHROPIC_DEFAULT_SONNET_MODEL === requiredModel, 'sdk-model-pin-mismatch')
       const row = { requiredModel, models: [], inputTokens: 0, outputTokens: 0, toolCalls: 0, maxTurns: opts.maxTurns,
-        completed: false, flagValid: false, isError: null, subtype: null, cost: null, iteratorSettled: false, closeCalled: false, originalPid: null, terminalTargetMatched: false }
+        completed: false, flagValid: false, isError: null, subtype: null, cost: null, iteratorSettled: false, closeCalled: false, originalPid: null, terminalTargetMatched: false, assistantResponses: 0 }
+      const assistantIds = new Set()
       need(typeof opts.sessionId === 'string', 'preallocated-sdk-target-required')
       report.queries.push(row)
       let joined; iteratorJoins.push(new Promise(resolve => { joined = resolve }))
@@ -151,6 +156,8 @@ try {
         if (key === Symbol.asyncIterator) return async function* () {
           try { for await (const event of query) {
             if (event.type === 'assistant') {
+              need(typeof event.message?.id === 'string' && event.message.id.length > 0, 'original-assistant-response-identity-missing')
+              assistantIds.add(event.message.id); row.assistantResponses = assistantIds.size
               if (typeof event.message?.model === 'string') row.models.push(event.message.model === requiredModel ? requiredModel : 'unexpected-model')
               const usage = event.message?.usage ?? {}
               row.inputTokens = Math.max(row.inputTokens, (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)); row.outputTokens = Math.max(row.outputTokens, usage.output_tokens ?? 0)
