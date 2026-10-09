@@ -4456,3 +4456,16 @@ exact. Expanded current #1231 remains excluded. No source closure or merge.
 Fresh whole-queue discovery still covers six managed repositories / 31 PRs /
 22 issues; #1315's model-specific advertisement defect is confirmed at source
 and recorded with implementation/actual Pro-client holds.
+
+
+Draft delivery is now [#1322](https://github.com/rynfar/meridian/pull/1322),
+branch `codex/claude-sidecalls-stack-1292-20261008`, from exact current main
+`74ee5515cde58a4df03a48c0ca38abb20ccad648`. Initial remote head is
+`a9d3501e93835a82cb5a415f5ee0c248bc076ad5`; tested local/native source is
+`6585b66a01e26244381709e6db78825cd4056e18`, with only documentation afterward.
+The PR is linked to the active thread, remains draft, and contains the root
+adversarial review, committed runnable harness, immutable failures and scoped
+actual candidate proof. #1211/#1231/#1292 and #1288 stay open. Expanded #1231
+is excluded. No merge, source closure, release or community comment occurred.
+Next native/package invocation must refresh commit/tree provenance to the actual
+current head; no old compiled build or green CI is promoted to a new-head claim.
