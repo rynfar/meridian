@@ -1,0 +1,46 @@
+{
+  "checks": [
+    {
+      "label": "e71-selected-cleanup-focused",
+      "argv": [
+        "bun",
+        "test",
+        "--timeout",
+        "30000",
+        "src/__tests__/claude-auto-mode-harness.test.ts",
+        "-t",
+        "joins a hung real synthetic client process"
+      ],
+      "exit": 1,
+      "joined": true,
+      "seconds": 1.235,
+      "sha256": "e899f1ca04db84aeecad63829481cf625f2ef4d205ccfed9baef26bf5b26d7a3"
+    },
+    {
+      "label": "native-budget-post-failure-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 5.555,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "label": "native-budget-post-failure-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 4.101,
+      "sha256": "054a57dbb3c166d475187cf673c5b0257319ea9f528a969624c52b58c70fb1af"
+    }
+  ],
+  "modelCalls": 0,
+  "fullSuite": "FAILED_E71_CUSTODY_CONTROL_NOT_EXPLAINED"
+}

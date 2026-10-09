@@ -1,6 +1,10 @@
 {
-  "qualification": "Preserved prior checks and actual failed native evidence; new bounded task-budget source correction, full local/native/package/CI held",
+  "qualification": "Actual native task-budget source correction; current full npm FAIL preserved. Diagnostic reproduces E71 client-signal cleanup failure. All acceptance holds remain.",
   "files": {
+    "BUN_1311_OWNED_SOCKET_CLOSE_CAUSAL_CONTROL.json": {
+      "bytes": 2558,
+      "sha256": "34c7e9395a7b25796fed3e3ad371022bb5087d970950c68076192046fd335f24"
+    },
     "CLASSIFIER_RED.json": {
       "bytes": 334,
       "sha256": "08e0e419d571fdbb6f534b27eb2dcbe876ed4568eed990b8d848e24952a971b9"
@@ -24,6 +28,18 @@
     "CURRENT_AUTHOR_LEDGER.json": {
       "bytes": 9098,
       "sha256": "be48aae2f3d44f3ec0e4e4791b46ecacbe51afd7c23ef849fa391de552ba88d2"
+    },
+    "E71_HUNG_CLIENT_FAILED_CLEANUP.json": {
+      "bytes": 339,
+      "sha256": "31aa5b50e8e148fecb6efd4d9c2f2a31e1b7b98cf0cfd4b9a157e8fd7dbb9c8a"
+    },
+    "E71_SELECTED_CLEANUP_DIAGNOSTIC_ROOT_REVIEW.json": {
+      "bytes": 1589,
+      "sha256": "cf07641f0448cd817add58de851ee71145090f1712369f81bd8530144bca8da8"
+    },
+    "E71_SELECTED_SIGNAL_ERRORS.jsonl": {
+      "bytes": 2454,
+      "sha256": "ac32cd93ffea1b2bdd5dff9c17cf87df098b9367ae0382730d0fe5fda99ccf9d"
     },
     "FOCUSED_R3_CHECKS.json": {
       "bytes": 924,
@@ -61,13 +77,29 @@
       "bytes": 1139,
       "sha256": "22d720a19558cf720f3d967f806b14c41cc02f8a47d3e741c054b8a7bb2ae8f4"
     },
+    "NATIVE_BUDGET_FINAL_LOCAL_GATES.json": {
+      "bytes": 640,
+      "sha256": "a50d0ff9d8e93f02b764fe9ec018590f0aa8ec201d80a11feeb7f60a4f84388b"
+    },
+    "NATIVE_BUDGET_FULL_E71_FAILURE_TRIAGE.json": {
+      "bytes": 1583,
+      "sha256": "e7952cd8ac13513eb02c9a9db84eb315890177d5dd362cec016bcd26e99054bc"
+    },
     "NATIVE_BUDGET_HTTP_CHECKPOINT_CHECKS.json": {
       "bytes": 446,
       "sha256": "cf3fb082c331b1759b9f3e6c6aa44d3765bcbc0c615edb5a585729ea8fa4b926"
     },
+    "NATIVE_BUDGET_POST_FAILURE_DIAGNOSTIC_CHECKS.json": {
+      "bytes": 1094,
+      "sha256": "f37646c2c060b9134a886711eb847d105c01abc264caf97b826fde6f92c3aa95"
+    },
     "NATIVE_CAPTION_SHAPE_CAUSAL_CONTROL.json": {
       "bytes": 544,
       "sha256": "fbc62f966ad222291e9ac07845b5185c28403385a88fa49df51f4e955853b9c5"
+    },
+    "NATIVE_OBSERVER_NEXT_CORRECTION_PLAN.json": {
+      "bytes": 2912,
+      "sha256": "389c57a3f88d724fc3e7e1df058ddbef56cd0d4105e1864354eb5f8b5000f6d5"
     },
     "NATIVE_TASK_BUDGET_FRAME_FOCUSED_CHECKS.json": {
       "bytes": 1039,
@@ -117,6 +149,10 @@
       "bytes": 796,
       "sha256": "e1d8b16824eb67242d2634c24b4a93ac17b94b34de35e4e5048f16e4d6a4f8a5"
     },
+    "OWNER_AFTER_NATIVE_BUDGET_CORRECTION.json": {
+      "bytes": 3081,
+      "sha256": "7077b24f83f76d92b4dcf5443fb67fd3ce34282daf375ffdcacd023dbb37affa"
+    },
     "PARENT_ESCROW_PRESERVATION.json": {
       "bytes": 58655,
       "sha256": "156cb83293c8f366fafbf2b220df0e1ff608bde8af89f2682f9f1a54378f4db1"
@@ -126,12 +162,20 @@
       "sha256": "06ccfd2e8ec9e3985ef1d75da53f215c9618d789270f486cbc2c2b8d609a13db"
     },
     "REVIEW.md": {
-      "bytes": 8517,
-      "sha256": "4772e0e53d96352f3bcdf9e27ad04dee6cdcb46c5daa2b46bc763ca1247b5b87"
+      "bytes": 10513,
+      "sha256": "ed105eb8fd16526d8e28effd960ddadfb2d3ab8c27b2d174acf64fa6b2097537"
     },
     "ROOT_ADVERSARIAL_REVIEW.json": {
       "bytes": 8091,
       "sha256": "ab57df9c90c597c49396741833a4ee9bf3176b23cb396a626a257b93064ef882"
+    },
+    "bun-owned-socket-close-control-r2.log.gz": {
+      "bytes": 312,
+      "sha256": "50ff9488caa6e8ed5cca84b84095ed38d5365ea26be3ef3647f76726a066dc0a"
+    },
+    "bun-owned-socket-close-control.mjs": {
+      "bytes": 3577,
+      "sha256": "e40dd004cdea9b700dd25b0b120910a05b80e13fa02f4921077816cb255db61d"
     },
     "classifier-baseline.log.gz": {
       "bytes": 2377,
@@ -156,6 +200,10 @@
     "corrected-final-npm-test.log.gz": {
       "bytes": 190845,
       "sha256": "41b9d55acf4ddf4bfeea2ec511e07c7b0a8da83767be6ef9eb1b5c2a4bd6ad45"
+    },
+    "e71-selected-cleanup-focused.log.gz": {
+      "bytes": 623,
+      "sha256": "604514bfc90e23c2f90684c94ee2a06a04d3cefc0477770db5031a466c9c94ae"
     },
     "final-build.log.gz": {
       "bytes": 814,
@@ -189,9 +237,21 @@
       "bytes": 34511,
       "sha256": "b8931628a37adc128d6484be70389858d87b21847442b67067b68ebca90c0243"
     },
+    "native-budget-final-npm-test.log.gz": {
+      "bytes": 190535,
+      "sha256": "f859c002b1262de93340276fe5d17bc2664aee5ff031ee53d1d73fa6050639c1"
+    },
     "native-budget-http-checkpoint.log.gz": {
       "bytes": 13953,
       "sha256": "bfd52c8c5b6e6c9fc10afaeece802bb42aec4009903b6ae97bbb7fb909420d8c"
+    },
+    "native-budget-post-failure-build.log.gz": {
+      "bytes": 814,
+      "sha256": "abdd4665a41f13d676341dbfda5542eba42d77cfda3289e63db4ebb58aee6bb9"
+    },
+    "native-budget-post-failure-typecheck.log.gz": {
+      "bytes": 73,
+      "sha256": "2d932dcc095e2d03c96533364e4ff649cfc12e4262003cc707a8e19bfc320998"
     },
     "native-frame-focused.log.gz": {
       "bytes": 2149,

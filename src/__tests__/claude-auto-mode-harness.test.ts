@@ -96,6 +96,24 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
     expect(report.acceptance).toBe(false)
     expect(report.ownerGrantUnchanged).toBe(true)
     const retained = !!(mode.pendingStartup || mode.descriptorDrift || mode.unrestorableDescriptor || mode.cloneHang)
+    const cleanupEvidence = process.env.E71_CONTEXT_EVIDENCE_DIR
+    if (mode.hang && cleanupEvidence) {
+      mkdirSync(cleanupEvidence, { recursive: true, mode: 0o700 })
+      writeFileSync(join(cleanupEvidence, 'hung-client-cleanup.json'), JSON.stringify({
+        acceptance: report.acceptance,
+        privateRuntimeRemoved: report.privateRuntimeRemoved,
+        ownedResidualProcesses: report.ownedResidualProcesses,
+        cleanupFailures: report.cleanupFailures,
+        loggerContextDescriptorRestored: report.loggerContextDescriptorRestored,
+        relayOperationsJoined: report.relayOperationsJoined,
+        httpReceiptsJoined: report.httpReceiptsJoined,
+        pendingHttpReceipts: report.pendingHttpReceipts,
+        pendingRelayHandlers: report.pendingRelayHandlers,
+      }, null, 2), { mode: 0o600, flag: 'wx' })
+    }
+    // Diagnose the concrete failed join before its derived retention assertion.
+    // Every positive/retained-runtime assertion remains required.
+    if (!retained) expect(report.cleanupFailures).toEqual([])
     expect(report.privateRuntimeRemoved).toBe(!retained)
     if (mode.pendingStartup) {
       expect(report.cleanupFailures).toContain('proxy startup join')
@@ -107,7 +125,7 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
       expect(report.ownedResidualProcesses).toBe(0)
       expect(report.cleanupFailures).toContain('logger context restore')
       expect(report.cleanupFailures).toContain('private runtime retained after cleanup failure')
-    } else expect(report.cleanupFailures).toEqual([])
+    }
     expect(readFileSync(f.grant, 'utf8')).toBe(f.bytes)
     expect(statSync(f.grant).mode & 0o777).toBe(0o400)
     if (mode.cloneHang || mode.cloneError) { expect(existsSync(cloneMarker)).toBe(true); expect(existsSync(cloneCancelMarker)).toBe(true); expect(report.queries.length).toBeGreaterThan(0) }

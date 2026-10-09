@@ -1,0 +1,23 @@
+{
+  "head": "d3aadd12a1274d9d0983294f27ef379b17d6eb38",
+  "startedUTC": "2026-10-09T02:08:46.269982+00:00",
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-native-budget-gates-_agn0rtx",
+  "modelCalls": 0,
+  "checks": [
+    {
+      "label": "native-budget-final-npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "exit": 1,
+      "joined": true,
+      "seconds": 583.842,
+      "sha256": "748946f41549deaec750c963f1cc11e3f724dd7680bdad645d554adc567dd9fe"
+    }
+  ],
+  "status": "FAIL",
+  "headUnchanged": true,
+  "worktreeClean": true,
+  "finishedUTC": "2026-10-09T02:18:30.179726+00:00"
+}

@@ -77,3 +77,36 @@ before/after acceptance, broader process absence, or config/history cleanup.
 Model and socket observers require correction and review before another attempt.
 No candidate invocation, push, merge, source closure, release or external
 community message occurred. All inherited package/client/CI holds remain.
+
+
+### Current full local gate remains red
+
+The complete npm invocation at `d3aadd12` joined with 5,233 pass / 36 skip /
+1 fail in its first 323-file batch. The remaining 20 npm batches did not run.
+The existing E71 synthetic hung-client custody control expected private-runtime
+removal but observed retention. Both that test and its harness are byte-identical
+to the earlier green `f41a6524` versions. This does not establish an unrelated
+flake or confer acceptance.
+
+The original inner proof was removed by the test controller's finally block.
+A small diagnostic correction now emits safe selected cleanup facts through the
+existing opt-in evidence directory before assertions, and checks the concrete
+cleanup failures before the derived retention expectation. Every original
+assertion remains. The diagnostic reproduces `client signal`, `unjoined owned
+work`, and retained runtime with zero census residual processes. Typecheck and
+build pass; all commands join. This is useful failure evidence, not a fix.
+
+Three external instrumented source controls record signal attempts after the
+owned child's exit/close; each control passed. That is a separate ownership
+concern and does not explain the original non-ESRCH signal failure. Keep both
+the exact signal failure and post-close signal review open. The synthetic failed
+runtime and owned local fixture remain retained; no deletion or global absence
+claim is inferred from the controller joining.
+
+Separately, the pinned Bun 1.3.11 credential-free listener control shows that
+listener close/idle/all alone leaves accepted-socket events unobserved. Explicit
+destruction of the recorded owned sockets supplies the witness. All three
+control arms then join their exact Node peers, pipes and sockets. The runnable
+control is escrowed here; it prepares a native observer correction and does not
+validate the product or rewrite the failed native attempt. No additional live
+model attempt ran. The local test, native, package and CI gates remain open.

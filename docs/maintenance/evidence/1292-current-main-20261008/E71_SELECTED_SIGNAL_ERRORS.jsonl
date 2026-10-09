@@ -1,0 +1,15 @@
+{"pid":48519,"signal":"SIGTERM","exitCode":0,"signalCode":null,"state":{"birthPid":48519,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48519,"signal":"SIGKILL","exitCode":0,"signalCode":null,"state":{"birthPid":48519,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48520,"signal":"SIGTERM","exitCode":0,"signalCode":null,"state":{"birthPid":48520,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48520,"signal":"SIGKILL","exitCode":0,"signalCode":null,"state":{"birthPid":48520,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48521,"signal":"SIGKILL","exitCode":null,"signalCode":"SIGKILL","state":{"birthPid":48521,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48541,"signal":"SIGTERM","exitCode":0,"signalCode":null,"state":{"birthPid":48541,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48541,"signal":"SIGKILL","exitCode":0,"signalCode":null,"state":{"birthPid":48541,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48543,"signal":"SIGTERM","exitCode":0,"signalCode":null,"state":{"birthPid":48543,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48543,"signal":"SIGKILL","exitCode":0,"signalCode":null,"state":{"birthPid":48543,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48544,"signal":"SIGKILL","exitCode":null,"signalCode":"SIGKILL","state":{"birthPid":48544,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48565,"signal":"SIGTERM","exitCode":0,"signalCode":null,"state":{"birthPid":48565,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48565,"signal":"SIGKILL","exitCode":0,"signalCode":null,"state":{"birthPid":48565,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48566,"signal":"SIGTERM","exitCode":0,"signalCode":null,"state":{"birthPid":48566,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48566,"signal":"SIGKILL","exitCode":0,"signalCode":null,"state":{"birthPid":48566,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}
+{"pid":48567,"signal":"SIGKILL","exitCode":null,"signalCode":"SIGKILL","state":{"birthPid":48567,"exit":true,"close":true},"name":"SystemError","code":"ESRCH","errno":3}

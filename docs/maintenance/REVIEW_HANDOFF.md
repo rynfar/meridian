@@ -4379,3 +4379,14 @@ pipes joined, and the private access grant was removed after the supplemental
 root custody audit. Model-label and accepted-socket observers require correction
 before another native attempt. Baseline/candidate acceptance and inherited
 package/client/final-head CI gates remain open.
+
+
+The current #1292 full npm run is **FAIL**, not accepted: first batch 5,233 pass /
+36 skip / 1 E71 custody failure; remaining 20 batches unexecuted. All runner
+processes joined. The new diagnostic preserves concrete client-signal/unjoined
+work/runtime-retention failures without weakening cleanup assertions. Typecheck
+and build pass. See the latest [review](evidence/1292-current-main-20261008/REVIEW.md)
+for the failed receipts, separate post-close signal concern and executed pinned
+Bun socket control. Fix the exact E71 ownership failure and remaining native
+model/socket observer issues before relying on a green rerun or a new live arm.
+The executable #1319 approval and #1321 final-head CI hold remain unchanged.

@@ -1,0 +1,93 @@
+{
+  "runtime": "1.3.11",
+  "results": [
+    {
+      "mode": "idle",
+      "accepted": 1,
+      "closed": 1,
+      "listenerClose": true,
+      "listenerCallback": true,
+      "childExit": true,
+      "childClose": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "ready": true,
+      "listenerError": false,
+      "childCode": 0,
+      "observation": {
+        "accepted": 1,
+        "closed": 0,
+        "liveSockets": 1,
+        "listenerClose": true,
+        "listenerCallback": true,
+        "childExit": true
+      },
+      "finalLiveSockets": 0,
+      "allOwnedJoins": true
+    },
+    {
+      "mode": "all",
+      "accepted": 1,
+      "closed": 1,
+      "listenerClose": true,
+      "listenerCallback": true,
+      "childExit": true,
+      "childClose": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "ready": true,
+      "listenerError": false,
+      "childCode": 0,
+      "observation": {
+        "accepted": 1,
+        "closed": 0,
+        "liveSockets": 1,
+        "listenerClose": true,
+        "listenerCallback": true,
+        "childExit": true
+      },
+      "finalLiveSockets": 0,
+      "allOwnedJoins": true
+    },
+    {
+      "mode": "destroy",
+      "accepted": 1,
+      "closed": 1,
+      "listenerClose": true,
+      "listenerCallback": true,
+      "childExit": true,
+      "childClose": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "ready": true,
+      "listenerError": false,
+      "childCode": 0,
+      "observation": {
+        "accepted": 1,
+        "closed": 1,
+        "liveSockets": 0,
+        "listenerClose": true,
+        "listenerCallback": true,
+        "childExit": true
+      },
+      "finalLiveSockets": 0,
+      "allOwnedJoins": true
+    }
+  ],
+  "modelCalls": 0,
+  "scope": "Owned Bun HTTP listeners and exact spawned Node TCP peers; no production/native/config mutation",
+  "argv": [
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1290/tooling/bun-1.3.11/package/bin/bun",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/bun-owned-socket-close-control.mjs"
+  ],
+  "exit": 0,
+  "runnerJoined": true,
+  "sha256": "e40dd004cdea9b700dd25b0b120910a05b80e13fa02f4921077816cb255db61d",
+  "earlierControlLimitation": "R1 copied finalLiveSockets before awaiting the asynchronous server close events; retained source, not a final join claim."
+}

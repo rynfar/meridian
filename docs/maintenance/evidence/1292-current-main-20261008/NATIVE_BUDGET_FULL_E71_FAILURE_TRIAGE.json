@@ -1,0 +1,27 @@
+{
+  "status": "CURRENT_FULL_RUN_REPORTED_E71_RUNTIME_CLEANUP_FAILURE_ISOLATED_CONTROL_PASS_NOT_EXPLANATION",
+  "failedAssertion": "privateRuntimeRemoved expected true, received false",
+  "case": "joins a hung real synthetic client process when the total deadline fires",
+  "scope": "Existing synthetic E71 containment control, no live model",
+  "unchangedSincePreviousGreenF41": {
+    "src/__tests__/claude-auto-mode-harness.test.ts": true,
+    "scripts/e2e-claude-code-auto-mode.mjs": true
+  },
+  "isolatedDiagnostic": {
+    "exit": 0,
+    "joined": true,
+    "pass": 1,
+    "fail": 0,
+    "innerCleanupFailures": [],
+    "innerOwnedResidualProcesses": 0,
+    "innerPrivateRuntimeRemoved": true,
+    "copiedTestDifference": "Absolute harness path and selected report capture before assertions; original control assertions retained."
+  },
+  "evidenceGap": "The original test controller removes the synthetic proof directory in finally; the complete original inner cleanup reason is unavailable. Full log and failed assertion are preserved. A green isolated run does not establish causality or acceptance.",
+  "nextAction": "Capture safe selected cleanup facts before the first failing assertion and reproduce under the same full-batch context. Do not weaken joins, runtime retention or cleanup assertions.",
+  "files": {
+    "src/__tests__/claude-auto-mode-harness.test.ts": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+    "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765"
+  },
+  "newModelCalls": 0
+}
