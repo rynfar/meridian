@@ -71,9 +71,13 @@ Keep the client's own conversation history.
 1. **Interrupted delivery with a saved answer:** the supported integration can
    retrieve the same answer/tool IDs. It checks the already displayed text before
    appending a recovered suffix. It does not run a second model to invent a suffix.
-2. **A tool completed and its result is in client history:** continue using the
-   complete history/result. The supported history-replay paths recover expired
-   CLI sessions without requesting that completed action again.
+2. **A tool completed and its result is in client history:** Meridian supplies
+   the recorded calls and results when recovering through full history replay.
+   A fresh model can still request a successful action again. The
+   [retained long-history probe](https://github.com/rynfar/meridian/blob/cd6b31a752e2f2d20240fee1e63ea46a39830dd9/docs/maintenance/antigravity-history-1314-proof.md)
+   with Pi 1.1.0, agy 1.2.7 and Gemini 3.8 Flash Low on macOS observed two
+   identical successful writes after backend replacement. Review repeated actions
+   against their recorded results and external state before executing them again.
 3. **Service died before saving the identified response:** the same request gets
    HTTP 409 with an uncertain-outcome explanation, before any CLI probe or
    generation. A cache-only lookup still returns 404 when no snapshot exists.
