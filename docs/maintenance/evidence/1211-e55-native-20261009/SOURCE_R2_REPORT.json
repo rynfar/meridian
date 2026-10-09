@@ -1,0 +1,393 @@
+{
+  "kind": "E55_ORIGINAL_CLAUDE_CLIENT_GATE",
+  "platform": "linux",
+  "architecture": "x64",
+  "requiredModel": "claude-sonnet-5-5",
+  "sdkVersion": "0.2.141",
+  "queries": [
+    {
+      "requiredModel": "claude-sonnet-5-5",
+      "models": [
+        "claude-sonnet-5-5"
+      ],
+      "inputTokens": 22856,
+      "outputTokens": 24,
+      "toolCalls": 1,
+      "maxTurns": 1,
+      "completed": true,
+      "flagValid": true,
+      "isError": true,
+      "subtype": "error_max_turns",
+      "cost": 0.0265932,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "originalPid": 93,
+      "terminalTargetMatched": true,
+      "assistantResponses": 1,
+      "nativeTurns": 2
+    },
+    {
+      "requiredModel": "claude-sonnet-5-5",
+      "models": [
+        "claude-sonnet-5-5"
+      ],
+      "inputTokens": 23203,
+      "outputTokens": 8,
+      "toolCalls": 0,
+      "maxTurns": 1,
+      "completed": true,
+      "flagValid": true,
+      "isError": false,
+      "subtype": "success",
+      "cost": 0.0187634,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "originalPid": 133,
+      "terminalTargetMatched": true,
+      "assistantResponses": 1,
+      "nativeTurns": 1
+    },
+    {
+      "requiredModel": "claude-sonnet-5-5",
+      "models": [
+        "claude-sonnet-5-5"
+      ],
+      "inputTokens": 23256,
+      "outputTokens": 7,
+      "toolCalls": 0,
+      "maxTurns": 1,
+      "completed": true,
+      "flagValid": true,
+      "isError": false,
+      "subtype": "success",
+      "cost": 0.024415199999999998,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "originalPid": 215,
+      "terminalTargetMatched": true,
+      "assistantResponses": 1,
+      "nativeTurns": 1
+    },
+    {
+      "requiredModel": "claude-sonnet-5-5",
+      "models": [
+        "claude-sonnet-5-5"
+      ],
+      "inputTokens": 22861,
+      "outputTokens": 24,
+      "toolCalls": 1,
+      "maxTurns": 1,
+      "completed": true,
+      "flagValid": true,
+      "isError": true,
+      "subtype": "error_max_turns",
+      "cost": 0.0266232,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "originalPid": 300,
+      "terminalTargetMatched": true,
+      "assistantResponses": 1,
+      "nativeTurns": 2
+    },
+    {
+      "requiredModel": "claude-sonnet-5-5",
+      "models": [
+        "claude-sonnet-5-5"
+      ],
+      "inputTokens": 23210,
+      "outputTokens": 8,
+      "toolCalls": 0,
+      "maxTurns": 1,
+      "completed": true,
+      "flagValid": true,
+      "isError": false,
+      "subtype": "success",
+      "cost": 0.0187762,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "originalPid": 341,
+      "terminalTargetMatched": true,
+      "assistantResponses": 1,
+      "nativeTurns": 1
+    }
+  ],
+  "checks": {
+    "every client invocation succeeded": true,
+    "the tool loop actually ran and answered": true,
+    "the --resumed invocation answered too": true,
+    "no request takes the headerless tool-result bypass": true,
+    "the client ran a tool round": true,
+    "the turn after the tool round resumes the stored SDK session": true,
+    "the CLI's auxiliary requests do not collide with the conversation": true,
+    "no invocation was refused with a 4xx": true,
+    "a second conversation with the same prompt does not inherit the first": true,
+    "its first turn cannot resume anything": true,
+    "it never resumes a session belonging to the first conversation": true
+  },
+  "children": [
+    {
+      "kind": "client",
+      "originalPid": 41,
+      "stdinClosed": true,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "execFile",
+      "originalPid": 84,
+      "stdinClosed": true,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "originalPid": 93,
+      "stdinClosed": true,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "error_max_turns",
+          "flagValid": true,
+          "isError": true
+        }
+      ],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 1,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "originalPid": 133,
+      "stdinClosed": true,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "success",
+          "flagValid": true,
+          "isError": false
+        }
+      ],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "client",
+      "originalPid": 173,
+      "stdinClosed": true,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "originalPid": 215,
+      "stdinClosed": true,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "success",
+          "flagValid": true,
+          "isError": false
+        }
+      ],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "client",
+      "originalPid": 257,
+      "stdinClosed": true,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "originalPid": 300,
+      "stdinClosed": true,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "error_max_turns",
+          "flagValid": true,
+          "isError": true
+        }
+      ],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 1,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "originalPid": 341,
+      "stdinClosed": true,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "success",
+          "flagValid": true,
+          "isError": false
+        }
+      ],
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    }
+  ],
+  "inputs": {
+    "ENTRY": {
+      "path": "/opt/e71/candidate/dist/server.js",
+      "sha256": "f113ca8beb9fe262af774147051fba05d20782c81e74fd23c0f371268ca6f218"
+    },
+    "SDK_ENTRY": {
+      "path": "/opt/e71/candidate/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
+      "sha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97"
+    },
+    "NATIVE_BIN": {
+      "path": "/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+      "sha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f"
+    },
+    "CLIENT_BIN": {
+      "path": "/opt/e71/client287/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+      "sha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0"
+    }
+  },
+  "actualClientInvocations": 3,
+  "originalGateSettled": true,
+  "originalGateExit": 0,
+  "firstFailure": null,
+  "scope": "Original E55 three real client invocations and all assertions; not an actual LiteLLM gateway or historical reporter tuple.",
+  "http": {
+    "proxyCloseSeen": true,
+    "listening": false,
+    "remainingSockets": 0
+  },
+  "disposition": "PASS_E55_NATIVE_GATE"
+}

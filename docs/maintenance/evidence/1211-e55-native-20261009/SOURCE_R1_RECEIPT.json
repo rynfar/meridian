@@ -1,0 +1,16 @@
+{
+  "atUTC": "2026-10-09T11:22:14.282588+00:00",
+  "originalGateChecks": "ALL11PASS",
+  "actualClientInvocations": 3,
+  "queries": 5,
+  "firstFailure": "native-query-model-usage-terminal-missing",
+  "outerDisposition": "FAILED_HARNESS_RECEIPT_PREDICATE",
+  "nativeCompletionCounterObservation": "Two original capped tool checkpoints have maxTurns1, num_turns2, error_max_turns and booleanerrortrue; three actual successful completions have num_turns1. The E71-shaped num_turns1 requirement is not met in E55. No interpretation or correction yet accepted.",
+  "estimatedSdkCostUsd": 0.18076540000000002,
+  "originalClientSdkIteratorHttpStdioWitnessesJoined": true,
+  "ownedContainerRemoved": true,
+  "selectedSourceAndGrantUnchanged": true,
+  "accessOnlyGrantRemovedAfterTerminalAudit": true,
+  "installedLiveArm": "NOT_EXECUTED; stopped after first source qualification failure",
+  "wholeChangeAcceptance": "HELD"
+}

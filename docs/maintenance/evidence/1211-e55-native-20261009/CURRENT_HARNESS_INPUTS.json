@@ -1,0 +1,15 @@
+{
+  "currentHarnessHead": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+  "productionImageHead": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "qualification": "Known immutable image and independently installed tarball from E41; two current maintained harness files mounted read-only. Only harness/test/docs changes since production snapshot; no new compiled production code claimed. The R1 HARNESS_INPUTS record is preserved separately.",
+  "currentFiles": [
+    {
+      "path": "scripts/e2e-passthrough-claude-code-native.mjs",
+      "sha256": "5751f442a076c0072ef69dbae0743b2069c1ba5db5a774046f1fee18381d35f9"
+    },
+    {
+      "path": "scripts/e2e-passthrough-claude-code-session.mjs",
+      "sha256": "ccb105e5243e0e5c9df12d9547ca4d73bfd4724a933d663c9d12fd035bb1cc73"
+    }
+  ]
+}

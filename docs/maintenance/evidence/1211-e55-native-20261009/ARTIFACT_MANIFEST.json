@@ -1,0 +1,185 @@
+{
+  "qualification": "Manifest excludes only itself; compressed logs retained byte-for-byte after decompression and original receipt hashes remain separately recorded.",
+  "files": [
+    {
+      "path": "CURRENT_HARNESS_INPUTS.json",
+      "bytes": 784,
+      "sha256": "5ced8a4917e0e67121848e0f119b2b528f69888d82e372a3025a8c6ceb80f0bf"
+    },
+    {
+      "path": "E55_NATIVE_SCOPED_RECEIPT.json",
+      "bytes": 709,
+      "sha256": "88b46f0365410566e0e653fc887d7a7fd9b702a4165675e8862b697d1dacc819"
+    },
+    {
+      "path": "HARNESS_INPUTS.json",
+      "bytes": 750,
+      "sha256": "ce48872a09dc2fbea39105a7f24a891e9e6a3d750b2de2e19d7401f78c7b7107"
+    },
+    {
+      "path": "INPUT_IDENTITY_QUALIFICATION.json",
+      "bytes": 577,
+      "sha256": "a3865a1bd8aec15b87d54821b821e74a0d07b7fa43fd7cd9af6e1c515d0436b2"
+    },
+    {
+      "path": "LOCAL_GATES_CURRENT.json",
+      "bytes": 1517,
+      "sha256": "af620215f3658c64a1174e5e4a8cb71e4d7d43096b4419e60f8a766453a2971c"
+    },
+    {
+      "path": "LOCAL_SUITE_R1_QUALIFICATION.json",
+      "bytes": 359,
+      "sha256": "f6625410354331ae2793640fbf69b3eee6912e07a67ff9f1e41acbcd374c0907"
+    },
+    {
+      "path": "NATIVE_INVOCATIONS.json",
+      "bytes": 7376,
+      "sha256": "27b3c8c2ac686563c97dab45dc3e490dbae000ccb6d1cb7dae31f6fb025f050d"
+    },
+    {
+      "path": "PACKAGE_R1_RECEIPT.json",
+      "bytes": 738,
+      "sha256": "e8850c0ef8ba2fc38ddd4140a4489612a2e74db02e90102a70511b8f74f555c1"
+    },
+    {
+      "path": "PACKAGE_R1_REPORT.json",
+      "bytes": 10002,
+      "sha256": "6a84654b45cd6fab78a9a5ebd96fcedd4dec35b6c17dcd708f84de969d6827e6"
+    },
+    {
+      "path": "PRE_NATIVE_ROOT_REVIEW.json",
+      "bytes": 2292,
+      "sha256": "ca3376585f6afaa7fad771e6f390f7a894bc9753422f45de23ec0df2182126ba"
+    },
+    {
+      "path": "PRIVACY_RECEIPT.json",
+      "bytes": 570,
+      "sha256": "ef9846b16f7727a4bc29a59b9938d8302c4778877e656e604fec09cbdedb7a02"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5318,
+      "sha256": "1ec601c61ebcac5d9625f27302e64882aa288372109aa00bedf4b30b089910f1"
+    },
+    {
+      "path": "REVIEW.md",
+      "bytes": 3631,
+      "sha256": "8df093c32b541feabe159da66ee89b2af397e00c93e90797ac6917aceb732fb5"
+    },
+    {
+      "path": "SOURCE_R1_COUNTER_DIAGNOSIS.json",
+      "bytes": 2368,
+      "sha256": "b5aba8ef955994de246465ea1fb041e295e1f5d6185760527b69516d77086a54"
+    },
+    {
+      "path": "SOURCE_R1_COUNTER_DIAGNOSIS_CORRECTED.json",
+      "bytes": 2629,
+      "sha256": "655426294f1f008b1d06d26aabd3db7863392922fe167a6dc0c05fd4c8f6d778"
+    },
+    {
+      "path": "SOURCE_R1_RECEIPT.json",
+      "bytes": 916,
+      "sha256": "f69fb30bab1d363cd23971b1cea151259d228c8ccd5b77bb46b9ff057e3b3354"
+    },
+    {
+      "path": "SOURCE_R1_REPORT.json",
+      "bytes": 9833,
+      "sha256": "77c9f30f440083a34561c8cafa64a5922a8aadd924da522e886af4575e008af9"
+    },
+    {
+      "path": "SOURCE_R2_RECEIPT.json",
+      "bytes": 884,
+      "sha256": "f8d1a3d9a6117b32d5231fb1c929b979d73f431440f4ae1085a604afcc2b9761"
+    },
+    {
+      "path": "SOURCE_R2_REPORT.json",
+      "bytes": 9948,
+      "sha256": "c699e45be08f7dddf9d8372e18872046d513d88047ed499b1a16a6f14865d305"
+    },
+    {
+      "path": "ZERO_QUERY_CONFIG_CONTROLS.json",
+      "bytes": 564,
+      "sha256": "a17f97daa94a24fd97eec7cfaa96f2c53e891eb8b5f9124fd65763fcaca3452d"
+    },
+    {
+      "path": "ZERO_QUERY_NATIVE_PREPARATION.json",
+      "bytes": 3616,
+      "sha256": "f73a30178c7ea403a1edae6b33a088a7cd302587c40cab073d362e6810b383aa"
+    },
+    {
+      "path": "local-build-r1-COMMAND.json",
+      "bytes": 108,
+      "sha256": "2c96ceb58c6b31c73a5246613022efcd7c69543b16a67bc0ed861ae23dd49a5e"
+    },
+    {
+      "path": "local-build-r1-RECEIPT.json",
+      "bytes": 216,
+      "sha256": "cfd2c4e128111c92bd96b489036db109ec13b1810f23b56e58c2ff16c2769db2"
+    },
+    {
+      "path": "local-build-r1-output.log.gz",
+      "bytes": 816,
+      "sha256": "a3f81979d59fc0e0794c50c45932c285862801083f5c78407fa1ac652b6060be"
+    },
+    {
+      "path": "local-build-r2-COMMAND.json",
+      "bytes": 138,
+      "sha256": "3f53cfe51108d02db8be23df5b4874962bd8994e088d0c53dbf8a45cc562610a"
+    },
+    {
+      "path": "local-build-r2-RECEIPT.json",
+      "bytes": 299,
+      "sha256": "638c7bb0561874c6af54551de56214f00d0560999bac29c234a7f7b7fe2f9380"
+    },
+    {
+      "path": "local-build-r2-output.log.gz",
+      "bytes": 815,
+      "sha256": "5c618e0bb83730a8916959758c495ce194d0fbc05037a0f6f8a4ac30ccaf5404"
+    },
+    {
+      "path": "local-full-suite-r1-COMMAND.json",
+      "bytes": 169,
+      "sha256": "b11051f615dc320d4e074a09c8e0c417278e178ee65ae5cf729afb68f81ad08e"
+    },
+    {
+      "path": "local-full-suite-r1-RECEIPT.json",
+      "bytes": 299,
+      "sha256": "51a256ad345c49c56f8d13eb167f28165be2f9182ec5ab6478d94b9695f8bec5"
+    },
+    {
+      "path": "local-full-suite-r1-output.log.gz",
+      "bytes": 216071,
+      "sha256": "0b077a4e6b302dbc4e9cef6e61ce67531c5354fe66d8419b0db0ccf1c27d9850"
+    },
+    {
+      "path": "local-full-suite-r2-COMMAND.json",
+      "bytes": 169,
+      "sha256": "d578e127607d266a675befa034f715802de0d70b682ca3a146c4253423b48ccb"
+    },
+    {
+      "path": "local-full-suite-r2-RECEIPT.json",
+      "bytes": 299,
+      "sha256": "52a3bcf2f12a863dd2d5a64b4994bbf5d5f974381020b892f1f47f771de0a8ce"
+    },
+    {
+      "path": "local-full-suite-r2-output.log.gz",
+      "bytes": 216196,
+      "sha256": "7df5dc7f8fceff8461d145fbdd547be878fbae37dda012912875edc84a23e367"
+    },
+    {
+      "path": "local-typecheck-r2-COMMAND.json",
+      "bytes": 142,
+      "sha256": "807ada5b1c777f0fd6f0028fa8eeb44d8d93e440f77dd85d24b53e1592717bf5"
+    },
+    {
+      "path": "local-typecheck-r2-RECEIPT.json",
+      "bytes": 300,
+      "sha256": "a351e4d1b3ff44a227915abab86e3fec8da8d0396b0f9bfd2a4a35720e0cccc7"
+    },
+    {
+      "path": "local-typecheck-r2-output.log.gz",
+      "bytes": 73,
+      "sha256": "afb7a1d88b4d1875198db63d10647f464105362f6b27e01e0aeb8d3c38f28e0e"
+    }
+  ]
+}

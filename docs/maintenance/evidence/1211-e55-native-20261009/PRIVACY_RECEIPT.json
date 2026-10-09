@@ -1,0 +1,9 @@
+{
+  "selectedArtifactsScanned": 35,
+  "decompressedLogsScanned": true,
+  "supportedSourceValueUnchanged": true,
+  "actualAccessRefreshSourceRecordAndHashesAbsent": true,
+  "privateRuntimeFilesOmitted": true,
+  "qualification": "Initial broad account-substring check matched ordinary public file paths. Those paths remain as reproducibility inputs. Full credential values, service, source/grant hashes and credential-record fields were checked separately and are absent. No private source record is published.",
+  "genericAccountSubstringInOrdinaryPathsRetained": true
+}

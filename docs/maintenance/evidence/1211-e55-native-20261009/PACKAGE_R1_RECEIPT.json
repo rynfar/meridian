@@ -1,0 +1,29 @@
+{
+  "atUTC": "2026-10-09T11:37:44.335712+00:00",
+  "qualified": true,
+  "queries": 5,
+  "actualClientInvocations": 3,
+  "originalE55Checks": "ALL11PASS",
+  "ownInstalledSdkAndBackend": "0.2.141/2.1.295",
+  "allNativeModelUsageTargetCompletionResponseWitnessesMatched": true,
+  "estimatedSdkCostUsd": 0.1185502,
+  "originalClientSdkIteratorHttpStdioWitnessesJoined": true,
+  "ownedStoppedContainerRemoved": true,
+  "selectedSourceAndGrantUnchanged": true,
+  "accessOnlyGrantRemovedAfterTerminalAudit": true,
+  "nativeTurnsRetainedAsIndependentResultCounter": [
+    2,
+    1,
+    1,
+    2,
+    1
+  ],
+  "assistantResponsesPerQuery": [
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "historicalReporterActualGatewayAndMcpTransportGates": "HELD"
+}

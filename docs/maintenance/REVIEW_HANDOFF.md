@@ -6,7 +6,8 @@ Continue the combined original-creation oldest-first queue. Original source
 [#1211](https://github.com/rynfar/meridian/pull/1211) is unchanged at `22566e8a`;
 existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues it.
 Main remains `11dc1556`; foreground E72 head is `c7828d8b` and the current
-E41 harness/native head is `d3676c64`. All nine production
+E41 harness/native head is `d3676c64`; current E55 observer/test head is
+`838d4a29`. All nine production
 files match the preceding qualified E71 correction exactly. All seventeen raw
 contributor author records and full commit messages remain exact and in ancestry;
 expanded #1231 at `5afedf10` is excluded. Source #1292 remains `21e028a5`.
@@ -49,6 +50,25 @@ model access is established by these queries, not endpoint recovery.
 Root incremental review finds no additional material source finding; prior
 independent reviews retain their scopes.
 
+[Current bounded E55 source/installed proof and root adversarial review](evidence/1211-e55-native-20261009/README.md)
+qualify all eleven original assertions on each arm: three actual Claude Code
+client invocations and five exact Sonnet5-5 SDK queries per arm. Client2.1.287,
+SDK0.2.141, source backend2.1.284/installed backend2.1.295 and Linux/x64 are pinned.
+The first source observer failure is retained: all original client assertions
+passed, but the observer incorrectly equated result num_turns with option maxTurns.
+The corrected observer retains the result counter and independently requires one
+original unique assistant response plus an actual tool and canonical capped result.
+All original observed process/stdio/iterator/HTTP/socket witnesses joined; all three
+stopped containers, access grants and task-owned private runtime files were removed.
+Supported source credentials remain unchanged. Production stays at d3676c64; the
+known immutable image receives two explicitly recorded read-only current harness
+overlays. Earlier tarball/compiled identities remain qualified; no new product
+snapshot or historical/LiteLLM/MCP transport acceptance is claimed.
+The corrected immutable head838 full npm gate passes 5,769 tests / 35 skips / zero
+failures in22 isolated batches, with pretest, standalone typecheck/build and the
+original child joined. Four focused pure controls pass16 assertions. Root incremental
+review records no surviving material scoped finding; prior independent scopes remain.
+
 Full unchanged local npm gate passes 5,765 tests / 35 skips / zero failures
 in 22 isolated batches
 at `c7828d8b`, with certified compiled-context lane, pretest and standalone
@@ -65,7 +85,8 @@ in 22 batches, with original child joined, pretest and standalone typecheck/buil
 
 **Held:** historical reporter model/host; background/mixed-auto child flows;
 root/scoped/nested cancellation and incidental parent abort;
-E55/MCP; caption baseline discovery/hints0/overlap/abort/cache requirements;
+shared SDK MCP transport/retry/tool readiness and actual historical gateway;
+caption baseline discovery/hints0/overlap/abort/cache requirements;
 unspecified #1288 tuple; broader package parity; the undiagnosed older remote
 E72 PID-zero CI failure; and required final-head CI. Keep #1322 draft and source
 reports open. No new PR, merge, release or community comment. The owner checkout
