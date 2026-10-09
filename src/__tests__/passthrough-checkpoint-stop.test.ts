@@ -4,7 +4,7 @@ import { PASSTHROUGH_DENY_REASON } from "../proxy/passthroughDenial"
 
 const denied = { decision: "block", reason: PASSTHROUGH_DENY_REASON }
 const hook = (tool: string, input: unknown = { ordinal: tool }) => ({
-  hook_event_name: "PreToolUse", tool_use_id: tool, tool_name: "mcp__oc__read", tool_input: input,
+  hook_event_name: "PreToolUse", session_id: "owned-session", tool_use_id: tool, tool_name: "mcp__oc__read", tool_input: input,
 })
 const stream = (event: unknown) => ({ type: "stream_event", session_id: "owned-session", event })
 const result = (overrides: Record<string, unknown> = {}) => ({
@@ -171,6 +171,21 @@ describe("attempt-owned passthrough checkpoint stop", () => {
     await state.stop.retire()
   })
 
+  it("refuses a matching tool/input hook from another session", async () => {
+    const state = setup(); generation(state.stop)
+    await state.stop.holdDeniedHook({ ...hook("tool-a"), session_id: "another-session" }, denied)
+    expect(state.interrupts()).toBe(0); expect(state.stop.failed).toBe(true)
+    await state.stop.retire()
+  })
+
+  it("lets a pre-intent native subagent hook drain without controlling its query", async () => {
+    const state = setup(); generation(state.stop)
+    await state.stop.holdDeniedHook({ ...hook("tool-a"), agent_id: "native-child" }, denied)
+    await state.stop.holdDeniedHook(hook("tool-b"), denied)
+    expect(state.interrupts()).toBe(0); expect(state.stop.failed).toBe(false)
+    await state.stop.retire()
+  })
+
   it("permits an identical complete assistant snapshot without replacing its boundary", async () => {
     const state = setup(); generation(state.stop)
     state.stop.observe({ type: "assistant", session_id: "owned-session", uuid: "snapshot-uuid", message: {
@@ -208,7 +223,7 @@ describe("attempt-owned passthrough checkpoint stop", () => {
 
   for (const [name, change] of Object.entries({
     subtype: { subtype: "success" }, errorFlag: { is_error: false }, reason: { terminal_reason: "aborted_streaming" },
-    session: { session_id: "other-session" }, missingErrors: { errors: [] }, counter: { num_turns: 5 },
+    session: { session_id: "other-session" }, missingErrors: { errors: [] }, counter: { num_turns: -1 },
   })) {
     it(`rejects the wrong terminal ${name}`, async () => {
       const state = await acknowledged()

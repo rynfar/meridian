@@ -106,10 +106,20 @@ export class PassthroughCheckpointStop {
    * Duplicate/dropped calls and SDK-owned tools retain their original behavior. */
   async holdDeniedHook(input: unknown, output: unknown): Promise<void> {
     if (!this.interrupt || this.retired || this.faulted || this.options.signal.aborted) return
+    // Unsupported native work keeps its existing hook/drain behavior. It
+    // cannot own this generation's stop, but is not itself an SDK failure.
+    if (this.unsafeGeneration && !this.intent) return
     const hook = object(input), response = object(output)
     if (hook?.hook_event_name !== "PreToolUse" || response?.decision !== "block" ||
         response.reason !== PASSTHROUGH_DENY_REASON) return
     if (!isClientForwardedToolUse({ type: "tool_use", id: hook.tool_use_id, name: hook.tool_name }, this.options.clientToolPrefix)) return
+    if (hook.agent_id !== undefined) {
+      if (!this.intent) { this.unsafeGeneration = true; this.releaseHolds(); return }
+      this.fail(new Error("Nested SDK hook cannot own the retained checkpoint")); return
+    }
+    if (!this.sessionId || hook.session_id !== this.sessionId) {
+      this.fail(new Error("Forwarded hook belongs to another admitted session")); return
+    }
     if (!id(hook.tool_use_id) || !id(hook.tool_name)) return
     const identity = inputIdentity(hook.tool_input)
     if (identity === undefined || this.hooks.has(hook.tool_use_id)) {
@@ -117,7 +127,7 @@ export class PassthroughCheckpointStop {
       return
     }
     this.hooks.set(hook.tool_use_id, { name: this.name(hook.tool_name), input: identity })
-    if (this.intent || this.unsafeGeneration) {
+    if (this.intent) {
       this.fail(new Error("Forwarded hook does not belong to the retained generation"))
       return
     }
@@ -132,6 +142,7 @@ export class PassthroughCheckpointStop {
     const message = object(value)
     if (!message) return
     if (message.parent_tool_use_id !== undefined && message.parent_tool_use_id !== null) {
+      if (!this.intent) { this.unsafeGeneration = true; this.releaseHolds(); return }
       this.fail(new Error("Nested SDK work cannot own a client checkpoint"))
       throw new PassthroughCheckpointStopError(this.fault)
     }
@@ -217,13 +228,19 @@ export class PassthroughCheckpointStop {
       this.terminalSeen = true
       const errors = message.errors
       this.resultErrors = Array.isArray(errors) && errors.length > 0 && errors.every(error => typeof error === "string") ? errors : undefined
-      // NOTE: SDK 0.2.141/native 2.1.284 and 2.1.295 qualify this tuple only
-      // under an owned acknowledged interrupt. It is not ordinary success.
+      // NOTE: Native counters include tool handling, not just API generations:
+      // pinned cap-two/two-tool interruption reports four, cap-four/three-tool
+      // interruption reports five. Keep the original Query cap and independently
+      // enforce public generation bounds. Cap one has its own observed terminal
+      // subtype/counter, still bound to the same acknowledged aborted-tools stop.
+      const resultKindMatches = message.subtype === "error_during_execution"
+        ? Number.isSafeInteger(message.num_turns) && (message.num_turns as number) > 0
+        : this.options.maxTurns === 1 && this.generations.size === 1 &&
+          message.subtype === "error_max_turns" && message.num_turns === 2
       this.terminalMatches = Boolean(this.intent && this.acknowledged &&
-        message.session_id === this.intent.sessionId && message.subtype === "error_during_execution" &&
+        message.session_id === this.intent.sessionId && resultKindMatches &&
         message.is_error === true && message.terminal_reason === "aborted_tools" &&
-        Number.isInteger(message.num_turns) && (message.num_turns as number) > 0 &&
-        (message.num_turns as number) <= this.options.maxTurns && this.resultErrors)
+        this.generations.size <= this.options.maxTurns && this.resultErrors)
     }
     this.advance()
     if (this.faulted) throw new PassthroughCheckpointStopError(this.fault)

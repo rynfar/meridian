@@ -56,9 +56,11 @@ installSdkMock(() => ({
         yield { type: "result", session_id: sessionId, subtype: "success", is_error: false, usage: { input_tokens: 1, output_tokens: 1 } }
         return
       }
-      yield { type: "result", session_id: sessionId, subtype: "error_during_execution", is_error: true,
+      // Match the independently observed native cap-one terminal, rather
+      // than inventing a counter equal to the configured API-generation cap.
+      yield { type: "result", session_id: sessionId, subtype: "error_max_turns", is_error: true,
         terminal_reason: terminalMode === "wrong-result" ? "aborted_streaming" : "aborted_tools",
-        num_turns: params.options?.maxTurns ?? 1, errors: ["fixture owned interruption"], usage: { input_tokens: 1, output_tokens: 1 } }
+        num_turns: 2, errors: ["fixture owned interruption"], usage: { input_tokens: 1, output_tokens: 1 } }
       throw new Error(terminalMode === "unrelated" ? "fixture unrelated transport failure"
         : "Claude Code returned an error result: fixture owned interruption")
     })()
