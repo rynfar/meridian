@@ -230,3 +230,38 @@ adversarial review finds no remaining scoped observer blocker. No candidate
 attempt ran; new complete local checks and fresh native before/after proof remain
 required. All inherited product/package/reporter/shared-MCP/final-head CI holds
 remain open. No integration, source closure, release or community message occurred.
+
+
+### Current native sequential candidate proof and draft delivery
+
+At `6585b66a01e26244381709e6db78825cd4056e18`, the fresh full local run passes
+all 21 batches: 5,684 pass / 36 skip / 0 fail. Pretest/standalone typecheck, build
+and all three causal controls pass; every command and session 85655 joins.
+
+The native sequential/hints1 candidate now **PASSes** on Darwin arm64, pinned
+Bun 1.3.11, Node 22.22.3, SDK 0.2.141 and Claude Code 2.1.292. The authentic
+client uses `claude-opus-5-5`; every backend query separately witnesses
+`opus[1m]`, environment pin `claude-opus-5-5` and native
+`claude-opus-5-5[1m]`. Its real caption preserves the exact working mapping,
+generation and supported history. The next real query forks/resumes the original
+checkpoint, all three Read results appear once in durable history, the client
+finishes successfully and the source history remains unchanged. All seven
+source gates and nine observed direct children, queries, pipes, sockets,
+listeners, writers and the parent join. The access-only input was then removed
+after root audit; config/history remain, global/secondary absence stays UNKNOWN.
+
+The R3 baseline's original result remains **MISSING** at final discovery. Its
+immediate snapshots concretely witness changed mapping/generation/history, a
+replaced SDK session and cleared checkpoint. The next actual working query has
+no resume/checkpoint; the client completes all three Reads. A supported posthoc
+read confirms the original source history remains exact. Its final mapped-history
+discovery remains incomplete; this is no full baseline PASS. All seven gates
+and ten direct children join, and its access-only input was likewise removed
+after review. R2 and the first native failures stay immutable.
+
+Root adversarial review permits a draft integration with every inherited gate
+held: hints0, overlap/cancellation/cache/children/actual-parent coverage, applicable
+E71/E72/E41/E55, unknown reporter tuple, shared SDK MCP limitation, independently
+installed package and final-head CI. All seventeen contributor Author/AuthorDate/
+full-message identities and ancestry match. The owner checkout remains exact.
+The evidence checkpoint changes only documentation after the tested source head.

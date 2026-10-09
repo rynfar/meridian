@@ -1,0 +1,119 @@
+{
+  "atUTC": "2026-10-09T03:45:23.492345+00:00",
+  "status": "FIT_FOR_ONE_CURRENT_CANDIDATE_SEQUENTIAL_ATTEMPT_PENDING_FRESH_SUPPORTED_GRANT",
+  "arms": [
+    {
+      "arm": "baseline",
+      "source": "/Users/rynfar/repos/meridian-caption-baseline-ae470-20261008",
+      "head": "ae470d511f1f170168c7b95140ba0bb56d99d179",
+      "tree": "0fef592183db00ce0bc81c988d51124b76bd374a",
+      "inputs": 553,
+      "provenance": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/owned-observer-r3-baseline-source-provenance.json",
+      "sha256": "a4371fccb24c7e9a684bd02ede2c0050d1242b146bf13135ec3e0b662ae60d2f",
+      "changedInputs": [
+        {
+          "role": "harness",
+          "path": "/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008/scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs",
+          "before": "0a63004a773f654fd3559229e834601dcb304e3185608db70688d31d1d040e06",
+          "after": "2599c45590a6d7b90e59f40ce1d6c456f372a47337bf052170252041bbefb03a"
+        }
+      ]
+    },
+    {
+      "arm": "fixed",
+      "source": "/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008",
+      "head": "6585b66a01e26244381709e6db78825cd4056e18",
+      "tree": "8459a7584ffbf712e93a106bca2fa80f1b6c9503",
+      "inputs": 569,
+      "provenance": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/owned-observer-r3-fixed-source-provenance.json",
+      "sha256": "7058b4da7c65ea120790ef287ce0b643995e10355ac7b99ad75b9780db4cae82",
+      "changedInputs": [
+        {
+          "role": "harness",
+          "path": "/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008/scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs",
+          "before": "0a63004a773f654fd3559229e834601dcb304e3185608db70688d31d1d040e06",
+          "after": "2599c45590a6d7b90e59f40ce1d6c456f372a47337bf052170252041bbefb03a"
+        }
+      ]
+    }
+  ],
+  "harnessHead": "6585b66a01e26244381709e6db78825cd4056e18",
+  "harnessSha256": "2599c45590a6d7b90e59f40ce1d6c456f372a47337bf052170252041bbefb03a",
+  "case": "sequential",
+  "hints": "1",
+  "tuple": {
+    "sdk": "0.2.141",
+    "client": "2.1.292",
+    "backend": "2.1.292",
+    "bun": "1.3.11",
+    "model": "claude-opus-5-5",
+    "platform": "darwin",
+    "arch": "arm64",
+    "backendSdkModel": "opus[1m]",
+    "backendModel": "claude-opus-5-5[1m]"
+  },
+  "grantStaged": false,
+  "newNativeModelCalls": 0,
+  "priorNativeR2ReportPreserved": true,
+  "fullLocalReceipt": "LISTED_CAPTION_FINAL_LOCAL_GATES.json",
+  "actualBeforeAfterAcceptance": "OPEN",
+  "currentCompleteLocalPass": {
+    "atUTC": "2026-10-09T03:41:52.392059+00:00",
+    "status": "PASS_COMPLETE_LOCAL_AT_6585B66A_NATIVE_PRODUCT_PACKAGE_CI_HELD",
+    "testedHead": "6585b66a01e26244381709e6db78825cd4056e18",
+    "totals": {
+      "pass": 5684,
+      "skip": 36,
+      "fail": 0
+    },
+    "batches": 21,
+    "allSixCommandsAndToolSession85655Joined": true,
+    "modelCalls": 0,
+    "headUnchanged": true,
+    "worktreeClean": true
+  },
+  "allBeforeInvocationSourceAndNamedRuntimeHashesExact": true,
+  "ownerExact": true,
+  "custody": "Existing exact owned source gate/executor/publication/query/iterator/direct child/pipe/listener/socket/writer and parent witnesses. Root audit before access-input removal only; secondary/global absence UNKNOWN. No configuration/history removal or source credential login/refresh/write.",
+  "deadlineMs": 300000,
+  "joinMs": 15000,
+  "holdMs": 40000,
+  "authorization": "Existing authorized backlog affected-flow verification; no release or community messaging.",
+  "expect": "fixed",
+  "baselineAudit": {
+    "atUTC": "2026-10-09T03:44:57.294067+00:00",
+    "status": "CORE_DEFECT_REPRODUCED_REPORT_REMAINS_MISSING_AT_FINAL_DISCOVERY",
+    "nativeOriginalStatus": "MISSING",
+    "firstFailurePreserved": {
+      "code": "owned-sdk-session-not-listed",
+      "status": "MISSING",
+      "at": 1791517391831
+    },
+    "toolSession76859Joined": true,
+    "mappingGenerationHistoryChanged": true,
+    "checkpointReplacedCleared": true,
+    "realNextWorkingQueryWithoutResume": 5,
+    "realSecondReadResultWirePairedOnce": true,
+    "realClientSuccessAndThreeReads": true,
+    "sourceHistoryUnchangedSupportedPosthocRead": true,
+    "modelVerification": {
+      "backend": "MATCH",
+      "client": "MATCH",
+      "scope": "Exact requested wire model, SDK alias, version pin, backend native context label and client label; independent of physical custody"
+    },
+    "backendQueries": 7,
+    "directProcesses": 10,
+    "sourceGates": 7,
+    "allScopedPhysicalJoinsPositive": true,
+    "grantDeleted": true,
+    "grantAbsentAfter": true,
+    "originalReportSHA256": "99635bae3b09625eab0f91bed11cda39487b5711a6bf6bc1560464d9e7183f17",
+    "originalSettlementSHA256": "4aee1fe1094907295ce9a39b50956c2219c16b6c28d3da59c0944424afe2fa56",
+    "sourceLoginRefreshWrites": false,
+    "globalSecondaryAbsence": "UNKNOWN",
+    "qualification": "Baseline final mapping discovery/durable final mapped-worker history remains incomplete; no full baseline PASS claim. Independent public SDK diagnosis confirms frozen source history. Candidate retains all original strict working/fixed discovery, mapping/generation/history/read/checkpoint/client/model/custody assertions. Only access input removed; config/history retained.",
+    "decision": "FIT_FOR_ONE_CURRENT_CANDIDATE_SEQUENTIAL_ATTEMPT_AFTER_CORE_BASELINE_CAUSALITY_AND_CUSTODY"
+  },
+  "candidateAssertionScope": "Original strict selected working adapter/profile/locator/listing, nonempty public history, exact map/generation/history preservation, no caption resume, actual next checkpoint fork/resume, all three real Read results once in durable history, immutable source, full client lifecycle, exact context labels and all owned physical joins. No baseline exception applies.",
+  "baselineQualification": "Core corruption and next replay are witnessed; terminal baseline status remains MISSING at final discovery. Not a full baseline PASS or whole matrix acceptance."
+}

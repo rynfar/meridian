@@ -4440,3 +4440,19 @@ New full local gates and fresh provenance/native baseline/candidate proof remain
 required. Earlier local PASS is historical after this harness-only change.
 No active jobs or staged grant; the owner checkout remains exact. CI watches
 were stopped on the manual approval handback; #1320/#1321 gates remain open.
+
+
+Latest #1292 integration checkpoint: **full local PASS and actual native
+sequential/hints1 candidate PASS at `6585b66a`**, draft delivery permitted with
+all remaining native/package/final-head CI holds. The real caption preserves
+working mapping/generation/history; the next query resumes the exact checkpoint;
+three Read results are durable once, source history immutable and all scoped
+physical joins positive. The baseline remains MISSING at final discovery, with
+core replacement/replay concretely witnessed and source integrity independently
+confirmed. See the [draft root review](evidence/1292-current-main-20261008/DRAFT_INTEGRATION_ROOT_REVIEW.json)
+and preserved before/after reports. No staged grant or active jobs remain.
+All seventeen raw contributor identities/messages match; the owner checkout is
+exact. Expanded current #1231 remains excluded. No source closure or merge.
+Fresh whole-queue discovery still covers six managed repositories / 31 PRs /
+22 issues; #1315's model-specific advertisement defect is confirmed at source
+and recorded with implementation/actual Pro-client holds.

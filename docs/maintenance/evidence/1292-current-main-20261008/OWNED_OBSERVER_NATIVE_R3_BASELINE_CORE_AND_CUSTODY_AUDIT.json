@@ -1,0 +1,34 @@
+{
+  "atUTC": "2026-10-09T03:44:57.294067+00:00",
+  "status": "CORE_DEFECT_REPRODUCED_REPORT_REMAINS_MISSING_AT_FINAL_DISCOVERY",
+  "nativeOriginalStatus": "MISSING",
+  "firstFailurePreserved": {
+    "code": "owned-sdk-session-not-listed",
+    "status": "MISSING",
+    "at": 1791517391831
+  },
+  "toolSession76859Joined": true,
+  "mappingGenerationHistoryChanged": true,
+  "checkpointReplacedCleared": true,
+  "realNextWorkingQueryWithoutResume": 5,
+  "realSecondReadResultWirePairedOnce": true,
+  "realClientSuccessAndThreeReads": true,
+  "sourceHistoryUnchangedSupportedPosthocRead": true,
+  "modelVerification": {
+    "backend": "MATCH",
+    "client": "MATCH",
+    "scope": "Exact requested wire model, SDK alias, version pin, backend native context label and client label; independent of physical custody"
+  },
+  "backendQueries": 7,
+  "directProcesses": 10,
+  "sourceGates": 7,
+  "allScopedPhysicalJoinsPositive": true,
+  "grantDeleted": true,
+  "grantAbsentAfter": true,
+  "originalReportSHA256": "99635bae3b09625eab0f91bed11cda39487b5711a6bf6bc1560464d9e7183f17",
+  "originalSettlementSHA256": "4aee1fe1094907295ce9a39b50956c2219c16b6c28d3da59c0944424afe2fa56",
+  "sourceLoginRefreshWrites": false,
+  "globalSecondaryAbsence": "UNKNOWN",
+  "qualification": "Baseline final mapping discovery/durable final mapped-worker history remains incomplete; no full baseline PASS claim. Independent public SDK diagnosis confirms frozen source history. Candidate retains all original strict working/fixed discovery, mapping/generation/history/read/checkpoint/client/model/custody assertions. Only access input removed; config/history retained.",
+  "decision": "FIT_FOR_ONE_CURRENT_CANDIDATE_SEQUENTIAL_ATTEMPT_AFTER_CORE_BASELINE_CAUSALITY_AND_CUSTODY"
+}

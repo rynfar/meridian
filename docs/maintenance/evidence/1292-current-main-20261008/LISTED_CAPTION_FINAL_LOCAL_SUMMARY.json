@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T03:41:52.392059+00:00",
+  "status": "PASS_COMPLETE_LOCAL_AT_6585B66A_NATIVE_PRODUCT_PACKAGE_CI_HELD",
+  "testedHead": "6585b66a01e26244381709e6db78825cd4056e18",
+  "totals": {
+    "pass": 5684,
+    "skip": 36,
+    "fail": 0
+  },
+  "batches": 21,
+  "allSixCommandsAndToolSession85655Joined": true,
+  "modelCalls": 0,
+  "headUnchanged": true,
+  "worktreeClean": true
+}

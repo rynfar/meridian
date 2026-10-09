@@ -1,0 +1,26 @@
+{
+  "atUTC": "2026-10-09T03:49:19.885661+00:00",
+  "reviewer": "Root adversarial review; no new delegated independent review",
+  "decision": "FIT_FOR_DRAFT_INTEGRATION_WITH_NATIVE_MATRIX_PACKAGE_AND_CI_HOLDS",
+  "base": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+  "testedSourceHead": "6585b66a01e26244381709e6db78825cd4056e18",
+  "source1292": "21e028a5a0c288aa0e17ce9e3a9f722eec4d83b2",
+  "source1211": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+  "original1231Subset": "50d4a59d0ca5e55e625ec801fa2a9eb187d508ed",
+  "expanded1231Excluded": "5afedf10450f4d0f4d31faf0b7d5d9a72b74884e",
+  "wholeProductionReview": "Complete current-main production diff reviewed in REVIEW.md; seven source/control findings corrected separately. E71/native observer changes separately reviewed with exact prior/current controls. No new material scoped source finding; shared SDK MCP-instance limitation remains a separate acceptance dependency.",
+  "local": "5684 pass / 36 skip / 0 fail across all21 batches; typecheck/build/three causal controls PASS, six commands and runner85655 joined.",
+  "native": "Actual pinned Darwin arm64 / Bun1.3.11 / Node22.22.3 / SDK0.2.141 / native2.1.292 / Opus5.5 sequential hints1 candidate PASS. Exact client core/backend SDK/env-pin/native-context match; map/generation/history preserved, next checkpoint fork/resume, three real Read results once, immutable source history, all physical source-case joins. Baseline report remains MISSING at final discovery, with corruption/replay and source-integrity facts independently witnessed.",
+  "custody": "R2/R3 baseline and candidate process handles joined; each access-only input removed only after scoped source/executor/query/direct pipe/listener/socket/writer/parent audit. Source stores were not written/refreshed/logged-in; no private SDK files read. Global/secondary absence UNKNOWN; config/history retained.",
+  "authorship": "All17 raw Author/AuthorDate/full messages and current ancestry revalidated; Noah Passalacqua and Aleksey Proshutinskiy retain actual cherry-picks. Maintainer corrections separate; squash credit must still be verified.",
+  "publicContract": "Internal classification/session/namespace corrections; no addition to the separately approved executable settings contract. Expanded contributor1231 not incorporated.",
+  "holds": [
+    "Baseline final discovery/durable mapped worker history qualification",
+    "Hints0, both overlap orders, cancellation/cache/children/actual-parent cases",
+    "E71/E72/E41/E55 applicable real-flow acceptance and unknown reporter1288 tuple",
+    "Shared-MCP readiness/retry/followup limitation",
+    "Independently installed package and relevant final-head CI including test"
+  ],
+  "mergeAuthorizedByThisReview": false,
+  "releaseOrCommunityMessageAuthorized": false
+}
