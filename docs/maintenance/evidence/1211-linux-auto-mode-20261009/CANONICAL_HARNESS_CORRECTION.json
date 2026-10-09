@@ -1,0 +1,15 @@
+{
+  "head": "cc3a06f5682d1f6d3e06defbd91990fa72974edd",
+  "cause": "Native production logs independent auxiliary requests as lineage=new; benchmark and synthetic logs incorrectly required lineage=diverged. Exact divergence reason and one-per-request ownership remained correct.",
+  "correction": "Require canonical new label and retain exact auxiliary reason; add wrong-diverged-lineage negative control; all role/model, custody, canonical receipt and baseline expected-defect assertions unchanged.",
+  "originalProofsPreserved": [
+    "native/baseline-r2",
+    "native/candidate-r1"
+  ],
+  "newHarnessSHA256": "4f7464f845ea860a8a04c7f4248382ba00a6d296a0a2a4de313b528e40c4c956",
+  "focusedControls": {
+    "pass": 35,
+    "fail": 0,
+    "compiledContextControl": true
+  }
+}

@@ -1,5 +1,29 @@
 # Upstream review handoff
 
+## Current oldest #1211 / existing #1322 checkpoint (2026-10-09 UTC)
+
+Source #1211 remains `22566e8a`. Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322)
+now has local current-main reconciliation `cbd5d7ca` and separate fixture
+corrections `72793323`, `cc3a06f5`; 17 actual contributor identities/messages remain
+exact. Expanded #1231 is excluded. Full local gates at `cc3a06f5` pass 5,762 tests,
+35 skips, zero failures, 22 isolated npm batches, typecheck and build, with the
+certified compiled-context control enabled. The same corrected native E71
+harness reproduces the baseline defects and passes the complete corrected arm
+on Linux/x64 guest execution under an ARM Docker host: actual CLI 2.1.286,
+SDK 0.2.141/backend 2.1.284, main Sonnet5-5 and classifier Sonnet5, ten queries per
+arm, complete owned custody and removed private grants. Both earlier native
+failures and their concrete fixture/turn-limit qualifications remain preserved.
+[The portable review and proof](evidence/1211-linux-auto-mode-20261009/README.md)
+contain exact source/harness identity, complete receipts and local gates.
+
+This accepts only the current bounded E71 tuple. Original served/deployment
+identity, E72, four E41 modes, E55/MCP, installed package and final-head CI remain
+open. Separate E72 CLI 2.1.287 startup is zero-query preparation. Keep #1322 draft;
+source #1211/#1292 and expanded #1231 stay open. No new PR, merge or release.
+Continue the combined original-creation oldest-first queue after recording older
+concrete holds; preserve the owner's checkout and all owner deferrals.
+
+
 ## Current queue reduction and ordering (2026-10-09 UTC)
 
 The owner's order is **PRs and issues combined by original creation date,
@@ -4130,8 +4154,8 @@ Its release/main commit at this checkpoint was
   package live V2; verified registry signatures and SLSA provenance matching the
   release commit. This is historical evidence for that candidate, not a substitute
   for tests on future changes.
-- Frozen install used SDK0.2.141/Claude Code2.1.259; fresh npm package gates used
-  SDK0.2.141/Claude Code2.1.261. Actual clients: V1 1.18.11 and V2 beta18866
+- Frozen install used SDK 0.2.141/Claude Code2.1.259; fresh npm package gates used
+  SDK 0.2.141/Claude Code2.1.261. Actual clients: V1 1.18.11 and V2 beta18866
   (extended live, separate working directories), plus beta18314 scripted package
   compatibility. Do not describe the beta18314 release check as extended live.
 

@@ -1,0 +1,32 @@
+{
+  "base": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+  "candidate": "cc3a06f5682d1f6d3e06defbd91990fa72974edd",
+  "harnessSHA256": "4f7464f845ea860a8a04c7f4248382ba00a6d296a0a2a4de313b528e40c4c956",
+  "platformQualification": "Real linux/x64 guest executables under ARM-host Docker emulation; original deployment not escrowed.",
+  "client": "2.1.286",
+  "sdk": "0.2.141",
+  "nativeCli": "2.1.284",
+  "mainRequestedServed": "claude-sonnet-5-5",
+  "classifierRequestedServed": "claude-sonnet-5",
+  "beforeResult": "EXPECTED_BASELINE_FAILURE",
+  "afterResult": "PASS",
+  "qualifiedPairActualQueries": 20,
+  "allRetainedActualQueries": 40,
+  "allRetainedEstimatedSdkCostUsd": 2.4913352,
+  "priorFailuresRetained": [
+    "baseline-r2 max-turns4 canonical receipt failure",
+    "candidate-r1 incorrectly required diverged-lineage label"
+  ],
+  "noMaxTurnsRepairClaim": true,
+  "sourceKeychainValueUnchanged": true,
+  "allOwnedContainersRemoved": true,
+  "privateGrantsAbsent": true,
+  "holds": [
+    "unescrowed historical served identity/original deployment",
+    "E72",
+    "four E41 modes",
+    "E55 and MCP parity",
+    "independently installed package",
+    "final-head CI"
+  ]
+}
