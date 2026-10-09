@@ -63,7 +63,12 @@ cache reads. The fresh source-archive package is byte-identical to all 452
 installed/live-tested candidate members. Required final-head CI remains a
 delivery gate. The original historical Kubernetes/native tuple remains separate.
 Keep #769 open: its new classifier trigger is undisclosed and its
-current same-window off/on/off evidence is incomplete. No new delivery PR yet.
+current same-window off/on/off evidence is incomplete.
+[Core delivery #1324](https://github.com/rynfar/meridian/pull/1324) is open for
+the existing plugin-message execution contract, with committed native before/after,
+four-mode E41 and exact package proof. Required final-head CI must pass before
+integration; the broader issue remains open. This is the only new delivery in
+this continuation, created after those acceptance prerequisites completed.
 
 Draft #1322 and the older native/product/client/package holds remain separate.
 No release or community comments are authorized by this checkpoint. The
