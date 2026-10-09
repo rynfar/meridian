@@ -6392,7 +6392,13 @@ auto-mode classifier flow.
   only to their exact client names. Each tool ID/name/canonical input matches one complete HTTP
   tool terminal and a successful subsequent native client tool result on its
   own actor. Agent results contain both child outputs. SDK tool ownership and
-  HTTP terminal IDs cannot be reused across requests. Advertised tool counts
+  HTTP terminal IDs cannot be reused across requests. Observe the original public
+  SDK `PreToolUse` hooks without changing their results: every forwarded call
+  needs its exact name/input/ID and canonical forwarding denial. Later SDK-only
+  calls require the exact already-handled block outcome after the forwarded
+  checkpoint and must appear in neither HTTP tools nor client results. Retain
+  those dropped-call counts; unknown, missing, changed or false witnesses fail.
+  Advertised tool counts
   and generated prose do not substitute for these receipts.
 - Every tool-bearing SDK query pairs through its tool IDs. Tool-less final and
   resumed queries pair through exact SDK/HTTP text held only in memory and

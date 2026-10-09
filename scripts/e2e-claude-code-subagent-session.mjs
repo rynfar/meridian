@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { spawn, spawnSync } from 'node:child_process'
 import { spyOn } from 'bun:test'
+import { PASSTHROUGH_DENY_REASON } from '../src/proxy/passthroughDenial.ts'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic'])
 const names = new Set(['target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -106,7 +107,7 @@ async function requestBody(request, maximumBytes) {
   } finally { await reader.cancel(); reader.releaseLock() }
 }
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
-const sdkTools = new Map(), sdkToolOwners = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
+const sdkTools = new Map(), sdkToolOwners = new Map(), sdkHookReceipts = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
 const sessionOrdinal = value => { if (typeof value !== 'string' || !value.length) return undefined; if (!sdkSessionIds.has(value)) sdkSessionIds.set(value, sdkSessionIds.size + 1); return sdkSessionIds.get(value) }
 let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup
 let startupSettled = false
@@ -319,9 +320,24 @@ try {
     assert(input.options.env?.CLAUDE_CONFIG_DIR === account && input.options.pathToClaudeCodeExecutable === native, 'SDK escaped explicit account/executable')
     assert(!input.options.env?.ANTHROPIC_API_KEY && !input.options.env?.ANTHROPIC_BASE_URL && !input.options.env?.CLAUDE_CODE_OAUTH_TOKEN, 'SDK inherited another authentication/provider override')
     const row = { turn, requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', versionPin: input.options.env?.ANTHROPIC_DEFAULT_SONNET_MODEL === undefined ? undefined : /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL) ? input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL : 'invalid-version-pin', resumed: typeof input.options.resume === 'string', resumedSession: sessionOrdinal(input.options.resume), forked: input.options.forkSession === true, requestedSession: sessionOrdinal(input.options.sessionId), maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultFlagValid: false, resultIsError: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
-    const tools = new Map(); sdkTools.set(row, tools)
+    const tools = new Map(), hookReceipts = new Map(); sdkTools.set(row, tools); sdkHookReceipts.set(row, hookReceipts)
     proof.queries.push(row)
-    const query = original({ ...input, options: { ...input.options, maxBudgetUsd: costLimit / maximum } }); active.add(query)
+    const dropReason = 'This tool call has already been handled by the client-facing turn — do not repeat it. Do not call additional tools and do not generate further text — end your turn now.'
+    const preToolHooks = input.options.hooks?.PreToolUse
+    assert(Array.isArray(preToolHooks) && preToolHooks.length > 0, 'SDK tool forwarding hook witness unavailable')
+    let hookOrder = 0
+    const observedHooks = preToolHooks.map(matcher => ({ ...matcher, hooks: matcher.hooks.map(hook => async (event, toolUseId, options) => {
+      const result = await hook(event, toolUseId, options)
+      if (typeof event.tool_use_id !== 'string' || event.tool_use_id !== toolUseId || !objectInput(event.tool_input)) { row.invalidToolHookWitness = true; return result }
+      if (hookReceipts.has(toolUseId)) row.duplicateToolHookWitness = true
+      hookReceipts.set(toolUseId, {
+        name: sdkClientToolName(event.tool_name), input: JSON.stringify(inputIdentity(event.tool_input)), order: ++hookOrder,
+        fate: result?.decision === 'block' && result.reason === PASSTHROUGH_DENY_REASON ? 'forwarded'
+          : result?.decision === 'block' && result.reason === dropReason ? 'dropped' : 'unknown',
+      })
+      return result
+    }) }))
+    const query = original({ ...input, options: { ...input.options, hooks: { ...input.options.hooks, PreToolUse: observedHooks }, maxBudgetUsd: costLimit / maximum } }); active.add(query)
     const abort = () => {
       try { input.options.abortController?.abort(new Error('E72 execution bound')) } catch { proof.sdkAbortSignalFailed = true }
       try { query.close() } catch { proof.sdkAbortCloseFailed = true }
@@ -431,7 +447,18 @@ try {
     await duringRun(Promise.all([...pendingHttp]), 30000, 'HTTP terminal receipts failed to settle')
     proof.completedHttpToolTerminals = httpTools.size
     for (const row of proof.queries) {
-      const tools = sdkTools.get(row)
+      const observed = sdkTools.get(row), claims = sdkHookReceipts.get(row), tools = new Map(), dropped = []
+      let hooksExact = !row.invalidToolHookWitness && !row.duplicateToolHookWitness && claims.size === observed.size
+      for (const [id, tool] of observed) {
+        const claim = claims.get(id)
+        hooksExact &&= claim?.name === tool.name && claim?.input === tool.input && ['forwarded', 'dropped'].includes(claim?.fate)
+        if (claim?.fate === 'forwarded') tools.set(id, tool)
+        if (claim?.fate === 'dropped') dropped.push({ id, order: claim.order })
+      }
+      const lastForwardedOrder = Math.max(0, ...[...tools.keys()].map(id => claims.get(id).order))
+      row.sdkToolHookCustody = hooksExact && dropped.every(({ id, order }) => tools.size > 0 && order > lastForwardedOrder && !httpTools.has(id) && !toolResults.has(id))
+      row.sdkObservedToolCount = observed.size
+      row.explicitlyDroppedSdkToolCount = dropped.length
       row.canonicalHttpToolTerminal = tools.size > 0 && [...tools].every(([id, tool]) => httpTools.get(id)?.input === tool.input && httpTools.get(id)?.name === tool.name)
       const requests = new Set([...tools.keys()].map(id => httpTools.get(id)?.request))
       row.toolRequest = tools.size > 0 && requests.size === 1 && !requests.has(undefined) ? [...requests][0] : undefined
@@ -480,9 +507,10 @@ try {
       requestedModelIdentity: wire.length > 0 && wire.every(row => row.requestedModelMatched), rootedWireIdentity: wire.length > 0 && wire.every(row => row.sessionKeyMatched && row.actor >= 0), requestDecisionsComplete: wire.length > 0 && wire.every(row => decision(row).length === 1) && records.length === wire.length,
       twoMultiturnAgents: agents.size === 2 && [...agents.values()].every(rows => rows.length >= 3 && rows.every(row => row.turn === 1)), foregroundParallelism: peakAgents >= 2,
       actualAgentAndBashReceipts: !proof.toolResultChanged && launchReceipts && bashReceipts && privateReceipts.length === 6,
+      sdkToolHookCustody: proof.queries.every(row => row.sdkToolHookCustody),
       allQueriesCorrelated, distinctSessionMappings, subagentResume: agents.size === 2 && [...agents.values()].every(resumed), mainResume: mains.length >= 3 && mains.some(row => row.turn === 2) && resumed(mains),
       noCollision: !records.some(row => ['unrelated-history', 'concurrent-race'].includes(row.divergence)), boundedLeaseWait: records.length === wire.length && records.every(row => Number.isFinite(row.sessionWaitMs) && row.sessionWaitMs >= 0 && row.sessionWaitMs <= 1000),
-      nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === args.model || (row.requested === 'sonnet' && row.versionPin === args.model)) && row.completed && row.iteratorSettled && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
+      nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === args.model || (row.requested === 'sonnet' && row.versionPin === args.model)) && row.completed && row.iteratorSettled && row.sdkToolHookCustody && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
     }
     const defects = new Set(['distinctSessionMappings', 'subagentResume', 'mainResume', 'noCollision'])
     for (const [name, actual] of Object.entries(proof.checks)) {
