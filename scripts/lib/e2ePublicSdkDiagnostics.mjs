@@ -10,25 +10,45 @@ export function publicToolCapabilities(names) {
 export function createPublicSdkGenerationWitness({ now, maximumGenerations = 128, maximumTools = 1024 }) {
   const generations = new Map(), tools = new Map(), hooks = new Map()
   let assistantEvents = 0, streamStarts = 0, missingGenerationIds = 0, missingToolIds = 0, conflictingToolOwners = 0, overflow = false
+  let streamGeneration, uncorrelatedStopEvents = 0, overlappingStreamStarts = 0
+  const stopReasons = new Set(['end_turn', 'max_tokens', 'stop_sequence', 'tool_use', 'pause_turn', 'compaction', 'refusal', 'model_context_window_exceeded'])
   const validId = id => typeof id === 'string' && id.length > 0 && id.length <= 256
+  const observeStop = (generation, reason) => {
+    if (reason === undefined || reason === null) return
+    if (!generation) { uncorrelatedStopEvents++; return }
+    // Unknown values are diagnostic uncertainty, never exported payload text.
+    generation.stopReasons.add(stopReasons.has(reason) ? reason : 'other')
+  }
   return {
     observe(event) {
       const assistant = event.type === 'assistant'
       const start = event.type === 'stream_event' && event.event?.type === 'message_start'
+      if (event.type === 'stream_event' && event.event?.type === 'message_delta') {
+        observeStop(generations.get(streamGeneration), event.event.delta?.stop_reason)
+        return
+      }
+      if (event.type === 'stream_event' && event.event?.type === 'message_stop') { streamGeneration = undefined; return }
       if (!assistant && !start) return
       if (assistant) assistantEvents++; else streamStarts++
       const message = assistant ? event.message : event.event.message
+      if (start) {
+        if (streamGeneration !== undefined && streamGeneration !== message?.id) overlappingStreamStarts++
+        streamGeneration = validId(message?.id) ? message.id : undefined
+      }
       if (!validId(message?.id)) { missingGenerationIds++; return }
       let generation = generations.get(message.id)
       if (!generation) {
         if (generations.size >= maximumGenerations) { overflow = true; return }
-        generation = { number: generations.size + 1, firstEventMs: now(), lastEventMs: null, assistantEvents: 0, streamStarts: 0 }
+        generation = { number: generations.size + 1, firstEventMs: now(), lastEventMs: null, assistantEvents: 0, streamStarts: 0, stopReasons: new Set(), textObserved: false, thinkingObserved: false }
         generations.set(message.id, generation)
       }
       generation.lastEventMs = now()
       if (assistant) generation.assistantEvents++; else generation.streamStarts++
+      observeStop(generation, message.stop_reason)
       if (!assistant || !Array.isArray(message.content)) return
       for (const block of message.content) {
+        if (block?.type === 'text') generation.textObserved = true
+        if (block?.type === 'thinking' || block?.type === 'redacted_thinking') generation.thinkingObserved = true
         if (block?.type !== 'tool_use') continue
         if (!validId(block.id)) { missingToolIds++; continue }
         if (tools.has(block.id)) {
@@ -50,14 +70,14 @@ export function createPublicSdkGenerationWitness({ now, maximumGenerations = 128
       const rows = [...generations.values()].map(generation => {
         const ids = [...tools].filter(([, owner]) => owner === generation.number).map(([id]) => id)
         const receipts = ids.map(id => hooks.get(id)).filter(Boolean)
-        return { ...generation, distinctTools: ids.length, toolHooks: receipts.length,
+        return { ...generation, stopReasons: [...generation.stopReasons].sort(), distinctTools: ids.length, toolHooks: receipts.length,
           forwardedHooks: receipts.filter(receipt => receipt.fate === 'forwarded').length,
           droppedHooks: receipts.filter(receipt => receipt.fate === 'dropped').length,
           unknownHooks: receipts.filter(receipt => receipt.fate === 'unknown').length,
           repeatedHookEvents: receipts.reduce((sum, receipt) => sum + receipt.observations - 1, 0),
           firstHookMs: receipts.length ? Math.min(...receipts.map(receipt => receipt.observedMs)) : null }
       })
-      return { assistantEvents, streamStarts, distinctGenerations: generations.size, missingGenerationIds, missingToolIds, conflictingToolOwners, overflow,
+      return { assistantEvents, streamStarts, distinctGenerations: generations.size, missingGenerationIds, missingToolIds, conflictingToolOwners, overflow, uncorrelatedStopEvents, overlappingStreamStarts,
         completeGenerationIds: assistantEvents + streamStarts > 0 && missingGenerationIds === 0 && !overflow,
         uncorrelatedHooks: [...hooks.keys()].filter(id => !tools.has(id)).length, generations: rows }
     },
