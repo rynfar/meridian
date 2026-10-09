@@ -106,7 +106,7 @@ async function requestBody(request, maximumBytes) {
   } finally { await reader.cancel(); reader.releaseLock() }
 }
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
-const sdkTools = new Map(), sdkToolOwners = new Map(), internalToolSearchIds = new Set(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
+const sdkTools = new Map(), sdkToolOwners = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
 const sessionOrdinal = value => { if (typeof value !== 'string' || !value.length) return undefined; if (!sdkSessionIds.has(value)) sdkSessionIds.set(value, sdkSessionIds.size + 1); return sdkSessionIds.get(value) }
 let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup
 let startupSettled = false
@@ -344,14 +344,6 @@ try {
               for (const block of event.message?.content ?? []) if (block.type === 'tool_use' && typeof block.id === 'string' && objectInput(block.input)) {
                 if (sdkToolOwners.has(block.id) && sdkToolOwners.get(block.id) !== row) proof.sdkToolIdReused = true
                 sdkToolOwners.set(block.id, row)
-                // Meridian lets the SDK execute exactly ToolSearch internally
-                // and omits it from both HTTP response shapes. Keep its IDs
-                // owned, count the native witness and forbid wire exposure.
-                if (block.name === 'ToolSearch') {
-                  internalToolSearchIds.add(block.id)
-                  row.internalToolSearchCount = (row.internalToolSearchCount ?? 0) + 1
-                  continue
-                }
                 tools.set(block.id, { name: sdkClientToolName(block.name), input: JSON.stringify(inputIdentity(block.input)) })
               }
             }
@@ -488,7 +480,6 @@ try {
       requestedModelIdentity: wire.length > 0 && wire.every(row => row.requestedModelMatched), rootedWireIdentity: wire.length > 0 && wire.every(row => row.sessionKeyMatched && row.actor >= 0), requestDecisionsComplete: wire.length > 0 && wire.every(row => decision(row).length === 1) && records.length === wire.length,
       twoMultiturnAgents: agents.size === 2 && [...agents.values()].every(rows => rows.length >= 3 && rows.every(row => row.turn === 1)), foregroundParallelism: peakAgents >= 2,
       actualAgentAndBashReceipts: !proof.toolResultChanged && launchReceipts && bashReceipts && privateReceipts.length === 6,
-      internalToolSearchStayedInternal: [...internalToolSearchIds].every(id => !httpTools.has(id) && !toolResults.has(id)),
       allQueriesCorrelated, distinctSessionMappings, subagentResume: agents.size === 2 && [...agents.values()].every(resumed), mainResume: mains.length >= 3 && mains.some(row => row.turn === 2) && resumed(mains),
       noCollision: !records.some(row => ['unrelated-history', 'concurrent-race'].includes(row.divergence)), boundedLeaseWait: records.length === wire.length && records.every(row => Number.isFinite(row.sessionWaitMs) && row.sessionWaitMs >= 0 && row.sessionWaitMs <= 1000),
       nativeReceipts: !proof.httpReceiptFailure && !proof.sdkToolIdReused && !proof.httpToolIdReused && proof.queries.length === wire.length && proof.queries.every(row => (row.requested === args.model || (row.requested === 'sonnet' && row.versionPin === args.model)) && row.completed && row.iteratorSettled && row.acceptedCanonicalResult && !row.assistantError && !row.sessionChanged && row.session !== undefined && (row.requestedSession !== undefined ? row.requestedSession === row.session : !row.resumed || row.forked || row.resumedSession === row.session) && (row.toolCount === 0 || (row.canonicalHttpToolTerminal && row.toolRequest !== undefined)) && row.inputTokens > 0 && row.outputTokens > 0 && row.nativeModels.length > 0 && row.nativeModels.every(model => model === args['served-model']) && row.estimatedCostUsd !== null && row.estimatedCostUsd >= 0), costBound: proof.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? Infinity), 0) <= costLimit,
