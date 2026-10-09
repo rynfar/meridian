@@ -457,32 +457,36 @@ describe("parent-to-child cancellation", () => {
   it("does not cancel the session's children when an auxiliary request on it aborts", async () => {
     const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
     const auxiliaryAbort = new AbortController()
-
+    const childAbort = new AbortController()
+    const requests: ControlledRequest[] = []
     behaviors = ["hang", "hang"]
-    const childStarted = queryStarted()
-    const childResponse = app.fetch(messagesRequest({ sessionId: CHILD, parentSessionId: PARENT }))
-    await childStarted
+    try {
+      const childStarted = queryStarted()
+      const childResponse = controlledFetch(app, messagesRequest({
+        sessionId: CHILD, parentSessionId: PARENT, signal: childAbort.signal,
+      }))
+      requests.push({ abort: childAbort, response: childResponse })
+      await cancellationDeadline(childStarted)
 
-    // A side call on the parent's key (#1288) is not the parent's turn; its
-    // client going away says nothing about the parent's children.
-    const auxiliaryStarted = queryStarted()
-    const auxiliaryResponse = app.fetch(messagesRequest({
-      sessionId: PARENT,
-      signal: auxiliaryAbort.signal,
-      headers: { "x-meridian-agent": "claude-code", "x-claude-code-request-class": "auxiliary" },
-    }))
-    await auxiliaryStarted
-
-    auxiliaryAbort.abort("client hung up")
-    await settle()
-
-    expect(calls[1]!.controller!.signal.aborted).toBe(true)
-    expect(calls[0]!.controller!.signal.aborted).toBe(false)
-    expect(processSessionTree.stats().cancelledDescendants).toBe(0)
-    await auxiliaryResponse
-
-    calls[0]!.controller!.abort("test cleanup")
-    await childResponse
+      // A side call on the parent's key is not its working turn.
+      const auxiliaryStarted = queryStarted()
+      const auxiliaryResponse = controlledFetch(app, messagesRequest({
+        sessionId: PARENT,
+        signal: auxiliaryAbort.signal,
+        headers: { "x-meridian-agent": "claude-code", "x-claude-code-request-class": "auxiliary" },
+      }))
+      requests.push({ abort: auxiliaryAbort, response: auxiliaryResponse })
+      await cancellationDeadline(auxiliaryStarted)
+      auxiliaryAbort.abort("client hung up")
+      expect((await cancellationDeadline(auxiliaryResponse)).status).toBe(499)
+      expect(calls[1]!.controller!.signal.aborted).toBe(true)
+      expect(calls[0]!.controller!.signal.aborted).toBe(false)
+      expect(processSessionTree.stats().cancelledDescendants).toBe(0)
+      childAbort.abort("test cleanup")
+      expect((await cancellationDeadline(childResponse)).status).toBe(499)
+    } finally {
+      await cleanControlledRequests(requests)
+    }
   })
 
   it("counts propagated cancellations on /telemetry/summary", async () => {

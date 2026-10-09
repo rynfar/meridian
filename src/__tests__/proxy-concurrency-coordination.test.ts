@@ -741,8 +741,13 @@ describe("SDK and Session concurrency coordination", () => {
     const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
     const sessionId = `progress-mcp-${crypto.randomUUID()}`
     const agentId = "progress-agent"
-    const toolServer = (index: number) => Object.values((capturedParams[index]?.options as any)?.mcpServers ?? {})
-      .find((server: any) => server?.type === "sdk" && server?.name !== "opencode")
+    const toolServer = (index: number) => {
+      const options = capturedParams[index]?.options as {
+        mcpServers?: Record<string, { type?: unknown; name?: unknown }>
+      } | undefined
+      return Object.values(options?.mcpServers ?? {})
+        .find(server => server.type === "sdk" && server.name !== "opencode")
+    }
     const answered = [...PROGRESS_WORK, { role: "assistant", content: "ok" }]
     const firstP = app.fetch(claudeCodeCaptionRequest(PROGRESS_WORK, sessionId, agentId))
     ;(await waitForControl(0)).release()
@@ -805,8 +810,8 @@ describe("SDK and Session concurrency coordination", () => {
   })
 
   for (const stream of [false, true]) {
-    for (const refusal of [undefined, "No message found with message.uuid of: checkpoint-uuid"] as const) {
-      it(`keeps a header-labelled auxiliary independent of a complete checkpoint (stream=${stream}, refusal=${Boolean(refusal)})`, async () => {
+    for (const refusalCount of [0, 1, 2]) {
+      it(`keeps a header-labelled auxiliary independent of a complete checkpoint (stream=${stream}, refusals=${refusalCount})`, async () => {
         autoCompleteQueries = true
         const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
         const sessionId = `claude-code-checkpoint-aux-${crypto.randomUUID()}`
@@ -821,17 +826,19 @@ describe("SDK and Session concurrency coordination", () => {
         const original = lookupSharedSessionResult(sessionId)
         expect(original.status).toBe("found")
         if (original.status !== "found") throw new Error("Checkpoint fixture was not published")
-        if (refusal) queryFailures.set(1, refusal)
+        for (let attempt = 1; attempt <= refusalCount; attempt++) {
+          queryFailures.set(attempt, "No message found with message.uuid of: checkpoint-uuid")
+        }
 
         const auxiliary = await app.fetch(claudeCodeRequest(continuation, sessionId, {
           "x-claude-code-request-class": "auxiliary",
         }, stream))
-        expect(auxiliary.status).toBe(200)
-        await auxiliary.text()
+        expect(auxiliary.status).toBe(refusalCount === 2 && !stream ? 500 : 200)
+        const auxiliaryWire = await auxiliary.text()
+        if (refusalCount === 2 && stream) expect(auxiliaryWire).toContain("event: error")
         // Even a complete known tool batch cannot promote a side call. A
         // refusal from its own fresh target cannot evict the main checkpoint.
-        expect(capturedParams.length).toBe(refusal ? 2 : 1)
-        if (refusal) expect(lookupSharedSessionResult(sessionId)).toEqual(original)
+        expect(capturedParams.length).toBe(refusalCount > 0 ? 2 : 1)
         for (const call of capturedParams) expect(call.options?.resume).toBeUndefined()
         expect(lookupSharedSessionResult(sessionId)).toEqual(original)
 

@@ -192,15 +192,6 @@ export interface AgentIdentity {
   getPassthroughMcpName?(): string
 }
 
-/** The account-routing key for a request: its declared root, else its own session key. */
-export function rootSessionIdOf(
-  adapter: Pick<AgentIdentity, "getSessionId" | "getRootSessionId">,
-  c: Context,
-  body?: unknown,
-): string | undefined {
-  return adapter.getRootSessionId?.(c, body) ?? adapter.getSessionId(c, body)
-}
-
 /**
  * An agent adapter provides agent-specific configuration to the proxy.
  * The proxy calls these methods during request handling to determine

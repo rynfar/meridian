@@ -406,6 +406,15 @@ describe("isClaudeCodeAuxiliaryRequest", () => {
     expect(isClaudeCodeAuxiliaryRequest(undefined, unkeyed)).toBe(false)
   })
 
+  it("leaves malformed tool and stream fields unclassified even with the CLI header", () => {
+    for (const tools of [null, "none", {}, false]) {
+      expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, tools }, undefined, true)).toBe(false)
+    }
+    for (const stream of [null, "false", 0, []]) {
+      expect(isClaudeCodeAuxiliaryRequest(undefined, { ...classifier, stream }, undefined, true)).toBe(false)
+    }
+  })
+
   it("rejects malformed shapes without throwing", () => {
     expect(isClaudeCodeAuxiliaryRequest(undefined, undefined)).toBe(false)
     expect(isClaudeCodeAuxiliaryRequest(undefined, "not an object")).toBe(false)
@@ -467,7 +476,7 @@ describe("claudeCodeAdapter.isAuxiliaryRequest", () => {
   }
 
   it("recognises the CLI by its session header for a side call without stop sequences", () => {
-    const { stop_sequences: _omitted, ...withoutStops } = body
+    const { stop_sequences: _omitted, system: _permissions, ...withoutStops } = body
     expect(claudeCodeAdapter.isAuxiliaryRequest?.(contextWith({}), withoutStops)).toBe(false)
     expect(claudeCodeAdapter.isAuxiliaryRequest?.(
       contextWith({ "x-claude-code-session-id": "b2004dfc-6042-48d9-9c23-b4475f64b6f5" }), withoutStops,

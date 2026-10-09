@@ -6065,7 +6065,7 @@ contributor's earlier implementation.
 
 The classifier shares the conversation's `metadata.user_id` session key.
 The native `x-claude-code-request-class` header is authoritative when present.
-Without that header, the fallback requires a system text block beginning
+Without that header or native CLI identification, the fallback requires a system text block beginning
 `You are a security monitor for autonomous AI coding agents.` with paired,
 newline-delimited `<cc_automode_permissions>` markers in the same block. A
 billing block can precede it. Default or false streaming and omitted stops are
@@ -6080,8 +6080,9 @@ under a remote flag. The adapter therefore uses the header when present and
 otherwise the shape: session key, no tools, not streamed. A request carrying
 the CLI's own `x-claude-code-session-id` needs nothing more, which also covers
 the session-state classifier (one `Current state: …` message, no stop
-sequence); any other request also needs a `</block>` or `</severity>` stop
-sequence.
+sequence). Other requests retain the classifier system-envelope safeguard
+described above and accept at most one known verdict stop when supplied.
+Malformed tool or streaming fields never establish fallback classification.
 
 Run the committed harness unchanged against the unchanged baseline and fixed
 head. Both use four actual `--permission-mode auto` invocations: two tool

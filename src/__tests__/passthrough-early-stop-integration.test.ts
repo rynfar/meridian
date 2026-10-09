@@ -11,6 +11,7 @@ import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import { progressBody, PROGRESS_WORK } from "./fixtures/claude-code-progress"
+import { claudeCodeSessionKey } from "../proxy/adapters/claudecode"
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -428,10 +429,11 @@ describe("Integration: passthrough early stop", () => {
     it(`keeps the pending tool checkpoint for the next turn after a ${fails ? "failing" : "successful"} progress caption`, async () => {
       const sessionId = `progress-checkpoint-${crypto.randomUUID()}`
       const agentId = "checkpoint-agent"
-      const key = `${sessionId}:agent:${agentId}`
+      const body = progressBody(sessionId)
+      const key = claudeCodeSessionKey(agentId, body)
+      if (key === undefined) throw new Error("checkpoint fixture has no subagent key")
       usedSessionKeys.add(key)
       const headers = { "x-claude-code-agent-id": agentId }
-      const body = progressBody(sessionId)
       const toolTurn = assistantMessage([
         { type: "tool_use", id: "read-1", name: "Read", input: { file_path: "alpha.txt" } },
       ])

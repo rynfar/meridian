@@ -222,10 +222,10 @@ function hasAutoModePermissions(system: unknown): boolean {
  *
  * Other clients can reach this adapter with the same tool-less unstreamed
  * shape for real turns, so the shape alone counts only for a request from the
- * CLI itself (`fromCli`, see isClaudeCodeClient). Otherwise it also needs a
- * stop sequence closing the auto-mode classifier's verdict tag; if a future CLI
- * changes those, detection falls back to treating the request as a turn rather
- * than isolating a real one. An identified
+ * CLI itself (`fromCli`, see isClaudeCodeClient). Otherwise retain the specific
+ * auto-mode system permissions envelope and, when supplied, exactly one known
+ * verdict stop. Ordinary XML output is not a classifier. Malformed tool/stream
+ * fields never supply fallback authority. An identified
  * subagent's streaming progress caption has its own narrow shape in
  * claudecodeProgress; it must also stay out of the working mapping.
  */
@@ -239,12 +239,15 @@ export function isClaudeCodeAuxiliaryRequest(
   if (!body || typeof body !== "object") return false
   if (extractClaudeCodeSessionId(body) === undefined) return false
   if (agentId !== undefined && CLAUDE_CODE_AGENT_ID.test(agentId) && isClaudeCodeProgressSummary(body)) return true
-  const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown }
-  if (Array.isArray(request.tools) && request.tools.length > 0) return false
-  if (request.stream === true) return false
+  const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown; system?: unknown }
+  if (request.tools !== undefined && (!Array.isArray(request.tools) || request.tools.length > 0)) return false
+  if (request.stream !== undefined && request.stream !== false) return false
   if (fromCli) return true
-  return Array.isArray(request.stop_sequences)
-    && request.stop_sequences.some(stop => typeof stop === "string" && CLASSIFIER_STOP_SEQUENCES.has(stop))
+  if (!hasAutoModePermissions(request.system)) return false
+  return request.stop_sequences === undefined || (
+    Array.isArray(request.stop_sequences) && request.stop_sequences.length === 1
+    && request.stop_sequences.every(stop => typeof stop === "string" && CLASSIFIER_STOP_SEQUENCES.has(stop))
+  )
 }
 
 /**

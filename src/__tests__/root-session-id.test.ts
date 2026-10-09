@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from "bun:test"
 import type { Context } from "hono"
-import { rootSessionIdOf } from "../proxy/adapter"
+import { rootSessionIdOf } from "../proxy/adapters/sessionIdentity"
 import { claudeCodeAdapter } from "../proxy/adapters/claudecode"
 
 function context(headers: Record<string, string> = {}): Context {
