@@ -13,3 +13,14 @@ Corrections retain valid native CLI state-card and exact streaming caption detec
 The twelve focused test groups pass 397 tests, including ordinary and malformed classification, complete checkpoints and exhausted retries, caption MCP overlap, cancellation, silent response, idle ceilings, namespace ownership, subagent isolation, and priority/sticky placement. The first complete npm test/typecheck/build run passes at pre-namespace-correction `50923ff0`; those gates cannot validate the later change. The namespace control reproduced HTTP 500 / one attempt with "Session mapping changed while it was being evicted" in both response modes. The separate correction invalidates only a mapping found in the admitted namespace, retaining the protected legacy slot CAS generation for fresh publication. All four collision/fallback controls pass after correction, and existing namespace, auxiliary and canonical recovery controls remain green. Repeated final gates at the current clean head remain required.
 
 No material production finding remains within this source scope. Acceptance is still held for current native client/model/platform proof, state-card/caption before-and-after behavior, both overlap orders, cancellation custody, E41/E55 parity, independently installed package behavior and final delivery-head CI. The older caption harness snapshots the raw conversation key, which does not observe the corrected agent mapping; it requires correction and review before reuse. The exact #1288 reporter tuple remains unspecified. The separately recorded #1283 shared SDK MCP-instance transport limitation remains relevant to retries and main followups; creating a fresh caption server does not establish per-attempt tool readiness. Existing login/entitlement, failed runtime and custody records remain historical failures/limitations. No new model call, credential grant/refresh, merge, source closure, release or community message occurred.
+
+
+The first repeated full gate at `a022326a` joined with two failures in the new
+extended-context golden controls. Both missing-message defect controls passed.
+The same file passes all 42 controls alone; unrelated first-batch tests install
+process-global base-model/hasExtendedContext:false mocks. The concrete correction
+retains every assertion and moves the entire model-sensitive concurrency file
+into its own final npm-test invocation, using the existing isolation workflow.
+There are now 21 batches. The failed run remains escrowed; a new complete run
+is required at the isolated-suite head. This is a fixture isolation correction,
+not a weakened fallback assertion or changed production/model behavior.

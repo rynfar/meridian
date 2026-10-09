@@ -4351,3 +4351,9 @@ shared SDK MCP-instance limitation still qualifies retries/main followups.
 Historical login/runtime/custody failures remain recorded. Source PRs/issues
 stay open. No model call, credential grant/refresh, delegation, push, merge,
 source closure, release or community message occurred in this correction turn.
+
+The first repeated gate at `a022326a` fails only the two new extended-context
+goldens under unrelated global model mocks; both checkpoint collision controls
+pass. The failed run is retained. The concurrency file is now an isolated final
+process in `npm test` (21 batches), with all 42 controls/assertions intact. New
+complete gates remain required; no production change accompanies this isolation.

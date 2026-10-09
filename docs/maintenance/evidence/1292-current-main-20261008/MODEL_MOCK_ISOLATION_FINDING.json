@@ -1,0 +1,21 @@
+{
+  "observedUTC": "2026-10-09T00:59:17.990546+00:00",
+  "head": "a022326ad8c8700177a9454dac0353fa3ea13b38",
+  "classification": "FULL_BATCH_MODEL_MOCK_ISOLATION_FAILURE",
+  "observedFailures": [
+    "stream=false extended-context golden",
+    "stream=true extended-context golden"
+  ],
+  "passingDefectControls": [
+    "stream=false checkpoint collision",
+    "stream=true checkpoint collision"
+  ],
+  "causalEvidence": [
+    "proxy-concurrency-coordination.test.ts passes all 42 in its own process",
+    "profile-switch-inflight/profile-switch-integration/lifecycle-publication-degrade mock ../proxy/models with base sonnet/hasExtendedContext:false at module scope",
+    "Full batch extended-context cases fail before their required [1m] assertion; the first SDK error propagates as base-model Extra Usage instead of fallback"
+  ],
+  "proposedCorrection": "Keep all assertions and all 42 tests. Isolate the model-sensitive concurrency file in npm test, following the existing process isolation workflow; remove it from the first batch and append one explicit invocation.",
+  "sourceProductionUnchanged": true,
+  "acceptanceHeld": true
+}
