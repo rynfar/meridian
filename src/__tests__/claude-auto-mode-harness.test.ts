@@ -89,7 +89,14 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
     finally { clearTimeout(independentDeadline); if (child.exitCode === null) { child.kill('SIGKILL'); await child.exited } }
     const [out, err, code] = collected
     const serialized = readFileSync(join(f.proof, 'claude-auto-mode-results.json'), 'utf8')
-    const report = JSON.parse(serialized) as { result: string; acceptance: boolean; privateSnapshotCreated?: boolean; privateRuntimeRemoved: boolean; ownerGrantUnchanged: boolean; queries: Array<{ request: number; role: string; wireRequested: string; requested: string; versionPin?: string; nativeModels: string[] }>; checks: Record<string, boolean>; cleanupFailures: string[]; targetIdentityUnchanged?: boolean; failure?: string; loggerContextDescriptorRestored?: boolean; ownedResidualProcesses?: number; httpReceiptFailure?: boolean; relayOperationsJoined?: boolean; httpReceiptsJoined?: boolean; pendingHttpReceipts?: number; pendingRelayHandlers?: number; requestModelWitness?: { capturedRequests: number; missingContext: boolean; duplicateContext: boolean } }
+    const report = JSON.parse(serialized) as { result: string; acceptance: boolean; privateSnapshotCreated?: boolean; privateRuntimeRemoved: boolean; ownerGrantUnchanged: boolean; queries: Array<{ request: number; role: string; wireRequested: string; requested: string; versionPin?: string; nativeModels: string[] }>; checks: Record<string, boolean>; cleanupFailures: string[]; targetIdentityUnchanged?: boolean; failure?: string; loggerContextDescriptorRestored?: boolean; ownedResidualProcesses?: number; httpReceiptFailure?: boolean; relayOperationsJoined?: boolean; httpReceiptsJoined?: boolean; pendingHttpReceipts?: number; pendingRelayHandlers?: number; clientProcesses?: Array<{ join: string; signalFailures: number; signals: unknown[] }>; requestModelWitness?: { capturedRequests: number; missingContext: boolean; duplicateContext: boolean } }
+    // Promise.all above joined the original harness process and both pipes.
+    // Capture exact synthetic runtime ownership before any assertion can fail.
+    if (report.privateRuntimeRemoved === false && report.ownedResidualProcesses === 0 && report.clientProcesses?.every(owned => owned.join === 'JOINED') && existsSync(join(f.target, 'audit.json'))) {
+      const audit = JSON.parse(readFileSync(join(f.target, 'audit.json'), 'utf8')) as Record<string, string>
+      const candidate = typeof audit.account === 'string' ? dirname(audit.account) : undefined
+      if (candidate && basename(candidate).startsWith('meridian-e71-') && Object.values(audit).every(directory => dirname(directory) === candidate)) retainedSyntheticRuntime = candidate
+    }
     expect(serialized + out + err).not.toContain('synthetic-owner-secret')
     expect(serialized + out + err).not.toContain('synthetic-refresh-never-used')
     expect(serialized + out + err).not.toMatch(/e71-[a-f0-9-]{36}/)
@@ -104,6 +111,7 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
         privateRuntimeRemoved: report.privateRuntimeRemoved,
         ownedResidualProcesses: report.ownedResidualProcesses,
         cleanupFailures: report.cleanupFailures,
+        clientProcesses: report.clientProcesses,
         loggerContextDescriptorRestored: report.loggerContextDescriptorRestored,
         relayOperationsJoined: report.relayOperationsJoined,
         httpReceiptsJoined: report.httpReceiptsJoined,
@@ -114,7 +122,7 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
     // Diagnose the concrete failed join before its derived retention assertion.
     // Every positive/retained-runtime assertion remains required.
     if (mode.pendingStartup) expect(existsSync(join(f.target, 'audit.json'))).toBe(true)
-    if (!retained) expect(report.cleanupFailures).toEqual([])
+    if (!retained) expect(report.cleanupFailures, JSON.stringify(report.clientProcesses)).toEqual([])
     expect(report.privateRuntimeRemoved).toBe(!retained)
     if (mode.pendingStartup) {
       expect(report.cleanupFailures).toContain('proxy startup join')
@@ -158,8 +166,9 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
     }
     return { report, code, queried: existsSync(join(f.target, 'query-called')) }
   } finally {
-    // The independent controller owns this non-auth fixture. A retained
-    // startup Promise has no child; descriptor failures have joined all work.
+    // The original harness process and pipes are joined. Only an exact owned
+    // synthetic runtime with joined external clients and an empty census is
+    // eligible for this independent controller's cleanup.
     if (retainedSyntheticRuntime) rmSync(retainedSyntheticRuntime, { recursive: true, force: true })
     rmSync(f.root, { recursive: true, force: true })
   }

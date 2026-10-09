@@ -80,14 +80,50 @@ describe("E71 owned client handle", () => {
   it("retains signal failure authority beyond the bounded observation list", async () => {
     const child = new Child(); let calls = 0
     const owner = createOwnedClientProcess(child, () => {
-      if (++calls === 17) throw Object.assign(new Error("owned control"), { code: "EPERM" })
-      return true
+      calls++
+      throw Object.assign(new Error("owned control"), { code: calls === 17 ? "EPERM" : "ESRCH" })
     })
     child.emit("spawn")
     for (let index = 0; index < 18; index++) owner.signal("SIGTERM")
     expect(owner.snapshot().signals).toHaveLength(16)
     expect(owner.snapshot().signalFailures).toBe(1)
     expect(owner.snapshot().signalAttempts).toBe(18)
+    child.emit("exit"); child.emit("close"); closePipes(child)
+    await bounded(owner.joined)
+    expect(owner.snapshot().signalFailures).toBe(1)
+  })
+
+  it("coalesces successful termination before exit without skipping KILL or inferring a join", async () => {
+    const child = new Child(), calls: string[] = []
+    const owner = createOwnedClientProcess(child, (_pid: number, signal: string) => {
+      if (calls.includes(signal)) throw Object.assign(new Error("duplicate termination control"), { code: "EPERM" })
+      calls.push(signal); return true
+    })
+    child.emit("spawn")
+    expect(owner.signal("SIGTERM")).toBe("SENT")
+    expect(owner.signal("SIGTERM")).toBe("ALREADY_SENT")
+    expect(owner.isJoined()).toBe(false)
+    expect(owner.signal("SIGKILL")).toBe("SENT")
+    expect(owner.signal("SIGKILL")).toBe("ALREADY_SENT")
+    expect(owner.signal("SIGTERM")).toBe("ALREADY_SENT")
+    expect(calls).toEqual(["SIGTERM", "SIGKILL"])
+    expect(owner.snapshot().signalFailures).toBe(0)
+    child.emit("exit"); child.emit("close"); closePipes(child)
+    await bounded(owner.joined)
+  })
+
+  it("retries a refused first signal and retains that failure after the successful retry", async () => {
+    const child = new Child(); let calls = 0
+    const owner = createOwnedClientProcess(child, () => {
+      if (++calls === 1) throw Object.assign(new Error("first termination refusal"), { code: "EPERM" })
+      return true
+    })
+    child.emit("spawn")
+    expect(owner.signal("SIGTERM")).toBe("FAILED")
+    expect(owner.signal("SIGTERM")).toBe("SENT")
+    expect(owner.signal("SIGTERM")).toBe("ALREADY_SENT")
+    expect(calls).toBe(2)
+    expect(owner.snapshot().signalFailures).toBe(1)
     child.emit("exit"); child.emit("close"); closePipes(child)
     await bounded(owner.joined)
     expect(owner.snapshot().signalFailures).toBe(1)

@@ -6488,7 +6488,12 @@ checkpoint fails. Child first commands are exactly
 `sleep 2 && echo alpha-1` / `sleep 2 && echo beta-1`, followed by each separate
 second echo. Parent and child response bodies must overlap; overlapping children
 alone cannot pass. Each task completion result must arrive after every original
-response body on its own child's chain has completed. All original model, hook,
+response body on its own child's chain has completed. TaskOutput may be emitted
+by the query that receives the launch handles, including when parent Bash work
+was batched with the launches; issuing the wait before those handles fails. The
+prompt requests explicit `block: true` and `timeout: 30000`. Sanitized counts
+identify handle, bounded-wait and child-body-order failures without saving IDs
+or generated text. All original model, hook,
 query/session/history/admission/cleanup requirements remain required, plus MCP
 readiness. The background assertion set has twenty checks in this mode.
 
@@ -6501,6 +6506,9 @@ Meaningful synthetic controls reject foreground results, missing/borrowed handle
 unknown task owners, unbounded waits, absent/early completion and serial parent
 work. Their success is not native acceptance. The E71/E72 client helper now retires
 birth-PID signal authority at exit and retains explicit exit/close/stdio witnesses.
+Concurrent abort and cleanup requests coalesce a successfully sent termination;
+KILL can still escalate TERM. A refused signal remains retryable and its failure
+stays recorded after a successful retry and physical join.
 Version probes are included in those owned handles. No background, mixed-auto or
 cancellation acceptance is established until exact actual-client/source/installed
 proof is run and audited; existing prior proof retains its original observer SHA.

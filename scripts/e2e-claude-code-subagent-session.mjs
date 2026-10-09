@@ -464,7 +464,7 @@ try {
         `Subagent BETA must do the same with \`${firstBeta}\` and \`echo beta-2\`.`,
         ...(background ? [
           'Immediately after launching them, run exactly one Bash command `echo parent-overlap` in the parent while they work.',
-          'Then use exactly one blocking TaskOutput call per launched agent ID, timeout at most 30000 milliseconds, to collect both completed reports.',
+          'Then use exactly one TaskOutput call per launched agent ID, with block true and timeout 30000, to collect both completed reports.',
           'Do not use Read, TaskStop, SendMessage or other tools in this bounded task.',
         ] : []),
         'When both have reported, reply with exactly the word DONE.',
@@ -519,10 +519,25 @@ try {
       return { id: ids[0][1], actor: agentIds.get(ids[0][1]), launch: matches[0], label }
     })
     const taskOutputs = privateReceipts.filter(receipt => receipt.tool.name === 'TaskOutput')
-    const completedBackground = backgroundLaunches.every(child => child && taskOutputs.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.task_id === child.id && receipt.tool.privateInput.block === true && Number.isFinite(receipt.tool.privateInput.timeout) && receipt.tool.privateInput.timeout > 0 && receipt.tool.privateInput.timeout <= 30000 && receipt.tool.request > child.launch.result.request && wire.filter(row => row.actor === child.actor).every(row => Number.isInteger(row.terminalEvent) && row.terminalEvent < receipt.result.event) && receipt.result.text.includes(`${child.label}-1`) && receipt.result.text.includes(`${child.label}-2`)).length === 1)
+    const boundedTaskWait = receipt => receipt.tool.privateInput.block === true && Number.isFinite(receipt.tool.privateInput.timeout) && receipt.tool.privateInput.timeout > 0 && receipt.tool.privateInput.timeout <= 30000
+    const taskHandleMatches = (receipt, child) => child && receipt.tool.privateInput.task_id === child.id
+    // A query receives launch results before generating its TaskOutput calls.
+    // That same incoming request is a valid boundary; a prior query is not.
+    const taskAfterLaunch = (receipt, child) => child && receipt.tool.request >= child.launch.result.request
+    const childCompleted = (receipt, child) => child && receipt.result && wire.filter(row => row.actor === child.actor).every(row => Number.isInteger(row.terminalEvent) && row.terminalEvent < receipt.result.event)
+    const completedBackground = backgroundLaunches.every(child => child && taskOutputs.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && taskHandleMatches(receipt, child) && boundedTaskWait(receipt) && taskAfterLaunch(receipt, child) && childCompleted(receipt, child) && receipt.result.text.includes(`${child.label}-1`) && receipt.result.text.includes(`${child.label}-2`)).length === 1)
     const parentWork = privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === 'echo parent-overlap')
     const parentWorked = parentWork.length === 1 && parentWork[0].actor === 0 && parentWork[0].paired && parentWork[0].resultMatched && parentWork[0].result.text.includes('parent-overlap')
     const backgroundLaunchReceipts = launches.length === 2 && backgroundLaunches.every(Boolean) && taskOutputs.length === 2 && completedBackground && parentWorked
+    if (background) proof.backgroundReceiptFacts = {
+      launches: launches.length, ownedLaunchHandles: backgroundLaunches.filter(Boolean).length,
+      taskOutputs: taskOutputs.length,
+      matchedTaskHandles: taskOutputs.filter(receipt => backgroundLaunches.some(child => taskHandleMatches(receipt, child))).length,
+      boundedTaskWaits: taskOutputs.filter(boundedTaskWait).length,
+      tasksAfterLaunch: taskOutputs.filter(receipt => backgroundLaunches.some(child => taskHandleMatches(receipt, child) && taskAfterLaunch(receipt, child))).length,
+      childBodiesCompleteBeforeTaskResults: taskOutputs.filter(receipt => backgroundLaunches.some(child => taskHandleMatches(receipt, child) && childCompleted(receipt, child))).length,
+      parentWorked, childBashReceipts: bashReceipts, forwardedReceipts: privateReceipts.length,
+    }
     const privatePrefix = ordinal => [...sdkSessionIds].find(([, value]) => value === ordinal)?.[0].slice(0, 8)
     const prefixes = [...sdkSessionIds.keys()].map(id => id.slice(0, 8))
     proof.sessionPrefixAmbiguous = new Set(prefixes).size !== prefixes.length
