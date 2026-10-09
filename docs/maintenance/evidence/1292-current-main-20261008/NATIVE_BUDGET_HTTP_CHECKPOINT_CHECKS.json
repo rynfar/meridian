@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "--timeout",
+    "30000",
+    "src/__tests__/passthrough-early-stop-integration.test.ts"
+  ],
+  "exit": 0,
+  "joined": true,
+  "elapsedSeconds": 15.78,
+  "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/native-budget-http-checkpoint.log",
+  "sha256": "eedd22e990dca3cc65580347841c7f24b4d63e0756a445ae265d57107d57c371",
+  "modelCalls": 0
+}

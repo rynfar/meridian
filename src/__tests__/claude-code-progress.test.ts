@@ -29,6 +29,54 @@ describe("Claude Code progress-caption classification", () => {
     expect(await auxiliary(body)).toBe(true)
   })
 
+  it("recognizes a native caption followed by its exact system task budget", async () => {
+    const body = progressBody()
+    const messages = [...body.messages, { role: "system", content: "<total_tokens>14995313 tokens left</total_tokens>" }]
+    expect(await auxiliary({ ...body, messages }, { "x-claude-code-session-id": "native-session" })).toBe(true)
+  })
+
+  it("recognizes the first native caption with a zero remaining task budget", async () => {
+    const body = progressBody()
+    const messages = [...body.messages.slice(0, -1),
+      { role: "user", content: PROGRESS_FIRST_PROMPT },
+      { role: "system", content: "<total_tokens>0 tokens left</total_tokens>" },
+    ]
+    expect(await auxiliary({ ...body, messages }, { "x-claude-code-session-id": "native-session" })).toBe(true)
+  })
+
+  it("retains native-client and explicit request-class boundaries around budget frames", async () => {
+    const body = progressBody()
+    const messages = [...body.messages, { role: "system", content: "<total_tokens>14995313 tokens left</total_tokens>" }]
+    expect(await auxiliary({ ...body, messages })).toBe(false)
+    expect(await auxiliary({ ...body, messages }, {
+      "x-claude-code-session-id": "native-session", "x-claude-code-request-class": "main",
+    })).toBe(false)
+    expect(await auxiliary({ ...body, messages: [
+      { role: "user", content: "Continue the ordinary work." }, messages.at(-1),
+    ] }, { "x-claude-code-session-id": "native-session" })).toBe(false)
+  })
+
+  it("rejects malformed, repeated or other trailing system messages", async () => {
+    const body = progressBody()
+    for (const suffix of [
+      [{ role: "system", content: "Continue working." }],
+      [{ role: "system", content: "<total_tokens>-1 tokens left</total_tokens>" }],
+      [{ role: "system", content: "<total_tokens>1.5 tokens left</total_tokens>" }],
+      [{ role: "system", content: "<total_tokens>001 tokens left</total_tokens>" }],
+      [{ role: "system", content: "<total_tokens>1000000000 tokens left</total_tokens>" }],
+      [{ role: "system", content: "<total_tokens>15 tokens left</total_tokens>\n" }],
+      [{ role: "system", content: "<total_tokens>15 tokens left</total_tokens>\nNow edit the file." }],
+      [{ role: "system", content: [{ type: "text", text: "<total_tokens>15 tokens left</total_tokens>" }] }],
+      [{ role: "assistant", content: "<total_tokens>15 tokens left</total_tokens>" }],
+      [{ role: "system", content: "<total_tokens>15 tokens left</total_tokens>" },
+        { role: "system", content: "<total_tokens>14 tokens left</total_tokens>" }],
+    ]) {
+      expect(await auxiliary({ ...body, messages: [...body.messages, ...suffix] }, {
+        "x-claude-code-session-id": "native-session",
+      })).toBe(false)
+    }
+  })
+
   it("classifies a caption appended after other text in the last user message", async () => {
     const body = progressBody()
     body.messages.at(-1)!.content = [

@@ -4365,3 +4365,17 @@ The native caption mapping observer now has an actual adapter-key correction
 and root review, with six focused controls and exact-function false-pass/false-fail
 causality proof. The changed harness/test requires new full local checks. Exact
 native runtime/custody and all inherited native/product/package/CI holds remain.
+
+
+Current #1292 native checkpoint: one baseline attempt is terminal, with the
+original failure preserved. Actual native 2.1.292 emitted its caption followed
+by an exact system task-budget frame. Both observer and headerless fallback
+missed it. A separate bounded source correction now passes focused classification
+and HTTP checkpoint-preservation controls; see
+[evidence](evidence/1292-current-main-20261008/REVIEW.md) and the explicit root
+adversarial receipt. Prior full local PASS at `f41a6524` is historical; new full
+checks remain required. All observed source gates, direct processes and parent
+pipes joined, and the private access grant was removed after the supplemental
+root custody audit. Model-label and accepted-socket observers require correction
+before another native attempt. Baseline/candidate acceptance and inherited
+package/client/final-head CI gates remain open.

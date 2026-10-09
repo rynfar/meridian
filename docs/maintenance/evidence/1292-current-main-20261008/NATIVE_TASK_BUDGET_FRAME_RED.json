@@ -1,0 +1,14 @@
+{
+  "testedProductionHead": "f41a6524b55e92b61e378601912e862307462879",
+  "argv": [
+    "bun",
+    "test",
+    "--timeout",
+    "30000",
+    "src/__tests__/claude-code-progress.test.ts"
+  ],
+  "exit": 1,
+  "joined": true,
+  "sha256": "99d4f80e07d71107cf76457c4d69d4f1a83c9abbb81d47459504cb40b3b915a1",
+  "nativeModelCalls": 0
+}

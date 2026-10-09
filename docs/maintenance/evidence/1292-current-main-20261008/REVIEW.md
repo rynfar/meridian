@@ -40,3 +40,40 @@ syntax pass; the initial typecheck casing/narrowing failure is retained. Root
 review finds no remaining scoped observer blocker. The added harness/test
 requires new complete local gates; no model/native worker has run. The pinned
 Darwin tuple, invocation custody and all product/package/CI holds remain.
+
+
+### Actual native budget-frame correction
+
+The earlier observer full run passes at `f41a6524`: 5,669 pass / 36 skip /
+0 fail across all 21 npm batches, standalone typecheck, build and portable
+causal control, all joined. This predates the production correction below.
+
+One real Darwin arm64 / Claude Code 2.1.292 / SDK 0.2.141 / Opus 5.5 baseline
+attempt then joined with a preserved `native-caption-not-emitted` failure.
+The actual wire and native task-summary event prove that the caption was
+emitted; a final exact system task-budget frame made the recognizer reject it.
+The same shape exposes a material defect in the headerless product fallback.
+This seventh source finding is corrected by skipping exactly one valid string
+budget frame only for the existing native-client boundary. Explicit classes,
+agent/session/tools/stream requirements and original caption matching remain.
+Repeated, malformed, array, ordinary and non-native suffixes remain ordinary
+traffic. No request content changes.
+
+The new positives fail before the correction. Afterward, 66 focused controls
+and 128 mocked HTTP controls pass, including successful and failing captions
+with the captured budget frame: the working checkpoint survives and the next
+ordinary turn resumes it. An exact-function portable observer control
+reproduces the original false negative and rejects unrelated suffixes. Root's
+adversarial pass finds no remaining scoped source blocker. New full local gates
+remain required; the previous green head cannot validate this change.
+
+The failed native report and parent settlement remain immutable. Backend model
+labels were discarded by the old generic sanitizer; accepted-socket close
+witnesses are incomplete. All four actual source gates and six directly
+observed processes did join, as did the worker and its pipes. A supplemental
+root audit confirmed both owned ports refused connections and removed only the
+private access input. It does not rewrite the failed report or establish native
+before/after acceptance, broader process absence, or config/history cleanup.
+Model and socket observers require correction and review before another attempt.
+No candidate invocation, push, merge, source closure, release or external
+community message occurred. All inherited package/client/CI holds remain.

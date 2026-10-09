@@ -1,0 +1,48 @@
+{
+  "status": "ACTUAL_NATIVE_CAPTION_EMITTED_HARNESS_FALSE_NEGATIVE_PRODUCT_HEADERLESS_SOURCE_FINDING",
+  "attemptHead": "f41a6524b55e92b61e378601912e862307462879",
+  "baselineHead": "ae470d511f1f170168c7b95140ba0bb56d99d179",
+  "nativeVersion": "2.1.292",
+  "sdk": "0.2.141",
+  "platform": "Darwin arm64",
+  "primaryFirstFailurePreserved": {
+    "code": "native-caption-not-emitted",
+    "status": "MISSING",
+    "at": 1791509898539
+  },
+  "actualWire": 4,
+  "actualClass": "auxiliary",
+  "sameWorkerAgentDigest": "9f6a40ab7febbc765e970772529a5d9f6f65dba077b69b714e4845af9a8c3ee1",
+  "nativeTaskSummaryEventObserved": true,
+  "exactCaptionTextBlockDigest": "2c4a63c742c381b6d717f54496f538ebdb634f870522f1b4aacf199322c3c775",
+  "terminalBudgetFrame": {
+    "role": "system",
+    "bytes": 49,
+    "digest": "1c7bc9e4890e8bad91e0f5c33eb67349e18c761a86201cb3801619b31203eeae",
+    "format": "<total_tokens>nonnegative integer tokens left</total_tokens>"
+  },
+  "cause": "Both existing recognizers require the final message to be user. The real CLI appends this exact budget metadata frame after its unchanged caption instruction.",
+  "correction": "Only an identified native CLI may skip exactly one bounded exact string budget frame; retain original caption/tools/stream/agent/session, explicit-class and malformed/duplicate-id boundaries.",
+  "runtimeFindings": [
+    "SDK model option/init labels were discarded by generic safeName; exact actual backend model/SDK option correlation remains held",
+    "All 4 source gate joins and all 6 direct process joins are positive, but worker sourceSdkGates cleanup also requires the missing model label and therefore conflates acceptance with custody",
+    "Bun source/relay close events did not witness accepted socket closures; post-worker root audit proves both owned ports refused and qualifies only access-input removal"
+  ],
+  "backendQueries": 4,
+  "clientInvocations": 1,
+  "directProcesses": 6,
+  "caseBeforeAfterAcceptance": "NOT_PROVEN",
+  "candidateAttempt": "NOT_STARTED",
+  "sourceStoreLoginOrRefresh": false,
+  "privateGrantDeletedBySupplementalRootAudit": true,
+  "rootAudit": "OBSERVER_BASELINE_ROOT_CUSTODY_AND_GRANT_CLEANUP.json",
+  "nativeReportSha256": "9853869188b8c9f700ec4a9f977735689fd788ca022cba989819813c78bc4fdb",
+  "parentSettlementSha256": "9db790328484d12af03a6785cf0a4639112df3a1e506da57ef35577cc2fdf26b",
+  "holds": [
+    "Fresh source full local checks",
+    "Model/custody observer corrections and adversarial review before another native attempt",
+    "Real baseline/candidate mapping/generation/history/checkpoint proof",
+    "Headerless native fallback, both overlap orders and cancellation",
+    "All inherited reporter tuple/shared MCP/native parity/package/CI gates"
+  ]
+}

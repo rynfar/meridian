@@ -1,0 +1,28 @@
+const CAPTION_PREFIX = 'Describe your most recent action in 3-5 words using present tense (-ing). Name the file or function, not the branch. Do not use tools.\n\n';
+const CAPTION_SUFFIX = `Good: "Reading runAgent.ts"
+Good: "Fixing null check in validate.ts"
+Good: "Running auth module tests"
+Good: "Adding retry logic to fetchUser"
+
+Bad (past tense): "Analyzed the branch diff"
+Bad (too vague): "Investigating the issue"
+Bad (too long): "Reviewing full branch diff and AgentTool.tsx integration"
+Bad (branch name): "Analyzed adam/background-summary branch diff"`;
+function captionShape(body) {
+  if (body.stream !== true || !Array.isArray(body.tools) || !body.tools.length || !Array.isArray(body.messages)) return false;
+  const last = body.messages.at(-1);
+  if (last?.role !== 'user') return false;
+  let text = last.content;
+  if (Array.isArray(last.content)) {
+    const end = last.content.at(-1); if (end?.type !== 'text') return false;
+    text = end.text;
+    const ids = new Set();
+    for (const b of last.content.slice(0, -1)) {
+      if (typeof b?.type !== 'string') return false;
+      if (b.type === 'tool_result') { if (typeof b.tool_use_id !== 'string' || !b.tool_use_id || ids.has(b.tool_use_id)) return false; ids.add(b.tool_use_id); }
+    }
+  }
+  if (typeof text !== 'string' || !text.startsWith(CAPTION_PREFIX) || !text.endsWith(CAPTION_SUFFIX)) return false;
+  const middle = text.slice(CAPTION_PREFIX.length, text.length - CAPTION_SUFFIX.length);
+  return middle === '' || /^Previous: "[^\r\n]*" — say something NEW\.\n\n$/.test(middle);
+}

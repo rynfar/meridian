@@ -1,5 +1,5 @@
 {
-  "qualification": "Observer correction/focused source proof; previous full local PASS retained; new complete checks and native/package/CI remain required",
+  "qualification": "Preserved prior checks and actual failed native evidence; new bounded task-budget source correction, full local/native/package/CI held",
   "files": {
     "CLASSIFIER_RED.json": {
       "bytes": 334,
@@ -61,9 +61,45 @@
       "bytes": 1139,
       "sha256": "22d720a19558cf720f3d967f806b14c41cc02f8a47d3e741c054b8a7bb2ae8f4"
     },
+    "NATIVE_BUDGET_HTTP_CHECKPOINT_CHECKS.json": {
+      "bytes": 446,
+      "sha256": "cf3fb082c331b1759b9f3e6c6aa44d3765bcbc0c615edb5a585729ea8fa4b926"
+    },
+    "NATIVE_CAPTION_SHAPE_CAUSAL_CONTROL.json": {
+      "bytes": 544,
+      "sha256": "fbc62f966ad222291e9ac07845b5185c28403385a88fa49df51f4e955853b9c5"
+    },
+    "NATIVE_TASK_BUDGET_FRAME_FOCUSED_CHECKS.json": {
+      "bytes": 1039,
+      "sha256": "9af4a2ccc5ca786f8147bfa84900591a39fff230c208bffedfe7ca78d111ef94"
+    },
+    "NATIVE_TASK_BUDGET_FRAME_RED.json": {
+      "bytes": 328,
+      "sha256": "0548a00f580e42a3f92eb978183da400334871faa6e342b5535f6a592af71a02"
+    },
+    "NATIVE_TASK_BUDGET_ROOT_ADVERSARIAL_REVIEW.json": {
+      "bytes": 2802,
+      "sha256": "47bcf812c45a862b3f9775841148a255dacb1b020a3b822c7998e1761b6c9da5"
+    },
+    "OBSERVER_BASELINE_ROOT_CUSTODY_AND_GRANT_CLEANUP.json": {
+      "bytes": 1525,
+      "sha256": "0197dd60dc6e240df413cf40ccd34e3a5acf6a6b74a46efd710bc8c64e3d916d"
+    },
+    "OBSERVER_FINAL_LOCAL_GATES.json": {
+      "bytes": 1554,
+      "sha256": "3e0070b474ecb03e65327456c2bc425fe4cfc26abc6fe321311bb3ee09365d9d"
+    },
+    "OBSERVER_FINAL_LOCAL_SUMMARY.json": {
+      "bytes": 1660,
+      "sha256": "4683022ed4fc4853b362a58a5817ed127d27bcc945c80fe7ba988cba1c46108d"
+    },
     "OBSERVER_FOCUSED_CHECKS.json": {
       "bytes": 718,
       "sha256": "a72b4d67d16544834cac588b7f81f7fa2e8297d63d5b50cdba3317b376490fa2"
+    },
+    "OBSERVER_NATIVE_BASELINE_ROOT_DIAGNOSIS.json": {
+      "bytes": 2755,
+      "sha256": "eea2abb06bcd5e2f1765a90e0d57dcd2f7d979b2dae144696c482b42bc5d454f"
     },
     "OBSERVER_PORTABLE_CAUSAL_CONTROL.json": {
       "bytes": 717,
@@ -90,8 +126,8 @@
       "sha256": "06ccfd2e8ec9e3985ef1d75da53f215c9618d789270f486cbc2c2b8d609a13db"
     },
     "REVIEW.md": {
-      "bytes": 6219,
-      "sha256": "4e25225fa9de6ffc75fa541c696ce0684257819dc19536af58c96c2d4deed31d"
+      "bytes": 8517,
+      "sha256": "4772e0e53d96352f3bcdf9e27ad04dee6cdcb46c5daa2b46bc763ca1247b5b87"
     },
     "ROOT_ADVERSARIAL_REVIEW.json": {
       "bytes": 8091,
@@ -144,6 +180,50 @@
     "isolated-final-typecheck.log.gz": {
       "bytes": 73,
       "sha256": "afb7a1d88b4d1875198db63d10647f464105362f6b27e01e0aeb8d3c38f28e0e"
+    },
+    "native-baseline-parent-settlement.json.gz": {
+      "bytes": 439,
+      "sha256": "d9db79057b3714adc977a18e1aa2849cfcfad1d47f3e4d62f5ecee27c2ab7543"
+    },
+    "native-baseline-report.json.gz": {
+      "bytes": 34511,
+      "sha256": "b8931628a37adc128d6484be70389858d87b21847442b67067b68ebca90c0243"
+    },
+    "native-budget-http-checkpoint.log.gz": {
+      "bytes": 13953,
+      "sha256": "bfd52c8c5b6e6c9fc10afaeece802bb42aec4009903b6ae97bbb7fb909420d8c"
+    },
+    "native-frame-focused.log.gz": {
+      "bytes": 2149,
+      "sha256": "3029790e7460cc170ce392de7b7ae9b2eb8eaec6380b4835b6a36f3883423492"
+    },
+    "native-frame-syntax.log.gz": {
+      "bytes": 20,
+      "sha256": "f1b651238a58fe290baec6c5e32f3bdb1943dd2bd582f02569231f7a757c7837"
+    },
+    "native-frame-typecheck.log.gz": {
+      "bytes": 73,
+      "sha256": "2d932dcc095e2d03c96533364e4ff649cfc12e4262003cc707a8e19bfc320998"
+    },
+    "native-task-budget-frame-red.log.gz": {
+      "bytes": 959,
+      "sha256": "8265ba950245db8e40831f40e6cb4ce1594d3b3167eb28888db9e99e2a0c5d94"
+    },
+    "observer-final-build.log.gz": {
+      "bytes": 813,
+      "sha256": "271de946b0a69e0f56f444f904a2cde2b2279fb45393115f33b115487b9dd8ff"
+    },
+    "observer-final-causal-control.log.gz": {
+      "bytes": 388,
+      "sha256": "48ee9ff37e0178091279e4888236ffad2585577a3c647df062646177c335642e"
+    },
+    "observer-final-npm-test.log.gz": {
+      "bytes": 213019,
+      "sha256": "4363237eec9b924223df6f26bafed1df32f9f3709d68ab7956b29494c6b4eef5"
+    },
+    "observer-final-typecheck.log.gz": {
+      "bytes": 73,
+      "sha256": "2d932dcc095e2d03c96533364e4ff649cfc12e4262003cc707a8e19bfc320998"
     },
     "observer-focused.log.gz": {
       "bytes": 396,

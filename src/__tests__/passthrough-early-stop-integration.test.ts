@@ -425,15 +425,24 @@ describe("Integration: passthrough early stop", () => {
     ])
   })
 
-  for (const fails of [false, true]) {
-    it(`keeps the pending tool checkpoint for the next turn after a ${fails ? "failing" : "successful"} progress caption`, async () => {
+  for (const { fails, nativeBudget } of [
+    { fails: false, nativeBudget: false }, { fails: true, nativeBudget: false },
+    { fails: false, nativeBudget: true }, { fails: true, nativeBudget: true },
+  ]) {
+    it(`keeps the pending tool checkpoint for the next turn after a ${fails ? "failing" : "successful"} progress caption${nativeBudget ? " with a native task budget" : ""}`, async () => {
       const sessionId = `progress-checkpoint-${crypto.randomUUID()}`
       const agentId = "checkpoint-agent"
       const body = progressBody(sessionId)
       const key = claudeCodeSessionKey(agentId, body)
       if (key === undefined) throw new Error("checkpoint fixture has no subagent key")
       usedSessionKeys.add(key)
-      const headers = { "x-claude-code-agent-id": agentId }
+      const headers = {
+        "x-claude-code-agent-id": agentId,
+        ...(nativeBudget ? { "x-claude-code-session-id": sessionId } : {}),
+      }
+      const caption = nativeBudget ? { ...body, messages: [
+        ...body.messages, { role: "system", content: "<total_tokens>14995313 tokens left</total_tokens>" },
+      ] } : body
       const toolTurn = assistantMessage([
         { type: "tool_use", id: "read-1", name: "Read", input: { file_path: "alpha.txt" } },
       ])
@@ -446,7 +455,7 @@ describe("Integration: passthrough early stop", () => {
 
       mockMessages = fails ? [] : [assistantMessage([{ type: "text", text: "Reading alpha.txt" }])]
       mockTerminalError = fails ? new Error("No conversation found with session ID") : undefined
-      const summary = await postClaudeCode(app, body, sessionId, headers)
+      const summary = await postClaudeCode(app, caption, sessionId, headers)
       const wire = await summary.text()
       expect(wire).toContain(fails ? "event: error" : "message_stop")
       expect(capturedQueryParams.options.resume).toBeUndefined()

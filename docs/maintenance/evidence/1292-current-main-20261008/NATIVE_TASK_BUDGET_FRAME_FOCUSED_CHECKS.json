@@ -1,0 +1,42 @@
+{
+  "checks": [
+    {
+      "label": "native-frame-focused",
+      "argv": [
+        "bun",
+        "test",
+        "--timeout",
+        "30000",
+        "src/__tests__/claude-code-progress.test.ts",
+        "src/__tests__/claude-code-adapter.test.ts",
+        "src/__tests__/caption-native-working-mapping.test.ts"
+      ],
+      "exit": 0,
+      "joined": true,
+      "sha256": "c63823844fd67215f3a0c041845cb13f022cc8e17ddc6d39d112f26df40ddc11"
+    },
+    {
+      "label": "native-frame-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "label": "native-frame-syntax",
+      "argv": [
+        "node",
+        "--check",
+        "scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "nativeCalls": 0
+}

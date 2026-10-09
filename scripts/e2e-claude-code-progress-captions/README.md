@@ -90,3 +90,18 @@ It executes the exact historical snapshot excerpt and the current snapshot
 function with controlled mapping/public-SDK fixtures. It reproduces the old
 false pass and false failure, checks the new agent generation argument and
 prints a small sanitized result. It launches no SDK/native process or model.
+
+
+The first current baseline attempt is terminal and preserved. The native client
+did emit the caption, followed by one exact system task-budget frame. The new
+recognizer accepts this observed frame only behind the existing native header
+boundary. The exact-function control runs without credentials:
+
+```sh
+node scripts/e2e-claude-code-progress-captions/caption-shape-control.mjs
+```
+
+It reproduces the old false negative, recognizes the captured shape and rejects
+non-native, repeated, malformed and ordinary suffixes. It supplies no native
+acceptance. Exact model-label and accepted-socket close observations still need
+correction and review before another live attempt.

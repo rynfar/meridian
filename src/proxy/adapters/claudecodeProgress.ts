@@ -24,16 +24,26 @@ function record(value: unknown): Record<string, unknown> | undefined {
 /**
  * True only for the exact caption request: a streaming request with tools
  * whose last message is a user message ending in the caption instruction —
- * the whole string content, or the final text block. Earlier blocks are the
- * working turn's content and are not inspected, except that tool results must
+ * the whole string content, or the final text block. Native 2.1.292 can append
+ * one exact system task-budget frame after it. Only an identified native CLI
+ * request may skip that frame; arbitrary system text remains a real suffix.
+ * Earlier blocks are the working turn's content and are not inspected, except that tool results must
  * carry distinct ids. The caption text quoted inside a longer text, followed
  * by more text, or returned inside a tool result does not match.
  */
-export function isClaudeCodeProgressSummary(body: unknown): boolean {
+export function isClaudeCodeProgressSummary(body: unknown, fromCli = false): boolean {
   const request = record(body)
   if (request?.stream !== true || !Array.isArray(request.tools) || request.tools.length === 0) return false
   if (!Array.isArray(request.messages)) return false
-  const last = record(request.messages.at(-1))
+  let last = record(request.messages.at(-1))
+  // NOTE: native Claude Code 2.1.292, observed through the real SDK/CLI in the
+  // caption gate. This is transport budget metadata, not another user turn.
+  // Skip exactly one string frame; repeats, text arrays and malformed budgets
+  // do not establish caption authority. The final assertion anchors all bytes.
+  if (fromCli && last?.role === "system" && typeof last.content === "string"
+    && /^<total_tokens>(?:0|[1-9][0-9]{0,8}) tokens left<\/total_tokens>(?![\s\S])/.test(last.content)) {
+    last = record(request.messages.at(-2))
+  }
   if (last?.role !== "user") return false
   if (typeof last.content === "string") return isProgressPrompt(last.content)
   if (!Array.isArray(last.content)) return false

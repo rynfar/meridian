@@ -208,9 +208,12 @@ Bad (past tense): "Analyzed the branch diff"
 Bad (too vague): "Investigating the issue"
 Bad (too long): "Reviewing full branch diff and AgentTool.tsx integration"
 Bad (branch name): "Analyzed adam/background-summary branch diff"`;
-function captionShape(body) {
+function captionShape(body, headers) {
   if (body.stream !== true || !Array.isArray(body.tools) || !body.tools.length || !Array.isArray(body.messages)) return false;
-  const last = body.messages.at(-1);
+  let last = body.messages.at(-1);
+  // Actual native 2.1.292 wire can carry one terminal system budget frame.
+  // The real client header, exact frame and unchanged caption are all required.
+  if (headers?.get('x-claude-code-session-id') && last?.role === 'system' && typeof last.content === 'string' && /^<total_tokens>(?:0|[1-9][0-9]{0,8}) tokens left<\/total_tokens>(?![\s\S])/.test(last.content)) last = body.messages.at(-2);
   if (last?.role !== 'user') return false;
   let text = last.content;
   if (Array.isArray(last.content)) {
@@ -635,7 +638,7 @@ async function worker(o) {
         const clientSessionHeader = headers.get('x-claude-code-session-id');
         const ownedClients = clients.filter(c => c.sessionId === clientSessionHeader);
         need(ownedClients.length === 1, 'native-wire-owned-client-session-binding-missing', 'MISSING');
-        r = { n: wires.length + 1, group: ownedClients[0].group, clientSessionId: ownedClients[0].sessionId, headers, body, bodyDigest: digest(body), ...identityFields, caption: captionShape(body), arrivedAt: now(), done: defer(), abort };
+        r = { n: wires.length + 1, group: ownedClients[0].group, clientSessionId: ownedClients[0].sessionId, headers, body, bodyDigest: digest(body), ...identityFields, caption: captionShape(body, headers), arrivedAt: now(), done: defer(), abort };
         wires.push(r);
         if (r.caption) {
           need(r.session && r.agent, 'native-caption-identity-missing', 'MISSING');

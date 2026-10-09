@@ -238,7 +238,7 @@ export function isClaudeCodeAuxiliaryRequest(
   if (requestClass !== undefined) return requestClass === "auxiliary"
   if (!body || typeof body !== "object") return false
   if (extractClaudeCodeSessionId(body) === undefined) return false
-  if (agentId !== undefined && CLAUDE_CODE_AGENT_ID.test(agentId) && isClaudeCodeProgressSummary(body)) return true
+  if (agentId !== undefined && CLAUDE_CODE_AGENT_ID.test(agentId) && isClaudeCodeProgressSummary(body, fromCli)) return true
   const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown; system?: unknown }
   if (request.tools !== undefined && (!Array.isArray(request.tools) || request.tools.length > 0)) return false
   if (request.stream !== undefined && request.stream !== false) return false
