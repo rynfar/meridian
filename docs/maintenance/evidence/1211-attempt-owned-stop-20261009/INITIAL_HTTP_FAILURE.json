@@ -1,0 +1,12 @@
+{
+  "atUTC": "2026-10-09T23:09:54.718578+00:00",
+  "originalExecSession": 4837,
+  "exit": 1,
+  "pass": 8,
+  "fail": 2,
+  "finding": "Both new kill-switch expectations incorrectly assumed maxTurns 200. Existing query policy returns 3; production policy was unchanged.",
+  "correction": "Change only the new expected values to the existing three-turn policy; retain required zero interrupts and zero qualified receipts.",
+  "typecheckExecSession": 47968,
+  "typecheckExit": 0,
+  "actualModelCredentialCalls": 0
+}

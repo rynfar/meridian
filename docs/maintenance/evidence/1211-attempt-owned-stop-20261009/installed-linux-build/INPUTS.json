@@ -1,0 +1,7 @@
+{
+  "sourceHead": "bae7ada3995788c83f6de92e573807c447c587b5",
+  "parentImage": "sha256:5c6c12b979458a102211392bee139ae1803c8d6d699c1d8c7d5bf6b89e5bf2d1",
+  "parentTag": "meridian1211:checkpoint-r6-corrected-tagged",
+  "scope": "Fresh npm-packed candidate, registry-resolved dependencies, explicit native install. No npm publish, tag/version mutation, credentials or live model/client.",
+  "runtimeNetwork": "none"
+}

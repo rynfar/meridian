@@ -1,0 +1,33 @@
+{
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--platform",
+    "linux/amd64",
+    "--network=none",
+    "--read-only",
+    "--pids-limit",
+    "128",
+    "--memory",
+    "4g",
+    "--name",
+    "meridian1211-integrated-http-source-20261009-r6",
+    "--tmpfs",
+    "/tmp:rw,mode=1777,size=256m",
+    "--mount",
+    "type=bind,src=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/integrated-http-source/output,dst=/proof",
+    "--mount",
+    "type=bind,src=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/integrated-http-source/probe,dst=/probe,readonly",
+    "sha256:5c6c12b979458a102211392bee139ae1803c8d6d699c1d8c7d5bf6b89e5bf2d1",
+    "bun",
+    "/probe/integrated-proxy.mjs",
+    "--source-root=/opt/e71/candidate",
+    "--options-root=/opt/e71/candidate",
+    "--evidence-dir=/proof",
+    "--claude-executable=/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "--expected-cli-version=2.1.284"
+  ],
+  "containerId": "2efed20262baf410c66fc51e7f2c52f8d9a23177f924b518416bf46e736f30e1",
+  "originalDriverPid": 65807
+}

@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "docker",
+    "build",
+    "--platform",
+    "linux/amd64",
+    "--progress=plain",
+    "--iidfile",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/corrected-linux-build/IMAGE_ID.txt",
+    "--tag",
+    "meridian1211:checkpoint-r6-corrected",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/corrected-linux-build/context"
+  ],
+  "runnerPid": 47666,
+  "originalBuildPid": 47667,
+  "startUTC": "2026-10-09T23:32:45.203547+00:00"
+}

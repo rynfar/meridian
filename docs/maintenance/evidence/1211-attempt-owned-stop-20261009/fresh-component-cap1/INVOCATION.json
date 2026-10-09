@@ -1,0 +1,33 @@
+{
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--platform",
+    "linux/amd64",
+    "--network=none",
+    "--read-only",
+    "--pids-limit",
+    "128",
+    "--memory",
+    "4g",
+    "--name",
+    "meridian1211-fresh-component-cap1-20261009-r6",
+    "--tmpfs",
+    "/tmp:rw,mode=1777,size=256m",
+    "--mount",
+    "type=bind,src=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/fresh-component-cap1/output,dst=/proof",
+    "--mount",
+    "type=bind,src=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/fresh-component-cap1/probe,dst=/probe,readonly",
+    "sha256:23ad4ef93dc07d83f0b33f60546eef0fcc221545545b1a1b61c38eaf1f13cceb",
+    "bun",
+    "/probe/native-turn-counter.mjs",
+    "--source-root=/opt/e71/candidate",
+    "--options-root=/opt/e71/candidate",
+    "--evidence-dir=/proof",
+    "--claude-executable=/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "--expected-cli-version=2.1.284"
+  ],
+  "containerId": "293d00966e0215a55aa3e48f2821ee19dae63d08ff66e69d3b1b12b6a13c6029",
+  "originalDriverPid": 12309
+}

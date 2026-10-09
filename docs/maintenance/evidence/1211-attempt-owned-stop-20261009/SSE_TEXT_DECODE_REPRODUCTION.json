@@ -1,0 +1,12 @@
+[
+  {
+    "arm": "integrated-http-source-machineid",
+    "exactText": false,
+    "stop": "end_turn"
+  },
+  {
+    "arm": "integrated-http-source-textdecode",
+    "exactText": true,
+    "stop": "end_turn"
+  }
+]

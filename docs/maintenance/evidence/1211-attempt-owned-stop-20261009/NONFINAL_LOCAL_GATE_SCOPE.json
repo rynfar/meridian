@@ -1,0 +1,5 @@
+{
+  "run": "run-local-gates.py",
+  "headAtLaunch": "44ae1bc2155ae89dfbb49f3f80131c979e514024",
+  "scope": "Existing suite launched before discovery/correction. New regression test added during its execution; final correction gates must be separately run against stable committed bytes. Its result cannot qualify the corrected production head."
+}

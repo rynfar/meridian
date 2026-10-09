@@ -1,0 +1,44 @@
+{
+  "sourceHead": "bae7ada3995788c83f6de92e573807c447c587b5",
+  "parentDeliveryHead": "46ff481f9945c09582cd14c0d9f85c609c47e007",
+  "wholeChangeAcceptance": "HELD",
+  "adversarialReview": "root scoped pass; three corrected findings; no delegated review",
+  "sourceSdkNative": "0.2.141/2.1.284",
+  "installed": {
+    "sdkVersion": "0.2.141",
+    "nativeVersion": "2.1.296",
+    "meridianVersion": "1.80.0",
+    "tarballSHA256": "32807d0fde88de569909dc06871a489d917868f8645b1d9eb7012ee75b4f381c"
+  },
+  "sourceImage": "sha256:5c6c12b979458a102211392bee139ae1803c8d6d699c1d8c7d5bf6b89e5bf2d1",
+  "installedImage": "sha256:832db10cd5ea47922e0e5199daf383051bfa1e5c991940e8685b98b4af3bb1a9",
+  "sourceIntegratedCases": 4,
+  "installedIntegratedCases": 4,
+  "actualClientModelAcceptance": false,
+  "sourceAndInstalledIntegratedSdkApiQueries": 16,
+  "allExploratorySdkQueriesAndDirectApiRequests": 51,
+  "countsScope": "Explicit directly scripted provider requests; not historical real provider count inference",
+  "freshMissingImageAndMachineIdAttemptsQueries": 0,
+  "realCredentialReads": 0,
+  "allOriginalNativeActorsAndControllersTerminalJoined": true,
+  "allOwnedStoppedContainersRemoved": true,
+  "allInheritedHoldsRemain": true,
+  "finalLocalGates": {
+    "codeHead": "bae7ada3995788c83f6de92e573807c447c587b5",
+    "npmTestPass": 5935,
+    "skip": 36,
+    "fail": 0,
+    "batches": 22,
+    "typecheckExit": 0,
+    "buildExit": 0,
+    "allOriginalProcessesJoined": true
+  },
+  "renewedWorkLogin": "NOT_ASSUMED",
+  "portableInstalledReplay": {
+    "outcome": "PASS",
+    "integratedCases": 4,
+    "sdkQueriesAndDirectApiRequests": 8,
+    "originalActorsJoinedAndContainerRemoved": true,
+    "inputsUnchanged": true
+  }
+}

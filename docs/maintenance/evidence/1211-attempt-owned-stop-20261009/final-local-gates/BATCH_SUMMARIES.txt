@@ -1,0 +1,89 @@
+ 5480 pass
+ 36 skip
+ 0 fail
+ 31876 expect() calls
+Ran 5516 tests across 338 files. [762.49s]
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [2.17s]
+ 24 pass
+ 0 fail
+ 105 expect() calls
+Ran 24 tests across 1 file. [298.00ms]
+ 5 pass
+ 0 fail
+ 21 expect() calls
+Ran 5 tests across 1 file. [153.00ms]
+ 7 pass
+ 0 fail
+ 135 expect() calls
+Ran 7 tests across 1 file. [624.00ms]
+ 12 pass
+ 0 fail
+ 15 expect() calls
+Ran 12 tests across 1 file. [2.97s]
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [646.00ms]
+ 53 pass
+ 0 fail
+ 185 expect() calls
+Ran 53 tests across 1 file. [13.96s]
+ 10 pass
+ 0 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [2.62s]
+ 11 pass
+ 0 fail
+ 21 expect() calls
+Ran 11 tests across 1 file. [185.00ms]
+ 8 pass
+ 0 fail
+ 9 expect() calls
+Ran 8 tests across 1 file. [2.09s]
+ 95 pass
+ 0 fail
+ 169 expect() calls
+Ran 95 tests across 1 file. [88.00ms]
+ 13 pass
+ 0 fail
+ 39 expect() calls
+Ran 13 tests across 1 file. [80.00ms]
+ 11 pass
+ 0 fail
+ 37 expect() calls
+Ran 11 tests across 1 file. [1040.00ms]
+ 76 pass
+ 0 fail
+ 395 expect() calls
+Ran 76 tests across 1 file. [124.25s]
+ 7 pass
+ 0 fail
+ 16 expect() calls
+Ran 7 tests across 1 file. [3.13s]
+ 9 pass
+ 0 fail
+ 28 expect() calls
+Ran 9 tests across 1 file. [397.00ms]
+ 8 pass
+ 0 fail
+ 49 expect() calls
+Ran 8 tests across 1 file. [691.00ms]
+ 24 pass
+ 0 fail
+ 240 expect() calls
+Ran 24 tests across 1 file. [744.00ms]
+ 22 pass
+ 0 fail
+ 226 expect() calls
+Ran 22 tests across 1 file. [803.00ms]
+ 42 pass
+ 0 fail
+ 274 expect() calls
+Ran 42 tests across 1 file. [12.13s]
+ 12 pass
+ 0 fail
+ 92 expect() calls
+Ran 12 tests across 1 file. [7.24s]

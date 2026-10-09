@@ -1,0 +1,10 @@
+{
+  "head": "44ae1bc2155ae89dfbb49f3f80131c979e514024",
+  "testFile": "src/__tests__/passthrough-checkpoint-stop-regressions.test.ts",
+  "command": "bun test src/__tests__/passthrough-checkpoint-stop-regressions.test.ts",
+  "exit": 1,
+  "pass": 1,
+  "fail": 3,
+  "originalToolChunk": "bd3b61",
+  "supersedesNoOriginalFailure": true
+}

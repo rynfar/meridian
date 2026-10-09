@@ -1,5 +1,25 @@
 # End-to-End Testing
 
+## Current #1211/#1322 owned-interrupt offline qualification
+
+[Committed probe and replay packet](docs/maintenance/evidence/1211-attempt-owned-stop-20261009/README.md)
+qualifies production code `bae7ada3` with actual SDK/native but a scripted local
+provider: source SDK0.2.141/native2.1.284 and independently installed package
+SDK0.2.141/native2.1.296 each pass one/three tools × stream/nonstream, durable fork,
+exact client results and unchanged supported public source history. Native counters
+are not API-round counters; cap-one owned interruption has its separately bound
+`error_max_turns`/`aborted_tools`/counter-two tuple. Original failures and corrected
+negatives, process/stdio versus HTTP/backend/listener custody and exact artifact
+identities are escrowed. No actual model or coding client is used by these probes.
+
+This changes production. Prior actual passes qualify only their original artifacts;
+changed-head actual E41/E71/E72, mixed handback, cancellation/parent-abort and caption/
+reporter flows plus wider platform/client/package and final-head CI remain held.
+The prior 24/27 mixed source FAIL remains. Before another bounded real run, renew
+its profile with `meridian profile login work`; renewal has not been assumed.
+The maintained real-client observer must independently bind the new acknowledged
+owned stop/result/error/custody, rather than generally accepting aborted errors.
+
 ## Overlapping passthrough queries
 
 ```sh

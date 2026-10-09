@@ -1,0 +1,5 @@
+{
+  "scope": "Uses only the packed/independently npm-installed Meridian public package entrypoint, its own resolved SDK/native dependencies and Meridian mapping metadata; no source-tree query-options or server imports. Native session messages are read only through public SDK API.",
+  "actualModelClientAcceptance": false,
+  "selectedFixture": "Same one/three-tool and HTTP stream/nonstream assertions as source; same readonly synthetic machine-id prerequisite."
+}

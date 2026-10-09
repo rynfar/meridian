@@ -1,0 +1,51 @@
+src/__tests__/passthrough-checkpoint-stop-http.test.ts:
+[PROXY] 91b20afa-6029-434c-adb1-4a5ba0f36eb5 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=5ms msgCount=1 msgs=user[string]
+110 |   afterAll(() => { setSessionStoreDir(null); rmSync(directory, { recursive: true, force: true }) })
+111 | 
+112 |   for (const stream of [false, true]) {
+113 |     it(`qualifies only the owned interruption, stream=${stream}`, async () => {
+114 |       const response = await post(stream), text = await response.text()
+115 |       expect(response.status).toBe(200)
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008/src/__tests__/passthrough-checkpoint-stop-http.test.ts:115:31)
+(fail) HTTP attempt-owned checkpoint interrupt > qualifies only the owned interruption, stream=false [131.05ms]
+[PROXY] b9dfd2ea-0d0c-4b64-94d3-3322baa6fa91 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=1 msgs=user[string]
+[PROXY] session GC postponed: deletion lease for c1fd93ef1adad1e7926f9dca855a078e91629c6928cd09ac7f2ec12c8fa7b057 was lost
+(pass) HTTP attempt-owned checkpoint interrupt > refuses unrelated after a visible checkpoint, stream=false [52.37ms]
+[PROXY] 988b932b-00c5-4f18-abea-f7b9bca256a8 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=5ms msgCount=1 msgs=user[string]
+[PROXY] session GC postponed: deletion lease for f2f58850e023d20d0355320c994f9167eed6136b166881e42d19bdeab9fbe1f7 was lost
+(pass) HTTP attempt-owned checkpoint interrupt > refuses wrong-result after a visible checkpoint, stream=false [88.37ms]
+[PROXY] 94318efa-09a0-43d9-92e9-a826c1154378 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses close-failure after a visible checkpoint, stream=false [65.76ms]
+[PROXY] 6e5f3467-2103-4a60-8af4-f99a6727cc30 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=1 msgs=user[string]
+[PROXY] 6e5f3467-2103-4a60-8af4-f99a6727cc30 usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > leaves the early-stop kill switch intact, stream=false [45.12ms]
+[PROXY] 4ede06d2-e8c4-4cdc-bad2-d75909ee1364 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+111 | 
+112 |   for (const stream of [false, true]) {
+113 |     it(`qualifies only the owned interruption, stream=${stream}`, async () => {
+114 |       const response = await post(stream), text = await response.text()
+115 |       expect(response.status).toBe(200)
+116 |       expect(text).toContain('"stop_reason":"tool_use"')
+                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "\"stop_reason\":\"tool_use\""
+Received: "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"75e28b88-f45b-494f-af50-fcbde57fab9c\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-sonnet-5-5\",\"content\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tool-a\",\"name\":\"read\",\"input\":{}}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"file_path\\\":\\\"/fixture-0.txt\\\"}\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tool-b\",\"name\":\"read\",\"input\":{}}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"file_path\\\":\\\"/fixture-1.txt\\\"}\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":1}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"max_tokens\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":0}}\n\nevent: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"Passthrough checkpoint control did not qualify a durable terminal\"}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+
+      at <anonymous> (/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008/src/__tests__/passthrough-checkpoint-stop-http.test.ts:116:20)
+(fail) HTTP attempt-owned checkpoint interrupt > qualifies only the owned interruption, stream=true [50.49ms]
+[PROXY] d99eccdd-8aa7-41d7-8b8f-3296a45733e5 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses unrelated after a visible checkpoint, stream=true [46.27ms]
+[PROXY] f3d98ddc-253d-481c-b781-dd989c3f829d adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses wrong-result after a visible checkpoint, stream=true [62.69ms]
+[PROXY] e1af7512-8a45-4dbd-8deb-598b64432ae6 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=5ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses close-failure after a visible checkpoint, stream=true [53.09ms]
+[PROXY] 3c0b38ce-7770-492a-81f6-076db90981f9 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 3c0b38ce-7770-492a-81f6-076db90981f9 usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > leaves the early-stop kill switch intact, stream=true [48.71ms]

@@ -1,6 +1,51 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 final-hook interrupt discovery (2026-10-09 UTC)
+## Current oldest #1211 / existing #1322 attempt-owned checkpoint correction (2026-10-09 UTC)
+
+Production code `bae7ada3` supersedes the implementation-pending checkpoint below.
+Existing draft #1322 remains held and continues oldest original #1211. Main
+`11dc1556` and original #1211/#1231/#1283/#1292 heads were refreshed unchanged;
+expanded #1231 stays excluded. No new PR or worktree.
+
+[Current durable packet and runnable replay](evidence/1211-attempt-owned-stop-20261009/README.md)
+contains the actual initial findings/failures and their correction: mixed/nested
+SDK work wrongly faulted before stop intent, and native counters were incorrectly
+bounded by the API-generation cap. The native cap-one failure is retained.
+The control now binds each admitted Query/hook/session, holds only the complete
+final forwarded hook through public interrupt acknowledgement, qualifies its exact
+owned terminal/error, retires before cleanup awaits and fences unjoined custody.
+Caps, operator override, kill switch and public interfaces remain unchanged.
+
+[Root scoped adversarial review](evidence/1211-attempt-owned-stop-20261009/ROOT_REVIEW.md)
+records all three corrections and negatives; no delegated or whole-change approval.
+Final local gates at `bae7ada3`: **5,935 pass / 36 skip / zero fail**, all 22 npm
+isolated batches plus pretest, standalone typecheck/build pass and original joins.
+Forty-six focused checks pass. Initial mixed-source full-suite failures remain
+unqualified; the corrected stable-head gate and full module-load HTTP check pass.
+
+Real SDK/native component matrix and cap-one public fork pass. Integrated source
+SDK0.2.141/native2.1.284 and independently npm-installed package SDK0.2.141/native
+2.1.296 pass one/three tools × streaming/nonstreaming: exact calls/results,
+published UUID, distinct durable fork, no denial tail, unchanged supported public
+source history. Portable installed replay passes separately. All 51 scripted SDK
+queries/API rounds are directly recorded; zero real credentials/models or actual
+coding clients. Original native/stdio witnesses are component-scoped; integrated
+HTTP/backend/listener settlement and empty native censuses qualify separately.
+Inputs stay exact, actors join and owned runtime/containers are removed. Missing
+image, build-context, fixture machine-id and SSE decoder failures are retained.
+
+Prior actual mixed source stays **FAIL 24/27**. Changed-code actual client/model
+E41/E71/E72, exact handback format, cancellation/parent-abort independence,
+caption/reporter baseline/cache/overlap/abort, broader platform/client/package,
+historical real provider-count/wait attribution and final delivery-head CI remain
+open. Maintained actual-client observer must bind this exact owned interruption;
+never accept arbitrary aborted/error results. `work` renewal is NOT ASSUMED;
+command: `meridian profile login work`. Next finish these bounded real gates with
+renewed auth. Owner head/index/all twelve dirty files and all eighteen raw author/
+date/full-message/ancestry records remain exact. Source PRs stay open. No merge,
+release or external comment; full backlog goal stays active.
+
+## Earlier oldest #1211 / existing #1322 final-hook interrupt discovery (2026-10-09 UTC)
 
 Existing draft #1322 remains held, at reviewed delivery `20336b22`, base
 `11dc1556`, unchanged production/artifact `15f44351`. The
