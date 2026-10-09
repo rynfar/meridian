@@ -139,7 +139,7 @@ async function command(name, args, ms = 90_000) {
   const out = Buffer.concat(stdout), err = Buffer.concat(stderr)
   writeFileSync(join(output, name + '.stdout.log'), out, { mode: 0o600 })
   writeFileSync(join(output, name + '.stderr.log'), err, { mode: 0o600 })
-  report.commands.push({ name, args, closure, stdoutSHA256: hash(out), stderrSHA256: hash(err) })
+  report.commands.push({ name, args, originalPid: child.pid ?? null, closure, stdoutSHA256: hash(out), stderrSHA256: hash(err) })
   save()
   if (report.firstFailure) throw new Error(report.firstFailure)
   return out.toString('utf8')
@@ -181,4 +181,8 @@ finally {
   save()
   console.log(JSON.stringify({ disposition: report.disposition, firstFailure: report.firstFailure, assertions: report.assertions, serverJoined: report.serverJoined }))
   if (report.firstFailure) process.exitCode = 1
+  // A missing inherited-pipe or handler witness must not leave this harness
+  // waiting forever after its durable failed receipt. This exit is a failure
+  // bound, never evidence that the unjoined actor has been terminated.
+  if (!report.serverJoined || report.commands.some(command => !command.closure.joined)) process.exit(1)
 }
