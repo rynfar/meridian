@@ -4,11 +4,39 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn } from 'node:child_process'
 import { PASSTHROUGH_DENY_REASON } from '../proxy/passthroughDenial'
-import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch } from '../../scripts/lib/e2eMixedAuto.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts } from '../../scripts/lib/e2eMixedAuto.mjs'
 import { createOwnedClientProcess } from '../../scripts/lib/e2eOwnedClient.mjs'
 
 const envelope = 'You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\n</cc_automode_permissions>'
 describe('mixed auto observer structural controls', () => {
+  const expectedMessage = 'alpha-1\nalpha-2'
+  const handback = { input: { message: expectedMessage }, parentPrompt: 'Call SubagentHandback with ' + JSON.stringify(expectedMessage), expectedMessage, expectedActorId: 'private-alpha-agent' }
+  it('distinguishes exact input, launch instructions and whole structured reports without publishing payloads', () => {
+    const payload = { agentId: 'private-alpha-agent', handback: 'send', handbackReport: { text: expectedMessage, warning: 'private warning' }, content: [{ type: 'text', text: 'private notification' }] }
+    const facts = publicHandbackReceiptFacts({ ...handback, parentResultContent: JSON.stringify(payload) })
+    expect(facts).toEqual({ inputMessageOnly: true, inputMessageMatched: true, parentPromptNamesHandback: true, parentPromptContainsExactReport: true, parentResultTextContainsExactReport: false,
+      parentResultEncoding: 'json-string', structuredAgentIdMatched: true, structuredHandback: 'send', structuredReportPresent: true, structuredReportTextMatched: true, structuredReportWarningPresent: true, callerMessagesContainingExactReport: 0 })
+    expect(JSON.stringify(facts)).not.toContain('private')
+    expect(JSON.stringify(facts)).not.toContain('alpha')
+    expect(publicHandbackReceiptFacts({ ...handback, parentResultContent: [{ type: 'text', text: JSON.stringify(payload) }] }).parentResultEncoding).toBe('json-text-block')
+    expect(publicHandbackReceiptFacts({ ...handback, parentResultContent: JSON.stringify({ ...payload, agentId: 'another-child', handback: 'private-unknown', handbackReport: { text: 'beta-1\nbeta-2' } }) })).toMatchObject({ structuredAgentIdMatched: false, structuredHandback: 'invalid', structuredReportTextMatched: false })
+  })
+  it('does not infer structured reports from prose, nested JSON, arrays or multiple blocks', () => {
+    const report = { agentId: 'private-alpha-agent', handback: 'flagged', handbackReport: { text: expectedMessage } }
+    for (const content of ['prefix ' + JSON.stringify(report), JSON.stringify([report]), JSON.stringify({ nested: report }), [{ type: 'text', text: JSON.stringify(report) }, { type: 'text', text: expectedMessage }], { ...report }]) {
+      const facts = publicHandbackReceiptFacts({ ...handback, parentResultContent: content })
+      expect(facts.structuredReportTextMatched).toBe(false)
+      expect(facts.structuredAgentIdMatched).toBe(false)
+    }
+    expect(publicHandbackReceiptFacts({ ...handback, parentResultContent: JSON.stringify(report) }).structuredHandback).toBe('flagged')
+    expect(publicHandbackReceiptFacts({ ...handback, parentResultContent: JSON.stringify({ ...report, handback: 'withheld', handbackReport: { text: null } }) })).toMatchObject({ structuredHandback: 'withheld', structuredReportTextMatched: false })
+  })
+  it('keeps caller-message occurrences separate from tool results and rejects input or prompt inference', () => {
+    const facts = publicHandbackReceiptFacts({ ...handback, input: { message: expectedMessage, recipient: 'private-recipient' }, parentPrompt: 'Only run alpha-1 and alpha-2', parentResultContent: expectedMessage,
+      callerMessages: [{ role: 'user', content: expectedMessage }, { role: 'user', content: [{ type: 'text', text: expectedMessage }] }, { role: 'assistant', content: expectedMessage }, { role: 'user', content: [{ type: 'tool_result', content: expectedMessage }] }] })
+    expect(facts).toMatchObject({ inputMessageOnly: false, inputMessageMatched: false, parentPromptNamesHandback: false, parentPromptContainsExactReport: false, parentResultTextContainsExactReport: true, parentResultEncoding: 'invalid', callerMessagesContainingExactReport: 2 })
+    expect(publicHandbackReceiptFacts({ ...handback, input: { message: 'beta-1\nbeta-2' }, parentPrompt: 'NotSubagentHandback ' + expectedMessage })).toMatchObject({ inputMessageMatched: false, parentPromptNamesHandback: false, parentPromptContainsExactReport: true })
+  })
   it('distinguishes name normalization, changed inputs and missing owners without exposing payloads', () => {
     const receipt = { wireName: 'SendMessage', sdkRawName: 'mcp__oc__SendMessage', observerSdkName: 'mcp__oc__SendMessage', wireInput: 'private input', sdkInput: 'private input', hookFate: 'forwarded', hookInput: 'private input', sdkIdOwners: 1 }
     expect(publicToolReceiptMatch(receipt)).toMatchObject({ wireName: 'SendMessage', sdkName: 'SendMessage', sdkNamespace: 'client-mcp', observerNameMatched: false, singleClientPrefixNameMatched: true, inputMatched: true, hookInputMatched: true, hookForwarded: true })
@@ -138,6 +166,18 @@ describe('actual mixed observer against marked synthetic client, proxy and SDK',
     expect(result.proof.checks.actualAgentAndBashReceipts).toBe(false)
     expect(result.proof.checks.nativeReceipts).toBe(false)
     expect(result.proof.handbackFacts).toBeUndefined()
+  })
+  for (const mode of ['structuredParentHandback', 'separateCallerHandback']) it('diagnoses ' + mode + ' while preserving the existing handback rejection', async () => {
+    const result = await runControl({ handbackScenario: true, [mode]: true })
+    expect(result.code).toBe(1)
+    expect(result.proof.result).toBe('FAIL')
+    expect(result.proof.checks.nativeHandbackReports).toBe(false)
+    expect(result.proof.checks.actualAgentAndBashReceipts).toBe(false)
+    const facts = result.proof.handbackFacts.reports.map((row: { diagnostic: unknown }) => row.diagnostic)
+    expect(facts).toHaveLength(2)
+    if (mode === 'structuredParentHandback') expect(facts.every((row: { parentResultEncoding: string; structuredAgentIdMatched: boolean; structuredReportTextMatched: boolean; structuredHandback: string }) => row.parentResultEncoding === 'json-string' && row.structuredAgentIdMatched && row.structuredReportTextMatched && row.structuredHandback === 'send')).toBe(true)
+    else expect(facts.every((row: { callerMessagesContainingExactReport: number; structuredReportPresent: boolean }) => row.callerMessagesContainingExactReport === 1 && !row.structuredReportPresent)).toBe(true)
+    expect(JSON.stringify(facts)).not.toContain('synthetic-private')
   })
   for (const mode of ['missingHandback', 'wrongHandbackMessage', 'handbackNotDelivered', 'handbackNotFinal', 'duplicateHandback', 'handbackRecipient', 'unknownClosingTool', 'undeclaredHandback', 'sharedParentReport']) it('rejects handback contract violation ' + mode, async () => {
     const result = await runControl({ handbackScenario: true, [mode]: true })

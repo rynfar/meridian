@@ -10,8 +10,8 @@ const file = process.env.CLAUDE_CONFIG_DIR + '/turn.json', turn = existsSync(fil
 writeFileSync(file, String(turn))
 const delimiter = String.fromCharCode(96), commands = [...value('-p').matchAll(new RegExp(delimiter + '([^' + delimiter + ']+)' + delimiter, 'g'))].map(match => match[1]), history = new Map()
 const result = (id, content) => ({ type: 'tool_result', tool_use_id: id, content })
-async function send(actor, results = [], classifier = false) {
-  const messages = [...(history.get(actor) ?? []), { role: 'user', content: results.length ? results : 'continue' }]
+async function send(actor, results = [], classifier = false, callerReports = []) {
+  const messages = [...(history.get(actor) ?? []), ...callerReports.map(content => ({ role: 'user', content })), { role: 'user', content: results.length ? results : 'continue' }]
   const body = { model: classifier ? 'claude-sonnet-5' : model, metadata: { user_id: JSON.stringify({ session_id: session }) },
     messages, stream: false, tools: classifier ? [] : [{ name: 'Agent' }, { name: 'Bash' }, ...((mode.handbackScenario || mode.legacyHandback) && actor !== 'main' && !mode.undeclaredHandback ? [{ name: 'SubagentHandback', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } }] : [])],
     commands: turn === 2 ? commands : actor === 'alpha' ? commands.slice(0, 2) : commands.slice(2, 4) }
@@ -42,7 +42,14 @@ if (turn === 1) {
     if (mode.handbackNotFinal) await send(label)
   }
   await Promise.all(['alpha', 'beta'].map(child))
-  await send('main', ['alpha', 'beta'].map(label => result('launch-' + label, mode.sharedParentReport ? label === 'alpha' ? 'alpha-1\nalpha-2\nbeta-1\nbeta-2' : 'synthetic unrelated result' : mode.handbackScenario && !mode.handbackNotDelivered ? label + '-1\n' + label + '-2' : label + '-1 ' + label + '-2')))
+  await send('main', ['alpha', 'beta'].map(label => {
+    const report = label + '-1\n' + label + '-2'
+    const content = mode.structuredParentHandback ? JSON.stringify({ agentId: label, handback: 'send', handbackReport: { text: report, warning: 'synthetic-private warning' }, content: [{ type: 'text', text: 'synthetic-private caller notification' }] })
+      : mode.separateCallerHandback ? label + '-1 ' + label + '-2'
+      : mode.sharedParentReport ? label === 'alpha' ? 'alpha-1\nalpha-2\nbeta-1\nbeta-2' : 'synthetic unrelated result'
+      : mode.handbackScenario && !mode.handbackNotDelivered ? report : label + '-1 ' + label + '-2'
+    return result('launch-' + label, content)
+  }), false, mode.separateCallerHandback ? ['alpha-1\nalpha-2', 'beta-1\nbeta-2'] : [])
 } else {
   const answer = await send('main')
   if (!mode.noClassifiers) await send('main', [], true)

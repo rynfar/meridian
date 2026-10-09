@@ -17,7 +17,7 @@ import { createOwnedClientProcess } from './lib/e2eOwnedClient.mjs'
 import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/e2ePublicSdkDiagnostics.mjs'
 import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
 import { createRequestModelWitness } from './e2e-claude-code-auto-mode.mjs'
-import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch } from './lib/e2eMixedAuto.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts } from './lib/e2eMixedAuto.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -436,7 +436,7 @@ try {
   const address = proxy.server.address(); assert(address && typeof address === 'object', 'Proxy did not bind loopback')
   if (rehearsal) { assert(proof.queries.length === 0, 'Rehearsal queried SDK'); proof.result = 'REHEARSAL' }
   else {
-    const wire = [], agentIds = new Map(), toolResults = new Map()
+    const wire = [], agentIds = new Map(), toolResults = new Map(), callerMessages = new Map()
     const session = randomUUID()
     let activeAgents = 0, activeMain = 0, peakAgents = 0, peakParentChild = 0, wireEvents = 0
     const actorOf = header => {
@@ -468,9 +468,10 @@ try {
         row.requestStartedMs = elapsed(); row.clientToolCapabilities = publicToolCapabilities(Array.isArray(body.tools) ? body.tools.map(tool => tool?.name) : undefined)
         if (background) row.startEvent = ++wireEvents
         wire.push(row)
+        if (mixedHandback && row.role === 'working' && actor === 0) callerMessages.set(requestNumber, Array.isArray(body.messages) ? body.messages : [])
         for (const message of body.messages ?? []) for (const block of Array.isArray(message.content) ? message.content : []) {
           if (block?.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue
-          const receipt = { request: requestNumber, actor, ...(background ? { event: row.startEvent } : {}), text: resultText(block.content), successful: block.is_error === undefined || block.is_error === false }
+          const receipt = { request: requestNumber, actor, ...(background ? { event: row.startEvent } : {}), text: resultText(block.content), ...(mixedHandback ? { privateContent: block.content } : {}), successful: block.is_error === undefined || block.is_error === false }
           const earlier = toolResults.get(block.tool_use_id)
           if (earlier && (earlier.actor !== receipt.actor || earlier.text !== receipt.text || earlier.successful !== receipt.successful)) proof.toolResultChanged = true
           if (!earlier) toolResults.set(block.tool_use_id, receipt)
@@ -574,9 +575,13 @@ try {
       const parents = launches.filter(receipt => typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`))
       const receipt = calls[0], parent = parents[0], last = working.filter(row => row.actor === actor).at(-1)
       const message = `${label}-1\n${label}-2`
+      const diagnostic = publicHandbackReceiptFacts({ input: receipt?.tool.privateInput, parentPrompt: parent?.tool.privateInput.prompt,
+        parentResultContent: parent?.result?.privateContent, expectedMessage: message,
+        expectedActorId: [...agentIds].find(([, ordinal]) => ordinal === actor)?.[0],
+        callerMessages: callerMessages.get(parent?.result?.request) ?? [] })
       handbackLinks.push({ expectedChild: index + 1, actor, call: receipt ? privateReceipts.indexOf(receipt) + 1 : null,
         parentLaunch: parent ? privateReceipts.indexOf(parent) + 1 : null, parentResultRequest: parent?.result?.request,
-        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message) })
+        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message), diagnostic })
       return actor > 0 && calls.length === 1 && parents.length === 1 && receipt.paired && !receipt.result &&
         Object.keys(receipt.tool.privateInput).length === 1 && receipt.tool.privateInput.message === message &&
         parent.paired && parent.resultMatched && parent.result.text.includes(message) && parent.result.request > receipt.tool.request &&

@@ -3,6 +3,46 @@ import assert from 'node:assert/strict'
 const publicToolNames = new Set(['Agent', 'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TaskOutput', 'TaskStop', 'SendMessage', 'SubagentHandback', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'ToolSearch', 'TodoWrite', 'Skill', 'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'WebFetch', 'WebSearch', 'NotebookEdit'])
 const toolName = value => publicToolNames.has(value) ? value : 'other'
 
+const textContent = content => typeof content === 'string' ? content : Array.isArray(content) ? content.filter(block => block?.type === 'text' && typeof block.text === 'string').map(block => block.text).join('\n') : ''
+
+// Diagnostic facts only: native Agent results may carry handbackReport outside
+// their content, or notify the caller of a separately delivered message. None
+// of these facts admits structured output or inbox prose to the existing gate.
+// Parse only one complete JSON payload; do not search nested objects or prose.
+export function publicHandbackReceiptFacts({ input, parentPrompt, parentResultContent, expectedMessage, expectedActorId, callerMessages = [] }) {
+  let encoding = 'absent', structured
+  const payload = typeof parentResultContent === 'string' ? parentResultContent : Array.isArray(parentResultContent) && parentResultContent.length === 1 && parentResultContent[0]?.type === 'text' ? parentResultContent[0].text : undefined
+  if (typeof payload === 'string') {
+    encoding = 'invalid'
+    try {
+      const value = JSON.parse(payload)
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        structured = value
+        encoding = typeof parentResultContent === 'string' ? 'json-string' : 'json-text-block'
+      }
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error
+    }
+  }
+  const report = structured?.handbackReport
+  const reportObject = report !== null && typeof report === 'object' && !Array.isArray(report)
+  const messageOnly = input !== null && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 1 && typeof input.message === 'string'
+  return {
+    inputMessageOnly: messageOnly,
+    inputMessageMatched: messageOnly && input.message === expectedMessage,
+    parentPromptNamesHandback: typeof parentPrompt === 'string' && /\bSubagentHandback\b/.test(parentPrompt),
+    parentPromptContainsExactReport: typeof parentPrompt === 'string' && (parentPrompt.includes(expectedMessage) || parentPrompt.includes(JSON.stringify(expectedMessage))),
+    parentResultTextContainsExactReport: textContent(parentResultContent).includes(expectedMessage),
+    parentResultEncoding: encoding,
+    structuredAgentIdMatched: typeof expectedActorId === 'string' && typeof structured?.agentId === 'string' && structured.agentId === expectedActorId,
+    structuredHandback: structured?.handback === undefined ? 'absent' : ['send', 'flagged', 'withheld'].includes(structured.handback) ? structured.handback : 'invalid',
+    structuredReportPresent: reportObject,
+    structuredReportTextMatched: reportObject && typeof report.text === 'string' && report.text === expectedMessage,
+    structuredReportWarningPresent: reportObject && typeof report.warning === 'string',
+    callerMessagesContainingExactReport: callerMessages.filter(message => message?.role === 'user' && textContent(message.content).includes(expectedMessage)).length,
+  }
+}
+
 // Diagnostic facts only. Unknown names, IDs and inputs never leave the
 // observer, and these facts cannot qualify an unexpected tool as accepted.
 export function publicToolReceiptMatch({ wireName, sdkRawName, observerSdkName, wireInput, sdkInput, hookFate, hookInput, sdkIdOwners }) {
