@@ -29,8 +29,9 @@ for (let i = 2; i < process.argv.length; i++) {
 }
 for (const key of names) if (!['source-head', 'scenario', 'classifier-model', 'classifier-served-model'].includes(key)) assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
 const scenario = args.scenario ?? 'foreground'
-assert(['foreground', 'background', 'background-read-v2', 'mixed-auto-v1'].includes(scenario), 'Invalid E72 scenario')
-const mixedAuto = scenario === 'mixed-auto-v1'
+assert(['foreground', 'background', 'background-read-v2', 'mixed-auto-v1', 'mixed-auto-handback-v2'].includes(scenario), 'Invalid E72 scenario')
+const mixedHandback = scenario === 'mixed-auto-handback-v2'
+const mixedAuto = scenario === 'mixed-auto-v1' || mixedHandback
 const readBackground = scenario === 'background-read-v2'
 const background = ['background', 'background-read-v2'].includes(scenario)
 if (readBackground || mixedAuto) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295'].includes(args['native-cli-version']) && args.model === 'claude-sonnet-5-5' && args['served-model'] === args.model, 'Versioned scenario requires counter-qualified SDK/native/model tuple')
@@ -207,7 +208,7 @@ async function childRun(executable, command, env, cwd, milliseconds) {
     }
   }
 }
-const sdkClientToolName = name => /^mcp__oc__(Agent|Bash|TaskOutput|Read)$/.exec(name)?.[1] ?? name
+const sdkClientToolName = name => (mixedHandback && name === 'mcp__oc__SubagentHandback' ? 'SubagentHandback' : /^mcp__oc__(Agent|Bash|TaskOutput|Read)$/.exec(name)?.[1]) ?? name
 const objectInput = value => value && typeof value === 'object' && !Array.isArray(value)
 function inputIdentity(value) {
   if (Array.isArray(value)) return value.map(inputIdentity)
@@ -463,6 +464,7 @@ try {
           row.requestedModelMatched = body.model === (row.role === 'classifier' ? args['classifier-model'] : args.model)
           requestModels.set(requestId, row)
         }
+        if (mixedHandback) row.handbackDeclared = Array.isArray(body.tools) && body.tools.some(tool => tool?.name === 'SubagentHandback' && tool.input_schema?.properties?.message?.type === 'string' && Array.isArray(tool.input_schema?.required) && tool.input_schema.required.includes('message'))
         row.requestStartedMs = elapsed(); row.clientToolCapabilities = publicToolCapabilities(Array.isArray(body.tools) ? body.tools.map(tool => tool?.name) : undefined)
         if (background) row.startEvent = ++wireEvents
         wire.push(row)
@@ -500,6 +502,11 @@ try {
         `Subagent ALPHA must run the exact shell command \`${firstAlpha}\`, then in a separate Bash call run`,
         `\`${mixedAuto ? mixedCommands.secondAlpha : 'echo alpha-2'}\`, then report both outputs.`,
         `Subagent BETA must do the same with \`${firstBeta}\` and \`${mixedAuto ? mixedCommands.secondBeta : 'echo beta-2'}\`.`,
+        ...(mixedHandback ? [
+          `After both Bash calls, ALPHA must call SubagentHandback exactly once with message equal to the JSON string ${JSON.stringify('alpha-1\nalpha-2')}.`,
+          `BETA must likewise call SubagentHandback exactly once with message equal to ${JSON.stringify('beta-1\nbeta-2')}.`,
+          'Each handback must be that child\'s final call. Do not use SendMessage or any other tools in this bounded task.',
+        ] : []),
         ...(background ? [
           'Immediately after launching them, run exactly one Bash command `echo parent-overlap` in the parent while they work.',
           ...(readBackground ? [
@@ -559,6 +566,24 @@ try {
     const bashReceipts = bash.every((rows, index) => rows.length === 1 && rows[0].actor > 0 && rows[0].paired && rows[0].resultMatched && rows[0].result.text.includes(['alpha-1', 'alpha-2', 'beta-1', 'beta-2'][index])) && bash[0][0]?.actor === bash[1][0]?.actor && bash[2][0]?.actor === bash[3][0]?.actor && bash[0][0]?.actor !== bash[2][0]?.actor
     const mixedParent = mixedAuto ? privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === mixedCommands.parent) : []
     const mixedParentWorked = mixedAuto && mixedParent.length === 1 && mixedParent[0].actor === 0 && mixedParent[0].paired && mixedParent[0].resultMatched && mixedParent[0].result.text.includes('parent-2') && wire.find(row => row.request === mixedParent[0].tool.request)?.turn === 2
+    const handbacks = mixedHandback ? privateReceipts.filter(receipt => receipt.tool.name === 'SubagentHandback') : []
+    const handbackLinks = []
+    const handbackMatches = mixedHandback ? ['alpha', 'beta'].map((label, index) => {
+      const actor = bash[index * 2][0]?.actor
+      const calls = handbacks.filter(receipt => receipt.actor === actor)
+      const parents = launches.filter(receipt => typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`))
+      const receipt = calls[0], parent = parents[0], last = working.filter(row => row.actor === actor).at(-1)
+      const message = `${label}-1\n${label}-2`
+      handbackLinks.push({ expectedChild: index + 1, actor, call: receipt ? privateReceipts.indexOf(receipt) + 1 : null,
+        parentLaunch: parent ? privateReceipts.indexOf(parent) + 1 : null, parentResultRequest: parent?.result?.request,
+        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message) })
+      return actor > 0 && calls.length === 1 && parents.length === 1 && receipt.paired && !receipt.result &&
+        Object.keys(receipt.tool.privateInput).length === 1 && receipt.tool.privateInput.message === message &&
+        parent.paired && parent.resultMatched && parent.result.text.includes(message) && parent.result.request > receipt.tool.request &&
+        last?.turn === 1 && last.request === receipt.tool.request && last.handbackDeclared === true
+    }) : []
+    const distinctHandbackParents = mixedHandback && new Set(handbackLinks.map(row => row.parentLaunch)).size === 2 && handbackLinks.every(row => row.parentLaunch !== null)
+    const nativeHandbacks = mixedHandback && handbacks.length === 2 && new Set(handbacks.map(receipt => receipt.actor)).size === 2 && distinctHandbackParents && handbackMatches.every(Boolean)
     // Background launch handles stay private and must identify the actual wire
     // child. A foreground result or a generated completion word cannot qualify.
     const backgroundLaunches = ['alpha', 'beta'].map((label, index) => {
@@ -639,7 +664,7 @@ try {
     })
     // Only ordinal aliases and deterministic facts leave memory; no real
     // agent/session/tool IDs, prompts, tool arguments or generated prose.
-    proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash', 'TaskOutput', 'Read'].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))
+    proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash', 'TaskOutput', 'Read', ...(mixedHandback ? ['SubagentHandback'] : [])].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))
     if (mixedAuto) proof.toolReceiptDiagnostics = privateReceipts.map((receipt, index) => {
       const sdkTool = receipt.row && sdkTools.get(receipt.row).get(receipt.id)
       const hook = receipt.row && sdkHookReceipts.get(receipt.row).get(receipt.id)
@@ -647,11 +672,13 @@ try {
         wireInput: receipt.tool.input, sdkInput: sdkTool?.input, hookFate: hook?.fate, hookInput: hook?.input,
         sdkIdOwners: proof.queries.filter(row => sdkTools.get(row).has(receipt.id)).length }) }
     })
+    if (mixedHandback) proof.handbackFacts = { calls: handbacks.length, actors: handbacks.map(receipt => receipt.actor).sort((a, b) => a - b),
+      distinctParentLaunches: distinctHandbackParents, exactChildReportsDeliveredToMatchingParent: handbackMatches, childFinalCalls: handbacks.length === 2 && handbacks.every(receipt => working.filter(row => row.actor === receipt.actor).at(-1)?.request === receipt.tool.request), reports: handbackLinks }
     proof.checks = {
       invocationsSucceeded: proof.turns.length === 2 && proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), noRefusal: proof.turns.every(row => !row.refused) && wire.every(row => row.status === 200),
       requestedModelIdentity: wire.length > 0 && wire.every(row => row.requestedModelMatched), rootedWireIdentity: wire.length > 0 && wire.every(row => row.sessionKeyMatched && row.actor >= 0), requestDecisionsComplete: wire.length > 0 && wire.every(row => decision(row).length === 1) && records.length === wire.length,
       twoMultiturnAgents: agents.size === 2 && [...agents.values()].every(rows => rows.length >= 3 && rows.every(row => row.turn === 1)), [background ? 'backgroundParallelism' : 'foregroundParallelism']: peakAgents >= 2,
-      actualAgentAndBashReceipts: !proof.toolResultChanged && (background ? backgroundLaunchReceipts : foregroundLaunchReceipts) && bashReceipts && (!mixedAuto || mixedParentWorked) && privateReceipts.length === (background ? 9 : mixedAuto ? 7 : 6),
+      actualAgentAndBashReceipts: !proof.toolResultChanged && (background ? backgroundLaunchReceipts : foregroundLaunchReceipts) && bashReceipts && (!mixedAuto || mixedParentWorked) && (!mixedHandback || nativeHandbacks) && privateReceipts.length === (background || mixedHandback ? 9 : mixedAuto ? 7 : 6),
       sdkToolHookCustody: proof.queries.every(row => row.sdkToolHookCustody),
       allQueriesCorrelated, distinctSessionMappings, subagentResume: agents.size === 2 && [...agents.values()].every(resumed), mainResume: mains.length >= 3 && mains.some(row => row.turn === 2) && resumed(mains),
       noCollision: !records.some(row => ['unrelated-history', 'concurrent-race'].includes(row.divergence)), boundedLeaseWait: records.length === wire.length && records.every(row => Number.isFinite(row.sessionWaitMs) && row.sessionWaitMs >= 0 && row.sessionWaitMs <= 1000),
@@ -675,6 +702,7 @@ try {
         exactRequestModelOwnership: proof.requestModelWitness.capturedRequests === wire.length && !proof.requestModelWitness.missingContext && !proof.requestModelWitness.duplicateContext && !proof.requestModelWitness.otherLoggerStore,
         outsideWritesAndParentReceipt: proof.mixedAutoFacts.completedOutsideWrites === 5 && mixedParentWorked,
       })
+      if (mixedHandback) proof.checks.nativeHandbackReports = nativeHandbacks
     }
     if (background) proof.checks.backgroundParentChildOverlap = peakParentChild >= 2
     if (readBackground) proof.checks.backgroundReadCapabilities = wire.every(row => row.clientToolCapabilities.catalogValid && row.clientToolCapabilities.read && !row.clientToolCapabilities.taskOutput) && proof.queries.every(row => !row.nativeInitCapabilitiesOverflow && row.nativeInitToolCapabilities.length > 0 && row.nativeInitToolCapabilities.every(catalog => catalog.catalogValid && catalog.clientMcpRead && !catalog.clientMcpTaskOutput && !catalog.taskOutput))

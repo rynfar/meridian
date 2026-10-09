@@ -1,0 +1,19 @@
+{
+  "pinnedClientVersion": "2.1.287",
+  "pinnedClientSHA256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+  "staticDefinitionSHA256": "451e6623bfeae3d71f49bcf54c115fb7827f2785ab3ddac5643d7e935645ea4c",
+  "publicTool": "SubagentHandback",
+  "inputMessageString": true,
+  "recipientImplicitCaller": true,
+  "oneFinalReportOnly": true,
+  "plainTextNotDeliveredWhenHandbackContractActive": true,
+  "reportStoredAsAgentResult": true,
+  "endsTurnReturnFeatureConditional": true,
+  "sourceToolDescriptionSaysCallEndsRun": true,
+  "inspectionNetworkDisabled": true,
+  "inspectionCredentialsMounted": false,
+  "inspectionModelQueries": 0,
+  "originalStaticAttachExitAndPipesJoined": true,
+  "ownedStoppedStaticContainerRemoved": true,
+  "originalR1R2RawToolNamesNotRetained": "Exact retrospective names remain unknown; one-prefix/input matching is directly observed. This static protocol evidence justifies an explicit versioned scenario, not relabeling either failed run."
+}

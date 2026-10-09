@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-const publicToolNames = new Set(['Agent', 'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TaskOutput', 'TaskStop', 'SendMessage', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'ToolSearch', 'TodoWrite', 'Skill', 'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'WebFetch', 'WebSearch', 'NotebookEdit'])
+const publicToolNames = new Set(['Agent', 'Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'TaskOutput', 'TaskStop', 'SendMessage', 'SubagentHandback', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'ToolSearch', 'TodoWrite', 'Skill', 'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'WebFetch', 'WebSearch', 'NotebookEdit'])
 const toolName = value => publicToolNames.has(value) ? value : 'other'
 
 // Diagnostic facts only. Unknown names, IDs and inputs never leave the

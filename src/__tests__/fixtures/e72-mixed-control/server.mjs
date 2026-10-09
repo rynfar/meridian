@@ -18,14 +18,20 @@ export async function startProxyServer(config) {
       if (classifier) text = 'allow'
       else if (actor === 'main' && count === 1) tools = ['alpha', 'beta'].map(label => tool('launch-' + label, 'Agent', { subagent_type: 'general-purpose', run_in_background: false, prompt: label + '-1 ' + label + '-2' }))
       else if (actor !== 'main' && count <= 2) tools = [tool(actor + '-' + count, 'Bash', { command: body.commands[count - 1] })]
+      else if (actor !== 'main' && count === 3 && (mode.handbackScenario || mode.legacyHandback) && !mode.missingHandback) {
+        const message = mode.wrongHandbackMessage && actor === 'alpha' ? 'beta-1\nbeta-2' : actor + '-1\n' + actor + '-2'
+        tools = [tool(actor + '-handback', mode.unknownClosingTool ? 'OtherFinish' : 'SubagentHandback', { message, ...(mode.handbackRecipient ? { recipient: 'synthetic-other-parent' } : {}) })]
+        if (mode.duplicateHandback) tools.push(tool(actor + '-duplicate-handback', 'SubagentHandback', { message }))
+      }
       else if (actor !== 'main' && count === 3 && (mode.unexpectedClientTool || mode.changedClientToolName || mode.changedClientToolInput)) tools = [tool(actor + '-unexpected', 'SendMessage', { recipient: 'synthetic-parent', content: actor + '-1 ' + actor + '-2' })]
       else if (actor === 'main' && count === 3) tools = [tool('parent-write', 'Bash', { command: body.commands[0] })]
       else text = actor === 'main' ? count === 2 ? 'DONE' : 'AGAIN' : actor + '-1 ' + actor + '-2'
+      if (mode.sharedParentReport && actor === 'main' && count === 1) { tools[0].input.prompt = 'alpha-1 alpha-2 beta-1 beta-2'; tools[1].input.prompt = 'synthetic unrelated task' }
       if (mode.changedCommand && tools[0]?.name === 'Bash') tools[0].input.command += ' && echo changed-command'
       const resume = classifier ? mode.borrowedClassifierSession ? sessions.get('main') : undefined : sessions.get(actor)
       const options = { model: mode.wrongClassifierModel && classifier ? 'claude-sonnet-4-6' : body.model, ...(resume ? { resume } : {}), maxTurns: 1,
         env: { CLAUDE_CONFIG_DIR: config.profiles[0].claudeConfigDir }, pathToClaudeCodeExecutable: process.env.MERIDIAN_CLAUDE_PATH,
-        mcpServers: classifier ? {} : { oc: { type: 'sdk', name: 'oc' } }, allowedTools: classifier ? [] : ['mcp__oc__Agent', 'mcp__oc__Bash'],
+        mcpServers: classifier ? {} : { oc: { type: 'sdk', name: 'oc' } }, allowedTools: classifier ? [] : body.tools.map(tool => 'mcp__oc__' + tool.name),
         hooks: { PreToolUse: [{ hooks: [async () => ({ decision: 'block', reason: '__DENIAL__' })] }] } }
       const input = { prompt: JSON.stringify({ tools, text, request: ++requests }), options }
       const native = query(input)

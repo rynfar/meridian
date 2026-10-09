@@ -1,0 +1,195 @@
+{
+  "atUTC": "2026-10-09T21:28:43.152222+00:00",
+  "files": [
+    {
+      "path": "DIAGNOSTIC_CAUSE_QUALIFICATION.json",
+      "bytes": 1814,
+      "sha256": "cc6c9e474fba57951ff09e9e26d05102e2239d99fd58606d09bfed6ed5047e1f"
+    },
+    {
+      "path": "PINNED_CLIENT_HANDBACK_CONTRACT.json",
+      "bytes": 991,
+      "sha256": "8d4333ce243b2b26d6a80da63d245d1565c015e0adb7a5a7e8e9e2968a216e82"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5395,
+      "sha256": "ba6c3992e20e9b8788e396e44099561a80cc33c3e94e908c6d39f323a1a2392d"
+    },
+    {
+      "path": "ROOT_REVIEW.md",
+      "bytes": 2695,
+      "sha256": "0db6e378b2c123b56c3778291306a89af958930a53436758082d89e7a53ace84"
+    },
+    {
+      "path": "diagnostic-head-local-gates.json",
+      "bytes": 1913,
+      "sha256": "6f44cd334e6eb446a5e95564e62e4db35119779f560fb18a9b8c7a47cda77d6b"
+    },
+    {
+      "path": "diagnostic-head-source-qualification.json",
+      "bytes": 612,
+      "sha256": "08c7cd1dbd37f0913b62c3084eded03969c961fa80f446f272f387da742f462d"
+    },
+    {
+      "path": "diagnostic-source-custody.json",
+      "bytes": 360,
+      "sha256": "c2be2cf65afbcb92151526dd6b6786ae639240219dab86fb050365575411035b"
+    },
+    {
+      "path": "diagnostic-source-receipt.json",
+      "bytes": 5785,
+      "sha256": "7a7e392895ae267dbe83058ffe0ebac9f077cd951809270d670d0aa3295404f0"
+    },
+    {
+      "path": "diagnostic-source-results.json",
+      "bytes": 108992,
+      "sha256": "8cb559e5d7c851d8c0e8ed40304e770a0ceb3dac48ca65a8fab0a4cdf891699a"
+    },
+    {
+      "path": "diagnostic-source-terminal.json",
+      "bytes": 121,
+      "sha256": "4ec55e3053bccce00b7b0cc296c9b18f1a1178d7f5d437ce2e5e88fa9dd0cefb"
+    },
+    {
+      "path": "focused-controls.txt",
+      "bytes": 4344,
+      "sha256": "26638bb8689e5d003b174a945614f0a5eaa132aa27dc3dd39f5d035f1acc4d11"
+    },
+    {
+      "path": "focused-default-timeout-failure.json",
+      "bytes": 1066,
+      "sha256": "4f8cf3bd093db3fc2bd847d09c9a6a573cba44f27a9ebe91d44f965a1e63d957"
+    },
+    {
+      "path": "synthetic-controls/borrowedClassifierSession.json",
+      "bytes": 73925,
+      "sha256": "a32d10df0eb4c9c181fb3fad6e1999470b979ad9a9b55a8d1d31db8b807b1ac5"
+    },
+    {
+      "path": "synthetic-controls/changedClientToolInput.json",
+      "bytes": 75033,
+      "sha256": "1c512ff99ed7c37b687a0621cbd573d576fb3509323af05841497c213ae0629d"
+    },
+    {
+      "path": "synthetic-controls/changedClientToolName.json",
+      "bytes": 74944,
+      "sha256": "004055c2bdf5952a38d79da5ca0aeb0b4d5356754288226e7d0b6d3e88b96055"
+    },
+    {
+      "path": "synthetic-controls/changedCommand.json",
+      "bytes": 73820,
+      "sha256": "58dd6c13d5064e11a0b4560b0dc2406be144ec7eaf8236bf303c068670345913"
+    },
+    {
+      "path": "synthetic-controls/classifierNotIsolated.json",
+      "bytes": 73816,
+      "sha256": "526515a9f338443a8df0cb5eed04a4ac204058a8bed2ff34a5e22b293237b0f3"
+    },
+    {
+      "path": "synthetic-controls/classifierWait.json",
+      "bytes": 73938,
+      "sha256": "5eee790d772d0642deba1f3f787b310663bb6ea92faa89e37cf32094d9950614"
+    },
+    {
+      "path": "synthetic-controls/duplicateBeforeConsume.json",
+      "bytes": 10027,
+      "sha256": "82c72f2f5417831fc0916e02a4ec6e7bbf0ce2c6d87d1e94f8a30b755ff8eb12"
+    },
+    {
+      "path": "synthetic-controls/duplicateHandback-handbackScenario.json",
+      "bytes": 77293,
+      "sha256": "816eaf4aaf5a39574164dfbcd91c215f235343d9f1a563952fb8c7ec8986fe9b"
+    },
+    {
+      "path": "synthetic-controls/duplicateQuery.json",
+      "bytes": 14662,
+      "sha256": "a65faf98c96f7ae0f08663085df6115a335111e6b4bc2d2fb36ba685f86e0d7a"
+    },
+    {
+      "path": "synthetic-controls/forgedClassifier.json",
+      "bytes": 73877,
+      "sha256": "c759762e755f6d180bd285c60d6de60392e73325beba8165ec50a911c52d9c13"
+    },
+    {
+      "path": "synthetic-controls/handbackNotDelivered-handbackScenario.json",
+      "bytes": 76298,
+      "sha256": "a5829899e3bd57ef2ec90d9685044b92db0f8a740f73a59e74b9438b8ff85eca"
+    },
+    {
+      "path": "synthetic-controls/handbackNotFinal-handbackScenario.json",
+      "bytes": 86232,
+      "sha256": "a2a2ea3eb8cbd1e4a5583972739b408434ad058283a648d166d47fde2083e385"
+    },
+    {
+      "path": "synthetic-controls/handbackRecipient-handbackScenario.json",
+      "bytes": 76208,
+      "sha256": "6459bb734f0bc2fb38dd312ad07eb296b0a77989fc7d274c19d4fd39ec2b301c"
+    },
+    {
+      "path": "synthetic-controls/handbackScenario-missingHandback.json",
+      "bytes": 75163,
+      "sha256": "e2da4c5c3af1c5a25f08b056fb7df3f00aab9b4ccbe0ecf2d5d6bedff2cd5802"
+    },
+    {
+      "path": "synthetic-controls/handbackScenario-sharedParentReport.json",
+      "bytes": 76211,
+      "sha256": "6208a6040b9ef72239bf3677fe1e8df5435746abf4c04a3022082565856e0ce1"
+    },
+    {
+      "path": "synthetic-controls/handbackScenario-undeclaredHandback.json",
+      "bytes": 76217,
+      "sha256": "1aa0022c304dc11d0a1735de09febbba9d65ac19c2d8cdf80609f8bb10c0f90f"
+    },
+    {
+      "path": "synthetic-controls/handbackScenario-unknownClosingTool.json",
+      "bytes": 76131,
+      "sha256": "0431fe972899d60d026e766d2f79ab6681da824ef3f1f38d321727d74f739d30"
+    },
+    {
+      "path": "synthetic-controls/handbackScenario-wrongHandbackMessage.json",
+      "bytes": 76242,
+      "sha256": "06f6c3b1a17594ea7a851761cce50fc22444e959b9fa4179dea20cd9610edbf5"
+    },
+    {
+      "path": "synthetic-controls/handbackScenario.json",
+      "bytes": 76173,
+      "sha256": "9c1dbc33403018477607846d8df77a670a1533e5ca1bfbf3115005217f04e58e"
+    },
+    {
+      "path": "synthetic-controls/legacyHandback.json",
+      "bytes": 74970,
+      "sha256": "4b4d77ec40c0ab7740b8605cc1a23886f6e01313e14dbeed338344d568780ee1"
+    },
+    {
+      "path": "synthetic-controls/missingWrite.json",
+      "bytes": 73842,
+      "sha256": "26f91f4cb946badb6b4bfd765890b72a584d9d03c0ce0ea32224e3ab727b01fb"
+    },
+    {
+      "path": "synthetic-controls/noClassifiers.json",
+      "bytes": 59261,
+      "sha256": "324cadc3c5fc52be95f06e58f2ced0ecc418b1ee9745f3cef35c3d061abb652e"
+    },
+    {
+      "path": "synthetic-controls/noLoggerContext.json",
+      "bytes": 7323,
+      "sha256": "fd488b1a14e25121e6bb7ef46739421baf71816c173f2da3165b4de0820428a7"
+    },
+    {
+      "path": "synthetic-controls/positive.json",
+      "bytes": 73778,
+      "sha256": "6c5600f1fdd24887505549239ae877c791a106589002ed92d503b83665f8086e"
+    },
+    {
+      "path": "synthetic-controls/unexpectedClientTool.json",
+      "bytes": 74995,
+      "sha256": "0b09d1787e1ade9048d193322698cbbc57f39046857ac75bac7952e0a6bc9286"
+    },
+    {
+      "path": "synthetic-controls/wrongClassifierModel.json",
+      "bytes": 73815,
+      "sha256": "98b28e98feef2333459d7eaab647086c03c9d2456b070cc809a065e741d8b363"
+    }
+  ]
+}

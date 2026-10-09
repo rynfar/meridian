@@ -6597,6 +6597,19 @@ the strict seven-call predicate and every original acceptance check remain.
 Actual cause qualification and source/installed/baseline acceptance remain
 open. Existing foreground and Read results retain their original scope.
 
+**Versioned native handback scenario:**
+`--scenario mixed-auto-handback-v2 --require-mcp-readiness` uses the same
+explicit model pins and bounds, and requires both final `SubagentHandback`
+calls defined by pinned client 2.1.287. Exactly nine SDK/hook/HTTP calls must
+qualify: the seven required Agent/Bash calls plus one final handback per child.
+Each complete two-line report must reach that child's matched parent Agent
+result, with a declared wire message schema and no recipient override or later
+child request. A new `nativeHandbackReports` gate makes 27 required checks.
+Original mixed-v1 remains failed and retains its four-name normalization and
+seven-call policy. The [handback packet](docs/maintenance/evidence/1211-mixed-auto-handback-20261009/README.md)
+preserves both failures, canonical focused controls and the pinned client's
+static protocol. Actual v2 source/installed/baseline acceptance remains open.
+
 Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
 ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs
 `echo beta-1` and `echo beta-2`. Turn 2 resumes the same parent and requests

@@ -74,7 +74,7 @@ async function runControl(mode: Record<string, boolean>, expectUnjoinedQuery = f
   const { chmodSync } = await import('node:fs'); chmodSync(client, 0o700)
   writeFileSync(grant, JSON.stringify({ claudeAiOauth: { accessToken: 'synthetic-never-authenticated', expiresAt: Date.now() + 3600000, scopes: ['user:inference'] } }), { mode: 0o400 })
   const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-subagent-session.mjs')
-  const child = spawn(process.execPath, [harness, '--synthetic', '--require-mcp-readiness', '--scenario', 'mixed-auto-v1',
+  const child = spawn(process.execPath, [harness, '--synthetic', '--require-mcp-readiness', '--scenario', mode.handbackScenario ? 'mixed-auto-handback-v2' : 'mixed-auto-v1',
     '--target-root', target, '--entry', 'server.mjs', '--client', client, '--client-version', '2.1.287', '--native-cli', native,
     '--native-cli-version', '2.1.284', '--sdk-version', '0.2.141', '--model', 'claude-sonnet-5-5', '--served-model', 'claude-sonnet-5-5',
     '--classifier-model', 'claude-sonnet-5', '--classifier-served-model', 'claude-sonnet-5', '--grant-file', grant,
@@ -121,6 +121,31 @@ describe('actual mixed observer against marked synthetic client, proxy and SDK',
     expect(result.proof.mixedAutoFacts).toMatchObject({ classifiers: 3, workingRequests: 10, completedOutsideWrites: 5 })
     expect(result.proof.requestModelWitness.capturedRequests).toBe(13)
     expect(result.proof.toolReceipts).toHaveLength(7)
+  })
+  it('requires two final child handbacks with exact reports delivered to their own parent Agent results', async () => {
+    const result = await runControl({ handbackScenario: true })
+    expect(result.code).toBe(0)
+    expect(result.proof.result).toBe('PASS')
+    expect(Object.values(result.proof.checks).every(Boolean)).toBe(true)
+    expect(result.proof.toolReceipts).toHaveLength(9)
+    expect(result.proof.handbackFacts).toMatchObject({ calls: 2, actors: [1, 2], distinctParentLaunches: true, exactChildReportsDeliveredToMatchingParent: [true, true], childFinalCalls: true })
+    expect(result.proof.handbackFacts.reports.every((row: { parentLaunch: number; exactMessageInParentResult: boolean }) => [1, 2].includes(row.parentLaunch) && row.exactMessageInParentResult)).toBe(true)
+  })
+  it('preserves the original mixed-v1 rejection of extra handback calls', async () => {
+    const result = await runControl({ legacyHandback: true })
+    expect(result.code).toBe(1)
+    expect(result.proof.result).toBe('FAIL')
+    expect(result.proof.checks.actualAgentAndBashReceipts).toBe(false)
+    expect(result.proof.checks.nativeReceipts).toBe(false)
+    expect(result.proof.handbackFacts).toBeUndefined()
+  })
+  for (const mode of ['missingHandback', 'wrongHandbackMessage', 'handbackNotDelivered', 'handbackNotFinal', 'duplicateHandback', 'handbackRecipient', 'unknownClosingTool', 'undeclaredHandback', 'sharedParentReport']) it('rejects handback contract violation ' + mode, async () => {
+    const result = await runControl({ handbackScenario: true, [mode]: true })
+    expect(result.code).toBe(1)
+    expect(result.proof.result).toBe('FAIL')
+    expect(result.proof.checks.nativeHandbackReports).toBe(false)
+    expect(result.proof.checks.actualAgentAndBashReceipts).toBe(false)
+    if (mode === 'sharedParentReport') expect(result.proof.handbackFacts.distinctParentLaunches).toBe(false)
   })
   for (const [mode, check] of [
     ['wrongClassifierModel', 'nativeReceipts'], ['borrowedClassifierSession', 'independentClassifierSessions'],

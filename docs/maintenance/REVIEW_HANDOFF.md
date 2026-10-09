@@ -5022,3 +5022,33 @@ cause before altering normalization or the scenario. Owner checkout and all
 eighteen contributor mappings requalify exactly. Expanded #1231 stays excluded;
 all inherited baseline, cancellation/parent-abort, caption/reporter, package,
 platform/client and delivery-head CI holds remain. No merge or source closure.
+
+### 2026-10-09: mixed native handback protocol correction
+
+[Versioned handback evidence](evidence/1211-mixed-auto-handback-20261009/README.md)
+records diagnostic head `0f792f16` final local gates (5,873 pass / 36 skip /
+zero fail, 22 npm batches plus typecheck/build/compiled context control) and
+its original source diagnostic FAIL. Both additional calls match unique SDK
+ownership, one MCP prefix and exact hook/assistant/HTTP inputs; the four-name
+observer normalizer does not recognize them. Other 24 checks pass. The source
+cohort stops, cleans up and retains the failure; package and baseline remain
+UNEXECUTED. Exact original names are still unknown because they were not saved.
+
+Static network-disabled inspection of the same official client binary verifies
+SubagentHandback's final-report contract: a message goes to the implicit caller
+and becomes the Agent result; plain final text is not delivered when active.
+New opt-in `mixed-auto-handback-v2` therefore requires exactly nine original
+calls, with two uniquely paired final child handbacks and complete exact reports
+delivered to their own parent results. Declared schema, message-only payload,
+final-child position, canonical SDK/hook/HTTP custody and all original execution,
+model/session/classifier/cap gates remain necessary. Legacy v1 still rejects
+extra handbacks. No general tool filter or larger model/runtime bound is used.
+
+Thirty canonical focused tests pass, including 26 fake harness executions
+and nine handback negatives. A bare-bun five-second timeout was retained with
+its missing per-case PID limitation; owned fake process metadata was checked,
+fake grants removed and the empty-proof fixture preserved. Canonical tests use
+the existing repository 30-second setting with identical subprocess/native
+bounds. New v2 full local gates, frozen rehearsals and actual flows remain open.
+Existing #1322 stays draft; all inherited holds, original source identities and
+expanded #1231 exclusion remain. No new PR, merge, closure or release.

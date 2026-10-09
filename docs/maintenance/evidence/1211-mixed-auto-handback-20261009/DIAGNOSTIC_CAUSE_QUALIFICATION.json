@@ -1,0 +1,45 @@
+{
+  "atUTC": "2026-10-09T21:28:24.298359+00:00",
+  "status": "DIAGNOSTIC_NAMESPACE_INPUT_CAUSE_QUALIFIED_EXACT_OLD_NAMES_NOT_RETAINED",
+  "originalDiagnosticObserverHead": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+  "originalDiagnosticProofSHA256": "8cb559e5d7c851d8c0e8ed40304e770a0ceb3dac48ca65a8fab0a4cdf891699a",
+  "calls": [
+    {
+      "number": 7,
+      "wireName": "other",
+      "sdkName": "other",
+      "sdkNamespace": "client-mcp",
+      "sdkIdOwners": 1,
+      "observerNameMatched": false,
+      "singleClientPrefixNameMatched": true,
+      "inputMatched": true,
+      "hookForwarded": true,
+      "hookInputMatched": true
+    },
+    {
+      "number": 8,
+      "wireName": "other",
+      "sdkName": "other",
+      "sdkNamespace": "client-mcp",
+      "sdkIdOwners": 1,
+      "observerNameMatched": false,
+      "singleClientPrefixNameMatched": true,
+      "inputMatched": true,
+      "hookForwarded": true,
+      "hookInputMatched": true
+    }
+  ],
+  "originalResult": "FAIL",
+  "exactRetrospectiveToolNames": "UNKNOWN",
+  "newProtocol": "Pinned official client defines SubagentHandback as final report delivery to its implicit caller; v2 explicitly requires its advertised schema, exact message and distinct matched parent launch. New native activation/receipts UNEXECUTED.",
+  "originalQueryCostTimeCapsRetained": [
+    24,
+    12,
+    600000
+  ],
+  "sameFailedObserverUnchangedRerun": false,
+  "allOriginalNativeActorsAndOwnedResourcesJoinedAndRemoved": true,
+  "defaultFocusedRunnerTimeoutFailurePreserved": true,
+  "newNativeV2Acceptance": "OPEN",
+  "nextAction": "Finish new 30-test focused controls, update scoped root review/portable packet, commit verification-only v2 and run exact-head local gates; freeze/rehearse all three candidate/installed/baseline cases before native admission."
+}

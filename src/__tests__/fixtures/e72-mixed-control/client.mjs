@@ -13,7 +13,7 @@ const result = (id, content) => ({ type: 'tool_result', tool_use_id: id, content
 async function send(actor, results = [], classifier = false) {
   const messages = [...(history.get(actor) ?? []), { role: 'user', content: results.length ? results : 'continue' }]
   const body = { model: classifier ? 'claude-sonnet-5' : model, metadata: { user_id: JSON.stringify({ session_id: session }) },
-    messages, stream: false, tools: classifier ? [] : [{ name: 'Agent' }, { name: 'Bash' }],
+    messages, stream: false, tools: classifier ? [] : [{ name: 'Agent' }, { name: 'Bash' }, ...((mode.handbackScenario || mode.legacyHandback) && actor !== 'main' && !mode.undeclaredHandback ? [{ name: 'SubagentHandback', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } }] : [])],
     commands: turn === 2 ? commands : actor === 'alpha' ? commands.slice(0, 2) : commands.slice(2, 4) }
   if (classifier) {
     body.system = mode.forgedClassifier ? 'ordinary request' : 'You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\n</cc_automode_permissions>'
@@ -39,9 +39,10 @@ if (turn === 1) {
     const answer = await first; writeStamp(answer.content[0].input.command)
     const second = await send(label, [result(label + '-1', label + '-1')]); writeStamp(second.content[0].input.command)
     await send(label, [result(label + '-2', label + '-2')])
+    if (mode.handbackNotFinal) await send(label)
   }
   await Promise.all(['alpha', 'beta'].map(child))
-  await send('main', ['alpha', 'beta'].map(label => result('launch-' + label, label + '-1 ' + label + '-2')))
+  await send('main', ['alpha', 'beta'].map(label => result('launch-' + label, mode.sharedParentReport ? label === 'alpha' ? 'alpha-1\nalpha-2\nbeta-1\nbeta-2' : 'synthetic unrelated result' : mode.handbackScenario && !mode.handbackNotDelivered ? label + '-1\n' + label + '-2' : label + '-1 ' + label + '-2')))
 } else {
   const answer = await send('main')
   if (!mode.noClassifiers) await send('main', [], true)

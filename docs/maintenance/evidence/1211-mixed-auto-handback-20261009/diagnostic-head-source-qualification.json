@@ -1,0 +1,11 @@
+{
+  "atUTC": "2026-10-09T20:43:51.177118+00:00",
+  "head": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+  "productionSource": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "allProductionSourcesPackageAndLockUnchanged": true,
+  "frozenEightObserverFilesMatchCurrentWorktree": true,
+  "completeAcceptanceAndCleanupSuffixByteIdenticalToOriginalFailedObserver": true,
+  "currentCompiledServerSHA256": "044a46e0b5f5e7b8a3d915cc694b80c6d1b1adba6d043ace41bd4e8e369f4b23",
+  "frozenTestedServerSHA256": "220b1e7ec4800998f9b1debc88f49b2568a87e169bad9bcaf89dc8f4fe5b1c80",
+  "nextNativeRunUsesPinnedFrozenArtifact": true
+}
