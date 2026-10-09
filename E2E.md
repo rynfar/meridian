@@ -6255,6 +6255,17 @@ provider diagnostics stay private. The existing model, hook, history, admission
 and cleanup assertions remain required. Historical/default baseline controls
 without this explicit option retain their original assertion set.
 
+**Current per-query MCP witness (2026-10-09):** explicit readiness mode passes all
+nineteen checks on source and independently installed E71/E72 with actual clients
+2.1.286/2.1.287, SDK 0.2.141, backends 2.1.284/2.1.295 and Linux/x64 Bun 1.3.11.
+Main requested/served Sonnet5-5 and classifier Sonnet5 remain pinned. Thirty-eight
+queries retain their own public init/final receipts and full declared catalogs;
+all original flow/custody checks remain required. The new observer is a separate
+read-only mount outside certified runtime 15f, not part of its older image.
+[Exact source/package proof, controls and root review](docs/maintenance/evidence/1211-native-mcp-readiness-20261009/README.md)
+retain remaining historical/background/mixed/cancellation/caption/final-head CI
+holds. This closes readiness only for the recorded current four arms.
+
 Pin the actual implicated model IDs; a nearby model cannot establish acceptance.
 The source report used the `sonnet` alias and did not escrow its exact served
 ID. The explicit model above is a current candidate, not a replacement for
@@ -6441,6 +6452,17 @@ counts, statuses and catalog digests are retained; raw sessions, config and
 provider diagnostics stay private. The existing model, hook, history, admission
 and cleanup assertions remain required. Historical/default baseline controls
 without this explicit option retain their original assertion set.
+
+**Current per-query MCP witness (2026-10-09):** explicit readiness mode passes all
+nineteen checks on source and independently installed E71/E72 with actual clients
+2.1.286/2.1.287, SDK 0.2.141, backends 2.1.284/2.1.295 and Linux/x64 Bun 1.3.11.
+Main requested/served Sonnet5-5 and classifier Sonnet5 remain pinned. Thirty-eight
+queries retain their own public init/final receipts and full declared catalogs;
+all original flow/custody checks remain required. The new observer is a separate
+read-only mount outside certified runtime 15f, not part of its older image.
+[Exact source/package proof, controls and root review](docs/maintenance/evidence/1211-native-mcp-readiness-20261009/README.md)
+retain remaining historical/background/mixed/cancellation/caption/final-head CI
+holds. This closes readiness only for the recorded current four arms.
 
 Pin the actual implicated native executable and model identities. The example
 Sonnet ID is a candidate, not a reconstruction of the contributor's `sonnet`

@@ -1,0 +1,80 @@
+{
+  "scope": "Five-file observer/test/docs increment plus existing query wrapper and assertion callers. Root adversarial review; prior independent production reviews retain their original scope.",
+  "findingsResolved": [
+    {
+      "problem": "A returned readiness summary shared private status state and could be mutated into a false PASS.",
+      "correction": "Return copies of namespace and status arrays; captured original failure is immutable to callers.",
+      "control": "Public-summary mutation cannot repair a failed witness."
+    }
+  ],
+  "negativeControls": "Failed/pending/disabled/needs-auth/unknown servers, empty/changed/duplicate catalogs, borrowed sessions, missing/malformed/duplicate init and results, independent copied expectations, summary mutation and privacy.",
+  "existingTargetedControls": {
+    "session": 94791,
+    "originalTerminalExit": 0,
+    "pass": 69,
+    "skip": 1,
+    "fail": 0,
+    "assertions": 2184,
+    "compiledContextSkip": "Enabled in the required final npm gate."
+  },
+  "productionUnchanged": true,
+  "nativeReadinessGate": {
+    "disposition": "QUALIFIED_CURRENT_E71_E72_SOURCE_AND_INSTALLED",
+    "all19ChecksEach": true,
+    "queries": 38,
+    "actualClientInvocations": 12,
+    "declaredServerQueries": 32,
+    "toolFreeClassifierQueries": 6,
+    "allOriginalNativeDriversAttachesAuditorsJoined": true,
+    "allTemporaryGrantsContainersPrivateRuntimeRemoved": true,
+    "supportedCredentialSourceUnchanged": true,
+    "exactObserverCommit": "2595d05db52bef6ee22bdf6dce9f218893119425",
+    "immutableRuntimeCommit": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+    "observerReadOnlyOverlayOutsideRuntime": true
+  },
+  "finalLocalGates": {
+    "atUTC": "2026-10-09T13:50:05.168499+00:00",
+    "codeHead": "2595d05db52bef6ee22bdf6dce9f218893119425",
+    "counts": {
+      "pass": 5801,
+      "skip": 35,
+      "fail": 0
+    },
+    "isolatedBatches": 22,
+    "pretestTypecheck": true,
+    "compiledE71Control": "PASS",
+    "receipts": {
+      "test": {
+        "head": "2595d05db52bef6ee22bdf6dce9f218893119425",
+        "originalPid": 86838,
+        "exit": 0,
+        "originalChildJoined": true,
+        "seconds": 673.3956255410449,
+        "logSHA256": "278523f0e0caf0089a7e5f59c4f085939385cce06cda2da85aa4983a73de9bf4",
+        "headAfter": "2595d05db52bef6ee22bdf6dce9f218893119425"
+      },
+      "typecheck": {
+        "head": "2595d05db52bef6ee22bdf6dce9f218893119425",
+        "originalPid": 88346,
+        "exit": 0,
+        "originalChildJoined": true,
+        "seconds": 5.0592049160040915,
+        "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7",
+        "headAfter": "2595d05db52bef6ee22bdf6dce9f218893119425"
+      },
+      "build": {
+        "head": "2595d05db52bef6ee22bdf6dce9f218893119425",
+        "originalPid": 91523,
+        "exit": 0,
+        "originalChildJoined": true,
+        "seconds": 4.706354208989069,
+        "logSHA256": "61e00b9479ff7ba1438364005211e4cbf2aeebdea442696e4b70cc8007f42594",
+        "headAfter": "2595d05db52bef6ee22bdf6dce9f218893119425"
+      }
+    },
+    "wholeChangeAcceptance": "HELD",
+    "finalHeadCI": "HELD"
+  },
+  "wholeChangeAcceptance": "HELD",
+  "atUTC": "2026-10-09T13:45:23.721699+00:00"
+}

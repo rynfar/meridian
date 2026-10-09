@@ -1,6 +1,43 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 native side-call checkpoint (2026-10-09 UTC)
+## Current oldest #1211 / existing #1322 per-query native MCP checkpoint (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first; #1322 inherits source #1211's
+age. Newer #1283 remains its necessary MCP dependency. Older owner deferrals,
+no-review and missing-proof holds remain explicit. No new PR, merge or closure.
+
+[New native MCP readiness proof and adversarial review](evidence/1211-native-mcp-readiness-20261009/README.md)
+qualify source and independently installed E71/E72: all nineteen checks per arm,
+38 real SDK queries and 12 actual client invocations. Every query retains matching
+public init/final identity; 32 declared-server queries are connected with full
+catalogs, six intentional tool-free classifier queries retain their own receipts.
+All original hooks/model/usage/history/admission/cleanup checks remain required.
+Main Sonnet5-5/classifier Sonnet5, SDK 0.2.141, E71 client 2.1.286/E72 client 2.1.287,
+source backend 2.1.284/installed 2.1.295, Linux/x64/Bun 1.3.11. Readiness 200 in all arms.
+Original native attaches/auditors/both cohort drivers join; task grant/containers/
+private runtime removed; supported source credential unchanged. SDK estimate $2.533308.
+
+Observer/test 2595d05d is a separately qualified read-only mount outside immutable
+runtime 15f44351. All production source remains identical; observer/helper/denial
+bytes match committed identities. Twenty-seven failure/privacy/immutability
+controls pass. Root review corrected summary mutation before these executions;
+prior independent production reviews retain their scopes. Full local observer
+code gate: **5,801 pass / 35 skip / 0 fail in 22 isolated npm batches**, compiled E71
+control enabled, pretest plus standalone typecheck/build. All original commands
+joined and head remained frozen; only documentation/evidence follows.
+Owner checkout and all 18 raw contributor records remain exact. Fresh six-repo
+queue is 29 PRs/22 issues; no new discovery/behavior-disposition claim.
+
+**Held:** historical reporter/client/model/host and actual gateway; background/
+mixed-auto and root/scoped/nested cancellation/incidental parent abort; caption
+baseline request discovery/hints0/overlap/abort/cache; MCP readiness in other
+implicated native flows; broader package/registry parity; older unattributed
+failures; required final-head CI. Keep #1322 draft and source reports open.
+Next prepare meaningful credential-free background/mixed/cancellation actor
+controls using existing role-aware model, hook, MCP and original cleanup witnesses.
+Current four-arm readiness is not whole-change acceptance.
+
+## Earlier #1211 / #1322 native side-call checkpoint at f9fffd39 (2026-10-09 UTC)
 
 Continue combined original-creation oldest-first order through existing draft
 #1322 for source #1211. Newer #1283 remains its recorded necessary dependency;

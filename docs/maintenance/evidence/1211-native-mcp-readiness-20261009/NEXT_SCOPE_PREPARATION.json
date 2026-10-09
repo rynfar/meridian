@@ -1,0 +1,23 @@
+{
+  "atUTC": "2026-10-09T13:49:21.854404+00:00",
+  "nextScope": "Background child/main overlap and mixed auto-mode classifier plus child traffic; explicit root/scoped/nested cancellation and incidental parent HTTP abort independence.",
+  "currentHarnessLimit": "E72 uses foreground general-purpose Agent calls with default permissions, preallowed Agent/Bash and universal main-model checks. It cannot qualify background or mixed classifier traffic by changing a prompt alone.",
+  "requiredReusableWitnesses": [
+    "E71 exported role-aware request-model witness with ALS capture/restore",
+    "E72 original PreToolUse hook input/id/outcome custody and visible dropped calls",
+    "Exact per-query public MCP readiness witness",
+    "Original query/native client/pipe/HTTP/runtime cleanup under bounded ownership"
+  ],
+  "requiredNewControls": [
+    "Background actor must be observed from real client request/result path before a background PASS",
+    "Mixed classifiers must retain separate requested/served model and exact request owner, never blanket-exempt unexpected models",
+    "Root cancellation must reach owned scoped/nested children with original cleanup joined",
+    "Scoped cancellation must leave unrelated siblings/root continuations alive",
+    "Incidental parent HTTP abort must not impersonate explicit root cancellation"
+  ],
+  "nativeStatus": "UNEXECUTED; no credentials staged or calls made for these cases",
+  "existingDelivery": 1322,
+  "prioritySource": 1211,
+  "newPRs": 0,
+  "delegation": false
+}

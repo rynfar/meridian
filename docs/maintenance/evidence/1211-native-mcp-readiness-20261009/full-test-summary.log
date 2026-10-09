@@ -1,0 +1,103 @@
+Original full output retained in the durable local evidence packet; its exact SHA256 is bound in FINAL_LOCAL_RECEIPT.json. This file selects batch counts, original terminal summary and compiled-control receipt without altering their text.
+
+(pass) Stale UUID retry > does not quarantine an immutable source when an isolated fork loses publication CAS [200.96ms]
+(pass) Polytoken native session concurrency > polytoken_cross_profile_lineage_isolated [320.51ms]
+(pass) polytoken append-only tool loop and resume > keeps distinct same-key branches isolated without cross-session leakage [104.85ms]
+(pass) resolveProfile > oauthToken overrides claudeConfigDir with isolated profile dir [0.01ms]
+(pass) E71 native harness containment and meaningful assertions > binds existing certified compiled HTTP requests to SDK models with exact ALS restoration [1522.58ms]
+(pass) E71 native harness containment and meaningful assertions > keeps unrestorable descriptor state and restoration status truthful in an isolated process [33.52ms]
+(pass) explicit session keys override the independence guard > distinct affinity keys stay isolated (no cross-worker resume) [102.15ms]
+(pass) POST /v1/chat/completions — Jcode session continuity > keeps distinct Jcode session keys isolated [91.50ms]
+(pass) POST /v1/chat/completions — session-keyed continuity for the generic adapter > keeps distinct generic session keys isolated [88.72ms]
+(pass) E72 native harness containment and meaningful subagent receipts > retains isolated runtime and closes acceptance when startup cannot be joined [13369.64ms]
+(pass) Plugin integration — end-to-end via HTTP > plugin errors are isolated — a throwing plugin doesn't crash the request [60.37ms]
+ 5346 pass
+ 35 skip
+ 0 fail
+ 29265 expect() calls
+Ran 5381 tests across 332 files. [502.65s]
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [1219.00ms]
+ 24 pass
+ 0 fail
+ 105 expect() calls
+Ran 24 tests across 1 file. [208.00ms]
+ 5 pass
+ 0 fail
+ 21 expect() calls
+Ran 5 tests across 1 file. [140.00ms]
+ 7 pass
+ 0 fail
+ 135 expect() calls
+Ran 7 tests across 1 file. [479.00ms]
+ 12 pass
+ 0 fail
+ 15 expect() calls
+Ran 12 tests across 1 file. [2.38s]
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [518.00ms]
+(pass) getClaudeAuthStatusAsync — real implementation > keeps profiles isolated — one account's failure does not poison another [0.14ms]
+ 53 pass
+ 0 fail
+ 185 expect() calls
+Ran 53 tests across 1 file. [13.65s]
+ 10 pass
+ 0 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [1331.00ms]
+ 11 pass
+ 0 fail
+ 21 expect() calls
+Ran 11 tests across 1 file. [120.00ms]
+ 8 pass
+ 0 fail
+ 9 expect() calls
+Ran 8 tests across 1 file. [1216.00ms]
+ 95 pass
+ 0 fail
+ 169 expect() calls
+Ran 95 tests across 1 file. [36.00ms]
+ 13 pass
+ 0 fail
+ 39 expect() calls
+Ran 13 tests across 1 file. [30.00ms]
+ 11 pass
+ 0 fail
+ 37 expect() calls
+Ran 11 tests across 1 file. [585.00ms]
+ 76 pass
+ 0 fail
+ 395 expect() calls
+Ran 76 tests across 1 file. [119.84s]
+ 7 pass
+ 0 fail
+ 16 expect() calls
+Ran 7 tests across 1 file. [2.29s]
+ 9 pass
+ 0 fail
+ 28 expect() calls
+Ran 9 tests across 1 file. [426.00ms]
+ 8 pass
+ 0 fail
+ 49 expect() calls
+Ran 8 tests across 1 file. [649.00ms]
+ 24 pass
+ 0 fail
+ 240 expect() calls
+Ran 24 tests across 1 file. [913.00ms]
+ 22 pass
+ 0 fail
+ 226 expect() calls
+Ran 22 tests across 1 file. [883.00ms]
+ 42 pass
+ 0 fail
+ 274 expect() calls
+Ran 42 tests across 1 file. [12.33s]
+ 12 pass
+ 0 fail
+ 92 expect() calls
+Ran 12 tests across 1 file. [6.50s]
