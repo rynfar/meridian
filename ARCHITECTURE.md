@@ -198,6 +198,9 @@ src/
 │   ├── authStatusProcess.ts   ← Bounded auth/resolver children and explicit process/pipe joins
 │   ├── claudeResolverOwnership.ts ← Independent leases for shared async resolver custody
 │   ├── authStatusOwnership.ts ← Per-instance ownership of shared auth-status refreshes
+│   ├── claudeExecutablePreference.ts ← System/bundled/custom executable choice, read from settings.json (leaf)
+│   ├── claudeExecutableSettings.ts ← GET/PUT /settings/api/claude-executable: the choice, what each would run, versions
+│   ├── claudeProbeOwnership.ts ← Request/instance ownership of executable probes and resolver leases
 │   ├── buildInfo.ts           ← Build provenance: source detection, semver compare (PURE)
 │   ├── localBuildInfo.ts      ← Local build comparisons and public forge links (PURE)
 │   ├── buildRuntime.ts        ← Immutable runtime identity and independent disk status
@@ -303,10 +306,13 @@ server.ts (HTTP layer)
 4. **`server.ts` owns Hono route registration and orchestration.** Hono
    middleware stays at the proxy boundary. Standard `Request`/`Response`
    dispatch lives in the provider backend where needed. Shared
-   `src/headerSettings.ts` handles only hostname settings validation, Origin
-   policy and persisted consent, using standard web types and `settings.ts`;
-   it must not import a server, provider, Hono or session module. Backend auth
-   remains at each caller's existing boundary.
+   `src/headerSettings.ts` handles only hostname settings validation and
+   persisted consent, using standard web types and `settings.ts`;
+   it must not import a server, provider, Hono or session module. The Origin
+   policy for settings that disclose something or choose what runs lives in
+   `src/sameOrigin.ts` (standard web types only), used by the header and
+   Claude Code executable settings. Backend auth remains at each caller's
+   existing boundary.
 
 5. **No circular dependencies.** If you need to share types, put them in `types.ts` or the relevant leaf module.
 
@@ -604,3 +610,13 @@ bounded TERM/KILL escalation. Missing settlement rejects cleanup and retains
 the single-flight slot; neither a settled result promise nor `exitCode` alone
 proves the child joined. Cache expiry never detaches an in-flight check. The
 existing `ProxyInstance.close()` and `closeBackend()` signatures are unchanged.
+
+Executable settings and turn/readiness resolution also register independent
+leases with `claudeProbeOwnership.ts`. Disconnect/shutdown retires admission
+before canceling those leases, while a sibling caller retains its shared child.
+Version/lookup slots survive missing joins; changing preference cannot bypass an
+older resolver's unknown custody. Settings use a coherent preference/resolution
+snapshot and revalidate the saved mode/path after asynchronous path vetting,
+returning 409 instead of committing against a concurrent selection change.
+The settings boundary is limited to 32 pending requests per instance and 16
+shared live probe slots; the completed version cache holds at most 128 files.

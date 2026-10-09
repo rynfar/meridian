@@ -19,12 +19,26 @@ External plugins depend on these interfaces. **Changes require project owner app
 | `/health` optional `build.latest` / `build.updateAvailable`, authenticated `GET` / `PUT /settings/api/updates` | `server.ts`, `updateCheck.ts` | Explicit opt-in registry checks and shared settings UI (#1226) |
 | `/health` optional `hostname`, authenticated `GET` / `PUT /settings/api/header` | `headerSettings.ts`, `server.ts`, `backends/antigravity.ts` | Default-off `showHostname` setting naming the machine in the shared header; owner-approved in #1259 |
 | Authenticated `GET` / `PUT /settings/api/layout` | `server.ts`, `telemetry/pageLayout.ts` | Contained/wide page layout setting and shared settings UI |
+| Authenticated `GET` / `PUT /settings/api/claude-executable`; `/health` `claudeExecutable.source` value `custom` | `claudeExecutableSettings.ts`, `claudeExecutablePreference.ts`, `models.ts` | System/bundled/custom Claude Code executable choice, applied to the next turn; same-origin browser writes; `MERIDIAN_CLAUDE_PATH` still wins |
 | `GET /build-status` | `buildRuntime.ts` | Local/dev runtime versus disk provenance (#1170); optional API-key protection, npm returns 404 |
 | `POST /v1/messages` request/response format | `server.ts` | All agents (Anthropic API contract) |
 | `GET /profiles/list` response shape | `server.ts` | Profile management UI and CLI |
 | `GET /inflight` response shape and loopback-only access | `server.ts`, `inflight.ts` | Loopback supervisors observing `scope: client-http`; not a restart/admission barrier (#1216) |
 | `POST /profiles/active` request/response | `server.ts` | Profile switching from CLI and UI |
 If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
+
+The owner approved executable selection in #1319 on 2026-10-08. System remains
+the default; `MERIDIAN_CLAUDE_PATH` has highest priority. The authenticated
+GET/PUT uses no-store responses and the existing same-origin browser-write
+policy. Custom paths must be absolute and pass a bounded shell-free version
+check. Changes apply to subsequent turns; a started turn retains its selected
+path through retries. Concurrent selection changes during vetting return 409;
+cancelled/unconfirmed path-vetting probes return 503 before saving the choice. The health
+contract adds only `custom` to the existing executable-source enum.
+
+As with an HTTP write whose response is interrupted, a completed preference
+write is not rolled back if a subsequent state-description probe or disconnect
+fails. Read GET to confirm the saved preference after an ambiguous response.
 
 The hostname contract was approved by the owner on 2026-10-04 in #1259's
 review conversation. Claude and standalone Antigravity share the persisted

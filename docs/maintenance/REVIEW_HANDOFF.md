@@ -1,14 +1,79 @@
 # Upstream review handoff
 
-## Current guarded continuation (2026-10-08, after #1318)
+## Current queue reduction and ordering (2026-10-09 UTC)
 
-[Profiles #1318](https://github.com/rynfar/meridian/pull/1318) merged reviewed head `726e387d` as `74ee5515cde58a4df03a48c0ca38abb20ccad648` after all six executed final-head checks passed, including required test, plus the expected changelog skip. Landed tree `e186206faf677d176796b9d2b70c852a5f585602` exactly matches the validated tree. Nowaker co-author credit is present. Source #1316 was rechecked unchanged at `67c78683696712f7db714cbc5bb529bde8f5dfc3` and closed as incorporated. Root source/browser adversarial review preceded landing; the PR body records final checks and merge verification. Broader login/expiry issues remain open.
+The owner's order is **PRs and issues combined by original creation date,
+oldest first** across the managed repositories. This overrides the backlog
+skill's default. Preserve explicit owner deferrals, drafts and no-review
+requests; record an older item's concrete blocker before advancing to the next
+oldest actionable item. Existing correction deliveries inherit their source
+item's age. Finish existing deliveries before creating further review drafts.
 
-The fresh paginated account/org discovery still finds six managed Meridian/scrub repositories. Owner holds, release-only proposals and affected-flow gates remain separate. #1261's current `b999654d` source retains the earlier five ownership/admission/join/off/evidence findings: the entire sweep, retention resolver and native harness are identical to the prior reviewed source. Its current source review is retained in the durable local resumption-round2 packet; it stays open and held.
+[Executable-selection #1321](https://github.com/rynfar/meridian/pull/1321)
+merged exact reviewed head `05d49566c6a4cfefb8d997008aa5b38cc187c9b6` as
+`0d86379b42cf6ad26979d146c755eb858553d1f0` after all executed final-head CI
+checks passed, including [test](https://github.com/rynfar/meridian/actions/runs/37861198992/job/113597062501).
+The landed tree `af3b3e29afc54f576151e03c0b079f4993ba796c` exactly matches
+the reviewed candidate. GitHub verified the signature and Nowaker's explicit
+human coauthor trailer. Source #1293 was rechecked unchanged at
+`1a201f37ab49261ce9d463d2f43e1182ab66202a` and closed as incorporated without
+a comment. [The committed adversarial review and live before/after proof](evidence/claude-executable-selection-review-20261008.md)
+retain the bounded Linux arm64/OpenCode V1/Haiku acceptance and broader limits.
 
-The owner explicitly approved the bounded runtime executable-selection public contract for #1293 tracked in [#1319](https://github.com/rynfar/meridian/issues/1319): authenticated GET/PUT, System default, environment priority, next-turn selection and only the custom health-source addition. Source corrections, adversarial review, actual affected-flow proof and CI remain required. Two authored source commits have been preserved in the isolated `codex/claude-executable-1293-20261008` branch on `74ee5515`; current root review identifies unowned settings probes, concurrent partial-write/mixed-state defects and incomplete harness process/pipe cleanup. Corrections and validation remain pending; no product acceptance is claimed. The next independent preparation is [Home Manager #1305](https://github.com/rynfar/meridian/pull/1305): three authored commits preserved on fresh main, with a separate Linux-only check correction. [Source review and native before/after proof](evidence/home-manager-isolation-1305.md) record the reproduced Darwin regression and passing Linux renderer. Final local test/typecheck/build pass (5478 pass, 35 skip, zero failures); final integration-head CI including the native Nix job remains before merge.
+[Home Manager #1320](https://github.com/rynfar/meridian/pull/1320) is being
+reconciled onto that landed main in its existing isolated feature branch.
+Its original delivery had successful final-head test and native Nix checks;
+the cancelled push-triggered Nix run was superseded by a successful PR-triggered
+run of the same workflow and exact head under its declared concurrency group.
+Only the handoff document conflicted. Module, renderer assertions and lock
+remain unchanged; fresh combined local gates and final-head CI are required
+before its guarded squash. Source #1305 stays open until landing and unchanged
+source verification. [Its native proof and authorship receipt](evidence/home-manager-isolation-1305.md)
+remain valid for the unchanged configuration inputs.
 
-AGY draft #1317, SQLite whole-product acceptance, and original client/model/package/CI holds remain unchanged. No release or community comments occurred; the owner checkout is preserved. Earlier pending-CI statements for #1318 below are historical.
+Draft #1322 and the older native/product/client/package holds remain separate.
+No release or community comments are authorized by this checkpoint. The
+owner's checkout is preserved; no new review PR is created by this reconciliation.
+
+## Executable-selection pre-merge checkpoint (2026-10-08; historical)
+
+The owner approved the bounded executable-selection contract in
+[#1319](https://github.com/rynfar/meridian/issues/1319). Corrected delivery
+[#1321](https://github.com/rynfar/meridian/pull/1321) is open for final-head CI;
+source #1293 remains at
+`1a201f37ab49261ce9d463d2f43e1182ab66202a`. Its two actual Nowaker commits
+are preserved as `0de23574` and `32f64d54` on current main `74ee5515`, with
+separate correction `bc695a99` and committed headless client harness through
+`6fdd002a` in `codex/claude-executable-1293-20261008`. Root full-diff
+adversarial review corrected unowned/missing-join probes, stale writes/mixed
+snapshots and unbounded/bare-PID harness cleanup; no material source finding
+remains. This was root review, not a delegated independent review.
+
+Local gates passed 5,502 tests / 35 skips / zero failures, pretest, typecheck
+and build. Actual Linux arm64 / Node 22.22.3 / SDK 0.2.141 / Haiku 4.5 proof
+passed both HTTP and OpenCode V1 1.18.32 arms: five turns, all three selections,
+in-flight retention, next-turn change and no server restart. The actual client
+uses the tested `setup --v1` plugin, valid signed outbound session/agent headers,
+independently installed scrub 0.2.3 and a single saved session. Unchanged main
+completed a real control turn, then failed the settings route with 404. Actual
+leader/pipe/client/relay joins, zero residuals and credential isolation are
+retained in [the corrected review and portable receipt](evidence/claude-executable-selection-review-20261008.md).
+UI selection/error/Retry and desktop/phone card fit passed; inherited 320px SDK
+row overflow is qualified against unchanged main. Final delivery-head CI remains
+held. No Windows/macOS model, Opus remedy, installed-package or release claim.
+Recheck main, delivery head, source head and CI before integrating; preserve
+Nowaker coauthor credit and close source #1293 only if unchanged.
+
+Profiles delivery #1318 has merged as `74ee5515`, with tested/landed tree and
+Nowaker credit verified; unchanged source #1316 was closed without a comment.
+Home Manager delivery [#1320](https://github.com/rynfar/meridian/pull/1320),
+head `0f75be7c`, remains monitored for final-head CI. Its authored source #1305
+and separate Darwin check-registration correction have local and locked native
+Nix proof recorded in that delivery; do not infer merge readiness from this
+dated checkpoint. SQLite #1219, AGY #1314/#1073, #769, transcript #1261 and
+existing owner defer/no-review/release holds remain unchanged. The combined
+oldest-first queue is active and is not claimed cleared. The owner's checkout
+is preserved at `446a0f16`; all work remains isolated.
 
 ## Current recovered continuation (2026-10-08)
 

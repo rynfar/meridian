@@ -1,0 +1,256 @@
+{
+  "change": "Settings, Claude Code Executable",
+  "base": "30c738d77d5e7839577ebc5d144b74da4590e319",
+  "featureCommit": "d9429138f9d1c319e5f849068f40d14c66ad3a5b",
+  "harness": "scripts/e2e-claude-executable-setting.mjs",
+  "environment": "Linux x86_64; built Node server (Bun 1.3.11 build); actual SDK, CLI and model",
+  "prompt": "JavaScript console.log fixture with an exact per-turn random receipt; the in-flight turn prints a 200-line program output first",
+  "after": {
+    "result": "PASS",
+    "node": "v26.10.0",
+    "platform": "linux",
+    "arch": "x64",
+    "model": "claude-haiku-4-5",
+    "sdk": "0.2.141",
+    "executables": {
+      "bundled": {
+        "path": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+        "version": "2.1.284"
+      },
+      "system": {
+        "path": "<fixture>/bin/claude",
+        "runs": "/usr/bin/claude",
+        "version": "2.1.292"
+      },
+      "custom": {
+        "path": "<fixture>/custom/claude",
+        "runs": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+        "version": "2.1.284"
+      }
+    },
+    "adapters": [
+      "opencode"
+    ],
+    "steps": [
+      {
+        "step": "startup",
+        "healthy": true
+      },
+      {
+        "step": "starts-on-path",
+        "source": "path-lookup"
+      },
+      {
+        "step": "turn-on-path",
+        "ranOn": "system",
+        "responseModel": "claude-haiku-4-5",
+        "durationMs": 8704,
+        "started": {
+          "system": 1,
+          "custom": 0,
+          "bundled": 0,
+          "other": 0
+        }
+      },
+      {
+        "step": "settings-state",
+        "mode": "system",
+        "systemVersion": "2.1.292",
+        "bundledVersion": "2.1.284"
+      },
+      {
+        "step": "refuses-unusable-path",
+        "status": 400
+      },
+      {
+        "step": "switch-to-bundled",
+        "status": 200,
+        "active": "bundled"
+      },
+      {
+        "step": "turn-on-bundled",
+        "ranOn": "bundled",
+        "responseModel": "claude-haiku-4-5-20251001",
+        "durationMs": 8487,
+        "started": {
+          "system": 0,
+          "custom": 0,
+          "bundled": 1,
+          "other": 0
+        }
+      },
+      {
+        "step": "switch-to-custom",
+        "status": 200,
+        "active": "custom"
+      },
+      {
+        "step": "turn-on-custom",
+        "ranOn": "custom",
+        "responseModel": "claude-haiku-4-5",
+        "durationMs": 7342,
+        "started": {
+          "system": 0,
+          "custom": 1,
+          "bundled": 0,
+          "other": 0
+        }
+      },
+      {
+        "step": "switch-during-turn",
+        "ranOn": "custom",
+        "responseModel": "claude-haiku-4-5-20251001",
+        "durationMs": 13135,
+        "started": {
+          "system": 0,
+          "custom": 1,
+          "bundled": 0,
+          "other": 0
+        },
+        "switchedTo": "system",
+        "switchLandedMsBeforeTurnEnded": 6983
+      },
+      {
+        "step": "next-turn-on-path",
+        "ranOn": "system",
+        "responseModel": "claude-haiku-4-5",
+        "durationMs": 7128,
+        "started": {
+          "system": 1,
+          "custom": 0,
+          "bundled": 0,
+          "other": 0
+        }
+      },
+      {
+        "step": "same-process",
+        "restarted": false
+      }
+    ],
+    "serverRestarted": false,
+    "residualProcesses": 0,
+    "transcriptsRemoved": 1
+  },
+  "before": {
+    "result": "FAIL",
+    "failure": {
+      "step": "settings-state",
+      "reason": "GET /settings/api/claude-executable answered 404"
+    },
+    "node": "v26.10.0",
+    "platform": "linux",
+    "arch": "x64",
+    "model": "claude-haiku-4-5",
+    "sdk": "0.2.141",
+    "executables": {
+      "bundled": {
+        "path": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+        "version": "2.1.284"
+      },
+      "system": {
+        "path": "<fixture>/bin/claude",
+        "runs": "/usr/bin/claude",
+        "version": "2.1.292"
+      },
+      "custom": {
+        "path": "<fixture>/custom/claude",
+        "runs": "<repo>/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+        "version": "2.1.284"
+      }
+    },
+    "adapters": [
+      "opencode"
+    ],
+    "steps": [
+      {
+        "step": "startup",
+        "healthy": true
+      },
+      {
+        "step": "starts-on-path",
+        "source": "path-lookup"
+      },
+      {
+        "step": "turn-on-path",
+        "ranOn": "system",
+        "responseModel": "claude-haiku-4-5",
+        "durationMs": 7524,
+        "started": {
+          "system": 1,
+          "custom": 0,
+          "bundled": 0,
+          "other": 0
+        }
+      }
+    ],
+    "serverRestarted": false,
+    "residualProcesses": 0,
+    "transcriptsRemoved": 1
+  },
+  "browser": {
+    "engine": "chrome-headless-shell 1243 via Playwright 1.54.2",
+    "desktop": {
+      "documentOverflowPx": 0,
+      "cardRight": 1066,
+      "innerWidth": 1280,
+      "escaping": []
+    },
+    "phone": {
+      "documentOverflowPx": 0,
+      "cardRight": 366,
+      "innerWidth": 390,
+      "escaping": []
+    },
+    "phoneBeforeWrapFix": {
+      "innerWidth": 461,
+      "escaping": [
+        "code:95px"
+      ]
+    },
+    "interaction": {
+      "bundledShown": true,
+      "customShown": true,
+      "refusedStatus": 400,
+      "dialog": "/nonexistent/claude cannot run Claude Code: it does not exist",
+      "keptPath": true,
+      "backToSystem": true
+    },
+    "consoleErrors": [
+      "the browser logs the deliberate 400 of the refused path"
+    ],
+    "pageErrors": 0
+  },
+  "localGates": {
+    "bun": "1.3.11",
+    "typecheck": "pass",
+    "build": "pass",
+    "npmTestStages": {
+      "main": {
+        "pass": 5098,
+        "skip": 1,
+        "fail": 1,
+        "failing": [
+          "Antigravity multi-megabyte attachment: local Node 26 rejects --experimental-transform-types; base fails it too"
+        ]
+      },
+      "isolatedStages": {
+        "count": 19,
+        "pass": 381,
+        "fail": 0
+      }
+    },
+    "base": {
+      "main": {
+        "pass": 5092,
+        "skip": 1,
+        "fail": 1
+      },
+      "isolatedStages": {
+        "count": 18,
+        "pass": 374,
+        "fail": 0
+      },
+      "note": "the same Antigravity failure"
+    }
+  }
+}

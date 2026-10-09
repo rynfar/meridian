@@ -397,9 +397,9 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
   }
 
   // The resolved CLI predates the requested model. A correct package.json floor
-  // does not prevent this: MERIDIAN_CLAUDE_PATH is step 0 of
-  // resolveClaudeExecutableWithSource, so an env-pointed CLI outranks the
-  // bundled binary the floor governs (#932).
+  // does not prevent this: the floor governs only the bundled binary, and the
+  // resolver may run another - the `claude` on PATH (the default), a path
+  // chosen in Settings, or MERIDIAN_CLAUDE_PATH, which outranks both (#932).
   //
   // 400 for the same reason as context overflow above — upgrading the CLI is
   // the only fix, so every retry fails identically, and the default 500 reads
@@ -414,7 +414,7 @@ export function classifyError(errMsg: string, model?: string): ClassifiedError {
     return {
       status: 400,
       type: "invalid_request_error",
-      message: `${errMsg.trim()} (Meridian: the Claude Code CLI it resolved is older than the requested model. If MERIDIAN_CLAUDE_PATH is set it overrides the bundled CLI, so update that binary or unset the variable.)`
+      message: `${errMsg.trim()} (Meridian: the Claude Code CLI it resolved is older than the requested model. Update that installation, or choose a newer one under Settings, Claude Code Executable. MERIDIAN_CLAUDE_PATH, when set, overrides that choice.)`
     }
   }
 
