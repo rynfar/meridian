@@ -113,6 +113,7 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
     }
     // Diagnose the concrete failed join before its derived retention assertion.
     // Every positive/retained-runtime assertion remains required.
+    if (mode.pendingStartup) expect(existsSync(join(f.target, 'audit.json'))).toBe(true)
     if (!retained) expect(report.cleanupFailures).toEqual([])
     expect(report.privateRuntimeRemoved).toBe(!retained)
     if (mode.pendingStartup) {
@@ -473,6 +474,6 @@ describe('E71 native harness containment and meaningful assertions', () => {
     const result = await run({ startupChild: true }); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.queries).toEqual([])
   }, 30000)
   it('retains the private runtime and fails acceptance when startup cannot join', async () => {
-    const result = await run({ pendingStartup: true }, [], '500'); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.queries).toEqual([])
+    const result = await run({ pendingStartup: true }, [], '10000'); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.queries).toEqual([])
   }, 30000)
 })

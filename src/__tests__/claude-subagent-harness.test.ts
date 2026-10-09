@@ -137,6 +137,7 @@ async function run(mode: Mode = {}, extras: string[] = [], timeout = '10000') {
     const report = JSON.parse(serialized) as { result: string; acceptance: boolean; privateSnapshotCreated?: boolean; privateRuntimeRemoved: boolean; ownerGrantUnchanged: boolean; queries: unknown[]; checks: Record<string, boolean>; cleanupFailures: string[]; targetIdentityUnchanged?: boolean; failure?: string }
     expect(serialized + out + err).not.toContain('synthetic-owner-secret')
     expect(serialized + out + err).not.toContain('synthetic-refresh-never-used')
+    if (mode.pendingStartup) expect(existsSync(join(f.target, 'audit.json'))).toBe(true)
     expect(report.acceptance).toBe(false)
     expect(report.ownerGrantUnchanged).toBe(true)
     const retained = !!mode.pendingStartup || !!mode.sdkCloseThrow
@@ -292,6 +293,6 @@ describe('E72 native harness containment and meaningful subagent receipts', () =
     const result = await run({ sdkCloseThrow: true }, [], '3000'); expect(result.queried).toBe(true); expect(result.code).toBe(1); expect(result.report.cleanupFailures).toContain('SDK abort failure')
   }, 30000)
   it('retains isolated runtime and closes acceptance when startup cannot be joined', async () => {
-    const result = await run({ pendingStartup: true }, [], '500'); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.queries).toEqual([])
+    const result = await run({ pendingStartup: true }, [], '10000'); expect(result.code).toBe(1); expect(result.queried).toBe(false); expect(result.report.queries).toEqual([])
   }, 30000)
 })
