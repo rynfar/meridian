@@ -1,0 +1,18 @@
+{
+  "head": "cbc47d3e2402cac6a690a9bac1fe0b6140f31b2e",
+  "originalSession": 55123,
+  "originalTerminalExit": 1,
+  "originalNpmPid": 56272,
+  "originalChildJoined": true,
+  "pass": 5350,
+  "skip": 35,
+  "fail": 1,
+  "completedBatches": 1,
+  "remainingBatches": "UNEXECUTED",
+  "failure": "Explicitly throwing SDK-close control recorded one signal failure while the test demanded zero.",
+  "originalSignalErrorCode": "NOT_RECORDED_IN_TERMINAL_ASSERTION; no correction or OS attribution claimed",
+  "testCorrection": "Only the intentionally throwing SDK-close control may retain a signal failure, with report FAIL, explicit client-signal cleanup failure, closed acceptance and retained runtime. Successful/native zero-signal-failure gate stays exact. Diagnostics include owned snapshot.",
+  "firstFailedSyntheticRuntimeCustody": "Early assertion preceded original test runtime-path bookkeeping. Its path was not retained in terminal output; cleanup limitation preserved. Future test bookkeeping captures its own audit path before assertions. No global deletion.",
+  "nativeQueries": 0,
+  "newGrantStaged": false
+}

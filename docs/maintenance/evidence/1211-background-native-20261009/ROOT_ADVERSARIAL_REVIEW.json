@@ -1,0 +1,106 @@
+{
+  "scope": "Root adversarial review of current E71/E72/helper/tests/docs increment; no new delegation; prior production independent reviews retain their scopes.",
+  "productionUnchanged": true,
+  "findingsResolved": [
+    {
+      "problem": "E72 signaled detached process groups after client close and discarded the handle without explicit pipe join.",
+      "fix": "Reuse exactly extracted E71 birth-handle helper; retire at exit, record sticky failures and require original exit/close/stdio joins before runtime removal.",
+      "controls": "Zero post-exit signal attempts on actual synthetic fixture processes; five prior pure birth/PID/retirement/failure/join controls unchanged."
+    },
+    {
+      "problem": "A background completion text could precede its original child final HTTP body.",
+      "fix": "Bind each result to a unique launch handle and actual wire child; require every child response terminal ordinal before task completion receipt ordinal.",
+      "controls": "Early completion is rejected while canonical model/session/query receipts still qualify."
+    },
+    {
+      "problem": "Abort and final cleanup repeat a successful TERM before exit delivery; R2 observed second TERM EPERM.",
+      "fix": "Coalesce successful same-signal requests and lower-severity requests after KILL; failed sends retry with sticky failure; require original exit/close/stdio join.",
+      "controls": "Old helper deterministically refuses second send with EPERM; corrected helper coalesces it and still escalates KILL. Both original hung-client controls pass. OS cause remains unproven."
+    },
+    {
+      "problem": "TaskOutput generated after receiving launch handles on the same incoming query was rejected.",
+      "fix": "Permit same incoming request boundary; keep earlier waits rejected and child body completion before result.",
+      "controls": "Old observer rejects otherwise valid batched parent work, all other19-scenario checks qualify. Corrected valid batching passes; preissued wait retains model/session correlation but fails exact receipt gate."
+    },
+    {
+      "problem": "Signal fault selector compared unresolved /var client to resolved /private/var harness executable, so previous green fault test did not prove injection.",
+      "fix": "Use realpath executable identity and require actual injection-entry marker.",
+      "controls": "Corrected r5 case has original group EPERM plus SDK-close failure; acceptance remains closed. Qualify prior unmarked fault-proof claim."
+    },
+    {
+      "problem": "A synthetic cleanup assertion could throw before recording its exact retained runtime, losing controller custody.",
+      "fix": "Before assertions record exact owned audit path only once original harness process/pipes are terminal, all external client handles JOINED and own census empty; in-process iterators cannot survive the terminal original process.",
+      "controls": "Original harness retention/failure remains unchanged; independent controller removes only its marked synthetic fixture. Earlier lost paths remain unresolved; no global scan/removal."
+    }
+  ],
+  "backgroundFailureControls": [
+    "foreground launch",
+    "missing handle",
+    "borrowed handle",
+    "unknown task owner",
+    "unbounded wait",
+    "missing completion",
+    "early completion",
+    "parent work serial after children"
+  ],
+  "foregroundDefaultChecksPreserved": true,
+  "newRealNativeBackgroundAcceptance": "NOT_ACCEPTED: original baseline/source negatives retained,24SDKqueries and4actualclientinvocations; package UNEXECUTED after source audit failure. All owned task custody closed.",
+  "localFullGate": "R3 PASS5813/35/0 in22batches; original PID13237 EXIT0 joined673.1798s, exact source4f5ecd75 unchanged. R1/R2 failures retained and qualified.",
+  "firstFocusedExpectedCountMistakesRetained": true,
+  "publicProtocolLimitation": "This pinned probe requires canonical agentId launch text and two blocking TaskOutput results. Current public docs deprecate TaskOutput; any actual absence or shape mismatch remains a failure/missing gate and requires diagnosis, not silent substitution.",
+  "mixedAutoAndCancellation": "HELD",
+  "finalHeadCI": "HELD",
+  "pendingFirstForkFinding": {
+    "scope": "Background only. Foreground remains unchanged.",
+    "problem": "Current cbc47d3e insists first SDK query is unresumed; known background snapshot fork can validly resume an earlier parent checkpoint with explicit fork.",
+    "requiredCorrection": "Require explicit first fork, distinct returned session and a matching earlier observed parent checkpoint; later rows must resume their own immediately preceding session. Direct borrow or unowned fork must fail.",
+    "preparedPatch": "Applied only after original full-test-r1 terminal. New full gate required.",
+    "frozenGateSession": 55123,
+    "nativeStatus": "UNEXECUTED",
+    "disposition": "SOURCE_CORRECTED_AND_DIRECT_POSITIVE_NEGATIVE_CONTROLS_PASS"
+  },
+  "firstFullGateFailure": "Preserved 5350/35/1 at cbc; original signal errno unattributed. Intentionally throwing cleanup test now requires retained signal failure, FAIL/closed acceptance and retained runtime; native/successful zero-signal-failure gate unchanged.",
+  "faultControl": "One original synthetic generation-group TERM call gets injected EPERM. All owned child handles/pipes join; SDK and signal failures both remain recorded and acceptance false. This proves reporting behavior, not original OS cause.",
+  "testFixtureCustody": "Capture own audit path before assertions only after zero owned residual processes, JOINED original clients and settled query iterators. First failed case path loss remains qualified; no global cleanup.",
+  "targetedR2": {
+    "cases": 3,
+    "pass": 3,
+    "fail": 0,
+    "assertions": 125
+  },
+  "targetedR3": {
+    "cases": 1,
+    "pass": 1,
+    "fail": 0,
+    "assertions": 36
+  },
+  "secondFullGateFailureQualification": "FULL_SECOND_FAILURE_QUALIFICATION.json",
+  "openBackgroundRequestBoundaryFinding": {
+    "location": "scripts/e2e-claude-code-subagent-session.mjs:522",
+    "problem": "Strict tool.request > launch.result.request rejects a valid next SDK response that emits TaskOutput after receiving launch results on that same request.",
+    "requiredWork": "Add positive batching boundary and negative preissued/incorrect-handle controls; permit known-before-generation boundary while preserving paired result and completed-child response order. Add sanitized count/boolean receipt diagnostics before native execution.",
+    "status": "SOURCE_CORRECTED; causal/direct controls and exact final local gates pass; native completion acceptance remains held."
+  },
+  "atUTC": "2026-10-09T15:00:28.217616+00:00",
+  "currentCodeHead": "4f5ecd7594046bc276a6c9bac76da1cfa44c673c",
+  "correctedSignalFaultProof": "synthetic-r5/control-2.json; earlier unmarked path selector proof qualified in CORRECTION_R3_FOCUSED_QUALIFICATION.json",
+  "rehearsalsR3": "3/3 qualified; network none, zero queries, original attaches/clients joined, owned stopped containers/fake grant removed",
+  "localFullGateReceipt": "FULL_R3_COUNTS.json",
+  "baselineR3Receipt": "native-baseline-r3/e72-baseline-receipt.json",
+  "baselineR3Custody": "Original driver55556/attach55569/auditor57900 terminal and joined; private runtime, owned container, task grant/private qualification removed; supported source unchanged.",
+  "materialRuntimeFindings": [
+    {
+      "problem": "Both cases omit all requested TaskOutput calls.",
+      "status": "OPEN; no substituted completion path or deprecated-tool attribution accepted."
+    },
+    {
+      "problem": "Candidate child actor1 request6 lease wait9256ms exceeds1000ms positive bound.",
+      "status": "OPEN; origin not yet attributed."
+    },
+    {
+      "problem": "Five candidate max-turn results do not qualify canonical predicate: parent declared4 reports5; four child rows declared1 report2.",
+      "status": "OPEN; public SDK generation/counter diagnostics required, no relaxed acceptance."
+    }
+  ],
+  "nativeBackgroundReceipt": "NATIVE_BACKGROUND_R3_RECEIPT.json"
+}

@@ -1,0 +1,42 @@
+{
+  "atUTC": "2026-10-09T14:54:22.607949+00:00",
+  "sourceBefore": "348f90f6774b361fa9e3500f122ac6ce25b425ad",
+  "originalR2FailuresRetained": true,
+  "firstCorrectionFocus": {
+    "session": 35656,
+    "exit": 1,
+    "pass": 10,
+    "fail": 2,
+    "assertions": 200,
+    "causes": [
+      "preissued negative had ambiguous duplicate synthetic DONE text, obscuring isolated receipt check",
+      "fault preload compared unresolved /var client to resolved /private/var executable and did not actually inject refusal"
+    ]
+  },
+  "diagnosticOnlyRepeat": {
+    "session": 86898,
+    "exit": 1,
+    "retainedReport": "synthetic-r4/control-1.json",
+    "signalRefusalNotInjected": true
+  },
+  "correctedFaultAndNegative": {
+    "session": 15951,
+    "exit": 0,
+    "pass": 2,
+    "assertions": 71,
+    "markerRequired": true,
+    "canonicalClientPathMatched": true
+  },
+  "expandedFocus": {
+    "session": 55031,
+    "exit": 0,
+    "pass": 16,
+    "fail": 0,
+    "assertions": 391
+  },
+  "priorFaultQualification": "The earlier r3 green result did not have an injection-entry marker and used unresolved client identity. It cannot establish actual controlled EPERM injection. Retain its report but qualify that earlier claim; newly marked corrected r5 control proves the injected refusal.",
+  "unattributedOSCause": "Original R1 errno remains unknown. R2 second E72 TERM recorded EPERM; OS reason remains unproven. Idempotent successful signal requests remove the unnecessary duplicate-send path; no unrelated green rerun attribution.",
+  "syntheticRuntimeCustody": "Independent controller now records exact audit runtime before assertions only after original harness process/pipes terminal, all external handles JOINED and own census empty. Harness failure/retention remains unchanged. Earlier lost paths not recovered or globally cleaned.",
+  "newNativeQueries": 0,
+  "newPrivateGrants": 0
+}

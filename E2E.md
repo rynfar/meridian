@@ -6476,7 +6476,7 @@ the exact `ANTHROPIC_DEFAULT_SONNET_MODEL` version pin; an exact full SDK model
 ID also qualifies. The harness
 does not discover credentials, client binaries, profiles or configuration.
 
-**Prepared background scenario (native UNEXECUTED):** append
+**Bounded background scenario (native acceptance held):** append
 `--scenario background --require-mcp-readiness` to the explicit E72 invocation.
 Foreground remains the default. The new scenario requires two actual background
 Agent launches with handles identifying the corresponding observed wire children,
@@ -6509,6 +6509,14 @@ birth-PID signal authority at exit and retains explicit exit/close/stdio witness
 Concurrent abort and cleanup requests coalesce a successfully sent termination;
 KILL can still escalate TERM. A refused signal remains retryable and its failure
 stays recorded after a successful retry and physical join.
+
+The 2026-10-09 unchanged-main and corrected-source native attempts both made
+zero TaskOutput calls. The candidate additionally failed the existing native
+max-turn result predicate and recorded a 9,256 ms child lease wait. All original
+task custody joined and was removed; package testing was not admitted after the
+source failure. Preserve these negative results and diagnose public capability,
+SDK generation/counter and child-lease receipts before changing an acceptance
+gate. See the [background evidence and open findings](docs/maintenance/evidence/1211-background-native-20261009/README.md).
 Version probes are included in those owned handles. No background, mixed-auto or
 cancellation acceptance is established until exact actual-client/source/installed
 proof is run and audited; existing prior proof retains its original observer SHA.

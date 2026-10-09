@@ -1,0 +1,36 @@
+{
+  "atUTC": "2026-10-09T14:46:06.938218+00:00",
+  "sourceHead": "348f90f6774b361fa9e3500f122ac6ce25b425ad",
+  "originalGateReceipt": {
+    "head": "348f90f6774b361fa9e3500f122ac6ce25b425ad",
+    "originalPid": 28950,
+    "exit": 1,
+    "originalChildJoined": true,
+    "seconds": 768.776977957983,
+    "logSHA256": "0975aef03d7362aad5effed11bd512c889eaad27a2e66586ade6c0a89b579b97",
+    "headAfter": "348f90f6774b361fa9e3500f122ac6ce25b425ad"
+  },
+  "counts": {
+    "pass": 5352,
+    "skip": 35,
+    "fail": 2
+  },
+  "remaining21Batches": "UNEXECUTED",
+  "failedControls": [
+    "E71 hung client total deadline: client signal failure causes retained runtime",
+    "E72 hanging clients: SIGTERM SENT then SIGTERM FAILED EPERM; original handle and all pipes JOINED"
+  ],
+  "originalCause": "Second signal follows first sent TERM in the observed E72 handle. Underlying reason for EPERM and E71 exact signal details not yet established. No green rerun or native acceptance claimed.",
+  "nativeBackground": "UNEXECUTED",
+  "newOpenSourceFinding": {
+    "location": "scripts/e2e-claude-code-subagent-session.mjs:522",
+    "problem": "Strict tool.request > launch.result.request rejects a valid next SDK response that emits TaskOutput after receiving launch results on that same request.",
+    "requiredWork": "Add positive batching boundary and negative preissued/incorrect-handle controls; permit known-before-generation boundary while preserving paired result and completed-child response order. Add sanitized count/boolean receipt diagnostics before native execution.",
+    "status": "NOT_APPLIED"
+  },
+  "sourceUnmodified": true,
+  "newPRs": 0,
+  "pushesThisTurn": 0,
+  "merges": 0,
+  "realGrantsStaged": 0
+}
