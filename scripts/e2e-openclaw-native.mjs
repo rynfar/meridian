@@ -14,6 +14,8 @@
  * billing/classifier resolution. No synthetic model response is supplied.
  * E2E_E41_MODE=chain|parallel E2E_E41_STREAM=0|1 selects adjacent native
  * OpenCode-shaped protocol checks, without claiming an actual client run.
+ * E41 alone accepts E2E_E41_MODEL=claude-sonnet-5-5 (default opus[1m]) and
+ * E2E_E41_NATIVE_VERSION=2.1.284|2.1.295 (default 2.1.284).
  */
 import * as cp from 'node:child_process'
 import { createServer } from 'node:http'
@@ -29,6 +31,12 @@ const prepareOnly = process.argv.includes('--prepare-only')
 const e41Mode = process.env.E2E_E41_MODE
 const e41Stream = process.env.E2E_E41_STREAM === '1'
 if (e41Mode && (!['chain', 'parallel'].includes(e41Mode) || !['0', '1'].includes(process.env.E2E_E41_STREAM))) throw new Error('E41 requires chain/parallel mode and explicit 0/1 stream setting')
+if (!e41Mode && (process.env.E2E_E41_MODEL !== undefined || process.env.E2E_E41_NATIVE_VERSION !== undefined)) throw new Error('E41 model/version selection requires an explicit E41 mode')
+const e41Model = process.env.E2E_E41_MODEL ?? 'opus[1m]'
+const nativeVersion = process.env.E2E_E41_NATIVE_VERSION ?? '2.1.284'
+if (!['opus[1m]', 'claude-sonnet-5-5'].includes(e41Model)) throw new Error('Unsupported E41 model')
+if (!['2.1.284', '2.1.295'].includes(nativeVersion)) throw new Error('Unsupported E41 native version')
+const e41ServedModel = e41Model === 'claude-sonnet-5-5' ? e41Model : 'claude-opus-5-5'
 const input = Object.fromEntries(['MERIDIAN_ENTRY', 'SDK_ENTRY', 'NATIVE_BIN', 'OPENCLAW_BIN', 'SCRUB_ENTRY', 'OUTPUT_DIR', 'TOKEN_FILE', 'EXPECT']
   .map(name => [name, process.env['E2E_' + name]]))
 for (const key of ['MERIDIAN_ENTRY', 'SDK_ENTRY', 'NATIVE_BIN', 'OPENCLAW_BIN', 'SCRUB_ENTRY', 'OUTPUT_DIR']) {
@@ -50,7 +58,7 @@ const fixture = join(output, 'client-work', 'receipt.txt')
 writeFileSync(fixture, receipt + '\n', { mode: 0o600 })
 const report = {
   kind: prepareOnly ? 'NATIVE_PREREQUISITE_ONLY' : e41Mode ? 'E41_DIRECT_HTTP_NATIVE_GATE' : 'ACTUAL_OPENCLAW_PLUGIN_MESSAGES_NATIVE_GATE',
-  e41: e41Mode ? { mode: e41Mode, stream: e41Stream, client: 'Owned OpenCode protocol fixture; not an actual OpenCode/OpenClaw client' } : undefined,
+  e41: e41Mode ? { mode: e41Mode, stream: e41Stream, requestedModel: e41Model, requiredServedModel: e41ServedModel, requiredNativeVersion: nativeVersion, client: 'Owned OpenCode protocol fixture; not an actual OpenCode/OpenClaw client' } : undefined,
   expectation: input.EXPECT, platform: process.platform, architecture: process.arch,
   bun: process.versions.bun, nodeRuntime: null, firstFailure: null,
   commands: [], queries: [], requests: [], pluginObservations: [], stages: [], children: [],
@@ -132,14 +140,18 @@ function observeQuery() {
   const original = sdk.query
   spies.push(spyOn(sdk, 'query').mockImplementation(params => {
     need(!retired, 'native-query-admission-retired')
+    if (e41Mode) need(report.actualProviderQueries < 8, 'e41-sdk-query-count-bound')
     const opts = params.options ?? {}
     const facts = { phase, model: opts.model, resume: Boolean(opts.resume), rollback: Boolean(opts.resumeSessionAt),
       privateGrantMatched: opts.env?.CLAUDE_CODE_OAUTH_TOKEN === token,
       configOwned: within(opts.env?.CLAUDE_CONFIG_DIR ?? '/'), cwdOwned: within(opts.cwd ?? '/'),
       inputMarker: false, inputReceipt: false, inputDigests: [], constructed: false, iteratorSettled: false, closeCalled: false, publicSpawn: false }
+    if (e41Mode) Object.assign(facts, { actualModels: [], inputUsageTokens: 0, outputTokens: 0, resultCompleted: false, resultSubtype: null, resultIsError: null, estimatedCostUsd: null })
     report.queries.push(facts); report.actualProviderQueries++
     need(facts.privateGrantMatched && facts.configOwned && facts.cwdOwned, 'sdk-private-grant-or-workdir-mismatch')
-    need(opts.model === 'opus[1m]' || opts.model === 'claude-opus-5-5[1m]', 'sdk-model-or-window-mismatch')
+    need(e41Mode && e41Model === 'claude-sonnet-5-5'
+      ? opts.model === e41Model || (opts.model === 'sonnet' && opts.env?.ANTHROPIC_DEFAULT_SONNET_MODEL === e41Model)
+      : opts.model === 'opus[1m]' || opts.model === 'claude-opus-5-5[1m]', 'sdk-model-or-window-mismatch')
     need(!opts.env?.ANTHROPIC_API_KEY && !opts.env?.ANTHROPIC_AUTH_TOKEN && !opts.env?.ANTHROPIC_BASE_URL, 'sdk-unexpected-provider-credential')
     need(typeof opts.sessionId === 'string' && /^[0-9a-f-]{36}$/i.test(opts.sessionId), 'owned-preallocated-sdk-target-required')
     const locator = { claudeSessionId: opts.sessionId, resumeSessionId: opts.resume, currentTranscript: { configDir: opts.env.CLAUDE_CONFIG_DIR, projectDir: opts.cwd }, terminal: false }
@@ -160,7 +172,7 @@ function observeQuery() {
     }
     const originalFactory = opts.spawnClaudeCodeProcess
     need(typeof originalFactory === 'function', 'real-product-sdk-process-gate-required')
-    const options = { ...opts, spawnClaudeCodeProcess(spawnOptions) {
+    const options = { ...opts, ...(e41Mode ? { maxBudgetUsd: 0.5 } : {}), spawnClaudeCodeProcess(spawnOptions) {
       need(realpathSync(spawnOptions.command) === realpathSync(input.NATIVE_BIN), 'sdk-native-command-not-pinned')
       need(spawnOptions.env?.CLAUDE_CODE_OAUTH_TOKEN === token && within(spawnOptions.env?.CLAUDE_CONFIG_DIR ?? '/'), 'native-grant-scope-mismatch')
       const child = originalFactory(spawnOptions)
@@ -177,10 +189,25 @@ function observeQuery() {
     actual[Symbol.asyncIterator] = async function* () {
       try {
         for await (const event of { [Symbol.asyncIterator]: iterate }) {
+          if (e41Mode && event.type === 'assistant') {
+            const model = event.message?.model
+            if (typeof model === 'string') facts.actualModels.push(model === e41ServedModel ? model : 'unexpected-model')
+            const usage = event.message?.usage ?? {}
+            facts.inputUsageTokens += ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'].reduce((sum, key) => sum + (Number.isFinite(usage[key]) && usage[key] >= 0 ? usage[key] : 0), 0)
+            facts.outputTokens += Number.isFinite(usage.output_tokens) && usage.output_tokens >= 0 ? usage.output_tokens : 0
+          }
           if (event.type === 'result') {
             need(event.session_id === locator.claudeSessionId, 'native-terminal-not-preallocated-owned-target')
             locator.terminal = true
             facts.terminalSessionMatched = true
+            if (e41Mode) {
+              need(!facts.resultCompleted, 'e41-sdk-result-repeated')
+              facts.resultCompleted = true
+              facts.resultSubtype = ['success', 'error_max_turns'].includes(event.subtype) ? event.subtype : 'unexpected-result'
+              facts.resultIsError = typeof event.is_error === 'boolean' ? event.is_error : null
+              facts.estimatedCostUsd = Number.isFinite(event.total_cost_usd) && event.total_cost_usd >= 0 ? event.total_cost_usd : null
+              need(facts.estimatedCostUsd !== null && facts.estimatedCostUsd <= 0.5 && report.queries.reduce((sum, row) => sum + (row.estimatedCostUsd ?? 0), 0) <= 4, 'e41-sdk-estimated-cost-bound')
+            }
           }
           yield event
         }
@@ -324,8 +351,8 @@ async function runE41() {
     phase = label; mode = 'noop'
     need(!retired && report.requests.length < 8, 'e41-request-admission-or-count-bound')
     const queryFrom = report.queries.length, observationFrom = report.pluginObservations.length
-    const body = JSON.stringify({ model: 'opus[1m]', max_tokens: 2048, stream: e41Stream, tools: [tool], messages: bodyMessages })
-    const facts = { phase, mode, rawCount: bodyMessages.length, toolCount: 1, model: 'opus[1m]', stream: e41Stream, bodyDigest: digest(body), status: null, responseJoined: false }
+    const body = JSON.stringify({ model: e41Model, max_tokens: 2048, stream: e41Stream, tools: [tool], messages: bodyMessages })
+    const facts = { phase, mode, rawCount: bodyMessages.length, toolCount: 1, model: e41Model, stream: e41Stream, bodyDigest: digest(body), status: null, responseJoined: false }
     report.requests.push(facts)
     const response = await fetch(`http://127.0.0.1:${instance.server.address().port}/v1/messages`, {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': 'owned-local-fixture-key', 'x-opencode-session': sessionId, 'user-agent': 'owned-e41-protocol-fixture' },
@@ -340,6 +367,11 @@ async function runE41() {
     const parsed = parseAssistantResponse(text, e41Stream)
     await settleQueries()
     need(report.queries.length === queryFrom + 1, 'e41-unexpected-retry-or-recovery-query')
+    const query = report.queries.at(-1)
+    need(query.resultCompleted && query.actualModels.length > 0 && query.actualModels.every(model => model === e41ServedModel)
+      && query.inputUsageTokens > 0 && query.outputTokens > 0 && query.estimatedCostUsd !== null
+      && (query.resultSubtype === 'success' && query.resultIsError === false
+        || query.resultSubtype === 'error_max_turns' && query.resultIsError === true && parsed.blocks.some(block => block.type === 'tool_use')), 'e41-native-completion-model-usage-receipt-missing')
     const sessionObservation = report.pluginObservations.slice(observationFrom).find(item => item.kind === 'session')
     const { mapping, history } = await historyForWorkingMapping()
     const usage = parsed.usage ?? {}, cacheRead = usage.cache_read_input_tokens ?? 0, cacheWrite = usage.cache_creation_input_tokens ?? 0
@@ -387,13 +419,13 @@ async function runE41() {
   need(continuations.size === batches.length + 1 && snapshots.size === batches.length + 1, 'e41-fork-chain-or-source-count-failed')
   const rows = JSON.parse(final.history), blocks = rows.flatMap(row => Array.isArray(row.message?.content) ? row.message.content : [])
   const models = rows.filter(row => row.type === 'assistant').map(row => row.message?.model).filter(value => typeof value === 'string')
-  need(models.length > 0 && models.every(model => model === 'claude-opus-5-5'), 'e41-actual-history-model-mismatch')
+  need(models.length > 0 && models.every(model => model === e41ServedModel), 'e41-actual-history-model-mismatch')
   for (const [id, content] of delivered) {
     const answers = blocks.filter(block => block.type === 'tool_result' && block.tool_use_id === id)
     need(answers.length === 1 && answers[0].is_error !== true && !isForwardedDenial(answers[0]) && JSON.stringify(answers[0].content).includes(content), 'e41-active-real-answer-missing-duplicated-or-denied')
   }
   for (const snapshot of snapshots.values()) need(await supportedHistory(snapshot.mapping) === snapshot.history, 'e41-source-history-mutated-after-fork')
-  report.e41.verdict = { batches, realAnswers: delivered.size, immutableParents: snapshots.size, distinctContinuations: continuations.size, cachedPrefixFloor: 0.95, actualModel: 'claude-opus-5-5', savedForkFollowup: true }
+  report.e41.verdict = { batches, realAnswers: delivered.size, immutableParents: snapshots.size, distinctContinuations: continuations.size, cachedPrefixFloor: 0.95, actualModel: e41ServedModel, savedForkFollowup: true }
 }
 let deadline
 try {
@@ -402,7 +434,8 @@ try {
     MERIDIAN_CONFIG_DIR: join(output, 'config'), MERIDIAN_SESSION_DIR: join(output, 'sessions'), MERIDIAN_WORKDIR: join(output, 'backend-work'),
     MERIDIAN_CLAUDE_PATH: input.NATIVE_BIN, MERIDIAN_DEFAULT_AGENT: 'opencode', MERIDIAN_PASSTHROUGH: '1',
     MERIDIAN_CREDENTIALS_READONLY: '1', MERIDIAN_TELEMETRY_PERSIST: '0', MERIDIAN_SESSION_GC_INTERVAL_MS: '0',
-    CLAUDE_CONFIG_DIR: join(output, 'config'), MERIDIAN_OPUS_MODEL: 'claude-opus-5-5', NODE_DISABLE_COMPILE_CACHE: '1' })
+    CLAUDE_CONFIG_DIR: join(output, 'config'), MERIDIAN_OPUS_MODEL: 'claude-opus-5-5',
+    ...(e41Mode && e41Model === 'claude-sonnet-5-5' ? { MERIDIAN_SONNET_MODEL: e41Model } : {}), NODE_DISABLE_COMPILE_CACHE: '1' })
   const nativeFd = openSync(input.NATIVE_BIN, 'r'), magic = Buffer.alloc(4)
   try { readSync(nativeFd, magic, 0, 4, 0) } finally { closeSync(nativeFd) }
   need(magic.toString('hex') === '7f454c46', 'native-ELF-executable-required')
@@ -412,7 +445,7 @@ try {
   observeSpawns()
   report.nodeRuntime = (await cli('node-version', '/usr/local/bin/node', ['--version'])).trim()
   report.nativeVersion = (await cli('native-version', input.NATIVE_BIN, ['--version'])).trim()
-  need(report.nativeVersion === '2.1.284 (Claude Code)', 'native-version-mismatch')
+  need(report.nativeVersion === nativeVersion + ' (Claude Code)', 'native-version-mismatch')
   report.clientVersion = (await cli('client-version', '/usr/local/bin/node', [input.OPENCLAW_BIN, '--version'])).trim()
   need(report.clientVersion.includes('2026.6.11'), 'reported-client-version-mismatch')
   sdk = await import(pathToFileURL(input.SDK_ENTRY).href)
@@ -542,7 +575,7 @@ try {
     }
     need(report.requests.every(request => request.status === 200 && request.responseJoined), 'native-response-not-complete')
     const init = children.flatMap(child => child.facts.nativeInit)
-    need(init.length > 0 && init.every(event => event.version === '2.1.284' && event.model?.startsWith('claude-opus-5-5')), 'native-init-version-or-model-unverified')
+    need(init.length > 0 && init.every(event => event.version === nativeVersion && (e41Mode && e41Model === 'claude-sonnet-5-5' ? event.model === e41ServedModel : event.model?.startsWith('claude-opus-5-5'))), 'native-init-version-or-model-unverified')
     report.nativeModelInitWitnesses = init
     const finalPluginsResponse = await fetch(`http://127.0.0.1:${instance.server.address().port}/plugins/list`, { signal: AbortSignal.timeout(5000) })
     need(finalPluginsResponse.ok, 'final-installed-plugin-status-unavailable')

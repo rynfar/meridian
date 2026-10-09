@@ -4687,6 +4687,28 @@ PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs
 PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs --stream
 ```
 
+For the bounded installed-target E41 observer in
+`scripts/e2e-openclaw-native.mjs`, select `E2E_E41_MODE=chain|parallel` and
+`E2E_E41_STREAM=0|1`. Its explicit default remains `opus[1m]` with backend
+2.1.284. `E2E_E41_MODEL=claude-sonnet-5-5` pins the Sonnet wire request, SDK
+selection, native init and supported-history model; other model values fail.
+`E2E_E41_NATIVE_VERSION=2.1.295` permits the independently installed candidate's
+backend only when its actual executable and init version match. Model/version
+selection without E41 mode fails before reading any grant. Supply the same
+absolute target/SDK/native/client/scrub/output paths documented for the native
+observer and a private read-only access-only token fixture. Use `--prepare-only`
+without credentials first. This observer drives an owned OpenCode protocol
+fixture, not an actual OpenCode or OpenClaw client.
+
+Each E41 arm admits at most eight SDK queries with a $0.50 SDK-estimated budget
+per query and $4 total, requires each native model/usage/completion receipt,
+and preserves the exact batching, fork/source-history and 95% cache-floor
+assertions. Successful results require boolean `is_error: false`; a capped
+tool checkpoint requires `error_max_turns`, boolean `is_error: true` and an
+actual HTTP tool terminal. Original child/pipe, iterator, response, supported
+read and listener/socket joins remain required. Preparation and malformed-input
+controls establish no native acceptance.
+
 Before interpreting a signed-thinking run, the offline fidelity control can
 check JSON replay, streaming thinking/signature deltas, and redacted data:
 
