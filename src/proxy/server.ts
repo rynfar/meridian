@@ -52,6 +52,7 @@ export { runTransformHook, runObserveHook, buildPipeline, createRequestContext }
 import { claudeLog } from "../logger"
 import { replayBudgetFor, trimReplayHistory } from "./replayBudget"
 import { PASSTHROUGH_DENY_REASON } from "./passthroughDenial"
+import { PassthroughCheckpointStop, PassthroughCheckpointStopError } from "./passthroughCheckpointStop"
 import { exec as execCallback } from "child_process"
 import { promisify } from "util"
 import { randomUUID } from "crypto"
@@ -974,6 +975,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     requestMeta: RequestMeta,
     mode: string,
     activeLocators: readonly TranscriptLocator[],
+    checkpointStopSettings?: { clientToolPrefix: string },
   ) {
     // Measured around the wait itself, not read from the granted lease: an
     // aborted wait never produces a lease, and crediting queue time only on
@@ -998,6 +1000,9 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     let activeTranscriptLease: Awaited<ReturnType<typeof acquireActiveTranscriptLease>> | undefined
     let processGate: Awaited<ReturnType<typeof createSdkProcessGate>> | undefined
     let writerJoined = true
+    let attemptStop: PassthroughCheckpointStop | undefined
+    let attemptFailure: unknown
+    let attemptFailed = false
     const admissionLifecycleOptions = { ...sessionGcOptions, admissionSignal: signal }
     try {
       for (const locator of activeLocators) {
@@ -1022,22 +1027,73 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         params.options.spawnClaudeCodeProcess = processGate.spawnClaudeCodeProcess
       }
       signal.throwIfAborted()
+      if (checkpointStopSettings && params.options?.hooks?.PreToolUse &&
+          Number.isInteger(params.options.maxTurns) && params.options.maxTurns! > 0) {
+        const stop = new PassthroughCheckpointStop({
+          signal, clientToolPrefix: checkpointStopSettings.clientToolPrefix,
+          maxTurns: params.options.maxTurns!,
+        })
+        attemptStop = stop
+        // Each callback belongs to this admitted attempt, including retries.
+        params.options.hooks = {
+          ...params.options.hooks,
+          PreToolUse: params.options.hooks.PreToolUse.map(matcher => ({
+            ...matcher,
+            hooks: matcher.hooks.map(callback => async (...args: Parameters<typeof callback>) => {
+              const output = await callback(...args)
+              await stop.holdDeniedHook(args[0], output)
+              return output
+            }),
+          })),
+        }
+      }
       sdkQuery = query(params)
-      yield* guardUpstreamIdle(sdkQuery, UPSTREAM_IDLE_MS, (sinceLastMs) =>
-        claudeLog("upstream.stalled", { mode, sinceLastMs }), undefined, logLateIdleDeadline(mode))
+      attemptStop?.attach(typeof sdkQuery.interrupt === "function" ? () => sdkQuery!.interrupt() : undefined)
+      for await (const event of guardUpstreamIdle(sdkQuery, UPSTREAM_IDLE_MS, (sinceLastMs) =>
+        claudeLog("upstream.stalled", { mode, sinceLastMs }), undefined, logLateIdleDeadline(mode))) {
+        attemptStop?.observe(event)
+        yield event
+      }
+    } catch (error) {
+      if (!attemptStop?.acceptsIteratorError(error)) {
+        attemptFailed = true
+        attemptFailure = attemptStop?.requested && !signal.aborted
+          ? new PassthroughCheckpointStopError(error) : error
+      }
     } finally {
+      // Retire before awaits. Closing the SDK transport settles outstanding
+      // public controls; the original native writer still joins independently.
+      const retired = attemptStop?.retire()
+      let cleanupFailure: unknown
+      let cleanupFailed = false
       try {
-        // Production Query objects expose close(); test doubles and older SDK
-        // shims may be plain async generators whose iterator return() is
-        // already invoked by guardUpstreamIdle.
-        if (typeof sdkQuery?.close === "function") sdkQuery.close()
-        if (processGate) writerJoined = await processGate.closeAndJoin()
-        if (!writerJoined) {
-          throw new SessionLifecycleError("SDK writer could not be joined; transcript remains fenced")
+        try { if (typeof sdkQuery?.close === "function") sdkQuery.close() }
+        catch (error) { cleanupFailed = true; cleanupFailure = error }
+        try {
+          if (processGate) writerJoined = await processGate.closeAndJoin()
+          if (!writerJoined) throw new SessionLifecycleError("SDK writer could not be joined; transcript remains fenced")
+        } catch (error) {
+          writerJoined = false
+          if (!cleanupFailed) { cleanupFailed = true; cleanupFailure = error }
         }
-        if (activeTranscriptLease) {
-          await releaseJoinedTranscriptLease(activeTranscriptLease, sessionGcOptions)
+        await retired
+        if (attemptStop && !attemptStop.controlJoined) {
+          writerJoined = false
+          if (!cleanupFailed) { cleanupFailed = true; cleanupFailure = new Error("SDK checkpoint control could not be joined") }
         }
+        if (!attemptFailed && attemptStop?.failed) {
+          attemptFailed = true
+          attemptFailure = new PassthroughCheckpointStopError(attemptStop.failure)
+        }
+        if (writerJoined && activeTranscriptLease) {
+          try { await releaseJoinedTranscriptLease(activeTranscriptLease, sessionGcOptions) }
+          catch (error) { if (!cleanupFailed) { cleanupFailed = true; cleanupFailure = error } }
+        }
+        if (cleanupFailed) throw new SessionLifecycleError("SDK attempt cleanup failed; checkpoint publication is refused", {
+          cause: attemptFailed ? attemptFailure : cleanupFailure,
+        })
+        if (attemptFailed) throw attemptFailure
+        if (attemptStop?.receipt.qualified) claudeLog("passthrough.checkpoint_interrupt_qualified", { mode, ...attemptStop.receipt })
       } finally {
         requestMeta.sdkActiveDurationMs += Date.now() - startedAt
         lease.release()
@@ -3567,6 +3623,8 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // hidden digest to a canonical SDK terminal result, suppress its content,
       // and store the earlier assistant UUID only after the drain completes.
       const earlyStopEnabled = passthrough && process.env.MERIDIAN_PASSTHROUGH_EARLY_STOP !== "0"
+      const checkpointStopSettings = earlyStopEnabled && !advisorModel && !outputFormat
+        ? { clientToolPrefix } : undefined
       const earlyStop = createEarlyStopTracker()
       let earlyStopFired = false
       // Deny-hold: the CLI dispatches each tool's PreToolUse hook AS SOON AS
@@ -4063,7 +4121,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     advisorModel,
                   }, requestAbort.controller)
                   attemptMaxTurns = attemptQuery.options.maxTurns
-                  for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "non_stream", managedSdkAttemptLocators())) {
+                  for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "non_stream", managedSdkAttemptLocators(), checkpointStopSettings)) {
                     // Capture Claude Max subscription quota updates emitted by
                     // the SDK as rate_limit_event. We snapshot them in this
                     // profile's slot of the (per-profile-scoped) rate limit
@@ -4175,7 +4233,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
-                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh", managedSdkAttemptLocators())
+                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh", managedSdkAttemptLocators(), checkpointStopSettings)
                     return
                   }
 
@@ -4238,7 +4296,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                         ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                         : undefined,
                       advisorModel,
-                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh", managedSdkAttemptLocators())
+                    }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "non_stream_fresh", managedSdkAttemptLocators(), checkpointStopSettings)
                     return
                   }
 
@@ -4563,6 +4621,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               plog(`[PROXY] ${requestMeta.requestId} discovered=${discoveredTools.size} (${newNames}) session_total=${allNames.length}`)
             }
           } catch (error) {
+            if (error instanceof PassthroughCheckpointStopError || error instanceof SessionLifecycleError) sawCanonicalResult = false
             // Revocation blocks publication, not mandatory cleanup. A resumed
             // non-stream turn interrupted by shutdown must not leave its source
             // mapping available for another process to resume.
@@ -5434,7 +5493,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     }, requestAbort.controller)
                     attemptMaxTurns = attemptQuery.options.maxTurns
                     lastAttemptMaxTurns = attemptMaxTurns
-                    for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators())) {
+                    for await (const event of runSdkQueryAttempt(attemptQuery, requestAbort.controller.signal, requestMeta, "stream", managedSdkAttemptLocators(), checkpointStopSettings)) {
                       // Same SDK rate-limit capture as the non-stream path.
                       if ((event as any).type === "rate_limit_event") {
                         rateLimitStore.record(profile.id, (event as any).rate_limit_info)
@@ -5523,7 +5582,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
-                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh", managedSdkAttemptLocators())
+                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh", managedSdkAttemptLocators(), checkpointStopSettings)
                       return
                     }
 
@@ -5582,7 +5641,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                           ? sdkFeatures.additionalDirectories.split(",").map(d => d.trim()).filter(Boolean)
                           : undefined,
                         advisorModel,
-                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh", managedSdkAttemptLocators())
+                      }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "stream_fresh", managedSdkAttemptLocators(), checkpointStopSettings)
                       return
                     }
 
@@ -6520,7 +6579,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                   }, requestAbort.controller), requestAbort.controller.signal, requestMeta, "silent_recovery", [
                     recoveryForkSource,
                     recoveryForkTarget,
-                  ])) {
+                  ], checkpointStopSettings)) {
                     const recoveryMessage = event as any
                     observePriorityAttemptMessage(recoveryMessage)
                     if (recoveryMessage.session_id) {
@@ -6978,6 +7037,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // Forced shutdown revokes publication, but cleanup must remain
               // destructive: a client-visible interrupted turn cannot leave its
               // previously published source mapping resumable.
+              if (error instanceof PassthroughCheckpointStopError || error instanceof SessionLifecycleError) sawCanonicalResult = false
               const failedResumedTurn = isResume && !managedForkTarget && !sawCanonicalResult
               const interruptedMappingMayBeAdvanced =
                 !managedForkTarget || managedForkPublished || clientAssistantContentExposed
