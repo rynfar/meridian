@@ -10,7 +10,7 @@ Six source/control findings required corrections. The new classifier lost strict
 
 Corrections retain valid native CLI state-card and exact streaming caption detection while restoring the old boundaries. Fresh-target retry stays request-local, exhausts after two attempts, never resumes or invalidates the main checkpoint, and leaves that checkpoint available to the identical ordinary continuation. The routing helper is pure under adapters. Mapping controls use the actual adapter key and real mocked HTTP publication instead of forging the namespace. Cancellation and overlap controls use bounded barriers and retain child/mapping/recovery assertions.
 
-The twelve focused test groups pass 397 tests, including ordinary and malformed classification, complete checkpoints and exhausted retries, caption MCP overlap, cancellation, silent response, idle ceilings, namespace ownership, subagent isolation, and priority/sticky placement. The first complete npm test/typecheck/build run passes at pre-namespace-correction `50923ff0`; those gates cannot validate the later change. The namespace control reproduced HTTP 500 / one attempt with "Session mapping changed while it was being evicted" in both response modes. The separate correction invalidates only a mapping found in the admitted namespace, retaining the protected legacy slot CAS generation for fresh publication. All four collision/fallback controls pass after correction, and existing namespace, auxiliary and canonical recovery controls remain green. Repeated final gates at the current clean head remain required.
+The twelve focused test groups pass 397 tests, including ordinary and malformed classification, complete checkpoints and exhausted retries, caption MCP overlap, cancellation, silent response, idle ceilings, namespace ownership, subagent isolation, and priority/sticky placement. The first complete npm test/typecheck/build run passes at pre-namespace-correction `50923ff0`; those gates cannot validate the later change. The namespace control reproduced HTTP 500 / one attempt with "Session mapping changed while it was being evicted" in both response modes. The separate correction invalidates only a mapping found in the admitted namespace, retaining the protected legacy slot CAS generation for fresh publication. All four collision/fallback controls pass after correction, and existing namespace, auxiliary and canonical recovery controls remain green. The later complete run at `3cd230cc` joins successfully: all 21 npm batches, 5,663 pass / 36 skip / 0 fail, pretest and standalone typecheck, and build. The tested head and worktree remain unchanged.
 
 No material production finding remains within this source scope. Acceptance is still held for current native client/model/platform proof, state-card/caption before-and-after behavior, both overlap orders, cancellation custody, E41/E55 parity, independently installed package behavior and final delivery-head CI. The older caption harness snapshots the raw conversation key, which does not observe the corrected agent mapping; it requires correction and review before reuse. The exact #1288 reporter tuple remains unspecified. The separately recorded #1283 shared SDK MCP-instance transport limitation remains relevant to retries and main followups; creating a fresh caption server does not establish per-attempt tool readiness. Existing login/entitlement, failed runtime and custody records remain historical failures/limitations. No new model call, credential grant/refresh, merge, source closure, release or community message occurred.
 
@@ -21,6 +21,12 @@ The same file passes all 42 controls alone; unrelated first-batch tests install
 process-global base-model/hasExtendedContext:false mocks. The concrete correction
 retains every assertion and moves the entire model-sensitive concurrency file
 into its own final npm-test invocation, using the existing isolation workflow.
-There are now 21 batches. The failed run remains escrowed; a new complete run
-is required at the isolated-suite head. This is a fixture isolation correction,
+There are now 21 batches. The failed run remains escrowed; the new complete run
+passes at the isolated-suite head `3cd230cc`. This is a fixture isolation correction,
 not a weakened fallback assertion or changed production/model behavior.
+
+The final local runner (session 98264) and all three commands joined. Both exact
+owned dependency/collision fixtures were then removed; owner HEAD, index and all
+twelve dirty/untracked files remain byte-identical. The earlier PASS and failed
+model-mock run remain escrowed alongside the current results. This local PASS
+does not close the stated native, package or delivery-head CI gates.

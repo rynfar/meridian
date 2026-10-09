@@ -1,0 +1,49 @@
+{
+  "head": "3cd230cc1e32bc6753a5946d0231abbbbb63c0c8",
+  "startedUTC": "2026-10-09T01:03:58.291764+00:00",
+  "isolatedFixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-dependencies-d8h0519t",
+  "runnerPID": 21455,
+  "modelCalls": 0,
+  "checks": [
+    {
+      "label": "isolated-final-npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 497.655,
+      "sha256": "97215d6e6c602985060923c4fd6a948c73248cd047354ca22ac5614ff098b09b"
+    },
+    {
+      "label": "isolated-final-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 4.409,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "label": "isolated-final-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 3.162,
+      "sha256": "32f8e64276a0bdf1d27ff963bee9de53d9feaadedde2d94f5f2a4f713bfb3c65"
+    }
+  ],
+  "status": "PASS",
+  "expectedNpmBatches": 21,
+  "finishedUTC": "2026-10-09T01:12:23.527960+00:00",
+  "headUnchanged": true,
+  "worktreeClean": true
+}

@@ -4341,8 +4341,9 @@ The first full local gates pass at `50923ff0`; a subsequent direct control
 reproduced a protected-legacy-slot fresh-retry failure in both response modes.
 Separate correction `b6a1c6eb` retains that slot's CAS fence without pretending
 it was evicted, passes all four collision/fallback controls and preserves
-namespace, auxiliary and canonical recovery controls. Repeated final local
-gates remain required at the current clean head. Native E71/E72 caption and
+namespace, auxiliary and canonical recovery controls. The repeated final local
+gates now pass at clean `3cd230cc`: 21 npm batches, 5,663 pass / 36 skip /
+0 fail, standalone typecheck and build, all joined. Native E71/E72 caption and
 state-card proof, both overlap orders, cancellation custody, E41/E55 parity,
 installed-package proof and final delivery-head CI remain open. The older
 caption harness must observe the actual namespaced agent mapping before reuse;
@@ -4355,5 +4356,10 @@ source closure, release or community message occurred in this correction turn.
 The first repeated gate at `a022326a` fails only the two new extended-context
 goldens under unrelated global model mocks; both checkpoint collision controls
 pass. The failed run is retained. The concurrency file is now an isolated final
-process in `npm test` (21 batches), with all 42 controls/assertions intact. New
-complete gates remain required; no production change accompanies this isolation.
+process in `npm test` (21 batches), with all 42 controls/assertions intact. The new
+complete gates pass at `3cd230cc`; no production change accompanies this isolation.
+Both exact owned local fixtures were removed after all commands joined. The
+owner checkout, index and twelve dirty/untracked files remain unchanged. Current
+local receipts and logs are escrowed with the historical PASS and causal FAIL.
+The native caption mapping observer still requires correction and review before
+invocation; all inherited native/product/package/CI holds remain.
