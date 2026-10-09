@@ -1,0 +1,12 @@
+{
+  "originalCase": "installed",
+  "originalResult": "FAILED_BEFORE_NATIVE_VERSION_OR_SDK_CASES",
+  "originalNativeChildren": 0,
+  "originalSDKCases": 0,
+  "originalLocalAPIRounds": 0,
+  "causeQualification": "Prepared native executable path was nested beneath package root; the previously rehearsed installed executable is hoisted beneath installed/node_modules. Corrected controller takes the exact path from the qualified e72-package invocation template.",
+  "correctedCase": "installed-corrected",
+  "noSourceRerun": true,
+  "sameProbeBytes": true,
+  "expectedNativeSHA256": "4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358"
+}

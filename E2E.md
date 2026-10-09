@@ -6722,6 +6722,18 @@ requests continuing across nine requests, no collisions and a longest wait of
 omitted the bounded exact model/tool/cleanup proof now required. The current
 bounded rerun is recorded above; historical served identity remains unescrowed.
 
+**Latest mixed handback attempt (2026-10-09):** observer `184df6c8` passes full
+local gates (5,884 pass / 36 skip / zero fail) and three zero-query rehearsals.
+Its single actual source run remains FAIL: all nine Agent/Bash/SubagentHandback
+names and SDK/hook/HTTP inputs match, but exact child reports are not observed
+in their matched parent results. One parent query emits five public generations
+under cap four after a thinking-only fourth `end_turn`. Twenty-four of 27 checks
+pass; no failed check or bound is relaxed. Installed/baseline native flows remain
+UNEXECUTED after source audit failure. Network-disabled source/installed runtime
+controls reproduce five loopback API rounds versus four with normal text,
+without credentials or actual model calls. The [current qualified packet](docs/maintenance/evidence/1211-mixed-auto-handback-20261009/README.md)
+retains all original failures, exact joins, runtime-mechanism limits and holds.
+
 ## E73: Unknown thinking display values
 
 **What it proves:** a request whose `thinking.display` the bundled Claude Code

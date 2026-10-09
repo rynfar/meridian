@@ -1,0 +1,96 @@
+{
+  "nativeAcceptance": false,
+  "scope": "Public ordinal-link auditor falsification against marked synthetic receipts only",
+  "controls": [
+    {
+      "control": "handbackScenario-undeclaredHandback.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "1aa0022c304dc11d0a1735de09febbba9d65ac19c2d8cdf80609f8bb10c0f90f"
+    },
+    {
+      "control": "handbackScenario.json",
+      "expected": true,
+      "actual": true,
+      "proofSHA256": "9c1dbc33403018477607846d8df77a670a1533e5ca1bfbf3115005217f04e58e"
+    },
+    {
+      "control": "handbackScenario-wrongHandbackMessage.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "06f6c3b1a17594ea7a851761cce50fc22444e959b9fa4179dea20cd9610edbf5"
+    },
+    {
+      "control": "handbackNotDelivered-handbackScenario.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "a5829899e3bd57ef2ec90d9685044b92db0f8a740f73a59e74b9438b8ff85eca"
+    },
+    {
+      "control": "handbackScenario-missingHandback.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "e2da4c5c3af1c5a25f08b056fb7df3f00aab9b4ccbe0ecf2d5d6bedff2cd5802"
+    },
+    {
+      "control": "handbackScenario-unknownClosingTool.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "0431fe972899d60d026e766d2f79ab6681da824ef3f1f38d321727d74f739d30"
+    },
+    {
+      "control": "handbackRecipient-handbackScenario.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "6459bb734f0bc2fb38dd312ad07eb296b0a77989fc7d274c19d4fd39ec2b301c"
+    },
+    {
+      "control": "handbackNotFinal-handbackScenario.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "a2a2ea3eb8cbd1e4a5583972739b408434ad058283a648d166d47fde2083e385"
+    },
+    {
+      "control": "handbackScenario-sharedParentReport.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "6208a6040b9ef72239bf3677fe1e8df5435746abf4c04a3022082565856e0ce1"
+    },
+    {
+      "control": "duplicateHandback-handbackScenario.json",
+      "expected": false,
+      "actual": false,
+      "proofSHA256": "816eaf4aaf5a39574164dfbcd91c215f235343d9f1a563952fb8c7ec8986fe9b"
+    },
+    {
+      "control": "forged-sameParent",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "control": "forged-laterChild",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "control": "forged-badDeclared",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "control": "forged-badResultOrdinal",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "control": "forged-wrongCallActor",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "control": "valid-reversed-child-arrival-order",
+      "expected": true,
+      "actual": true
+    }
+  ]
+}

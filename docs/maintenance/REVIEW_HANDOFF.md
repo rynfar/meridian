@@ -5052,3 +5052,35 @@ the existing repository 30-second setting with identical subprocess/native
 bounds. New v2 full local gates, frozen rehearsals and actual flows remain open.
 Existing #1322 stays draft; all inherited holds, original source identities and
 expanded #1231 exclusion remain. No new PR, merge, closure or release.
+
+
+### 2026-10-09: handback source failure and thinking-only native retry
+
+Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) remains held.
+The [current handback packet](evidence/1211-mixed-auto-handback-20261009/CURRENT_NATIVE_STATUS.json)
+binds clean observer/test head `184df6c8`: 5,884 pass / 36 skip / zero fail
+across 22 npm batches, typecheck/build/compiled control and three zero-query
+rehearsals. Its single actual source invocation stays FAIL: 24/27 checks,
+19 SDK queries, two real client invocations, five writes. All nine tool names
+and hook/assistant/HTTP inputs match, including literal SubagentHandback.
+Exact reports are not observed in their paired parent results; private input,
+launch-prompt and structured-result facts remain unescrowed. Query 17 emits
+five public generations under cap four after a thinking-only fourth end_turn.
+The guards reject both gaps; no acceptance/budget assertion is relaxed.
+
+Network-disabled source/installed SDK/native controls directly reproduce that
+empty-thinking retry (five API rounds versus four with normal text), four SDK
+queries / 18 local API rounds total, zero credentials or actual model calls.
+The wrong initial installed executable path and zero-case failure are preserved,
+and static qualification binds the corrected hoisted path. This establishes a
+runtime mechanism, not direct real-provider API counts or historical attribution.
+
+All original actors and private runtime/grant/stopped-container cleanup qualify;
+owner checkout and all eighteen raw contributor records remain exact. Native
+package/baseline are UNEXECUTED after source audit failure. Initial whole-cohort
+credential admission failed before generation; per-case admission retained full
+bounds. Renewed read-only Claude login is needed for another bounded real run.
+Next: qualify exact handback message, parent-launch instruction and parent-result
+encoding separately; investigate/enforce native generation bounds without
+raising them. Continue cancellation/parent-abort and caption/reporter gates.
+No source closure, merge or release is authorized by these failed proofs.
