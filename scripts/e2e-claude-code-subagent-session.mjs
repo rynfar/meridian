@@ -14,6 +14,7 @@ import { spyOn } from 'bun:test'
 import { PASSTHROUGH_DENY_REASON } from '../src/proxy/passthroughDenial.ts'
 import { createQueryMcpReadinessWitness } from './lib/e2eMcpReadiness.mjs'
 import { createOwnedClientProcess } from './lib/e2eOwnedClient.mjs'
+import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/e2ePublicSdkDiagnostics.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['scenario', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -48,6 +49,7 @@ catch (error) { closeSync(proofDescriptor); throw error }
 const proof = { kind: synthetic ? 'synthetic-harness-control' : rehearsal ? 'zero-query-rehearsal' : 'native-affected-flow', expected: args['expect-unfixed'] ? 'unfixed' : 'fixed', platform: `${process.platform}/${process.arch}`, runtime: { bun: Bun.version, node: process.version }, scenario, requestedModel: args.model, requiredServedModel: args['served-model'], limits: { queries: maximum, sdkEstimatedCostUsd: costLimit, perQueryBudgetUsd: costLimit / maximum, totalMilliseconds: timeout, wireRequests: maximum, requestBytes: 2 * 1024 * 1024, clientStreamBytes: 2 * 1024 * 1024, clientInvocations: 2, ownedProcesses: 96 }, queries: [], turns: [], checks: {}, result: 'INCOMPLETE', acceptance: false }
 const saved = { log: console.log, error: console.error, warn: console.warn, debug: console.debug }
 const publicLog = saved.log.bind(console), records = [], traceIds = new Map(), decisionSessions = new Map()
+const startedAt = performance.now(), elapsed = () => Math.round((performance.now() - startedAt) * 1000) / 1000
 let turn = 0, suppressed = 0
 for (const key of Object.keys(saved)) console[key] = (...values) => {
   suppressed++
@@ -338,6 +340,9 @@ try {
     assert(input.options.env?.CLAUDE_CONFIG_DIR === account && input.options.pathToClaudeCodeExecutable === native, 'SDK escaped explicit account/executable')
     assert(!input.options.env?.ANTHROPIC_API_KEY && !input.options.env?.ANTHROPIC_BASE_URL && !input.options.env?.CLAUDE_CODE_OAUTH_TOKEN, 'SDK inherited another authentication/provider override')
     const row = { turn, requested: /^[a-z0-9[\].-]+$/.test(input.options.model) ? input.options.model : 'invalid-requested-model', versionPin: input.options.env?.ANTHROPIC_DEFAULT_SONNET_MODEL === undefined ? undefined : /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL) ? input.options.env.ANTHROPIC_DEFAULT_SONNET_MODEL : 'invalid-version-pin', resumed: typeof input.options.resume === 'string', resumedSession: sessionOrdinal(input.options.resume), forked: input.options.forkSession === true, requestedSession: sessionOrdinal(input.options.sessionId), maxTurns: input.options.maxTurns, nativeModels: [], completed: false, assistantError: false, resultFlagValid: false, resultIsError: null, inputTokens: 0, outputTokens: 0, estimatedCostUsd: null }
+    row.createdMs = elapsed(); row.allowedToolCapabilities = publicToolCapabilities(input.options.allowedTools)
+    row.nativeInitToolCapabilities = []
+    const generations = createPublicSdkGenerationWitness({ now: elapsed })
     const tools = new Map(), hookReceipts = new Map(); sdkTools.set(row, tools); sdkHookReceipts.set(row, hookReceipts)
     const mcpWitness = args['require-mcp-readiness'] ? createQueryMcpReadinessWitness(input.options) : undefined
     proof.queries.push(row)
@@ -354,12 +359,17 @@ try {
         fate: result?.decision === 'block' && result.reason === PASSTHROUGH_DENY_REASON ? 'forwarded'
           : result?.decision === 'block' && result.reason === dropReason ? 'dropped' : 'unknown',
       })
+      generations.observeHook(toolUseId, hookReceipts.get(toolUseId).fate)
       return result
     }) }))
     const query = original({ ...input, options: { ...input.options, hooks: { ...input.options.hooks, PreToolUse: observedHooks }, maxBudgetUsd: costLimit / maximum } }); active.add(query)
+    const closeObserved = (...values) => {
+      row.closeCalls = (row.closeCalls ?? 0) + 1; row.firstCloseCalledMs ??= elapsed()
+      try { return query.close(...values) } catch (error) { row.closeThrew = true; throw error }
+    }
     const abort = () => {
       try { input.options.abortController?.abort(new Error('E72 execution bound')) } catch { proof.sdkAbortSignalFailed = true }
-      try { query.close() } catch { proof.sdkAbortCloseFailed = true }
+      try { closeObserved() } catch { proof.sdkAbortCloseFailed = true }
     }
     stop.signal.addEventListener('abort', abort, { once: true })
     return new Proxy(query, { get(targetQuery, key) {
@@ -367,6 +377,11 @@ try {
         try {
           for await (const event of query) {
             mcpWitness?.observe(event)
+            generations.observe(event)
+            if (event.type === 'system' && event.subtype === 'init') {
+              if (row.nativeInitToolCapabilities.length < 16) row.nativeInitToolCapabilities.push(publicToolCapabilities(event.tools))
+              else row.nativeInitCapabilitiesOverflow = true
+            }
             const eventSession = sessionOrdinal(event.session_id)
             if (eventSession !== undefined) { if (row.session !== undefined && row.session !== eventSession) row.sessionChanged = true; row.session = eventSession }
             const model = event.type === 'assistant' ? event.message?.model : event.type === 'stream_event' && event.event?.type === 'message_start' ? event.event.message?.model : undefined
@@ -384,6 +399,7 @@ try {
               }
             }
             if (event.type === 'result') {
+              row.resultEventMs = elapsed()
               row.completed = true; row.resultSubtype = ['success', 'error_max_turns'].includes(event.subtype) ? event.subtype : 'other'
               row.resultFlagValid = typeof event.is_error === 'boolean'
               row.resultIsError = row.resultFlagValid ? event.is_error : null; row.nativeTurns = event.num_turns
@@ -392,8 +408,9 @@ try {
             }
             yield event
           }
-        } finally { if (mcpWitness) row.mcpReadiness = mcpWitness.summary(); row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
+        } finally { if (mcpWitness) row.mcpReadiness = mcpWitness.summary(); row.generations = generations.summary(); row.iteratorSettledMs = elapsed(); row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
       }
+      if (key === 'close') return closeObserved
       const value = Reflect.get(targetQuery, key, targetQuery); return typeof value === 'function' ? value.bind(targetQuery) : value
     } })
   })
@@ -427,6 +444,7 @@ try {
         let identity = body.metadata?.user_id
         if (typeof identity === 'string') { try { identity = JSON.parse(identity) } catch { identity = undefined } }
         row = { request: requestNumber, turn, actor, requestedModelMatched: body.model === args.model, sessionKeyMatched: identity?.session_id === session, tools: Array.isArray(body.tools) ? body.tools.length : 0 }
+        row.requestStartedMs = elapsed(); row.clientToolCapabilities = publicToolCapabilities(Array.isArray(body.tools) ? body.tools.map(tool => tool?.name) : undefined)
         if (background) row.startEvent = ++wireEvents
         wire.push(row)
         for (const message of body.messages ?? []) for (const block of Array.isArray(message.content) ? message.content : []) {
@@ -446,7 +464,8 @@ try {
           // Bun may consume headers when returning the original response.
           const status = response.status, contentType = response.headers.get('content-type') ?? ''
           row.status = status
-          const receipt = requestBody(response.clone(), 2 * 1024 * 1024).then(body => { if (background) row.terminalEvent = ++wireEvents; httpToolTerminal(status, contentType, body, row.request) }).catch(error => { proof.httpReceiptFailure = true; proof.httpReceiptFailureType = ['SyntaxError', 'TypeError', 'AssertionError', 'Error'].includes(error?.name) ? error.name : 'other' })
+          row.responseHeadersMs = elapsed()
+          const receipt = requestBody(response.clone(), 2 * 1024 * 1024).then(body => { row.responseBodyTerminalMs = elapsed(); if (background) row.terminalEvent = ++wireEvents; httpToolTerminal(status, contentType, body, row.request) }).catch(error => { proof.httpReceiptFailure = true; proof.httpReceiptFailureType = ['SyntaxError', 'TypeError', 'AssertionError', 'Error'].includes(error?.name) ? error.name : 'other' })
           receiptOwnsActive = true
           pendingHttp.add(receipt); receipt.finally(() => { pendingHttp.delete(receipt); if (row.actor > 0) activeAgents--; else if (row.actor === 0) activeMain-- })
         }
@@ -561,6 +580,15 @@ try {
       ) && rows.slice(1).every((row, index) => row.resumed && row.resumedSession === rows[index].session)
     })
     proof.queryReceipts = proof.queries.map((row, index) => ({ number: index + 1, request: queryRequests.get(row)?.request, actor: queryRequests.get(row)?.actor, kind: row.toolCount > 0 ? 'tools' : 'text', paired: queryRequests.has(row) }))
+    // Same-actor public lifecycle overlap locates a wait without claiming that
+    // iterator completion is the physical native exit or the lease-release instant.
+    proof.queryLifecycle = [...queryRequests].map(([row, request]) => {
+      const previous = [...queryRequests].filter(([, prior]) => prior.actor === request.actor && prior.request < request.request).sort((left, right) => right[1].request - left[1].request)[0]
+      return { query: proof.queries.indexOf(row) + 1, request: request.request, actor: request.actor, priorRequest: previous?.[1].request ?? null,
+        priorHttpBodyCompleteBeforeRequest: previous ? Number.isFinite(previous[1].responseBodyTerminalMs) && previous[1].responseBodyTerminalMs <= request.requestStartedMs : null,
+        priorResultOverlapMs: previous && Number.isFinite(previous[0].resultEventMs) ? Math.max(0, previous[0].resultEventMs - request.requestStartedMs) : null,
+        priorIteratorOverlapMs: previous && Number.isFinite(previous[0].iteratorSettledMs) ? Math.max(0, previous[0].iteratorSettledMs - request.requestStartedMs) : null }
+    })
     // Only ordinal aliases and deterministic facts leave memory; no real
     // agent/session/tool IDs, prompts, tool arguments or generated prose.
     proof.toolReceipts = privateReceipts.map((receipt, index) => ({ number: index + 1, actor: receipt.actor, query: receipt.row ? proof.queries.indexOf(receipt.row) + 1 : null, name: ['Agent', 'Bash', 'TaskOutput'].includes(receipt.tool.name) ? receipt.tool.name : 'other', paired: receipt.paired, resultRequest: receipt.result?.request, resultMatched: receipt.resultMatched }))

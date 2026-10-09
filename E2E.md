@@ -6517,6 +6517,16 @@ task custody joined and was removed; package testing was not admitted after the
 source failure. Preserve these negative results and diagnose public capability,
 SDK generation/counter and child-lease receipts before changing an acceptance
 gate. See the [background evidence and open findings](docs/maintenance/evidence/1211-background-native-20261009/README.md).
+The maintained observer records fixed capability booleans from incoming client
+catalogs, SDK allowed tools and public native init catalogs. Distinct observed
+generation counts use public model-message IDs, deduplicating streamed starts
+and assistant fragments; envelope UUIDs never count as generations. Missing IDs,
+conflicting tool owners and bounded-map overflow stay explicit. Only ordinal
+generation/hook counts and monotonic timestamps leave memory. Same-actor HTTP
+body, SDK result and iterator timing can locate overlap with a later request;
+iterator settlement and a close call do not establish physical native exit or
+the exact lease-release instant. These diagnostics do not alter any of the
+twenty acceptance checks or qualify a noncanonical max-turn result.
 Version probes are included in those owned handles. No background, mixed-auto or
 cancellation acceptance is established until exact actual-client/source/installed
 proof is run and audited; existing prior proof retains its original observer SHA.
