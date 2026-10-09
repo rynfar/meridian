@@ -9,6 +9,7 @@ const textContent = content => typeof content === 'string' ? content : Array.isA
 // their content, or notify the caller of a separately delivered message. None
 // of these facts admits structured output or inbox prose to the existing gate.
 // Parse only one complete JSON payload; do not search nested objects or prose.
+/** @param {{ input: unknown, parentPrompt: unknown, parentResultContent?: unknown, expectedMessage: string, expectedActorId?: string, callerMessages?: Array<{ role?: unknown, content?: unknown }> }} receipt */
 export function publicHandbackReceiptFacts({ input, parentPrompt, parentResultContent, expectedMessage, expectedActorId, callerMessages = [] }) {
   let encoding = 'absent', structured
   const payload = typeof parentResultContent === 'string' ? parentResultContent : Array.isArray(parentResultContent) && parentResultContent.length === 1 && parentResultContent[0]?.type === 'text' ? parentResultContent[0].text : undefined
