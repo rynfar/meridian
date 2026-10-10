@@ -1,0 +1,91 @@
+{
+  "baselineHead": "f284eed5904536baeb6fa7f4a86a67f79b4ecd1c",
+  "purpose": "Frozen external grouped correction and maintained marked fake controls; source checkout unchanged during full gates",
+  "files": [
+    {
+      "path": "scripts/e2e-claude-code-auto-mode.mjs",
+      "bytes": 49587,
+      "sha256": "636be8db328b5556fb933beeeee6769f8fcacf099b4ab485c1eba81486c84501"
+    },
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 82339,
+      "sha256": "a1129e3dd9f877fa61d7d2c5f61adb2cdd92ac6635abdbc636d458a36a0436dc"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "scripts/lib/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "scripts/lib/e2eMcpReadiness.mjs",
+      "bytes": 4382,
+      "sha256": "31c92572277279102681d1519a2b6198808396c4d4c15fc61d76f9736affdae7"
+    },
+    {
+      "path": "scripts/lib/e2eMixedAuto.mjs",
+      "bytes": 20643,
+      "sha256": "7898c97d8531be66a7cea214726862bc3f39005cd717c9c615c00a417011dcdc"
+    },
+    {
+      "path": "scripts/lib/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3"
+    },
+    {
+      "path": "src/proxy/passthroughDenial.ts",
+      "bytes": 1398,
+      "sha256": "6158e21da0b5559b00f465b6749a7f9753d323237fc21820b61a6a21ef247560"
+    },
+    {
+      "path": "src/__tests__/e72-mixed-auto.test.ts",
+      "bytes": 23235,
+      "sha256": "3e185f05cb5668ddef14d0c742136206ea1946369c2bb293cb33c3c1f0442c34"
+    },
+    {
+      "path": "src/__tests__/e72-native-handback-inbox.test.ts",
+      "bytes": 10825,
+      "sha256": "0d4ba5bafa389890d3a20e02a2d146138f22cae66b0d8e19794f096b9453710f"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-native-handback-group.json",
+      "bytes": 3752,
+      "sha256": "5c4d58f02ecb37fb0bc86ba40b000828e62919183bc6311dc5637922f8ec69be"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-native-handback-inbox.json",
+      "bytes": 2129,
+      "sha256": "7fb55993b38a242d17dea2e1009dc1ed4fcd446283f957f5b6d9c66672c7fa2a"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-native-handback-frame.txt",
+      "bytes": 679,
+      "sha256": "2e008cf7f2e848c0f062b00c6cc31200cfde66edf94f0c0fee80550187ccf136"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-mixed-control/client.mjs",
+      "bytes": 5859,
+      "sha256": "21c996118af65d4e340775838b8980198c9a374b5c0f6df7ee33402a672e3b3b"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-mixed-control/server.mjs",
+      "bytes": 5986,
+      "sha256": "bcc2b0fd94b2f48fc746f593e31ce5c4c15ad18002ee30605ea4430ffe9db4e5"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-mixed-control/sdk.mjs",
+      "bytes": 4121,
+      "sha256": "fdd9df3a1f524b66d09bc563a4c99349c5764f42e7b0119a96a35b54d517c4b6"
+    }
+  ]
+}

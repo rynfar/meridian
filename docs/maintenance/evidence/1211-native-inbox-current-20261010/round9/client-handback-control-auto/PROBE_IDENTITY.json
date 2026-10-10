@@ -1,0 +1,10 @@
+{
+  "bytes": 8947,
+  "sha256": "363c9d90d9379f5fa3f5dfc3067126e3fd00cd3abb98be3812057324848f7a94",
+  "mode": "0444",
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "fixture": "one actual native Agent, exact fixture SubagentHandback, correlated parent result; scripted provider responses only",
+  "scope": "Direct pinned client control; no proxy/SDK/auto classifier and no whole-change acceptance",
+  "correction": "Match affected auto permission mode; non-message local bootstrap responds empty JSON; record bounded public request shape. Previous default fixture FAIL preserved; no acceptance or tool declaration spoofing."
+}

@@ -1,0 +1,15 @@
+{
+  "runtimeSourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "observerContentHead": "e8c3002f8e61ac83082a49ff618024adcfea5d51",
+  "productionUnchanged": true,
+  "onlyChangedPaths": [
+    "scripts/e2e-claude-code-subagent-session.mjs",
+    "scripts/lib/e2eMixedAuto.mjs",
+    "src/__tests__/e72-handback-encoding.test.ts"
+  ],
+  "imageId": "sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0",
+  "previousRun": "../pr1211-current-actual-client-20261009-round8/source-live/TERMINAL.json",
+  "strictHandbackPredicateUnchanged": true,
+  "promptUnchanged": true,
+  "purpose": "Diagnostic rerun with scalar encoding facts; cannot supersede prior failure as a fix; installed live remains held after source failure."
+}

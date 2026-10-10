@@ -1,6 +1,57 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 independent stop observer (2026-10-10 UTC)
+## Current oldest #1211 / existing #1322 native inbox and actual-flow checkpoint (2026-10-10 UTC)
+
+Code `58f3055e` preserves production `bae7ada3`. Current source and independent
+npm-pack/install runtime remain built at `6d773781`; application, package, plugin
+and lock content are unchanged. The diagnostic live observer is an explicit
+recording overlay on Git `ed3ecbf6`, not exact Git observer content. Existing
+#1322 stays draft; all source PRs/#1288 stay open, expanded #1231 stays excluded.
+No new PR/worktree or owner-checkout mutation.
+
+[Current durable native-inbox packet](evidence/1211-native-inbox-current-20261010/README.md)
+retains R8–R17 real cases and all setup/failure records. Independently controlled
+actual Claude Code 2.1.287 proves reference-only Agent results and complete,
+permission-bounded parallel system inbox envelopes. Maintained v3 requires the
+exact message-only JSON input, final child call, private child header/parent
+footer agreement, matching complete HTTP inbox and SDK user-input delivery.
+SDK replay remains untrusted agent data. v1/v2 predicates are unchanged.
+
+R14 source and R15 independently installed E41 each pass all four parallel/chain
+× streaming/nonstreaming modes: 32 real SDK 0.2.141 / Sonnet 5.5 queries. Native is
+2.1.284 source and 2.1.296 installed. These are direct HTTP protocol fixtures,
+not actual OpenCode-client proof. R16 actual Claude Code 2.1.287 mixed-auto source
+and installed each pass 27/27, with Sonnet5 classifiers and Sonnet5.5 working;
+R17's one additional justified source cohort passes 27/27. Original actors join,
+grants remain unchanged, owned task grant/runtime/containers are removed.
+
+**Material hold:** R11 and exact-Git R15 fail 20/27 with an unqualified public
+native terminal reason/iterator failure and fresh child lineage. Later passing
+cases did not reproduce or explain the cause. R15's BETA report reaches both
+HTTP and SDK input. No arbitrary aborted/error result qualifies. No more blind
+model reruns; the next investigation must provide bounded public-native/SDK
+causal evidence. Keep historical provider/wait attribution separate.
+
+The exact-ed3 full gate failed at four serial background negative controls
+sharing 30 seconds: 5,548 pass / 36 skip / one failure/error. R18 splits only their test boundary:
+same modes/assertions, 10-second harness and 30-second per-test bounds; four focused controls
+pass with 128 assertions and typecheck exit 0. Final clean code head `58f3055e` passes 6,007 tests / 36 skip / zero fail across all 22 isolated npm batches plus pretest; standalone typecheck/build exit 0 and all original commands join.
+The earlier f284 full gate 6,001/36/0 remains historical. [Scoped root adversarial
+review](evidence/1211-native-inbox-current-20261010/ROOT_REVIEW.md) records parser,
+SDK iterator, negative-control and timeout review; no delegated or whole-change
+approval. All 18 contributor author/date/full-message/ancestry records and owner
+head/index/twelve dirty-file identities remain exact.
+
+Remaining: unexplained native cause; root/scoped/nested cancellation and incidental
+parent-abort independence; caption/reporter baseline/cache/overlap/abort; native
+2.1.295 with current observer; wider actual client/platform/package and historical
+attribution; complete final whole-change adversarial review; final delivery-head
+CI including `test`. The WORK source was independently fresh and used read-only;
+no agent login/refresh/source write. Owner refresh command remains
+`meridian profile login work`. No merge, source closure, release or community
+comment. Full backlog goal remains active.
+
+## Prior oldest #1211 / existing #1322 independent stop observer (2026-10-10 UTC)
 
 Observer/test code `052c6449` supersedes the observer-pending hold below.
 Production remains `bae7ada3`; no production/public-interface/package delta in

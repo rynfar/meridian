@@ -1,0 +1,38 @@
+{
+  "originalSession": 46288,
+  "exit": 0,
+  "joined": true,
+  "checks": [
+    "four original controls",
+    "standalone typecheck",
+    "git diff --check"
+  ],
+  "logs": [
+    {
+      "path": "individual-four-controls.log",
+      "bytes": 663,
+      "sha256": "922e82bbeb519e5d09db6ec4aef87e9951a99ab9f8b83cb2088ce694b8919ecb"
+    },
+    {
+      "path": "verified-typecheck.log",
+      "bytes": 53,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "path": "individual-controls-focused.log",
+      "bytes": 1905,
+      "sha256": "d79d55ab2da016f52fccaa6d0c65af2d995f8691de8039f666f541eed17a149b"
+    },
+    {
+      "path": "individual-controls-typecheck.log",
+      "bytes": 53,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "path": "aggregate-baseline-focused.log",
+      "bytes": 331,
+      "sha256": "4faf02aa1695b8a6d8ac2d645958a2c62d73b851e99aaf671bc5f5e91989b3c6"
+    }
+  ],
+  "atUTC": "2026-10-10T03:25:09.662710+00:00"
+}

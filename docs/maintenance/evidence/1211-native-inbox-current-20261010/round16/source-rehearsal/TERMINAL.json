@@ -1,0 +1,19 @@
+{
+  "phase": "rehearsal",
+  "case": "source",
+  "qualified": true,
+  "originalDriverPid": 33030,
+  "originalAttachPid": 33084,
+  "originalAttachJoined": true,
+  "exit": 0,
+  "hostDeadlineExceeded": false,
+  "ownedContainerStoppedAndRemoved": true,
+  "sourceGrantUnchanged": null,
+  "taskGrantUnchanged": true,
+  "taskAccessOnlyGrantRemoved": true,
+  "modelCalls": 0,
+  "sourceWrites": 0,
+  "failureClass": null,
+  "finishedUTC": "2026-10-10T02:58:16.566916+00:00",
+  "wholeChangeAcceptance": "HELD"
+}

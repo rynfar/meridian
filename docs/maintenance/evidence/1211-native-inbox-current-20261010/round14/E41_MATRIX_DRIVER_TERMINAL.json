@@ -1,0 +1,30 @@
+{
+  "originalPid": 75891,
+  "startUTC": "2026-10-10T02:42:46.241782+00:00",
+  "finishedUTC": "2026-10-10T02:43:48.744617+00:00",
+  "children": [
+    {
+      "mode": "parallel",
+      "stream": "0",
+      "originalPid": 75938,
+      "joined": true,
+      "exit": 0
+    },
+    {
+      "mode": "chain",
+      "stream": "0",
+      "originalPid": 76562,
+      "joined": true,
+      "exit": 0
+    },
+    {
+      "mode": "chain",
+      "stream": "1",
+      "originalPid": 78231,
+      "joined": true,
+      "exit": 0
+    }
+  ],
+  "qualified": true,
+  "earlierParallelStream": "qualified in its original terminal receipt"
+}

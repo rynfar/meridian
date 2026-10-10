@@ -1,0 +1,9 @@
+{
+  "result": "FAIL",
+  "sdkQueries": 19,
+  "passedChecks": 25,
+  "totalChecks": 27,
+  "estimatedCostUsd": 0.6967376000000001,
+  "finding": "One child input equals JSON.stringify(expected), confirming literal JSON quoting ambiguity. Other child input exact, but both native frames unrecognized. Installed live held; parent-layout scalar diagnostic next.",
+  "wholeChangeAcceptance": "HELD"
+}

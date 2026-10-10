@@ -1,0 +1,14 @@
+{
+  "name": "build",
+  "argv": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "originalPid": 21556,
+  "joined": true,
+  "exit": 0,
+  "startUTC": "2026-10-10T01:37:41.941276+00:00",
+  "endUTC": "2026-10-10T01:37:52.097219+00:00",
+  "logSHA256": "e789698eefd3dbcdb55535ce7d5ff1c2175d3f8a5ca580a4b199c3a06d925833"
+}

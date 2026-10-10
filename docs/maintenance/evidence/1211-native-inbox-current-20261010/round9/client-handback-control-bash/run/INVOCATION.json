@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "docker",
+    "create",
+    "--init",
+    "--network",
+    "none",
+    "--platform",
+    "linux/amd64",
+    "--read-only",
+    "--tmpfs",
+    "/tmp:rw,nosuid,nodev,size=512m,mode=1777",
+    "--name",
+    "meridian1211-r9-direct-client-handback-control-bash",
+    "--pids-limit",
+    "128",
+    "--memory",
+    "2g",
+    "--mount",
+    "type=bind,source=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-current-actual-client-20261009-round9/client-handback-control-bash,target=/probe,readonly",
+    "--mount",
+    "type=bind,source=/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-current-actual-client-20261009-round9/client-handback-control-bash/run/proof,target=/proof",
+    "sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0",
+    "node",
+    "/probe/probe.mjs"
+  ],
+  "containerId": "8e683b4e013ed9c5dcef6b6d537bfd38293c4906f1b4107c841340a477b3175f",
+  "image": "sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0",
+  "pid": 95672,
+  "realGrants": 0,
+  "actualModelCalls": 0
+}

@@ -1,0 +1,7 @@
+{
+  "baseObserverHead": "51cefe3c3a7874d168dd8c1e361f9cdedd982a05",
+  "runtimeSourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "diagnosticOverlayOnly": true,
+  "acceptancePredicateAndPromptUnchanged": true,
+  "purpose": "Scalar parent layout and strict decoder on joined text, never consumed by acceptance. Preserve R10 failures and source-before-installed admission."
+}

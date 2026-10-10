@@ -1,0 +1,18 @@
+{
+  "originalSession": 84649,
+  "originalSessionJoined": true,
+  "codeHead": "58f3055e17e90df0da1bb3ff056b7feffd151894",
+  "counts": {
+    "pass": 6007,
+    "skip": 36,
+    "fail": 0
+  },
+  "isolatedNpmBatches": 22,
+  "pretestTypecheckIncluded": true,
+  "standaloneTypecheckExit": 0,
+  "buildExit": 0,
+  "cleanBeforeAfter": true,
+  "headUnchanged": true,
+  "terminalReceipt": "TERMINAL.json",
+  "qualified": true
+}

@@ -1,0 +1,7 @@
+{
+  "failure": "base image Git rejects clone from filtered bundle",
+  "noImageCreated": true,
+  "modelCalls": 0,
+  "correction": "unbundle exact commit/tree graph; restore every current tracked blob from the HEAD archive; original HEAD and clean tree must verify before build",
+  "historicalBlobs": "not restored or needed for runtime current-head checks; no historical-content acceptance claimed"
+}

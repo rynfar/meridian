@@ -1,0 +1,7 @@
+# Bounded public SDK error diagnostic overlay
+
+R11 and R15 independently show an acknowledged complete-generation interrupt whose public native result carries an unqualified terminal reason; subsequent child lineage is fenced. R15 now verifies BETA's complete exact report in both HTTP grouped inbox and SDK input. It remains FAIL20/27; no passing rerun can resolve the earlier unknown cause.
+
+This frozen overlay changes only diagnostic recording. It observes supported SDK result and iterator-error APIs, retaining safe bounded machine reason codes, error hashes/classes/lengths in public proof. Bounded owned-fixture public error text is sanitized for the exact task token, generic credential/auth patterns, URLs, email, IDs and owned paths, written separately 0600 and excluded from portable artifacts. No SDK private transcript or implementation file is accessed. Original SDK events, exceptions, prompt, models, target, native stop witness, report/parser, query/cost/deadline, cleanup and acceptance predicates are unchanged. Source checkout remains exact clean ed3ecbf6 while its final local gates run.
+
+The observer is explicitly a diagnostic overlay on a Git baseline, not exact Git content. Rehearse both source and installed without queries, then one bounded source case. Installed live remains inadmissible after source failure. Preserve all failed cohorts and separate source/installed E41 PASS matrices. Whole-change acceptance remains held.

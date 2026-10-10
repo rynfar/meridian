@@ -1,6 +1,31 @@
 # End-to-End Testing
 
-## Current #1211/#1322 owned-interrupt offline qualification
+## Current #1211/#1322 actual-flow qualification and remaining holds
+
+[Current native inbox and actual-flow packet](docs/maintenance/evidence/1211-native-inbox-current-20261010/README.md)
+qualifies unchanged production `bae7ada3` on source and independently installed
+runtime built at `6d773781`. Source SDK 0.2.141/native 2.1.284 and installed
+SDK 0.2.141/native 2.1.296 pass all four E41 protocol modes, with exact pairing,
+immutable parents, distinct forks and cache continuity. This is direct HTTP
+protocol-fixture evidence, not an actual OpenCode-client claim.
+
+Actual Claude Code 2.1.287 mixed-auto source and installed each pass 27/27 in R16;
+R17's single justified additional source cohort also passes 27/27. Sonnet 5
+classifiers and Sonnet 5.5 working queries retain exact child/header/footer,
+final-call, HTTP/SDK handback, native-stop, model/cost and physical custody gates.
+The live observer has a diagnostic-only overlay on Git `ed3ecbf6`; this is not
+exact Git observer content. Current maintained code is `58f3055e`; no application,
+package, plugin or lock delta separates it from that runtime build.
+
+R11 and exact-Git R15 remain FAIL 20/27 with an unexplained native terminal/iterator
+failure and fresh child lineage. Later passes did not explain the cause. All
+failed cases are preserved; no arbitrary abort/error qualifies. Keep cancellation/
+parent-abort, caption/reporter, native 2.1.295 observer, wider client/platform/package,
+historical attribution, full final review and final-head CI gates open. The WORK
+source was independently fresh and used read-only; no agent refresh/login occurred.
+Use `meridian profile login work` when owner renewal is required.
+
+## Prior #1211/#1322 owned-interrupt offline qualification
 
 [Committed probe and replay packet](docs/maintenance/evidence/1211-attempt-owned-stop-20261009/README.md)
 qualifies production code `bae7ada3` with actual SDK/native but a scripted local
@@ -22,8 +47,8 @@ now bind this protocol when `--checkpoint-protocol owned-interrupt-v1` is explic
 selected. The legacy default and strict mixed handback predicate remain unchanged.
 Observer/test code `052c6449` passes native source2.1.284 and installed2.1.296
 proofs with SDK0.2.141, and meaningful synthetic positive/unrelated-error controls.
-Native2.1.295 with the new observer remains unexecuted. All current actual-client/
-model runs and inherited acceptance gates above remain open; no arbitrary aborted
+Native2.1.295 with the new observer remains unexecuted. At this prior offline
+checkpoint actual-client/model runs and inherited gates were open; no arbitrary aborted
 result or unrelated iterator failure qualifies.
 
 ## Overlapping passthrough queries
@@ -6636,7 +6661,7 @@ seven-call policy. The [handback packet](docs/maintenance/evidence/1211-mixed-au
 preserves both failures, canonical focused controls and the pinned client's
 static protocol. Actual v2 source/installed/baseline acceptance remains open.
 
-**Pinned inbox correction (v3, acceptance pending):**
+**Pinned inbox correction (v3, scoped actual cases):**
 `--scenario mixed-auto-handback-v3` verifies the native 2.1.287 transport
 observed in an isolated scripted-provider control: a reference-only Agent
 result and a separate system-role `<agent-message>` envelope. That transport
@@ -6651,8 +6676,9 @@ exact tool-input JSON object with a real newline, avoiding the v2 instruction's
 ambiguous “JSON string” wording. All final-call, ownership, model, query,
 cost, native-stop and cleanup gates remain required. Earlier v2/raw and
 ordinary-report-frame failures are retained; they cannot establish handback
-delivery loss. Source and independently installed actual v3 acceptance,
-the earlier unexpected iterator-error cause, and wider gates remain open.
+delivery loss. The current diagnostic-overlay source and installed actual cases pass 27/27;
+see the current packet above. Exact-Git R15 and earlier unexpected native
+iterator-error cause, wider flows and final-head CI remain held.
 
 Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
 ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs

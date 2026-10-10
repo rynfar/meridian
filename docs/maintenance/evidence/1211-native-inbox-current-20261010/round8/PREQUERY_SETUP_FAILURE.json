@@ -1,0 +1,6 @@
+{
+  "phase": "git bundle syntax",
+  "cause": "filter placed before bundle filename rejected; accepted as a revision-walk option after HEAD",
+  "sourceOrRuntimeMutation": false,
+  "modelCalls": 0
+}

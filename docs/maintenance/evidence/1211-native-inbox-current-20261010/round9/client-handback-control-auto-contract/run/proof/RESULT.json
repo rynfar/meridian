@@ -1,0 +1,141 @@
+{
+  "kind": "scripted-provider-real-client-handback-control",
+  "clientVersion": "2.1.287",
+  "actualModels": 0,
+  "realGrants": 0,
+  "apiRequests": 22,
+  "rootAgentDeclared": true,
+  "childHandbackDeclared": false,
+  "rootAgentSent": true,
+  "childHandbackSent": false,
+  "parentResultObserved": false,
+  "clientJoined": true,
+  "runtimeRemoved": true,
+  "failures": [
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Request bound",
+    "Owned client deadline"
+  ],
+  "clientVersionVerified": true,
+  "nonMessageRequests": 1,
+  "requestShapes": [
+    {
+      "number": 1,
+      "child": false,
+      "stream": true,
+      "tools": 20,
+      "agent": true,
+      "bash": true,
+      "handback": false,
+      "noTools": false
+    },
+    {
+      "number": 2,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 3,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 4,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 5,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 6,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 7,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 8,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 9,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    },
+    {
+      "number": 10,
+      "child": false,
+      "stream": false,
+      "tools": 0,
+      "agent": false,
+      "bash": false,
+      "handback": false,
+      "noTools": true
+    }
+  ],
+  "classifierContractCaptured": true,
+  "scriptedClassifierReplies": 9,
+  "clientExit": null,
+  "clientAnswered": false,
+  "clientApiError": false,
+  "qualifiedFixture": false,
+  "ordinaryAgentReportControlQualified": false,
+  "strictReportDelivery": false
+}

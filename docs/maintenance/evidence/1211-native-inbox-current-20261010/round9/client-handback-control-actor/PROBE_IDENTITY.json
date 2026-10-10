@@ -1,0 +1,10 @@
+{
+  "bytes": 10008,
+  "sha256": "1ae20e9b1e3e604be649b2356bac6a6478f269785ca23efdf7e00338431b3b67",
+  "mode": "0444",
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "fixture": "one actual native Agent, exact fixture SubagentHandback, correlated parent result; scripted provider responses only",
+  "scope": "Direct pinned client control; no proxy/SDK/auto classifier and no whole-change acceptance",
+  "correction": "Bind child requests and parent results to the same public native actor header used by E72, preventing inherited tool-result/history from qualifying the parent. Preserve prior unqualified fixtures."
+}

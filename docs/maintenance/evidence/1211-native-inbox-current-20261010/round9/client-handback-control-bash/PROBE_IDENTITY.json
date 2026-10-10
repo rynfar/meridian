@@ -1,0 +1,10 @@
+{
+  "bytes": 9721,
+  "sha256": "f8fbd207c58c632f1119926d749b42310c69f192e2fdfe53e8f855d5358488d3",
+  "mode": "0444",
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "fixture": "one actual native Agent, exact fixture SubagentHandback, correlated parent result; scripted provider responses only",
+  "scope": "Direct pinned client control; no proxy/SDK/auto classifier and no whole-change acceptance",
+  "correction": "Actual native child runs two printf Bash calls before handback selection. If handback is absent, ordinary exact report forms an explicitly separate adjacent control, never handback acceptance."
+}

@@ -1,0 +1,161 @@
+{
+  "createdUTC": "2026-10-10T03:28:10.780807+00:00",
+  "cases": [
+    {
+      "round": 8,
+      "case": "source-live",
+      "result": "FAIL",
+      "requiredChecks": 27,
+      "passedChecks": 25,
+      "failedChecks": [
+        "actualAgentAndBashReceipts",
+        "nativeHandbackReports"
+      ],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round8/source-live/TERMINAL.json",
+      "proof": "round8/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "a97a01dd8f96bad0fde844c89d341c92e5449ff90ef9d931a8ad28bca8be93d8",
+      "recordedEstimatedCostUsd": 1.0679168
+    },
+    {
+      "round": 9,
+      "case": "source-live",
+      "result": "FAIL",
+      "requiredChecks": 27,
+      "passedChecks": 25,
+      "failedChecks": [
+        "actualAgentAndBashReceipts",
+        "nativeHandbackReports"
+      ],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round9/source-live/TERMINAL.json",
+      "proof": "round9/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "43f77b7dd756dd1abad39ff973b4e4132d6f60ebb9ab48ddd8138f82e6c9612c",
+      "recordedEstimatedCostUsd": 0.6983056
+    },
+    {
+      "round": 10,
+      "case": "source-live",
+      "result": "FAIL",
+      "requiredChecks": 27,
+      "passedChecks": 25,
+      "failedChecks": [
+        "actualAgentAndBashReceipts",
+        "nativeHandbackReports"
+      ],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round10/source-live/TERMINAL.json",
+      "proof": "round10/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "38d7180f8fc003a7949d831efc1d3f44c490c88ce0b5e51588197c7765c11ff7",
+      "recordedEstimatedCostUsd": 0.6967376
+    },
+    {
+      "round": 11,
+      "case": "source-live",
+      "result": "FAIL",
+      "requiredChecks": 27,
+      "passedChecks": 20,
+      "failedChecks": [
+        "actualAgentAndBashReceipts",
+        "allQueriesCorrelated",
+        "distinctSessionMappings",
+        "subagentResume",
+        "nativeReceipts",
+        "independentClassifierSessions",
+        "nativeHandbackReports"
+      ],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round11/source-live/TERMINAL.json",
+      "proof": "round11/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "563ee1b928156a8de0952b0f9b45ad8302d11645dfda5bdc3fe1ccae3e35e944",
+      "recordedEstimatedCostUsd": 0.6776786
+    },
+    {
+      "round": 12,
+      "case": "source-live",
+      "result": "FAIL",
+      "requiredChecks": 27,
+      "passedChecks": 25,
+      "failedChecks": [
+        "actualAgentAndBashReceipts",
+        "nativeHandbackReports"
+      ],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round12/source-live/TERMINAL.json",
+      "proof": "round12/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "d0fc4f70b822586ad4b0d1c633dccd8c3f14f48f9e803acaf7e5cfc58bb2ca87",
+      "recordedEstimatedCostUsd": 0.7048188
+    },
+    {
+      "round": 15,
+      "case": "source-live",
+      "result": "FAIL",
+      "requiredChecks": 27,
+      "passedChecks": 20,
+      "failedChecks": [
+        "actualAgentAndBashReceipts",
+        "allQueriesCorrelated",
+        "distinctSessionMappings",
+        "subagentResume",
+        "nativeReceipts",
+        "independentClassifierSessions",
+        "nativeHandbackReports"
+      ],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round15/source-live/TERMINAL.json",
+      "proof": "round15/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "0e1e778f73bfe86dcfd18e2a3dbc319de388bf6dfd2c490c2a3f45f2a3727163",
+      "recordedEstimatedCostUsd": 0.6775256
+    },
+    {
+      "round": 16,
+      "case": "source-live",
+      "result": "PASS",
+      "requiredChecks": 27,
+      "passedChecks": 27,
+      "failedChecks": [],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round16/source-live/TERMINAL.json",
+      "proof": "round16/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "e7909eb457c72b89542391b8fa158ade5c8b15fc6cbcbb48d9cda5827b2cb735",
+      "recordedEstimatedCostUsd": 0.7057806
+    },
+    {
+      "round": 16,
+      "case": "installed-live",
+      "result": "PASS",
+      "requiredChecks": 27,
+      "passedChecks": 27,
+      "failedChecks": [],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round16/installed-live/TERMINAL.json",
+      "proof": "round16/installed-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "74d521f85ebc7e3d7db101aa3fffec15ae72791deb9105525e1db9c890b2472d",
+      "recordedEstimatedCostUsd": 1.1112334
+    },
+    {
+      "round": 17,
+      "case": "source-live",
+      "result": "PASS",
+      "requiredChecks": 27,
+      "passedChecks": 27,
+      "failedChecks": [],
+      "queries": 19,
+      "qualifiedCustody": true,
+      "terminal": "round17/source-live/TERMINAL.json",
+      "proof": "round17/source-live/proof/results/claude-subagent-results.json",
+      "proofSHA256": "85cd7c0c9f47ecdf1377ac7f1363027dfd8053faabd5479b3e6b5fe1c2003258",
+      "recordedEstimatedCostUsd": 0.7093288
+    }
+  ],
+  "wholeChangeAcceptance": "HELD",
+  "unknownNativeCauseResolved": false
+}

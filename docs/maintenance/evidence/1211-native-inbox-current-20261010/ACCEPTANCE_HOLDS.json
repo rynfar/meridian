@@ -1,0 +1,29 @@
+{
+  "status": "WHOLE_CHANGE_HELD",
+  "nativeFailureCause": {
+    "rounds": [
+      11,
+      15
+    ],
+    "resolved": false,
+    "nextEvidence": "Bounded public native/SDK causal reproduction, retaining original failed cases; unexplained green rerun cannot close this hold"
+  },
+  "remainingGates": [
+    "affected root/scoped/nested cancellation and incidental parent HTTP abort",
+    "caption/reporter baseline/cache/overlap/abort",
+    "native2.1.295 with current observer",
+    "wider implicated clients/platforms/packages",
+    "historical provider-count/wait attribution",
+    "complete final whole-change adversarial review",
+    "required final delivery-head CI including test"
+  ],
+  "sourcePullRequestsRemainOpen": [
+    1211,
+    1231,
+    1283,
+    1292
+  ],
+  "integrationDraft": 1322,
+  "releaseAuthorized": false,
+  "goalComplete": false
+}

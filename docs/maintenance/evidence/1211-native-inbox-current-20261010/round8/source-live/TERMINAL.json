@@ -1,0 +1,19 @@
+{
+  "phase": "live",
+  "case": "source",
+  "qualified": false,
+  "originalDriverPid": 2056,
+  "originalAttachPid": 2064,
+  "originalAttachJoined": true,
+  "exit": 1,
+  "hostDeadlineExceeded": false,
+  "ownedContainerStoppedAndRemoved": true,
+  "sourceGrantUnchanged": true,
+  "taskGrantUnchanged": true,
+  "taskAccessOnlyGrantRemoved": true,
+  "modelCalls": "see exact SDK receipts",
+  "sourceWrites": 0,
+  "failureClass": null,
+  "finishedUTC": "2026-10-10T00:44:16.440518+00:00",
+  "wholeChangeAcceptance": "HELD"
+}

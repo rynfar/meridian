@@ -1,0 +1,103 @@
+{
+  "kind": "zero-query-rehearsal",
+  "expected": "fixed",
+  "platform": "linux/x64",
+  "runtime": {
+    "bun": "1.3.11",
+    "node": "v24.3.0"
+  },
+  "scenario": "mixed-auto-handback-v3",
+  "requestedModel": "claude-sonnet-5-5",
+  "requiredServedModel": "claude-sonnet-5-5",
+  "limits": {
+    "queries": 24,
+    "sdkEstimatedCostUsd": 12,
+    "perQueryBudgetUsd": 0.5,
+    "totalMilliseconds": 600000,
+    "wireRequests": 24,
+    "requestBytes": 2097152,
+    "clientStreamBytes": 2097152,
+    "clientInvocations": 2,
+    "ownedProcesses": 96
+  },
+  "queries": [],
+  "turns": [],
+  "checks": {},
+  "result": "REHEARSAL",
+  "acceptance": false,
+  "checkpointProtocol": "owned-interrupt-v1",
+  "requestedClassifierModel": "claude-sonnet-5",
+  "requiredServedClassifierModel": "claude-sonnet-5",
+  "classifierModelScope": "One explicitly pinned native classifier arm only; demotion/fallback and another served model cannot qualify this run.",
+  "checkpointObserverSha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3",
+  "identity": {
+    "targetKind": "installed-package",
+    "packageVersion": "1.80.0",
+    "proxyEntrySha256": "7c5efc44d215cf411b4b60dd90349b9b0feeb783303e1847003b4f78107522a7",
+    "sdkVersion": "0.2.141",
+    "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+    "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+    "nativeCliSha256": "24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de",
+    "clientVersion": "2.1.287",
+    "nativeCliVersion": "2.1.296"
+  },
+  "privateSnapshotCreated": true,
+  "sdkCapacity": 4,
+  "remainingNativeGates": [
+    "background/main overlap",
+    "mixed auto-mode classifiers and subagents",
+    "explicit root and scoped cancellation",
+    "declared nested ancestry cancellation",
+    "incidental parent HTTP abort independence",
+    "E41 all four modes"
+  ],
+  "peakOwnedProcesses": 0,
+  "targetIdentityUnchanged": true,
+  "clientProcesses": [
+    {
+      "spawned": true,
+      "spawnError": false,
+      "exit": true,
+      "close": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "signalAttempts": 0,
+      "signalFailures": 0,
+      "signalCoalesced": 0,
+      "signals": [],
+      "join": "JOINED"
+    },
+    {
+      "spawned": true,
+      "spawnError": false,
+      "exit": true,
+      "close": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "signalAttempts": 0,
+      "signalFailures": 0,
+      "signalCoalesced": 0,
+      "signals": [],
+      "join": "JOINED"
+    }
+  ],
+  "relayOperationsJoined": true,
+  "ownedResidualProcesses": 0,
+  "requestModelWitness": {
+    "capturedRequests": 0,
+    "missingContext": false,
+    "duplicateContext": false,
+    "otherLoggerStore": false
+  },
+  "loggerContextDescriptorRestored": true,
+  "ownerGrantUnchanged": true,
+  "runtimeGrantUnchanged": true,
+  "privateRuntimeRemoved": true,
+  "privateRuntimeRetained": false,
+  "cleanupFailures": [],
+  "suppressedLogLines": 7
+}

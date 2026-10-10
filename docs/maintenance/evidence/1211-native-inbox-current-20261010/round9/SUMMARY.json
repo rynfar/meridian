@@ -1,0 +1,16 @@
+{
+  "result": "FAIL",
+  "sourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "observerHead": "e8c3002f8e61ac83082a49ff618024adcfea5d51",
+  "passedChecks": 25,
+  "totalChecks": 27,
+  "sdkQueries": 19,
+  "estimatedCostUsd": 0.6983056,
+  "ownedStops": 8,
+  "allOwnedStopsQualified": true,
+  "allQueriesOnePublicGeneration": true,
+  "bothExactChildHandbackInputs": true,
+  "bothMatchingParentResultsMissingExactReport": true,
+  "cause": "Input encoding mismatch alone cannot explain the failed gate. Parent delivery/client-format semantics remain unresolved; no predicate relaxation or inferred product fix.",
+  "installedLive": "UNEXECUTED_AFTER_SOURCE_FAILURE"
+}

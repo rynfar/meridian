@@ -1,0 +1,23 @@
+{
+  "kind": "actual-client-failed-cohort",
+  "sourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "observerHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "result": "FAIL",
+  "passedChecks": 25,
+  "totalChecks": 27,
+  "failedChecks": [
+    "actualAgentAndBashReceipts",
+    "nativeHandbackReports"
+  ],
+  "sdkQueries": 19,
+  "actualClientTurns": 2,
+  "estimatedCostUsd": 1.0679167999999999,
+  "ownedStops": 8,
+  "allOwnedStopsQualified": true,
+  "readinessStatus": 200,
+  "installedLive": "UNEXECUTED_AFTER_SOURCE_FAILURE",
+  "sourceGrantUnchanged": true,
+  "allOwnedCustodyJoinedAndRemoved": true,
+  "priorActualR3Fail": "PRESERVED_24_OF_27",
+  "cause": "Exact handback input and delivery mismatch remain unresolved. Retained scalars cannot establish encoding cause. No private transcript recovery or assertion relaxation."
+}

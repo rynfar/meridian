@@ -1,0 +1,22 @@
+{
+  "originalAttachJoined": true,
+  "exit": 2,
+  "hostDeadlineExceeded": false,
+  "containerState": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 2,
+    "Error": "",
+    "StartedAt": "2026-10-10T01:12:34.549748117Z",
+    "FinishedAt": "2026-10-10T01:12:42.551019462Z"
+  },
+  "ownedContainerRemoved": true,
+  "probeUnchanged": true,
+  "wholeChangeAcceptance": "HELD",
+  "finishedUTC": "2026-10-10T01:12:43.111926+00:00"
+}

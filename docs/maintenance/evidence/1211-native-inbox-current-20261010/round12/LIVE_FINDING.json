@@ -1,0 +1,34 @@
+{
+  "sourceResult": "FAIL",
+  "requiredChecks": 27,
+  "passedChecks": 25,
+  "failedChecks": [
+    "actualAgentAndBashReceipts",
+    "nativeHandbackReports"
+  ],
+  "bothExactChildInputs": true,
+  "bothCompleteSdkInboxReports": true,
+  "nativeStopsQualified": true,
+  "allOriginalActorsJoinedAndGrantCustodyPreserved": {
+    "phase": "live",
+    "case": "source",
+    "qualified": false,
+    "originalDriverPid": 14890,
+    "originalAttachPid": 15277,
+    "originalAttachJoined": true,
+    "exit": 1,
+    "hostDeadlineExceeded": false,
+    "ownedContainerStoppedAndRemoved": true,
+    "sourceGrantUnchanged": true,
+    "taskGrantUnchanged": true,
+    "taskAccessOnlyGrantRemoved": true,
+    "modelCalls": "see exact SDK receipts",
+    "sourceWrites": 0,
+    "failureClass": null,
+    "finishedUTC": "2026-10-10T02:29:33.218200+00:00",
+    "wholeChangeAcceptance": "HELD"
+  },
+  "installedActual": "UNEXECUTED: source gate did not qualify",
+  "cause": "HTTP inbox verifier rejected grouped native messages; independent two-agent native control required before correction",
+  "wholeChangeAcceptance": "HELD"
+}

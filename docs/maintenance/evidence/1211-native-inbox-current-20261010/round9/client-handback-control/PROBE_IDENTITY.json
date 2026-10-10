@@ -1,0 +1,9 @@
+{
+  "bytes": 8412,
+  "sha256": "c58ee56f9c31f0989b8c39ac7df4e022571870dc334e19dd4e17a07c31beb26c",
+  "mode": "0444",
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "fixture": "one actual native Agent, exact fixture SubagentHandback, correlated parent result; scripted provider responses only",
+  "scope": "Direct pinned client control; no proxy/SDK/auto classifier and no whole-change acceptance"
+}

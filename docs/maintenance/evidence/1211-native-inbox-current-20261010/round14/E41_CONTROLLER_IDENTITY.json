@@ -1,0 +1,8 @@
+{
+  "bytes": 10700,
+  "sha256": "eb5f7972fb8d8c62127eeea28a46e42d81f8d4208268388e29c5c3386bfa1106",
+  "priorControllerSHA256": "e8a7cf7aeb513ab7654c6c06a2f3c708455167db4dd2c7259acf0167b52de080",
+  "correction": "mount a task-owned read-only machine ID; keep production boot-identity admission strict",
+  "priorFailure": "R13 parallel/stream before any SDK query; missing machine identity; original actors removed and grants unchanged",
+  "runtimeSourceHead": "6d773781ac03359df22f1226807becd95b28005b"
+}
