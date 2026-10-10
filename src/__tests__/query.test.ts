@@ -115,6 +115,41 @@ describe("buildQueryOptions", () => {
     expect(env.DISABLE_TELEMETRY).toBe("1")
   })
 
+  describe("fine-grained tool streaming", () => {
+    const flag = (overrides: Partial<QueryContext>) =>
+      buildQueryOptions(makeContext(overrides)).options.env?.CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING
+
+    it.each([false, true])("asks the first-party API to stream tool input (passthrough=%s)", (passthrough) => {
+      expect(flag({ passthrough, stream: true })).toBe("1")
+      expect(flag({ passthrough, stream: false })).toBe("1")
+      expect(flag({ cleanEnv: { ANTHROPIC_BASE_URL: "https://api.anthropic.com" } })).toBe("1")
+    })
+
+    it("lets the inherited env and envOverrides turn it off", () => {
+      expect(flag({ cleanEnv: { CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING: "0" } })).toBe("0")
+      expect(flag({ envOverrides: { CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING: "false" } })).toBe("false")
+    })
+
+    it("leaves a custom base URL to Claude Code", () => {
+      expect(flag({ cleanEnv: { ANTHROPIC_BASE_URL: "https://gateway.example.com" } })).toBeUndefined()
+      expect(flag({ envOverrides: { ANTHROPIC_BASE_URL: "http://127.0.0.1:4000" } })).toBeUndefined()
+      expect(flag({ cleanEnv: { ANTHROPIC_BASE_URL: "not a url" } })).toBeUndefined()
+    })
+
+    it.each([
+      "CLAUDE_CODE_USE_BEDROCK",
+      "CLAUDE_CODE_USE_VERTEX",
+      "CLAUDE_CODE_USE_FOUNDRY",
+      "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+      "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+      "CLAUDE_CODE_USE_MANTLE",
+    ])("leaves the cloud provider selected by %s to Claude Code", (key) => {
+      expect(flag({ cleanEnv: { [key]: "1" } })).toBeUndefined()
+      expect(flag({ envOverrides: { [key]: "true" } })).toBeUndefined()
+      expect(flag({ cleanEnv: { [key]: "0" } })).toBe("1")
+    })
+  })
+
   it.each([false, true])("suppresses implicit SDK attachments in passthrough (stream=%s)", (stream) => {
     const prompt = "class Middleware\n  @app = app\n  @config = config\nend"
     const result = buildQueryOptions(makeContext({ passthrough: true, stream, prompt }))

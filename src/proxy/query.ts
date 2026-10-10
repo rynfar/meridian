@@ -37,6 +37,60 @@ const QUIET_SUBPROCESS_ENV: Record<string, string> = {
 }
 
 /**
+ * Stream each tool's input as the model writes it.
+ *
+ * Without this the API holds every tool-input value back until the model has
+ * finished writing it, so a long file write or heredoc arrives in one burst
+ * after a silence as long as its generation: 78-86 s of nothing but pings for
+ * a ~35k-character `write` on Opus. Past MERIDIAN_UPSTREAM_IDLE_MS (90 s by
+ * default) that silence looks exactly like a dead stream, and
+ * guardUpstreamIdle kills a healthy turn in the middle of the call. With it
+ * set, the same input streamed in deltas never more than 0.7 s apart.
+ *
+ * On the first-party API, Claude Code puts `eager_input_streaming` on its
+ * tools only when a remote feature flag allows it, and in this subprocess it
+ * does not (measured on CLI 2.1.284 over OAuth, with and without
+ * CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC). The variable forces the field onto
+ * every request, so it is set only for the first-party API: a custom base URL
+ * or a cloud provider may reject the field, and the CLI already enables it per
+ * model on Bedrock and Vertex. Spread before the inherited env, like
+ * QUIET_SUBPROCESS_ENV, so an operator's "0" still wins.
+ */
+const FINE_GRAINED_TOOL_STREAMING_ENV: Record<string, string> = {
+  CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING: "1",
+}
+
+const CLOUD_PROVIDER_ENV_KEYS = [
+  "CLAUDE_CODE_USE_BEDROCK",
+  "CLAUDE_CODE_USE_VERTEX",
+  "CLAUDE_CODE_USE_FOUNDRY",
+  "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+  "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+  "CLAUDE_CODE_USE_MANTLE",
+]
+
+/**
+ * Whether the subprocess talks to Anthropic's own API: no cloud provider
+ * selected, and no base URL other than api.anthropic.com, which is the test
+ * Claude Code itself applies. A provider flag set to anything but an explicit
+ * off counts as selected, so an unfamiliar spelling never forces the field on
+ * a provider.
+ */
+function targetsFirstPartyApi(env: Record<string, string | undefined>): boolean {
+  for (const key of CLOUD_PROVIDER_ENV_KEYS) {
+    const value = env[key]?.trim().toLowerCase()
+    if (value && !["0", "false", "no", "off"].includes(value)) return false
+  }
+  const baseUrl = env.ANTHROPIC_BASE_URL
+  if (!baseUrl) return true
+  try {
+    return new URL(baseUrl).host === "api.anthropic.com"
+  } catch {
+    return false
+  }
+}
+
+/**
  * Return a copy of `env` with `CLAUDE_CONFIG_DIR` removed. Used by the
  * sharedMemory branch — see the comment at the env construction site.
  *
@@ -632,6 +686,7 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
       env: {
         // First, so an operator-set value of any kind overrides it.
         ...QUIET_SUBPROCESS_ENV,
+        ...(targetsFirstPartyApi({ ...cleanEnv, ...ctx.envOverrides }) ? FINE_GRAINED_TOOL_STREAMING_ENV : {}),
         // Passthrough clients own filesystem context. The CLI otherwise parses
         // replayed Ruby @app/@config as file mentions and invents Bash listings.
         // Explicit client media is unaffected; inherited env may opt out.

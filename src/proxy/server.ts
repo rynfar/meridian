@@ -257,10 +257,11 @@ const exec = promisify(execCallback)
 // streamIdleGuard.ts.
 const UPSTREAM_IDLE_MS = envInt("UPSTREAM_IDLE_MS", 90_000)
 
-// How long a passthrough deny may be held waiting for the turn-generation
-// boundary. Derived from UPSTREAM_IDLE_MS, never a standalone number, because
-// this is the same coordination contract: guardUpstreamIdle owns model-stream
-// liveness, so every other timer must sit ABOVE it and let it decide.
+// How long a held passthrough deny may wait for the turn-generation boundary
+// while the turn produces nothing. Derived from UPSTREAM_IDLE_MS, never a
+// standalone number, because this is the same coordination contract:
+// guardUpstreamIdle owns model-stream liveness, so every other timer must sit
+// ABOVE it and let it decide.
 //
 // The hazard this guards is a CLI version that serialises hook-then-stream, in
 // which case a held deny blocks generation forever. That case is already
@@ -3559,22 +3560,40 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       // to releasing on the assistant message rather than wedge waiting for a
       // boundary that never arrives.
       let sawTurnBoundarySignal = false
+      // When the turn last produced a stream event; see holdDenyUntilTurnEnd.
+      let lastGenerationEventAt = 0
+      const noteGenerationEvent = (): void => {
+        lastGenerationEventAt = Date.now()
+      }
       const releaseHeldDenies = (reason: string): void => {
         turnGenerating = false
         if (pendingDenyReleases.length === 0) return
         claudeLog("passthrough.deny_hold_released", { reason, count: pendingDenyReleases.length })
         for (const release of pendingDenyReleases.splice(0)) release()
       }
+      // The deadline counts silence, not the length of the hold. A later
+      // parallel call can keep generating for minutes after an earlier call's
+      // hook fired - a long file write streams its input the whole time - and
+      // releasing the deny then is the mid-generation cancel the hold exists to
+      // prevent. While the turn keeps producing events the deadline moves with
+      // them; it expires only once the turn has gone quiet.
       const holdDenyUntilTurnEnd = (): Promise<void> =>
         new Promise<void>((resolve) => {
-          const timer = setTimeout(() => {
+          let timer: ReturnType<typeof setTimeout>
+          const expireUnlessGenerating = (): void => {
+            const quietMs = Date.now() - lastGenerationEventAt
+            if (quietMs < DENY_HOLD_TIMEOUT_MS) {
+              timer = setTimeout(expireUnlessGenerating, DENY_HOLD_TIMEOUT_MS - quietMs)
+              return
+            }
             claudeLog("passthrough.deny_hold_timeout", { afterMs: DENY_HOLD_TIMEOUT_MS })
             // This is only a last-ditch deadlock backstop. The checkpoint
             // completeness gates below must still observe the full streamed tool
             // set and the turn boundary; otherwise the session is evicted rather
             // than publishing a truncated resume point.
             resolve()
-          }, DENY_HOLD_TIMEOUT_MS)
+          }
+          timer = setTimeout(expireUnlessGenerating, DENY_HOLD_TIMEOUT_MS)
           pendingDenyReleases.push(() => {
             clearTimeout(timer)
             resolve()
@@ -4351,6 +4370,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               // in-flight request — beheading calls 2..N and freezing the
               // checkpoint on call 1.
               if (message.type === "stream_event") {
+                noteGenerationEvent()
                 const event = message.event
                 const eventType = event?.type
                 if (eventType === "message_delta" || eventType === "message_stop") {
@@ -5646,19 +5666,14 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
               nextClientBlockIndex = 0
               const sdkToClientIndex = new Map<number, number>()
 
-              const guardedResponse = guardUpstreamIdle(response, UPSTREAM_IDLE_MS, (sinceLastMs) =>
-                claudeLog("upstream.stalled", {
-                  mode: "stream",
-                  model,
-                  sinceLastMs,
-                  streamEventsSeen,
-                  firstChunkAt: firstChunkAt ?? null,
-                }),
-                undefined,
-                logLateIdleDeadline("stream"),
-              )
+              // Upstream liveness is judged inside runSdkQueryAttempt, from the
+              // moment an attempt's query starts. A guard around `response`
+              // would also time everything before that (token refresh, the SDK
+              // slot queue, transcript admission, rate-limit backoff) and call
+              // the upstream stalled while the request was still waiting on
+              // Meridian itself.
               try {
-                for await (const message of guardedResponse) {
+                for await (const message of response) {
                   observePriorityAttemptMessage(message)
                   if (streamClosed && !awaitingEarlyStopDrain) {
                     exitedBeforeCanonicalTerminal = true
@@ -5755,6 +5770,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     const eventType = (event as any).type
                     const eventIndex = (event as any).index as number | undefined
 
+                    noteGenerationEvent()
                     // Turn-generation boundary: release held deny responses.
                     // message_delta/message_stop = the turn finished cleanly;
                     // a SECOND message_start = the turn ended some other way
@@ -6463,6 +6479,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                     }
                     if (recoveryMessage.type === "result") recoverySawCanonicalResult = true
                     if (recoveryMessage.type !== "stream_event") continue
+                    noteGenerationEvent()
                     const recoveryEvent = recoveryMessage.event as {
                       type?: string
                       content_block?: unknown

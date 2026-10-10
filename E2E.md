@@ -900,6 +900,31 @@ cover both response modes, changed models, recovery and unrelated sessions.
 Run all four live E41 modes alongside this gate to check ordinary tool-result
 continuation and cache reuse.
 
+### Long tool inputs and the idle guard
+
+```bash
+E2E_PROFILE_CLAUDE_DIR=/absolute/owned/claude-config bun scripts/e2e-tool-input-streaming.mjs
+```
+
+The harness drives the bundled Claude Code through the Agent SDK with the
+options `buildQueryOptions` produces for a streaming passthrough turn with one
+client `write` tool, and asks Opus 5.5 for a 600-line file (`E2E_MODEL`,
+`E2E_LINES`). Two arms run concurrently: as built, and the same options without
+`CLAUDE_CODE_ENABLE_FINE_GRAINED_TOOL_STREAMING`. It prints the longest gap
+between non-ping stream events inside the write's `tool_use` block for each
+arm, with the SDK, CLI and served-model versions. Both arms must end at the
+tool call with at least 20,000 characters of input, and the as-built arm must
+have no gap over 15 s (`E2E_MAX_GAP_MS`). On an unchanged checkout both arms
+send the same request; `--expect-baseline` asserts a silence of at least 60 s
+there instead. The gap without the variable is reported, not asserted: whether
+the API streams without it is Anthropic's setting and can change.
+
+This is direct SDK evidence for the request Meridian builds, not the actual
+OpenCode flow. For that, run the plugin preflight above and a turn whose
+`write` generates for longer than `MERIDIAN_UPSTREAM_IDLE_MS`. Each arm leaves
+one SDK transcript in the owned configuration directory, as any session does.
+Raw model output is never printed.
+
 ### Capped passthrough turns (#926)
 
 ```bash
