@@ -1,0 +1,30 @@
+{
+  "testedHead": "52ebd351e206a363e007f786011c1d814b9956f6",
+  "runtime": {
+    "bun": "1.3.11",
+    "node": "22.22.3"
+  },
+  "suite": {
+    "pass": 5562,
+    "fail": 0,
+    "skip": 35,
+    "isolatedInvocations": 21
+  },
+  "gates": [
+    {
+      "name": "npm-test",
+      "exit": 0,
+      "elapsedSeconds": 485.43
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "elapsedSeconds": 5.03
+    },
+    {
+      "name": "build",
+      "exit": 0,
+      "elapsedSeconds": 4.26
+    }
+  ]
+}

@@ -85,8 +85,21 @@ CREATE INDEX IF NOT EXISTS idx_logs_cat ON diagnostic_logs(category);
 
 const CLEANUP_INTERVAL = 1000
 
+/**
+ * How long a write waits for another connection's write lock. libsql's own
+ * default is zero, so a row recorded while anything else writes the file - a
+ * second process importing history, an operator's sqlite3 - fails at once and
+ * is dropped, and a migration below fails as if its column already existed.
+ * The driver is synchronous, so the wait blocks the event loop: long enough
+ * for another connection's ordinary transaction. This cap applies to each
+ * write, including diagnostic logs; a held lock can therefore stall every
+ * stream for one second per attempted write and still drop that write.
+ */
+const BUSY_TIMEOUT_MS = 1000
+
 function openDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath)
+  db.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`)
   db.pragma("journal_mode = WAL")
   db.pragma("synchronous = NORMAL")
   db.exec(METRICS_SCHEMA)

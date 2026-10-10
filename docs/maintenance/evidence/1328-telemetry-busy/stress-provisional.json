@@ -1,0 +1,33 @@
+{
+  "platform": "linux",
+  "arch": "x64",
+  "bun": "1.3.11",
+  "phases": [
+    {
+      "name": "uncontended",
+      "sent": 2,
+      "statuses": [
+        401,
+        401
+      ],
+      "rows": 2
+    },
+    {
+      "name": "contended",
+      "sent": 6,
+      "statuses": [
+        401,
+        401,
+        401,
+        401,
+        401,
+        401
+      ],
+      "rows": 4
+    }
+  ],
+  "failure": "Error: Contended request telemetry lost 2 rows",
+  "writeFailures": 1,
+  "directChildrenJoined": true,
+  "pass": false
+}
