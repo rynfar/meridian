@@ -38,6 +38,12 @@ export async function startProxyServer(config) {
           return { decision: 'block', reason: '__DENIAL__' }
         }] }] } }
       const input = { prompt: JSON.stringify({ tools, text, request: ++requests }), options }
+      if (mode.nativeInboxReport) {
+        const initial = input.prompt
+        input.prompt = (async function* () {
+          yield { type: 'user', message: { role: 'user', content: [{ type: 'text', text: initial }, ...(!mode.droppedSdkInbox ? body.messages.filter(message => message.role === 'system').flatMap(message => typeof message.content === 'string' ? [{ type: 'text', text: message.content }] : message.content) : [])] } }
+        })()
+      }
       native = query(input)
       if (mode.duplicateBeforeConsume) query(input)
       let session

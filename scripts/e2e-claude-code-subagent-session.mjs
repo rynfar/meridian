@@ -18,7 +18,7 @@ import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/
 import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
 import { createOwnedCheckpointWitness, ownedCheckpointNativeResult } from './lib/e2eOwnedCheckpoint.mjs'
 import { createRequestModelWitness } from './e2e-claude-code-auto-mode.mjs'
-import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts, publicHandbackEncodingFacts, publicNativeHandbackFrameFacts } from './lib/e2eMixedAuto.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts, publicHandbackEncodingFacts, publicNativeHandbackFrameFacts, publicNativeHandbackInboxFacts, createHandbackSdkInputWitness } from './lib/e2eMixedAuto.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['checkpoint-protocol', 'scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -34,9 +34,9 @@ assert(args['checkpoint-protocol'] === undefined || ownedCheckpoint, 'Invalid ch
 if (ownedCheckpoint) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295', '2.1.296'].includes(args['native-cli-version']), 'Owned interrupt requires an independently qualified SDK/native tuple')
 const scenario = args.scenario ?? 'foreground'
 assert(['foreground', 'background', 'background-read-v2', 'mixed-auto-v1', 'mixed-auto-handback-v2', 'mixed-auto-handback-v3'].includes(scenario), 'Invalid E72 scenario')
-const framedHandback = scenario === 'mixed-auto-handback-v3'
-if (framedHandback) assert(args['client-version'] === '2.1.287', 'Native handback frame requires the independently observed client pin')
-const mixedHandback = scenario === 'mixed-auto-handback-v2' || framedHandback
+const inboxHandback = scenario === 'mixed-auto-handback-v3'
+if (inboxHandback) assert(args['client-version'] === '2.1.287', 'Native handback inbox requires the independently observed client pin')
+const mixedHandback = scenario === 'mixed-auto-handback-v2' || inboxHandback
 const mixedAuto = scenario === 'mixed-auto-v1' || mixedHandback
 const readBackground = scenario === 'background-read-v2'
 const background = ['background', 'background-read-v2'].includes(scenario)
@@ -132,7 +132,7 @@ async function requestBody(request, maximumBytes) {
 }
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
 const childOwners = new WeakMap(), clientOwners = []
-const sdkTools = new Map(), sdkToolOwners = new Map(), sdkHookReceipts = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
+const sdkTools = new Map(), sdkToolOwners = new Map(), sdkHookReceipts = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), sdkInputs = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
 const checkpointWitnesses = new Map()
 const requestModels = new Map(), relayWork = createOwnedRelayWork()
 const sessionOrdinal = value => { if (typeof value !== 'string' || !value.length) return undefined; if (!sdkSessionIds.has(value)) sdkSessionIds.set(value, sdkSessionIds.size + 1); return sdkSessionIds.get(value) }
@@ -391,7 +391,9 @@ try {
       generations.observeHook(toolUseId, hookReceipts.get(toolUseId).fate)
       return result
     }) }))
-    const query = original({ ...input, options: { ...input.options, hooks: { ...input.options.hooks, PreToolUse: observedHooks }, maxBudgetUsd: costLimit / maximum } }); active.add(query)
+    const sdkInput = inboxHandback ? createHandbackSdkInputWitness(input.prompt) : undefined
+    if (sdkInput) sdkInputs.set(row, sdkInput)
+    const query = original({ ...input, ...(sdkInput ? { prompt: sdkInput.observedPrompt } : {}), options: { ...input.options, hooks: { ...input.options.hooks, PreToolUse: observedHooks }, maxBudgetUsd: costLimit / maximum } }); active.add(query)
     const closeObserved = (...values) => {
       row.closeCalls = (row.closeCalls ?? 0) + 1; row.firstCloseCalledMs ??= elapsed()
       checkpoint?.close()
@@ -527,7 +529,12 @@ try {
         `Subagent ALPHA must run the exact shell command \`${firstAlpha}\`, then in a separate Bash call run`,
         `\`${mixedAuto ? mixedCommands.secondAlpha : 'echo alpha-2'}\`, then report both outputs.`,
         `Subagent BETA must do the same with \`${firstBeta}\` and \`${mixedAuto ? mixedCommands.secondBeta : 'echo beta-2'}\`.`,
-        ...(mixedHandback ? [
+        ...(inboxHandback ? [
+          `After both Bash calls, ALPHA must call SubagentHandback exactly once with this exact tool-input JSON object: ${JSON.stringify({ message: 'alpha-1\nalpha-2' })}.`,
+          `BETA must likewise use this exact tool-input JSON object: ${JSON.stringify({ message: 'beta-1\nbeta-2' })}.`,
+          'Decode the JSON escapes: the message value contains a real newline between outputs, no surrounding quotation marks and no trailing newline.',
+          'Each handback must be that child\'s final call. Do not use SendMessage or any other tools in this bounded task.',
+        ] : mixedHandback ? [
           `After both Bash calls, ALPHA must call SubagentHandback exactly once with message equal to the JSON string ${JSON.stringify('alpha-1\nalpha-2')}.`,
           `BETA must likewise call SubagentHandback exactly once with message equal to ${JSON.stringify('beta-1\nbeta-2')}.`,
           'Each handback must be that child\'s final call. Do not use SendMessage or any other tools in this bounded task.',
@@ -592,7 +599,7 @@ try {
     const launches = privateReceipts.filter(receipt => receipt.tool.name === 'Agent')
     const commands = mixedAuto ? [mixedCommands.firstAlpha, mixedCommands.secondAlpha, mixedCommands.firstBeta, mixedCommands.secondBeta] : [background ? 'sleep 2 && echo alpha-1' : 'echo alpha-1', 'echo alpha-2', background ? 'sleep 2 && echo beta-1' : 'echo beta-1', 'echo beta-2']
     const bash = commands.map(command => privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === command))
-    const foregroundLaunchReceipts = launches.length === 2 && ['alpha', 'beta'].every(label => launches.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.subagent_type === 'general-purpose' && receipt.tool.privateInput.run_in_background !== true && typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`) && receipt.result.text.includes(`${label}-1`) && receipt.result.text.includes(`${label}-2`)).length === 1)
+    const foregroundLaunchReceipts = launches.length === 2 && ['alpha', 'beta'].every(label => launches.filter(receipt => receipt.actor === 0 && receipt.paired && receipt.resultMatched && receipt.tool.privateInput.subagent_type === 'general-purpose' && receipt.tool.privateInput.run_in_background !== true && typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`) && (inboxHandback || receipt.result.text.includes(`${label}-1`) && receipt.result.text.includes(`${label}-2`))).length === 1)
     const bashReceipts = bash.every((rows, index) => rows.length === 1 && rows[0].actor > 0 && rows[0].paired && rows[0].resultMatched && rows[0].result.text.includes(['alpha-1', 'alpha-2', 'beta-1', 'beta-2'][index])) && bash[0][0]?.actor === bash[1][0]?.actor && bash[2][0]?.actor === bash[3][0]?.actor && bash[0][0]?.actor !== bash[2][0]?.actor
     const mixedParent = mixedAuto ? privateReceipts.filter(receipt => receipt.tool.name === 'Bash' && receipt.tool.privateInput.command === mixedCommands.parent) : []
     const mixedParentWorked = mixedAuto && mixedParent.length === 1 && mixedParent[0].actor === 0 && mixedParent[0].paired && mixedParent[0].resultMatched && mixedParent[0].result.text.includes('parent-2') && wire.find(row => row.request === mixedParent[0].tool.request)?.turn === 2
@@ -605,17 +612,20 @@ try {
       const receipt = calls[0], parent = parents[0], last = working.filter(row => row.actor === actor).at(-1)
       const message = `${label}-1\n${label}-2`
       const frame = publicNativeHandbackFrameFacts({ parentResultContent: parent?.result?.privateContent, expectedMessage: message, expectedActorId: [...agentIds].find(([, number]) => number === actor)?.[0], clientVersion: args['client-version'] })
+      const inbox = publicNativeHandbackInboxFacts({ parentResultContent: parent?.result?.privateContent, callerMessages: callerMessages.get(parent?.result?.request) ?? [], expectedMessage: message, expectedActorId: [...agentIds].find(([, number]) => number === actor)?.[0], clientVersion: args['client-version'] })
+      const parentQueries = proof.queries.filter(row => row.request === parent?.result?.request && row.role === 'working')
+      const sdkInbox = parentQueries.length === 1 ? sdkInputs.get(parentQueries[0])?.matchInbox({ parentResultContent: parent?.result?.privateContent, expectedMessage: message, expectedActorId: [...agentIds].find(([, number]) => number === actor)?.[0], clientVersion: args['client-version'] }) : undefined
       const diagnostic = publicHandbackReceiptFacts({ input: receipt?.tool.privateInput, parentPrompt: parent?.tool.privateInput.prompt,
         parentResultContent: parent?.result?.privateContent, expectedMessage: message,
         expectedActorId: [...agentIds].find(([, ordinal]) => ordinal === actor)?.[0],
         callerMessages: callerMessages.get(parent?.result?.request) ?? [] })
       handbackLinks.push({ expectedChild: index + 1, actor, call: receipt ? privateReceipts.indexOf(receipt) + 1 : null,
         parentLaunch: parent ? privateReceipts.indexOf(parent) + 1 : null, parentResultRequest: parent?.result?.request,
-        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message), diagnostic, frame,
+        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message), diagnostic, frame, inbox, sdkInbox,
         encoding: publicHandbackEncodingFacts({ input: receipt?.tool.privateInput, parentResultContent: parent?.result?.privateContent, expectedMessage: message }) })
       return actor > 0 && calls.length === 1 && parents.length === 1 && receipt.paired && !receipt.result &&
         Object.keys(receipt.tool.privateInput).length === 1 && receipt.tool.privateInput.message === message &&
-        parent.paired && parent.resultMatched && (framedHandback ? frame.reportMatched : parent.result.text.includes(message)) && parent.result.request > receipt.tool.request &&
+        parent.paired && parent.resultMatched && (inboxHandback ? inbox.reportMatched && sdkInbox?.reportMatched === true : parent.result.text.includes(message)) && parent.result.request > receipt.tool.request &&
         last?.turn === 1 && last.request === receipt.tool.request && last.handbackDeclared === true
     }) : []
     const distinctHandbackParents = mixedHandback && new Set(handbackLinks.map(row => row.parentLaunch)).size === 2 && handbackLinks.every(row => row.parentLaunch !== null)
@@ -708,7 +718,7 @@ try {
         wireInput: receipt.tool.input, sdkInput: sdkTool?.input, hookFate: hook?.fate, hookInput: hook?.input,
         sdkIdOwners: proof.queries.filter(row => sdkTools.get(row).has(receipt.id)).length }) }
     })
-    if (mixedHandback) proof.handbackFacts = { protocol: framedHandback ? 'native-client-frame-v1' : 'raw-substring-v2', calls: handbacks.length, actors: handbacks.map(receipt => receipt.actor).sort((a, b) => a - b),
+    if (mixedHandback) proof.handbackFacts = { protocol: inboxHandback ? 'native-client-inbox-v1' : 'raw-substring-v2', calls: handbacks.length, actors: handbacks.map(receipt => receipt.actor).sort((a, b) => a - b),
       distinctParentLaunches: distinctHandbackParents, exactChildReportsDeliveredToMatchingParent: handbackMatches, childFinalCalls: handbacks.length === 2 && handbacks.every(receipt => working.filter(row => row.actor === receipt.actor).at(-1)?.request === receipt.tool.request), reports: handbackLinks }
     proof.checks = {
       invocationsSucceeded: proof.turns.length === 2 && proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), noRefusal: proof.turns.every(row => !row.refused) && wire.every(row => row.status === 200),

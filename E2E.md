@@ -6636,6 +6636,22 @@ seven-call policy. The [handback packet](docs/maintenance/evidence/1211-mixed-au
 preserves both failures, canonical focused controls and the pinned client's
 static protocol. Actual v2 source/installed/baseline acceptance remains open.
 
+**Pinned inbox correction (v3, acceptance pending):**
+`--scenario mixed-auto-handback-v3` verifies the native 2.1.287 transport
+observed in an isolated scripted-provider control: a reference-only Agent
+result and a separate system-role `<agent-message>` envelope. That transport
+role carries untrusted agent data. The matching child header, result footer,
+complete indented report and permission boundary must agree; the same full
+report must reach the correlated SDK user-input stream. The maintained tests
+reject missing, duplicate, damaged, wrong-role and wrong-sender envelopes,
+and a proxy that drops the report before SDK input. The prompt specifies an
+exact tool-input JSON object with a real newline, avoiding the v2 instruction's
+ambiguous “JSON string” wording. All final-call, ownership, model, query,
+cost, native-stop and cleanup gates remain required. Earlier v2/raw and
+ordinary-report-frame failures are retained; they cannot establish handback
+delivery loss. Source and independently installed actual v3 acceptance,
+the earlier unexpected iterator-error cause, and wider gates remain open.
+
 Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
 ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs
 `echo beta-1` and `echo beta-2`. Turn 2 resumes the same parent and requests

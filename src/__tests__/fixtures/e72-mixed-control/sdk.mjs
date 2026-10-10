@@ -3,12 +3,16 @@ import { readFileSync } from 'node:fs'
 const mode = JSON.parse(readFileSync(new URL('../../../mode.json', import.meta.url), 'utf8'))
 let sequence = 0
 export function query({ prompt, options }) {
-  const input = JSON.parse(prompt), session = options.resume ?? 'owned-' + String(++sequence).padStart(8, '0')
-  const id = 'generation-' + sequence + '-' + input.request, content = input.tools.length ? input.tools : [{ type: 'text', text: input.text }]
+  const session = options.resume ?? 'owned-' + String(++sequence).padStart(8, '0')
+  let input, id, content
   return {
     close() {},
     async interrupt() {},
     async *[Symbol.asyncIterator]() {
+      if (typeof prompt === 'string') input = JSON.parse(prompt)
+      else for await (const message of prompt) { if (!input) input = JSON.parse(message.message.content[0].text) }
+      id = 'generation-' + sequence + '-' + input.request
+      content = input.tools.length ? input.tools : [{ type: 'text', text: input.text }]
       yield { type: 'system', subtype: 'init', session_id: session, mcp_servers: Object.keys(options.mcpServers).map(name => ({ name, status: 'connected' })), tools: options.allowedTools }
       yield { type: 'stream_event', session_id: session, event: { type: 'message_start', message: { id, model: options.model } } }
       if (mode.ownedCheckpoint) {
