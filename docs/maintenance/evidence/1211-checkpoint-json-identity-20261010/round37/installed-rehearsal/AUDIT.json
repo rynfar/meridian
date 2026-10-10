@@ -1,0 +1,22 @@
+{
+  "phase": "rehearsal",
+  "result": "REHEARSAL",
+  "qualifiedBeforeOuterCustody": true,
+  "harnessCustody": true,
+  "queries": 0,
+  "actualClients": 0,
+  "checks": {},
+  "failure": null,
+  "identity": {
+    "targetKind": "installed-package",
+    "packageVersion": "1.80.0",
+    "proxyEntrySha256": "234d45e90db3f46fa23dd6c5ba527de938e522ec48e5a6434a490f1b08ab3b61",
+    "sdkVersion": "0.2.141",
+    "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+    "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+    "nativeCliSha256": "24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de",
+    "clientVersion": "2.1.287",
+    "nativeCliVersion": "2.1.296"
+  },
+  "reportSHA256": "227bc2e9db64c2884bb581036e68bcd4c5cb585ef20ba5d73a393af18421e5c7"
+}

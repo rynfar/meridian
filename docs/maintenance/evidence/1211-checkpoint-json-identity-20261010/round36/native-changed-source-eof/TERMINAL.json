@@ -1,0 +1,22 @@
+{
+  "label": "changed",
+  "matrix": "eof",
+  "target": "source",
+  "qualified": true,
+  "originalDriverPid": 79706,
+  "originalAttachPid": 79721,
+  "originalAttachJoined": true,
+  "exit": 0,
+  "hostDeadlineExceeded": false,
+  "ownedContainerStoppedPidZero": true,
+  "ownedContainerRemoved": true,
+  "inputsUnchanged": true,
+  "probeOutcome": "PASS",
+  "caseCount": 12,
+  "queryCount": 24,
+  "failureClass": null,
+  "realCredentialReads": 0,
+  "actualModelClientAcceptance": false,
+  "priorLiveFailureCauseEstablished": false,
+  "finishedUTC": "2026-10-10T06:04:40.155367+00:00"
+}

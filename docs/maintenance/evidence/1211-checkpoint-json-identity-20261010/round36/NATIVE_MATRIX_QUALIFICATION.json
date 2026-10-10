@@ -1,0 +1,48 @@
+{
+  "head": "ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf",
+  "atUTC": "2026-10-10T06:08:15.708118+00:00",
+  "cases": 48,
+  "scriptedQueries": 96,
+  "realCredentialReads": 0,
+  "actualClientModelAcceptance": false,
+  "rows": [
+    {
+      "target": "source",
+      "matrix": "inputs",
+      "cases": 12,
+      "queries": 24,
+      "allOriginalInputForkHistoryCustodyAssertions": true,
+      "terminalSHA256": "c095b0432f63e3b70e1fdc8e3ec6e5329136a95da49997dee4f08523f21ff187",
+      "reportSHA256": "6cdc710698a4f736ddf866bce7f80f1e1d5cca449f1aedb216dbe0784ab6a87e"
+    },
+    {
+      "target": "source",
+      "matrix": "eof",
+      "cases": 12,
+      "queries": 24,
+      "allOriginalInputForkHistoryCustodyAssertions": true,
+      "terminalSHA256": "56efdc820bc86a6bf81ce4b534b45e406b47d34e34caf3b3cd8e6a3db142bc37",
+      "reportSHA256": "bad73f92951f11580bb36a641786d91907bd37eb7a49ccede8c1a91a9a954fcb"
+    },
+    {
+      "target": "installed",
+      "matrix": "inputs",
+      "cases": 12,
+      "queries": 24,
+      "allOriginalInputForkHistoryCustodyAssertions": true,
+      "terminalSHA256": "203f84b2b43b465171e3efc718be50eb6aa63b6c22286c5cd26087d31635ab20",
+      "reportSHA256": "851935dc5f8c45e10cf3f3151e03fe05fecc088e707ced56b938fca48eba958d"
+    },
+    {
+      "target": "installed",
+      "matrix": "eof",
+      "cases": 12,
+      "queries": 24,
+      "allOriginalInputForkHistoryCustodyAssertions": true,
+      "terminalSHA256": "9e7c5b19dade1a38af759e6877d3b4204a01566ab399006f58a89dcc4588f0e7",
+      "reportSHA256": "2f5171bc75286c7d4891ecb82b737392271a21b7b4d3ad82fb26731ea69fa057"
+    }
+  ],
+  "priorLiveFailureCauseEstablished": false,
+  "wholeChangeAcceptance": "HELD"
+}

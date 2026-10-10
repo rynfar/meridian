@@ -1,5 +1,27 @@
 # Upstream review handoff
 
+## Owner-deferred #1211 / draft #1322 (2026-10-10 UTC)
+
+The owner has deferred this ticket until back at their computer. Resume only
+on their instruction; continue the oldest other PRs and issues that do not need
+owner action. [Saved correction and evidence](evidence/1211-checkpoint-json-identity-20261010/README.md)
+records code `ee3671ee`: valid wide/deep/large JSON checkpoint inputs retain exact
+identity without undocumented limits. Scoped adversarial review finds no
+remaining blocker in that correction; whole-change acceptance remains open.
+
+Focused checks pass 109 tests. Source and independent installed native matrices
+pass 48 cases / 96 scripted Queries with full input, fork, results, history and
+cleanup witnesses. These are credential-free component checks. The original
+full `npm test` fails: 5,581 pass / 36 skip / one legacy synthetic report EOF
+failure; later isolated batches are unreached. One diagnostic pass does not
+explain the failure. Standalone typecheck/build pass. No new actual client/model
+calls ran; the live sequence refused admission at the failed local gate.
+
+All inherited affected-client, cancellation/cache/reporter/platform/native,
+whole-change review and final-head CI holds remain. #1322 stays draft; source
+PRs and issues stay open. Owner checkout and contributor identities are preserved.
+No new PR/worktree, merge, closure or release accompanies this checkpoint.
+
 ## Current caption source matrix and valid-input source hold (2026-10-10 UTC)
 
 Clean code537c4c87 strengthens the maintained overlap observer after root review

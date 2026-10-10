@@ -1,0 +1,680 @@
+{
+  "kind": "native-stop-provider-eof-causal-control",
+  "matrix": "inputs",
+  "plannedCases": 12,
+  "actualModelAcceptance": false,
+  "actualClientAcceptance": false,
+  "platform": "linux/x64",
+  "bun": "1.3.11",
+  "cases": [
+    {
+      "name": "input-small-stream-false",
+      "eofDelayMs": 0,
+      "stream": false,
+      "tools": 1,
+      "inputKind": "small",
+      "inputSize": 8,
+      "inputBytes": 40,
+      "completeForwardedInputMatched": true,
+      "httpRequests": 2,
+      "nativeApiRounds": 2,
+      "interrupt": {
+        "mode": "non_stream",
+        "acknowledged": true,
+        "qualified": true,
+        "generations": 1,
+        "tools": 1
+      },
+      "publishedCheckpointUuidPresent": true,
+      "distinctDurableFork": true,
+      "realResultsExactlyOnce": true,
+      "noDenialTail": true,
+      "originalPublicHistoryUnchanged": true,
+      "nativeActorCensusEmpty": true
+    },
+    {
+      "name": "input-small-stream-true",
+      "eofDelayMs": 0,
+      "stream": true,
+      "tools": 1,
+      "inputKind": "small",
+      "inputSize": 8,
+      "inputBytes": 40,
+      "completeForwardedInputMatched": true,
+      "httpRequests": 2,
+      "nativeApiRounds": 2,
+      "interrupt": {
+        "mode": "stream",
+        "acknowledged": true,
+        "qualified": true,
+        "generations": 1,
+        "tools": 1
+      },
+      "publishedCheckpointUuidPresent": true,
+      "distinctDurableFork": true,
+      "realResultsExactlyOnce": true,
+      "noDenialTail": true,
+      "originalPublicHistoryUnchanged": true,
+      "nativeActorCensusEmpty": true
+    },
+    {
+      "name": "input-below-node-boundary-stream-false",
+      "eofDelayMs": 0,
+      "stream": false,
+      "tools": 1,
+      "inputKind": "below-node-boundary",
+      "inputSize": 16380,
+      "inputBytes": 87194,
+      "completeForwardedInputMatched": true,
+      "httpRequests": 2,
+      "nativeApiRounds": 2,
+      "interrupt": {
+        "mode": "non_stream",
+        "acknowledged": true,
+        "qualified": true,
+        "generations": 1,
+        "tools": 1
+      },
+      "publishedCheckpointUuidPresent": true,
+      "distinctDurableFork": true,
+      "realResultsExactlyOnce": true,
+      "noDenialTail": true,
+      "originalPublicHistoryUnchanged": true,
+      "nativeActorCensusEmpty": true
+    },
+    {
+      "name": "input-below-node-boundary-stream-true",
+      "eofDelayMs": 0,
+      "stream": true,
+      "tools": 1,
+      "inputKind": "below-node-boundary",
+      "inputSize": 16380,
+      "inputBytes": 87194,
+      "completeForwardedInputMatched": true,
+      "httpRequests": 2,
+      "nativeApiRounds": 2,
+      "interrupt": {
+        "mode": "stream",
+        "acknowledged": true,
+        "qualified": true,
+        "generations": 1,
+        "tools": 1
+      },
+      "publishedCheckpointUuidPresent": true,
+      "distinctDurableFork": true,
+      "realResultsExactlyOnce": true,
+      "noDenialTail": true,
+      "originalPublicHistoryUnchanged": true,
+      "nativeActorCensusEmpty": true
+    }
+  ],
+  "outcome": "FAIL",
+  "realCredentialReads": 0,
+  "sdkVersion": "0.2.141",
+  "nativeVersion": "2.1.284",
+  "identity": {
+    "targetKind": "source",
+    "runtimeBuildHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+    "currentCodeHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+    "coreSha256": "2bb9025ee1c122a541e0c9f9c17df733f3f752a985776501bc69ea5ad31440d9",
+    "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+    "nativeSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+    "actualNativeVersionMatched": true
+  },
+  "errorClass": "AssertionError",
+  "failure": "proxy HTTP request failed\n\n500 !== 200\n",
+  "cleanup": {
+    "admissionClosed": true,
+    "providerBodiesJoined": true,
+    "requestsSettled": true,
+    "backendClosed": true,
+    "listenerClosed": true,
+    "nativeActorCensusEmpty": true,
+    "residualNativeActors": [],
+    "privateRuntimeRemoved": true
+  },
+  "independentCheckpointObservers": [
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": true,
+      "calls": 1,
+      "acknowledged": true,
+      "controlSettled": true,
+      "iteratorErrorMatched": true,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": true,
+      "hookResultsMatch": true,
+      "denialResults": 1,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 1,
+      "terminalReason": "aborted_tools",
+      "fault": null,
+      "qualified": true
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": true,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": null,
+      "qualified": false
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": true,
+      "calls": 1,
+      "acknowledged": true,
+      "controlSettled": true,
+      "iteratorErrorMatched": true,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": true,
+      "hookResultsMatch": true,
+      "denialResults": 1,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 1,
+      "terminalReason": "aborted_tools",
+      "fault": null,
+      "qualified": true
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": true,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": null,
+      "qualified": false
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": true,
+      "calls": 1,
+      "acknowledged": true,
+      "controlSettled": true,
+      "iteratorErrorMatched": true,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": true,
+      "hookResultsMatch": true,
+      "denialResults": 1,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 1,
+      "terminalReason": "aborted_tools",
+      "fault": null,
+      "qualified": true
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": true,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": null,
+      "qualified": false
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": true,
+      "calls": 1,
+      "acknowledged": true,
+      "controlSettled": true,
+      "iteratorErrorMatched": true,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": true,
+      "hookResultsMatch": true,
+      "denialResults": 1,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 1,
+      "terminalReason": "aborted_tools",
+      "fault": null,
+      "qualified": true
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": true,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": null,
+      "qualified": false
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": false,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": null,
+      "qualified": false
+    }
+  ],
+  "requests": [
+    {
+      "case": "input-small-stream-false",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    },
+    {
+      "case": "input-small-stream-false",
+      "phase": "continue",
+      "toolResults": 1,
+      "errorResults": 0
+    },
+    {
+      "case": "input-small-stream-true",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    },
+    {
+      "case": "input-small-stream-true",
+      "phase": "continue",
+      "toolResults": 1,
+      "errorResults": 0
+    },
+    {
+      "case": "input-below-node-boundary-stream-false",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    },
+    {
+      "case": "input-below-node-boundary-stream-false",
+      "phase": "continue",
+      "toolResults": 1,
+      "errorResults": 0
+    },
+    {
+      "case": "input-below-node-boundary-stream-true",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    },
+    {
+      "case": "input-below-node-boundary-stream-true",
+      "phase": "continue",
+      "toolResults": 1,
+      "errorResults": 0
+    },
+    {
+      "case": "input-above-node-boundary-stream-false",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    }
+  ],
+  "qualifiedInterruptions": [
+    {
+      "mode": "non_stream",
+      "acknowledged": true,
+      "qualified": true,
+      "generations": 1,
+      "tools": 1
+    },
+    {
+      "mode": "stream",
+      "acknowledged": true,
+      "qualified": true,
+      "generations": 1,
+      "tools": 1
+    },
+    {
+      "mode": "non_stream",
+      "acknowledged": true,
+      "qualified": true,
+      "generations": 1,
+      "tools": 1
+    },
+    {
+      "mode": "stream",
+      "acknowledged": true,
+      "qualified": true,
+      "generations": 1,
+      "tools": 1
+    }
+  ],
+  "queryDiagnostics": [
+    {
+      "case": "input-small-stream-false",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 5656.703,
+      "interruptRequestedMs": 8094.075,
+      "interruptAcknowledgedMs": 8122.387,
+      "terminal": {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "nativeTurns": 2,
+        "publicReasonCode": "aborted_tools",
+        "errors": [
+          {
+            "characters": 35,
+            "sha256": "4efbf7e9138e75c121468762a53f3018bf8c6864587a3e7f43bf2376659487b6",
+            "ownedFixturePublicText": "Reached maximum number of turns (1)"
+          }
+        ],
+        "observedMs": 8212.943
+      },
+      "iteratorError": {
+        "characters": 73,
+        "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+        "ownedFixturePublicText": "Claude Code returned an error result: Reached maximum number of turns (1)"
+      },
+      "iteratorSettledMs": 8330.956
+    },
+    {
+      "case": "input-small-stream-false",
+      "phase": "continue",
+      "maxTurns": 1,
+      "resumed": true,
+      "fork": true,
+      "admittedMs": 8532.871,
+      "terminal": {
+        "subtype": "success",
+        "isError": false,
+        "nativeTurns": 1,
+        "publicReasonCode": "completed",
+        "errors": [],
+        "observedMs": 10703.399
+      },
+      "iteratorSettledMs": 10946.657
+    },
+    {
+      "case": "input-small-stream-true",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 11104.94,
+      "interruptRequestedMs": 13159.974,
+      "interruptAcknowledgedMs": 13178.924,
+      "terminal": {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "nativeTurns": 2,
+        "publicReasonCode": "aborted_tools",
+        "errors": [
+          {
+            "characters": 35,
+            "sha256": "4efbf7e9138e75c121468762a53f3018bf8c6864587a3e7f43bf2376659487b6",
+            "ownedFixturePublicText": "Reached maximum number of turns (1)"
+          }
+        ],
+        "observedMs": 13261.474
+      },
+      "iteratorError": {
+        "characters": 73,
+        "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+        "ownedFixturePublicText": "Claude Code returned an error result: Reached maximum number of turns (1)"
+      },
+      "iteratorSettledMs": 13374.599
+    },
+    {
+      "case": "input-small-stream-true",
+      "phase": "continue",
+      "maxTurns": 1,
+      "resumed": true,
+      "fork": true,
+      "admittedMs": 13500.775,
+      "terminal": {
+        "subtype": "success",
+        "isError": false,
+        "nativeTurns": 1,
+        "publicReasonCode": "completed",
+        "errors": [],
+        "observedMs": 15705.203
+      },
+      "iteratorSettledMs": 15772.907
+    },
+    {
+      "case": "input-below-node-boundary-stream-false",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 15871.033,
+      "interruptRequestedMs": 18083.414,
+      "interruptAcknowledgedMs": 18143.935,
+      "terminal": {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "nativeTurns": 2,
+        "publicReasonCode": "aborted_tools",
+        "errors": [
+          {
+            "characters": 35,
+            "sha256": "4efbf7e9138e75c121468762a53f3018bf8c6864587a3e7f43bf2376659487b6",
+            "ownedFixturePublicText": "Reached maximum number of turns (1)"
+          }
+        ],
+        "observedMs": 18173.905
+      },
+      "iteratorError": {
+        "characters": 73,
+        "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+        "ownedFixturePublicText": "Claude Code returned an error result: Reached maximum number of turns (1)"
+      },
+      "iteratorSettledMs": 18228.85
+    },
+    {
+      "case": "input-below-node-boundary-stream-false",
+      "phase": "continue",
+      "maxTurns": 1,
+      "resumed": true,
+      "fork": true,
+      "admittedMs": 18381.261,
+      "terminal": {
+        "subtype": "success",
+        "isError": false,
+        "nativeTurns": 1,
+        "publicReasonCode": "completed",
+        "errors": [],
+        "observedMs": 21159.9
+      },
+      "iteratorSettledMs": 21248.247
+    },
+    {
+      "case": "input-below-node-boundary-stream-true",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 21503.123,
+      "interruptRequestedMs": 23790.582,
+      "interruptAcknowledgedMs": 23900.419,
+      "terminal": {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "nativeTurns": 2,
+        "publicReasonCode": "aborted_tools",
+        "errors": [
+          {
+            "characters": 35,
+            "sha256": "4efbf7e9138e75c121468762a53f3018bf8c6864587a3e7f43bf2376659487b6",
+            "ownedFixturePublicText": "Reached maximum number of turns (1)"
+          }
+        ],
+        "observedMs": 23942.795
+      },
+      "iteratorError": {
+        "characters": 73,
+        "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+        "ownedFixturePublicText": "Claude Code returned an error result: Reached maximum number of turns (1)"
+      },
+      "iteratorSettledMs": 24030.583
+    },
+    {
+      "case": "input-below-node-boundary-stream-true",
+      "phase": "continue",
+      "maxTurns": 1,
+      "resumed": true,
+      "fork": true,
+      "admittedMs": 24124.542,
+      "terminal": {
+        "subtype": "success",
+        "isError": false,
+        "nativeTurns": 1,
+        "publicReasonCode": "completed",
+        "errors": [],
+        "observedMs": 26442.134
+      },
+      "iteratorSettledMs": 26529
+    },
+    {
+      "case": "input-above-node-boundary-stream-false",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 26646.268,
+      "iteratorSettledMs": 28832.911
+    }
+  ],
+  "providerBodies": [
+    {
+      "case": "input-small-stream-false",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 7978.441,
+      "bodyClosedMs": 7981.196,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-small-stream-false",
+      "phase": "continue",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 10551.843,
+      "bodyClosedMs": 10551.945,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-small-stream-true",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 13098.536,
+      "bodyClosedMs": 13098.886,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-small-stream-true",
+      "phase": "continue",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 15500.393,
+      "bodyClosedMs": 15500.528,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-below-node-boundary-stream-false",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 17883.234,
+      "bodyClosedMs": 17884.887,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-below-node-boundary-stream-false",
+      "phase": "continue",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 20887.096,
+      "bodyClosedMs": 20887.779,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-below-node-boundary-stream-true",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 23627.142,
+      "bodyClosedMs": 23630.361,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-below-node-boundary-stream-true",
+      "phase": "continue",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 26217.592,
+      "bodyClosedMs": 26217.737,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "input-above-node-boundary-stream-false",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 28719.048,
+      "bodyClosedMs": 28719.345,
+      "bodyCancelledMs": null
+    }
+  ],
+  "liveFailureCauseEstablished": false,
+  "priorLiveFailurePreserved": true,
+  "completedAt": "2026-10-10T05:59:08.613Z"
+}

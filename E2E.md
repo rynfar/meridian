@@ -1,5 +1,16 @@
 # End-to-End Testing
 
+## Owner-deferred #1211/#1322 current qualification
+
+[Current saved packet](docs/maintenance/evidence/1211-checkpoint-json-identity-20261010/README.md)
+records code `ee3671ee`, the maintained wide/deep/large input matrix and unchanged
+EOF matrix. Source and independently installed native runtimes pass 48 cases /
+96 scripted Queries; no actual coding-client/model acceptance is implied.
+The original full local test gate fails at a synthetic report EOF; a diagnostic
+pass leaves its cause unexplained. Standalone types/build pass. Fresh actual
+client, E41 and caption checks remain unexecuted; owner deferral takes precedence.
+Retain every inherited gate and resume this ticket only when the owner returns.
+
 ## Current #1211/#1322 completed native stream checkpoint qualification
 
 [Current runnable before/after packet](docs/maintenance/evidence/1211-complete-stream-stop-20261010/README.md)

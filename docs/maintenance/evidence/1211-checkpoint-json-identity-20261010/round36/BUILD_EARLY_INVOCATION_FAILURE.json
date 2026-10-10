@@ -1,0 +1,6 @@
+{
+  "exit": 2,
+  "cause": "Build-controller invocation preceded completion of original preparation session79928; file not yet written",
+  "dockerBuildStarted": false,
+  "correction": "Wait for original preparation before first real build admission; no active build duplicated"
+}

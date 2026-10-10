@@ -1,0 +1,45 @@
+{
+  "atUTC": "2026-10-10T05:55:27.945698+00:00",
+  "results": [
+    {
+      "argv": [
+        "bun",
+        "test",
+        "src/__tests__/passthrough-checkpoint-stop.test.ts",
+        "src/__tests__/e72-owned-checkpoint.test.ts",
+        "src/__tests__/passthrough-checkpoint-stop-http.test.ts",
+        "src/__tests__/passthrough-checkpoint-stop-regressions.test.ts"
+      ],
+      "exit": 0,
+      "logSHA256": "83f6a4e4b2fa52e1e4d64ecaf314a6cf95f4c698802c3143b2fdeb6bb31d8e2e"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "argv": [
+        "node",
+        "--check",
+        "scripts/e2e-native-stop-eof.mjs"
+      ],
+      "exit": 0,
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "logSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "qualified": true
+}

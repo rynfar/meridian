@@ -1,0 +1,22 @@
+{
+  "label": "baseline",
+  "matrix": "inputs",
+  "target": "source",
+  "qualified": true,
+  "originalDriverPid": 61656,
+  "originalAttachPid": 61697,
+  "originalAttachJoined": true,
+  "exit": 1,
+  "hostDeadlineExceeded": false,
+  "ownedContainerStoppedPidZero": true,
+  "ownedContainerRemoved": true,
+  "inputsUnchanged": true,
+  "probeOutcome": "FAIL",
+  "caseCount": 4,
+  "queryCount": 9,
+  "failureClass": null,
+  "realCredentialReads": 0,
+  "actualModelClientAcceptance": false,
+  "priorLiveFailureCauseEstablished": false,
+  "finishedUTC": "2026-10-10T05:59:08.900530+00:00"
+}

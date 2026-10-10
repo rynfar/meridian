@@ -1,0 +1,19 @@
+{
+  "originalDriverPid": 90235,
+  "originalDockerBuildPid": 90239,
+  "originalJoined": true,
+  "exit": 0,
+  "argv": [
+    "docker",
+    "build",
+    "--platform",
+    "linux/amd64",
+    "--progress=plain",
+    "--tag",
+    "meridian1211:json-identity-r38-e41-sidecars",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-json-identity-e41-20261010-round38/sidecar-build"
+  ],
+  "finishedUTC": "2026-10-10T06:05:17.053480+00:00",
+  "DockerfileSHA256": "50ae5b47b809b8cdaabbef89a8f10b6bfd7bbf0b13e17dd149f01718a15cc4e5",
+  "imageId": "sha256:4cfe4636a0d033216c75958d82b52d3be8dfe412661a986000cfd24174de144e"
+}

@@ -1,0 +1,92 @@
+bun test v1.3.14 (0d9b296a)
+
+../meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:
+250 |         message.session_id === this.intent.sessionId && resultKindMatches &&
+251 |         message.is_error === true && (message.terminal_reason === "aborted_tools" || completedToolStreamAbort) &&
+252 |         this.generations.size <= this.options.maxTurns && this.resultErrors)
+253 |     }
+254 |     this.advance()
+255 |     if (this.faulted) throw new PassthroughCheckpointStopError(this.fault)
+                                  ^
+PassthroughCheckpointStopError: Passthrough checkpoint control did not qualify a durable terminal
+      at observe (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-stop.ts:255:29)
+      at generation (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:46:56)
+      at ownedIntent (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:60:3)
+      at acknowledged (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:68:23)
+      at <anonymous> (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:223:27)
+
+200 |           }
+201 |           const identity = inputIdentity(block.input)
+202 |           const previous = this.metadata.get(block.id)
+203 |           if (assistant?.id !== this.generationId || identity === undefined ||
+204 |               (previous && (previous.input !== identity || previous.name !== this.name(block.name)))) {
+205 |             this.fail(new Error("SDK tool metadata is incomplete, conflicting or belongs to another generation"))
+                                ^
+error: SDK tool metadata is incomplete, conflicting or belongs to another generation
+      at observe (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-stop.ts:205:27)
+      at generation (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:46:56)
+      at ownedIntent (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:60:3)
+      at acknowledged (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:68:23)
+      at <anonymous> (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:223:27)
+(fail) attempt-owned passthrough checkpoint stop > retains the full owned checkpoint for valid JSON with a wide array [12.19ms]
+250 |         message.session_id === this.intent.sessionId && resultKindMatches &&
+251 |         message.is_error === true && (message.terminal_reason === "aborted_tools" || completedToolStreamAbort) &&
+252 |         this.generations.size <= this.options.maxTurns && this.resultErrors)
+253 |     }
+254 |     this.advance()
+255 |     if (this.faulted) throw new PassthroughCheckpointStopError(this.fault)
+                                  ^
+PassthroughCheckpointStopError: Passthrough checkpoint control did not qualify a durable terminal
+      at observe (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-stop.ts:255:29)
+      at generation (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:46:56)
+      at ownedIntent (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:60:3)
+      at acknowledged (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:68:23)
+      at <anonymous> (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:223:27)
+
+200 |           }
+201 |           const identity = inputIdentity(block.input)
+202 |           const previous = this.metadata.get(block.id)
+203 |           if (assistant?.id !== this.generationId || identity === undefined ||
+204 |               (previous && (previous.input !== identity || previous.name !== this.name(block.name)))) {
+205 |             this.fail(new Error("SDK tool metadata is incomplete, conflicting or belongs to another generation"))
+                                ^
+error: SDK tool metadata is incomplete, conflicting or belongs to another generation
+      at observe (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-stop.ts:205:27)
+      at generation (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:46:56)
+      at ownedIntent (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:60:3)
+      at acknowledged (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:68:23)
+      at <anonymous> (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:223:27)
+(fail) attempt-owned passthrough checkpoint stop > retains the full owned checkpoint for valid JSON with a large string [0.83ms]
+250 |         message.session_id === this.intent.sessionId && resultKindMatches &&
+251 |         message.is_error === true && (message.terminal_reason === "aborted_tools" || completedToolStreamAbort) &&
+252 |         this.generations.size <= this.options.maxTurns && this.resultErrors)
+253 |     }
+254 |     this.advance()
+255 |     if (this.faulted) throw new PassthroughCheckpointStopError(this.fault)
+                                  ^
+PassthroughCheckpointStopError: Passthrough checkpoint control did not qualify a durable terminal
+      at observe (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-stop.ts:255:29)
+      at generation (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:46:56)
+      at ownedIntent (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:60:3)
+      at acknowledged (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:68:23)
+      at <anonymous> (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:223:27)
+
+200 |           }
+201 |           const identity = inputIdentity(block.input)
+202 |           const previous = this.metadata.get(block.id)
+203 |           if (assistant?.id !== this.generationId || identity === undefined ||
+204 |               (previous && (previous.input !== identity || previous.name !== this.name(block.name)))) {
+205 |             this.fail(new Error("SDK tool metadata is incomplete, conflicting or belongs to another generation"))
+                                ^
+error: SDK tool metadata is incomplete, conflicting or belongs to another generation
+      at observe (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-stop.ts:205:27)
+      at generation (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:46:56)
+      at ownedIntent (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:60:3)
+      at acknowledged (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:68:23)
+      at <anonymous> (/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/baseline-json.test.ts:223:27)
+(fail) attempt-owned passthrough checkpoint stop > retains the full owned checkpoint for valid JSON with a deep object [0.19ms]
+
+ 0 pass
+ 43 filtered out
+ 3 fail
+Ran 3 tests across 1 file. [135.00ms]

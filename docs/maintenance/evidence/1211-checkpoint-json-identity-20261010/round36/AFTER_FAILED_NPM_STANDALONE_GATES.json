@@ -1,0 +1,31 @@
+{
+  "head": "ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf",
+  "rows": [
+    {
+      "name": "typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "originalPid": 30629,
+      "originalJoined": true,
+      "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "originalPid": 31172,
+      "originalJoined": true,
+      "logSHA256": "316a9594a541f00d68da2b5788810f297bc8c45672ec0d14b0f1b87b759ff44f"
+    }
+  ],
+  "fullNpmAcceptance": "HELD_ORIGINAL_REPORT_TRUNCATION_UNEXPLAINED",
+  "atUTC": "2026-10-10T06:14:44.797334+00:00"
+}

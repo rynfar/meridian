@@ -1,0 +1,10 @@
+bun test v1.3.14 (0d9b296a)
+
+../meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/synthetic-report-failure-diagnostic/control.test.ts:
+(pass) E72 native harness containment and meaningful subagent receipts > owns each forwarded call while retaining later SDK calls explicitly denied by the original hook [3414.03ms]
+
+ 1 pass
+ 70 filtered out
+ 0 fail
+ 66 expect() calls
+Ran 1 test across 1 file. [3.83s]

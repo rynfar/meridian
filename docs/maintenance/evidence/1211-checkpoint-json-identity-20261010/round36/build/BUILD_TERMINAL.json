@@ -1,0 +1,17 @@
+{
+  "originalPid": 71711,
+  "originalJoined": true,
+  "exit": 0,
+  "argv": [
+    "docker",
+    "build",
+    "--platform",
+    "linux/amd64",
+    "--progress=plain",
+    "--tag",
+    "meridian1211:json-identity-r36-corrected",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/build/build-context"
+  ],
+  "finishedUTC": "2026-10-10T06:01:47.150468+00:00",
+  "logSHA256": "7e2500212270e068d7cc7e30cb87aa1e0b7fad82297e96cb53173b1b5ac00aaf"
+}

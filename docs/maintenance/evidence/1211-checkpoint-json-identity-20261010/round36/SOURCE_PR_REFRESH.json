@@ -1,0 +1,27 @@
+{
+  "atUTC": "2026-10-10T06:06:16.932248+00:00",
+  "rows": [
+    {
+      "number": 1211,
+      "headRefOid": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+      "state": "OPEN"
+    },
+    {
+      "number": 1231,
+      "headRefOid": "5afedf10450f4d0f4d31faf0b7d5d9a72b74884e",
+      "state": "OPEN"
+    },
+    {
+      "number": 1283,
+      "headRefOid": "571a671676d6b8604cde932199d77c34bc6a46f3",
+      "state": "OPEN"
+    },
+    {
+      "number": 1292,
+      "headRefOid": "21e028a5a0c288aa0e17ce9e3a9f722eec4d83b2",
+      "state": "OPEN"
+    }
+  ],
+  "allHeadsUnchanged": true,
+  "expanded1231Excluded": true
+}

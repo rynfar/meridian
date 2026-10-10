@@ -1,0 +1,17 @@
+{
+  "head": "ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf",
+  "base": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+  "previousWiderRuntimeReviewHead": "c8b5dfb5c2823185edd0941c5193bc7104fb584f",
+  "onlyProductionDeltaFromPriorReview": [
+    "src/proxy/passthroughCheckpointStop.ts"
+  ],
+  "wholeRuntimeDiffSHA256": "a85d3a1cc693cda9a58896b60f21089ea48784ba83ebb4c02ec42c6c0944e505",
+  "allFiveChangedPaths": [
+    "scripts/e2e-native-stop-eof.mjs",
+    "scripts/lib/e2eOwnedCheckpoint.mjs",
+    "src/__tests__/e72-owned-checkpoint.test.ts",
+    "src/__tests__/passthrough-checkpoint-stop.test.ts",
+    "src/proxy/passthroughCheckpointStop.ts"
+  ],
+  "atUTC": "2026-10-10T06:09:27.374543+00:00"
+}

@@ -1,0 +1,21 @@
+# Valid JSON checkpoint identity correction — deferred
+
+The owner defers #1211/#1322 until back at their computer. Continue other PRs and issues that do not need owner action. The full backlog goal stays active; this packet grants no release or merge authority.
+
+Code correction: ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf. The private checkpoint identity now compares valid wide/deep/large JSON without undocumented limits. Exact matching and all ownership/cap/error/cancellation/retirement/join checks remain. The independent observer uses a distinct structural token implementation. No public interface, version or dependency changes.
+
+[Root scoped review](round36/ROOT_REVIEW.md) resolves R35 P2 at source level. Focused109 tests/329 assertions and standalone typecheck/build pass. All three new positive pure controls fail on the prior controller; changed/malformed/cyclic/sparse/accessor/surrogate/nesting controls remain refused.
+
+The same maintained input matrix on frozen source34b49d82 passes four smaller stream/nonstream cases, then fails at the first16,384-element input with HTTP500 before interruption. Nine scripted Queries; original native/HTTP/body/backend/listener/runtime/container cleanup qualifies. This is the integration baseline, not main/published or the unknown reporter tuple.
+
+The fresh [build](round36/build/CHANGED_BUILD_IDENTITY.json) matches all3,935 tracked Git blobs/modes. Source SDK0.2.141/native2.1.284 and independently installed/native2.1.296 share new compiled core234d45e9… . Both12-case input matrices and both12-case EOF matrices PASS:48 cases/96 scripted Queries. Full tool input, exact once-only results, public UUID, durable distinct fork, unchanged original supported history, no denial tail and physical cleanup remain required. No real credentials, model or coding client are used in these matrices. [Exact tested tarball](round36/changed-artifacts/rynfar-meridian-1.80.0.tgz) is unpublished.
+
+Reproduce using the committed `scripts/e2e-native-stop-eof.mjs` and `scripts/lib/e2eOwnedCheckpoint.mjs`. Select `--matrix=inputs` or the default `--matrix=eof`. Supply `--source-root`, `--target-kind`, fresh `--evidence-dir`, exact `--claude-executable`/`--expected-cli-version`, certified `--expected-head`/`--expected-core-sha256`/`--expected-sdk-sha256` from the build receipt. Run in an owned read-only Linux amd64 network-none container with private writable tmpfs/evidence and synthetic machine ID. Each invocation permits24 Queries; the exact original controllers and commands are retained. Frozen local base images must be available to repeat the recorded image builds; the maintained harness can run against another explicitly qualified build. Do not relabel physical binaries or nearby tuples.
+
+**Local gate remains held:** original `npm test` returns1, with5,581 pass/36 skip/1 fail in its first batch; later isolated batches are unreached. An unchanged legacy synthetic subagent case parses its report as Unexpected EOF. [Original failed log](round36/final-local-gates/npm-test.log) is preserved. One bounded diagnostic retaining raw synthetic report/stdio/status passes; it does not explain or fix the original truncation. Standalone typecheck/build pass separately. No green diagnostic is promoted to full local acceptance.
+
+The renewed WORK profile was verified read-only; no agent login/refresh/write. Source/installed zero-query client rehearsals pass. The live sequence refuses admission at the failed local gate:zero stages/calls. E41 sidecar image is built/qualified, but fresh E41, actual mixed client and caption checks are UNEXECUTED. Owner deferral takes precedence over available credentials.
+
+All inherited actual root/scoped/declared cancellation and parent-abort independence, private cache/children, caption baseline/remaining cases, unknown #1288 tuple, bundled caption/actual platform, native295, historical R11/R15 attribution, complete final whole-change adversarial review and final-head CI holds remain. Source PRs/#1288 stay open. Owner checkout and18 raw contributor records are exact. No new PR/worktree, merge, source closure, release or community comment.
+
+The manifest enumerates every packet file except itself with exact byte/SHA256 identities. Private grants, raw private runtime/config/history and actual parent output are excluded.

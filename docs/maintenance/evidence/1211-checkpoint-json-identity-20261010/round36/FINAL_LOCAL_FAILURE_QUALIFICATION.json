@@ -1,0 +1,18 @@
+{
+  "head": "ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf",
+  "pass": 5581,
+  "skip": 36,
+  "fail": 1,
+  "failingTests": [
+    "(fail) E72 native harness containment and meaningful subagent receipts > owns each forwarded call while retaining later SDK calls explicitly denied by the original hook [3347.91ms]"
+  ],
+  "completedNpmBatches": 1,
+  "remainingIsolatedBatches": "UNREACHED",
+  "originalDriverSession": 20742,
+  "npmExit": 1,
+  "fixtureFailureClass": "SyntaxError: JSON Parse error: Unexpected EOF",
+  "originalFailureCause": "UNEXPLAINED",
+  "diagnosticRepetition": "PASS_NOT_A_FIX_OR_ATTRIBUTION",
+  "actualLiveSequence": "HELD_ZERO_STAGES_ZERO_CALLS",
+  "ownerSteering": "DEFER_CURRENT_TICKET_UNTIL_OWNER_AT_COMPUTER"
+}
