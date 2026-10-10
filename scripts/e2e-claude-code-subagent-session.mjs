@@ -18,7 +18,7 @@ import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/
 import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
 import { createOwnedCheckpointWitness, ownedCheckpointNativeResult } from './lib/e2eOwnedCheckpoint.mjs'
 import { createRequestModelWitness } from './e2e-claude-code-auto-mode.mjs'
-import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts } from './lib/e2eMixedAuto.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts, publicHandbackEncodingFacts } from './lib/e2eMixedAuto.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['checkpoint-protocol', 'scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -608,7 +608,8 @@ try {
         callerMessages: callerMessages.get(parent?.result?.request) ?? [] })
       handbackLinks.push({ expectedChild: index + 1, actor, call: receipt ? privateReceipts.indexOf(receipt) + 1 : null,
         parentLaunch: parent ? privateReceipts.indexOf(parent) + 1 : null, parentResultRequest: parent?.result?.request,
-        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message), diagnostic })
+        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message), diagnostic,
+        encoding: publicHandbackEncodingFacts({ input: receipt?.tool.privateInput, parentResultContent: parent?.result?.privateContent, expectedMessage: message }) })
       return actor > 0 && calls.length === 1 && parents.length === 1 && receipt.paired && !receipt.result &&
         Object.keys(receipt.tool.privateInput).length === 1 && receipt.tool.privateInput.message === message &&
         parent.paired && parent.resultMatched && parent.result.text.includes(message) && parent.result.request > receipt.tool.request &&

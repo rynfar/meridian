@@ -44,6 +44,40 @@ export function publicHandbackReceiptFacts({ input, parentPrompt, parentResultCo
   }
 }
 
+// Scalar diagnostics only. These distinguish escaped/quoted fixture reports
+// from delivery loss without exporting the input or accepting a normalized
+// message. The original handback predicate does not consume these fields.
+/** @param {{ input: unknown, parentResultContent?: unknown, expectedMessage: string }} receipt */
+export function publicHandbackEncodingFacts({ input, parentResultContent, expectedMessage }) {
+  const message = input !== null && typeof input === 'object' && !Array.isArray(input) && typeof input.message === 'string' && input.message.length <= 1048576 ? input.message : undefined
+  const text = textContent(parentResultContent)
+  const boundedText = text.length <= 2097152 ? text : ''
+  let decoded, jsonValid = false
+  if (boundedText.length) {
+    try { decoded = JSON.parse(boundedText); jsonValid = true }
+    catch (error) { if (!(error instanceof SyntaxError)) throw error }
+  }
+  const object = decoded !== null && typeof decoded === 'object' && !Array.isArray(decoded)
+  const present = message !== undefined
+  return {
+    inputMessagePresent: present,
+    inputMessageCharacters: present ? message.length : null,
+    inputMessageLineFeeds: present ? (message.match(/\n/g) ?? []).length : null,
+    inputMessageLiteralNewlineEscapes: present ? (message.match(/\\n/g) ?? []).length : null,
+    inputMessageMatchesJsonEncodingOfExpected: present && message === JSON.stringify(expectedMessage),
+    inputMessageMatchesEscapedNewlineOfExpected: present && message === expectedMessage.replaceAll('\n', '\\n'),
+    inputMessageMatchesCrlfOfExpected: present && message === expectedMessage.replaceAll('\n', '\r\n'),
+    inputMessageMatchesExpectedWithTrailingNewline: present && message === expectedMessage + '\n',
+    parentTextPresent: boundedText.length > 0,
+    parentTextJsonValid: jsonValid,
+    parentTextJsonString: jsonValid && typeof decoded === 'string',
+    parentTextContainsActualInput: present && message.length > 0 && boundedText.includes(message),
+    parentTextContainsJsonEncodingOfActualInput: present && message.length > 0 && boundedText.includes(JSON.stringify(message)),
+    parentJsonStringMatchesActualInput: present && jsonValid && decoded === message,
+    parentStructuredReportMatchesActualInput: present && object && decoded.handbackReport !== null && typeof decoded.handbackReport === 'object' && !Array.isArray(decoded.handbackReport) && decoded.handbackReport.text === message,
+  }
+}
+
 // Diagnostic facts only. Unknown names, IDs and inputs never leave the
 // observer, and these facts cannot qualify an unexpected tool as accepted.
 export function publicToolReceiptMatch({ wireName, sdkRawName, observerSdkName, wireInput, sdkInput, hookFate, hookInput, sdkIdOwners }) {
