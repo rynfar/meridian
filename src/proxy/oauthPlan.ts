@@ -86,14 +86,14 @@ export function extractPlanFields(profile: OAuthProfileResponse | null | undefin
 /**
  * Whether a stored credential is still missing plan information.
  *
- * Either field being absent counts, because they answer different questions
- * and arrive from different writers: `claude login` records `subscriptionType`
- * but not always `rateLimitTier`, and only `rateLimitTier` distinguishes Max 5x
- * from Max 20x. Requiring both means a file half-filled by the CLI still gets
- * completed.
+ * Personal Max needs its rate-limit tier to distinguish 5x from 20x. Team
+ * needs its seat tier instead: a Premium seat reports the same rate-limit
+ * tier as personal Max 5x, so family plus rate tier is still incomplete.
  */
 export function planFieldsMissing(fields: OAuthPlanFields | null | undefined): boolean {
-  return !fields?.subscriptionType || (!fields?.rateLimitTier && !fields?.seatTier)
+  if (!fields?.subscriptionType) return true
+  if (fields.subscriptionType === "team") return !fields.seatTier
+  return !fields.rateLimitTier && !fields.seatTier
 }
 
 /**

@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import type { CredentialStore } from "../proxy/tokenRefresh"
 import { planFieldsMissing } from "../proxy/oauthPlan"
+import { planAllowance } from "../proxy/planAllowance"
 
 const TOKEN_URL = "https://platform.claude.com/v1/oauth/token"
 const PROFILE_URL = "https://api.anthropic.com/api/oauth/profile"
@@ -69,7 +70,7 @@ function stubEndpoints(profileResponse: () => Response | null) {
 }
 
 /** A store seeded with tokens plus whatever plan fields the case is about. */
-function makeStore(plan: { subscriptionType?: string; rateLimitTier?: string }) {
+function makeStore(plan: { subscriptionType?: string; rateLimitTier?: string; seatTier?: string | null }) {
   let stored: Record<string, unknown> = {
     claudeAiOauth: {
       accessToken: "old-access-token",
@@ -101,6 +102,14 @@ describe("planFieldsMissing", () => {
   it("is false only once both are present", () => {
     expect(planFieldsMissing({ subscriptionType: "max", rateLimitTier: "default_claude_max_20x" })).toBe(false)
   })
+
+  it("requires a Team seat even when its Max-shaped rate tier is present", () => {
+    const fields = { subscriptionType: "team", rateLimitTier: "default_claude_max_5x" }
+
+    expect(planFieldsMissing(fields)).toBe(true)
+    expect(planFieldsMissing({ ...fields, seatTier: "team_tier_1" })).toBe(false)
+    expect(planFieldsMissing({ subscriptionType: "team", seatTier: "team_standard" })).toBe(false)
+  })
 })
 
 describe("a token refresh backfills a plan-blind credential", () => {
@@ -116,9 +125,65 @@ describe("a token refresh backfills a plan-blind credential", () => {
   afterEach(async () => {
     globalThis.fetch = originalFetch
     console.warn = originalWarn
-    const { resetInflightRefresh } = await import("../proxy/tokenRefresh")
+    const { resetInflightRefresh, resetAuthRenewalCache } = await import("../proxy/tokenRefresh")
     resetInflightRefresh()
+    resetAuthRenewalCache()
   })
+
+  it("repairs a cached Team allowance when only its seat was never persisted", async () => {
+    const { refreshOAuthToken, getStoredPlanFields } = await import("../proxy/tokenRefresh")
+    const { store } = makeStore({ subscriptionType: "team", rateLimitTier: "default_claude_max_5x" })
+    store.refreshKey = "test:missing-team-seat"
+    await getStoredPlanFields(store)
+    const stub = stubEndpoints(() => jsonResponse({ organization: {
+      organization_type: "claude_team",
+      rate_limit_tier: "default_claude_max_5x",
+      seat_tier: "team_tier_1",
+    } }))
+
+    const refreshed = await refreshOAuthToken(store)
+
+    expect(refreshed).toBe(true)
+    expect(planAllowance(await getStoredPlanFields(store))).toMatchObject({
+      planName: "Premium seat", multiplier: "6.25x", weight: 6.25,
+    })
+    expect(stub.profileCalls()).toBe(1)
+  })
+
+  it("persists a seat-only profile response during the Team backfill", async () => {
+    const { refreshOAuthToken, getStoredPlanFields } = await import("../proxy/tokenRefresh")
+    const { store } = makeStore({ subscriptionType: "team", rateLimitTier: "default_claude_max_5x" })
+    stubEndpoints(() => jsonResponse({ organization: { seat_tier: "team_tier_1" } }))
+
+    await refreshOAuthToken(store)
+
+    expect(planAllowance(await getStoredPlanFields(store)).multiplier).toBe("6.25x")
+  })
+
+  it("does not repeatedly look up a Team whose seat is already known", async () => {
+    const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
+    const { store } = makeStore({ subscriptionType: "team", rateLimitTier: "default_claude_max_5x", seatTier: "team_tier_1" })
+    const stub = stubEndpoints(() => jsonResponse({ organization: { seat_tier: "team_tier_1" } }))
+
+    await refreshOAuthToken(store)
+
+    expect(stub.profileCalls()).toBe(0)
+  })
+
+  for (const [storedSeat, fetchedSeat, planName, multiplier] of [
+    [null, "team_tier_1", "Premium seat", "6.25x"],
+    ["", "team_standard", "Standard seat", "1x"],
+  ] as const) {
+    it(`fills a ${JSON.stringify(storedSeat)} seat with the reported ${planName}`, async () => {
+      const { refreshOAuthToken, getStoredPlanFields } = await import("../proxy/tokenRefresh")
+      const { store } = makeStore({ subscriptionType: "team", rateLimitTier: "default_claude_max_5x", seatTier: storedSeat })
+      stubEndpoints(() => jsonResponse({ organization: { seat_tier: fetchedSeat } }))
+
+      await refreshOAuthToken(store)
+
+      expect(planAllowance(await getStoredPlanFields(store))).toMatchObject({ planName, multiplier })
+    })
+  }
 
   it("writes both fields when the credential has neither", async () => {
     const { refreshOAuthToken } = await import("../proxy/tokenRefresh")
