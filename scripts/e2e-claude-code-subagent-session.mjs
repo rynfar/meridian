@@ -16,25 +16,29 @@ import { createQueryMcpReadinessWitness } from './lib/e2eMcpReadiness.mjs'
 import { createOwnedClientProcess } from './lib/e2eOwnedClient.mjs'
 import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/e2ePublicSdkDiagnostics.mjs'
 import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
+import { createOwnedCheckpointWitness, ownedCheckpointNativeResult } from './lib/e2eOwnedCheckpoint.mjs'
 import { createRequestModelWitness } from './e2e-claude-code-auto-mode.mjs'
 import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts } from './lib/e2eMixedAuto.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
-const names = new Set(['scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
+const names = new Set(['checkpoint-protocol', 'scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
 const args = {}
 for (let i = 2; i < process.argv.length; i++) {
   const key = process.argv[i].replace(/^--/, '')
   assert(process.argv[i].startsWith('--') && (switches.has(key) || names.has(key)) && !(key in args), 'Unknown or repeated harness option')
   args[key] = switches.has(key) ? true : process.argv[++i]
 }
-for (const key of names) if (!['source-head', 'scenario', 'classifier-model', 'classifier-served-model'].includes(key)) assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
+for (const key of names) if (!['checkpoint-protocol', 'source-head', 'scenario', 'classifier-model', 'classifier-served-model'].includes(key)) assert(typeof args[key] === 'string' && args[key].length > 0, `Missing --${key}`)
+const ownedCheckpoint = args['checkpoint-protocol'] === 'owned-interrupt-v1'
+assert(args['checkpoint-protocol'] === undefined || ownedCheckpoint, 'Invalid checkpoint protocol')
+if (ownedCheckpoint) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295', '2.1.296'].includes(args['native-cli-version']), 'Owned interrupt requires an independently qualified SDK/native tuple')
 const scenario = args.scenario ?? 'foreground'
 assert(['foreground', 'background', 'background-read-v2', 'mixed-auto-v1', 'mixed-auto-handback-v2'].includes(scenario), 'Invalid E72 scenario')
 const mixedHandback = scenario === 'mixed-auto-handback-v2'
 const mixedAuto = scenario === 'mixed-auto-v1' || mixedHandback
 const readBackground = scenario === 'background-read-v2'
 const background = ['background', 'background-read-v2'].includes(scenario)
-if (readBackground || mixedAuto) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295'].includes(args['native-cli-version']) && args.model === 'claude-sonnet-5-5' && args['served-model'] === args.model, 'Versioned scenario requires counter-qualified SDK/native/model tuple')
+if (readBackground || mixedAuto) assert(args['sdk-version'] === '0.2.141' && (ownedCheckpoint ? ['2.1.284', '2.1.295', '2.1.296'] : ['2.1.284', '2.1.295']).includes(args['native-cli-version']) && args.model === 'claude-sonnet-5-5' && args['served-model'] === args.model, 'Versioned scenario requires counter-qualified SDK/native/model tuple')
 if (mixedAuto) assert([args.model, 'claude-sonnet-5'].includes(args['classifier-model']) && /^claude-sonnet-[0-9][a-z0-9.-]*$/.test(args['classifier-served-model']), 'Mixed scenario requires one explicit requested/served classifier model arm')
 else assert(args['classifier-model'] === undefined && args['classifier-served-model'] === undefined, 'Classifier models belong only to the mixed scenario')
 const synthetic = args.synthetic === true, rehearsal = args.rehearsal === true
@@ -56,6 +60,7 @@ const proofDescriptor = openSync(join(output, 'claude-subagent-results.json'), '
 try { verifyProofDescriptor(proofDescriptor) }
 catch (error) { closeSync(proofDescriptor); throw error }
 const proof = { kind: synthetic ? 'synthetic-harness-control' : rehearsal ? 'zero-query-rehearsal' : 'native-affected-flow', expected: args['expect-unfixed'] ? 'unfixed' : 'fixed', platform: `${process.platform}/${process.arch}`, runtime: { bun: Bun.version, node: process.version }, scenario, requestedModel: args.model, requiredServedModel: args['served-model'], limits: { queries: maximum, sdkEstimatedCostUsd: costLimit, perQueryBudgetUsd: costLimit / maximum, totalMilliseconds: timeout, wireRequests: maximum, requestBytes: 2 * 1024 * 1024, clientStreamBytes: 2 * 1024 * 1024, clientInvocations: 2, ownedProcesses: 96 }, queries: [], turns: [], checks: {}, result: 'INCOMPLETE', acceptance: false }
+proof.checkpointProtocol = ownedCheckpoint ? 'owned-interrupt-v1' : 'legacy'
 if (mixedAuto) { proof.requestedClassifierModel = args['classifier-model']; proof.requiredServedClassifierModel = args['classifier-served-model']; proof.classifierModelScope = 'One explicitly pinned native classifier arm only; demotion/fallback and another served model cannot qualify this run.' }
 const saved = { log: console.log, error: console.error, warn: console.warn, debug: console.debug }
 const publicLog = saved.log.bind(console), records = [], traceIds = new Map(), decisionSessions = new Map()
@@ -126,6 +131,7 @@ async function requestBody(request, maximumBytes) {
 const seen = new Map(), children = new Set(), active = new Set(), stop = new AbortController()
 const childOwners = new WeakMap(), clientOwners = []
 const sdkTools = new Map(), sdkToolOwners = new Map(), sdkHookReceipts = new Map(), httpTools = new Map(), pendingHttp = new Set(), sdkTexts = new Map(), httpTexts = new Map(), sdkSessionIds = new Map()
+const checkpointWitnesses = new Map()
 const requestModels = new Map(), relayWork = createOwnedRelayWork()
 const sessionOrdinal = value => { if (typeof value !== 'string' || !value.length) return undefined; if (!sdkSessionIds.has(value)) sdkSessionIds.set(value, sdkSessionIds.size + 1); return sdkSessionIds.get(value) }
 let scratch, proxy, relay, observer, source, runtimeGrant, deadline, census, failure, startup, modelWitness
@@ -296,6 +302,7 @@ try {
   }
   const client = realpathSync(args.client), native = realpathSync(args['native-cli'])
   inputs = [snapshot(entry), snapshot(sdkPath), snapshot(installed.file), snapshot(client), snapshot(native), snapshot(join(target, 'package.json'))]
+  if (ownedCheckpoint) { const helper = snapshot(new URL('./lib/e2eOwnedCheckpoint.mjs', import.meta.url)); inputs.push(helper); proof.checkpointObserverSha256 = helper.hash }
   if (args['source-head'] && entry.startsWith(`${target}/dist/`)) {
     const manifestInput = snapshot(join(target, 'dist/build-provenance.json')), manifest = JSON.parse(manifestInput.bytes.toString('utf8'))
     assert(manifest.build?.sha === args['source-head'] && manifest.build.dirty === false && manifest.build.certification === 'verified', 'Compiled target does not certify selected clean source head')
@@ -357,6 +364,8 @@ try {
     row.createdMs = elapsed(); row.allowedToolCapabilities = publicToolCapabilities(input.options.allowedTools)
     row.nativeInitToolCapabilities = []
     const generations = createPublicSdkGenerationWitness({ now: elapsed })
+    const checkpoint = ownedCheckpoint ? createOwnedCheckpointWitness({ maxTurns: input.options.maxTurns, signal: input.options.abortController?.signal, forwardedReason: PASSTHROUGH_DENY_REASON }) : undefined
+    if (checkpoint) checkpointWitnesses.set(row, checkpoint)
     const tools = new Map(), hookReceipts = new Map(); sdkTools.set(row, tools); sdkHookReceipts.set(row, hookReceipts)
     const mcpWitness = args['require-mcp-readiness'] ? createQueryMcpReadinessWitness(input.options) : undefined
     proof.queries.push(row)
@@ -365,7 +374,11 @@ try {
     assert(Array.isArray(preToolHooks) && preToolHooks.length > 0, 'SDK tool forwarding hook witness unavailable')
     let hookOrder = 0
     const observedHooks = preToolHooks.map(matcher => ({ ...matcher, hooks: matcher.hooks.map(hook => async (event, toolUseId, options) => {
-      const result = await hook(event, toolUseId, options)
+      checkpoint?.hookStarted(event, toolUseId)
+      let result
+      try { result = await hook(event, toolUseId, options) }
+      catch (error) { checkpoint?.hookSettled(toolUseId, undefined, true); throw error }
+      checkpoint?.hookSettled(toolUseId, result)
       if (typeof event.tool_use_id !== 'string' || event.tool_use_id !== toolUseId || !objectInput(event.tool_input)) { row.invalidToolHookWitness = true; return result }
       if (hookReceipts.has(toolUseId)) row.duplicateToolHookWitness = true
       hookReceipts.set(toolUseId, {
@@ -379,7 +392,13 @@ try {
     const query = original({ ...input, options: { ...input.options, hooks: { ...input.options.hooks, PreToolUse: observedHooks }, maxBudgetUsd: costLimit / maximum } }); active.add(query)
     const closeObserved = (...values) => {
       row.closeCalls = (row.closeCalls ?? 0) + 1; row.firstCloseCalledMs ??= elapsed()
-      try { return query.close(...values) } catch (error) { row.closeThrew = true; throw error }
+      checkpoint?.close()
+      try { return query.close(...values) } catch (error) { checkpoint?.close(true); row.closeThrew = true; throw error }
+    }
+    const interruptObserved = async (...values) => {
+      checkpoint.interruptRequested()
+      try { const result = await query.interrupt(...values); checkpoint.interruptSettled(true); return result }
+      catch (error) { checkpoint.interruptSettled(false); throw error }
     }
     const abort = () => {
       try { input.options.abortController?.abort(new Error('E72 execution bound')) } catch { proof.sdkAbortSignalFailed = true }
@@ -392,6 +411,7 @@ try {
           for await (const event of query) {
             mcpWitness?.observe(event)
             generations.observe(event)
+            checkpoint?.observe(event)
             if (event.type === 'system' && event.subtype === 'init') {
               if (row.nativeInitToolCapabilities.length < 16) row.nativeInitToolCapabilities.push(publicToolCapabilities(event.tools))
               else row.nativeInitCapabilitiesOverflow = true
@@ -414,17 +434,19 @@ try {
             }
             if (event.type === 'result') {
               row.resultEventMs = elapsed()
-              row.completed = true; row.resultSubtype = ['success', 'error_max_turns'].includes(event.subtype) ? event.subtype : 'other'
+              row.completed = true; row.resultSubtype = ['success', 'error_max_turns', 'error_during_execution'].includes(event.subtype) ? event.subtype : 'other'
               row.resultFlagValid = typeof event.is_error === 'boolean'
               row.resultIsError = row.resultFlagValid ? event.is_error : null; row.nativeTurns = event.num_turns
-              row.terminalReason = event.terminal_reason === undefined ? 'absent' : event.terminal_reason === 'max_turns' ? 'max_turns' : 'other'
+              row.terminalReason = event.terminal_reason === undefined ? 'absent' : ['max_turns', 'aborted_tools'].includes(event.terminal_reason) ? event.terminal_reason : 'other'
               row.estimatedCostUsd = Number.isFinite(event.total_cost_usd) ? event.total_cost_usd : null
             }
             yield event
           }
-        } finally { if (mcpWitness) row.mcpReadiness = mcpWitness.summary(); row.generations = generations.summary(); row.iteratorSettledMs = elapsed(); row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
+        } catch (error) { checkpoint?.iteratorError(error); throw error }
+        finally { checkpoint?.iteratorSettled(); if (mcpWitness) row.mcpReadiness = mcpWitness.summary(); row.generations = generations.summary(); row.iteratorSettledMs = elapsed(); row.iteratorSettled = true; stop.signal.removeEventListener('abort', abort); active.delete(query) }
       }
       if (key === 'close') return closeObserved
+      if (key === 'interrupt' && checkpoint && typeof targetQuery.interrupt === 'function') return interruptObserved
       const value = Reflect.get(targetQuery, key, targetQuery); return typeof value === 'function' ? value.bind(targetQuery) : value
     } })
   })
@@ -544,10 +566,15 @@ try {
       const requests = new Set([...tools.keys()].map(id => httpTools.get(id)?.request))
       row.toolRequest = tools.size > 0 && requests.size === 1 && !requests.has(undefined) ? [...requests][0] : undefined
       row.toolCount = tools.size
+      if (ownedCheckpoint) row.ownedCheckpoint = checkpointWitnesses.get(row).summary()
       row.acceptedCanonicalResult = row.resultFlagValid && ((row.resultSubtype === 'success' && row.resultIsError === false) || (row.resultSubtype === 'error_max_turns' && row.resultIsError === true && row.maxTurns === 1 && row.nativeTurns === 1 && ['absent', 'max_turns'].includes(row.terminalReason) && row.canonicalHttpToolTerminal))
       if (readBackground || mixedAuto) {
         row.originalCanonicalResult = row.acceptedCanonicalResult
         row.acceptedCanonicalResult = backgroundReadNativeResult(row, { sdkVersion: args['sdk-version'], nativeVersion: args['native-cli-version'] })
+      }
+      if (ownedCheckpoint) {
+        row.legacyCanonicalResult = row.acceptedCanonicalResult
+        row.acceptedCanonicalResult = ownedCheckpointNativeResult(row, { sdkVersion: args['sdk-version'], nativeVersion: args['native-cli-version'] })
       }
     }
     proof.wire = wire; proof.lineage = records; proof.peakParallelAgentRequests = peakAgents; if (background) proof.peakParentChildRequests = peakParentChild

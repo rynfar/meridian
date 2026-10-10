@@ -29,15 +29,21 @@ export async function startProxyServer(config) {
       if (mode.sharedParentReport && actor === 'main' && count === 1) { tools[0].input.prompt = 'alpha-1 alpha-2 beta-1 beta-2'; tools[1].input.prompt = 'synthetic unrelated task' }
       if (mode.changedCommand && tools[0]?.name === 'Bash') tools[0].input.command += ' && echo changed-command'
       const resume = classifier ? mode.borrowedClassifierSession ? sessions.get('main') : undefined : sessions.get(actor)
+      let native
       const options = { model: mode.wrongClassifierModel && classifier ? 'claude-sonnet-4-6' : body.model, ...(resume ? { resume } : {}), maxTurns: 1,
         env: { CLAUDE_CONFIG_DIR: config.profiles[0].claudeConfigDir }, pathToClaudeCodeExecutable: process.env.MERIDIAN_CLAUDE_PATH,
         mcpServers: classifier ? {} : { oc: { type: 'sdk', name: 'oc' } }, allowedTools: classifier ? [] : body.tools.map(tool => 'mcp__oc__' + tool.name),
-        hooks: { PreToolUse: [{ hooks: [async () => ({ decision: 'block', reason: '__DENIAL__' })] }] } }
+        hooks: { PreToolUse: [{ hooks: [async event => {
+          if (mode.ownedCheckpoint && event.tool_use_id === tools.at(-1)?.id) await native.interrupt()
+          return { decision: 'block', reason: '__DENIAL__' }
+        }] }] } }
       const input = { prompt: JSON.stringify({ tools, text, request: ++requests }), options }
-      const native = query(input)
+      native = query(input)
       if (mode.duplicateBeforeConsume) query(input)
       let session
-      for await (const event of native) if (event.type === 'result') session = event.session_id
+      try { for await (const event of native) if (event.type === 'result') session = event.session_id }
+      catch (error) { if (!mode.ownedCheckpoint) throw error }
+      finally { if (mode.ownedCheckpoint) native.close() }
       if (mode.duplicateQuery) query(input)
       if (!classifier) sessions.set(actor, session)
       console.log('[PROXY] ' + request.headers['x-request-id'] + ' adapter=claude-code msgCount=2 tools=' + tools.length + ' lineage=' + (resume ? 'continuation' : 'new') + ' diverged=' + (classifier && !mode.classifierNotIsolated ? 'independent-request:auxiliary-request' : 'none') + ' session=' + (resume ? resume.slice(0, 8) : 'new') + ' sessionWait=' + (classifier && mode.classifierWait ? 20 : 0) + 'ms')

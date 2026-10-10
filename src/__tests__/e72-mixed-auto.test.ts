@@ -103,6 +103,7 @@ async function runControl(mode: Record<string, boolean>, expectUnjoinedQuery = f
   writeFileSync(grant, JSON.stringify({ claudeAiOauth: { accessToken: 'synthetic-never-authenticated', expiresAt: Date.now() + 3600000, scopes: ['user:inference'] } }), { mode: 0o400 })
   const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-subagent-session.mjs')
   const child = spawn(process.execPath, [harness, '--synthetic', '--require-mcp-readiness', '--scenario', mode.handbackScenario ? 'mixed-auto-handback-v2' : 'mixed-auto-v1',
+    ...(mode.ownedCheckpoint ? ['--checkpoint-protocol', 'owned-interrupt-v1'] : []),
     '--target-root', target, '--entry', 'server.mjs', '--client', client, '--client-version', '2.1.287', '--native-cli', native,
     '--native-cli-version', '2.1.284', '--sdk-version', '0.2.141', '--model', 'claude-sonnet-5-5', '--served-model', 'claude-sonnet-5-5',
     '--classifier-model', 'claude-sonnet-5', '--classifier-served-model', 'claude-sonnet-5', '--grant-file', grant,
@@ -140,6 +141,25 @@ async function runControl(mode: Record<string, boolean>, expectUnjoinedQuery = f
 }
 
 describe('actual mixed observer against marked synthetic client, proxy and SDK', () => {
+  it('witnesses the opt-in interrupt through the maintained harness without trusting a product log', async () => {
+    const result = await runControl({ ownedCheckpoint: true, handbackScenario: true })
+    expect(result.code).toBe(0)
+    expect(result.proof.result).toBe('PASS')
+    expect(result.proof.checkpointProtocol).toBe('owned-interrupt-v1')
+    expect(result.proof.checkpointObserverSha256).toMatch(/^[a-f0-9]{64}$/)
+    const stops = result.proof.queries.filter((row: { ownedCheckpoint: { requested: boolean } }) => row.ownedCheckpoint.requested)
+    expect(stops).toHaveLength(8)
+    expect(stops.every((row: { ownedCheckpoint: { qualified: boolean }; acceptedCanonicalResult: boolean; legacyCanonicalResult: boolean }) => row.ownedCheckpoint.qualified && row.acceptedCanonicalResult && !row.legacyCanonicalResult)).toBe(true)
+    expect(Object.values(result.proof.checks).every(Boolean)).toBe(true)
+  })
+  it('rejects an unrelated error even when a fake product consumes it and returns the expected tools', async () => {
+    const result = await runControl({ ownedCheckpoint: true, ownedWrongIteratorError: true, handbackScenario: true })
+    expect(result.code).toBe(1)
+    expect(result.proof.checks.nativeReceipts).toBe(false)
+    const stops = result.proof.queries.filter((row: { ownedCheckpoint: { requested: boolean } }) => row.ownedCheckpoint.requested)
+    expect(stops).toHaveLength(8)
+    expect(stops.every((row: { ownedCheckpoint: { qualified: boolean; iteratorErrorMatched: boolean } }) => !row.ownedCheckpoint.qualified && !row.ownedCheckpoint.iteratorErrorMatched)).toBe(true)
+  })
   it('binds interleaved classifiers to independent sessions while preserving parent/child chains', async () => {
     const result = await runControl({})
     expect(result.proof.failure).toBeUndefined()
