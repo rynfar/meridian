@@ -5,6 +5,7 @@ import { describe, it, expect } from "bun:test"
 import { buildQueryOptions, GIT_STATUS_PROVENANCE_NOTE, REPLAY_PROVENANCE_NOTE, SCRATCHPAD_COUNTER_INSTRUCTION, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 import { CHERRY_BLOCKED_BUILTIN_TOOLS, CHERRY_INCOMPATIBLE_TOOLS, CHERRY_WEB_TOOLS } from "../proxy/adapters/cherry"
+import { createPassthroughMcpServer } from "../proxy/passthroughTools"
 
 function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
   return {
@@ -172,6 +173,15 @@ describe("buildQueryOptions", () => {
   it("sets includePartialMessages for streaming", () => {
     const result = buildQueryOptions(makeContext({ stream: true }))
     expect((result.options as any).includePartialMessages).toBe(true)
+  })
+
+  it("builds a separate passthrough MCP server for every query", () => {
+    const passthroughMcp = createPassthroughMcpServer([{ name: "bash", input_schema: { type: "object", properties: {} } }])
+    const first = buildQueryOptions(makeContext({ passthrough: true, passthroughMcp })).options.mcpServers?.oc
+    const second = buildQueryOptions(makeContext({ passthrough: true, passthroughMcp })).options.mcpServers?.oc
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    expect(second).not.toBe(first)
   })
 
   it("caps maxTurns at 1 in passthrough mode so the SDK stops at the tool handoff instead of generating a billed digest turn", () => {
@@ -362,17 +372,10 @@ describe("buildQueryOptions", () => {
   })
 
   it("uses passthrough MCP tools when in passthrough mode", () => {
-    const mockPassthroughMcp = {
-      toolNames: ["mcp__passthrough__custom_tool"],
-      server: {} as any,
-      hasDeferredTools: false,
-      clientNameByAlias: new Map([["custom_tool", "custom_tool"]]),
-      serverName: "passthrough",
-      prefix: "mcp__passthrough__",
-    }
+    const passthroughMcp = createPassthroughMcpServer([{ name: "custom_tool" }], undefined, "passthrough")
     const result = buildQueryOptions(makeContext({
       passthrough: true,
-      passthroughMcp: mockPassthroughMcp,
+      passthroughMcp,
     }))
     const allowed = (result.options as any).allowedTools as string[]
     expect(allowed).toContain("mcp__passthrough__custom_tool")
@@ -394,17 +397,10 @@ describe("buildQueryOptions", () => {
   })
 
   it("strips the catalog even when passthroughMcp tools are present", () => {
-    const mockPassthroughMcp = {
-      toolNames: ["mcp__passthrough__custom_tool"],
-      server: {} as any,
-      hasDeferredTools: false,
-      clientNameByAlias: new Map([["custom_tool", "custom_tool"]]),
-      serverName: "passthrough",
-      prefix: "mcp__passthrough__",
-    }
+    const passthroughMcp = createPassthroughMcpServer([{ name: "custom_tool" }], undefined, "passthrough")
     const result = buildQueryOptions(makeContext({
       passthrough: true,
-      passthroughMcp: mockPassthroughMcp,
+      passthroughMcp,
     }))
     // Catalog is empty — built-ins disabled.
     expect((result.options as any).tools).toEqual([])

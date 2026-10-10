@@ -1,5 +1,26 @@
 # End-to-End Testing
 
+## Overlapping passthrough queries
+
+```sh
+bun scripts/e2e-passthrough-mcp-overlap.mjs
+```
+
+Credential-free: the installed Claude executable runs through the Agent SDK
+with the options `buildQueryOptions` produces, against a loopback Anthropic API
+fixture, so no model is called. One passthrough tool set is built once and
+handed to two queries, as Meridian hands a conversation's cached tool set to
+each of its queries. The fixture holds the first query's model request open
+while the second query runs. Both queries must report the `oc` server
+connected, reach the model with identical tool definitions, and leave no
+`Failed to connect SDK MCP server` entry in the CLI's MCP logs: that entry is
+the signature of a turn that ran without the client's tools.
+
+**Verified 2026-10-05:** Linux, Claude Code 2.1.284, Agent SDK 0.2.141: passes
+with each query building its own MCP server. On main 74d0a499, which hands both
+queries one server instance, the second query reports `oc` failed, its model
+request carries no tools, and the CLI logs `SDK MCP server not found: oc`.
+
 ## Shared header separator hover (#1262)
 
 Run `E2E_HEADER_PORT=42231 bun scripts/e2e-build-header-fixture.ts` and use the

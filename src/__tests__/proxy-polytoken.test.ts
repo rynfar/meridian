@@ -877,17 +877,25 @@ describe("polytoken catalog lifecycle characterization", () => {
     return post(app, haikuBody({ tools, messages: continuation(content) }), nativeHeaders(sessionId))
   }
 
-  it("reuses the same MCP object for reorder and description-only changes", async () => {
+  // Every query gets a server of its own; what an unchanged catalog keeps is
+  // the definitions those servers register.
+  function expectSameDefinitions(later: RegisteredMcpServer, earlier: RegisteredMcpServer) {
+    expect(later.tools).toHaveLength(earlier.tools.length)
+    later.tools.forEach((tool, index) => expect(tool).toBe(earlier.tools[index]!))
+  }
+
+  it("reuses the same tool definitions for reorder and description-only changes", async () => {
     const { app } = createProxyServer({ silent: true })
     await post(app, haikuBody({ tools: [readTool(), writeTool], messages: [{ role: "user", content: "catalog opening" }] }), nativeHeaders("pt-catalog"))
     const first = captured[0]!.options!.mcpServers?.oc
     await sendCatalogTurn(app, "pt-catalog", [writeTool, readTool("Read from disk")], "description changed")
     const second = captured[1]!.options!.mcpServers?.oc
-    expect(first).toBe(second)
-    expect(registeredMcpServers).toHaveLength(1)
+    expect(second).not.toBe(first)
+    expect(registeredMcpServers).toHaveLength(2)
+    expectSameDefinitions(registeredMcpServers[1]!, registeredMcpServers[0]!)
   })
 
-  it("rebuilds the MCP object for schema, defer, growth, and shrink changes", async () => {
+  it("rebuilds the tool definitions for schema, defer, growth, and shrink changes", async () => {
     const { app } = createProxyServer({ silent: true })
     await post(app, haikuBody({ tools: [readTool()], messages: [{ role: "user", content: "catalog opening" }] }), nativeHeaders("pt-catalog"))
     const first = captured[0]!.options!.mcpServers?.oc
@@ -901,6 +909,9 @@ describe("polytoken catalog lifecycle characterization", () => {
     const fifth = captured[4]!.options!.mcpServers?.oc
     expect(new Set([first, second, third, fourth, fifth]).size).toBe(5)
     expect(registeredMcpServers).toHaveLength(5)
+    for (let index = 1; index < registeredMcpServers.length; index++) {
+      expect(registeredMcpServers[index]!.tools[0]).not.toBe(registeredMcpServers[index - 1]!.tools[0])
+    }
   })
 
   it("currently restores omitted tools but clears an explicit-empty continuation", async () => {
@@ -911,9 +922,11 @@ describe("polytoken catalog lifecycle characterization", () => {
     const omitted = captured[1]!.options!.mcpServers?.oc
     await sendCatalogTurn(app, "pt-catalog", [], "tools explicitly empty")
     const explicitEmpty = captured[2]!.options!.mcpServers?.oc
-    expect(omitted).toBe(first)
+    expect(omitted).toBeDefined()
+    expect(omitted).not.toBe(first)
     expect(explicitEmpty).toBeUndefined()
-    expect(registeredMcpServers).toHaveLength(1)
+    expect(registeredMcpServers).toHaveLength(2)
+    expectSameDefinitions(registeredMcpServers[1]!, registeredMcpServers[0]!)
   })
 })
 

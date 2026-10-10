@@ -101,7 +101,7 @@ export interface QueryContext {
   stream: boolean
   /** SDK agent definitions extracted from tool descriptions */
   sdkAgents: Record<string, any>
-  /** Passthrough MCP server (if passthrough mode + tools present) */
+  /** Passthrough tool definitions and server factory (if passthrough mode + tools present) */
   passthroughMcp?: ReturnType<typeof createPassthroughMcpServer>
   /** Cleaned environment variables (API keys stripped) */
   cleanEnv: Record<string, string | undefined>
@@ -597,8 +597,9 @@ export function buildQueryOptions(ctx: QueryContext, abortController?: AbortCont
               allowedTools: [...passthroughMcp.toolNames],
               // The namespace comes from the server the caller built, not a
               // module constant — that constant was computed and then
-              // discarded on exactly this path (#893).
-              mcpServers: { [passthroughMcp.serverName]: passthroughMcp.server },
+              // discarded on exactly this path (#893). The instance is built
+              // here, once per query, for the reason given on createServer.
+              mcpServers: { [passthroughMcp.serverName]: passthroughMcp.createServer() },
             } : {}),
           }
         : {
