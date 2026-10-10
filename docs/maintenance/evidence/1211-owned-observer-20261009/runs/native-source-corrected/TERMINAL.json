@@ -1,0 +1,12 @@
+{
+  "atUTC": "2026-10-10T00:06:00.378326+00:00",
+  "originalDriverPid": 86853,
+  "originalAttachPid": 86876,
+  "originalAttachJoined": true,
+  "attachExit": 0,
+  "hostDeadlineExceeded": false,
+  "containerStoppedPidZero": true,
+  "ownedContainerRemoved": true,
+  "inputsUnchanged": true,
+  "actualModelClientAcceptance": false
+}

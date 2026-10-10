@@ -1,0 +1,39 @@
+{
+  "head": "052c6449ea1d9055164212d32c63bdea1388caaa",
+  "baseDelivery": "ef37103729d678a0b2fbcce52f36ae47c7d61226",
+  "changedFiles": [
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 79801,
+      "sha256": "4f3eac66e2b8f3cdaee92706e9faaa0923d28dc48608cfcd6f5f2361952133df"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3"
+    },
+    {
+      "path": "src/__tests__/e72-mixed-auto.test.ts",
+      "bytes": 21346,
+      "sha256": "1479d89e6b5fdaa7ddf1a81bf842ff7499f367c87c5ce7a2027619a082501226"
+    },
+    {
+      "path": "src/__tests__/e72-owned-checkpoint.test.ts",
+      "bytes": 11597,
+      "sha256": "4b60345d341ee968459318106e1ac26db0a1b4650f87782b4eae190607830da0"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-mixed-control/sdk.mjs",
+      "bytes": 3941,
+      "sha256": "7fe5383325a474dbe182e13eb6e17382ea10edd286a8e84b5db90f0edfd2ded3"
+    },
+    {
+      "path": "src/__tests__/fixtures/e72-mixed-control/server.mjs",
+      "bytes": 5531,
+      "sha256": "38686458ac0dfb1d321ee63d68b81028b0bd21eb326ce1018874287e61077de3"
+    }
+  ],
+  "productionDeltaSincePriorDelivery": false,
+  "newPublicInterface": false,
+  "liveClientModelAcceptance": false
+}

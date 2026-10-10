@@ -1,5 +1,52 @@
 # Upstream review handoff
 
+## Current oldest #1211 / existing #1322 independent stop observer (2026-10-10 UTC)
+
+Observer/test code `052c6449` supersedes the observer-pending hold below.
+Production remains `bae7ada3`; no production/public-interface/package delta in
+this correction. Existing draft #1322 and all source PRs remain open; main and
+source heads are unchanged, expanded #1231 stays excluded. No new PR/worktree.
+
+[Current durable observer packet and runnable replay](evidence/1211-owned-observer-20261009/README.md)
+adds explicit `--checkpoint-protocol owned-interrupt-v1` to the maintained actual
+client harness. It independently witnesses each original Query's public generation,
+closed blocks, exact metadata/UUID/session/hook inputs, final retained hook, public
+interrupt/acknowledgement, exact result/iterator error, all denial results and
+iterator/close settlement. It does not trust the production log. Legacy default,
+strict handback delivery predicate, model/cost/HTTP and physical custody gates
+remain separate. New observer on native2.1.295 remains UNEXECUTED; selector
+eligibility is not acceptance.
+
+[Scoped root adversarial review](evidence/1211-owned-observer-20261009/ROOT_REVIEW.md)
+records the initial native FAIL caused by callback/event ordering and its
+correction. Earlier prefix wrappers may settle during the control; final retained
+hook must settle after acknowledgement. Exact eventual hook output remains
+mandatory. Negative controls reject unrelated errors even when the fake product
+consumes them and returns expected tools. No delegated/whole-change approval.
+
+Final exact-observer source SDK0.2.141/native2.1.284 and independently installed
+SDK0.2.141/native2.1.296 each pass four one/three-tool × stream/nonstream cases,
+exact calls/results/public UUID/distinct fork/no denial tail/unchanged supported
+source history. Forty SDK/API requests across five offline runs are directly
+recorded, including the failed run. All original attaches, native/runtime/HTTP/
+backend/listener custody join and owned containers/runtime are removed; inputs
+unchanged. Zero real grants/models/coding clients. Maintained synthetic positive
+and unrelated-error negative retain separate thirteen-query proof receipts.
+
+Final local gates at clean `052c6449`: **5,972 pass / 36 skip / zero fail**,
+all twenty-two isolated npm batches plus pretest; standalone typecheck/build pass.
+Owner head/index/twelve dirty files and eighteen raw author/date/full-message/
+ancestry records remain exact. The prior actual mixed source remains FAIL 24/27.
+Renewed `work` login is NOT ASSUMED (`meridian profile login work`). Actual changed
+E41/E71/E72 source/package/client/model/platform, strict handback, cancellation/
+parent-abort independence, caption/reporter, broader client/platform/package,
+historical count/wait attribution and final delivery-head CI remain open. Next
+qualify the bounded real runs using this observer when auth is renewed, and
+continue independent cancellation/reporter preparation meanwhile. No merge,
+source closure, release or community comment. Full backlog goal remains active.
+
+## Prior production checkpoint (2026-10-09 UTC)
+
 ## Current oldest #1211 / existing #1322 attempt-owned checkpoint correction (2026-10-09 UTC)
 
 Production code `bae7ada3` supersedes the implementation-pending checkpoint below.

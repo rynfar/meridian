@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "head": "052c6449ea1d9055164212d32c63bdea1388caaa",
+  "headAfter": "052c6449ea1d9055164212d32c63bdea1388caaa",
+  "originalProcessPid": 48388,
+  "originalProcessJoined": true,
+  "exit": 0,
+  "startUTC": "2026-10-10T00:22:19.451956+00:00",
+  "endUTC": "2026-10-10T00:22:23.783473+00:00"
+}

@@ -17,8 +17,14 @@ changed-head actual E41/E71/E72, mixed handback, cancellation/parent-abort and c
 reporter flows plus wider platform/client/package and final-head CI remain held.
 The prior 24/27 mixed source FAIL remains. Before another bounded real run, renew
 its profile with `meridian profile login work`; renewal has not been assumed.
-The maintained real-client observer must independently bind the new acknowledged
-owned stop/result/error/custody, rather than generally accepting aborted errors.
+The [maintained observer and independent native qualification](docs/maintenance/evidence/1211-owned-observer-20261009/README.md)
+now bind this protocol when `--checkpoint-protocol owned-interrupt-v1` is explicitly
+selected. The legacy default and strict mixed handback predicate remain unchanged.
+Observer/test code `052c6449` passes native source2.1.284 and installed2.1.296
+proofs with SDK0.2.141, and meaningful synthetic positive/unrelated-error controls.
+Native2.1.295 with the new observer remains unexecuted. All current actual-client/
+model runs and inherited acceptance gates above remain open; no arbitrary aborted
+result or unrelated iterator failure qualifies.
 
 ## Overlapping passthrough queries
 

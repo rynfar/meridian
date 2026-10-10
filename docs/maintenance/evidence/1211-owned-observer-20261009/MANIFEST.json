@@ -1,0 +1,435 @@
+{
+  "files": [
+    {
+      "path": "OWNER_AUTHOR_REQUALIFICATION.json",
+      "bytes": 368,
+      "sha256": "09c577512095970b9af49ad2782cd1857b917393f96a928001d3635805adee94"
+    },
+    {
+      "path": "QUALIFICATION.json",
+      "bytes": 1917,
+      "sha256": "9ec6161804753816136507ec30f811be6948b2bdbe0c343ef7d6c65868859781"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5121,
+      "sha256": "4d0ac9336c33cfbf9eb4113be12d65f6903164a8d3aa14069c298c97fb2e9d8b"
+    },
+    {
+      "path": "ROOT_REVIEW.md",
+      "bytes": 3193,
+      "sha256": "e83f3ab5c4ac3c19a0270f7567120408f5a47d74ba27c2be1167ab2e816e2036"
+    },
+    {
+      "path": "SETUP_FAILURE.json",
+      "bytes": 248,
+      "sha256": "865e131fcc4ae0bcd543a1392f994930f727430591a2e275c30fb1b2809c0c9f"
+    },
+    {
+      "path": "SOURCE_IDENTITY.json",
+      "bytes": 1327,
+      "sha256": "2bd02e3108ef72a714fe69f59b62b3ac06813d64f967fc9d8347e2ee03b2d256"
+    },
+    {
+      "path": "final-local-gates/BUILD_PROVENANCE.json",
+      "bytes": 42854,
+      "sha256": "59352f09bedc3650f5ba1bb8c8593d77eba5da6056ba09782020e20a847cca62"
+    },
+    {
+      "path": "final-local-gates/LOCAL_GATES.json",
+      "bytes": 1731,
+      "sha256": "ea4d142b80f712c6b6f62b2e571bc7849232ec63e7911281099393056e3e5a0b"
+    },
+    {
+      "path": "final-local-gates/build-started.json",
+      "bytes": 219,
+      "sha256": "39b607b14bd16516adedabf1b50a74301b00456a5fbcc02aed2abc55f2728553"
+    },
+    {
+      "path": "final-local-gates/build-terminal.json",
+      "bytes": 342,
+      "sha256": "b97acf6d074ed9750c456f2443919abcc150c455bfa0db93d8328489b49b979b"
+    },
+    {
+      "path": "final-local-gates/build.log",
+      "bytes": 2239,
+      "sha256": "4a2b858ec968cd1e54dacbe32cea0895e78b8685e829a2762216eb273162fddc"
+    },
+    {
+      "path": "final-local-gates/npm-test-excerpt.log",
+      "bytes": 4243,
+      "sha256": "e667eae5336704bb8dbbdd0a1c3c57b5e264d5eeef0a0d05db1d263f27f30e99"
+    },
+    {
+      "path": "final-local-gates/npm-test-started.json",
+      "bytes": 207,
+      "sha256": "67ac04b56c976b89b62948f3652c99bc5cfda9d3e2c28021a9a1d5ff36674213"
+    },
+    {
+      "path": "final-local-gates/npm-test-terminal.json",
+      "bytes": 330,
+      "sha256": "71daeb82355bf861b92ae3a25869b8b214589e0fef6ef81c4da4a9530a2bd351"
+    },
+    {
+      "path": "final-local-gates/run-local-gates.py",
+      "bytes": 1165,
+      "sha256": "a34fbd81b58bf8ead459feef794544360c3d0e59eda984fe74d36fadd4bd259a"
+    },
+    {
+      "path": "final-local-gates/typecheck-started.json",
+      "bytes": 223,
+      "sha256": "3bed1ac9a1e85ca103d1dbe71d2dadc786bd80676320f1042329f58c229e7fec"
+    },
+    {
+      "path": "final-local-gates/typecheck-terminal.json",
+      "bytes": 346,
+      "sha256": "d85cbe5664316ec9f0d57b8223ced8823bdda25813c8fd44264bd77c4ce7c0a7"
+    },
+    {
+      "path": "final-local-gates/typecheck.log",
+      "bytes": 53,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "path": "focused-typecheck.log",
+      "bytes": 53,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "path": "integrated-http-installed/probe/e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3"
+    },
+    {
+      "path": "integrated-http-installed/probe/integrated-proxy.mjs",
+      "bytes": 17878,
+      "sha256": "f5efdd3c3eb603905e38aaf279196f1d537e369cf707f252be2ec977781d05ce"
+    },
+    {
+      "path": "integrated-http-installed/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    },
+    {
+      "path": "integrated-http-source-textdecode/probe/e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3"
+    },
+    {
+      "path": "integrated-http-source-textdecode/probe/integrated-proxy.mjs",
+      "bytes": 17491,
+      "sha256": "da3b8acacd7faf4f9077a2b8bb2feebdce50dd785ada0c5bc2cb74d78a25f70f"
+    },
+    {
+      "path": "integrated-http-source-textdecode/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    },
+    {
+      "path": "legacy-harness-controls.log",
+      "bytes": 16170,
+      "sha256": "de5c69c91636c752cfd48b53062c3287ac9b90514674d9cb402ef316fdeba5e6"
+    },
+    {
+      "path": "maintained-harness-proof/handbackScenario-ownedCheckpoint-ownedWrongIteratorError.json",
+      "bytes": 86872,
+      "sha256": "5250787e77cbc25902ca4758add00a45d5591234ed06ed3002d3ded8dd08141e"
+    },
+    {
+      "path": "maintained-harness-proof/handbackScenario-ownedCheckpoint.json",
+      "bytes": 86609,
+      "sha256": "e97e657de97f8659fb2dd72a86cde3a9d9a38ac2462777d0289753b5ae838478"
+    },
+    {
+      "path": "maintained-harness-proof.log",
+      "bytes": 523,
+      "sha256": "1fa645b6ec3409144003d36b9eba15d9c2571eee9a9d56475c614eda3a01e17a"
+    },
+    {
+      "path": "owned-harness-final-controls.log",
+      "bytes": 4181,
+      "sha256": "49f77e135710a76e864e47f66f71104e0a1c18efc9c5671d07fc8a25def57639"
+    },
+    {
+      "path": "replay.py",
+      "bytes": 4946,
+      "sha256": "4779bd8325bca767b27e5ebaece55bfc48f829f36f4bd269980e20b02b024e86"
+    },
+    {
+      "path": "runs/native-installed/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "8e7bfe75a1e6cc265208bb0fa621e5ba4c27051ffe5571a129690268d6051689"
+    },
+    {
+      "path": "runs/native-installed/INPUTS.json",
+      "bytes": 699,
+      "sha256": "951c91f1b5d0ca2c545435282b2bbb8363d9a72379f6e09f2d7c92dea6f1b340"
+    },
+    {
+      "path": "runs/native-installed/INVOCATION.json",
+      "bytes": 1337,
+      "sha256": "fd891a7f1be70f9f94d55c0e7724633c17f16d3ade0ec2ec07b5cd41043d0036"
+    },
+    {
+      "path": "runs/native-installed/STARTED.json",
+      "bytes": 118,
+      "sha256": "7ff2e847f8c39d3a70f9c15506ac51583fa4860f8640733ddf1fb8f81bc8ac7d"
+    },
+    {
+      "path": "runs/native-installed/TERMINAL.json",
+      "bytes": 329,
+      "sha256": "801e95771d6a8fbfd913632fc2b76cbb94c5b59fa8c51ce8b14306be69a05483"
+    },
+    {
+      "path": "runs/native-installed/native.output.log",
+      "bytes": 215,
+      "sha256": "ebe7f5fc85f1c6702900ea713893502d720c6c2a15a98eb7af756af947135ae3"
+    },
+    {
+      "path": "runs/native-installed/probe/e2eOwnedCheckpoint.mjs",
+      "bytes": 12134,
+      "sha256": "404952b27455731e540ade5038b4a096bad5d49fe96e80f71e78a9e2cc3df60a"
+    },
+    {
+      "path": "runs/native-installed/probe/integrated-proxy.mjs",
+      "bytes": 17878,
+      "sha256": "f5efdd3c3eb603905e38aaf279196f1d537e369cf707f252be2ec977781d05ce"
+    },
+    {
+      "path": "runs/native-installed/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    },
+    {
+      "path": "runs/native-installed/proof/INTEGRATED_HTTP.json",
+      "bytes": 8402,
+      "sha256": "26585d3c6731e67bdd09f6dd633c9de7844e280c62e3ea76d14733580fecb0dd"
+    },
+    {
+      "path": "runs/native-installed/proof/RESERVED",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runs/native-installed-final/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "286c2896ff7707ed5c0095792085035d89dbd6027a952389e6676cba4da58a3e"
+    },
+    {
+      "path": "runs/native-installed-final/INPUTS.json",
+      "bytes": 699,
+      "sha256": "84f5ef52273dce37be6f2e7cfd468955481538033a46ab29cc442a4cd54a4edb"
+    },
+    {
+      "path": "runs/native-installed-final/INVOCATION.json",
+      "bytes": 1355,
+      "sha256": "bd6aff177d985b2a9e12d8723dfe98f26f46b9ca432008fe776e245fb5f57769"
+    },
+    {
+      "path": "runs/native-installed-final/STARTED.json",
+      "bytes": 118,
+      "sha256": "f38da68f5aeb1d3230fa972e36d63a8e9e9dc552416688335828de8d7ea819db"
+    },
+    {
+      "path": "runs/native-installed-final/TERMINAL.json",
+      "bytes": 329,
+      "sha256": "d57c504f6fa4782b7acc8144890ceed371034bcd2fd5c554e6532e5eb0537535"
+    },
+    {
+      "path": "runs/native-installed-final/native.output.log",
+      "bytes": 215,
+      "sha256": "ebe7f5fc85f1c6702900ea713893502d720c6c2a15a98eb7af756af947135ae3"
+    },
+    {
+      "path": "runs/native-installed-final/probe/e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3"
+    },
+    {
+      "path": "runs/native-installed-final/probe/integrated-proxy.mjs",
+      "bytes": 17878,
+      "sha256": "f5efdd3c3eb603905e38aaf279196f1d537e369cf707f252be2ec977781d05ce"
+    },
+    {
+      "path": "runs/native-installed-final/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    },
+    {
+      "path": "runs/native-installed-final/proof/INTEGRATED_HTTP.json",
+      "bytes": 8402,
+      "sha256": "17c687f00f4848bc6c1fb98efaa3d292893805977528cbe024df0baabf84af6a"
+    },
+    {
+      "path": "runs/native-installed-final/proof/RESERVED",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runs/native-source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "b054d0fc00c572c8d9168c9e327ea59248c62414a8a7aea0d269fd230094f703"
+    },
+    {
+      "path": "runs/native-source/INPUTS.json",
+      "bytes": 707,
+      "sha256": "e9882c21198828b346bc911bc03a6c5d3341b6a3c9968efca62bb817a2e469d1"
+    },
+    {
+      "path": "runs/native-source/INVOCATION.json",
+      "bytes": 1298,
+      "sha256": "9bdc8801c27f0c4d0e8b525e9540ffdb436f75ed5a1c77faa51ccde48febb9a2"
+    },
+    {
+      "path": "runs/native-source/STARTED.json",
+      "bytes": 118,
+      "sha256": "9eead9824f1c8713c4a98f42da381a52294b44ad1a11cc0efbd9a9d9d04cde2a"
+    },
+    {
+      "path": "runs/native-source/TERMINAL.json",
+      "bytes": 329,
+      "sha256": "3695ddc0fd15f718d335a72a7efc0e5118f05a4faa74f6dd88ff6673cbf212c7"
+    },
+    {
+      "path": "runs/native-source/native.output.log",
+      "bytes": 269,
+      "sha256": "83ce16fa2a8e1b27ca85e55afb160ede09bd308bae7370eb8dbc37b630a4da0b"
+    },
+    {
+      "path": "runs/native-source/probe/e2eOwnedCheckpoint.mjs",
+      "bytes": 11669,
+      "sha256": "84e301cb656cc14ae34554d56e4084f871ecd96d14ba9d2545fa4c428f5dbd0d"
+    },
+    {
+      "path": "runs/native-source/probe/integrated-proxy.mjs",
+      "bytes": 17491,
+      "sha256": "da3b8acacd7faf4f9077a2b8bb2feebdce50dd785ada0c5bc2cb74d78a25f70f"
+    },
+    {
+      "path": "runs/native-source/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    },
+    {
+      "path": "runs/native-source/proof/INTEGRATED_HTTP.json",
+      "bytes": 8123,
+      "sha256": "6074dc840a462e0e9e07230d76d55d7b2f8836df596455081b49245b1134cd91"
+    },
+    {
+      "path": "runs/native-source/proof/RESERVED",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runs/native-source-corrected/CONTAINER_TERMINAL.json",
+      "bytes": 441,
+      "sha256": "6ccb997c2302c19f262ae5a085f9649f87a5dad21f19b686846c61ba94a0ab2c"
+    },
+    {
+      "path": "runs/native-source-corrected/INPUTS.json",
+      "bytes": 707,
+      "sha256": "f008f3cc7e182961908a8845dfceb6813a5d09c4c95490ec26918cc7c56e34fc"
+    },
+    {
+      "path": "runs/native-source-corrected/INVOCATION.json",
+      "bytes": 1328,
+      "sha256": "f911d45edfcf79d309379e75d204909a12370de9fec9f491a5d2e3e2ae7a1a96"
+    },
+    {
+      "path": "runs/native-source-corrected/STARTED.json",
+      "bytes": 118,
+      "sha256": "1d0b6e1cec3a92c53a8e854ee96e0d5fbed29c03d049e05a0a4a4686f8f1057d"
+    },
+    {
+      "path": "runs/native-source-corrected/TERMINAL.json",
+      "bytes": 329,
+      "sha256": "16545fa1d58053f353ce2b27f76d7436301c25681fecfd886619992c70acefbd"
+    },
+    {
+      "path": "runs/native-source-corrected/native.output.log",
+      "bytes": 215,
+      "sha256": "ebe7f5fc85f1c6702900ea713893502d720c6c2a15a98eb7af756af947135ae3"
+    },
+    {
+      "path": "runs/native-source-corrected/probe/e2eOwnedCheckpoint.mjs",
+      "bytes": 12134,
+      "sha256": "404952b27455731e540ade5038b4a096bad5d49fe96e80f71e78a9e2cc3df60a"
+    },
+    {
+      "path": "runs/native-source-corrected/probe/integrated-proxy.mjs",
+      "bytes": 17491,
+      "sha256": "da3b8acacd7faf4f9077a2b8bb2feebdce50dd785ada0c5bc2cb74d78a25f70f"
+    },
+    {
+      "path": "runs/native-source-corrected/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    },
+    {
+      "path": "runs/native-source-corrected/proof/INTEGRATED_HTTP.json",
+      "bytes": 8387,
+      "sha256": "e94ab4777b0a574dbfa65163bfb1b006d2ddf62c583ecfcfab8268fb8eadc6ae"
+    },
+    {
+      "path": "runs/native-source-corrected/proof/RESERVED",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "runs/native-source-final/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "b5e222af00775dced0175747b38afd135386ef363f61b3a9444a1845cd0a794f"
+    },
+    {
+      "path": "runs/native-source-final/INPUTS.json",
+      "bytes": 707,
+      "sha256": "89420b17634846ec8876683aa2fd49d7bb7854c6b0f63be08e2189bca773f9f5"
+    },
+    {
+      "path": "runs/native-source-final/INVOCATION.json",
+      "bytes": 1316,
+      "sha256": "37c4e6925d4346aa6d6e0dfb5dc396b7369f353e6c01880511ffc92fd05a32eb"
+    },
+    {
+      "path": "runs/native-source-final/STARTED.json",
+      "bytes": 118,
+      "sha256": "a39ef878060ced264adcf913ade606e7ad031ef677d5b3b56f4948cc3bea80ee"
+    },
+    {
+      "path": "runs/native-source-final/TERMINAL.json",
+      "bytes": 329,
+      "sha256": "846dcec5944b941dd09e3bb1422171916b086b44a1f188193207e3e009c9c12a"
+    },
+    {
+      "path": "runs/native-source-final/native.output.log",
+      "bytes": 215,
+      "sha256": "ebe7f5fc85f1c6702900ea713893502d720c6c2a15a98eb7af756af947135ae3"
+    },
+    {
+      "path": "runs/native-source-final/probe/e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3"
+    },
+    {
+      "path": "runs/native-source-final/probe/integrated-proxy.mjs",
+      "bytes": 17491,
+      "sha256": "da3b8acacd7faf4f9077a2b8bb2feebdce50dd785ada0c5bc2cb74d78a25f70f"
+    },
+    {
+      "path": "runs/native-source-final/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    },
+    {
+      "path": "runs/native-source-final/proof/INTEGRATED_HTTP.json",
+      "bytes": 8387,
+      "sha256": "340fdb361324f31ff27ebfcb9f8166203d80044c7ba5c9093bb981b3298e0afa"
+    },
+    {
+      "path": "runs/native-source-final/proof/RESERVED",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "membersIncludingManifest": 87
+}

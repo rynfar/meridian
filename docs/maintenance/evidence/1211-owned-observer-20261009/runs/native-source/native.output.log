@@ -1,0 +1,1 @@
+{"outcome":"FAIL","cases":4,"failure":"independent observer rejected actual stop","cleanup":{"admissionClosed":true,"requestsSettled":true,"backendClosed":true,"listenerClosed":true,"nativeActorCensusEmpty":true,"residualNativeActors":[],"privateRuntimeRemoved":true}}

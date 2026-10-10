@@ -1,0 +1,11 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/e72-mixed-auto.test.ts:
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > witnesses the opt-in interrupt through the maintained harness without trusting a product log [1250.05ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects an unrelated error even when a fake product consumes it and returns the expected tools [1241.67ms]
+
+ 2 pass
+ 35 filtered out
+ 0 fail
+ 29 expect() calls
+Ran 2 tests across 1 file. [2.55s]
