@@ -11,7 +11,8 @@ writeFileSync(file, String(turn))
 const delimiter = String.fromCharCode(96), commands = [...value('-p').matchAll(new RegExp(delimiter + '([^' + delimiter + ']+)' + delimiter, 'g'))].map(match => match[1]), history = new Map()
 const result = (id, content) => ({ type: 'tool_result', tool_use_id: id, content })
 async function send(actor, results = [], classifier = false, callerReports = []) {
-  const messages = [...(history.get(actor) ?? []), ...callerReports.map(content => ({ role: mode.nativeInboxReport && !mode.wrongInboxRole ? 'system' : 'user', content })), { role: 'user', content: results.length ? results : 'continue' }]
+  const reports = mode.groupedInboxReport && callerReports.length > 0 ? [callerReports.map((text, index) => index < callerReports.length - 1 ? text.replace(/\n\n<total_tokens>[0-9]+ tokens left<\/total_tokens>$/, '') : text).join('\n\n')] : callerReports
+  const messages = [...(history.get(actor) ?? []), ...reports.map(content => ({ role: mode.nativeInboxReport && !mode.wrongInboxRole ? 'system' : 'user', content })), { role: 'user', content: results.length ? results : 'continue' }]
   const body = { model: classifier ? 'claude-sonnet-5' : model, metadata: { user_id: JSON.stringify({ session_id: session }) },
     messages, stream: false, tools: classifier ? [] : [{ name: 'Agent' }, { name: 'Bash' }, ...((mode.handbackScenario || mode.legacyHandback) && actor !== 'main' && !mode.undeclaredHandback ? [{ name: 'SubagentHandback', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } }] : [])],
     commands: turn === 2 ? commands : actor === 'alpha' ? commands.slice(0, 2) : commands.slice(2, 4) }

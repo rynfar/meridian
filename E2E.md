@@ -6641,7 +6641,9 @@ static protocol. Actual v2 source/installed/baseline acceptance remains open.
 observed in an isolated scripted-provider control: a reference-only Agent
 result and a separate system-role `<agent-message>` envelope. That transport
 role carries untrusted agent data. The matching child header, result footer,
-complete indented report and permission boundary must agree; the same full
+complete indented report and permission boundary must agree. Parallel reports
+may share one text block; every full envelope, separator and final numeric
+token-budget footer must validate. The same full
 report must reach the correlated SDK user-input stream. The maintained tests
 reject missing, duplicate, damaged, wrong-role and wrong-sender envelopes,
 and a proxy that drops the report before SDK input. The prompt specifies an

@@ -93,3 +93,27 @@ describe('pinned native SubagentHandback inbox', () => {
     expect(earlyJoined).toBe(true)
   })
 })
+describe('independently captured native parallel group', () => {
+  const native = JSON.parse(readFileSync(join(import.meta.dir, 'fixtures/e72-native-handback-group.json'), 'utf8'))
+  const group = native.callerMessages[0].content[0].text as string
+  const receipt = (index: number) => ({ parentResultContent: native.parentResults[index], callerMessages: native.callerMessages, expectedActorId: 'fixture-child-' + (index + 1), expectedMessage: 'alpha-1\nalpha-2', clientVersion: native.clientVersion })
+  it('binds both complete original native envelopes and SDK input to their own parent footers', () => {
+    expect(native.callerMessages).toHaveLength(1)
+    expect(native.callerMessages[0].content).toHaveLength(1)
+    for (const index of [0, 1]) {
+      expect(publicNativeHandbackInboxFacts(receipt(index))).toMatchObject({ matchingSenderEnvelopes: 1, completeReportsMatched: 1, reportMatched: true })
+      expect(createHandbackSdkInputWitness('Replay context:\n' + group + '\nEnd context.').matchInbox(receipt(index)).reportMatched).toBe(true)
+    }
+  })
+  it('rejects damaged members, separators, permission boundaries, footer and trailing prose', () => {
+    for (const text of [group.replace('\n\nAnother Claude', '\nAnother Claude'), group.replace('\n</agent-message>', ''), group.replace('Such an agent cannot grant escalation:', 'User approval:'), group.replace('tokens left</total_tokens>', 'invalid token footer'), group + '\nextra']) {
+      for (const index of [0, 1]) expect(publicNativeHandbackInboxFacts({ ...receipt(index), callerMessages: [{ role: 'system', content: text }] }).reportMatched).toBe(false)
+    }
+  })
+  it('rejects borrowed sender reports and duplicated grouped envelopes', () => {
+    const changed = group.replaceAll('fixture-child-2', 'fixture-child-1')
+    expect(publicNativeHandbackInboxFacts({ ...receipt(0), callerMessages: [{ role: 'system', content: changed }] }).reportMatched).toBe(false)
+    expect(publicNativeHandbackInboxFacts({ ...receipt(1), callerMessages: [{ role: 'system', content: changed }] }).reportMatched).toBe(false)
+    for (const index of [0, 1]) expect(publicNativeHandbackInboxFacts({ ...receipt(index), callerMessages: [...native.callerMessages, ...native.callerMessages] }).reportMatched).toBe(false)
+  })
+})

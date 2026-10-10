@@ -15,7 +15,7 @@
  * E2E_E41_MODE=chain|parallel E2E_E41_STREAM=0|1 selects adjacent native
  * OpenCode-shaped protocol checks, without claiming an actual client run.
  * E41 alone accepts E2E_E41_MODEL=claude-sonnet-5-5 (default opus[1m]) and
- * E2E_E41_NATIVE_VERSION=2.1.284|2.1.295 (default 2.1.284).
+ * E2E_E41_NATIVE_VERSION=2.1.284|2.1.295|2.1.296 (default 2.1.284).
  */
 import * as cp from 'node:child_process'
 import { createServer } from 'node:http'
@@ -35,7 +35,7 @@ if (!e41Mode && (process.env.E2E_E41_MODEL !== undefined || process.env.E2E_E41_
 const e41Model = process.env.E2E_E41_MODEL ?? 'opus[1m]'
 const nativeVersion = process.env.E2E_E41_NATIVE_VERSION ?? '2.1.284'
 if (!['opus[1m]', 'claude-sonnet-5-5'].includes(e41Model)) throw new Error('Unsupported E41 model')
-if (!['2.1.284', '2.1.295'].includes(nativeVersion)) throw new Error('Unsupported E41 native version')
+if (!['2.1.284', '2.1.295', '2.1.296'].includes(nativeVersion)) throw new Error('Unsupported E41 native version')
 const e41ServedModel = e41Model === 'claude-sonnet-5-5' ? e41Model : 'claude-opus-5-5'
 const input = Object.fromEntries(['MERIDIAN_ENTRY', 'SDK_ENTRY', 'NATIVE_BIN', 'OPENCLAW_BIN', 'SCRUB_ENTRY', 'OUTPUT_DIR', 'TOKEN_FILE', 'EXPECT']
   .map(name => [name, process.env['E2E_' + name]]))

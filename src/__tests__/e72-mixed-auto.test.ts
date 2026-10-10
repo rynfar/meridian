@@ -144,7 +144,7 @@ async function runControl(mode: Record<string, boolean>, expectUnjoinedQuery = f
 
 describe('actual mixed observer against marked synthetic client, proxy and SDK', () => {
   it('verifies the exact native inbox and child ownership through the maintained v3 harness', async () => {
-    const result = await runControl({ handbackScenario: true, inboxHandbackScenario: true, nativeInboxReport: true, ownedCheckpoint: true })
+    const result = await runControl({ handbackScenario: true, inboxHandbackScenario: true, nativeInboxReport: true, groupedInboxReport: true, ownedCheckpoint: true })
     expect(result.code).toBe(0)
     expect(result.proof.handbackFacts.protocol).toBe('native-client-inbox-v1')
     expect(result.proof.handbackFacts.reports.every((row: { exactMessageInParentResult: boolean; inbox: { reportMatched: boolean; footerActorMatched: boolean } }) => !row.exactMessageInParentResult && row.inbox.reportMatched && row.inbox.footerActorMatched)).toBe(true)
@@ -156,7 +156,7 @@ describe('actual mixed observer against marked synthetic client, proxy and SDK',
     expect(result.proof.checks.nativeHandbackReports).toBe(false)
   })
   for (const mode of ['wrongInboxActor', 'wrongInboxReport', 'wrongInboxRole', 'wrongInboxFooter', 'missingInboxReport', 'duplicateInboxReport', 'truncatedInboxReport', 'droppedSdkInbox']) it('rejects native-inbox ' + mode + ' in the maintained v3 harness', async () => {
-    const result = await runControl({ handbackScenario: true, inboxHandbackScenario: true, nativeInboxReport: true, [mode]: true })
+    const result = await runControl({ handbackScenario: true, inboxHandbackScenario: true, nativeInboxReport: true, groupedInboxReport: true, [mode]: true })
     expect(result.code).toBe(1)
     expect(result.proof.checks.nativeHandbackReports).toBe(false)
   })
