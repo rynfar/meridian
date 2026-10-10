@@ -398,7 +398,7 @@ export interface DiagnosticLog {
   /** Log level */
   level: "info" | "warn" | "error"
   /** Log category for filtering */
-  category: "session" | "lineage" | "error" | "lifecycle" | "token"
+  category: "session" | "lineage" | "error" | "lifecycle" | "token" | "auth"
   /** Request ID (if associated with a request) */
   requestId?: string
   /** Human-readable message */

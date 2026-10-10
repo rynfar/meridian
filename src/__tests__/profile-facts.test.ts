@@ -100,6 +100,51 @@ describe("profileFacts", () => {
   })
 })
 
+describe("the login's lifetime", () => {
+  const HOUR = 3_600_000
+  const DAY = 24 * HOUR
+
+  function fact(p: Record<string, unknown>, label: string): (Fact & { title?: string }) | undefined {
+    return profileFacts(p).find(f => f.label === label)
+  }
+
+  test("sits directly under Status", () => {
+    const now = Date.now()
+    expect(labels({ email: "a@b.c", refreshTokenExpiresAt: now + 5 * DAY, authObtainedAt: now - 25 * DAY }))
+      .toEqual(["Status", "Login expires", "Logged in", "Email"])
+  })
+
+  test("counts down to the deadline, warning inside the window", () => {
+    const now = Date.now()
+    const calm = fact({ refreshTokenExpiresAt: now + 22 * DAY + 4 * HOUR + 30_000, renewalRequiredSoon: false }, "Login expires")!
+    expect(calm.value).toBe("in 22d 4h")
+    expect(calm.tone).toBe("")
+    expect(fact({ refreshTokenExpiresAt: now + 2 * HOUR + 60_000, renewalRequiredSoon: true }, "Login expires")!.tone).toBe("warn")
+  })
+
+  test("past the deadline, says when the account actually stops", () => {
+    const now = Date.now()
+    const expired = fact({ refreshTokenExpiresAt: now - HOUR, accessTokenExpiresAt: now + 3 * HOUR + 30_000 }, "Login expired")!
+    expect(expired.value).toBe("stops in 3h 0m, log in again")
+    expect(expired.tone).toBe("err")
+    expect(fact({ refreshTokenExpiresAt: now - 2 * HOUR }, "Login expired")!.value).toBe("2h 0m ago, log in again")
+  })
+
+  test("a recorded logout replaces the countdown", () => {
+    const now = Date.now()
+    const p = { firstUnauthedAt: now - 5 * HOUR, unauthedReason: "refresh_rejected", refreshTokenExpiresAt: now + DAY }
+    expect(labels(p)).toEqual(["Status", "Logged out"])
+    expect(fact(p, "Logged out")!.value).toBe("5h 0m ago")
+    expect(fact(p, "Logged out")!.title).toContain("refused to renew")
+  })
+
+  test("says when a login was only noticed rather than performed here", () => {
+    const now = Date.now()
+    expect(fact({ authObtainedAt: now - 6 * DAY, authObtainedVia: "observed" }, "Logged in")!.title).toContain("when Meridian found it")
+    expect(fact({ authObtainedAt: now - 6 * DAY, authObtainedVia: "login" }, "Logged in")!.value).toBe("6d 0h ago")
+  })
+})
+
 describe("timeAgo", () => {
   test("an absent timestamp reads as a dash", () => {
     expect(timeAgo(null)).toBe("—")

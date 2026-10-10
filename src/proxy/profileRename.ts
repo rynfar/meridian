@@ -25,7 +25,9 @@ import { join } from "node:path"
 import { configPath } from "../configDir"
 import { getSetting, setSetting } from "../settings"
 import { publishProfileConfig, readProfileConfigForUpdate, withProfileConfigLockSync } from "./profileConfigStore"
+import { renameAuthLifecycleKey } from "./authLifecycle"
 import type { ProfileConfig } from "./profiles"
+import { createPlatformCredentialStore } from "./tokenRefresh"
 
 /** Profile names are restricted to exactly what `meridian profile add` accepts. */
 const INVALID_PROFILE_ID = /[^a-zA-Z0-9_-]/
@@ -217,6 +219,14 @@ function applyProfileRenameLocked(from: string, to: string, options: ApplyProfil
       }
     }
     return { ok: false, error: `Could not write ${configFile}: ${reason}` }
+  }
+
+  // The login history is keyed by where the credential lives, which just moved.
+  if (movedDir) {
+    renameAuthLifecycleKey(
+      createPlatformCredentialStore({ claudeConfigDir: movedDir.from }).refreshKey,
+      createPlatformCredentialStore({ claudeConfigDir: movedDir.to }).refreshKey,
+    )
   }
 
   // The active profile is stored as a name, so it has to follow the rename or

@@ -153,6 +153,8 @@ mock.module("../proxy/tokenRefresh", () => ({
   createPlatformCredentialStore: () => ({ read: async () => null,
     write: async () => { throw new Error("Fixture must not write credentials") } }),
   readStoredCredentialPresence: async () => "absent",
+  readStoredCredentialSnapshot: async () => ({ presence: "absent" }),
+  renewalStatusFor: () => ({ renewalRequiredSoon: false }),
   refreshOAuthToken: async () => false,
   ensureFreshToken: async () => false,
   startBackgroundRefresh: () => undefined,

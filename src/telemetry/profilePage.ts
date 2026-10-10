@@ -130,6 +130,7 @@ export const profilePageHtml = `<!DOCTYPE html>
   .detail-unknown { color: var(--muted); font-style: italic; }
   .status-ok { color: var(--green); }
   .status-err { color: var(--red); }
+  .detail-value.status-warn { color: var(--yellow); }
   .switch-btn {
     margin-top: 12px; padding: 6px 16px; font-size: 12px; font-weight: 500;
     background: var(--bg); color: var(--accent); border: 1px solid var(--accent);
@@ -515,7 +516,7 @@ function esc(s) { var d = document.createElement('div'); d.textContent = s; retu
 
 function factRows(facts) {
   return facts.map(function (f) {
-    var tone = f.tone === 'ok' ? ' status-ok' : f.tone === 'err' ? ' status-err' : '';
+    var tone = f.tone === 'ok' ? ' status-ok' : f.tone === 'err' ? ' status-err' : f.tone === 'warn' ? ' status-warn' : '';
     var title = f.title ? ' title="' + esc(f.title) + '"' : '';
     var cached = f.cached ? ' <span class="cached-tag">(cached)</span>' : '';
     return '<span class="detail-label">' + esc(f.label) + '</span>'

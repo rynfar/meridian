@@ -74,7 +74,7 @@ Environment variables, endpoints, authentication, SDK feature toggles, passthrou
 | `MERIDIAN_ENFORCE_MAX_TOKENS` | `CLAUDE_PROXY_ENFORCE_MAX_TOKENS` | unset | Set to `1` to apply the client output budget; see [output limits](#known-limitations). |
 | `MERIDIAN_HOST_ID` | — | derived | Stable, unique container identity for session locks; see [deployment](deployment.md#persistence-and-host-identity). |
 | `MERIDIAN_QUIET` | `CLAUDE_PROXY_QUIET` | unset | Suppress informational telemetry startup output; warnings and errors still print. |
-| `MERIDIAN_AUTH_RENEWAL_WARN_DAYS` | — | `3` | Renewal warning horizon reported by health when credential renewal information is available. |
+| `MERIDIAN_AUTH_RENEWAL_WARN_DAYS` | — | `3` | Renewal warning horizon reported by `/health` and per profile by `/profiles/list` when credential renewal information is available. |
 | `MERIDIAN_PLUGIN_DIR` | — | `~/.config/meridian/plugins` | Plugin auto-discovery directory |
 | `MERIDIAN_PLUGIN_CONFIG` | — | `~/.config/meridian/plugins.json` | Plugin manifest path |
 | `MERIDIAN_CREDENTIALS_READONLY` | `CLAUDE_PROXY_CREDENTIALS_READONLY` | unset | Set to `1` to forbid this instance from refreshing or writing OAuth credentials. For a second instance sharing another's credential files — see [Read-only credentials](#read-only-credentials). |

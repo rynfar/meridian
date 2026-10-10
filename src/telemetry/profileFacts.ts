@@ -24,6 +24,51 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleString();
 }
 
+// "22d 4h", "5h 12m", "42m": the two largest units of a span.
+function spanText(ms) {
+  var mins = Math.floor(Math.abs(ms) / 60000);
+  var d = Math.floor(mins / 1440);
+  mins -= d * 1440;
+  var h = Math.floor(mins / 60);
+  var m = mins - h * 60;
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + 'm';
+}
+
+// The login's lifetime, right under Status: when it has to be renewed is the
+// one fact here that someone has to act on before it happens. Past the
+// deadline nothing can renew it, and it keeps working only until the current
+// access token runs out.
+function loginFacts(p, now) {
+  var facts = [];
+  if (p.firstUnauthedAt) {
+    var why = p.unauthedReason === 'refresh_rejected' ? ' \\u2014 Anthropic refused to renew the login'
+      : p.unauthedReason === 'credentials_cleared' ? ' \\u2014 the stored login was wiped' : '';
+    facts.push({ label: 'Logged out', value: spanText(now - p.firstUnauthedAt) + ' ago', tone: 'err',
+      title: 'Since ' + new Date(p.firstUnauthedAt).toLocaleString() + why });
+  } else if (p.refreshTokenExpiresAt) {
+    var left = p.refreshTokenExpiresAt - now;
+    var deadline = new Date(p.refreshTokenExpiresAt).toLocaleString();
+    var renewed = p.lastRefreshAt ? ' Token last renewed ' + timeAgo(p.lastRefreshAt) + '.' : '';
+    if (left > 0) {
+      facts.push({ label: 'Login expires', value: 'in ' + spanText(left), tone: p.renewalRequiredSoon ? 'warn' : '',
+        title: deadline + '. Log in again before then.' + renewed });
+    } else {
+      var stops = p.accessTokenExpiresAt && p.accessTokenExpiresAt > now
+        ? 'stops in ' + spanText(p.accessTokenExpiresAt - now)
+        : spanText(left) + ' ago';
+      facts.push({ label: 'Login expired', value: stops + ', log in again', tone: 'err',
+        title: 'Expired ' + deadline + '; it can no longer be renewed.' + renewed });
+    }
+  }
+  if (p.authObtainedAt) {
+    facts.push({ label: 'Logged in', value: spanText(now - p.authObtainedAt) + ' ago', tone: '',
+      title: new Date(p.authObtainedAt).toLocaleString() + (p.authObtainedVia === 'observed' ? ' (when Meridian found it)' : '') });
+  }
+  return facts;
+}
+
 function profileFacts(p) {
   var facts = [];
   var authStale = p.authProvenance && p.authProvenance !== 'live';
@@ -34,6 +79,7 @@ function profileFacts(p) {
     tone: p.loggedIn ? 'ok' : 'err',
     cached: authStale && p.authProvenance !== 'never'
   });
+  facts = facts.concat(loginFacts(p, Date.now()));
   if (p.email) facts.push({ label: 'Email', value: p.email, tone: '', cached: authStale });
   if (p.organizationName) facts.push({ label: 'Organization', value: p.organizationName, tone: '' });
   if (p.accountType) facts.push({ label: 'Account', value: p.accountType, tone: '' });

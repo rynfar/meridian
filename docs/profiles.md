@@ -147,6 +147,23 @@ meridian profile add ci --oauth-token sk-ant-oat01-...
 
 OAuth-token profiles store the token in `profiles.json` and feed it to the SDK via `CLAUDE_CODE_OAUTH_TOKEN` — no Keychain entry, no browser handshake. To prevent the SDK's 401-recovery from silently falling back to the host's `~/.claude` credentials, OAuth-token profiles also pin `CLAUDE_CONFIG_DIR` to an isolated per-profile directory under `~/.config/meridian/profiles/<name>/`. That directory holds only SDK state (sessions, settings) — never `.credentials.json`, since the token is delivered through the env.
 
+### Login lifetime
+
+A browser login has a deadline. Anthropic reports it with every token refresh, and refreshing renews the access token (about every 8 hours) but not the deadline. Once the deadline passes, the next refresh is refused and the account stops working when its current access token runs out, at most one access-token lifetime later. Run `meridian profile login <name>` before then.
+
+`GET /profiles/list` reports this for every browser-login profile:
+
+| Field | Meaning |
+|-------|---------|
+| `refreshTokenExpiresAt` | The login's deadline (epoch ms), read from the profile's own credential |
+| `daysUntilRenewal`, `renewalRequiredSoon` | As in `/health`; the window is `MERIDIAN_AUTH_RENEWAL_WARN_DAYS` (default 3) |
+| `accessTokenExpiresAt` | When the current access token runs out; past the deadline, when the account stops |
+| `authObtainedAt`, `authObtainedVia` | When the login happened: `login` when Meridian performed it, `observed` when a new login was found on disk |
+| `lastRefreshAt` | Last token refresh Meridian performed (one done by a Claude Code process is not seen) |
+| `firstUnauthedAt`, `unauthedReason` | When the account was first found logged out (`refresh_rejected` or `credentials_cleared`); cleared by the next login |
+
+Claude Code wipes `.credentials.json` when a refresh is refused, so Meridian keeps this record in its own `auth-lifecycle.json` beside `settings.json`. Every transition is logged (`[PROXY] Profile "work" logged out: ...`, naming the deadline and how long the login lasted) and stored in the diagnostics log under the `auth` category. The profile card shows it as "Login expires in …", "Logged in … ago" and "Logged out … ago".
+
 ### Switching profiles
 
 ```bash

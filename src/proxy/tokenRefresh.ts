@@ -21,6 +21,7 @@ import { homedir, platform, userInfo } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
 import { claudeLog } from "../logger"
+import { authLifecycleFor, noteRefreshRejected, noteRefreshSucceeded } from "./authLifecycle"
 import { isCredentialsReadOnly, refuseCredentialWrite } from "./credentialsMode"
 import { fetchOAuthPlanFields, planFieldsMissing } from "./oauthPlan" 
 
@@ -288,18 +289,39 @@ export function credentialsFilePathForProfile(claudeConfigDir?: string): string 
  */
 export type StoredCredentialPresence = "present" | "absent" | "unknown"
 
-export async function readStoredCredentialPresence(
-  store: CredentialStore,
-): Promise<StoredCredentialPresence> {
+/**
+ * One uncached read of the login as stored: whether it can authenticate, and
+ * when the login and its current access token end. Uncached because a login
+ * replaces both deadlines at once, and a cached read would pair the new
+ * login's record with the old one's deadline.
+ */
+export interface StoredCredentialSnapshot {
+  presence: StoredCredentialPresence
+  refreshTokenExpiresAt?: number
+  accessTokenExpiresAt?: number
+}
+
+export async function readStoredCredentialSnapshot(store: CredentialStore): Promise<StoredCredentialSnapshot> {
   let credentials: CredentialsFile | null
   try {
     credentials = await store.read()
   } catch {
-    return "unknown"
+    return { presence: "unknown" }
   }
-  if (!credentials) return "unknown"
-  const accessToken = credentials.claudeAiOauth?.accessToken
-  return typeof accessToken === "string" && accessToken.length > 0 ? "present" : "absent"
+  if (!credentials) return { presence: "unknown" }
+  const oauth = credentials.claudeAiOauth
+  const accessToken = oauth?.accessToken
+  return {
+    presence: typeof accessToken === "string" && accessToken.length > 0 ? "present" : "absent",
+    ...(typeof oauth?.refreshTokenExpiresAt === "number" ? { refreshTokenExpiresAt: oauth.refreshTokenExpiresAt } : {}),
+    ...(typeof oauth?.expiresAt === "number" ? { accessTokenExpiresAt: oauth.expiresAt } : {}),
+  }
+}
+
+export async function readStoredCredentialPresence(
+  store: CredentialStore,
+): Promise<StoredCredentialPresence> {
+  return (await readStoredCredentialSnapshot(store)).presence
 }
 
 // ---------------------------------------------------------------------------
@@ -391,6 +413,11 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
   if (!response.ok) {
     const body = await response.text().catch(() => "")
     claudeLog("token_refresh.bad_response", { status: response.status, body })
+    // 400/401 is the token endpoint refusing the grant. Anything else — a
+    // throttle, an outage — says nothing about whether the login is alive.
+    if (response.status === 400 || response.status === 401) {
+      await noteRefreshRefused(store, refreshToken, response.status, body)
+    }
     return false
   }
 
@@ -468,7 +495,66 @@ async function doRefresh(store: CredentialStore): Promise<boolean> {
     refreshTokenExpiresAt,
     backfilledPlan: Object.keys(backfilled),
   })
+  noteRefreshSucceeded(store.refreshKey, {
+    refreshTokenExpiresAt: credentials.claudeAiOauth.refreshTokenExpiresAt,
+  })
   return true
+}
+
+/**
+ * The `error` code of a refused token request: a fixed vocabulary such as
+ * `invalid_grant`, never a secret. Accepts the OAuth shape (`error: "…"`) and
+ * the Anthropic API shape (`error: { type: "…" }`).
+ */
+export function oauthErrorCode(body: string): string | undefined {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return undefined
+  }
+  if (typeof parsed !== "object" || parsed === null) return undefined
+  const error = (parsed as { error?: unknown }).error
+  const code = typeof error === "string"
+    ? error
+    : typeof error === "object" && error !== null ? (error as { type?: unknown }).type : undefined
+  return typeof code === "string" && /^[a-z_]{1,40}$/.test(code) ? code : undefined
+}
+
+/** How long a Claude Code process that rotated the token first takes to write its replacement down. */
+export const ROTATION_SETTLE_MS = 750
+
+/**
+ * Record a refused refresh as a logout — unless the token we sent is no longer
+ * the one on disk. Claude Code refreshes the same credential from its own
+ * processes (`claude auth status`, the SDK itself), and a token rotated there a
+ * moment earlier is refused for that reason alone: the account is fine, and
+ * the next read picks up the replacement.
+ *
+ * That process may still be writing when the refusal arrives, so a token that
+ * looks unrotated is read once more after ROTATION_SETTLE_MS. Only the first
+ * refusal pays that: once a logout is on record, there is nothing to confirm.
+ */
+async function noteRefreshRefused(
+  store: CredentialStore,
+  sentRefreshToken: string,
+  status: number,
+  body: string,
+): Promise<void> {
+  const detail = oauthErrorCode(body) ?? `http_${status}`
+  if (!store.refreshKey || authLifecycleFor(store.refreshKey)?.firstUnauthedAt) return
+  const rotatedElsewhere = async (): Promise<boolean> => {
+    const onDisk = (await store.read().catch(() => null))?.claudeAiOauth?.refreshToken
+    return Boolean(onDisk) && onDisk !== sentRefreshToken
+  }
+  if (!(await rotatedElsewhere())) {
+    await new Promise(resolve => setTimeout(resolve, ROTATION_SETTLE_MS))
+    if (!(await rotatedElsewhere())) {
+      noteRefreshRejected(store.refreshKey, { detail })
+      return
+    }
+  }
+  claudeLog("token_refresh.rotated_elsewhere", { status })
 }
 
 /**
@@ -667,9 +753,17 @@ export async function getAuthRenewalStatus(
   // Only the READ is cached. The day count and the flag are recomputed every
   // call so elapsed time and a changed warnDays are always reflected.
   const { refreshTokenExpiresAt } = await readCredentialFacts(s)
+  return renewalStatusFor(refreshTokenExpiresAt, warnDays)
+}
+
+export function renewalStatusFor(
+  refreshTokenExpiresAt: number | undefined,
+  warnDays = DEFAULT_RENEWAL_WARN_DAYS,
+  now: number = Date.now(),
+): AuthRenewalStatus {
   if (!refreshTokenExpiresAt) return { renewalRequiredSoon: false }
 
-  const msRemaining = refreshTokenExpiresAt - Date.now()
+  const msRemaining = refreshTokenExpiresAt - now
   // Ceil, matching the CLI's own `Math.ceil(remaining / 86400000)` so this
   // number reads identically to the "Your login expires in N days" warning
   // Claude Code prints. Flooring here would report one day fewer than the
