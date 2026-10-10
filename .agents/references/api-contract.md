@@ -24,6 +24,7 @@ External plugins depend on these interfaces. **Changes require project owner app
 | `POST /v1/messages` request/response format | `server.ts` | All agents (Anthropic API contract) |
 | `GET /profiles/list` response shape | `server.ts` | Profile management UI and CLI |
 | `GET /inflight` response shape and loopback-only access | `server.ts`, `inflight.ts` | Loopback supervisors observing `scope: client-http`; not a restart/admission barrier (#1216) |
+| `POST`/`DELETE /drain` request/response and loopback-only access | `server.ts`, `admissionHold.ts` | Loopback supervisors holding new client HTTP admission before a restart; `draining`/`drain` in `GET /inflight` |
 | `POST /profiles/active` request/response | `server.ts` | Profile switching from CLI and UI |
 If you need to modify any of these, open an issue first — breaking changes affect downstream plugin authors.
 

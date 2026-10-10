@@ -284,6 +284,7 @@ adapter lets the subprocess run the built-in WebFetch at all.
 | `GET/POST /design-login` | OAuth flow for the design scopes |
 | `GET /health` | Auth status, mode, plugin status |
 | `GET /inflight` | Client requests in flight per upstream; loopback clients only. See [Restarting when idle](#restarting-when-idle) |
+| `POST /drain`, `DELETE /drain` | Hold new requests so a restart can find 0 in flight; loopback clients only. See [Draining for a restart](#draining-for-a-restart) |
 | `POST /auth/refresh` | Manually refresh the OAuth token |
 | `GET /telemetry` | Performance dashboard |
 | `GET /telemetry/requests` | Recent request metrics (JSON) |
@@ -580,6 +581,54 @@ probe. Use the [graceful shutdown](#graceful-shutdown) drain; this endpoint
 is not an admission barrier. Background Responses jobs are not restart
 resumable, so a supervisor must also wait for those jobs and pending client
 tool continuations to finish through their own lifecycle APIs.
+
+### Draining for a restart
+
+Under steady traffic `total` never reaches 0: a new turn starts before the last
+one ends. `POST /drain` makes room without cutting anyone off. While a drain is
+active, NEW client requests wait before they are admitted, and the ones
+already running finish untouched, so `total` can fall to 0 and the supervisor
+can restart.
+
+- A drain only delays. A held request is admitted normally when the drain ends
+  or once it has waited `holdMs`, whichever is first; it is never refused. To
+  the client it looks like a slow first token.
+- A drain ends on `DELETE /drain`, after `timeoutMs`, or when Meridian begins
+  shutting down. At shutdown the held requests get the shutdown `503` with
+  `Retry-After`, as any new request does.
+- Held requests are not in `total`; `drain.held` counts them.
+- It holds the requests `/inflight` counts: Claude Messages (including the
+  OpenAI translations) and combined Antigravity POSTs. Background Responses
+  jobs and pending client tool continuations keep running and are not held, so
+  a supervisor still waits for them through their own lifecycle APIs.
+- Body (optional JSON): `holdMs` (default 60000, 1000-240000) and `timeoutMs`
+  (default 600000, 10000-3600000). A `POST` while a drain is active changes
+  nothing and answers `started: false`.
+- Access is the same as `/inflight` (loopback peer, no forwarding headers), and
+  a request with an `Origin` header gets `403`, so a web page open on the same
+  machine cannot start one.
+
+`GET /inflight` reports it:
+
+```json
+{
+  "scope": "client-http",
+  "total": 0,
+  "draining": true,
+  "drain": {
+    "active": true,
+    "startedAt": "2026-09-30T12:00:00.000Z",
+    "endsAt": "2026-09-30T12:10:00.000Z",
+    "holdMs": 60000,
+    "held": 2,
+    "admittedAtCap": 0,
+    "lastEnded": null
+  }
+}
+```
+
+A supervisor that gives up on a drain calls `DELETE /drain`; one that restarts
+does not need to, because the new process starts without one.
 
 ## Graceful shutdown
 
