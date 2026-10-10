@@ -320,6 +320,30 @@ describe("SqliteTelemetryStore error handling", () => {
 })
 
 describe("SqliteTelemetryStore beside another writer", () => {
+  it("gives up on a held lock and records normally after its release", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "meridian-test-"))
+    const dbPath = join(tmpDir, "held.db")
+    const stores = createSqliteStores(dbPath, 7)
+    const writer = new Database(dbPath)
+    try {
+      writer.exec("BEGIN IMMEDIATE")
+      const start = performance.now()
+      stores.telemetry.record(makeMetric({ requestId: "held" }))
+      const elapsed = performance.now() - start
+      expect(elapsed).toBeGreaterThanOrEqual(750)
+      expect(elapsed).toBeLessThan(3000)
+      expect(stores.telemetry.size).toBe(0)
+
+      writer.exec("ROLLBACK")
+      stores.telemetry.record(makeMetric({ requestId: "released" }))
+      expect(stores.telemetry.getRecent().map(m => m.requestId)).toEqual(["released"])
+    } finally {
+      writer.close()
+      stores.close()
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it("records a request while another process briefly holds the write lock", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "meridian-test-"))
     const dbPath = join(tmpDir, "shared.db")
@@ -335,18 +359,29 @@ describe("SqliteTelemetryStore beside another writer", () => {
       Bun.sleepSync(150)
       db.exec("COMMIT")
     `], { env: { ...process.env, HOLD_DB: dbPath }, stdout: "pipe", stderr: "pipe" })
+    // Drain both pipes and join the holder before releasing its database.
+    const stderr = new Response(holder.stderr).text()
+    const reader = holder.stdout.getReader()
     try {
-      const { value } = await holder.stdout.getReader().read()
+      const { value } = await reader.read()
       expect(new TextDecoder().decode(value)).toContain("locked")
-
       stores.telemetry.record(makeMetric({ requestId: "while-locked" }))
 
       expect(await holder.exited).toBe(0)
       expect(stores.telemetry.getRecent().map(m => m.requestId)).toEqual(["while-locked"])
     } finally {
       holder.kill()
-      stores.close()
-      rmSync(tmpDir, { recursive: true, force: true })
+      await holder.exited
+      try {
+        await Promise.all([
+          (async () => { while (!(await reader.read()).done) { /* drain to EOF */ } })(),
+          stderr,
+        ])
+      } finally {
+        reader.releaseLock()
+        stores.close()
+        rmSync(tmpDir, { recursive: true, force: true })
+      }
     }
   })
 })

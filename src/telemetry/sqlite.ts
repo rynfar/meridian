@@ -91,8 +91,9 @@ const CLEANUP_INTERVAL = 1000
  * second process importing history, an operator's sqlite3 - fails at once and
  * is dropped, and a migration below fails as if its column already existed.
  * The driver is synchronous, so the wait blocks the event loop: long enough
- * for another connection's ordinary transaction, short enough that a holder
- * that never lets go costs one row rather than a stall of every stream.
+ * for another connection's ordinary transaction. This cap applies to each
+ * write, including diagnostic logs; a held lock can therefore stall every
+ * stream for one second per attempted write and still drop that write.
  */
 const BUSY_TIMEOUT_MS = 1000
 
