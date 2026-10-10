@@ -47,6 +47,7 @@ if (turn === 1) {
     const content = mode.structuredParentHandback ? JSON.stringify({ agentId: label, handback: 'send', handbackReport: { text: report, warning: 'synthetic-private warning' }, content: [{ type: 'text', text: 'synthetic-private caller notification' }] })
       : mode.separateCallerHandback ? label + '-1 ' + label + '-2'
       : mode.sharedParentReport ? label === 'alpha' ? 'alpha-1\nalpha-2\nbeta-1\nbeta-2' : 'synthetic unrelated result'
+      : mode.nativeFramedReport ? readFileSync(new URL('./native-frame.txt', import.meta.url), 'utf8').replaceAll('fixture-child', mode.wrongFramedActor ? 'wrong-child' : label).replaceAll('alpha-', label + '-').replace(mode.wrongFramedReport ? label + '-2' : 'not-in-frame', 'wrong-report')
       : mode.handbackScenario && !mode.handbackNotDelivered ? report : label + '-1 ' + label + '-2'
     return result('launch-' + label, content)
   }), false, mode.separateCallerHandback ? ['alpha-1\nalpha-2', 'beta-1\nbeta-2'] : [])

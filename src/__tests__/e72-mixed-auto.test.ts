@@ -92,6 +92,7 @@ async function runControl(mode: Record<string, boolean>, expectUnjoinedQuery = f
   writeFileSync(join(target, 'mode.json'), JSON.stringify(mode))
   writeFileSync(join(sdk, 'package.json'), JSON.stringify({ name: '@anthropic-ai/claude-agent-sdk', version: '0.2.141', type: 'module', main: 'sdk.mjs', meridianHarnessSynthetic: true }))
   const fixtures = join(import.meta.dir, 'fixtures/e72-mixed-control')
+  if (mode.nativeFramedReport) copyFileSync(join(import.meta.dir, 'fixtures/e72-native-handback-frame.txt'), join(target, 'native-frame.txt'))
   copyFileSync(join(fixtures, 'sdk.mjs'), join(sdk, 'sdk.mjs'))
   copyFileSync(join(fixtures, 'client.mjs'), join(target, 'client.mjs'))
   // Replace only the existing forwarding policy's literal in this marked fake.
@@ -102,7 +103,7 @@ async function runControl(mode: Record<string, boolean>, expectUnjoinedQuery = f
   const { chmodSync } = await import('node:fs'); chmodSync(client, 0o700)
   writeFileSync(grant, JSON.stringify({ claudeAiOauth: { accessToken: 'synthetic-never-authenticated', expiresAt: Date.now() + 3600000, scopes: ['user:inference'] } }), { mode: 0o400 })
   const harness = resolve(import.meta.dir, '../../scripts/e2e-claude-code-subagent-session.mjs')
-  const child = spawn(process.execPath, [harness, '--synthetic', '--require-mcp-readiness', '--scenario', mode.handbackScenario ? 'mixed-auto-handback-v2' : 'mixed-auto-v1',
+  const child = spawn(process.execPath, [harness, '--synthetic', '--require-mcp-readiness', '--scenario', mode.framedHandbackScenario ? 'mixed-auto-handback-v3' : mode.handbackScenario ? 'mixed-auto-handback-v2' : 'mixed-auto-v1',
     ...(mode.ownedCheckpoint ? ['--checkpoint-protocol', 'owned-interrupt-v1'] : []),
     '--target-root', target, '--entry', 'server.mjs', '--client', client, '--client-version', '2.1.287', '--native-cli', native,
     '--native-cli-version', '2.1.284', '--sdk-version', '0.2.141', '--model', 'claude-sonnet-5-5', '--served-model', 'claude-sonnet-5-5',
@@ -141,6 +142,24 @@ async function runControl(mode: Record<string, boolean>, expectUnjoinedQuery = f
 }
 
 describe('actual mixed observer against marked synthetic client, proxy and SDK', () => {
+  it('verifies exact native framing and child ownership through the maintained v3 harness', async () => {
+    const result = await runControl({ handbackScenario: true, framedHandbackScenario: true, nativeFramedReport: true, ownedCheckpoint: true })
+    expect(result.code).toBe(0)
+    expect(result.proof.handbackFacts.protocol).toBe('native-client-frame-v1')
+    expect(result.proof.handbackFacts.reports.every((row: { exactMessageInParentResult: boolean; frame: { reportMatched: boolean; actorMatched: boolean } }) => !row.exactMessageInParentResult && row.frame.reportMatched && row.frame.actorMatched)).toBe(true)
+    expect(Object.values(result.proof.checks).every(Boolean)).toBe(true)
+  })
+  it('preserves v2 raw-substring rejection of a native framed report', async () => {
+    const result = await runControl({ handbackScenario: true, nativeFramedReport: true })
+    expect(result.code).toBe(1)
+    expect(result.proof.checks.nativeHandbackReports).toBe(false)
+  })
+  for (const mode of ['wrongFramedActor', 'wrongFramedReport']) it('rejects native-frame ' + mode + ' in the maintained v3 harness', async () => {
+    const result = await runControl({ handbackScenario: true, framedHandbackScenario: true, nativeFramedReport: true, [mode]: true })
+    expect(result.code).toBe(1)
+    expect(result.proof.checks.nativeHandbackReports).toBe(false)
+  })
+
   it('witnesses the opt-in interrupt through the maintained harness without trusting a product log', async () => {
     const result = await runControl({ ownedCheckpoint: true, handbackScenario: true })
     expect(result.code).toBe(0)

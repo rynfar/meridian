@@ -18,7 +18,7 @@ import { createPublicSdkGenerationWitness, publicToolCapabilities } from './lib/
 import { backgroundLaunchOutput, backgroundReadCompletion, backgroundReadNativeResult } from './lib/e2eBackgroundRead.mjs'
 import { createOwnedCheckpointWitness, ownedCheckpointNativeResult } from './lib/e2eOwnedCheckpoint.mjs'
 import { createRequestModelWitness } from './e2e-claude-code-auto-mode.mjs'
-import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts, publicHandbackEncodingFacts } from './lib/e2eMixedAuto.mjs'
+import { mixedAutoRequest, mixedAutoCommands, createOwnedRelayWork, publicToolReceiptMatch, publicHandbackReceiptFacts, publicHandbackEncodingFacts, publicNativeHandbackFrameFacts } from './lib/e2eMixedAuto.mjs'
 
 const switches = new Set(['expect-unfixed', 'rehearsal', 'fail-after-copy', 'synthetic', 'require-mcp-readiness'])
 const names = new Set(['checkpoint-protocol', 'scenario', 'classifier-model', 'classifier-served-model', 'target-root', 'entry', 'source-head', 'client', 'client-version', 'native-cli', 'native-cli-version', 'sdk-version', 'model', 'served-model', 'grant-file', 'proof-dir', 'max-queries', 'max-cost-usd', 'timeout-ms'])
@@ -33,8 +33,10 @@ const ownedCheckpoint = args['checkpoint-protocol'] === 'owned-interrupt-v1'
 assert(args['checkpoint-protocol'] === undefined || ownedCheckpoint, 'Invalid checkpoint protocol')
 if (ownedCheckpoint) assert(args['sdk-version'] === '0.2.141' && ['2.1.284', '2.1.295', '2.1.296'].includes(args['native-cli-version']), 'Owned interrupt requires an independently qualified SDK/native tuple')
 const scenario = args.scenario ?? 'foreground'
-assert(['foreground', 'background', 'background-read-v2', 'mixed-auto-v1', 'mixed-auto-handback-v2'].includes(scenario), 'Invalid E72 scenario')
-const mixedHandback = scenario === 'mixed-auto-handback-v2'
+assert(['foreground', 'background', 'background-read-v2', 'mixed-auto-v1', 'mixed-auto-handback-v2', 'mixed-auto-handback-v3'].includes(scenario), 'Invalid E72 scenario')
+const framedHandback = scenario === 'mixed-auto-handback-v3'
+if (framedHandback) assert(args['client-version'] === '2.1.287', 'Native handback frame requires the independently observed client pin')
+const mixedHandback = scenario === 'mixed-auto-handback-v2' || framedHandback
 const mixedAuto = scenario === 'mixed-auto-v1' || mixedHandback
 const readBackground = scenario === 'background-read-v2'
 const background = ['background', 'background-read-v2'].includes(scenario)
@@ -602,17 +604,18 @@ try {
       const parents = launches.filter(receipt => typeof receipt.tool.privateInput.prompt === 'string' && receipt.tool.privateInput.prompt.includes(`${label}-1`) && receipt.tool.privateInput.prompt.includes(`${label}-2`))
       const receipt = calls[0], parent = parents[0], last = working.filter(row => row.actor === actor).at(-1)
       const message = `${label}-1\n${label}-2`
+      const frame = publicNativeHandbackFrameFacts({ parentResultContent: parent?.result?.privateContent, expectedMessage: message, expectedActorId: [...agentIds].find(([, number]) => number === actor)?.[0], clientVersion: args['client-version'] })
       const diagnostic = publicHandbackReceiptFacts({ input: receipt?.tool.privateInput, parentPrompt: parent?.tool.privateInput.prompt,
         parentResultContent: parent?.result?.privateContent, expectedMessage: message,
         expectedActorId: [...agentIds].find(([, ordinal]) => ordinal === actor)?.[0],
         callerMessages: callerMessages.get(parent?.result?.request) ?? [] })
       handbackLinks.push({ expectedChild: index + 1, actor, call: receipt ? privateReceipts.indexOf(receipt) + 1 : null,
         parentLaunch: parent ? privateReceipts.indexOf(parent) + 1 : null, parentResultRequest: parent?.result?.request,
-        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message), diagnostic,
+        finalChildRequest: last?.request, exactMessageInParentResult: parent?.resultMatched === true && parent.result.text.includes(message), diagnostic, frame,
         encoding: publicHandbackEncodingFacts({ input: receipt?.tool.privateInput, parentResultContent: parent?.result?.privateContent, expectedMessage: message }) })
       return actor > 0 && calls.length === 1 && parents.length === 1 && receipt.paired && !receipt.result &&
         Object.keys(receipt.tool.privateInput).length === 1 && receipt.tool.privateInput.message === message &&
-        parent.paired && parent.resultMatched && parent.result.text.includes(message) && parent.result.request > receipt.tool.request &&
+        parent.paired && parent.resultMatched && (framedHandback ? frame.reportMatched : parent.result.text.includes(message)) && parent.result.request > receipt.tool.request &&
         last?.turn === 1 && last.request === receipt.tool.request && last.handbackDeclared === true
     }) : []
     const distinctHandbackParents = mixedHandback && new Set(handbackLinks.map(row => row.parentLaunch)).size === 2 && handbackLinks.every(row => row.parentLaunch !== null)
@@ -705,7 +708,7 @@ try {
         wireInput: receipt.tool.input, sdkInput: sdkTool?.input, hookFate: hook?.fate, hookInput: hook?.input,
         sdkIdOwners: proof.queries.filter(row => sdkTools.get(row).has(receipt.id)).length }) }
     })
-    if (mixedHandback) proof.handbackFacts = { calls: handbacks.length, actors: handbacks.map(receipt => receipt.actor).sort((a, b) => a - b),
+    if (mixedHandback) proof.handbackFacts = { protocol: framedHandback ? 'native-client-frame-v1' : 'raw-substring-v2', calls: handbacks.length, actors: handbacks.map(receipt => receipt.actor).sort((a, b) => a - b),
       distinctParentLaunches: distinctHandbackParents, exactChildReportsDeliveredToMatchingParent: handbackMatches, childFinalCalls: handbacks.length === 2 && handbacks.every(receipt => working.filter(row => row.actor === receipt.actor).at(-1)?.request === receipt.tool.request), reports: handbackLinks }
     proof.checks = {
       invocationsSucceeded: proof.turns.length === 2 && proof.turns.every(row => row.status === 0), turnsAnswered: proof.turns.every(row => row.answered), noRefusal: proof.turns.every(row => !row.refused) && wire.every(row => row.status === 200),
