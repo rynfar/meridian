@@ -1,0 +1,12 @@
+{
+  "buildCertificationAccepted": true,
+  "sourceHead": "20664d1cc88085850cb536b7fe5ea7378e3dac06",
+  "tarball": "/Users/rynfar/repos/meridian-review-evidence-20261006/auth-logout-1323-20261010-round1/certified-package/rynfar-meridian-1.80.0.tgz",
+  "tarballSHA256": "08d0202984f6d2fe450daef2a75cbfeefafa84ba194b8b7e33049ca7e1dfd537",
+  "distFiles": 428,
+  "distBytesEqual": true,
+  "entry": "/Users/rynfar/repos/meridian-review-evidence-20261006/auth-logout-1323-20261010-round1/certified-package/consumer/node_modules/@rynfar/meridian/dist/server.js",
+  "sdkVersion": "0.2.141",
+  "publication": false,
+  "lifecycleScriptsExecuted": false
+}

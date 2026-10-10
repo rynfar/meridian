@@ -244,9 +244,11 @@ async function worker() {
         const list = await get(first, '/profiles/list', 'late-list', 1500)
         if (options.case === 'logged-out') {
           check(joined.loggedIn === false && joined.code === 1 && joined.authMethod === 'none', 'NATIVE_NOT_LOGGED_OUT')
-          check(late.health === 'degraded' && list.provenance === 'never', 'LOGOUT_MAPPING_CHANGED')
+          check(late.status === 503 && late.health === 'unhealthy' && late.loggedIn === false
+            && list.provenance === 'live' && list.loggedIn === false && !list.lastSuccessObserved,
+          'EXPLICIT_LOGOUT_NOT_RECORDED')
           check(result.warnings.loggedOutExit >= 1, 'LOGOUT_NUMERIC_DIAGNOSTIC_MISSING')
-          result.controls.loggedOut = 'actual-native-false-exit-1-maps-to-unknown-never'
+          result.controls.loggedOut = 'actual-native-false-exit-1-maps-to-observed-logout-without-login-success'
         } else {
           check(late.health === 'healthy' && late.loggedIn === true && list.loggedIn === true && list.provenance === 'live', 'LATE_NOT_HEALTHY')
           check(joined.code === 0 && joined.loggedIn === true && joined.authMethod === 'oauth_token' && joined.configMatches, 'NATIVE_LOGIN_OR_CONFIG_MISMATCH')

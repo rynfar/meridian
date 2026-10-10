@@ -1,3 +1,33 @@
+## Active credentialless logout integration — 2026-10-10
+
+Selected #1323 after current oldest-item revalidation: #917/#933 have no new
+attributable failure (latest 30 main CI runs succeeded), the older Antigravity
+#1073/#1317 retains a real repeated-write failure, and #1261 retains rejected
+root-wide deletion/ownership/admission semantics. #1219's unfinished native
+changes are preserved in their existing branch and external patch; stopping
+scope expansion is a prioritization correction, not a claim it needs login.
+#1211/#1322 remain owner-deferred. The oldest-first queue remains the policy;
+this item has a complete auth-only verification path without an owner login.
+
+Source #1323 `5163d998` is incorporated from fresh main `11dc1556` with both
+Nowaker authors/dates/full messages preserved (`bd3aa844`→`c9c31091`,
+`5163d998`→`77d0fa76`). Isolated branch
+`codex/auth-logout-1323-20261010`, worktree
+`/Users/rynfar/repos/meridian-auth-logout-1323-20261010`.
+Four unchanged regression assertions fail main and pass corrected source.
+Real official Claude CLI 2.1.284 empty-directory native checks fail before and
+pass after in default and named-profile contexts, with exit/close/both pipes
+joined, no token, absent credential files and zero SDK generations. Root's
+whole-diff adversarial review also corrected PowerShell's string-false coercion;
+six actual PowerShell acceptance controls pass. See
+[evidence and review](evidence/1323-auth-logout.md).
+
+Full local npm test passes 5,560 / 0 fail / 35 skip across 21 invocations;
+standalone typecheck/build pass (Bun 1.3.11 / Node 22.22.3). Certified independent
+package default/profile native controls both pass, all 428 dist files match,
+zero model calls. Final-head CI remains pending. No merge, source closure or
+release is claimed. Owner checkout/index/dirty bytes are unchanged.
+
 # Upstream review handoff
 
 ## Current queue reduction and ordering (2026-10-09 UTC)
