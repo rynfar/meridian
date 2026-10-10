@@ -69,6 +69,7 @@ import { telemetryStore, diagnosticLog, createTelemetryRoutes, landingHtml, rend
 import { detectSupervision } from "./supervision"
 import type { RequestMetric } from "../telemetry"
 import { canRecoverCapturedToolUses, canRecoverUncapturedToolUses, isStreamedToolBlockComplete, unavailableToolResults, type StreamedToolBlockRecord, classifyError, extractSdkTermination, formatSdkTermination, classifyResumeRefusal, isRateLimitError, isExtraUsageRequiredError, isExpiredTokenError, isAccountFailoverError, isQuotaRefusal, isOutputTokenCapExceeded } from "./errors"
+import { createSseRelayStream, relayStreamAttempt } from "./sseFailureSniff"
 import { refreshOAuthToken, ensureFreshToken, startBackgroundRefresh, stopBackgroundRefresh, createPlatformCredentialStore, readStoredCredentialPresence, getAuthRenewalStatus, getStoredPlanFields, resolveRenewalWarnDays, type CredentialStore, type StoredPlanFields } from "./tokenRefresh"
 import { planAllowance } from "./planAllowance"
 import { isCredentialsReadOnly, logCredentialsModeBanner } from "./credentialsMode"
@@ -1291,86 +1292,284 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       })
   }
 
-  /** Inspect an inner response for an account-level failure without destroying
-   *  it. Non-stream: an error body on a non-OK status. Stream: an
-   *  `event: error` frame BEFORE any content frame (mid-content errors pass
-   *  through — never yank a stream a client is already consuming).
-   *
-   *  `isAccountFailoverError` decides which classified types are worth another
-   *  account; anything else is this account's honest answer and belongs to the
-   *  client untouched. The non-stream status gate is `!res.ok` rather than a
-   *  literal 429 because the qualifying types do not share one status — a
-   *  spent quota window is 429, a refused subscription 402. */
+  function isEventStream(res: Response): boolean {
+    return (res.headers.get("content-type") ?? "").includes("text/event-stream")
+  }
+
+  /** Inspect a non-SSE inner response for an account-level failure.
+   *  An account-shaped error on a non-OK status is worth another account;
+   *  anything else is this account's honest answer and belongs to the client
+   *  untouched. SSE bodies are decided in-stream by `streamPriorityDispatch`.
+   *  The status gate is `!res.ok` rather than a literal 429
+   *  because the qualifying types do not share one status — a spent quota
+   *  window is 429, a refused subscription 402. */
   async function sniffAccountFailure(res: Response): Promise<
     | { failed: true; errorPayload: unknown; errorType: string; response: Response }
     | { failed: false; errorPayload: null; errorType: null; response: Response }
   > {
-    const contentType = res.headers.get("content-type") ?? ""
-    if (!contentType.includes("text/event-stream")) {
-      if (!res.ok) {
-        const body = await res.clone().json().catch(() => null) as { error?: { type?: string } } | null
-        const errorType = body?.error?.type
-        if (isAccountFailoverError(errorType)) {
-          return { failed: true, errorPayload: body, errorType, response: res }
-        }
-      }
+    if (isEventStream(res) || res.ok) {
       return { failed: false, errorPayload: null, errorType: null, response: res }
     }
-    const reader = res.body?.getReader()
-    if (!reader) return { failed: false, errorPayload: null, errorType: null, response: res }
-    const decoder = new TextDecoder()
-    const consumed: Uint8Array[] = []
-    let text = ""
-    let failure: { payload: unknown; type: string } | null = null
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      consumed.push(value)
-      text += decoder.decode(value, { stream: true })
-      const frameEnd = text.indexOf("\n\n")
-      if (frameEnd === -1) continue
-      const frame = text.slice(0, frameEnd)
-      if (/^event: error$/m.test(frame)) {
-        const dataLine = frame.split("\n").find(l => l.startsWith("data: "))
-        try {
-          const parsed = dataLine ? JSON.parse(dataLine.slice(6)) as { error?: { type?: string } } : null
-          const parsedType = parsed?.error?.type
-          if (isAccountFailoverError(parsedType)) {
-            failure = { payload: parsed, type: parsedType }
-          }
-        } catch { /* not an account-failure frame — pass through below */ }
-      }
-      break // first complete frame decides
+    const body = await res.clone().json().catch(() => null) as { error?: { type?: string } } | null
+    const errorType = body?.error?.type
+    if (isAccountFailoverError(errorType)) {
+      return { failed: true, errorPayload: body, errorType, response: res }
     }
-    if (failure) {
-      await reader.cancel().catch(() => {})
-      // The original response body is now locked and consumed. Preserve the
-      // exact bytes already read so a no-retry exposure barrier can still
-      // return a usable account-error response to the client.
-      const replay = new ReadableStream<Uint8Array>({
-        start(ctrl) {
-          for (const chunk of consumed) ctrl.enqueue(chunk)
-          ctrl.close()
-        },
-      })
-      const response = new Response(replay, { status: res.status, headers: res.headers })
-      const completion = responseCompletions.get(res)
-      if (completion) responseCompletions.set(response, completion)
-      return { failed: true, errorPayload: failure.payload, errorType: failure.type, response }
-    }
-    const rest = new ReadableStream<Uint8Array>({
-      start(ctrl) { for (const chunk of consumed) ctrl.enqueue(chunk) },
-      async pull(ctrl) {
-        const { done, value } = await reader.read()
-        if (done) ctrl.close()
-        else ctrl.enqueue(value)
-      },
-      cancel(reason) { void reader.cancel(reason).catch(() => {}) },
+    return { failed: false, errorPayload: null, errorType: null, response: res }
+  }
+
+  async function runPriorityAttempt(
+    options: PriorityDispatchOptions,
+    attempt: number,
+    candidate: string,
+    attemptOwnerToken: string | undefined,
+    requestAbortLink = options.requestAbortLink,
+    exposure: PriorityAttemptExposure = { committed: false },
+  ) {
+    const priorityPublication = options.durableRoute && options.publicationTurn
+      ? {
+          routeKey: options.durableRoute.routeKey,
+          profileId: candidate,
+          lastHumanTurnDigest: options.publicationTurn.turnId,
+          lastHumanTurnIssuedAt: options.publicationTurn.issuedAt,
+          attemptOwnerToken: attemptOwnerToken!,
+          expectedAssignmentGeneration: options.durableRoute.expectedGeneration,
+        }
+      : undefined
+    // Fork the hop's telemetry, retaining the request ID for routeChain.
+    const attemptMeta = { ...forkAttemptMeta(options.requestMeta, attempt), routeAttempt: attempt + 1 }
+    const inner = await handleMessages(options.context, attemptMeta, {
+      body: options.body,
+      forcedProfileId: candidate,
+      turnWatchdogSignal: options.turnWatchdogSignal,
+      requestAbortLink,
+      forceFreshPriorityReplay: priorityPublication !== undefined
+        && (options.durableRoute?.forceFreshReplay === true
+          || (options.currentProfileId !== undefined && candidate !== options.currentProfileId)),
+      priorityPublication,
+      priorityAttemptExposure: exposure,
     })
-    const response = new Response(rest, { status: res.status, headers: res.headers })
-    const completion = responseCompletions.get(res)
-    if (completion) responseCompletions.set(response, completion)
-    return { failed: false, errorPayload: null, errorType: null, response }
+    return { inner, exposure }
+  }
+
+  function markPriorityFailure(candidate: string, reason: string): number {
+    const quotaRefusal = isQuotaRefusal(reason)
+    const until = quotaRefusal
+      ? priorityCooldownUntil(candidate, Date.now())
+      : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
+    priorityExhaustion.mark(candidate, until, reason)
+    claudeLog("priority.exhausted", { profile: candidate, until, reason })
+    if (quotaRefusal) refinePriorityCooldown(candidate)
+    return until
+  }
+
+  /** Streaming priority dispatch, entered once an account answers with SSE:
+   *  that attempt and every later candidate run INSIDE the client-facing
+   *  stream.
+   *
+   *  The outer SSE Response is returned before the handed attempt's first
+   *  frame, so headers reach the client immediately and keepalives keep the
+   *  connection live while an account is still deciding. An account-failover
+   *  error before any real frame suppresses that account and starts the next
+   *  candidate — never on a cancelled request. The first real frame (content
+   *  or an honest error) relays byte-exact; an exposure-committed attempt's
+   *  error relays instead of suppressing (the no-retry barrier). A pool
+   *  exhausted after headers emits one coherent SSE error frame, because the
+   *  HTTP status can no longer be rewritten.
+   *
+   *  `settleAttempt` settles the durable priority attempt claim exactly as
+   *  the non-stream loop does. */
+  async function streamPriorityDispatch(
+    options: PriorityDispatchOptions,
+    attemptOwnerToken: string | undefined,
+    settleAttempt: (disposition: "release" | "block") => boolean,
+    start: {
+      attempt: number
+      inner: Response
+      exposure: PriorityAttemptExposure
+      lastError: unknown
+      previous: string | null
+      previousReason: string
+      earliestPoolReset: number | null
+    },
+  ): Promise<Response> {
+    const encoder = new TextEncoder()
+    const errorFrame = (payload: unknown): Uint8Array =>
+      encoder.encode(`event: error\ndata: ${JSON.stringify(payload)}\n\n`)
+    const unavailableFrame = () => errorFrame({
+      type: "error",
+      error: { type: "overloaded_error", message: "Durable priority attempt state is unavailable", retry_after: OVERLOADED_RETRY_AFTER_SECONDS },
+    })
+
+    // Abort the request-wide link, not just a reader that may not exist yet.
+    const requestAbort = options.requestAbortLink ?? linkRequestAbort(options.context.req.raw.signal)
+
+    let resolveOuterCompletion: () => void = () => {}
+    const outerCompletion = new Promise<void>(resolve => { resolveOuterCompletion = resolve })
+
+    const stream = createSseRelayStream(async sink => {
+        const { enqueue } = sink
+        const isCancelled = () => sink.isCancelled() || requestAbort.controller.signal.aborted
+        let activeExposure: PriorityAttemptExposure | null = null
+        let failedUnexpectedly = false
+        let settled = false
+        const settle = (disposition: "release" | "block"): boolean => {
+          if (settled) return true
+          settled = settleAttempt(disposition)
+          return settled
+        }
+        let lastInner: Response | null = null
+        try {
+          let { lastError, previous, previousReason, earliestPoolReset } = start
+          for (let attempt = start.attempt; attempt < options.candidateIds.length; attempt++) {
+            const candidate = options.candidateIds[attempt]!
+            const handed = attempt === start.attempt
+            // The handed attempt is always relayed: its reader owns the cancel.
+            if (!handed && isCancelled()) break
+            activeExposure = handed ? start.exposure : { committed: false }
+            const { inner, exposure } = handed
+              ? start
+              : await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken, requestAbort, activeExposure)
+            lastInner = inner
+            const verdict = await relayStreamAttempt(inner, { ...sink, isCancelled })
+            if (verdict.kind === "suppressed") {
+              // Cancel BEFORE joining cleanup, then read the final exposure
+              // state. Cleanup may itself latch a side effect; testing the
+              // barrier before completion could replay an exposed attempt.
+              await verdict.discard()
+              await responseCompletions.get(inner)?.catch(() => {})
+              const reason = verdict.errorType
+              const cooldownUntil = markPriorityFailure(candidate, reason)
+              if (isCancelled()) break
+              earliestPoolReset = Math.min(earliestPoolReset ?? cooldownUntil, cooldownUntil)
+              lastError = verdict.errorPayload
+              previous = candidate
+              previousReason = reason
+              if (exposure.committed) {
+                // The SDK may already have emitted content, structured
+                // output, or a tool side effect. Never replay that attempt on
+                // another account — and the client has not seen the refused
+                // bytes yet, so relay them now instead of failing over.
+                claudeLog("priority.failover_withheld", { profile: candidate, reason: exposure.reason ?? "attempt_exposed" })
+                if (!settle("block")) {
+                  await enqueue(unavailableFrame())
+                  return
+                }
+                sink.onMeaningfulForwarded()
+                for (const chunk of verdict.held) await enqueue(chunk)
+                return
+              }
+              // Suppressible and unexposed: try the next candidate, without
+              // the previous attempt's reader as the cancel target.
+              sink.registerCancel(() => {})
+              continue
+            }
+            if (isCancelled()) break
+            if (options.sessionKey && !options.durableRoute) {
+              // Process memory preserves only legacy/keyless new-conversation
+              // affinity. Trusted attempts publish authority at the atomic
+              // durable terminal barrier and must not poison adoption on
+              // errors or cancel.
+              const previousAssignment = priorityAssignments.get(options.sessionKey)
+              priorityAssignments.set(options.sessionKey, {
+                profileId: candidate,
+                requestId: options.publicationTurn?.turnId ?? previousAssignment?.requestId,
+              })
+            }
+            if (previous) {
+              claudeLog("profile.failover", { from: previous, to: candidate, reason: previousReason, sessionKey: options.sessionKey })
+              plog(`[PROXY] PRIORITY failover ${previous} -> ${candidate} (${previousReason})`)
+              // The client is about to receive a normal answer and will never
+              // learn that an account dropped out. A supervisor watching for
+              // spent accounts has to hear about it from here or not at all.
+              failoverEvents.append({
+                kind: "failover",
+                profile: previous,
+                servedBy: candidate,
+                reason: previousReason,
+                routing: options.routing ?? "priority",
+                sessionKey: options.sessionKey,
+                internalHop: false,
+                until: spentProfiles.get(previous)?.until ?? null,
+                limit: spentProfiles.get(previous)?.diagnosis ?? null,
+              })
+            }
+            return
+          }
+          if (previous && !isCancelled()) {
+            failoverEvents.append({
+              kind: "pool_exhausted",
+              profile: previous,
+              servedBy: null,
+              reason: "rate_limit_error",
+              routing: options.routing ?? "priority",
+              sessionKey: options.sessionKey,
+              internalHop: false,
+              until: spentProfiles.get(previous)?.until ?? null,
+              limit: spentProfiles.get(previous)?.diagnosis ?? null,
+            })
+          }
+          // Every candidate ended before exposure: release the exact durable
+          // claim, then surface the LAST tried profile's error once — headers
+          // are already out, so the terminal verdict travels in the stream.
+          // Quota waits name the pool's earliest opening, just as on JSON.
+          if (!isCancelled() && !settle("release")) {
+            await enqueue(unavailableFrame())
+            return
+          }
+          if (!isCancelled() && lastError !== null) {
+            if (isQuotaRefusal(previousReason) && typeof lastError === "object") {
+              const envelope = (lastError as { error?: unknown }).error
+              if (envelope !== null && typeof envelope === "object") {
+                Object.assign(envelope, retryAfterBodyFields(retryAfterSeconds({ status: 429, resetAtMs: earliestPoolReset })))
+              }
+            }
+            await enqueue(errorFrame(lastError))
+          }
+        } catch (error) {
+          failedUnexpectedly = true
+          // Headers are already sent: classify as the route's own handler
+          // would, but deliver the verdict as a stream error frame.
+          const errMsg = error instanceof Error ? error.message : String(error)
+          claudeLog("error.unhandled", { error: errMsg })
+          if (!isCancelled()) {
+            const classified = classifyError(errMsg)
+            await enqueue(errorFrame({
+              type: "error",
+              error: { type: classified.type, message: classified.message,
+                ...retryAfterBodyFields(retryAfterSeconds({ status: classified.status })) },
+            }))
+          }
+        } finally {
+          if (failedUnexpectedly) requestAbort.abort("priority relay failed")
+          // The outer completion resolves only after the last attempt's own
+          // completion has settled, preserving the route's finishRequest
+          // ordering.
+          void (async () => {
+            try {
+              if (lastInner) await responseCompletions.get(lastInner)?.catch(() => {})
+            } finally {
+              // Settle only after cleanup, when the exposure barrier is final.
+              if (isCancelled() || failedUnexpectedly) settle(activeExposure?.committed ? "block" : "release")
+              if (!options.requestAbortLink) requestAbort.detach()
+              resolveOuterCompletion()
+            }
+          })()
+        }
+    }, reason => {
+      requestAbort.setCause("stream_cancel")
+      requestAbort.abort(reason)
+      options.requestMeta.cascadeSubtreeCancel?.("stream_cancel")
+    })
+    const response = new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    })
+    responseCompletions.set(response, outerCompletion)
+    return response
   }
 
   async function dispatchPriority(options: PriorityDispatchOptions): Promise<Response> {
@@ -1429,34 +1628,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // Retry-After names the pool's earliest opening (#901).
     let earliestPoolReset: number | null = null
     for (const [attempt, candidate] of options.candidateIds.entries()) {
-      const exposure: PriorityAttemptExposure = { committed: false }
-      const priorityPublication = options.durableRoute && options.publicationTurn
-        ? {
-            routeKey: options.durableRoute.routeKey,
-            profileId: candidate,
-            lastHumanTurnDigest: options.publicationTurn.turnId,
-            lastHumanTurnIssuedAt: options.publicationTurn.issuedAt,
-            attemptOwnerToken: attemptOwnerToken!,
-            expectedAssignmentGeneration: options.durableRoute.expectedGeneration,
-          }
-        : undefined
-      // Each hop writes its own telemetry row. `routeAttempt` is what marks a
-      // row as a hop and orders it, and the `requestId` forkAttemptMeta keeps
-      // across attempts is what groups them - so the read path can stitch a
-      // failover back into one row with its account chain
-      // (telemetry/routeChain.ts). Nothing is correlated here.
-      const attemptMeta = { ...forkAttemptMeta(options.requestMeta, attempt), routeAttempt: attempt + 1 }
-      const inner = await handleMessages(options.context, attemptMeta, {
-        body: options.body,
-        forcedProfileId: candidate,
-        turnWatchdogSignal: options.turnWatchdogSignal,
-        requestAbortLink: options.requestAbortLink,
-        forceFreshPriorityReplay: priorityPublication !== undefined
-          && (options.durableRoute?.forceFreshReplay === true
-            || (options.currentProfileId !== undefined && candidate !== options.currentProfileId)),
-        priorityPublication,
-        priorityAttemptExposure: exposure,
-      })
+      const { inner, exposure } = await runPriorityAttempt(options, attempt, candidate, attemptOwnerToken)
+      // A non-SSE answer is decided here and keeps its HTTP status. Once an
+      // account streams, headers go out and the remaining candidates are
+      // tried inside the stream.
+      if (options.wantsStream && isEventStream(inner)) {
+        return streamPriorityDispatch(options, attemptOwnerToken, settleAttempt, {
+          attempt, inner, exposure, lastError, previous, previousReason, earliestPoolReset,
+        })
+      }
       const sniffed = await sniffAccountFailure(inner)
       if (!sniffed.failed) {
         if (options.sessionKey && !options.durableRoute) {
@@ -1493,16 +1673,10 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
       const reason = sniffed.errorType
       // Only a quota refusal has a reset to look up. Both cooldown tiers read
       // the account's five-hour window, which says nothing about entitlement.
-      const quotaRefusal = isQuotaRefusal(reason)
-      const cooldownUntil = quotaRefusal
-        ? priorityCooldownUntil(candidate, Date.now())
-        : Date.now() + PRIORITY_DEFAULT_COOLDOWN_MS
-      priorityExhaustion.mark(candidate, cooldownUntil, reason)
+      const cooldownUntil = markPriorityFailure(candidate, reason)
       if (earliestPoolReset === null || cooldownUntil < earliestPoolReset) {
         earliestPoolReset = cooldownUntil
       }
-      claudeLog("priority.exhausted", { profile: candidate, until: cooldownUntil, reason })
-      if (quotaRefusal) refinePriorityCooldown(candidate)
       lastError = sniffed.errorPayload
       lastStatus = inner.status
       previous = candidate
@@ -1533,16 +1707,7 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
     // before the client can retry; failure stays fail-closed and never advances
     // to another account or returns a retryable account-shaped response.
     if (!settleAttempt("release")) return unavailableAttemptResponse()
-    // Surface the LAST tried profile's error (owner decision). Stream sniff
-    // consumed the inner body, so reconstruct the exact frame for SSE requests.
-    // The SSE frame carries its own `retry_after` field, relayed verbatim from
-    // whichever attempt produced it — headers are unavailable to a stream.
-    if (options.wantsStream) {
-      return new Response(`event: error\ndata: ${JSON.stringify(lastError)}\n\n`, {
-        status: 200,
-        headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" },
-      })
-    }
+    // Surface the LAST tried profile's error (owner decision).
     // The wait belongs to the POOL, not to the last account tried: the caller
     // can proceed as soon as ANY candidate frees up. `earliestPoolReset` is a
     // real observed boundary when a quota refusal supplied one and the

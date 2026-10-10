@@ -5032,6 +5032,28 @@ condition we cannot cause, not the behavior under test.
 alone the gate fails with the refused attempt recorded 500 and no failover,
 which is what identified the missing status allowance.
 
+### Delayed refusal after an SSE heartbeat
+
+Run the packaged-path gate against an independently installed tarball:
+
+```bash
+E2E_MERIDIAN_PKG=/path/to/node_modules/@rynfar/meridian \
+  E2E_SSE_MODEL=claude-fable-5-1 \
+  node scripts/e2e-sse-quota-failover-heartbeat.mjs
+```
+
+The real SDK/CLI first reaches a local account-refusal fixture delayed past
+the 15-second heartbeat. The gate requires headers and a heartbeat before
+the **first** refusal, followed by exactly one refused telemetry attempt
+and one answering profile, without leaking the suppressed error. It also
+checks non-streaming failover. Repeat with `E2E_SSE_MODEL=claude-opus-5-5`
+for the other affected model. `E2E_SSE_WORKING_CLAUDE_CONFIG_DIR` selects the
+working Claude Max credential directory.
+
+`E2E_SSE_WORKING_FIXTURE=1` replaces the answering account with a local
+fixture. This exercises the installed package, SDK/CLI and HTTP delivery
+without credentials, but does not establish live subscription/client behavior.
+
 ## E45: Codex auto-defer
 
 **What it proves:** a Codex request past the auto-defer threshold keeps its
