@@ -146,7 +146,7 @@ jobs:
             $body = $r.Content | ConvertFrom-Json
             Write-Host "/health response: $($body | ConvertTo-Json -Compress)"
             if (-not $body.version) { throw "/health missing version field" }
-            if ($r.StatusCode -eq 503 -and ($body.status -ne "unhealthy" -or $body.auth.loggedIn -ne $false)) {
+            if ($r.StatusCode -eq 503 -and ($body.status -ne "unhealthy" -or $body.auth.loggedIn -isnot [bool] -or $body.auth.loggedIn)) {
               throw "/health 503 must identify the unauthenticated CI account"
             }
             Write-Host "OK — meridian booted on Windows and /health returned a version."
