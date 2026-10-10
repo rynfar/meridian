@@ -1,0 +1,141 @@
+{
+  "scope": "credential-free exact native completed-stream component deficiency; historical actual-model cause not established",
+  "realCredentialReads": 0,
+  "realModelCalls": 0,
+  "rows": [
+    {
+      "round": 20,
+      "kind": "source",
+      "baselineImmediateEOFCasesPassed": 4,
+      "nativeQueries": 9,
+      "failedDelayMs": 150,
+      "completedToolMessageStopMs": 25819.415,
+      "providerBodyCancelledMs": 25955.909,
+      "providerBodyClosedMs": null,
+      "interruptRequestedMs": 25866.248,
+      "interruptAcknowledgedMs": 25958.754,
+      "terminal": {
+        "subtype": "error_during_execution",
+        "isError": true,
+        "nativeTurns": 3,
+        "publicReasonCode": "aborted_streaming",
+        "errors": [
+          {
+            "characters": 76,
+            "sha256": "0b4c3997e5d3bd5852c86de3faea929026abad189aeb646c25ac9ef73a3caad6",
+            "ownedFixturePublicText": "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
+          }
+        ],
+        "observedMs": 25970.097
+      },
+      "iteratorError": {
+        "characters": 114,
+        "sha256": "1c97a458dd83366108ff69d52d7d6e7da38ea4d773ff68635b77d2bd385ebbe9",
+        "ownedFixturePublicText": "Claude Code returned an error result: [ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
+      },
+      "witness": {
+        "protocol": "owned-interrupt-v1",
+        "requested": true,
+        "calls": 1,
+        "acknowledged": true,
+        "controlSettled": true,
+        "iteratorErrorMatched": false,
+        "iteratorSettled": true,
+        "closeObserved": true,
+        "closeFailed": false,
+        "completeGeneration": true,
+        "hookResultsMatch": true,
+        "denialResults": 1,
+        "denialResultsBeforeHookSettlement": 0,
+        "generations": 1,
+        "tools": 1,
+        "fault": "iterator-error",
+        "qualified": false
+      },
+      "terminalReceipt": {
+        "originalDriverPid": 74508,
+        "originalAttachPid": 74522,
+        "originalAttachJoined": true,
+        "exit": 1,
+        "hostDeadlineExceeded": false,
+        "ownedContainerStoppedPidZero": true,
+        "ownedContainerRemoved": true,
+        "inputsUnchanged": true,
+        "probeOutcome": "FAIL",
+        "qualified": false,
+        "failureClass": null,
+        "realCredentialReads": 0,
+        "actualModelClientAcceptance": false,
+        "priorLiveFailureCauseEstablished": false,
+        "finishedUTC": "2026-10-10T04:05:27.988340+00:00"
+      }
+    },
+    {
+      "round": 21,
+      "kind": "installed",
+      "baselineImmediateEOFCasesPassed": 4,
+      "nativeQueries": 9,
+      "failedDelayMs": 150,
+      "completedToolMessageStopMs": 25828.355,
+      "providerBodyCancelledMs": 25924.026,
+      "providerBodyClosedMs": null,
+      "interruptRequestedMs": 25878.709,
+      "interruptAcknowledgedMs": 25929.491,
+      "terminal": {
+        "subtype": "error_during_execution",
+        "isError": true,
+        "nativeTurns": 3,
+        "publicReasonCode": "aborted_streaming",
+        "errors": [
+          {
+            "characters": 76,
+            "sha256": "0b4c3997e5d3bd5852c86de3faea929026abad189aeb646c25ac9ef73a3caad6",
+            "ownedFixturePublicText": "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
+          }
+        ],
+        "observedMs": 25953.983
+      },
+      "iteratorError": {
+        "characters": 114,
+        "sha256": "1c97a458dd83366108ff69d52d7d6e7da38ea4d773ff68635b77d2bd385ebbe9",
+        "ownedFixturePublicText": "Claude Code returned an error result: [ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
+      },
+      "witness": {
+        "protocol": "owned-interrupt-v1",
+        "requested": true,
+        "calls": 1,
+        "acknowledged": true,
+        "controlSettled": true,
+        "iteratorErrorMatched": false,
+        "iteratorSettled": true,
+        "closeObserved": true,
+        "closeFailed": false,
+        "completeGeneration": true,
+        "hookResultsMatch": true,
+        "denialResults": 1,
+        "denialResultsBeforeHookSettlement": 0,
+        "generations": 1,
+        "tools": 1,
+        "fault": "iterator-error",
+        "qualified": false
+      },
+      "terminalReceipt": {
+        "originalDriverPid": 94465,
+        "originalAttachPid": 94471,
+        "originalAttachJoined": true,
+        "exit": 1,
+        "hostDeadlineExceeded": false,
+        "ownedContainerStoppedPidZero": true,
+        "ownedContainerRemoved": true,
+        "inputsUnchanged": true,
+        "probeOutcome": "FAIL",
+        "qualified": false,
+        "failureClass": null,
+        "realCredentialReads": 0,
+        "actualModelClientAcceptance": false,
+        "priorLiveFailureCauseEstablished": false,
+        "finishedUTC": "2026-10-10T04:10:06.712277+00:00"
+      }
+    }
+  ]
+}

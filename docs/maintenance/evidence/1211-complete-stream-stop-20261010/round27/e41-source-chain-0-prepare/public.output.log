@@ -1,0 +1,1 @@
+{"disposition":"FAILED_NATIVE_GATE","firstFailure":"ENOENT: no such file or directory, open '/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs'","stages":0,"httpJoined":true,"queryJoins":true}

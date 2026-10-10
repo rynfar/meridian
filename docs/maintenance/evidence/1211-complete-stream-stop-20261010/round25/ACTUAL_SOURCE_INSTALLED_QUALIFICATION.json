@@ -1,0 +1,66 @@
+{
+  "sourceHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "actualClient": "Claude Code 2.1.287",
+  "scenario": "mixed-auto-handback-v3",
+  "classifierModel": "claude-sonnet-5",
+  "workingModel": "claude-sonnet-5-5",
+  "observerExactCommittedBytes": true,
+  "diagnosticOverlay": false,
+  "originalSourceSession": 58353,
+  "originalInstalledSession": 38097,
+  "newStreamingTupleActualModelExerciseClaim": false,
+  "historicalR11R15CauseEstablished": false,
+  "rows": [
+    {
+      "target": "source",
+      "checksPassed": 27,
+      "checksTotal": 27,
+      "queries": 19,
+      "costUsd": 1.0758198,
+      "stopReasons": {
+        "aborted_tools": 8
+      },
+      "sourceAndTaskGrantUnchanged": true,
+      "taskGrantRuntimeContainersAndActorsQualified": true,
+      "identity": {
+        "targetKind": "source",
+        "sourceHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+        "packageVersion": "1.80.0",
+        "proxyEntrySha256": "2bb9025ee1c122a541e0c9f9c17df733f3f752a985776501bc69ea5ad31440d9",
+        "sdkVersion": "0.2.141",
+        "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+        "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+        "nativeCliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+        "clientVersion": "2.1.287",
+        "nativeCliVersion": "2.1.284"
+      },
+      "reportSha256": "c49b21e181b9ed470601da92726afc9fb65f3619391b0cc8f23a4d1dd7807f97"
+    },
+    {
+      "target": "installed",
+      "checksPassed": 27,
+      "checksTotal": 27,
+      "queries": 19,
+      "costUsd": 1.1131029,
+      "stopReasons": {
+        "aborted_tools": 8
+      },
+      "sourceAndTaskGrantUnchanged": true,
+      "taskGrantRuntimeContainersAndActorsQualified": true,
+      "identity": {
+        "targetKind": "installed-package",
+        "packageVersion": "1.80.0",
+        "proxyEntrySha256": "2bb9025ee1c122a541e0c9f9c17df733f3f752a985776501bc69ea5ad31440d9",
+        "sdkVersion": "0.2.141",
+        "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+        "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+        "nativeCliSha256": "24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de",
+        "clientVersion": "2.1.287",
+        "nativeCliVersion": "2.1.296"
+      },
+      "reportSha256": "c4c5f194e51fcc0aaab5299883a4e636325fb8f4df108ce072c52616d04312ad"
+    }
+  ],
+  "queries": 38,
+  "costUsd": 2.1889227
+}

@@ -1,0 +1,11 @@
+{
+  "atUTC": "2026-10-10T04:42:36.674352+00:00",
+  "ownerHeadIndexStatusAndAll12DirtyFileIdentitiesExact": true,
+  "rawAuthorDateFullMessageAndAncestryRecordsExact": 18,
+  "expanded1231Excluded": true,
+  "sourceHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "productionDeltaPaths": [
+    "src/proxy/passthroughCheckpointStop.ts",
+    "src/proxy/server.ts"
+  ]
+}

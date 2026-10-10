@@ -1,0 +1,67 @@
+{
+  "head": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "inputs": [
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 82360,
+      "sha256": "9e64b69ec11a4c52f125cac8b20d73f5378b15b964df279d352eb8666d1f206c"
+    },
+    {
+      "path": "scripts/lib/e2eMcpReadiness.mjs",
+      "bytes": 4382,
+      "sha256": "31c92572277279102681d1519a2b6198808396c4d4c15fc61d76f9736affdae7"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "scripts/lib/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "scripts/lib/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "src/proxy/passthroughDenial.ts",
+      "bytes": 1398,
+      "sha256": "6158e21da0b5559b00f465b6749a7f9753d323237fc21820b61a6a21ef247560"
+    },
+    {
+      "path": "scripts/e2e-claude-code-auto-mode.mjs",
+      "bytes": 49587,
+      "sha256": "636be8db328b5556fb933beeeee6769f8fcacf099b4ab485c1eba81486c84501"
+    },
+    {
+      "path": "scripts/lib/e2eMixedAuto.mjs",
+      "bytes": 20643,
+      "sha256": "7898c97d8531be66a7cea214726862bc3f39005cd717c9c615c00a417011dcdc"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 13056,
+      "sha256": "46f75f601770b75684eb533a94b3cb8f40897e7aa4a83f029296c02622073283"
+    },
+    {
+      "path": "scripts/e2e-openclaw-native.mjs",
+      "bytes": 47727,
+      "sha256": "b9f73192d5e96141a4fb6d136fcb50375abdfb5d66cda9defed67b5369621cb3"
+    },
+    {
+      "path": "scripts/lib/e2eProcessCustody.mjs",
+      "bytes": 2126,
+      "sha256": "89b4c276fba3d3b3a5b473ace061fc3ae2107d3ca80d8611696bfd5ee284b361"
+    },
+    {
+      "path": "scripts/lib/e41-assistant-response.ts",
+      "bytes": 3340,
+      "sha256": "487765c355f1ef507a636d6b4e112368529b3d56c0228184c05ec63f0270f757"
+    }
+  ],
+  "diagnosticOverlay": false,
+  "exactCommittedObserverBytes": true
+}

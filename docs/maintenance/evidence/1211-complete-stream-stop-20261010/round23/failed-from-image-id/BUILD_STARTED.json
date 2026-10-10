@@ -1,0 +1,33 @@
+{
+  "driverPid": 60598,
+  "tag": "meridian1211:complete-stream-r23-corrected",
+  "inputs": [
+    {
+      "path": "Dockerfile",
+      "bytes": 1501,
+      "sha256": "b6266cbb5e0a14215bad78efb1716ba54de2fcdf7959f4f4973f2ead2fd2a8e6"
+    },
+    {
+      "path": "qualify-source.py",
+      "bytes": 977,
+      "sha256": "36d1b66af0182df583dc09d92a92c4fb5e10a8c64e1a27783d8dfae11a64211b"
+    },
+    {
+      "path": "qualify-build.cjs",
+      "bytes": 2564,
+      "sha256": "946f88deae8ab71fa096e60b19e45de4bb581e3f0ce76ce33941a724a12eff5c"
+    },
+    {
+      "path": "SOURCE_IDENTITY.json",
+      "bytes": 1090746,
+      "sha256": "3b3f9bc3497df8c5172bea6308e6833a89268274f2ee28e6afc0f531bf828736"
+    },
+    {
+      "path": "candidate.bundle",
+      "bytes": 1660606,
+      "sha256": "4359314e1cf925a7582562e43a77602cebc77295696d966b4827c656e0d5a62c"
+    }
+  ],
+  "atUTC": "2026-10-10T04:29:22.174837+00:00",
+  "realCredentialReads": 0
+}

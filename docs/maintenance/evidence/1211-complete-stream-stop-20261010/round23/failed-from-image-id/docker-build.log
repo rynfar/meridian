@@ -1,0 +1,18 @@
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.54kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0
+#2 ERROR: pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+------
+ > [internal] load metadata for docker.io/library/sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0:
+------
+Dockerfile:1
+--------------------
+   1 | >>> FROM sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0
+   2 |     USER root
+   3 |     COPY candidate.bundle SOURCE_IDENTITY.json qualify-source.py /snapshot-corrected/
+--------------------
+ERROR: failed to build: failed to solve: sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0: failed to resolve source metadata for docker.io/library/sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0: pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed

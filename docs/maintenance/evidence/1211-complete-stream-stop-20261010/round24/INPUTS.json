@@ -1,0 +1,25 @@
+{
+  "head": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "inputs": [
+    {
+      "path": "machine-id",
+      "bytes": 33,
+      "sha256": "3cc153721ca47a65d16da00194307c76af3501aed952a0053b92f6250713f877"
+    },
+    {
+      "path": "scripts/e2e-native-stop-eof.mjs",
+      "bytes": 23098,
+      "sha256": "31d3dc880ca864aeacdae0dcff271b84bdd0b89d23ef7c7795fa4e6146c08661"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 13056,
+      "sha256": "46f75f601770b75684eb533a94b3cb8f40897e7aa4a83f029296c02622073283"
+    }
+  ],
+  "newReasonPins": [
+    "2.1.284",
+    "2.1.296"
+  ],
+  "actualClientModelAcceptance": false
+}

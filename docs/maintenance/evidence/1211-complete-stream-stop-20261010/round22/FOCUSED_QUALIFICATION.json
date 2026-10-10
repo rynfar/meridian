@@ -1,0 +1,56 @@
+{
+  "atUTC": "2026-10-10T04:23:43.795322+00:00",
+  "pure": {
+    "pass": 76,
+    "fail": 0,
+    "assertions": 166
+  },
+  "http": {
+    "pass": 12,
+    "fail": 0,
+    "assertions": 72
+  },
+  "priorActivityPosition": 14302,
+  "priorActivityState": "completed",
+  "matchingActorsLive": false,
+  "typecheckTerminalExitNotRecovered": true,
+  "cleanHeadFullGatesRequired": true,
+  "newMaintainedProbeSyntaxExit": 0,
+  "files": [
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 82360,
+      "sha256": "9e64b69ec11a4c52f125cac8b20d73f5378b15b964df279d352eb8666d1f206c"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 13056,
+      "sha256": "46f75f601770b75684eb533a94b3cb8f40897e7aa4a83f029296c02622073283"
+    },
+    {
+      "path": "src/__tests__/e72-owned-checkpoint.test.ts",
+      "bytes": 14888,
+      "sha256": "65a88167748abb1be2818d98ec9a6749f6b61feb908cb92cb8f9f2b3c435dd23"
+    },
+    {
+      "path": "src/__tests__/passthrough-checkpoint-stop-http.test.ts",
+      "bytes": 8912,
+      "sha256": "1ef0c2fd18764c2efbd723f413988e6ef11d2891774d461336898cf7f8e9cfd3"
+    },
+    {
+      "path": "src/__tests__/passthrough-checkpoint-stop.test.ts",
+      "bytes": 19649,
+      "sha256": "0318ebe5beb68c910bbd48e3d2b1867eb1cb5691498fc08b712fcf86c8873afd"
+    },
+    {
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "bytes": 17804,
+      "sha256": "ed590d9e38fc3249d8388361625688c8df2d48199881e2b0c834389187e9171e"
+    },
+    {
+      "path": "scripts/e2e-native-stop-eof.mjs",
+      "bytes": 23098,
+      "sha256": "31d3dc880ca864aeacdae0dcff271b84bdd0b89d23ef7c7795fa4e6146c08661"
+    }
+  ]
+}

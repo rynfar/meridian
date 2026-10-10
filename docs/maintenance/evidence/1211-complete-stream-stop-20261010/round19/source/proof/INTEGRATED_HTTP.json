@@ -1,0 +1,32 @@
+{
+  "kind": "native-stop-provider-eof-causal-control",
+  "actualModelAcceptance": false,
+  "actualClientAcceptance": false,
+  "platform": "linux/x64",
+  "bun": "1.3.11",
+  "cases": [],
+  "outcome": "FAIL",
+  "realCredentialReads": 0,
+  "sdkVersion": "0.2.141",
+  "nativeVersion": "2.1.284",
+  "errorClass": "Error",
+  "failure": "ENOENT: no such file or directory, open '/opt/e71/current/dist/claude-proxy-core.js'",
+  "cleanup": {
+    "admissionClosed": true,
+    "providerBodiesJoined": true,
+    "requestsSettled": true,
+    "backendClosed": true,
+    "listenerClosed": true,
+    "nativeActorCensusEmpty": true,
+    "residualNativeActors": [],
+    "privateRuntimeRemoved": true
+  },
+  "independentCheckpointObservers": [],
+  "requests": [],
+  "qualifiedInterruptions": [],
+  "queryDiagnostics": [],
+  "providerBodies": [],
+  "liveFailureCauseEstablished": false,
+  "priorLiveFailurePreserved": true,
+  "completedAt": "2026-10-10T04:03:02.291Z"
+}

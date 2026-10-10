@@ -1,0 +1,41 @@
+{
+  "kind": "NATIVE_PREREQUISITE_ONLY",
+  "e41": {
+    "mode": "chain",
+    "stream": false,
+    "requestedModel": "claude-sonnet-5-5",
+    "requiredServedModel": "claude-sonnet-5-5",
+    "requiredNativeVersion": "2.1.284",
+    "client": "Owned OpenCode protocol fixture; not an actual OpenCode/OpenClaw client"
+  },
+  "expectation": "candidate",
+  "platform": "linux",
+  "architecture": "x64",
+  "bun": "1.3.11",
+  "nodeRuntime": null,
+  "firstFailure": "ENOENT: no such file or directory, open '/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs'",
+  "commands": [],
+  "queries": [],
+  "requests": [],
+  "pluginObservations": [],
+  "stages": [],
+  "children": [],
+  "supportedHistoryReads": [],
+  "actorScope": "Original observed child handles, SDK factory/iterator/close, and owned HTTP resources. External/global descendant absence is unknown.",
+  "classifierAcceptance": "HELD: undisclosed current trigger and fresh same-window off/on/off controls are missing.",
+  "actualProviderQueries": 0,
+  "grantRead": false,
+  "sourceCredentialLoginRefreshWrites": false,
+  "startupSettled": true,
+  "httpWitnesses": {
+    "proxyCloseSeen": false,
+    "proxyListening": false,
+    "relayListening": false,
+    "remainingSockets": 0,
+    "remainingHandlers": 0,
+    "observedSocketCount": 0
+  },
+  "httpJoined": true,
+  "queryJoins": true,
+  "disposition": "FAILED_NATIVE_GATE"
+}

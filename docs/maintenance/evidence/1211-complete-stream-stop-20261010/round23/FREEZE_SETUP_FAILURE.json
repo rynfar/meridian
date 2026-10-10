@@ -1,0 +1,12 @@
+{
+  "originalSession": 20782,
+  "originalDriverPid": 43168,
+  "terminalExit": 1,
+  "bundleCommandExit": 129,
+  "failedStep": "git bundle create filter option placed before output filename",
+  "sourceArchivePreservedAndIndependentlyRequalified": true,
+  "sdkQueries": 0,
+  "modelCalls": 0,
+  "continuedStep": "same exact frozen source; corrected rev-list filter placement after output filename",
+  "correctedBundleCommandExit": 0
+}

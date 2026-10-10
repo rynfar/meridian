@@ -1,0 +1,17 @@
+{
+  "originalDriverPid": 67165,
+  "originalAttachPid": 67179,
+  "originalAttachJoined": true,
+  "exit": 1,
+  "hostDeadlineExceeded": false,
+  "ownedContainerStoppedPidZero": true,
+  "ownedContainerRemoved": true,
+  "inputsUnchanged": true,
+  "probeOutcome": "FAIL",
+  "qualified": false,
+  "failureClass": null,
+  "realCredentialReads": 0,
+  "actualModelClientAcceptance": false,
+  "priorLiveFailureCauseEstablished": false,
+  "finishedUTC": "2026-10-10T04:03:02.503053+00:00"
+}

@@ -1,6 +1,43 @@
 # End-to-End Testing
 
-## Current #1211/#1322 actual-flow qualification and remaining holds
+## Current #1211/#1322 completed native stream checkpoint qualification
+
+[Current runnable before/after packet](docs/maintenance/evidence/1211-complete-stream-stop-20261010/README.md)
+qualifies clean correction `34b49d82` and its newly certified source/independent
+package runtime. Unchanged SDK 0.2.141/native 2.1.284 source and native 2.1.296
+installed package pass four immediate-EOF controls then fail the first 150 ms
+delayed-EOF checkpoint at HTTP 500. Both already have complete generation,
+exact hook/denial and acknowledged intent; supported public results show the
+same one-error `aborted_streaming` tool-use diagnostic. The correction admits
+only that exact tuple behind all existing checkpoint-ownership and error gates.
+
+The maintained `scripts/e2e-native-stop-eof.mjs` is credential-free and uses a
+scripted loopback provider inside a read-only network-none owned Linux runtime.
+After correction, source and independent tarball each pass twelve EOF delays ×
+one/three tools × stream/nonstream cases, 48 native scripted Queries combined.
+The four 750 ms modes per target actually exercise the new tuple with independent
+public witnesses, exact results, public UUID, distinct durable fork, immutable
+original history, no denial tail and physical cleanup. Direct HTTP shape is
+not actual coding-client/model proof. The exact tested tarball is escrowed.
+
+Changed actual Claude Code 2.1.287 mixed-auto-handback-v3 source and package each
+pass 27/27 with exact committed observers, SDK 0.2.141, native 2.1.284/2.1.296,
+Sonnet 5 classifiers/Sonnet 5.5 working: 38 Queries/$2.1889227 combined. Original
+processes join; source/task grants remain unchanged and task grants/runtime/
+containers are removed. Actual stops use aborted-tools; the new streaming
+tuple is exercised separately by the native matrix. Changed E41 source and independent package each pass all four chain/parallel × streaming/nonstreaming modes, 32 real Sonnet 5.5 SDK Queries, exact pairing, cache continuity, immutable parents, saved durable forks and physical cleanup. The thin sidecar image retains every changed application layer; the original zero-query missing-fixture failure is preserved. This is direct HTTP protocol-fixture proof, not actual OpenCode-client acceptance.
+
+Final clean-head local gates at `34b49d82`: 6,018 pass / 36 skip / zero fail in
+all 22 isolated npm batches plus pretest; standalone typecheck/build pass.
+The packet records scoped root adversarial inspection, meaningful negatives
+and preserved original failures. Historical actual-model R11/R15 remain
+FAIL 20/27 with missing public diagnostics; exact retrospective attribution is
+unproven. Cancellation/parent-abort, caption/reporter/cache/overlap/abort,
+native 2.1.295/new tuple, broader client/platform/package, historical attribution,
+whole-change adversarial review and final delivery-head CI remain separate
+acceptance holds. No blind live reruns, merge or release follows these passes.
+
+## Prior #1211/#1322 actual-flow qualification and remaining holds
 
 [Current native inbox and actual-flow packet](docs/maintenance/evidence/1211-native-inbox-current-20261010/README.md)
 qualifies unchanged production `bae7ada3` on source and independently installed

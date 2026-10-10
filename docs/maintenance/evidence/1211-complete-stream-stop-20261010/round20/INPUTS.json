@@ -1,0 +1,37 @@
+{
+  "atUTC": "2026-10-10T04:04:59.717697+00:00",
+  "currentHead": "cfacfd36a90eef12b9412ad5cd807d9e5de5d3fe",
+  "runtimeBuildHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "sourceImage": "sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0",
+  "hypothesis": "Known passing component control ended provider body immediately; test whether delaying HTTP body EOF after complete message_stop alters the owned interruption outcome",
+  "casesPerTarget": 12,
+  "maximumSDKQueriesPerTarget": 24,
+  "realCredentialsOrModels": false,
+  "allOriginalMeaningfulAssertionsRetained": true,
+  "sourceTreeModified": false,
+  "inputs": [
+    {
+      "path": "machine-id",
+      "bytes": 33,
+      "sha256": "3cc153721ca47a65d16da00194307c76af3501aed952a0053b92f6250713f877"
+    },
+    {
+      "path": "native-stop-eof-control.mjs",
+      "bytes": 22183,
+      "sha256": "827eba840082f7b0ed10a3205a125f48751d12508df9a308788df24d26fb99e8"
+    },
+    {
+      "path": "e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3"
+    }
+  ],
+  "liveFailureCauseStillHeld": true,
+  "setupCorrection": {
+    "priorRound": 19,
+    "failure": "incorrect built entry filename, before SDK import/query",
+    "corrected": "resolve current package declared export instead of guessing the bundle filename",
+    "priorSetupSDKQueries": 0,
+    "priorOriginalAttachJoinedAndOwnedContainerRemoved": true
+  }
+}

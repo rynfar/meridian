@@ -1,6 +1,65 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 native inbox and actual-flow checkpoint (2026-10-10 UTC)
+## Current oldest #1211 / existing #1322 complete-stream correction (2026-10-10 UTC)
+
+Clean source correction `34b49d82` fixes a bounded native failure: a complete
+forwarded tool generation can arrive while its provider SSE body remains open.
+An acknowledged owned interruption then reports one exact `aborted_streaming`
+tool-use diagnostic; the old guard returned HTTP 500. Both unchanged source
+SDK 0.2.141/native 2.1.284 and independent/native 2.1.296 package pass four
+immediate-EOF controls before failing the first 150 ms delayed case. Original
+eighteen scripted Queries, public timing/result/error witnesses and cleanup
+remain retained. Historical actual-model R11/R15 attribution stays unproven.
+
+[Current reproducible correction packet](evidence/1211-complete-stream-stop-20261010/README.md)
+contains the maintained repository harness, exact tested tarball, before/after
+receipts, all setup/test failures and [scoped root review](evidence/1211-complete-stream-stop-20261010/ROOT_REVIEW.md).
+The new result qualifies only behind the existing session, closed-block,
+metadata/input, UUID, retained-hook, intent/acknowledgement, exact denial,
+generation cap, iterator-error, cancellation and retirement checks. Unrelated
+and extra errors stay refused. Independent witness/row reasons must agree;
+native 2.1.295 remains unexecuted for the new tuple. Public interfaces, caps,
+operator override, kill switch and package/dependency versions are unchanged.
+
+The new certified source/independent install runtime is
+`sha256:c07ed57b13929b0bc91e0d46da574bb9bfd0bb11f8e62e84b889281394db0e68`,
+built at `34b49d82`; all 3,607 tracked source blobs/executable modes match.
+Source/package core bytes match and differ from the unchanged baseline. Both
+targets pass all twelve 0/150/750 ms × one/three tools × HTTP stream/nonstream
+cases, 48 combined scripted native Queries. All four 750 ms modes per target
+actually exercise the exact streaming tuple; public UUID, exact once-only real
+results, durable fork, unchanged original history, no denial tail, independent
+qualification and physical cleanup pass. Zero real credentials/models/clients
+in this component matrix.
+
+Actual Claude Code 2.1.287 mixed-auto-handback-v3 source and installed each pass
+27/27 with exact committed observers, SDK 0.2.141, native 2.1.284/2.1.296, Sonnet 5
+classifiers/Sonnet 5.5 working; 38 Queries, estimated $2.1889227 combined. Exact
+child/header/footer, final-call, HTTP inbox plus SDK replay, model/cost and
+grant/process/runtime/container custody qualify. These actual stops use the
+existing aborted-tools branch; the new streaming tuple is proved separately
+above. Changed E41 source and independent package each pass all four chain/parallel × streaming/nonstreaming modes, 32 real Sonnet 5.5 SDK Queries, exact pairing, cache continuity, immutable parents, saved durable forks and physical cleanup. The thin sidecar image retains every changed application layer; the original zero-query missing-fixture failure is preserved. This is direct HTTP protocol-fixture proof, not actual OpenCode-client acceptance.
+
+Final local gates at clean unchanged `34b49d82`: **6,018 pass / 36 skip / zero
+fail**, all 22 isolated npm batches plus pretest; standalone typecheck/build
+exit 0, original controller and all gate commands joined. Owner head/index/all
+twelve dirty-file identities and all eighteen raw contributor author/date/full
+message/ancestry records remain exact. Maintainer corrections are separate;
+expanded #1231 stays excluded. No delegated/whole-change approval asserted.
+
+Existing #1322 remains draft; source PRs/#1288 remain open. Still held:
+historical R11/R15 native cause, root/scoped/nested cancellation and incidental
+parent HTTP-abort independence, caption/reporter baseline/cache/overlap/abort,
+native 2.1.295 with the new observer/tuple, broader actual client/platform/package
+and historical provider/wait attribution, complete final whole-change
+adversarial review, and exact final delivery-head CI including `test`. Existing
+WORK access was independently qualified and used read-only; no agent login,
+refresh or source write. Owner renewal command is `meridian profile login work`.
+No new PR/worktree, merge, source closure, release or community comment. Full
+backlog goal remains active; continue remaining affected-flow evidence and
+whole-change review after final-head CI.
+
+## Prior oldest #1211 / existing #1322 native inbox and actual-flow checkpoint (2026-10-10 UTC)
 
 Code `58f3055e` preserves production `bae7ada3`. Current source and independent
 npm-pack/install runtime remain built at `6d773781`; application, package, plugin

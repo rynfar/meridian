@@ -1,0 +1,2311 @@
+[
+  {
+    "id": "@rynfar/meridian@1.80.0",
+    "name": "@rynfar/meridian",
+    "version": "1.80.0",
+    "size": 1649499,
+    "unpackedSize": 6086166,
+    "shasum": "82fa66da16fd4620dacfc3e87786b488cf9f4055",
+    "integrity": "sha512-RIX5ba0rpbnnLOCNp90LeOl5ZqqBx+GnlbrSsXc1lU2ZHlLNuVzOuI3OMKZrV/GHZ7WLJyK2K79sm2RvmiWAeg==",
+    "filename": "rynfar-meridian-1.80.0.tgz",
+    "files": [
+      {
+        "path": "README.md",
+        "size": 8308,
+        "mode": 420
+      },
+      {
+        "path": "assets/banner.svg",
+        "size": 1540,
+        "mode": 420
+      },
+      {
+        "path": "assets/bot-icon-512.png",
+        "size": 26081,
+        "mode": 420
+      },
+      {
+        "path": "assets/bot-icon.svg",
+        "size": 3183,
+        "mode": 420
+      },
+      {
+        "path": "assets/desktop-dashboard.jpg",
+        "size": 409396,
+        "mode": 420
+      },
+      {
+        "path": "assets/how-it-works.svg",
+        "size": 1959,
+        "mode": 420
+      },
+      {
+        "path": "assets/icon-512.png",
+        "size": 29963,
+        "mode": 420
+      },
+      {
+        "path": "assets/icon.svg",
+        "size": 858,
+        "mode": 420
+      },
+      {
+        "path": "assets/logo-512.png",
+        "size": 25705,
+        "mode": 420
+      },
+      {
+        "path": "assets/logo.svg",
+        "size": 741,
+        "mode": 420
+      },
+      {
+        "path": "assets/providers/antigravity.png",
+        "size": 71914,
+        "mode": 420
+      },
+      {
+        "path": "assets/providers/claude.png",
+        "size": 14038,
+        "mode": 420
+      },
+      {
+        "path": "assets/providers/README.md",
+        "size": 509,
+        "mode": 420
+      },
+      {
+        "path": "assets/trayTemplate.png",
+        "size": 470,
+        "mode": 420
+      },
+      {
+        "path": "assets/trayTemplate@2x.png",
+        "size": 953,
+        "mode": 420
+      },
+      {
+        "path": "assets/trayTemplate@3x.png",
+        "size": 1623,
+        "mode": 420
+      },
+      {
+        "path": "bin/meridian-launchd.sh",
+        "size": 5378,
+        "mode": 493
+      },
+      {
+        "path": "dist/antigravity-clients/opencode.js",
+        "size": 9729,
+        "mode": 420
+      },
+      {
+        "path": "dist/antigravity-clients/pi.js",
+        "size": 1218,
+        "mode": 420
+      },
+      {
+        "path": "dist/antigravitySetup-esmq6zee.js",
+        "size": 10766,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-provenance.json",
+        "size": 42637,
+        "mode": 420
+      },
+      {
+        "path": "dist/buildObservationWorker.js",
+        "size": 499136,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-1jstkdj9.js",
+        "size": 818,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-1s25p10d.js",
+        "size": 4815,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-3zwfvexc.js",
+        "size": 2129,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-4nmmvs9q.js",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-7bt12mjf.js",
+        "size": 2296037,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-9e27vb02.js",
+        "size": 33145,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-15q5qaay.js",
+        "size": 22898,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-kvzyq9qz.js",
+        "size": 1066,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-p9swy5t3.js",
+        "size": 2354,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-sry5aqdj.js",
+        "size": 1407,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-vmh8k6kq.js",
+        "size": 75602,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-x8vwbg1f.js",
+        "size": 14952,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-xcg0b6my.js",
+        "size": 8250,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-xw1vv642.js",
+        "size": 16494,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-yybp09jr.js",
+        "size": 32189,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli-zh659m8r.js",
+        "size": 19928,
+        "mode": 420
+      },
+      {
+        "path": "dist/cli.js",
+        "size": 15847,
+        "mode": 493
+      },
+      {
+        "path": "dist/cliDashboard-c0dvkj4y.js",
+        "size": 11591,
+        "mode": 420
+      },
+      {
+        "path": "dist/configDir.d.ts",
+        "size": 1530,
+        "mode": 420
+      },
+      {
+        "path": "dist/configDir.d.ts.map",
+        "size": 313,
+        "mode": 420
+      },
+      {
+        "path": "dist/env.d.ts",
+        "size": 1654,
+        "mode": 420
+      },
+      {
+        "path": "dist/env.d.ts.map",
+        "size": 498,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/deliver.d.ts",
+        "size": 1992,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/deliver.d.ts.map",
+        "size": 883,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/event.d.ts",
+        "size": 3756,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/event.d.ts.map",
+        "size": 2414,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/index.d.ts",
+        "size": 3676,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/index.d.ts.map",
+        "size": 932,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/rejectionPolicy.d.ts",
+        "size": 244,
+        "mode": 420
+      },
+      {
+        "path": "dist/errorReporting/rejectionPolicy.d.ts.map",
+        "size": 250,
+        "mode": 420
+      },
+      {
+        "path": "dist/grepTool.d.ts",
+        "size": 584,
+        "mode": 420
+      },
+      {
+        "path": "dist/grepTool.d.ts.map",
+        "size": 262,
+        "mode": 420
+      },
+      {
+        "path": "dist/headerSettings.d.ts",
+        "size": 492,
+        "mode": 420
+      },
+      {
+        "path": "dist/headerSettings.d.ts.map",
+        "size": 271,
+        "mode": 420
+      },
+      {
+        "path": "dist/index-h1gbpvq6.js",
+        "size": 487,
+        "mode": 420
+      },
+      {
+        "path": "dist/logger.d.ts",
+        "size": 251,
+        "mode": 420
+      },
+      {
+        "path": "dist/logger.d.ts.map",
+        "size": 306,
+        "mode": 420
+      },
+      {
+        "path": "dist/loginCallbackPage-bjrsnkps.js",
+        "size": 2053,
+        "mode": 420
+      },
+      {
+        "path": "dist/mcpTools.d.ts",
+        "size": 793,
+        "mode": 420
+      },
+      {
+        "path": "dist/mcpTools.d.ts.map",
+        "size": 157,
+        "mode": 420
+      },
+      {
+        "path": "dist/meridian-v2.js",
+        "size": 688014,
+        "mode": 420
+      },
+      {
+        "path": "dist/meridian-v2/index.js",
+        "size": 687674,
+        "mode": 420
+      },
+      {
+        "path": "dist/meridian-v2/package.json",
+        "size": 115,
+        "mode": 420
+      },
+      {
+        "path": "dist/meridian/index.js",
+        "size": 9251,
+        "mode": 420
+      },
+      {
+        "path": "dist/meridian/package.json",
+        "size": 115,
+        "mode": 420
+      },
+      {
+        "path": "dist/organizationName-g3k9h4t9.js",
+        "size": 748,
+        "mode": 420
+      },
+      {
+        "path": "dist/pluginPage-xbws24rt.js",
+        "size": 17311,
+        "mode": 420
+      },
+      {
+        "path": "dist/profileCli-b635c0k4.js",
+        "size": 1330,
+        "mode": 420
+      },
+      {
+        "path": "dist/profilePage-mpdx0q78.js",
+        "size": 68096,
+        "mode": 420
+      },
+      {
+        "path": "dist/profileRename-a9dzdyz6.js",
+        "size": 457,
+        "mode": 420
+      },
+      {
+        "path": "dist/profiles-f04ny5y0.js",
+        "size": 950,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapter.d.ts",
+        "size": 15251,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapter.d.ts.map",
+        "size": 3347,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapterInstances.d.ts",
+        "size": 2928,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapterInstances.d.ts.map",
+        "size": 893,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/cherry.d.ts",
+        "size": 2140,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/cherry.d.ts.map",
+        "size": 389,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/claudecode.d.ts",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/claudecode.d.ts.map",
+        "size": 1137,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/claudecodeProgress.d.ts",
+        "size": 786,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/claudecodeProgress.d.ts.map",
+        "size": 240,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/codex.d.ts",
+        "size": 1164,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/codex.d.ts.map",
+        "size": 235,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/crush.d.ts",
+        "size": 1039,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/crush.d.ts.map",
+        "size": 309,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/detect.d.ts",
+        "size": 1172,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/detect.d.ts.map",
+        "size": 351,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/droid.d.ts",
+        "size": 867,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/droid.d.ts.map",
+        "size": 305,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/forgecode.d.ts",
+        "size": 1471,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/forgecode.d.ts.map",
+        "size": 329,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/jcode.d.ts",
+        "size": 574,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/jcode.d.ts.map",
+        "size": 362,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/letta.d.ts",
+        "size": 3290,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/letta.d.ts.map",
+        "size": 475,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/openai.d.ts",
+        "size": 3076,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/openai.d.ts.map",
+        "size": 388,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/opencode.d.ts",
+        "size": 587,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/opencode.d.ts.map",
+        "size": 494,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/passthrough.d.ts",
+        "size": 960,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/passthrough.d.ts.map",
+        "size": 322,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/pi.d.ts",
+        "size": 1354,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/pi.d.ts.map",
+        "size": 309,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/polytoken.d.ts",
+        "size": 1883,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/polytoken.d.ts.map",
+        "size": 416,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/prime.d.ts",
+        "size": 5177,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/prime.d.ts.map",
+        "size": 716,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/sessionIdentity.d.ts",
+        "size": 376,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/adapters/sessionIdentity.d.ts.map",
+        "size": 396,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/agentDefs.d.ts",
+        "size": 2631,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/agentDefs.d.ts.map",
+        "size": 978,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/agentMatch.d.ts",
+        "size": 1590,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/agentMatch.d.ts.map",
+        "size": 330,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/auth.d.ts",
+        "size": 1074,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/auth.d.ts.map",
+        "size": 377,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/authDiscovery.d.ts",
+        "size": 2658,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/authDiscovery.d.ts.map",
+        "size": 391,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/authStatusOwnership.d.ts",
+        "size": 767,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/authStatusOwnership.d.ts.map",
+        "size": 694,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/authStatusProcess.d.ts",
+        "size": 1319,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/authStatusProcess.d.ts.map",
+        "size": 906,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravity.d.ts",
+        "size": 425,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravity.d.ts.map",
+        "size": 451,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityAttachments.d.ts",
+        "size": 684,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityAttachments.d.ts.map",
+        "size": 719,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityGrammar.d.ts",
+        "size": 491,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityGrammar.d.ts.map",
+        "size": 444,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityJobs.d.ts",
+        "size": 995,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityJobs.d.ts.map",
+        "size": 968,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityMedia.d.ts",
+        "size": 492,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityMedia.d.ts.map",
+        "size": 481,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityNative.d.ts",
+        "size": 495,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityNative.d.ts.map",
+        "size": 435,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityOpenai.d.ts",
+        "size": 554,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityOpenai.d.ts.map",
+        "size": 584,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityOpenaiMedia.d.ts",
+        "size": 366,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityOpenaiMedia.d.ts.map",
+        "size": 399,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityPlugins.d.ts",
+        "size": 1358,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityPlugins.d.ts.map",
+        "size": 1200,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityProbe.d.ts",
+        "size": 650,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityProbe.d.ts.map",
+        "size": 638,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityProcess.d.ts",
+        "size": 343,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityProcess.d.ts.map",
+        "size": 389,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityProtocol.d.ts",
+        "size": 23035,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityProtocol.d.ts.map",
+        "size": 2848,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityReplay.d.ts",
+        "size": 1702,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityReplay.d.ts.map",
+        "size": 1616,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityResponses.d.ts",
+        "size": 1293,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityResponses.d.ts.map",
+        "size": 1091,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityRuntime.d.ts",
+        "size": 6268,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityRuntime.d.ts.map",
+        "size": 5766,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravitySchema.d.ts",
+        "size": 624,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravitySchema.d.ts.map",
+        "size": 561,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravitySessions.d.ts",
+        "size": 1122,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravitySessions.d.ts.map",
+        "size": 991,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityState.d.ts",
+        "size": 816,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityState.d.ts.map",
+        "size": 954,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityStops.d.ts",
+        "size": 318,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityStops.d.ts.map",
+        "size": 357,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityTokens.d.ts",
+        "size": 534,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityTokens.d.ts.map",
+        "size": 265,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityUrl.d.ts",
+        "size": 402,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/antigravityUrl.d.ts.map",
+        "size": 397,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/providerStatus.d.ts",
+        "size": 883,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/backends/providerStatus.d.ts.map",
+        "size": 729,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/betas.d.ts",
+        "size": 3441,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/betas.d.ts.map",
+        "size": 673,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildArtifacts.d.ts",
+        "size": 1325,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildArtifacts.d.ts.map",
+        "size": 639,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildFingerprint.d.ts",
+        "size": 788,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildFingerprint.d.ts.map",
+        "size": 560,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildInfo.d.ts",
+        "size": 4459,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildInfo.d.ts.map",
+        "size": 1636,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildLock.d.ts",
+        "size": 181,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildLock.d.ts.map",
+        "size": 259,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildObserver.d.ts",
+        "size": 535,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildObserver.d.ts.map",
+        "size": 533,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildProvenanceError.d.ts",
+        "size": 351,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildProvenanceError.d.ts.map",
+        "size": 326,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildRuntime.d.ts",
+        "size": 615,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildRuntime.d.ts.map",
+        "size": 595,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildSnapshot.d.ts",
+        "size": 493,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/buildSnapshot.d.ts.map",
+        "size": 323,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeExecutablePreference.d.ts",
+        "size": 1982,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeExecutablePreference.d.ts.map",
+        "size": 655,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeExecutableSettings.d.ts",
+        "size": 1215,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeExecutableSettings.d.ts.map",
+        "size": 325,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeProbeOwnership.d.ts",
+        "size": 480,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeProbeOwnership.d.ts.map",
+        "size": 426,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeResolverOwnership.d.ts",
+        "size": 587,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/claudeResolverOwnership.d.ts.map",
+        "size": 421,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/concurrency.d.ts",
+        "size": 2108,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/concurrency.d.ts.map",
+        "size": 998,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/credentialsMode.d.ts",
+        "size": 4072,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/credentialsMode.d.ts.map",
+        "size": 430,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/cwd.d.ts",
+        "size": 2001,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/cwd.d.ts.map",
+        "size": 569,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/design.d.ts",
+        "size": 3367,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/design.d.ts.map",
+        "size": 2356,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/effort.d.ts",
+        "size": 1017,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/effort.d.ts.map",
+        "size": 309,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/envelopeIntegrity.d.ts",
+        "size": 2161,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/envelopeIntegrity.d.ts.map",
+        "size": 751,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/errors.d.ts",
+        "size": 12248,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/errors.d.ts.map",
+        "size": 3000,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/executionHistory.d.ts",
+        "size": 402,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/executionHistory.d.ts.map",
+        "size": 446,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/fileChanges.d.ts",
+        "size": 3346,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/fileChanges.d.ts.map",
+        "size": 986,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/followActive.d.ts",
+        "size": 12350,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/followActive.d.ts.map",
+        "size": 3121,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/idleStallCeiling.d.ts",
+        "size": 3838,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/idleStallCeiling.d.ts.map",
+        "size": 1207,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/inflight.d.ts",
+        "size": 2650,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/inflight.d.ts.map",
+        "size": 1187,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/limitDetection.d.ts",
+        "size": 5262,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/limitDetection.d.ts.map",
+        "size": 1480,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/localBuildInfo.d.ts",
+        "size": 782,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/localBuildInfo.d.ts.map",
+        "size": 767,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/messages.d.ts",
+        "size": 9091,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/messages.d.ts.map",
+        "size": 1702,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/models.d.ts",
+        "size": 15918,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/models.d.ts.map",
+        "size": 4915,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/oauthPlan.d.ts",
+        "size": 3158,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/oauthPlan.d.ts.map",
+        "size": 852,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/oauthUsage.d.ts",
+        "size": 8566,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/oauthUsage.d.ts.map",
+        "size": 2427,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/openai.d.ts",
+        "size": 14141,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/openai.d.ts.map",
+        "size": 8229,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/openaiResponses.d.ts",
+        "size": 10151,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/openaiResponses.d.ts.map",
+        "size": 4254,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/operationalLog.d.ts",
+        "size": 162,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/operationalLog.d.ts.map",
+        "size": 238,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/organizationName.d.ts",
+        "size": 3702,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/organizationName.d.ts.map",
+        "size": 1363,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughCheckpointStop.d.ts",
+        "size": 2165,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughCheckpointStop.d.ts.map",
+        "size": 1935,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughDenial.d.ts",
+        "size": 676,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughDenial.d.ts.map",
+        "size": 412,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughEarlyStop.d.ts",
+        "size": 10220,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughEarlyStop.d.ts.map",
+        "size": 2744,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughTools.d.ts",
+        "size": 8633,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/passthroughTools.d.ts.map",
+        "size": 2357,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/planAllowance.d.ts",
+        "size": 3603,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/planAllowance.d.ts.map",
+        "size": 755,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/loader.d.ts",
+        "size": 404,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/loader.d.ts.map",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/pluginPage.d.ts",
+        "size": 295,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/pluginPage.d.ts.map",
+        "size": 178,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/stats.d.ts",
+        "size": 2242,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/stats.d.ts.map",
+        "size": 1001,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/types.d.ts",
+        "size": 513,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/types.d.ts.map",
+        "size": 645,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/validation.d.ts",
+        "size": 244,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/plugins/validation.d.ts.map",
+        "size": 341,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/priorityAttestation.d.ts",
+        "size": 1702,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/priorityAttestation.d.ts.map",
+        "size": 1007,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/probes.d.ts",
+        "size": 4239,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/probes.d.ts.map",
+        "size": 824,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileAdd.d.ts",
+        "size": 3184,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileAdd.d.ts.map",
+        "size": 1303,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileCli.d.ts",
+        "size": 11059,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileCli.d.ts.map",
+        "size": 4442,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileConfigStore.d.ts",
+        "size": 698,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileConfigStore.d.ts.map",
+        "size": 560,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileHealth.d.ts",
+        "size": 5299,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileHealth.d.ts.map",
+        "size": 1878,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileLogin.d.ts",
+        "size": 12032,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileLogin.d.ts.map",
+        "size": 2822,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileOAuthBody.d.ts",
+        "size": 498,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileOAuthBody.d.ts.map",
+        "size": 284,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileRename.d.ts",
+        "size": 3503,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profileRename.d.ts.map",
+        "size": 1592,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profiles.d.ts",
+        "size": 8869,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/profiles.d.ts.map",
+        "size": 2392,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/query.d.ts",
+        "size": 11608,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/query.d.ts.map",
+        "size": 3858,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/rateLimitStore.d.ts",
+        "size": 4681,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/rateLimitStore.d.ts.map",
+        "size": 1041,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/replay.d.ts",
+        "size": 1891,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/replay.d.ts.map",
+        "size": 1006,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/replayBudget.d.ts",
+        "size": 1491,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/replayBudget.d.ts.map",
+        "size": 655,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/requestAbort.d.ts",
+        "size": 2297,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/requestAbort.d.ts.map",
+        "size": 800,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/retryAfter.d.ts",
+        "size": 4551,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/retryAfter.d.ts.map",
+        "size": 1103,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/routing.d.ts",
+        "size": 11602,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/routing.d.ts.map",
+        "size": 3320,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sanitize.d.ts",
+        "size": 3013,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sanitize.d.ts.map",
+        "size": 439,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sdkFeatures.d.ts",
+        "size": 4237,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sdkFeatures.d.ts.map",
+        "size": 1333,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/server.d.ts",
+        "size": 1040,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/server.d.ts.map",
+        "size": 915,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/cache.d.ts",
+        "size": 5087,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/cache.d.ts.map",
+        "size": 2608,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/crossProcessTurnCoordinator.d.ts",
+        "size": 1913,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/crossProcessTurnCoordinator.d.ts.map",
+        "size": 1176,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/durableFileSystem.d.ts",
+        "size": 1235,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/durableFileSystem.d.ts.map",
+        "size": 495,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/fingerprint.d.ts",
+        "size": 2911,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/fingerprint.d.ts.map",
+        "size": 623,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/lifecycleErrors.d.ts",
+        "size": 629,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/lifecycleErrors.d.ts.map",
+        "size": 392,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/lifecycleLockQueue.d.ts",
+        "size": 1049,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/lifecycleLockQueue.d.ts.map",
+        "size": 1081,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/lineage.d.ts",
+        "size": 15260,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/lineage.d.ts.map",
+        "size": 4990,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/processIncarnation.d.ts",
+        "size": 5747,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/processIncarnation.d.ts.map",
+        "size": 1837,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/recoveryClaim.d.ts",
+        "size": 1084,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/recoveryClaim.d.ts.map",
+        "size": 902,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/sdkProcessGate.d.ts",
+        "size": 1369,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/sdkProcessGate.d.ts.map",
+        "size": 780,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/turnCoordinator.d.ts",
+        "size": 1258,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/session/turnCoordinator.d.ts.map",
+        "size": 734,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sessionLifecycle.d.ts",
+        "size": 9788,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sessionLifecycle.d.ts.map",
+        "size": 4299,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sessionStore.d.ts",
+        "size": 14570,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sessionStore.d.ts.map",
+        "size": 7500,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sessionTree.d.ts",
+        "size": 6240,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/sessionTree.d.ts.map",
+        "size": 1822,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/setup.d.ts",
+        "size": 6771,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/setup.d.ts.map",
+        "size": 2026,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/shutdown.d.ts",
+        "size": 790,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/shutdown.d.ts.map",
+        "size": 596,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/socketActivation.d.ts",
+        "size": 2284,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/socketActivation.d.ts.map",
+        "size": 485,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/streamIdleGuard.d.ts",
+        "size": 3693,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/streamIdleGuard.d.ts.map",
+        "size": 1025,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/structuredOutput.d.ts",
+        "size": 1259,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/structuredOutput.d.ts.map",
+        "size": 576,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/supervision.d.ts",
+        "size": 2035,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/supervision.d.ts.map",
+        "size": 469,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tokenHealth.d.ts",
+        "size": 1084,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tokenHealth.d.ts.map",
+        "size": 740,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tokenRefresh.d.ts",
+        "size": 9550,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tokenRefresh.d.ts.map",
+        "size": 2415,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tokenUsage.d.ts",
+        "size": 2116,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tokenUsage.d.ts.map",
+        "size": 429,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tools.d.ts",
+        "size": 1850,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/tools.d.ts.map",
+        "size": 460,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transform.d.ts",
+        "size": 6963,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transform.d.ts.map",
+        "size": 4257,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/cherry.d.ts",
+        "size": 660,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/cherry.d.ts.map",
+        "size": 239,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/claudecode.d.ts",
+        "size": 920,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/claudecode.d.ts.map",
+        "size": 249,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/codex.d.ts",
+        "size": 1333,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/codex.d.ts.map",
+        "size": 251,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/crush.d.ts",
+        "size": 133,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/crush.d.ts.map",
+        "size": 215,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/droid.d.ts",
+        "size": 133,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/droid.d.ts.map",
+        "size": 216,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/forgecode.d.ts",
+        "size": 141,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/forgecode.d.ts.map",
+        "size": 225,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/opencode.d.ts",
+        "size": 139,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/opencode.d.ts.map",
+        "size": 223,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/passthrough.d.ts",
+        "size": 145,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/passthrough.d.ts.map",
+        "size": 229,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/pi.d.ts",
+        "size": 127,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/pi.d.ts.map",
+        "size": 210,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/polytoken.d.ts",
+        "size": 947,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/polytoken.d.ts.map",
+        "size": 248,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/prime.d.ts",
+        "size": 133,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/prime.d.ts.map",
+        "size": 216,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/registry.d.ts",
+        "size": 174,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/transforms/registry.d.ts.map",
+        "size": 244,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/turnOutcome.d.ts",
+        "size": 7952,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/turnOutcome.d.ts.map",
+        "size": 1805,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/types.d.ts",
+        "size": 4666,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/types.d.ts.map",
+        "size": 2232,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/unstreamedAssistant.d.ts",
+        "size": 519,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/unstreamedAssistant.d.ts.map",
+        "size": 420,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/updateCheck.d.ts",
+        "size": 1833,
+        "mode": 420
+      },
+      {
+        "path": "dist/proxy/updateCheck.d.ts.map",
+        "size": 746,
+        "mode": 420
+      },
+      {
+        "path": "dist/sameOrigin.d.ts",
+        "size": 697,
+        "mode": 420
+      },
+      {
+        "path": "dist/sameOrigin.d.ts.map",
+        "size": 188,
+        "mode": 420
+      },
+      {
+        "path": "dist/server.js",
+        "size": 947,
+        "mode": 420
+      },
+      {
+        "path": "dist/settings.d.ts",
+        "size": 5874,
+        "mode": 420
+      },
+      {
+        "path": "dist/settings.d.ts.map",
+        "size": 1390,
+        "mode": 420
+      },
+      {
+        "path": "dist/setup-rd1qe555.js",
+        "size": 902,
+        "mode": 420
+      },
+      {
+        "path": "dist/socketActivation-s3xh5s16.js",
+        "size": 256,
+        "mode": 420
+      },
+      {
+        "path": "dist/stats-4c4ewmdh.js",
+        "size": 310,
+        "mode": 420
+      },
+      {
+        "path": "dist/statusProbe-9x9q261e.js",
+        "size": 5377,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/buildBadge.d.ts",
+        "size": 1798,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/buildBadge.d.ts.map",
+        "size": 1083,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/dashboard.d.ts",
+        "size": 199,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/dashboard.d.ts.map",
+        "size": 169,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/hostLabel.d.ts",
+        "size": 780,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/hostLabel.d.ts.map",
+        "size": 305,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/icon.d.ts",
+        "size": 666,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/icon.d.ts.map",
+        "size": 279,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/index.d.ts",
+        "size": 1689,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/index.d.ts.map",
+        "size": 907,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/landing.d.ts",
+        "size": 499,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/landing.d.ts.map",
+        "size": 170,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/loginCallbackPage.d.ts",
+        "size": 993,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/loginCallbackPage.d.ts.map",
+        "size": 335,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/logStore.d.ts",
+        "size": 1668,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/logStore.d.ts.map",
+        "size": 933,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/pageLayout.d.ts",
+        "size": 1646,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/pageLayout.d.ts.map",
+        "size": 534,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/percentiles.d.ts",
+        "size": 778,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/percentiles.d.ts.map",
+        "size": 467,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/pricing.d.ts",
+        "size": 3363,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/pricing.d.ts.map",
+        "size": 957,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/pricingStore.d.ts",
+        "size": 1766,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/pricingStore.d.ts.map",
+        "size": 653,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileBar.d.ts",
+        "size": 16138,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileBar.d.ts.map",
+        "size": 427,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileFacts.d.ts",
+        "size": 2694,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileFacts.d.ts.map",
+        "size": 187,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileFind.d.ts",
+        "size": 3963,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileFind.d.ts.map",
+        "size": 194,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileOrder.d.ts",
+        "size": 15181,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileOrder.d.ts.map",
+        "size": 823,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profilePage.d.ts",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profilePage.d.ts.map",
+        "size": 173,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileSort.d.ts",
+        "size": 1647,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileSort.d.ts.map",
+        "size": 637,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileSpent.d.ts",
+        "size": 3568,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileSpent.d.ts.map",
+        "size": 1136,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileUsage.d.ts",
+        "size": 3773,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/profileUsage.d.ts.map",
+        "size": 1382,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/prometheus.d.ts",
+        "size": 411,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/prometheus.d.ts.map",
+        "size": 245,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/providerPage.d.ts",
+        "size": 89,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/providerPage.d.ts.map",
+        "size": 163,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/providerSetup.d.ts",
+        "size": 430,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/providerSetup.d.ts.map",
+        "size": 412,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/providerView.d.ts",
+        "size": 7123,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/providerView.d.ts.map",
+        "size": 1301,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/routeChain.d.ts",
+        "size": 1496,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/routeChain.d.ts.map",
+        "size": 362,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/routes.d.ts",
+        "size": 873,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/routes.d.ts.map",
+        "size": 351,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/settingsPage.d.ts",
+        "size": 223,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/settingsPage.d.ts.map",
+        "size": 177,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/sqlite.d.ts",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/sqlite.d.ts.map",
+        "size": 269,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/store.d.ts",
+        "size": 1940,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/store.d.ts.map",
+        "size": 907,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/types.d.ts",
+        "size": 16671,
+        "mode": 420
+      },
+      {
+        "path": "dist/telemetry/types.d.ts.map",
+        "size": 6490,
+        "mode": 420
+      },
+      {
+        "path": "dist/tokenRefresh-269eckh2.js",
+        "size": 1009,
+        "mode": 420
+      },
+      {
+        "path": "dist/utils/lruMap.d.ts",
+        "size": 1026,
+        "mode": 420
+      },
+      {
+        "path": "dist/utils/lruMap.d.ts.map",
+        "size": 1025,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 5199,
+        "mode": 420
+      },
+      {
+        "path": "plugin/meridian-v2.ts",
+        "size": 32570,
+        "mode": 420
+      },
+      {
+        "path": "plugin/meridian-v2/index.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "plugin/meridian-v2/package.json",
+        "size": 115,
+        "mode": 420
+      },
+      {
+        "path": "plugin/meridian.ts",
+        "size": 8779,
+        "mode": 420
+      },
+      {
+        "path": "plugin/meridian/index.js",
+        "size": 41,
+        "mode": 420
+      },
+      {
+        "path": "plugin/meridian/package.json",
+        "size": 115,
+        "mode": 420
+      },
+      {
+        "path": "plugin/priority-attestation.ts",
+        "size": 5523,
+        "mode": 420
+      }
+    ],
+    "entryCount": 459,
+    "bundled": []
+  }
+]

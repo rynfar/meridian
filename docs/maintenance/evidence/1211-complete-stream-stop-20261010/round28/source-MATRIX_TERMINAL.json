@@ -1,0 +1,52 @@
+{
+  "target": "source",
+  "rows": [
+    {
+      "originalPid": 31087,
+      "joined": true,
+      "exit": 0,
+      "target": "source",
+      "mode": "chain",
+      "stream": "0",
+      "phase": "prepare"
+    },
+    {
+      "originalPid": 31146,
+      "joined": true,
+      "exit": 0,
+      "target": "source",
+      "mode": "chain",
+      "stream": "0",
+      "phase": "live"
+    },
+    {
+      "originalPid": 31838,
+      "joined": true,
+      "exit": 0,
+      "target": "source",
+      "mode": "chain",
+      "stream": "1",
+      "phase": "live"
+    },
+    {
+      "originalPid": 32254,
+      "joined": true,
+      "exit": 0,
+      "target": "source",
+      "mode": "parallel",
+      "stream": "0",
+      "phase": "live"
+    },
+    {
+      "originalPid": 32866,
+      "joined": true,
+      "exit": 0,
+      "target": "source",
+      "mode": "parallel",
+      "stream": "1",
+      "phase": "live"
+    }
+  ],
+  "qualified": true,
+  "finishedUTC": "2026-10-10T04:49:49.980595+00:00"
+}

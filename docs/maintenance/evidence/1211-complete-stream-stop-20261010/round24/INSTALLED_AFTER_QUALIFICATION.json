@@ -1,0 +1,119 @@
+{
+  "originalSession": 50340,
+  "cases": 12,
+  "nativeQueries": 24,
+  "newCapturedTupleActuallyExercised": 8,
+  "allFour750msModesUseCapturedTuple": true,
+  "rows": [
+    {
+      "case": "eof-0-tools-1-stream-false",
+      "maxTurns": 1,
+      "terminalReason": "aborted_tools",
+      "nativeTurns": 2,
+      "independentQualified": true,
+      "canonicalStreamingError": false,
+      "providerEOFDelayMs": 0
+    },
+    {
+      "case": "eof-0-tools-3-stream-false",
+      "maxTurns": 1,
+      "terminalReason": "aborted_tools",
+      "nativeTurns": 2,
+      "independentQualified": true,
+      "canonicalStreamingError": false,
+      "providerEOFDelayMs": 0
+    },
+    {
+      "case": "eof-0-tools-1-stream-true",
+      "maxTurns": 1,
+      "terminalReason": "aborted_tools",
+      "nativeTurns": 2,
+      "independentQualified": true,
+      "canonicalStreamingError": false,
+      "providerEOFDelayMs": 0
+    },
+    {
+      "case": "eof-0-tools-3-stream-true",
+      "maxTurns": 1,
+      "terminalReason": "aborted_tools",
+      "nativeTurns": 2,
+      "independentQualified": true,
+      "canonicalStreamingError": false,
+      "providerEOFDelayMs": 0
+    },
+    {
+      "case": "eof-150-tools-1-stream-false",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 3,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 150
+    },
+    {
+      "case": "eof-150-tools-3-stream-false",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 5,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 150
+    },
+    {
+      "case": "eof-150-tools-1-stream-true",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 3,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 150
+    },
+    {
+      "case": "eof-150-tools-3-stream-true",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 5,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 150
+    },
+    {
+      "case": "eof-750-tools-1-stream-false",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 3,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 750
+    },
+    {
+      "case": "eof-750-tools-3-stream-false",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 5,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 750
+    },
+    {
+      "case": "eof-750-tools-1-stream-true",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 3,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 750
+    },
+    {
+      "case": "eof-750-tools-3-stream-true",
+      "maxTurns": 1,
+      "terminalReason": "aborted_streaming",
+      "nativeTurns": 5,
+      "independentQualified": true,
+      "canonicalStreamingError": true,
+      "providerEOFDelayMs": 750
+    }
+  ],
+  "realCredentialReads": 0,
+  "actualModelClientAcceptance": false
+}

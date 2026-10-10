@@ -1,0 +1,8 @@
+{
+  "sha256": "03e92646b80cd60c21ef2fd135b788157d353ed14a69d618d0761ff2ce76cdd4",
+  "bytes": 1649499,
+  "sourceHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "imageId": "sha256:c07ed57b13929b0bc91e0d46da574bb9bfd0bb11f8e62e84b889281394db0e68",
+  "ownedReceiptContainerStoppedPidZeroAndRemoved": true,
+  "registryPublication": false
+}

@@ -1,0 +1,19 @@
+{
+  "atUTC": "2026-10-10T04:17:57.613763+00:00",
+  "priority": "P1",
+  "candidateHead": "cfacfd36a90eef12b9412ad5cd807d9e5de5d3fe",
+  "finding": "Complete forwarded checkpoints fail HTTP delivery when the intentional interrupt cancels an SSE body after message_stop and before HTTP EOF",
+  "sourceNative": "2.1.284",
+  "installedNative": "2.1.296",
+  "sdk": "0.2.141",
+  "beforeEachTarget": "four immediate EOF controls PASS; delayed150ms one-tool nonstream FAIL500 at the ninth Query",
+  "nativeResult": "error_during_execution/is_error=true/aborted_streaming/num_turns3",
+  "publicNativeError": "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use",
+  "bothNativeErrorHashesEqual": true,
+  "completeGenerationAndHooksAndAcknowledgedControl": true,
+  "providerCancelledBetweenRequestAndAcknowledgement": true,
+  "realCredentialOrModelCalls": 0,
+  "allOriginalActorsAndOwnedContainersRemoved": true,
+  "priorR11R15RealFailureCauseStillUnproven": true,
+  "requiredCorrection": "Bind only this exact public signature to the existing complete generation/UUID/hooks/denials/acknowledgement/error and writer joins; preserve unrelated streaming errors as failures"
+}
