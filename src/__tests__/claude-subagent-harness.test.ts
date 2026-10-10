@@ -373,15 +373,21 @@ describe('E72 native harness containment and meaningful subagent receipts', () =
       expect(result.report.checks.actualAgentAndBashReceipts).toBe(false)
     }
   }, 30000)
-  it('rejects unknown task owners, unbounded waits and missing or early task completion', async () => {
-    for (const mode of [{ unknownTaskOwner: true }, { unboundedTaskOutput: true }, { missingBackgroundCompletion: true }, { earlyBackgroundCompletion: true }]) {
-      const result = await run({ background: true, ...mode }, ['--scenario', 'background'])
-      expect(result.code).toBe(1)
-      expect(result.report.checks.actualAgentAndBashReceipts).toBe(false)
-      expect(result.report.checks.invocationsSucceeded).toBe(true)
-      expect(result.report.checks.allQueriesCorrelated).toBe(true)
-      expect(result.report.checks.nativeReceipts).toBe(true)
-    }
+  // Each fixture has its own 10s execution bound plus joined cleanup. Four
+  // serial fixtures cannot share one 30s deadline under permitted delays.
+  const backgroundTaskControls: Array<{ label: string; mode: Mode }> = [
+    { label: 'unknown task owners', mode: { unknownTaskOwner: true } },
+    { label: 'unbounded waits', mode: { unboundedTaskOutput: true } },
+    { label: 'missing task completion', mode: { missingBackgroundCompletion: true } },
+    { label: 'early task completion', mode: { earlyBackgroundCompletion: true } },
+  ]
+  for (const { label, mode } of backgroundTaskControls) it('rejects background ' + label, async () => {
+    const result = await run({ background: true, ...mode }, ['--scenario', 'background'])
+    expect(result.code).toBe(1)
+    expect(result.report.checks.actualAgentAndBashReceipts).toBe(false)
+    expect(result.report.checks.invocationsSucceeded).toBe(true)
+    expect(result.report.checks.allQueriesCorrelated).toBe(true)
+    expect(result.report.checks.nativeReceipts).toBe(true)
   }, 30000)
   it('requires real parent-child response-body overlap rather than two children running alone', async () => {
     const result = await run({ background: true, parentAfterChildren: true }, ['--scenario', 'background'])
