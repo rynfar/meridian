@@ -1243,6 +1243,7 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E66 | [Interrupted turn after a settled checkpoint](#e66-interrupted-turn-after-a-settled-checkpoint) | **Automated, real proxy + SDK + Claude Max**: `bun scripts/e2e-checkpoint-interrupted-turn.mjs`. An OpenCode-keyed tool round whose complete result is followed by a partial assistant turn (what a dropped stream leaves) must resume the stored session; a result for an unknown call is the negative control and must still take the fresh replay. **Run before releases touching the passthrough early-stop checkpoint or checkpoint replay** | 2026-09-26 |
 | E67 | [OpenCode V2 interrupted tool turn](#e67-opencode-v2-interrupted-tool-turn) | **Actual OpenCode 2.0.16 client and Meridian V2 plugin, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-checkpoint-fault.mjs`. Inject one partial SSE failure after the real client tool call; require the client's exact retry shape and SDK resume, plus a same-session recovery. **Run before releases touching keyed checkpoint recovery** | 2026-09-26 |
 | E68 | [OpenCode V2 user-invoked skill](#e68-opencode-v2-user-invoked-skill) | **Actual OpenCode V2 server, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-skill-content.mjs`. A skill invoked with no typed text must reach the SDK prompt inside `<skill_content>` and drive the reply. **Run before releases touching user-text sanitization** | 2026-09-27 |
+| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Automated, needs the `claude` CLI** (skips cleanly without it): `bun scripts/e2e-claude-code-auto-mode.mjs` — real proxy + SDK, the REAL Claude Code CLI in `--permission-mode auto`. Asserts the classifier's side requests are isolated as `independent-request:auxiliary-request` on both the shape and request-class header paths, every later main request continues its session, and nothing collides or is refused. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-09-30 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -6149,6 +6150,81 @@ trimmed 12 messages (~3114 estimated tokens) and answered from the kept tail.
 **Not covered.** The original 400 (`context_overflow` on an oversized replay) was
 not reproduced live, and neither was the reactive retry, which needs a real
 overflow from the model. Those remain covered only by the mocked envelope tests.
+
+## E71: Claude Code auto-mode classifier isolation
+
+**What it proves:** Claude Code's auto-mode permission classifier no longer
+breaks session resume.
+
+The classifier sends the conversation's own `metadata.user_id` session id with
+a short transcript of its own (`tools=0 stream=false`, one or two messages).
+Read as a turn, it classified `unrelated-history`, fresh-replayed and
+overwrote the conversation's mapping, so the next real request diverged as
+well: with auto mode on, no turn resumed past a classifier call. It also
+waited behind the running turn on the session lease, which is exactly when
+the turn is waiting on it.
+
+The CLI names its request class in `x-claude-code-request-class`, but sends it
+only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL, or
+under a remote flag. The adapter therefore uses the header when present and
+otherwise the classifier's shape: session key, no tools, not streamed, and a
+`</block>` or `</severity>` stop sequence.
+
+```bash
+bun scripts/e2e-claude-code-auto-mode.mjs
+```
+
+Direct claude-code adapter, isolated `CLAUDE_CONFIG_DIR`, scrubbed `CLAUDE*`
+environment and a dummy bearer token; the proxy keeps its real Claude Max
+authentication. Main model defaults to `sonnet` (`PROBE_MODEL`), because auto
+mode is gated by model. Each tool turn writes outside the client project: a
+write inside it is auto-allowed without consulting the classifier, and a run
+like that passes vacuously. The client talks to a recording relay in front of
+the proxy, because the proxy log never prints headers; the relay is what tells
+the header path apart from a shape match. Turn 4 runs with
+`CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`.
+
+**Pass criteria** (asserted, non-zero exit on any):
+
+- All four invocations exit 0 and answer correctly.
+- At least one request logs `diverged=independent-request:auxiliary-request`.
+  A run where the classifier never fires fails rather than passing vacuously.
+- Turns 1-3 send no request-class header; turn 4 sends one on every request,
+  and exactly the requests it labels `auxiliary` are isolated.
+- Every main request after the conversation's first logs
+  `lineage=continuation`. The classifier fires mid-turn, between a tool call
+  and its result, so checking only each turn's first request misses the damage.
+- No request logs `unrelated-history` or `concurrent-race`, and no invocation
+  is refused with a 4xx.
+
+Classifier `sessionWait` is reported, not asserted.
+
+**Before/after (2026-09-30, Linux x64, Bun 1.2.20, Agent SDK 0.2.141, Claude
+Code 2.1.286, `sonnet`).** Baseline `0ec52a2`: FAIL, 4 checks. 0 of 10
+requests isolated; all 3 classifier requests (`tools=0 stream=false
+msgCount=1`, one with request class `auxiliary`) classified
+`unrelated-history`, and the main request after each one (msgCount 5, 11, 20)
+diverged `unrelated-history` too. Branch: PASS. 3 of 10 requests isolated as
+`auxiliary-request` (2 by shape, 1 by header), 6 of 6 later main requests
+resumed, no collisions, classifier `sessionWait` 0ms each. The gate imports
+`src/` directly rather than the built bundle, and this run used Bun 1.2.20 (not
+the `packageManager` 1.3.11); neither affects the proxy path under test.
+
+**Live acceptance (2026-09-30, owner's working proxy, one ongoing auto-mode
+Claude Code session of ~700 messages).** The branch build replaced the
+installed 1.79.0 at 20:30:29 local; counts below are from the proxy journal,
+20:00 to 20:37, before an unrelated subagent collision began.
+
+| | 1.79.0 (20:00–20:30) | Branch (20:30–20:37) |
+|---|---|---|
+| Main requests resumed (`continuation`) | 2 of 32 | 10 of 12 |
+| Classifier requests isolated | 0 of 4 | 6 of 6 |
+| Max session-lease wait, classifier / main | 105s / 189s | 0ms / 16ms |
+| Cache hit per request (journal `usage:` lines) | 14–98%, median 64%, all requests | 100% on resumed main requests; 38–39% on classifier calls |
+
+The two branch requests that did not resume: the first after the restart
+(`not-found`, because earlier classifier calls had already overwritten the
+mapping), and one `modified-history` from an interrupted turn.
 
 ## E73: Unknown thinking display values
 

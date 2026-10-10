@@ -67,6 +67,17 @@ export interface AgentIdentity {
   readonly runsConcurrentTurnsPerSessionKey?: boolean
 
   /**
+   * True when this request is a client side call that carries the
+   * conversation's session key without being a turn of that conversation.
+   *
+   * Such a request skips lineage lookup and never publishes, evicts or
+   * recovers the session mapping, and never takes the session turn lease: it
+   * has no turn to serialize. Undefined or false keeps normal session handling, which is
+   * what every client that separates its side calls by key already gets.
+   */
+  isAuxiliaryRequest?(c: Context, body?: unknown): boolean
+
+  /**
    * Optional trusted identity for a visible human turn.
    *
    * This is deliberately a positive, normalized assertion. Callers must treat

@@ -159,6 +159,32 @@ function claudeCodeRequest(
 }
 
 /**
+ * Claude Code's auto-mode permission classifier: the conversation's own
+ * session id, no tools, not streamed, and stop sequences closing its verdict.
+ */
+function claudeCodeClassifierRequest(sessionId: string, extraHeaders: Record<string, string> = {}): Request {
+  return new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-agent": "claude-cli/2.1.286",
+      ...extraHeaders,
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 64,
+      stream: false,
+      stop_sequences: ["</block>"],
+      messages: [
+        { role: "user", content: "<transcript>User: run the tests</transcript>" },
+        { role: "user", content: "Should this action be blocked?" },
+      ],
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    }),
+  })
+}
+
+/**
  * A generic OpenAI client running its own tool loop sends no session header.
  * The derived key (deriveToolLoopSessionId) is what the inner hop resolves, so
  * two rounds of one loop that collide share it.
@@ -471,6 +497,68 @@ describe("SDK and Session concurrency coordination", () => {
     expect(queryCalls).toBe(2)
     expect(capturedParams[1]?.options?.resume).toBeUndefined()
     expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+  })
+
+  it("keeps a Claude Code conversation resumable across an auto-mode classifier request", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-aux-${crypto.randomUUID()}`
+    const opening = [{ role: "user", content: "Run the tests" }]
+
+    const firstP = app.fetch(claudeCodeRequest(opening, sessionId))
+    ;(await waitForControl(0)).release()
+    expect((await firstP).status).toBe(200)
+    const published = readSessionStoreSnapshot()[sessionId]
+    expect(published?.messageCount).toBe(1)
+
+    const auxP = app.fetch(claudeCodeClassifierRequest(sessionId))
+    ;(await waitForControl(1)).release()
+    expect((await auxP).status).toBe(200)
+    // Answered on its own body, and the conversation's mapping is untouched.
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(readSessionStoreSnapshot()[sessionId]).toEqual(published)
+
+    const nextP = app.fetch(claudeCodeRequest([
+      ...opening,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ], sessionId))
+    ;(await waitForControl(2)).release()
+    expect((await nextP).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  })
+
+  it("never queues a classifier request behind the conversation's running turn", async () => {
+    // Two SDK permits, so only the session lease could make the side call wait.
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-aux-lease-${crypto.randomUUID()}`
+    const opening = [{ role: "user", content: "Run the tests" }]
+
+    const mainP = app.fetch(claudeCodeRequest(opening, sessionId))
+    const mainControl = await waitForControl(0)
+    // The main turn is inside the SDK and holds the session lease.
+    const auxP = app.fetch(claudeCodeClassifierRequest(sessionId))
+    const auxControl = await waitForControl(1)
+    auxControl.release()
+    expect((await auxP).status).toBe(200)
+    expect(telemetryStore.getRecent().find(m => m.sessionQueueWaitMs !== undefined && m.sessionQueueWaitMs > 50))
+      .toBeUndefined()
+
+    // The main turn still commits normally after the side call finished first.
+    mainControl.release()
+    expect((await mainP).status).toBe(200)
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(1)
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+  })
+
+  it("treats a declared non-auxiliary request class as a normal turn", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-main-class-${crypto.randomUUID()}`
+    const reqP = app.fetch(claudeCodeClassifierRequest(sessionId, { "x-claude-code-request-class": "main" }))
+    ;(await waitForControl(0)).release()
+    expect((await reqP).status).toBe(200)
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(2)
   })
 
   it("replays a declared-flow loser instead of rewinding the turn it lost to (#870)", async () => {
