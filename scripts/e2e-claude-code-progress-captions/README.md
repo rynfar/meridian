@@ -14,6 +14,16 @@ mutation and subsequent replay. A successful answer without a caption fails.
 Only the selected case is accepted; overlap, cancellation, disabled/isolation,
 hint fallback, independently installed package, E41 and E55 remain separate.
 
+Both overlap orders require the selected forwarding order, two simultaneous
+native queries with two public MCP connection samples, and a later genuine
+worker Read. They also require one independent caption query, an exact fork of
+the saved working checkpoint, unchanged original supported SDK history and all
+three owned Read results exactly once in durable working history. A connection
+or successful answer alone cannot qualify working lineage. Each invocation
+admits at most 24 backend queries; its existing client turn and time bounds
+also apply. Cancellation/recovery-cache and installed-package observations stay
+separate.
+
 Example shape (replace every absolute path with the exact selected input):
 
 ```sh

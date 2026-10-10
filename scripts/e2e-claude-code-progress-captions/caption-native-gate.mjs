@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
 import { createServer } from 'node:http';
 import { selectWorkingMapping, MappingObservationError } from './working-mapping.ts';
-import { modelLabel, exactBackendModel, queryCustodyJoined } from './native-observations.ts';
+import { modelLabel, exactBackendModel, queryCustodyJoined, checkpointResumeMatches, durableReadResultMatches } from './native-observations.ts';
 
 const SELF = fileURLToPath(import.meta.url);
 const PROFILE = 'taskoauth-token';
@@ -552,6 +552,7 @@ async function worker(o) {
     });
     spyRestores.push(() => factorySpy.mockRestore());
     const querySpy = spyOn(sdk, 'query').mockImplementation(params => {
+      need(queries.length < 24, 'backend-query-count-bound');
       const wire = scopes.getStore();
       const opts = params.options ?? {};
       const q = { n: queries.length + 1, role: 'backend', wire, options: { resume: opts.resume, resumeSessionAt: opts.resumeSessionAt, forkSession: opts.forkSession, model: opts.model, sessionId: opts.sessionId }, modelPin: opts.env?.ANTHROPIC_DEFAULT_OPUS_MODEL, startAt: now(), factoryIds: [], mcpNames: Object.keys(opts.mcpServers ?? {}) };
@@ -835,7 +836,22 @@ async function worker(o) {
         need(overlap.proved, overlap.failure?.code ?? 'real-mcp-overlap-missing', 'MISSING');
         await finishClient(c);
         need(c.reads.get(2)?.at > overlap.proved.at && c.receipts.some(r => r.index === 2 && r.at > overlap.proved.at), 'new-genuine-read-after-overlap-missing', 'MISSING');
-        report.cases[o.case] = { status: 'PASS', ...overlap.proved, genuinePostOverlapRead: true };
+        const second = o.case === 'work-first' ? pair.caption : pair.working;
+        need(first.forwardingOrder < second.forwardingOrder, 'overlap-forwarding-order-mismatch');
+        need(caption.status === 200 && !caption.clientAbortAt && caption.responseEvents?.message_stop === 1 && !caption.responseEvents?.error, 'caption-http-success-required', 'MISSING');
+        const captionQueries = queries.filter(q => q.wire === caption);
+        need(captionQueries.length === 1, 'caption-backend-query-count');
+        need(!captionQueries[0].options.resume && !captionQueries[0].options.resumeSessionAt, 'caption-had-working-resume-authority');
+        need(blocks(pair.working.body.messages).filter(b => b.type === 'tool_result' && b.tool_use_id === c.reads.get(1).id).length === 1, 'actual-second-read-result-wire-pair-once');
+        const workingQueries = queries.filter(q => q.wire === pair.working);
+        need(workingQueries.length === 1 && checkpointResumeMatches(workingQueries[0].options, before.mapping), 'working-checkpoint-not-resumed');
+        const final = await snapshot(caption);
+        report.workingSnapshots.afterWork = final.public;
+        const sourceAgain = await sdk.getSessionMessages(before.mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
+        need(digest(sourceAgain) === digest(before.history), 'source-history-mutated');
+        const finalBlocks = blocks(final.history.map(row => row.message));
+        for (const receipt of c.receipts) need(durableReadResultMatches(finalBlocks, receipt.id, c.values[receipt.index]), 'durable-real-read-result-pair-once');
+        report.cases[o.case] = { status: 'PASS', ...overlap.proved, genuinePostOverlapRead: true, requestedForwardingOrder: true, captionIndependent: true, checkpointResume: true, nextQuery: workingQueries[0].n, before: before.public, afterWork: final.public, sourceHistoryUnchanged: true, durableReadResultsOnce: c.receipts.length };
       } else if (o.case === 'sequential') {
         c.captionForward.resolve();
         await bounded(caption.done.promise, 90000, 'caption-http-settlement-deadline');
@@ -852,15 +868,14 @@ async function worker(o) {
         need(next, 'next-real-working-request-missing', 'MISSING');
         need(blocks(next.body.messages).filter(b => b.type === 'tool_result' && b.tool_use_id === c.reads.get(1).id).length === 1, 'actual-second-read-result-wire-pair-once');
         const nextQuery = queries.find(q => q.wire === next); need(nextQuery, 'next-query-correlated-missing', 'MISSING');
-        if (o.expect === 'fixed') need(nextQuery.options.resume === before.mapping.claudeSessionId && nextQuery.options.resumeSessionAt === before.mapping.passthroughToolCallAssistantUuid && nextQuery.options.forkSession, 'working-checkpoint-not-resumed');
+        if (o.expect === 'fixed') need(checkpointResumeMatches(nextQuery.options, before.mapping), 'working-checkpoint-not-resumed');
         else need(!nextQuery.options.resume && !nextQuery.options.resumeSessionAt, 'baseline-next-working-replay-not-reproduced', 'MISSING');
         const final = await snapshot(caption);
         report.workingSnapshots.afterWork = final.public;
         const sourceAgain = await sdk.getSessionMessages(before.mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
         need(digest(sourceAgain) === digest(before.history), 'source-history-mutated');
         for (const receipt of c.receipts) {
-          const results = blocks(final.history.map(row => row.message)).filter(b => b.type === 'tool_result' && b.tool_use_id === receipt.id);
-          need(results.length === 1 && JSON.stringify(results[0].content).includes(c.values[receipt.index]), 'durable-real-read-result-pair-once');
+          need(durableReadResultMatches(blocks(final.history.map(row => row.message)), receipt.id, c.values[receipt.index]), 'durable-real-read-result-pair-once');
         }
         report.cases.sequential = { status: 'PASS', expectation: o.expect, before: before.public, afterCaption: after.public, afterWork: final.public, sourceHistoryUnchanged: true, nextQuery: nextQuery.n, checkpointResume: o.expect === 'fixed', baselineMutationAndReplay: o.expect === 'baseline' };
       } else {

@@ -41,3 +41,28 @@ export function queryCustodyJoined(query: QueryCustody): boolean {
     && typeof query.iteratorSettledAt === "number" && Number.isSafeInteger(query.iteratorSettledAt) && query.iteratorSettledAt > 0
     && typeof query.closeAt === "number" && Number.isSafeInteger(query.closeAt) && query.closeAt > 0
 }
+
+/** A new working turn must consume the real saved checkpoint as a fork. */
+export function checkpointResumeMatches(
+  query: { resume?: unknown; resumeSessionAt?: unknown; forkSession?: unknown },
+  checkpoint: { claudeSessionId?: unknown; passthroughToolCallAssistantUuid?: unknown },
+): boolean {
+  return typeof checkpoint.claudeSessionId === "string" && checkpoint.claudeSessionId.length > 0
+    && typeof checkpoint.passthroughToolCallAssistantUuid === "string" && checkpoint.passthroughToolCallAssistantUuid.length > 0
+    && query.resume === checkpoint.claudeSessionId
+    && query.resumeSessionAt === checkpoint.passthroughToolCallAssistantUuid
+    && query.forkSession === true
+}
+
+/** Count all matching results before checking the one genuine owned Read. */
+export function durableReadResultMatches(
+  blocks: readonly { type?: unknown; tool_use_id?: unknown; content?: unknown; is_error?: unknown }[],
+  toolId: string,
+  ownedValue: string,
+): boolean {
+  if (!toolId || !ownedValue) return false
+  const results = blocks.filter(block => block.type === "tool_result" && block.tool_use_id === toolId)
+  const result = results[0]
+  return results.length === 1 && result !== undefined && result.is_error !== true
+    && (JSON.stringify(result.content)?.includes(ownedValue) ?? false)
+}
