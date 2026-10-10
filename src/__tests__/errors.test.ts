@@ -168,6 +168,24 @@ describe("classifyError", () => {
       expect(r.type).toBe("billing_error")
     })
 
+    // The generic "subscription issue" text sent operators looking at an
+    // account that was fine: the refusal is about which pool the request was
+    // charged to, and only Anthropic's own sentence says which.
+    it("keeps Anthropic's own sentence for an extra-usage refusal instead of blaming the subscription", () => {
+      const r = classifyError("Claude Code returned an error result: API Error: 400 Third-party apps now draw from extra usage, not plan limits. Ask your workspace admin to add more and keep going.")
+      expect(r.status).toBe(402)
+      expect(r.type).toBe("billing_error")
+      expect(r.message).toContain("Third-party apps now draw from extra usage, not plan limits. Ask your workspace admin to add more and keep going.")
+      expect(r.message).not.toContain("API Error")
+      expect(r.message).not.toContain("subscription issue")
+    })
+
+    it("keeps the subscription advice for a lapsed subscription", () => {
+      const r = classifyError("Your subscription has expired")
+      expect(r.type).toBe("billing_error")
+      expect(r.message).toContain("subscription")
+    })
+
     // These used to classify as billing because the branch matched bare
     // substrings anywhere in the text, and it runs before the crash/max-turns
     // branches so it won. Harmless as a wrong status code; not harmless once
