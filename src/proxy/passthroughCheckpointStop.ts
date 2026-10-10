@@ -237,9 +237,18 @@ export class PassthroughCheckpointStop {
         ? Number.isSafeInteger(message.num_turns) && (message.num_turns as number) > 0
         : this.options.maxTurns === 1 && this.generations.size === 1 &&
           message.subtype === "error_max_turns" && message.num_turns === 2
+      // NOTE: SDK 0.2.141/native 2.1.284 and 2.1.296 can acknowledge our
+      // complete tool checkpoint while the provider's SSE body is still open.
+      // Interrupting that transport reports aborted_streaming with this exact
+      // public diagnostic. It is not evidence of an incomplete generation:
+      // acceptsIteratorError still binds every closed block, UUID, hook and
+      // denial to the acknowledged intent before granting publication.
+      const completedToolStreamAbort = message.terminal_reason === "aborted_streaming" &&
+        message.subtype === "error_during_execution" && this.resultErrors?.length === 1 &&
+        this.resultErrors[0] === "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
       this.terminalMatches = Boolean(this.intent && this.acknowledged &&
         message.session_id === this.intent.sessionId && resultKindMatches &&
-        message.is_error === true && message.terminal_reason === "aborted_tools" &&
+        message.is_error === true && (message.terminal_reason === "aborted_tools" || completedToolStreamAbort) &&
         this.generations.size <= this.options.maxTurns && this.resultErrors)
     }
     this.advance()

@@ -10,7 +10,7 @@ import { resolveMockSdkSessionId } from "./helpers"
 
 type Params = Parameters<typeof query>[0]
 let calls: Params[] = [], interrupts = 0, completedHooks = 0, joined = 0
-let terminalMode: "owned" | "unrelated" | "wrong-result" | "close-failure" | "normal" = "owned"
+let terminalMode: "owned" | "completed-stream" | "unrelated" | "wrong-result" | "close-failure" | "normal" = "owned"
 const qualifiedLogs: unknown[] = []
 
 installSdkMock(() => ({
@@ -58,11 +58,13 @@ installSdkMock(() => ({
       }
       // Match the independently observed native cap-one terminal, rather
       // than inventing a counter equal to the configured API-generation cap.
-      yield { type: "result", session_id: sessionId, subtype: "error_max_turns", is_error: true,
-        terminal_reason: terminalMode === "wrong-result" ? "aborted_streaming" : "aborted_tools",
-        num_turns: 2, errors: ["fixture owned interruption"], usage: { input_tokens: 1, output_tokens: 1 } }
+      const completedStream = terminalMode === "completed-stream"
+      const nativeDiagnostic = completedStream ? "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use" : "fixture owned interruption"
+      yield { type: "result", session_id: sessionId, subtype: completedStream ? "error_during_execution" : "error_max_turns", is_error: true,
+        terminal_reason: completedStream || terminalMode === "wrong-result" ? "aborted_streaming" : "aborted_tools",
+        num_turns: completedStream ? 3 : 2, errors: [nativeDiagnostic], usage: { input_tokens: 1, output_tokens: 1 } }
       throw new Error(terminalMode === "unrelated" ? "fixture unrelated transport failure"
-        : "Claude Code returned an error result: fixture owned interruption")
+        : "Claude Code returned an error result: " + nativeDiagnostic)
     })()
     return Object.assign(sdk, {
       interrupt: async () => { interrupts++; interrupted = true },
@@ -110,7 +112,8 @@ describe("HTTP attempt-owned checkpoint interrupt", () => {
   afterAll(() => { setSessionStoreDir(null); rmSync(directory, { recursive: true, force: true }) })
 
   for (const stream of [false, true]) {
-    it(`qualifies only the owned interruption, stream=${stream}`, async () => {
+    for (const mode of ["owned", "completed-stream"] as const) it(`qualifies only the owned ${mode} interruption, stream=${stream}`, async () => {
+      terminalMode = mode
       const response = await post(stream), text = await response.text()
       expect(response.status).toBe(200)
       expect(text).toContain('"stop_reason":"tool_use"')

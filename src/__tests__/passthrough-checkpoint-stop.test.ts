@@ -73,6 +73,49 @@ async function acknowledged(options: { maxTurns?: number; input?: unknown } = {}
 }
 
 describe("attempt-owned passthrough checkpoint stop", () => {
+  const completeStreamDiagnostic = "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
+  const completeStreamResult = (changes: Record<string, unknown> = {}) => result({ terminal_reason: "aborted_streaming", num_turns: 3, errors: [completeStreamDiagnostic], ...changes })
+  const completeStreamError = () => new Error("Claude Code returned an error result: " + completeStreamDiagnostic)
+
+  it("qualifies the captured completed-stream abort only after the owned complete checkpoint", async () => {
+    for (const maxTurns of [1, 4]) {
+      const state = await acknowledged({ maxTurns })
+      state.stop.observe(completeStreamResult())
+      expect(state.stop.acceptsIteratorError(completeStreamError())).toBe(true)
+      await state.stop.retire()
+      expect(state.stop.receipt).toEqual({ acknowledged: true, qualified: true, generations: 1, tools: 2 })
+      expect(state.stop.failed).toBe(false)
+    }
+  })
+  it("rejects a completed-stream signature without an owned control", async () => {
+    const state = setup(); generation(state.stop); state.stop.observe(completeStreamResult())
+    expect(state.stop.acceptsIteratorError(completeStreamError())).toBe(false)
+    await state.stop.retire()
+  })
+  it("rejects a completed-stream signature with missing denial custody or caller cancellation", async () => {
+    const missing = await ownedIntent(); missing.ack.resolve(); await missing.terminalHook
+    missing.stop.observe(completeStreamResult())
+    expect(missing.stop.acceptsIteratorError(completeStreamError())).toBe(false)
+    await missing.stop.retire()
+    const cancelled = await acknowledged(); cancelled.controller.abort(); cancelled.stop.observe(completeStreamResult())
+    expect(cancelled.stop.acceptsIteratorError(completeStreamError())).toBe(false)
+    await cancelled.stop.retire()
+  })
+  it("does not generalize the captured stream abort to unrelated or altered native diagnostics", async () => {
+    for (const change of [{ errors: ["unrelated streaming failure"] }, { errors: [completeStreamDiagnostic, "additional failure"] }, { errors: [] }, { errors: [completeStreamDiagnostic + " "] }, { subtype: "error_max_turns", num_turns: 2 }, { is_error: false }, { session_id: "other-session" }, { num_turns: 0 }]) {
+      const state = await acknowledged()
+      if ("session_id" in change) expect(() => state.stop.observe(completeStreamResult(change))).toThrow(PassthroughCheckpointStopError)
+      else state.stop.observe(completeStreamResult(change))
+      expect(state.stop.acceptsIteratorError(completeStreamError())).toBe(false)
+      await state.stop.retire()
+    }
+  })
+  it("still requires the original iterator error to match the captured terminal", async () => {
+    const state = await acknowledged(); state.stop.observe(completeStreamResult())
+    expect(state.stop.acceptsIteratorError(new Error("unrelated transport failure"))).toBe(false)
+    await state.stop.retire()
+  })
+
   it("releases the complete serial prefix, retaining the final hook through acknowledgement", async () => {
     const state = await ownedIntent()
     let released = false

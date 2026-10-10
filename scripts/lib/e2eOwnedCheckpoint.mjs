@@ -106,7 +106,11 @@ export function createOwnedCheckpointWitness({ maxTurns, signal, forwardedReason
         if (terminal) fail('terminal')
         const subtype = event.subtype === 'error_during_execution' && Number.isSafeInteger(event.num_turns) && event.num_turns > 0 || maxTurns === 1 && seen.size === 1 && event.subtype === 'error_max_turns' && event.num_turns === 2
         const errors = Array.isArray(event.errors) && event.errors.length > 0 && event.errors.length <= 64 && event.errors.every(value => typeof value === 'string' && value.length <= 1048576) ? event.errors : undefined
-        terminal = { matches: Boolean(intent && acknowledged && event.session_id === session && subtype && event.is_error === true && event.terminal_reason === 'aborted_tools' && errors), errors: errors?.slice() }
+        // Independently recorded public native tuple, not a production receipt.
+        // Unknown streaming errors remain unqualified even after an interrupt.
+        const completeToolStreamAbort = event.terminal_reason === 'aborted_streaming' && event.subtype === 'error_during_execution' && errors?.length === 1 && errors[0] === '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'
+        const reason = event.terminal_reason === 'aborted_tools' ? 'aborted_tools' : completeToolStreamAbort ? 'aborted_streaming' : undefined
+        terminal = { matches: Boolean(intent && acknowledged && event.session_id === session && subtype && event.is_error === true && reason && errors), reason, errors: errors?.slice() }
       }
     },
     interruptRequested() {
@@ -139,7 +143,7 @@ export function createOwnedCheckpointWitness({ maxTurns, signal, forwardedReason
     summary() {
       const hookResultsMatch = hooksMatch() && [...hooks.values()].every(hook => hook.returned && hook.forwarded && !hook.failed)
       const qualified = Boolean(calls === 1 && !fault && intent && acknowledged && controlSettled && terminal?.matches && errorMatched && finished && closeCalls > 0 && !closeFailed && complete() && hookResultsMatch && results.size === intent.ids.length && intent.ids.every(tool => results.has(tool)) && intent.session === session && intent.generation === current.id && intent.uuid === current.uuid)
-      return { protocol: 'owned-interrupt-v1', requested: calls > 0, calls, acknowledged, controlSettled, iteratorErrorMatched: errorMatched, iteratorSettled: finished, closeObserved: closeCalls > 0, closeFailed, completeGeneration: complete(), hookResultsMatch, denialResults: results.size, denialResultsBeforeHookSettlement, generations: seen.size, tools: intent?.ids.length ?? 0, fault: fault ?? null, qualified }
+      return { protocol: 'owned-interrupt-v1', requested: calls > 0, calls, acknowledged, controlSettled, iteratorErrorMatched: errorMatched, iteratorSettled: finished, closeObserved: closeCalls > 0, closeFailed, completeGeneration: complete(), hookResultsMatch, denialResults: results.size, denialResultsBeforeHookSettlement, generations: seen.size, tools: intent?.ids.length ?? 0, terminalReason: terminal?.matches ? terminal.reason : null, fault: fault ?? null, qualified }
     },
   }
 }
@@ -150,5 +154,6 @@ export function ownedCheckpointNativeResult(row, { sdkVersion, nativeVersion }) 
   if (!g?.completeGenerationIds || g.overflow || g.missingGenerationIds || g.missingToolIds || g.conflictingToolOwners || g.uncorrelatedHooks || g.overlappingStreamStarts || g.uncorrelatedStopEvents || !Number.isSafeInteger(row.maxTurns) || row.maxTurns < 1 || !Number.isSafeInteger(g.distinctGenerations) || g.distinctGenerations < 1 || g.distinctGenerations > row.maxTurns || !row.resultFlagValid || !row.sdkToolHookCustody) return false
   if (!stop || stop.protocol !== 'owned-interrupt-v1') return false
   if (!stop.requested) return row.resultSubtype === 'success' && row.resultIsError === false
-  return stop.qualified === true && stop.generations === g.distinctGenerations && stop.tools === row.toolCount && row.explicitlyDroppedSdkToolCount === 0 && row.canonicalHttpToolTerminal === true && row.resultIsError === true && row.terminalReason === 'aborted_tools' && (row.resultSubtype === 'error_during_execution' || row.maxTurns === 1 && row.resultSubtype === 'error_max_turns' && row.nativeTurns === 2)
+  if (row.terminalReason === 'aborted_streaming' && !['2.1.284', '2.1.296'].includes(nativeVersion)) return false
+  return stop.qualified === true && stop.generations === g.distinctGenerations && stop.tools === row.toolCount && row.explicitlyDroppedSdkToolCount === 0 && row.canonicalHttpToolTerminal === true && row.resultIsError === true && row.terminalReason === stop.terminalReason && ['aborted_tools', 'aborted_streaming'].includes(row.terminalReason) && (row.resultSubtype === 'error_during_execution' || row.terminalReason === 'aborted_tools' && row.maxTurns === 1 && row.resultSubtype === 'error_max_turns' && row.nativeTurns === 2)
 }

@@ -29,6 +29,31 @@ function fixture(cap = 4) {
 }
 
 describe('independent owned interrupt observer', () => {
+  const diagnostic = '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'
+  function streamFinish(f: ReturnType<typeof fixture>, changes: Record<string, unknown> = {}) {
+    f.witness.interruptSettled(true); f.settle(1); f.result(1)
+    f.terminal({ subtype: 'error_during_execution', terminal_reason: 'aborted_streaming', num_turns: 3, errors: [diagnostic], ...changes })
+    f.witness.iteratorError(new Error('Claude Code returned an error result: ' + diagnostic)); f.witness.iteratorSettled(); f.witness.close()
+  }
+  it('independently binds the captured complete-stream abort without a product receipt', () => {
+    for (const cap of [1, 4]) {
+      const f = fixture(cap); f.complete(); f.intent(); streamFinish(f)
+      expect(f.witness.summary()).toMatchObject({ qualified: true, terminalReason: 'aborted_streaming', iteratorErrorMatched: true, completeGeneration: true, hookResultsMatch: true })
+    }
+  })
+  it('rejects altered or unrelated native stream-abort diagnostics', () => {
+    for (const changes of [{ errors: ['ordinary streaming error'] }, { errors: [diagnostic, 'another failure'] }, { errors: [diagnostic + ' '] }, { subtype: 'error_max_turns', num_turns: 2 }]) {
+      const f = fixture(); f.complete(); f.intent(); streamFinish(f, changes)
+      expect(f.witness.summary().qualified).toBe(false)
+    }
+  })
+  it('requires complete blocks, a retained hook and exact denial custody for the new terminal', () => {
+    const incomplete = fixture(); incomplete.complete(); incomplete.stream({ type: 'content_block_start', index: 8, content_block: { type: 'text' } }); incomplete.intent(); streamFinish(incomplete)
+    expect(incomplete.witness.summary().qualified).toBe(false)
+    const missing = fixture(); missing.complete(); missing.intent(); missing.witness.interruptSettled(true); missing.settle(1)
+    missing.terminal({ terminal_reason: 'aborted_streaming', errors: [diagnostic] }); missing.witness.iteratorError(new Error('Claude Code returned an error result: ' + diagnostic)); missing.witness.iteratorSettled(); missing.witness.close()
+    expect(missing.witness.summary().qualified).toBe(false)
+  })
   it('binds cap-one and cap-four stops including a prefix result before intent', () => {
     for (const cap of [1, 4]) {
       const f = fixture(cap); f.complete(); f.intent(); f.finish()
@@ -114,6 +139,17 @@ describe('versioned E72 qualification remains separate from legacy', () => {
     const f = fixture(); f.complete(); f.intent(); f.finish()
     return { ownedCheckpoint: f.witness.summary(), generations: { completeGenerationIds: true, distinctGenerations: 1 }, maxTurns: 4, resultFlagValid: true, sdkToolHookCustody: true, resultSubtype: 'error_during_execution', resultIsError: true, terminalReason: 'aborted_tools', nativeTurns: 4, canonicalHttpToolTerminal: true, explicitlyDroppedSdkToolCount: 0, toolCount: 2 }
   }
+  it('binds the new public terminal reason to its actual witness and only qualified native pins', () => {
+    const diagnostic = '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'
+    const f = fixture(); f.complete(); f.intent(); f.witness.interruptSettled(true); f.settle(1); f.result(1)
+    f.terminal({ terminal_reason: 'aborted_streaming', errors: [diagnostic], num_turns: 3 })
+    f.witness.iteratorError(new Error('Claude Code returned an error result: ' + diagnostic)); f.witness.iteratorSettled(); f.witness.close()
+    const value = { ...row(), ownedCheckpoint: f.witness.summary(), terminalReason: 'aborted_streaming', nativeTurns: 3 }
+    for (const nativeVersion of ['2.1.284', '2.1.296']) expect(ownedCheckpointNativeResult(value, { ...tuple, nativeVersion })).toBe(true)
+    expect(ownedCheckpointNativeResult(value, { ...tuple, nativeVersion: '2.1.295' })).toBe(false)
+    expect(ownedCheckpointNativeResult({ ...row(), terminalReason: 'aborted_streaming' }, tuple)).toBe(false)
+    expect(ownedCheckpointNativeResult({ ...value, terminalReason: 'aborted_tools' }, tuple)).toBe(false)
+  })
   it('qualifies the recorded source/installed tuples through both independent and HTTP custody', () => { for (const nativeVersion of ['2.1.284', '2.1.295', '2.1.296']) expect(ownedCheckpointNativeResult(row(), { ...tuple, nativeVersion })).toBe(true) })
   it('refuses receipt-only, missing HTTP/hook custody and unqualified versions', () => {
     const value = row()

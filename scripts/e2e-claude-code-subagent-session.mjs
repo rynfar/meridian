@@ -441,7 +441,7 @@ try {
               row.completed = true; row.resultSubtype = ['success', 'error_max_turns', 'error_during_execution'].includes(event.subtype) ? event.subtype : 'other'
               row.resultFlagValid = typeof event.is_error === 'boolean'
               row.resultIsError = row.resultFlagValid ? event.is_error : null; row.nativeTurns = event.num_turns
-              row.terminalReason = event.terminal_reason === undefined ? 'absent' : ['max_turns', 'aborted_tools'].includes(event.terminal_reason) ? event.terminal_reason : 'other'
+              row.terminalReason = event.terminal_reason === undefined ? 'absent' : ['max_turns', 'aborted_tools', 'aborted_streaming'].includes(event.terminal_reason) ? event.terminal_reason : 'other'
               row.estimatedCostUsd = Number.isFinite(event.total_cost_usd) ? event.total_cost_usd : null
             }
             yield event
