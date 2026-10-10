@@ -22,9 +22,11 @@ whole-diff adversarial review also corrected PowerShell's string-false coercion;
 six actual PowerShell acceptance controls pass. See
 [evidence and review](evidence/1323-auth-logout.md).
 
-Full local npm test is running, followed by standalone typecheck/build.
-Installed-package controls and final-head CI remain pending. No merge, source
-closure or release is claimed. Owner checkout/index/dirty bytes are unchanged.
+Full local npm test passes 5,560 / 0 fail / 35 skip across 21 invocations;
+standalone typecheck/build pass (Bun 1.3.11 / Node 22.22.3). Certified independent
+package default/profile native controls both pass, all 428 dist files match,
+zero model calls. Final-head CI remains pending. No merge, source closure or
+release is claimed. Owner checkout/index/dirty bytes are unchanged.
 
 # Upstream review handoff
 

@@ -74,15 +74,32 @@ behavior is for final-head CI's real Windows smoke, not a claim from Mac proof.
 
 ## Delivery gates
 
-Full local npm test, typecheck, build, installed-package negative controls and
-exact-head CI remain pending while this evidence record is assembled. No merge,
-source closure, publication or whole-backlog completion is claimed here. Owner
-HEAD, index, dirty file bytes/modes and status matched the preserved baseline.
+Final local npm test passes **5,560 / 0 fail / 35 skip**, across 21 isolated
+invocations. Standalone typecheck and build pass on Bun 1.3.11 / Node 22.22.3.
+All 61 auth-status tests pass, including the four added unavailable-answer
+controls. The gate observer captured code head `8bbba602`; subsequent `20664d1c`
+adds docs and the separately exercised Windows predicate only. Runtime/test and
+native-harness blobs match exactly. See [local verification](1323-auth-logout/LOCAL_VERIFICATION.json).
+
+A certified build from clean `20664d1c` was packed and installed independently,
+with lifecycle scripts disabled, empty npm configs and SDK pinned at 0.2.141.
+All 428 installed dist files equal the build; the same default/profile native
+logout assertions both pass, with joined roles and zero queries. Tarball SHA256:
+`08d0202984f6d2fe450daef2a75cbfeefafa84ba194b8b7e33049ca7e1dfd537`.
+[Package receipt](1323-auth-logout/PACKAGE_RECEIPT.json),
+[default result](1323-auth-logout/installed-default-after-result.json),
+[profile result](1323-auth-logout/installed-profile-after-result.json).
+This is a local test package, not publication. The final documentation-only
+checkpoint preserves tested executable blobs; final-head CI remains required.
+
+Exact-head CI is pending. No merge, source closure, publication or whole-backlog
+completion is claimed. Owner HEAD, index, dirty file bytes/modes and status
+matched the preserved baseline.
 
 The initial full run under Bun 1.3.11 / Node 22.0.0 failed the unchanged
 antigravity attachment test because that Node lacks transform-types. The same
 assertion reproduces on exact main; both main and candidate pass it on Node
-22.22.3. Its failure log is retained. The complete suite is being rerun under
+22.22.3. Its failure log is retained. The complete suite passed under
 Bun 1.3.11 / Node 22.22.3; no product test or assertion was weakened.
 
 An attempted parallel package build refused `inputs-changed` because proof
