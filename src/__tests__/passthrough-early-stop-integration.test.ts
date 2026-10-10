@@ -1307,19 +1307,20 @@ describe("Integration: passthrough early stop", () => {
   // trailing system reminder (assistant[tool_use] -> user[tool_result] ->
   // system[text]); the generic helpers reject role=system and forced a fresh
   // replay. Oh My Pi (adapter pi) produces the same tail when it upgrades a
-  // developer-origin note to a mid-conversation system turn. The opt-in must
-  // resume and deliver the reminder as user text.
+  // developer-origin note to a mid-conversation system turn, and OpenCode 2
+  // for an instruction update. The opt-in must resume and
+  // deliver the reminder as user text; Crush stands for every other adapter.
   const reminderCases = [false, true].flatMap(stream =>
-    ["claude-code", "pi", "opencode"].flatMap(adapter =>
+    ["claude-code", "pi", "opencode", "crush"].flatMap(adapter =>
       ["unchanged", "revised", "inserted"].flatMap(historyChange =>
         [false, true].map(image => ({ stream, adapter, historyChange, image })))))
   for (const { stream, adapter, historyChange, image } of reminderCases) {
-    it(`scopes trailing reminder checkpoint resume to Claude Code and pi (adapter=${adapter}, stream=${stream}, historyChange=${historyChange}, image=${image})`, async () => {
+    it(`scopes trailing reminder checkpoint resume to Claude Code, pi and OpenCode (adapter=${adapter}, stream=${stream}, historyChange=${historyChange}, image=${image})`, async () => {
       const sessionId = `cc-delta-${adapter}-${stream}-${historyChange}-${image}-${TEST_RUN_ID}`
       const resultContent = image
         ? [{ type: "text", text: "hi" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "test-image" } }]
         : "hi"
-      const headers = { "x-meridian-agent": adapter, "x-opencode-session": sessionId }
+      const headers = { "x-meridian-agent": adapter, [adapter === "crush" ? "x-session-id" : "x-opencode-session"]: sessionId }
       const initialSystemText = "You are Claude Code, Anthropic's official CLI for Claude."
       const trailingSystemText = "<system-reminder>Total tokens: 4151</system-reminder>"
       const toolTurn = assistantMessage([
@@ -1391,7 +1392,7 @@ describe("Integration: passthrough early stop", () => {
       expect(secondBody).toContain("the file says hi")
       expect(secondBody).not.toContain("CC_DELTA_GARBAGE_DIGEST")
 
-      const optsIn = adapter === "claude-code" || adapter === "pi"
+      const optsIn = adapter !== "crush"
       if (!optsIn || historyChange !== "unchanged") {
         expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
         expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
@@ -1524,23 +1525,26 @@ describe("Integration: passthrough early stop", () => {
   })
 
   // The gate is the adapter check in server.ts: the same wire shape on any
-  // other adapter gets no opt-in and stays a fresh replay.
-  it("stream: non-claude-code adapters never opt in — reminder shape stays a fresh replay", async () => {
+  // adapter outside the opt-in gets no exception and stays a fresh replay.
+  it("stream: adapters outside the opt-in never resume the reminder shape — it stays a fresh replay", async () => {
+    const sessionKey = `es-crush-gate-${TEST_RUN_ID}`
+    const crush = { "x-meridian-agent": "crush", "x-session-id": sessionKey }
     const toolTurn = assistantMessage([
-      { type: "tool_use", id: "oc-gate-tu1", name: "read", input: { file_path: "x" } },
+      { type: "tool_use", id: "crush-gate-tu1", name: "read", input: { file_path: "x" } },
     ])
 
-    // Turn 1 through the generic OpenCode adapter: arm the checkpoint.
-    mockMessages = [toolTurn, userDenyMessage("oc-gate-tu1")]
+    // Turn 1 through the Crush adapter: arm the checkpoint.
+    mockMessages = [toolTurn, userDenyMessage("crush-gate-tu1")]
     const first = await post(app, {
       model: "claude-sonnet-4-5",
       max_tokens: 400,
       stream: false,
       tools: [READ_TOOL],
       messages: [{ role: "user", content: "read gate x" }],
-    }, "es-oc-gate")
+    }, "es-crush-gate", crush)
     expect(first.status).toBe(200)
     await first.text()
+    expect(lookupSharedSession(sessionKey)?.passthroughToolCallIds).toEqual(["crush-gate-tu1"])
 
     // Turn 2: the accepted shape, but this adapter carries no opt-in.
     mockMessages = [assistantMessage([{ type: "text", text: "continued" }])]
@@ -1551,15 +1555,73 @@ describe("Integration: passthrough early stop", () => {
       tools: [READ_TOOL],
       messages: [
         { role: "user", content: "read gate x" },
-        { role: "assistant", content: [{ type: "tool_use", id: "oc-gate-tu1", name: "read", input: { file_path: "x" } }] },
-        { role: "user", content: [{ type: "tool_result", tool_use_id: "oc-gate-tu1", content: "hi" }] },
+        { role: "assistant", content: [{ type: "tool_use", id: "crush-gate-tu1", name: "read", input: { file_path: "x" } }] },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "crush-gate-tu1", content: "hi" }] },
         { role: "system", content: [{ type: "text", text: "<system-reminder>Tokens: 4151</system-reminder>" }] },
       ],
-    }, "es-oc-gate")
+    }, "es-crush-gate", crush)
     expect(second.status).toBe(200)
     await second.text()
     expect(capturedQueryParamsAll[1].options.resume).toBeUndefined()
     expect(capturedQueryParamsAll[1].options.resumeSessionAt).toBeUndefined()
+  })
+
+  // OpenCode 2 sends an instruction update (here a changed AGENTS.md) as a
+  // native system update after the tool results, also when the user queued a
+  // message during the tool call.
+  it("non-stream: OpenCode instruction update after tool results and queued user text resumes the checkpoint", async () => {
+    const update = "The instructions changed:\nInstructions from: /repo/AGENTS.md\n# Rules\nRun the gate before pushing."
+    const toolTurn = assistantMessage([
+      { type: "thinking", thinking: "write the file", signature: "sig" },
+      { type: "tool_use", id: "oc-update-tu1", name: "write", input: { file_path: "AGENTS.md" } },
+    ])
+    mockMessages = [toolTurn, userDenyMessage("oc-update-tu1")]
+    const first = await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [{ role: "user", content: "rewrite AGENTS.md" }],
+    }, "es-oc-update")
+    expect(first.status).toBe(200)
+    await first.text()
+
+    mockMessages = [assistantMessage([{ type: "text", text: "rules updated" }])]
+    const requestId = `oc-update-turn2-${TEST_RUN_ID}`
+    expect((await post(app, {
+      model: "claude-sonnet-4-5",
+      max_tokens: 400,
+      stream: false,
+      tools: [READ_TOOL],
+      messages: [
+        { role: "user", content: "rewrite AGENTS.md" },
+        { role: "assistant", content: toolTurn.message.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: "oc-update-tu1", content: "Wrote file successfully." }] },
+        { role: "user", content: "then commit it" },
+        { role: "system", content: [{ type: "text", text: update, cache_control: { type: "ephemeral" } }] },
+      ],
+    }, "es-oc-update", { "x-request-id": requestId })).status).toBe(200)
+
+    const resumed = capturedQueryParamsAll[1]
+    expect(resumed.options.resume).toBe(initialManagedSessionId())
+    expect(resumed.options.resumeSessionAt).toBe(toolTurn.uuid)
+    expect(JSON.stringify(resumed.options.systemPrompt ?? "")).not.toContain("Run the gate before pushing.")
+    const promptMessages: any[] = []
+    for await (const message of resumed.prompt) promptMessages.push(message)
+    expect(promptMessages).toHaveLength(1)
+    expect(promptMessages[0].message.content).toEqual([
+      { type: "tool_result", tool_use_id: "oc-update-tu1", content: "Wrote file successfully." },
+      { type: "text", text: "then commit it" },
+      { type: "text", text: update },
+    ])
+
+    let row: any
+    for (let i = 0; i < 500 && !row; i++) {
+      row = telemetryStore.getRecent({ limit: 200 }).find((m: any) => m.requestId === requestId)
+      if (!row) await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    expect(row?.adapter).toBe("opencode")
+    expect(row?.isResume).toBe(true)
   })
 
   it("resumes pi 0.85+ tool checkpoint across mid-conversation effort system messages (#1047)", async () => {

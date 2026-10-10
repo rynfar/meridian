@@ -6233,7 +6233,7 @@ Run `bun scripts/e2e-duplicate-checkpoint.mjs` in both modes. The real model mus
 Run `bun scripts/e2e-settlement-proof.mjs` in both modes to verify revised history following a completed real tool checkpoint. Require the supplied decision in the SDK input and answer, unchanged source history, and a resumed ordinary follow-up. Keeping old completed checkpoints must not force future turns to replay.
 
 
-## Claude Code and Oh My Pi trailing system reminders
+## Claude Code, Oh My Pi and OpenCode trailing system reminders
 
 Run `bun scripts/e2e-claude-code-system-delta.mjs` in both modes (`--stream`); repeat with `E2E_MODEL=claude-sonnet-4-6` and the `--image` flag to validate a native image tool result followed by a reminder. Require the actual tool result, reminder identifier and optional image color in the answer, checkpoint resume, no reminder promoted into the SDK system prompt, and unchanged source history through supported `getSessionMessages`.
 
@@ -6242,6 +6242,8 @@ Repeat the direct gate with `--revise-history` and separately with `--insert-his
 Run the direct gate with `--blank-reminder` in both response modes, with and without `--image`. Whitespace-only text does not qualify for the narrow reminder exception: require fresh replay, the correct tool value/context and optional image color, and unchanged source history.
 
 Repeat every case above with `--agent pi`. Oh My Pi upgrades developer-origin notes (advisor, async results, todo nudges) to a mid-conversation `system` turn after tool results, producing the same tail. The gate sends `x-meridian-agent: pi` and additionally requires telemetry to record `adapter=pi`, so a pass cannot come from Claude Code detection.
+
+Repeat every case above with `--agent opencode`. OpenCode 2 sends instruction updates (a changed `AGENTS.md`, a date rollover, an MCP or skill catalog change) as a native mid-conversation `system` turn after tool results on models that accept system updates, producing the same tail. The gate sends `x-meridian-agent: opencode`, an OpenCode user agent and an `x-opencode-session` key, and requires telemetry to record `adapter=opencode`.
 
 Run `bun scripts/e2e-claude-code-client.mjs` for the full installed Claude Code 2.1.259 → Meridian → real SDK loop. `E2E_CLAUDE_CLIENT` can name that exact client binary. The fixture isolates the outer client's settings and enables its `CLAUDE_CODE_FORCE_MID_CONVERSATION_SYSTEM` flag; `--bare` suppresses the shape and is unsuitable. The real CLI reads a disposable fixture, sends its native `<total_tokens>` system reminder, then resumes for an ordinary follow-up. Require both proxy continuations to resume, delivery of both reminders to SDK user history, correct answers, and unchanged source history.
 

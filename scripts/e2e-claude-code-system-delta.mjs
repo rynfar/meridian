@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // Real SDK/HTTP gate for trailing-system checkpoint delivery: Claude Code by
-// default, Oh My Pi's mid-conversation system turn with `--agent pi`.
+// default, Oh My Pi's mid-conversation system turn with `--agent pi`, and
+// OpenCode 2's instruction update with `--agent opencode`.
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { mkdtempSync, realpathSync } from "node:fs"
@@ -30,7 +31,7 @@ const querySpy = spyOn(sdk, "query").mockImplementation(input => {
 
 const stream = process.argv.includes("--stream")
 const agent = process.argv.includes("--agent") ? process.argv[process.argv.indexOf("--agent") + 1] : "claude-code"
-assert(agent === "claude-code" || agent === "pi", `unsupported --agent ${agent}`)
+assert(["claude-code", "pi", "opencode"].includes(agent), `unsupported --agent ${agent}`)
 const image = process.argv.includes("--image")
 const reviseHistory = process.argv.includes("--revise-history")
 const insertHistory = process.argv.includes("--insert-history")
@@ -71,8 +72,9 @@ const tools = [{ name: "get_fixture", description: "Return a JavaScript fixture 
   input_schema: { type: "object", properties: {}, additionalProperties: false } }]
 async function request(messages) {
   const response = await fetch(`http://127.0.0.1:${address.port}/v1/messages`, {
-    method: "POST", headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.259",
-      ...(agent === "pi" ? { "x-meridian-agent": "pi" } : {}) },
+    method: "POST", headers: { "content-type": "application/json", "user-agent": agent === "opencode" ? "opencode/2.0.21" : "claude-cli/2.1.259",
+      ...(agent === "claude-code" ? {} : { "x-meridian-agent": agent }),
+      ...(agent === "opencode" ? { "x-opencode-session": key } : {}) },
     body: JSON.stringify({ model: process.env.E2E_MODEL ?? "claude-haiku-4-5-20251001", max_tokens: 200, stream, tools, messages, metadata: { user_id: JSON.stringify({ session_id: key }) } }),
     signal: AbortSignal.timeout(90_000),
   })

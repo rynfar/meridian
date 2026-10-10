@@ -184,12 +184,16 @@ export function allForwardedCallsResolved(tracker: EarlyStopTracker): boolean {
  */
 export interface CompleteToolResultContinuationOptions {
   /**
-   * NOTE: agent-specific (claude-code) — with its `mid-conversation-system`
-   * feature on (beta `mid-conversation-system-2026-04-07`; seen on 2.1.259
-   * and 2.1.261), claude-cli ends a tool-result delta with one trailing
-   * `system` reminder turn. The Messages contract has no system role, so the
-   * turn is admitted only here, only as the final message, only behind a
-   * single echo of the complete expected ID set, and is delivered as
+   * NOTE: agent-specific (claude-code, pi, opencode) — with its
+   * `mid-conversation-system` feature on (beta
+   * `mid-conversation-system-2026-04-07`; seen on 2.1.259 and 2.1.261),
+   * claude-cli ends a tool-result delta with one trailing `system` reminder
+   * turn; Oh My Pi upgrades developer-origin notes to the same turn, and
+   * OpenCode 2 (seen on 2.0.21) sends instruction updates (a changed
+   * AGENTS.md, a date rollover, an MCP or skill catalog change) the same way
+   * on models with native system updates. The Messages contract has no system
+   * role, so the turn is admitted only here, only as the final message, only
+   * behind a single echo of the complete expected ID set, and is delivered as
    * unprivileged user text after the results — never as an SDK system prompt.
    */
   allowTrailingSystemReminder?: boolean

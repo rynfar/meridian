@@ -2722,12 +2722,15 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
         const durableCheckpointIds = durableMappingAtTurn.status === "found"
           ? durableMappingAtTurn.session.passthroughToolCallIds
           : undefined
-        // NOTE: agent-specific (claude-code, pi) — trailing system reminder: claude-cli's
-        // mid-conversation-system feature, and Oh My Pi upgrading developer-origin notes to a
-        // mid-conversation `system` turn after tool results. Fresh replay already delivers the
-        // reminder as user text, so resuming only avoids rewriting the whole history cache.
-        // See allowTrailingSystemReminder.
-        const trailingSystemReminderOptions = adapterBase === "claude-code" || adapterBase === "pi"
+        // NOTE: agent-specific (claude-code, pi, opencode) — trailing system reminder: claude-cli's
+        // mid-conversation-system feature, Oh My Pi upgrading developer-origin notes to a
+        // mid-conversation `system` turn after tool results, and OpenCode 2 sending an instruction
+        // update (a changed AGENTS.md, a date rollover, an MCP or skill catalog change) as a native
+        // `system` update after tool results. Fresh replay already delivers the reminder as user
+        // text, so resuming only avoids rewriting the whole history cache. The opencode adapter is
+        // also the default for unrecognised clients: safety comes from the single echo of the
+        // exact pending tool IDs, not from knowing the client. See allowTrailingSystemReminder.
+        const trailingSystemReminderOptions = adapterBase === "claude-code" || adapterBase === "pi" || adapterBase === "opencode"
           ? { allowTrailingSystemReminder: true }
           : undefined
         const durableCheckpointContinuation = durableCheckpointIds?.length
