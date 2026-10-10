@@ -1,3 +1,11 @@
+## Telemetry #1328 bounded correction — 2026-10-10
+
+The authored source `f1418967` is incorporated as `a996d282`; maintainer source/escrow checkpoint `52ebd351` preserves contributor credit and fixes fixture joins plus the per-write blocking description. The identical short-lock control fails current main; 26 focused tests pass. Full local gates pass 5,562 tests / zero failures / 35 skips, standalone typecheck and build with Bun 1.3.11 / Node 22.22.3. Real Linux x64 denial-path HTTP controls retain 1/6 contended rows before versus 6/6 after, with 2/2 ordinary rows on both sides. The same final escrow/source hashes were executed, all direct children/pipes joined, and final counts follow shutdown. Stronger stress and startup failures are preserved explicitly. [Evidence and root adversarial review](evidence/1328-telemetry-busy.md) qualify the remaining long-lock/drop/latency limits; no actual OpenCode-client or successful-model claim is made.
+
+Current delivery branch `codex/telemetry-busy-1328-20261010`, worktree `/Users/rynfar/repos/meridian-telemetry-busy-1328-20261010`, base `85db81fee`. Final-head CI, merge, contributor credit on the landed commit and unchanged source closure remain required. No release is authorized.
+
+Logout #1331 is delivered as `85db81fee`: its landed tree exactly matches reviewed `19420c341`, all seven executed final-head CI checks succeeded, GitHub recognizes Nowaker's human credit, and unchanged source #1323 was closed. The clean auth worktree was removed and validated head archived. Extra Usage #1327's separate corrected checkpoint `15dc930e` passes 5,572 local tests plus typecheck/build but retains real-provider/final-CI holds; its clean worktree was removed while its branch and `refs/archive/extra-usage1327/checkpoint-20261010` retain every commit. #1211/#1322 remain owner-deferred. The unfinished #1219 native WIP stays preserved in its existing worktree. Owner checkout/index/dirty bytes remain unchanged. The latest managed snapshot before this integration has 32 PRs and 22 issues across six discovered repositories; this is not a cleared queue.
+
 ## Active credentialless logout integration — 2026-10-10
 
 Selected #1323 after current oldest-item revalidation: #917/#933 have no new
