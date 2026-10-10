@@ -102,6 +102,7 @@ function messagesRequest(options: {
   stream?: boolean
   messages?: Array<{ role: string; content: unknown }>
   signal?: AbortSignal
+  headers?: Record<string, string>
 }) {
   const identity: Record<string, string> = { session_id: options.sessionId }
   if (options.parentSessionId) identity.parent_session_id = options.parentSessionId
@@ -112,6 +113,7 @@ function messagesRequest(options: {
       // Prime Agent's User-Agent is the generic Anthropic SDK one, so the
       // adapter is selected explicitly — exactly as the provider config does.
       "x-meridian-agent": "prime",
+      ...options.headers,
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
@@ -393,6 +395,37 @@ describe("parent-to-child cancellation", () => {
 
     calls[1]!.controller!.abort("test cleanup")
     await unlinkedResponse
+  })
+
+  it("does not cancel the session's children when an auxiliary request on it aborts", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const auxiliaryAbort = new AbortController()
+
+    behaviors = ["hang", "hang"]
+    const childStarted = queryStarted()
+    const childResponse = app.fetch(messagesRequest({ sessionId: CHILD, parentSessionId: PARENT }))
+    await childStarted
+
+    // A side call on the parent's key (#1288) is not the parent's turn; its
+    // client going away says nothing about the parent's children.
+    const auxiliaryStarted = queryStarted()
+    const auxiliaryResponse = app.fetch(messagesRequest({
+      sessionId: PARENT,
+      signal: auxiliaryAbort.signal,
+      headers: { "x-meridian-agent": "claude-code", "x-claude-code-request-class": "auxiliary" },
+    }))
+    await auxiliaryStarted
+
+    auxiliaryAbort.abort("client hung up")
+    await settle()
+
+    expect(calls[1]!.controller!.signal.aborted).toBe(true)
+    expect(calls[0]!.controller!.signal.aborted).toBe(false)
+    expect(processSessionTree.stats().cancelledDescendants).toBe(0)
+    await auxiliaryResponse
+
+    calls[0]!.controller!.abort("test cleanup")
+    await childResponse
   })
 
   it("counts propagated cancellations on /telemetry/summary", async () => {

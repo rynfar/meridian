@@ -2,7 +2,7 @@
  * Tests for SDK parameter passthrough fields in buildQueryOptions.
  */
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { buildQueryOptions, SCRATCHPAD_COUNTER_INSTRUCTION, type QueryContext } from "../proxy/query"
+import { buildQueryOptions, promptCachingDisabled, SCRATCHPAD_COUNTER_INSTRUCTION, type QueryContext } from "../proxy/query"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../proxy/tools"
 
 function makeContext(overrides: Partial<QueryContext> = {}): QueryContext {
@@ -198,5 +198,23 @@ describe("scratchpad suppression (#627, #1049)", () => {
       ? result.options.systemPrompt
       : (result.options.systemPrompt as any)?.append
     expect(prompt ?? "").not.toContain(SCRATCHPAD_COUNTER_INSTRUCTION)
+  })
+})
+
+describe("promptCachingDisabled", () => {
+  it("parses values the way the CLI's boolean env parser does", () => {
+    for (const value of ["1", "true", "TRUE", "yes", "on", " true ", "1\n"]) {
+      expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING: value })).toBe(true)
+    }
+    for (const value of [undefined, "", "0", "false", "no", "off", "enabled"]) {
+      expect(promptCachingDisabled({ DISABLE_PROMPT_CACHING: value })).toBe(false)
+    }
+  })
+
+  it("treats any per-family switch as disabling, whatever the model is named", () => {
+    for (const family of ["HAIKU", "SONNET", "OPUS", "FABLE", "MYTHOS"]) {
+      expect(promptCachingDisabled({ [`DISABLE_PROMPT_CACHING_${family}`]: " on " })).toBe(true)
+      expect(promptCachingDisabled({ [`DISABLE_PROMPT_CACHING_${family}`]: "0" })).toBe(false)
+    }
   })
 })

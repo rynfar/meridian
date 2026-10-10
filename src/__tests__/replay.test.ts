@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
-import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders } from "../proxy/replay"
+import { flattenAssistantContent, normalizeStructuredUserContent, replayToolResultHeader, frameStructuredReplay, coalesceStructuredUserMessages, coalesceTrailingSystemReminders, layoutReplayBlocks, type ReplayPart } from "../proxy/replay"
+import { frameReplayTurns } from "../proxy/messages"
 
 describe("trailing system reminders in a live user turn", () => {
   it("keeps earlier history and combines multiple terminal reminders in order without editing input", () => {
@@ -174,5 +175,111 @@ describe("faithful tool history rendering", () => {
     expect(textOf(blocks.at(-1))).toContain("current client turn contains exactly 1 image, 0 documents, and 0 files")
     expect(textOf(blocks.at(-1))).toContain("Earlier replayed turns contain 1 image, 1 document, and 1 file")
     expect(source).toEqual(before)
+  })
+})
+
+describe("cache-friendly replay layout", () => {
+  const part = (text: string, clientMarked = false): ReplayPart => ({ text, clientMarked })
+  const joined = (turns: Array<{ role: string; parts: ReplayPart[] }>) =>
+    frameReplayTurns(turns.map(t => ({ role: t.role, text: t.parts.map(p => p.text).filter(Boolean).join("\n") })))
+  const text = (blocks: ReturnType<typeof layoutReplayBlocks>) => blocks.map(b => b.text).join("")
+  const marked = (blocks: ReturnType<typeof layoutReplayBlocks>) => blocks.flatMap((b, i) => b.cache_control ? [i] : [])
+  // Working history whose last assistant turn the client marked, then a
+  // caption appended to the tool result of the live turn.
+  const caption = (steps: number, captionText: string) => {
+    const turns: Array<{ role: string; parts: ReplayPart[] }> = [{ role: "user", parts: [part("Read the files.")] }]
+    for (let i = 1; i <= steps; i++) {
+      turns.push({ role: "assistant", parts: [part(`[Assistant: Read f${i}]`, i === steps)] })
+      if (i < steps) turns.push({ role: "user", parts: [part(`result ${i}`)] })
+    }
+    turns.push({ role: "user", parts: [part(`result ${steps}`), part(captionText)] })
+    return turns
+  }
+
+  it("renders exactly the text of the single-string replay", () => {
+    const framed = caption(3, "Describe...")
+    expect(text(layoutReplayBlocks(framed))).toBe(joined(framed))
+    const single = [{ role: "user", parts: [part("<transcript>"), part("", true), part("step", true), part("action", true)] }]
+    expect(text(layoutReplayBlocks(single))).toBe(joined(single))
+    const assistantLast = [{ role: "user", parts: [part("q")] }, { role: "assistant", parts: [part("a")] }]
+    expect(text(layoutReplayBlocks(assistantLast))).toBe(joined(assistantLast))
+  })
+
+  it("marks the client's history breakpoint and keeps that prefix when the tail changes or history grows", () => {
+    const first = layoutReplayBlocks(caption(3, "Describe..."))
+    const [at] = marked(first)
+    expect(marked(first)).toHaveLength(1)
+    expect(first[at!]!.text).toContain("Read f3")
+    const strip = (bs: typeof first) => bs.map(({ cache_control: _cc, ...b }) => b)
+    for (const next of [layoutReplayBlocks(caption(3, "Previous: changed")), layoutReplayBlocks(caption(6, "Previous: grown"))]) {
+      expect(strip(next).slice(0, at! + 1)).toEqual(strip(first).slice(0, at! + 1))
+    }
+  })
+
+  it("marks the boundary before the classifier's volatile action in the live turn", () => {
+    const classifier = (steps: number) => [
+      { role: "user", parts: [part("CLAUDE.md", true)] },
+      { role: "user", parts: [part("<transcript>"), ...Array.from({ length: steps }, (_, i) => part(`step ${i}`, i === steps - 1)), part("new action", true), part("</transcript>"), part("Err on the side of blocking.")] },
+    ]
+    const blocks = layoutReplayBlocks(classifier(2))
+    expect(marked(blocks)).toEqual([3])
+    expect(blocks[3]!.text).toBe("\nstep 1")
+    expect(blocks.slice(0, 4).map(b => b.text)).toEqual(layoutReplayBlocks(classifier(4)).slice(0, 4).map(b => b.text))
+  })
+
+  // Shaped like Claude Code's auto-mode classifier: an optional CLAUDE.md
+  // message (marked), then the transcript. The last transcript entry and the
+  // action under review are marked; the closing instruction is not. Default
+  // mode sends transcript and instruction as one message; segmented mode sends
+  // one message per transcript block and the instruction on its own. An action
+  // reviewed in call N is a transcript entry in call N+1.
+  const classifierCall = (entries: string[], action: string, segmented: boolean, claudeMd = true) => {
+    const body = [part("<transcript>"), ...entries.map((e, i) => part(e, i === entries.length - 1)), part(action, true), part("</transcript>")]
+    const user = (parts: ReplayPart[]) => ({ role: "user", parts })
+    return [
+      ...(claudeMd ? [user([part("CLAUDE.md", true)])] : []),
+      ...(segmented
+        ? [...body.map(p => user([p])), user([part("Err on the side of blocking.")])]
+        : [user([...body, part("Err on the side of blocking.")])]),
+    ]
+  }
+  const strip = (bs: ReturnType<typeof layoutReplayBlocks>) => bs.map(({ cache_control: _cc, ...b }) => b)
+
+  for (const segmented of [false, true]) for (const claudeMd of [true, false]) {
+    it(`marks the classifier's transcript end, not the action (${segmented ? "segmented" : "default"}, ${claudeMd ? "with" : "without"} CLAUDE.md)`, () => {
+      const first = layoutReplayBlocks(classifierCall(["entry 1", "entry 2"], "action A", segmented, claudeMd))
+      expect(marked(first)).toHaveLength(1)
+      const at = marked(first)[0]!
+      expect(first[at]!.text).toContain("entry 2")
+      // Next call: action A is now a transcript entry, more work follows.
+      const next = layoutReplayBlocks(classifierCall(["entry 1", "entry 2", "action A", "entry 3", "entry 4"], "action B", segmented, claudeMd))
+      expect(strip(next).slice(0, at + 1)).toEqual(strip(first).slice(0, at + 1))
+      expect(next[marked(next)[0]!]!.text).toContain("entry 4")
+    })
+  }
+
+  it("keeps the prefix of a caption sent as its own user message after the marked assistant reply", () => {
+    // The client marks the last block of the message before the caption.
+    const history = (n: number) => Array.from({ length: n }, (_, i) => [
+      { role: "user", parts: [part(`request ${i}`)] },
+      { role: "assistant", parts: [part(`[Assistant: reply ${i}]`)] },
+    ]).flat()
+    const call = (n: number, captionText: string) => {
+      const turns = history(n)
+      turns[turns.length - 1] = { role: "assistant", parts: [part(`[Assistant: reply ${n - 1}]`, true)] }
+      return [...turns, { role: "user", parts: [part(captionText)] }]
+    }
+    const first = layoutReplayBlocks(call(3, "Describe..."))
+    const at = marked(first)[0]!
+    expect(first[at]!.text).toContain("reply 2")
+    for (const next of [call(3, "Previous: x"), call(6, "Previous: y")]) {
+      expect(strip(layoutReplayBlocks(next)).slice(0, at + 1)).toEqual(strip(first).slice(0, at + 1))
+    }
+  })
+
+  it("falls back to the end of the history without client markers, and to no marker without history", () => {
+    const turns = [{ role: "user", parts: [part("q1")] }, { role: "assistant", parts: [part("a1")] }, { role: "user", parts: [part("caption")] }]
+    expect(marked(layoutReplayBlocks(turns))).toEqual([1])
+    expect(marked(layoutReplayBlocks([{ role: "user", parts: [part("only"), part("tail", true)] }]))).toEqual([])
   })
 })
