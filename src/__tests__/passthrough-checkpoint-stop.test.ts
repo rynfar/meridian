@@ -214,6 +214,66 @@ describe("attempt-owned passthrough checkpoint stop", () => {
     await state.stop.retire()
   })
 
+  for (const [label, input, changed] of [
+    ["wide array", { values: Array.from({ length: 32_768 }, (_, index) => index) }, { values: Array.from({ length: 32_768 }, (_, index) => index === 32_767 ? -1 : index) }],
+    ["large string", { text: "x".repeat(1_048_577) }, { text: "x".repeat(1_048_576) + "y" }],
+    ["deep object", Array.from({ length: 256 }).reduce<unknown>(child => ({ child }), { leaf: true }), Array.from({ length: 256 }).reduce<unknown>(child => ({ child }), { leaf: false })],
+  ] as const) {
+    it(`retains the full owned checkpoint for valid JSON with a ${label}`, async () => {
+      const state = await acknowledged({ input: JSON.parse(JSON.stringify(input)) })
+      state.stop.observe(result())
+      expect(state.interrupts()).toBe(1)
+      expect(state.stop.acceptsIteratorError(nativeError())).toBe(true)
+      await state.stop.retire()
+      expect(state.stop.receipt.qualified).toBe(true)
+    })
+    it(`refuses a changed leaf in a ${label}`, async () => {
+      const state = setup(); generation(state.stop, { input })
+      await state.stop.holdDeniedHook(hook("tool-a", input), denied)
+      await state.stop.holdDeniedHook(hook("tool-b", changed), denied)
+      expect(state.interrupts()).toBe(0); expect(state.stop.failed).toBe(true)
+      await state.stop.retire()
+    })
+  }
+
+  it("distinguishes escaped keys, array nesting and lone surrogates", async () => {
+    for (const [input, changed] of [
+      [{ text: "\ud800" }, { text: "\ufffd" }],
+      [{ "a\":1,\"b": 2 }, { a: 1, b: 2 }],
+      [{ values: [[1, 2], [3]] }, { values: [[1], [2, 3]] }],
+    ]) {
+      const state = setup(); generation(state.stop, { input })
+      await state.stop.holdDeniedHook(hook("tool-a", input), denied)
+      await state.stop.holdDeniedHook(hook("tool-b", changed), denied)
+      expect(state.interrupts()).toBe(0); expect(state.stop.failed).toBe(true)
+      await state.stop.retire()
+    }
+  })
+
+  it("permits shared acyclic values and null-prototype JSON objects", async () => {
+    const leaf = { b: 2, a: 1 }
+    const input = Object.assign(Object.create(null), { left: leaf, right: leaf })
+    const state = await acknowledged({ input })
+    state.stop.observe(result()); expect(state.stop.acceptsIteratorError(nativeError())).toBe(true)
+    await state.stop.retire()
+  })
+
+  it("rejects non-JSON values, cycles, sparse arrays and accessors without invoking them", async () => {
+    const cycle: Record<string, unknown> = {}; cycle.self = cycle
+    const extra = [1]; Object.assign(extra, { unexpected: 2 })
+    let reads = 0
+    const accessor = Object.defineProperty({}, "value", { enumerable: true, get() { reads++; return 1 } })
+    for (const input of [cycle, [1, , 3], new Array(1), extra, accessor,
+      { value: undefined }, { value: NaN }, { value: Infinity }, { value: 1n },
+      { value: () => 1 }, new Date(), Object.create({ inherited: 1 })]) {
+      const state = setup()
+      expect(() => generation(state.stop, { input })).toThrow(PassthroughCheckpointStopError)
+      expect(state.interrupts()).toBe(0); expect(state.stop.failed).toBe(true)
+      await state.stop.retire()
+    }
+    expect(reads).toBe(0)
+  })
+
   it("refuses a matching tool/input hook from another session", async () => {
     const state = setup(); generation(state.stop)
     await state.stop.holdDeniedHook({ ...hook("tool-a"), session_id: "another-session" }, denied)

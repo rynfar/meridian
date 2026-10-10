@@ -3,17 +3,36 @@
 // are correlated privately; summaries expose no IDs, inputs or native prose.
 const id = value => typeof value === 'string' && value.length > 0 && value.length <= 256
 function identity(value) {
-  let budget = 16384
-  function encode(item, depth) {
-    if (--budget < 0 || depth > 64) throw new Error('bounded identity')
-    if (item === null || typeof item === 'boolean' || typeof item === 'string') return JSON.stringify(item)
-    if (typeof item === 'number' && Number.isFinite(item)) return JSON.stringify(item)
-    if (Array.isArray(item)) return '[' + Array.from(item, child => encode(child, depth + 1)).join(',') + ']'
-    if (!item || typeof item !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(item))) throw new Error('JSON identity')
-    return '{' + Object.keys(item).sort().map(key => JSON.stringify(key) + ':' + encode(item[key], depth + 1)).join(',') + '}'
-  }
-  try { const result = encode(value, 0); return result.length <= 1048576 ? result : undefined }
-  catch { return undefined }
+  // Independent structural token encoding, with an explicit work list rather
+  // than recursion. Never import the production identity or trust its receipt.
+  const work = [{ value }], active = new Set(), tokens = []
+  try {
+    while (work.length) {
+      const task = work.pop()
+      if ('leave' in task) { active.delete(task.leave); tokens.push('end'); continue }
+      if ('key' in task) { tokens.push(['key', task.key]); continue }
+      const item = task.value
+      if (item === null || ['string', 'boolean'].includes(typeof item) || typeof item === 'number' && Number.isFinite(item)) {
+        tokens.push(['scalar', item]); continue
+      }
+      if (!item || typeof item !== 'object' || active.has(item)) return undefined
+      const array = Array.isArray(item), keys = Object.keys(item)
+      if (array) {
+        if (keys.length !== item.length || keys.some((key, index) => key !== String(index))) return undefined
+      } else {
+        if (![Object.prototype, null].includes(Object.getPrototypeOf(item))) return undefined
+        keys.sort()
+      }
+      tokens.push(array ? 'array' : 'object'); active.add(item); work.push({ leave: item })
+      for (let index = keys.length - 1; index >= 0; index--) {
+        const key = keys[index], descriptor = Object.getOwnPropertyDescriptor(item, key)
+        if (!descriptor || !('value' in descriptor)) return undefined
+        work.push({ value: descriptor.value })
+        if (!array) work.push({ key })
+      }
+    }
+    return JSON.stringify(tokens)
+  } catch { return undefined }
 }
 
 export function createOwnedCheckpointWitness({ maxTurns, signal, forwardedReason, clientToolPrefix = 'mcp__oc__' }) {

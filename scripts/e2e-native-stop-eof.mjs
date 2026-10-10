@@ -4,6 +4,9 @@
  * --target-kind=source|installed, --evidence-dir, --claude-executable,
  * --expected-cli-version, --expected-head, --expected-core-sha256 and
  * --expected-sdk-sha256. Use a read-only, network-none owned Docker container;
+ * --matrix=inputs selects twelve wide/deep/large JSON controls instead of the
+ * default twelve EOF/tool-count/HTTP-mode cases. Each invocation admits at most
+ * 24 native Queries; both matrices retain the same handoff/history/custody gates.
  * supply a synthetic /etc/machine-id and writable /tmp plus evidence mount.
  * It clears inherited credentials and uses only a scripted loopback provider.
  * Direct protocol/SDK proof does not establish an actual coding-client/model
@@ -23,11 +26,23 @@ import { spawnSync } from 'node:child_process'
 const arg = name => process.argv.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3)
 const source = arg('source-root'), output = arg('evidence-dir'), cli = arg('claude-executable'), installed = arg('target-kind') === 'installed'
 assert(source && output && cli)
+const matrix = arg('matrix') ?? 'eof'
+assert(['eof', 'inputs'].includes(matrix), 'unknown native control matrix')
+const cases = matrix === 'eof'
+  ? [0, 150, 750].flatMap(eofDelayMs => [false, true].flatMap(stream => [1, 3].map(tools => ({ name: `eof-${eofDelayMs}-tools-${tools}-stream-${stream}`, eofDelayMs, stream, tools }))))
+  : [['small', 8], ['below-node-boundary', 16380], ['above-node-boundary', 16384], ['wide', 32768], ['deep', 256], ['large-string', 1048577]]
+    .flatMap(([inputKind, size]) => [false, true].map(stream => ({ name: `input-${inputKind}-stream-${stream}`, inputKind, size, stream, tools: 1, eofDelayMs: 0 })))
+function toolInput(state, ordinal) {
+  if (state.inputKind === 'deep') return { ordinal, payload: Array.from({ length: state.size }).reduce(child => ({ child }), { leaf: true }) }
+  if (state.inputKind === 'large-string') return { ordinal, payload: 'x'.repeat(state.size) }
+  if (state.inputKind) return { ordinal, values: Array.from({ length: state.size }, (_, index) => index) }
+  return { ordinal }
+}
 const expectedHead = arg('expected-head'), expectedCore = arg('expected-core-sha256'), expectedSdk = arg('expected-sdk-sha256')
 assert(/^[a-f0-9]{40}$/.test(expectedHead ?? '') && /^[a-f0-9]{64}$/.test(expectedCore ?? '') && /^[a-f0-9]{64}$/.test(expectedSdk ?? ''), 'explicit qualified build identities required')
 const root = await mkdtemp(join(tmpdir(), 'meridian-integrated-control-'))
 await mkdir(output, { recursive: true }); await writeFile(join(output, 'RESERVED'), '', { flag: 'wx' })
-const report = { kind: 'native-stop-provider-eof-causal-control', actualModelAcceptance: false, actualClientAcceptance: false, platform: `${process.platform}/${process.arch}`, bun: Bun.version, cases: [], outcome: 'INCOMPLETE', realCredentialReads: 0 }
+const report = { kind: 'native-stop-provider-eof-causal-control', matrix, plannedCases: cases.length, actualModelAcceptance: false, actualClientAcceptance: false, platform: `${process.platform}/${process.arch}`, bun: Bun.version, cases: [], outcome: 'INCOMPLETE', realCredentialReads: 0 }
 const inherited = { ...process.env }, initialCwd = process.cwd(), originalDebug = console.debug
 for (const key of Object.keys(process.env)) delete process.env[key]
 Object.assign(process.env, { PATH: inherited.PATH, HOME: root, TMPDIR: root, XDG_CACHE_HOME: join(root, '.cache'), CLAUDE_CONFIG_DIR: join(root, 'claude-config'), MERIDIAN_CONFIG_DIR: join(root, 'meridian-config'), MERIDIAN_SESSION_DIR: join(root, 'store'), MERIDIAN_CLAUDE_PATH: cli, MERIDIAN_PASSTHROUGH: '1', MERIDIAN_SESSION_GC_INTERVAL_MS: '0', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1', DISABLE_AUTOUPDATER: '1', OPENCODE_CLAUDE_PROVIDER_DEBUG: '1' })
@@ -59,7 +74,7 @@ async function nativeCensus() {
   return rows
 }
 function respond(body, state) {
-  const content = state.phase === 'tool' ? Array.from({ length: state.tools }, (_, ordinal) => ({ type: 'tool_use', id: `tool_${randomUUID()}`, name: state.nativeToolName, input: { ordinal: ordinal + 1 } })) : [{ type: 'text', text: 'fixture continuation complete' }]
+  const content = state.phase === 'tool' ? Array.from({ length: state.tools }, (_, ordinal) => ({ type: 'tool_use', id: `tool_${randomUUID()}`, name: state.nativeToolName, input: toolInput(state, ordinal + 1) })) : [{ type: 'text', text: 'fixture continuation complete' }]
   if (state.phase === 'tool') state.scriptedTools = content
   const message = { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model: body.model, content, stop_reason: state.phase === 'tool' ? 'tool_use' : 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: Math.max(1, content.length), cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }
   assert.equal(body.stream, true, 'native API transport unexpectedly changed')
@@ -99,7 +114,7 @@ async function request(state, messages) {
   const promise = (async () => {
     const response = await proxy.app.fetch(new Request('http://localhost/v1/messages', {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': 'fixture-noncredential', 'user-agent': 'opencode/1.0.0', 'x-opencode-agent': 'build', 'x-opencode-agent-mode': 'primary', 'x-opencode-session': state.clientSession },
-      body: JSON.stringify({ model: 'claude-sonnet-5-5', stream: state.stream, max_tokens: 1024, messages, tools: [{ name: 'read', description: 'Read a fixture record', input_schema: { type: 'object', properties: { ordinal: { type: 'integer' } }, required: ['ordinal'] } }] }),
+      body: JSON.stringify({ model: 'claude-sonnet-5-5', stream: state.stream, max_tokens: 1024, messages, tools: [{ name: 'read', description: 'Read a fixture record', input_schema: { type: 'object', properties: { ordinal: { type: 'integer' }, values: { type: 'array', items: { type: 'integer' } }, payload: {} }, required: ['ordinal'] } }] }),
     }))
     const text = await response.text(); assert.equal(response.status, 200, 'proxy HTTP request failed')
     return decode(text, state.stream)
@@ -163,13 +178,15 @@ try {
   }, error(error) { failure ??= error; return Response.json({ type: 'error', error: { type: 'invalid_request_error', message: 'scripted provider control failed' } }, { status: 400 }) } })
   const { createProxyServer } = await import(pathToFileURL(installed ? requireSource.resolve('@rynfar/meridian') : join(source, 'src/proxy/server.ts')).href)
   proxy = createProxyServer({ port: 0, host: '127.0.0.1', silent: true, profiles: [{ id: 'fixture', type: 'api', apiKey: 'fixture-noncredential', baseUrl: `http://127.0.0.1:${provider.port}` }], defaultProfile: 'fixture', pluginDir: join(root, 'empty-plugins'), pluginConfigPath: join(root, 'empty-plugins.json') })
-  for (const eofDelayMs of [0, 150, 750]) for (const stream of [false, true]) for (const tools of [1, 3]) {
-    active = { name: `eof-${eofDelayMs}-tools-${tools}-stream-${stream}`, eofDelayMs, tools, stream, clientSession: randomUUID(), marker: randomUUID(), phase: 'tool', phaseRequests: 0 }
+  for (const configuration of cases) {
+    const { stream, tools, eofDelayMs } = configuration
+    active = { ...configuration, clientSession: randomUUID(), marker: randomUUID(), phase: 'tool', phaseRequests: 0 }
     const state = active, startQualified = qualified.length
     const messages = [{ role: 'user', content: `${state.marker}: read the fixture records` }]
     const first = await request(state, messages)
     assert.equal(first.stop_reason, 'tool_use'); assert.equal(first.content.length, tools)
     assert(first.content.every((tool, index) => tool.type === 'tool_use' && tool.id === state.scriptedTools[index].id && tool.name === 'read' && tool.input.ordinal === index + 1), 'forwarded tool identity/input mismatch')
+    first.content.forEach((tool, index) => assert.deepEqual(tool.input, state.scriptedTools[index].input, 'complete forwarded input differs'))
     assert.equal(qualified.length, startQualified + 1, 'owned interruption not qualified through production orchestration')
     assert.deepEqual(qualified.at(-1), { mode: stream ? 'stream' : 'non_stream', acknowledged: true, qualified: true, generations: 1, tools })
     const entries = Object.values(store.readSessionStoreSnapshot()).filter(entry => entry.passthroughToolCallIds?.length === tools && state.scriptedTools.every(tool => entry.passthroughToolCallIds.includes(tool.id)))
@@ -189,12 +206,12 @@ try {
     assert.equal(blocks.filter(block => block.type === 'tool_result' && block.is_error).length, 0, 'denial tail retained in client continuation')
     assert.equal(JSON.stringify(await getSessionMessages(saved.claudeSessionId, { dir: root, limit: 100 })), JSON.stringify(before), 'original public source history changed')
     const census = await nativeCensus(); assert.equal(census.length, 0, 'native actor remains after HTTP terminal')
-    report.cases.push({ name: state.name, eofDelayMs, stream, tools, httpRequests: 2, nativeApiRounds: 2, interrupt: qualified.at(-1), publishedCheckpointUuidPresent: true, distinctDurableFork: true, realResultsExactlyOnce: true, noDenialTail: true, originalPublicHistoryUnchanged: true, nativeActorCensusEmpty: true })
+    report.cases.push({ name: state.name, eofDelayMs, stream, tools, inputKind: state.inputKind ?? 'ordinal', inputSize: state.size ?? null, inputBytes: Buffer.byteLength(JSON.stringify(state.scriptedTools[0].input)), completeForwardedInputMatched: true, httpRequests: 2, nativeApiRounds: 2, interrupt: qualified.at(-1), publishedCheckpointUuidPresent: true, distinctDurableFork: true, realResultsExactlyOnce: true, noDenialTail: true, originalPublicHistoryUnchanged: true, nativeActorCensusEmpty: true })
     if (failure) throw failure
   }
   const summaries = checkpointWitnesses.map(witness => witness.summary()); report.independentCheckpointObservers = summaries
-  assert.equal(summaries.length, 24, 'unexpected admitted SDK query count')
-  assert.equal(summaries.filter(row => row.requested).length, 12, 'unexpected public interrupt count')
+  assert.equal(summaries.length, cases.length * 2, 'unexpected admitted SDK query count')
+  assert.equal(summaries.filter(row => row.requested).length, cases.length, 'unexpected public interrupt count')
   assert(summaries.filter(row => row.requested).every(row => row.qualified), 'independent observer rejected actual stop')
   report.outcome = 'PASS'
 } catch (error) { failure ??= error; report.outcome = 'FAIL'; report.errorClass = error?.name ?? 'UnknownThrownValue'; report.failure = error.message }

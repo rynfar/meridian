@@ -2,14 +2,14 @@ import { describe, expect, it } from 'bun:test'
 import { createOwnedCheckpointWitness, ownedCheckpointNativeResult } from '../../scripts/lib/e2eOwnedCheckpoint.mjs'
 import { PASSTHROUGH_DENY_REASON } from '../proxy/passthroughDenial'
 
-function fixture(cap = 4) {
+function fixture(cap = 4, input?: unknown) {
   const abort = new AbortController()
   const witness = createOwnedCheckpointWitness({ maxTurns: cap, signal: abort.signal, forwardedReason: PASSTHROUGH_DENY_REASON })
   const session = 'private-session', generation = 'private-generation', uuid = 'private-uuid'
-  const content = [1, 2].map(number => ({ type: 'tool_use', id: `private-tool-${number}`, name: 'mcp__oc__Bash', input: { nested: { b: 2, a: 1 }, ordinal: number } }))
+  const content = [1, 2].map(number => ({ type: 'tool_use', id: `private-tool-${number}`, name: 'mcp__oc__Bash', input: input ?? { nested: { b: 2, a: 1 }, ordinal: number } }))
   const stream = (event: Record<string, unknown>) => witness.observe({ type: 'stream_event', session_id: session, event })
   const metadata = () => witness.observe({ type: 'assistant', session_id: session, uuid, message: { id: generation, content } })
-  const hook = (index: number, change: Record<string, unknown> = {}) => witness.hookStarted({ hook_event_name: 'PreToolUse', session_id: session, tool_use_id: content[index]!.id, tool_name: content[index]!.name, tool_input: { ordinal: index + 1, nested: { a: 1, b: 2 } }, ...change }, content[index]!.id)
+  const hook = (index: number, change: Record<string, unknown> = {}) => witness.hookStarted({ hook_event_name: 'PreToolUse', session_id: session, tool_use_id: content[index]!.id, tool_name: content[index]!.name, tool_input: input ?? { ordinal: index + 1, nested: { a: 1, b: 2 } }, ...change }, content[index]!.id)
   const settle = (index: number, output = { decision: 'block', reason: PASSTHROUGH_DENY_REASON }) => witness.hookSettled(content[index]!.id, output)
   const result = (index: number, change: Record<string, unknown> = {}) => witness.observe({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: content[index]!.id, is_error: true, ...change }] } })
   const terminal = (change: Record<string, unknown> = {}) => witness.observe({ type: 'result', session_id: session, subtype: cap === 1 ? 'error_max_turns' : 'error_during_execution', num_turns: cap === 1 ? 2 : 4, is_error: true, terminal_reason: 'aborted_tools', errors: ['private native failure'], ...change })
@@ -29,6 +29,39 @@ function fixture(cap = 4) {
 }
 
 describe('independent owned interrupt observer', () => {
+  for (const [label, input, changed] of [
+    ['wide array', { values: Array.from({ length: 32768 }, (_, index) => index) }, { values: Array.from({ length: 32768 }, (_, index) => index === 32767 ? -1 : index) }],
+    ['large string', { text: 'x'.repeat(1048577) }, { text: 'x'.repeat(1048576) + 'y' }],
+    ['deep object', Array.from({ length: 256 }).reduce<unknown>(child => ({ child }), { leaf: true }), Array.from({ length: 256 }).reduce<unknown>(child => ({ child }), { leaf: false })],
+  ] as const) {
+    it(`independently qualifies valid JSON with a ${label}`, () => {
+      const f = fixture(4, JSON.parse(JSON.stringify(input))); f.complete(); f.intent(); f.finish()
+      expect(f.witness.summary().qualified).toBe(true)
+    })
+    it(`independently refuses changed input with a ${label}`, () => {
+      const f = fixture(4, input); f.complete(); f.hook(0); f.settle(0); f.result(0)
+      f.hook(1, { tool_input: changed }); f.witness.interruptRequested(); f.finish()
+      expect(f.witness.summary().qualified).toBe(false)
+    })
+  }
+  it('rejects ambiguous structure and surrogate substitution independently', () => {
+    for (const [input, changed] of [[{ text: '\ud800' }, { text: '\ufffd' }], [{ 'a\":1,\"b': 2 }, { a: 1, b: 2 }], [{ a: [[1, 2], [3]] }, { a: [[1], [2, 3]] }]]) {
+      const f = fixture(4, input); f.complete(); f.hook(0); f.settle(0); f.result(0)
+      f.hook(1, { tool_input: changed }); f.witness.interruptRequested(); f.finish()
+      expect(f.witness.summary().qualified).toBe(false)
+    }
+  })
+  it('refuses cyclic/non-JSON/accessor inputs without reading accessors', () => {
+    const cycle: Record<string, unknown> = {}; cycle.self = cycle
+    const extra = [1]; Object.assign(extra, { extra: 1 })
+    let reads = 0
+    const accessor = Object.defineProperty({}, 'value', { enumerable: true, get() { reads++; return 1 } })
+    for (const input of [cycle, extra, [1, , 3], new Array(1), accessor, { value: undefined }, { value: NaN }, { value: Infinity }, { value: 1n }, new Date(), Object.create({ inherited: 1 })]) {
+      const f = fixture(4, input); f.complete(); f.intent(); f.finish()
+      expect(f.witness.summary().qualified).toBe(false)
+    }
+    expect(reads).toBe(0)
+  })
   const diagnostic = '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'
   function streamFinish(f: ReturnType<typeof fixture>, changes: Record<string, unknown> = {}) {
     f.witness.interruptSettled(true); f.settle(1); f.result(1)
