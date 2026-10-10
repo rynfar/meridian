@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url"
 import { ZodError } from "zod"
 import { detectBuildSource, getBuildInfo, isUpdateAvailable, type BuildInfo } from "./buildInfo"
 import { buildManifestSchema, readCertifiedBuild } from "./buildArtifacts"
-import { BuildProvenanceError, snapshotSource } from "./buildSnapshot"
+import { BuildProvenanceError, snapshotSource, sourceIdentity } from "./buildSnapshot"
 import { compareLocalBuilds, type BuildState, type BuildStatus } from "./localBuildInfo"
 import { createBuildObserver, observeInWorker } from "./buildObserver"
 
@@ -56,7 +56,9 @@ export function captureBuildRuntime(input: {
       captured = Object.freeze({ ...snapshot, source, kind: "source", displayVersion: `${snapshot.releaseVersion ?? snapshot.version}+source` })
     } catch (error) {
       unavailable(error)
-      captured = Object.freeze({ ...fallback, source, kind: "source" })
+      let identity = {}
+      try { identity = sourceIdentity(input.root) } catch (identityError) { unavailable(identityError) }
+      captured = Object.freeze({ ...fallback, ...identity, source, kind: "source" })
     }
   }
   const runtime = captured

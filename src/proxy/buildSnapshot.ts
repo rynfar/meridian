@@ -16,6 +16,27 @@ export function gitOutput(root: string, args: readonly string[], timeout = 2000)
   return result.stdout.trimEnd()
 }
 
+/** The commit a source tree runs, without its content fingerprint: what a
+ *  runtime still reports when the fingerprint does not fit its two-second
+ *  budget, as on a heavily loaded host. Not comparable, since a sha alone
+ *  cannot tell an edited tree from the one that started. */
+export function sourceIdentity(root: string) {
+  const git = (args: readonly string[]) => gitOutput(root, args)
+  if (realpathSync(git(["rev-parse", "--show-toplevel"])) !== realpathSync(root)) throw new BuildProvenanceError("invalid")
+  const sha = git(["rev-parse", "HEAD"])
+  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"])
+  let dirty: boolean | undefined
+  try { dirty = git(["status", "--porcelain=v1", "--untracked-files=all"]).length > 0 }
+  catch (error) { if (!(error instanceof BuildProvenanceError)) throw error }
+  let remote = ""
+  try { remote = git(["config", "--get", "remote.origin.url"]) }
+  catch (error) { if (!(error instanceof BuildProvenanceError)) throw error }
+  return {
+    sha, ...(branch !== "HEAD" ? { branch } : {}), ...(dirty !== undefined ? { dirty } : {}),
+    ...repositoryLinks(remote, branch !== "HEAD" ? branch : undefined, sha),
+  }
+}
+
 export function snapshotSource(root: string) {
   const budget = fingerprintBudget()
   const git = (args: readonly string[]) => gitOutput(root, args, Math.min(2000, budget.remainingMs()))

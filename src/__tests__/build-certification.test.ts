@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { closeSync, existsSync, mkdtempSync, mkdirSync, openSync, readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -75,6 +75,23 @@ describe("certified local builds", () => {
     while (loaded.status().state === "unknown" && performance.now() < deadline) await new Promise<void>(resolve => setImmediate(resolve))
     expect(loaded.status().state).toBe("source-changed")
     expect(loaded.info()).toEqual(initial)
+  })
+  test("a source tree whose fingerprint does not fit its budget still reports the commit it runs", () => {
+    const root = fixture()
+    // Over the per-file cap, so the fingerprint gives up exactly as it does when a loaded host runs out of time.
+    const oversized = join(root, "oversized.bin")
+    closeSync(openSync(oversized, "w"))
+    truncateSync(oversized, 65 * 1024 * 1024)
+    const info = runtime(root).info()
+    expect(info).toMatchObject({ kind: "source", branch: "main", dirty: true })
+    expect(info.sha).toBe(spawnSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim())
+    expect(info.sourceHash).toBeUndefined()
+  })
+  test("a directory nested in an unrelated repository reports no commit", () => {
+    const nested = join(fixture(), "nested")
+    mkdirSync(nested)
+    writeFileSync(join(nested, "package.json"), '{"version":"9.9.9"}')
+    expect(runtime(nested).info().sha).toBeUndefined()
   })
   test("a reachable tag older than package.json is not reported as the release base", () => {
     const root = fixture()
