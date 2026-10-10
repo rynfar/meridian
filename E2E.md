@@ -6284,6 +6284,21 @@ trimmed 12 messages (~3114 estimated tokens) and answered from the kept tail.
 not reproduced live, and neither was the reactive retry, which needs a real
 overflow from the model. Those remain covered only by the mocked envelope tests.
 
+Current caption source proof (2026-10-10 UTC) is retained in
+[the overlap/input-boundary packet](docs/maintenance/evidence/1211-caption-overlap-current-20261010/README.md).
+At clean537c4c87, both real native overlap orders require two live MCP samples,
+exact saved checkpoint fork, independent caption, immutable source history and
+all3 durable Reads once. Both orders/hints1, sequential/hints0 and disabled/hints1
+PASS on pinned Darwin arm64 / Claude Code2.1.292 / SDK0.2.141 / Bun1.3.11 /
+Opus5.5 client and exact1m backend. Source/private grant and scoped physical
+custody qualify; bundled package/private recovery/actual cancellation/reporter
+and global native absence remain separate. Full local6020/36/0 gates pass.
+A separate credential-free native control finds a new valid87KB input budget
+HTTP500 before owned intent. Correct it and escrow meaningful controls before
+source acceptance; preserve the failed legacy provider fixture and all inherited
+live/client/platform/package/whole-change/final-head CI holds. Passing caption
+cases do not erase this source finding.
+
 ## E71: Claude Code auto-mode classifier isolation
 
 **Purpose:** prove that the actual Claude Code auto-mode classifier can run

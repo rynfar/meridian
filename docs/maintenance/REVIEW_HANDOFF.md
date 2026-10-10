@@ -1,6 +1,54 @@
 # Upstream review handoff
 
-## Current oldest #1211 / existing #1322 complete-stream correction (2026-10-10 UTC)
+## Current caption source matrix and valid-input source hold (2026-10-10 UTC)
+
+Clean code537c4c87 strengthens the maintained overlap observer after root review
+found that MCP lifetime plus a later Read alone did not prove working lineage.
+Both actual forwarding orders now require one independent caption query, exact
+saved checkpoint fork/resume, immutable original supported SDK history and all
+three owned Reads exactly once; malformed/mismatched/duplicate/error controls
+remain refused. At most24 backend Queries are admitted per source fixture.
+
+[Current packet](evidence/1211-caption-overlap-current-20261010/README.md)
+preserves the limited prior R29 PASS and the stronger R31–R34 source proofs.
+Work-first/hints1, caption-first/hints1, sequential/hints0 and disabled/hints1
+all PASS on actual native Claude Code2.1.292 / SDK0.2.141 / Darwin arm64 /
+Bun1.3.11 / Node22.22.3. Exact Opus5.5 client and1m backend alias/pin/native
+labels independently match. Twenty-seven backend Queries in the four stronger
+arms. All observed gates/direct actors/iterators/stdio/callbacks/local sockets/
+listeners/writers/original parent join. Source/task access inputs remain exact;
+private task grants are removed after scoped audit. No agent login/refresh/write;
+secondary/global native descendant absence remains UNKNOWN.
+
+Full local gates at clean537c4c87: **6,020 pass /36 skip /zero fail**, all22
+isolated npm batches/pretest plus standalone typecheck/build; original controller
+and commands join. The initial TS2532 guard error is preserved and corrected
+before the unpushed maintainer commit is amended. Owner head/index/all12 dirty
+files and18 contributor raw Author/AuthorDate/full-message/ancestry records stay
+exact; expanded #1231 stays excluded.
+
+**New material source blocker:** [R35 review](evidence/1211-caption-overlap-current-20261010/round35/REVIEW.md)
+reproduces a valid87KB JSON tool input becoming HTTP500 solely at the checkpoint
+identity's16,384-node budget, before intent. Smaller real native source controls
+preserve exact input, handoff, fork/results/history and custody. Five scripted
+native Queries; zero grants/models/coding clients. Original failing classifier
+is preserved; a separate receipt qualifies the500 assertion suffix without a
+rerun. The guard-off legacy probe is a fixture400 on its legitimate second API
+round, not main/published baseline success. Correct identity handling and retain
+all ownership/cap/error/cancellation/retirement/join requirements before source
+acceptance; escrow the maintained wide/deep/malformed/mismatch control.
+
+Current host compiled core and frozen Linux artifact have distinct hashes;
+only tracked production source is unchanged. No binary/package equivalence is
+promoted. Remaining root/scoped/declared cancellation, parent HTTP-abort
+independence, private cache/children, baseline discovery, unknown reporter,
+installed caption/actual-client/platform, historical R11/R15 cause, native295,
+complete whole-change adversarial review and final-head CI holds remain. No
+native parent-agent identity is fabricated. Existing #1322 stays draft; source
+PRs/#1288 remain open. No new PR/worktree, merge, closure, release or comment.
+The full backlog goal is active; next correct the material input identity issue.
+
+## Prior oldest #1211 / existing #1322 complete-stream correction (2026-10-10 UTC)
 
 Clean source correction `34b49d82` fixes a bounded native failure: a complete
 forwarded tool generation can arrive while its provider SSE body remains open.

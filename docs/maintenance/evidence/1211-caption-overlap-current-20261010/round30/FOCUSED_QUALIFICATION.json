@@ -1,0 +1,23 @@
+{
+  "codeHead": "537c4c8740c23d58d3835884d00b1143e5ac7366",
+  "focusedTests": 12,
+  "assertions": 78,
+  "failures": 0,
+  "focusedTypecheckExit": 0,
+  "syntaxExit": 0,
+  "mappingAndCaptionCausalControls": "PASS",
+  "initialTypecheckFailure": {
+    "exit": 2,
+    "codes": [
+      "TS2532"
+    ],
+    "path": "scripts/e2e-claude-code-progress-captions/native-observations.ts",
+    "lines": [
+      65,
+      66
+    ],
+    "correction": "Explicit guard of the selected result; unpushed maintainer commit amended after typecheck passed"
+  },
+  "sourceRuntimeApplicationDeltaFrom34b49d82": false,
+  "wholeChangeAcceptance": "HELD"
+}

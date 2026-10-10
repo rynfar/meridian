@@ -1,0 +1,20 @@
+{
+  "controlMode": "legacy",
+  "controlQualified": false,
+  "productAcceptance": "HELD",
+  "originalDriverPid": 69497,
+  "originalAttachPid": 69500,
+  "originalAttachJoined": true,
+  "exit": 1,
+  "hostDeadlineExceeded": false,
+  "ownedContainerStoppedPidZero": true,
+  "ownedContainerRemoved": true,
+  "inputsUnchanged": true,
+  "probeOutcome": "FAIL",
+  "qualified": false,
+  "failureClass": null,
+  "realCredentialReads": 0,
+  "actualModelClientAcceptance": false,
+  "priorLiveFailureCauseEstablished": false,
+  "finishedUTC": "2026-10-10T05:30:36.000437+00:00"
+}

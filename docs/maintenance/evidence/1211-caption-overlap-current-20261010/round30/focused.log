@@ -1,0 +1,22 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/caption-native-observations.test.ts:
+(pass) Native caption model and physical custody observations > retains exact extended-context labels while rejecting provider prose [1.20ms]
+(pass) Native caption model and physical custody observations > requires the exact requested model, SDK alias, pin, native context and version [0.18ms]
+(pass) Native caption model and physical custody observations > can observe a physical join while model acceptance remains missing [0.07ms]
+(pass) Native caption model and physical custody observations > requires explicit finite positive iterator and close witnesses [0.04ms]
+(pass) Native caption model and physical custody observations > rejects replay, an unrelated checkpoint and an in-place resume [0.06ms]
+(pass) Native caption model and physical custody observations > requires the owned Read result exactly once and refuses an error copy [0.30ms]
+
+src/__tests__/caption-native-working-mapping.test.ts:
+(pass) native caption working mapping observer > observes an agent mutation while the root remains unchanged [2.42ms]
+(pass) native caption working mapping observer > ignores root changes when the agent slot is preserved [0.13ms]
+(pass) native caption working mapping observer > refuses a root, old concatenated slot, sibling or other profile as evidence [0.67ms]
+(pass) native caption working mapping observer > keeps a reserved-prefix main identity separate from the native agent [0.15ms]
+(pass) native caption working mapping observer > uses an exact raw slot for default and refuses a different profile [0.06ms]
+(pass) native caption working mapping observer > requires identity, profile and an own mapping entry [0.05ms]
+
+ 12 pass
+ 0 fail
+ 78 expect() calls
+Ran 12 tests across 2 files. [146.00ms]

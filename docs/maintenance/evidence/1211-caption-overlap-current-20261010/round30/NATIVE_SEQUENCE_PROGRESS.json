@@ -1,0 +1,46 @@
+{
+  "originalPid": 15337,
+  "sourceHead": "537c4c8740c23d58d3835884d00b1143e5ac7366",
+  "gateDriverPid": 99653,
+  "status": "WAITING_FOR_CONFIRMED_LOCAL_DRIVER",
+  "modelCallsBeforeGate": 0,
+  "cases": [
+    {
+      "case": "work-first",
+      "originalDriverPid": 47977,
+      "startUTC": "2026-10-10T05:24:17.771929+00:00",
+      "joined": true,
+      "exit": 0,
+      "qualified": true,
+      "finishUTC": "2026-10-10T05:25:21.573875+00:00"
+    },
+    {
+      "case": "caption-first",
+      "originalDriverPid": 50180,
+      "startUTC": "2026-10-10T05:25:21.576165+00:00",
+      "joined": true,
+      "exit": 0,
+      "qualified": true,
+      "finishUTC": "2026-10-10T05:26:25.237307+00:00"
+    },
+    {
+      "case": "sequential",
+      "originalDriverPid": 53445,
+      "startUTC": "2026-10-10T05:26:25.240559+00:00",
+      "joined": true,
+      "exit": 0,
+      "qualified": true,
+      "finishUTC": "2026-10-10T05:27:34.236513+00:00"
+    },
+    {
+      "case": "disabled",
+      "originalDriverPid": 58660,
+      "startUTC": "2026-10-10T05:27:34.238780+00:00",
+      "joined": true,
+      "exit": 0,
+      "qualified": true,
+      "finishUTC": "2026-10-10T05:28:36.847951+00:00"
+    }
+  ],
+  "startUTC": "2026-10-10T05:14:42.929808+00:00"
+}

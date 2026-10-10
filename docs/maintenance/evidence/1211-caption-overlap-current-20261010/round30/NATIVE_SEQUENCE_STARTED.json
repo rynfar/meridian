@@ -1,0 +1,9 @@
+{
+  "originalPid": 15337,
+  "sourceHead": "537c4c8740c23d58d3835884d00b1143e5ac7366",
+  "gateDriverPid": 99653,
+  "status": "WAITING_FOR_CONFIRMED_LOCAL_DRIVER",
+  "modelCallsBeforeGate": 0,
+  "cases": [],
+  "startUTC": "2026-10-10T05:14:42.929808+00:00"
+}

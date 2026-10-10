@@ -1,0 +1,445 @@
+{
+  "testedCodeHead": "537c4c8740c23d58d3835884d00b1143e5ac7366",
+  "sourceRuntimeBeforeCodeHead": "960e7337b18cd4e5439f36b3d575bd8d43d843f1",
+  "members": [
+    {
+      "path": "ACCEPTANCE_HOLDS.md",
+      "bytes": 1517,
+      "sha256": "122a75f07de5eababe7c496f422519a4ae1220f911ea1659f72867d15412871e"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5447,
+      "sha256": "7081e8235204e598e35eac4d312fe3fcf9e4948c86533d26b94d3c843d6e42b0"
+    },
+    {
+      "path": "ROOT_REVIEW.md",
+      "bytes": 3188,
+      "sha256": "f121048105d52dd7b084a3e302cfb6e55948d5e933fb822d5d88162ab61c46de"
+    },
+    {
+      "path": "round29/INVOCATION.json",
+      "bytes": 2476,
+      "sha256": "f5f9dd347a40ee494d79d85a1ea31ac6f623300b773ae3f95f49671462c0bc7c"
+    },
+    {
+      "path": "round29/OWNER_AUTHOR_BEFORE.json",
+      "bytes": 368,
+      "sha256": "bf8769ba86e149112b395f6484c75c9d6260bc2d1c0746173f4059c8762a8389"
+    },
+    {
+      "path": "round29/STARTED.json",
+      "bytes": 97,
+      "sha256": "9362ddb73954366fc56b40c27576d174ab363a639a2b1877d0ad8a24b9888163"
+    },
+    {
+      "path": "round29/TERMINAL.json",
+      "bytes": 2875,
+      "sha256": "a3a71c015036d500d4ad78b39b3401045d836ddffe45dc7026c818d4efce5633"
+    },
+    {
+      "path": "round29/parent-settlement.json",
+      "bytes": 987,
+      "sha256": "a4675e180412b77cbc04effdb00dd58ad70c40630886b6fccad7c513c80cb121"
+    },
+    {
+      "path": "round29/report.json",
+      "bytes": 271663,
+      "sha256": "876b86bb692f7f56d6650d91c2a49178aeae21536b9d43d2ebafa8beda3d3a34"
+    },
+    {
+      "path": "round29/run-current.py",
+      "bytes": 6964,
+      "sha256": "28340cdd2a546b14df654faf0172d6897fe90f0e7b00b953eb184103f59ccded"
+    },
+    {
+      "path": "round30/DELIVERY_QUALIFICATION.json",
+      "bytes": 641,
+      "sha256": "322b9fda240cc397ba16e728db55556d27cc6cce34654aa348f6a6bbdd8f0390"
+    },
+    {
+      "path": "round30/FOCUSED_QUALIFICATION.json",
+      "bytes": 628,
+      "sha256": "69288e0c2eab0387bbee9254d7dbe951ea0b5b4fd9e0ffc3f46c5a6cd501ec17"
+    },
+    {
+      "path": "round30/INPUT_COMPLEXITY_CONTROL.json",
+      "bytes": 669,
+      "sha256": "2922dcd22af4c92608c2e492404af3f022893c028aac3d118f5e2a4f3818f458"
+    },
+    {
+      "path": "round30/NATIVE_SEQUENCE_PROGRESS.json",
+      "bytes": 1248,
+      "sha256": "78c5bcac96a7649736ceeab9df03a874e2e02bc8075fb1fdb9d376255a0eaae9"
+    },
+    {
+      "path": "round30/NATIVE_SEQUENCE_STARTED.json",
+      "bytes": 257,
+      "sha256": "c0b764b3960b67bf717a0cc609fa4097ff8d80d00934655c9aa89a4126807e13"
+    },
+    {
+      "path": "round30/NATIVE_SEQUENCE_TERMINAL.json",
+      "bytes": 1349,
+      "sha256": "e02af54be64e6d3ae40639175c99805fdde85a80e808e89ad4293e5249a1cd6f"
+    },
+    {
+      "path": "round30/OWNER_AUTHOR_AFTER_NATIVE.json",
+      "bytes": 368,
+      "sha256": "01cac04d5bccf821dac99b438c7699c84ee9e12e5799f4c2dd4a182b8e9083fc"
+    },
+    {
+      "path": "round30/OWNER_AUTHOR_REQUALIFICATION.json",
+      "bytes": 368,
+      "sha256": "ff05bd32ab34b8e34b47299c8dc1682594e16d17e6b696b5821b135ce1744a5b"
+    },
+    {
+      "path": "round30/ROOT_SCOPED_REVIEW.md",
+      "bytes": 1364,
+      "sha256": "302b03ed5d6a28212621f91486bb627b6b35a970076f2b1b9c8bcb60457793ee"
+    },
+    {
+      "path": "round30/SOURCE_CORRECTION.patch",
+      "bytes": 12413,
+      "sha256": "74bf8c8f2c79d09bf1b39d6d921b9ff38517ba491ce7858ea212723ebe441134"
+    },
+    {
+      "path": "round30/final-local-gates/LOCAL_GATES_COUNTS.json",
+      "bytes": 117,
+      "sha256": "95105d9fe2d80058dcf408fe9a927c356552724c88c4c5b99a19af0beb5861b4"
+    },
+    {
+      "path": "round30/final-local-gates/STARTED.json",
+      "bytes": 123,
+      "sha256": "22fe613b47796ed84f24fd6f2470203284f0c5c4e643f4900ab6e7b71b624532"
+    },
+    {
+      "path": "round30/final-local-gates/TERMINAL.json",
+      "bytes": 1242,
+      "sha256": "37756583ef1761c6bc947234552c703c28e07047ecbe9d45e6a04d6613a3c953"
+    },
+    {
+      "path": "round30/final-local-gates/build-TERMINAL.json",
+      "bytes": 309,
+      "sha256": "a45996ea9fa86ee32552667ae17c31321c036d00da094a686e0b1aeb279b8503"
+    },
+    {
+      "path": "round30/final-local-gates/build.log",
+      "bytes": 2239,
+      "sha256": "eff41f323a024dec50c6d922b98bf1e5e7a1f9acb4e2ad427b7e4bd45610f92e"
+    },
+    {
+      "path": "round30/final-local-gates/npm-test-TERMINAL.json",
+      "bytes": 300,
+      "sha256": "55726c0665a858a115e4966a5b02af87a5df9eeacf79391bd343a79f3caf48de"
+    },
+    {
+      "path": "round30/final-local-gates/npm-test.log",
+      "bytes": 1201951,
+      "sha256": "eaaec7fcb73f2d967aa9ebe4a3c3ed244be5c8427a6a3bfed7b123de7d41967f"
+    },
+    {
+      "path": "round30/final-local-gates/typecheck-TERMINAL.json",
+      "bytes": 317,
+      "sha256": "0a2c92431dc584577556c3a3632debbf27f392786fbd10227a1659ffff927ab2"
+    },
+    {
+      "path": "round30/final-local-gates/typecheck.log",
+      "bytes": 53,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "path": "round30/focused.log",
+      "bytes": 1787,
+      "sha256": "6aa318d4b63232f4b70443409dd87139ba4e296f3060d73422d67705cbeeb68c"
+    },
+    {
+      "path": "round30/input-complexity-control.mjs",
+      "bytes": 1774,
+      "sha256": "2ed8fce33b0dfb27143ef33decc2cda4a5bad08380c36579791a396845364837"
+    },
+    {
+      "path": "round30/run-local-gates.py",
+      "bytes": 1723,
+      "sha256": "37802093dd33aa556ffdf81711d1522cbe793b5c1372f7b299f14881f2c25b90"
+    },
+    {
+      "path": "round30/run-native-after-gates.py",
+      "bytes": 3046,
+      "sha256": "759ad18fdd67fed3b1fe09a71ae989c50cd68465eaab78042432fe51b7e82518"
+    },
+    {
+      "path": "round30/typecheck-focused.log",
+      "bytes": 53,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "path": "round31/INVOCATION.json",
+      "bytes": 2496,
+      "sha256": "a9d8361383647e190fed54168ee0d10c2638e6dd8af0c2233cd33796193f4320"
+    },
+    {
+      "path": "round31/RUN_SELECTION.json",
+      "bytes": 527,
+      "sha256": "58486e99e0cf435151e9327fe6e3bb50e329dc3362ca268902300dfcf2809927"
+    },
+    {
+      "path": "round31/STARTED.json",
+      "bytes": 97,
+      "sha256": "54319362c291d63f71ede112e80ac12a67db501ccd816d8fb6049c811502d046"
+    },
+    {
+      "path": "round31/TERMINAL.json",
+      "bytes": 2898,
+      "sha256": "73c9d3b3e5ae5928a1b071007ad5a5aefb4e663cf6a47e15909b1e3260f4b700"
+    },
+    {
+      "path": "round31/controller.output.log",
+      "bytes": 733,
+      "sha256": "ff9af6d6d38c88384376146935276bfa428ef3514188bd86c34dec58a06d9538"
+    },
+    {
+      "path": "round31/parent-settlement.json",
+      "bytes": 987,
+      "sha256": "a4675e180412b77cbc04effdb00dd58ad70c40630886b6fccad7c513c80cb121"
+    },
+    {
+      "path": "round31/report.json",
+      "bytes": 274518,
+      "sha256": "9932ad1544ebb60f213719ba8552bf7009faf1ebb9c9a506b40e738ac01d4eef"
+    },
+    {
+      "path": "round31/run-current.py",
+      "bytes": 7039,
+      "sha256": "64f1d46b6a0b3fcaffe58d34108638fee114c932d50145045be63f16d7df8bf3"
+    },
+    {
+      "path": "round32/INVOCATION.json",
+      "bytes": 2517,
+      "sha256": "48a0c3481b7e5d3d18bf7236470490c3a5da238a53c53d517d41d956f931a9bd"
+    },
+    {
+      "path": "round32/RUN_SELECTION.json",
+      "bytes": 530,
+      "sha256": "689584b76f09f495e6ae0759b0cb21407ffe78127c0022c0d0b4b0d8393f54b7"
+    },
+    {
+      "path": "round32/STARTED.json",
+      "bytes": 97,
+      "sha256": "3b39c5ab1ce4493ad6171934bb65be467ffe02ddade66d944b893c61946c98ae"
+    },
+    {
+      "path": "round32/TERMINAL.json",
+      "bytes": 2922,
+      "sha256": "abdc5b89ae798e181daffabe6a72fbb24b692a06ae3437aadd2af3f160e5df3c"
+    },
+    {
+      "path": "round32/controller.output.log",
+      "bytes": 742,
+      "sha256": "aea3962908da8c4340c78932c344d4cc41226f646c5f951bf3c5974a66f39125"
+    },
+    {
+      "path": "round32/parent-settlement.json",
+      "bytes": 987,
+      "sha256": "a4675e180412b77cbc04effdb00dd58ad70c40630886b6fccad7c513c80cb121"
+    },
+    {
+      "path": "round32/report.json",
+      "bytes": 274521,
+      "sha256": "a492d0d7df8b994fb50c149de754bb9862783ce7ef0bd0932b85754f8f2b8b84"
+    },
+    {
+      "path": "round32/run-current.py",
+      "bytes": 7057,
+      "sha256": "3be28df1db7a237d7cf602540e1daaaa8682c9e1336281c5dc49d86c6c5e6cf1"
+    },
+    {
+      "path": "round33/INVOCATION.json",
+      "bytes": 2496,
+      "sha256": "476bb952a7286f1c7b2cd11a85662c35ac537ad7196f25d10dcaeebb2b27c74b"
+    },
+    {
+      "path": "round33/RUN_SELECTION.json",
+      "bytes": 527,
+      "sha256": "636b2896399bcb8996c6bcb58a57dc5bacafc8e43316ae456533913ce3a0e8c9"
+    },
+    {
+      "path": "round33/STARTED.json",
+      "bytes": 97,
+      "sha256": "92e038da8b3a408d92ef0fabb9cd87c57abd7bf0523c6c6cbef28f1939fae6f9"
+    },
+    {
+      "path": "round33/TERMINAL.json",
+      "bytes": 2898,
+      "sha256": "0dd999bebe752f5f10198b44d21229dcf34bde9eb9c29b68b048648f0c164fb9"
+    },
+    {
+      "path": "round33/controller.output.log",
+      "bytes": 733,
+      "sha256": "1af5fd933727ca74ec07dcf0d2130f6c1b398c2362cc5f472495285fd6d64bf2"
+    },
+    {
+      "path": "round33/parent-settlement.json",
+      "bytes": 987,
+      "sha256": "a4675e180412b77cbc04effdb00dd58ad70c40630886b6fccad7c513c80cb121"
+    },
+    {
+      "path": "round33/report.json",
+      "bytes": 275000,
+      "sha256": "42743b0e9d3831c743687ef38548875e899a90a22339b6ce6bbdf2991979c455"
+    },
+    {
+      "path": "round33/run-current.py",
+      "bytes": 7039,
+      "sha256": "80f86baf0bc2ac23bec640c4a738e3c16b1222a1ac802d07c5fc78f77b90f5a3"
+    },
+    {
+      "path": "round34/INVOCATION.json",
+      "bytes": 2482,
+      "sha256": "e061183c6d667c96be71ab431a3cde8194ffb7d6f449a8d00359b4d69b537b50"
+    },
+    {
+      "path": "round34/RUN_SELECTION.json",
+      "bytes": 525,
+      "sha256": "c06fe51bfc84be3d673fc0cb55c5c8231ff49a6ca9c5aa43c00a6e858b795344"
+    },
+    {
+      "path": "round34/STARTED.json",
+      "bytes": 97,
+      "sha256": "251eb903dbd421ea1e49f4ee5447a7f0faf6d0be7bf8811fce8900954c70bd82"
+    },
+    {
+      "path": "round34/TERMINAL.json",
+      "bytes": 2882,
+      "sha256": "4678fed599497f6a788a4fb330acb6c1b304d7c087a329f7dc0af2ef19207e4d"
+    },
+    {
+      "path": "round34/controller.output.log",
+      "bytes": 727,
+      "sha256": "894a1f3b7b9e7208739030b7481a119825aa3c29020db27c115f9d25718be742"
+    },
+    {
+      "path": "round34/parent-settlement.json",
+      "bytes": 987,
+      "sha256": "a4675e180412b77cbc04effdb00dd58ad70c40630886b6fccad7c513c80cb121"
+    },
+    {
+      "path": "round34/report.json",
+      "bytes": 262705,
+      "sha256": "702965cc6b1a249d610dafe3b1cbab1bfd33f7b9a0eb2707fcd836014ec7b595"
+    },
+    {
+      "path": "round34/run-current.py",
+      "bytes": 7027,
+      "sha256": "08f1d2e49b1ed3f6c5a0906e738cdb60466065f972cd372c822ce37acff265b4"
+    },
+    {
+      "path": "round35/INPUTS.json",
+      "bytes": 849,
+      "sha256": "753087088b92284178af4e02c2a44f90f7cb1243085046e9e6105df0bef48eaf"
+    },
+    {
+      "path": "round35/OWNED_FAILURE_CLASSIFICATION_CORRECTION.json",
+      "bytes": 642,
+      "sha256": "a001820f89626c8a3fe55b1c40b620b10433abf23ece3c8c2b7a03b097305cfb"
+    },
+    {
+      "path": "round35/REVIEW.md",
+      "bytes": 2340,
+      "sha256": "3b8a44faa87cc23a8eaf0033450732fd2ab13082a2fb8435d69db3aa18d49a2e"
+    },
+    {
+      "path": "round35/findings.json",
+      "bytes": 1597,
+      "sha256": "1cd8d609d6a624648d2691a600352b68a1cdaf283256a3123002ce78d6580340"
+    },
+    {
+      "path": "round35/legacy/CONTAINER_TERMINAL.json",
+      "bytes": 384,
+      "sha256": "3d4d0d6dda2c5878d0465f26829519682faf4d70511ebcff9a2b225b88431c5c"
+    },
+    {
+      "path": "round35/legacy/INTEGRATED_HTTP.json",
+      "bytes": 3016,
+      "sha256": "f79258be8f0caeb656322b3b1f5cdfa21fbca21e94d5479ac4e7b146f924c21b"
+    },
+    {
+      "path": "round35/legacy/INVOCATION.json",
+      "bytes": 1818,
+      "sha256": "984c6fda16443f8563547c2220d46a4bc34bde7e8a5528ea73ebbdb1ef686d77"
+    },
+    {
+      "path": "round35/legacy/STARTED.json",
+      "bytes": 120,
+      "sha256": "259a230f2deaa0889b855411e4b1d7f41de6b280fbf4e29013256491802323c9"
+    },
+    {
+      "path": "round35/legacy/TERMINAL.json",
+      "bytes": 566,
+      "sha256": "4b8eb5406f6cffb4ca7fdeb94844dad789f2a04bf95e12f415447342ee47bb8d"
+    },
+    {
+      "path": "round35/legacy/native.output.log",
+      "bytes": 298,
+      "sha256": "6420411e0404ed57460ebfdd3671b2683d87ca0dc69dd84d21a09b71a6c505e3"
+    },
+    {
+      "path": "round35/owned/CONTAINER_TERMINAL.json",
+      "bytes": 383,
+      "sha256": "9e3f4c73910bdc42fcb2e95f209d65beb1d7cba7e9e4ab12dbce95cf9a1bcd8b"
+    },
+    {
+      "path": "round35/owned/INTEGRATED_HTTP.json",
+      "bytes": 10542,
+      "sha256": "03d3e031c605f8804a9c774f7114eb3c55a1100b85888b913f5fc9aeda58cdec"
+    },
+    {
+      "path": "round35/owned/INVOCATION.json",
+      "bytes": 1816,
+      "sha256": "464322c82784421c65c654fb93c73803fac748132766b230fc00f7835f7949f3"
+    },
+    {
+      "path": "round35/owned/STARTED.json",
+      "bytes": 120,
+      "sha256": "327ff5a75bbe45f19779ae9a919d15e25305a41e94ca4d2a1ce7d1398cbea4f4"
+    },
+    {
+      "path": "round35/owned/TERMINAL.json",
+      "bytes": 565,
+      "sha256": "bd54e4350480a75d19099dad43c42820ada15d410a2d16bfae40108ff606c632"
+    },
+    {
+      "path": "round35/owned/native.output.log",
+      "bytes": 298,
+      "sha256": "70c39bcffe94ab38146477f8e21fa4cdcdeab58f1b3889204bc1b2fa08b5508c"
+    },
+    {
+      "path": "round35/probe/machine-id",
+      "bytes": 33,
+      "sha256": "c10b98af414325731b3c397d97a106ff579f7bc3210d65a034d5b42a3d915cad"
+    },
+    {
+      "path": "round35/probe/scripts/e2e-native-stop-eof.mjs",
+      "bytes": 23748,
+      "sha256": "2cc79ed81198f4dcfc261adc3ee65944ae000864661e9f057d59f9f70302c4ec"
+    },
+    {
+      "path": "round35/probe/scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 13056,
+      "sha256": "46f75f601770b75684eb533a94b3cb8f40897e7aa4a83f029296c02622073283"
+    },
+    {
+      "path": "round35/run-native-control.py",
+      "bytes": 5083,
+      "sha256": "3587c26a4048c5209058a65e4fae3d68a774261daf40024482c251aaa72f4c5b"
+    }
+  ],
+  "scope": "selected public receipts, maintained-harness/controller source and original failure/custody records; private grants/runtime/config/history/raw parent output excluded",
+  "actualModelQueries": {
+    "round29Backend": 7,
+    "round31to34Backend": 27
+  },
+  "scriptedNativeQueriesRound35": 6,
+  "wholeChangeAcceptance": "HELD_FOR_SOURCE_AND_INHERITED_GATES",
+  "copiedMembers": 82,
+  "memberCountExcludingManifest": 86
+}
