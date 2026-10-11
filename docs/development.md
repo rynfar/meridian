@@ -52,7 +52,7 @@ Detection is ordered; the first matching signal wins. See [`detect.ts`](../src/p
 | Order | Signal | Result |
 |-------|--------|--------|
 | 1 | Valid `x-meridian-agent` | Built-in adapter or configured instance |
-| 2 | Valid `x-polytoken-session` | Polytoken |
+| 2 | Nonblank `x-polytoken-conversation` or `x-polytoken-session` | Polytoken |
 | 3 | Adapter instance match rules | Matching instance |
 | 4 | `x-opencode-session` | OpenCode |
 | 5 | `jcode/` User-Agent plus valid `x-jcode-session` | Jcode |

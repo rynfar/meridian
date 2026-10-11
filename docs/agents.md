@@ -731,7 +731,9 @@ providers:
 
 Polytoken selection signals (full precedence follows below):
 
-1. A valid `X-Polytoken-Session` header — Polytoken is selected and that header **is the session identity**.
+1. A nonblank `X-Polytoken-Conversation` or `X-Polytoken-Session` header selects Polytoken. The trimmed conversation header is the identity used for resume, turn coordination, and routing; the session header is a legacy fallback when the conversation header is absent or blank. Modern Polytoken sessions can contain several independent subagent conversations, so the session correlation ID must not override their conversation IDs.
+
+   Polytoken 0.8.21 gives sibling subagents distinct conversation IDs, but observed title-inference requests still share the main conversation ID. Such requests can still conflict; this adapter does not invent a title-specific identity or disable same-conversation conflict checks.
 2. A `Polytoken <version>` or `Polytoken/<version>` User-Agent (token-boundary match; `PolytokenImpostor` does not match). UA-only selection never manufactures identity: without a valid native header there is no session key, so tool-result continuations run independent and are never resumed (plain text turns still fall back to the generic first-message fingerprint, as for any other headerless client).
 3. `x-meridian-agent: polytoken` / `MERIDIAN_DEFAULT_AGENT=polytoken` for explicit selection.
 

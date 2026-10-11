@@ -380,8 +380,8 @@ the primary agent's key byte-identical to the header. An adapter whose client
 multiplexes agents over one session id needs the same treatment.
 
 **A session header is identity, never authentication.** Polytoken's native
-`X-Polytoken-Session` header is the cleanest example: the trimmed header value
-IS the conversation identity — no agent-mode scoping, no lineage
+`X-Polytoken-Conversation` header supplies the trimmed conversation identity,
+with `X-Polytoken-Session` retained only as a legacy fallback — no agent-mode scoping, no lineage
 canonicalization, no attestation. A blank/missing native header means "no
 identity" rather than an invented fallback key: a headerless tool-result
 continuation runs independent (never resumed, nothing stored) via the

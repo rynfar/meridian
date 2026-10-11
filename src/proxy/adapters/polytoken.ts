@@ -8,11 +8,11 @@
  * aliasing, Task-tool routing, file-change tracking).
  *
  * Identity contract:
- *   - Session identity comes ONLY from X-Polytoken-Session, trimmed. No
- *     parent identity, no agent-mode scoping, no attestation, no OpenCode
- *     lineage normalization. A missing/blank header means "no identity": the
- *     request runs fingerprint-less and independent (never resumed) rather
- *     than being given an invented key.
+ *   - Prefer the trimmed X-Polytoken-Conversation for resume and coordination.
+ *     X-Polytoken-Session correlates the entire client session, including its
+ *     independent subagents; use it only as a legacy fallback when the
+ *     conversation header is missing or blank. Neither header is parsed or
+ *     scoped by agent mode. If both are missing/blank, return no identity.
  *   - The header is a session key, not an authentication credential — same
  *     trust model as every other adapter's headers.
  *
@@ -51,7 +51,8 @@ export const polytokenAdapter: AgentAdapter = {
   clientEnvironmentMayDifferFromProxy: true,
 
   getSessionId(c: Context): string | undefined {
-    return normalizePolytokenSessionId(c.req.header(POLYTOKEN_SESSION_HEADER))
+    return normalizePolytokenSessionId(c.req.header("x-polytoken-conversation"))
+      ?? normalizePolytokenSessionId(c.req.header(POLYTOKEN_SESSION_HEADER))
   },
 
   /**

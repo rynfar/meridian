@@ -46,7 +46,7 @@ const VOLATILE = new Set([
   "x-api-key", "x-stainless-retry-count", "x-stainless-timeout", "cookie",
 ])
 /** Header values that change every run; keep the KEY, normalize the value. */
-const VOLATILE_VALUES = new Set(["x-session-affinity", "x-session-id", "x-opencode-session", "x-polytoken-session"])
+const VOLATILE_VALUES = new Set(["x-session-affinity", "x-session-id", "x-opencode-session", "x-polytoken-session", "x-polytoken-conversation"])
 
 /**
  * How to drive each client headlessly. `configFor` writes a project-local

@@ -662,7 +662,7 @@ when their opening text and working directory match.
 | `letta` | The `conv-<uuid>` id in the agent-info block Letta places in its opening user message (no session header) |
 | `passthrough` (LiteLLM) | `x-litellm-session-id` |
 | `cherry`, `openai` | Inherit OpenCode header handling; a headerless generic OpenAI tool loop additionally gets a derived `tool-loop:<hash>` key, so it resumes instead of packing |
-| `polytoken` | Valid `x-polytoken-session` |
+| `polytoken` | Nonblank `x-polytoken-conversation`, falling back to `x-polytoken-session` |
 | `droid`, `forgecode` | none — fingerprint fallback |
 
 ### Claude Code behind a gateway

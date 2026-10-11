@@ -171,10 +171,11 @@ export function detectAdapter(c: Context): AgentAdapter {
     if (inst) return inst
   }
 
-  // Polytoken's native session header is unambiguous — no other client sends
-  // it — and it beats every UA/affinity heuristic below. Identity is produced
+  // Polytoken's native conversation/session headers are unambiguous and beat
+  // every UA/affinity heuristic below. Identity is produced
   // only by the adapter itself; a UA-only match never manufactures one.
-  if (normalizePolytokenSessionId(c.req.header("x-polytoken-session"))) {
+  if (normalizePolytokenSessionId(c.req.header("x-polytoken-conversation"))
+    || normalizePolytokenSessionId(c.req.header("x-polytoken-session"))) {
     return polytokenAdapter
   }
 

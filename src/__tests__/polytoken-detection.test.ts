@@ -48,6 +48,16 @@ afterEach(() => {
 })
 
 describe("polytoken detection — native header", () => {
+  it("detects conversation-only requests ahead of other native identity signals", () => {
+    expect(detectAdapter(makeContext("curl/8", {
+      "x-polytoken-conversation": " thread-1 ",
+      "x-opencode-session": "unrelated",
+    })).name).toBe("polytoken")
+    expect(detectAdapter(makeContext("curl/8", {
+      "x-polytoken-conversation": "  ",
+      "x-opencode-session": "unrelated",
+    })).name).toBe("opencode")
+  })
   it("detects polytoken from a valid native header with any UA", () => {
     for (const ua of ["", "curl/8.0", "opencode/1.18", "claude-cli/2.0.0", "Charm-Crush/v0.87.0", "Polytoken v0.8.3"]) {
       const a = detectAdapter(makeContext(ua, { "x-polytoken-session": "sess-1" }))

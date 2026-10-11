@@ -1,8 +1,8 @@
 /**
  * Polytoken adapter identity — direct unit tests.
  *
- * The native adapter's identity comes ONLY from the X-Polytoken-Session
- * header: no parent identity, no routing attestation, no agent-mode scoping,
+ * The native adapter prefers X-Polytoken-Conversation, falling back to the
+ * legacy session header: no parent identity, no routing attestation, no agent-mode scoping,
  * no OpenCode lineage normalization. Content normalization reuses the generic
  * helper. CWD extraction returns undefined (the client environment may differ
  * from the proxy) rather than parsing client prose.
@@ -29,6 +29,27 @@ describe("polytokenAdapter identity", () => {
   it("reads session identity only from the native header", () => {
     const c = ctx({ "x-polytoken-session": "native-1" })
     expect(polytokenAdapter.getSessionId(c)).toBe("native-1")
+  })
+
+  it("prefers a trimmed conversation identity over the session correlation header", () => {
+    expect(polytokenAdapter.getSessionId(ctx({
+      "x-polytoken-session": "shared-session",
+      "x-polytoken-conversation": "  thread.worker:a  ",
+    }))).toBe("thread.worker:a")
+    expect(polytokenAdapter.getSessionId(ctx({
+      "x-polytoken-conversation": "thread-only",
+    }))).toBe("thread-only")
+  })
+
+  it("falls back to legacy session identity only when conversation identity is absent or blank", () => {
+    expect(polytokenAdapter.getSessionId(ctx({
+      "x-polytoken-session": " legacy ",
+      "x-polytoken-conversation": "  ",
+    }))).toBe("legacy")
+    expect(polytokenAdapter.getSessionId(ctx({
+      "x-polytoken-session": "  ",
+      "x-polytoken-conversation": "  ",
+    }))).toBeUndefined()
   })
 
   it("ignores OpenCode, affinity, and litellm identity headers entirely", () => {

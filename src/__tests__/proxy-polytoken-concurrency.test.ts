@@ -280,6 +280,52 @@ describe("Polytoken native session concurrency", () => {
     await continuation("pt-parallel-b", "continue B")
   })
 
+  it("isolates and resumes sibling conversations sharing one Polytoken session", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const request = (conversation: string, messages?: ReturnType<typeof continuationMessages>) =>
+      nativeRequest("shared-parent", "identical opening", {
+        "x-polytoken-conversation": conversation,
+      }, messages)
+    const first = fetchTracked(app, request("thread.worker:a"))
+    const a = await waitForControl(0)
+    const second = fetchTracked(app, request("thread.worker:b"))
+    const b = await waitForControl(1)
+    expect(maxActiveQueries).toBe(2)
+    expect(capturedInputs[0]!.options?.sessionId).not.toBe(capturedInputs[1]!.options?.sessionId)
+    a.release()
+    b.release()
+    expect((await first).status).toBe(200)
+    expect((await second).status).toBe(200)
+
+    for (const [index, conversation] of ["thread.worker:a", "thread.worker:b"].entries()) {
+      const next = fetchTracked(app, request(conversation,
+        continuationMessages("identical opening", "continue")))
+      const control = await waitForControl(index + 2)
+      expect(capturedInputs[index + 2]!.options?.resume).toBe(capturedInputs[index]!.options?.sessionId)
+      control.release()
+      expect((await next).status).toBe(200)
+    }
+  })
+
+  it("still rejects stale requests sharing a conversation even across session headers", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const headers = { "x-polytoken-conversation": "same-thread" }
+    const first = fetchTracked(app, nativeRequest("parent-a", "same body", headers))
+    const control = await waitForControl(0)
+    const arrival = observeNativeTurnArrival("same-thread")
+    const second = fetchTracked(app, nativeRequest("parent-b", "same body", headers))
+    try {
+      await arrival.arrived
+    } finally {
+      arrival.restore()
+    }
+    expect(queryCalls).toBe(1)
+    control.release()
+    expect((await first).status).toBe(200)
+    expect((await second).status).toBe(400)
+    expect(queryCalls).toBe(1)
+  })
+
   it("polytoken_cross_profile_lineage_isolated", async () => {
     const app = createProxyServer({
       port: 0,
