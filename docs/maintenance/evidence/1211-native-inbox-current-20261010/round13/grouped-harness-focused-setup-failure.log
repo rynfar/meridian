@@ -1,0 +1,9 @@
+bun test v1.3.14 (0d9b296a)
+The following filters did not match any test files:
+ grouped-draft/src/__tests__/e72-mixed-auto.test.ts grouped-draft/src/__tests__/e72-native-handback-inbox.test.ts
+40 files were searched [6.00ms]
+
+note: Tests need ".test", "_test_", ".spec" or "_spec_" in the filename (ex: "MyApp.test.ts")
+note: To treat the "grouped-draft/src/__tests__/e72-mixed-auto.test.ts" filter as a path, run "bun test ./grouped-draft/src/__tests__/e72-mixed-auto.test.ts"
+
+Learn more about bun test: https://bun.com/docs/cli/test

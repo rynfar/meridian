@@ -1,0 +1,16 @@
+{
+  "badExists": false,
+  "qualifiedExists": true,
+  "qualifiedHash": "4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358",
+  "atUTC": "2026-10-09T21:55:20.185604+00:00",
+  "containerId": "4f87ea45db420b300abea7e8073e35574c34db36f5d13eaecc94e71e05eb65fd",
+  "originalAttachPid": 40072,
+  "originalAttachJoined": true,
+  "containerStoppedAndRemoved": true,
+  "networkDisabled": true,
+  "readOnlyRoot": true,
+  "runtimeCLIInvocations": 0,
+  "SDKQueries": 0,
+  "modelCalls": 0,
+  "credentialReads": 0
+}

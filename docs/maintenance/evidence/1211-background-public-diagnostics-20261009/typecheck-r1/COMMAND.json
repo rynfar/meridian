@@ -1,0 +1,9 @@
+{
+  "head": "a80fac562d462bc0010a792bb62adf07cc3987d6",
+  "argv": [
+    "npm",
+    "run",
+    "typecheck"
+  ],
+  "environmentOverrides": {}
+}

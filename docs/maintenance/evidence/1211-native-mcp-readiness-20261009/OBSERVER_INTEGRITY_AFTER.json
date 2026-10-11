@@ -1,0 +1,8 @@
+{
+  "observerHead": "2595d05db52bef6ee22bdf6dce9f218893119425",
+  "allFourMountedInputsMatchCommittedBytes": true,
+  "samePublicSdkEventObserverDoesNotMutateQueries": true,
+  "readOnlyMountOutsideRuntime": true,
+  "allProductionSourceUnchangedFromCertifiedImage": true,
+  "localHeadUnchangedAndClean": true
+}

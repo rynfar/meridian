@@ -1,0 +1,31 @@
+{
+  "head": "0cf7aa708bf55c459109537bf84c468e72f91c1a",
+  "fullNpmTest": {
+    "batches": 22,
+    "pass": 5854,
+    "skip": 36,
+    "fail": 0,
+    "pretestTypecheck": true,
+    "originalProcessJoined": true,
+    "logSHA256": "4a51cc0dc8440055d54e1bf850eeb39621de32ebae5c64aa9da7162d22f496c6"
+  },
+  "compiledNodeControl": {
+    "pass": 1,
+    "fail": 0,
+    "E71_COMPILED_CONTEXT_CONTROL": "1",
+    "fourActualCompiledHttpContexts": [
+      "positive",
+      "swap",
+      "unmatched",
+      "duplicate"
+    ],
+    "reasonSeparate": "The standard full npm lane intentionally skips this opt-in certified-build control; it is explicitly enabled and executed separately against the fresh build."
+  },
+  "focusedDiagnosticAndBoundControls": {
+    "pass": 14,
+    "fail": 0
+  },
+  "standaloneTypecheck": "PASS",
+  "build": "PASS",
+  "allOriginalGateProcessesJoined": true
+}

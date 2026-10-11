@@ -1,0 +1,11 @@
+{
+  "changesFromFirstProbe": [
+    "Retain interrupted session/assistant UUID privately.",
+    "Read only the supported getSessionMessages API after native/stdio join.",
+    "Fork at the final parallel tool assistant and provide two real client tool results through streaming SDK input.",
+    "Recheck source public history exactly after fork."
+  ],
+  "acceptanceChanged": false,
+  "actualModelAcceptance": false,
+  "productionChanges": false
+}

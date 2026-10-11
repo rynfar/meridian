@@ -1,0 +1,797 @@
+{
+  "kind": "E41_DIRECT_HTTP_NATIVE_GATE",
+  "e41": {
+    "mode": "chain",
+    "stream": true,
+    "requestedModel": "claude-sonnet-5-5",
+    "requiredServedModel": "claude-sonnet-5-5",
+    "requiredNativeVersion": "2.1.295",
+    "client": "Owned OpenCode protocol fixture; not an actual OpenCode/OpenClaw client",
+    "helpersImported": true,
+    "verdict": {
+      "batches": [
+        1,
+        1,
+        1
+      ],
+      "realAnswers": 3,
+      "immutableParents": 4,
+      "distinctContinuations": 4,
+      "cachedPrefixFloor": 0.95,
+      "actualModel": "claude-sonnet-5-5",
+      "savedForkFollowup": true
+    }
+  },
+  "expectation": "candidate",
+  "platform": "linux",
+  "architecture": "x64",
+  "bun": "1.3.11",
+  "nodeRuntime": "v24.21.0",
+  "firstFailure": null,
+  "commands": [
+    {
+      "name": "node-version",
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      },
+      "stdoutBytes": 9,
+      "stdoutDigest": "f2ec568164f99546161909b0189b57bb5be3e80f8e2ccd8a51a4aed8c4055a04"
+    },
+    {
+      "name": "native-version",
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      },
+      "stdoutBytes": 22,
+      "stdoutDigest": "647cd3d432f8c6898c667e56a1304d96bb86fc9e4ba5b0fdf50a170b4eac8c30"
+    },
+    {
+      "name": "client-version",
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      },
+      "stdoutBytes": 29,
+      "stdoutDigest": "a4fa3c303e25cdea9ab6bcc7b076b25efc1c1e4532d8d8716936d5aa07f8f8f9"
+    }
+  ],
+  "queries": [
+    {
+      "phase": "e41-chain-turn-1",
+      "model": "sonnet",
+      "resume": false,
+      "rollback": false,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "a7540a060fe5f5dc03e1c862fb7248df5ffd9246cb5d1e4c017b438b4da3d275"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 2779,
+      "outputTokens": 24,
+      "resultCompleted": true,
+      "resultSubtype": "error_max_turns",
+      "resultIsError": true,
+      "estimatedCostUsd": 0.009040600000000001,
+      "targetSessionDigest": "b6dee4e333eeab9a03785e167ada610903b24e2e76f2023a12ae870fccdaec41",
+      "inputToolPair": false,
+      "originalPid": 52,
+      "terminalSessionMatched": true
+    },
+    {
+      "phase": "e41-chain-turn-2",
+      "model": "sonnet",
+      "resume": true,
+      "rollback": true,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "3b332b52dbac6cfc02d927e00a12c19cf305a7c80c6692a90a060451398a647b"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 2898,
+      "outputTokens": 24,
+      "resultCompleted": true,
+      "resultSubtype": "error_max_turns",
+      "resultIsError": true,
+      "estimatedCostUsd": 0.010866,
+      "targetSessionDigest": "4feddf2eb2de74ca2c88e1a54c70e5451180d09783942b18ad21c282048e1ae5",
+      "originalPid": 93,
+      "inputToolPair": false,
+      "terminalSessionMatched": true
+    },
+    {
+      "phase": "e41-chain-turn-3",
+      "model": "sonnet",
+      "resume": true,
+      "rollback": true,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "37fc9a0244e7990dcbac0a9fecc4a3cc90ebd14bab3d2660d26e1914404e4216"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 3020,
+      "outputTokens": 24,
+      "resultCompleted": true,
+      "resultSubtype": "error_max_turns",
+      "resultIsError": true,
+      "estimatedCostUsd": 0.012727200000000001,
+      "targetSessionDigest": "43be8336ddfefbb244edf348cf84b8956beebc173305064272e3ba8d1412f502",
+      "originalPid": 133,
+      "inputToolPair": false,
+      "terminalSessionMatched": true
+    },
+    {
+      "phase": "e41-chain-turn-4",
+      "model": "sonnet",
+      "resume": true,
+      "rollback": true,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "5b955ffcb5fea56b0680fdc4ebe211698ae279f4ca98352a0f6723976994e105"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 3143,
+      "outputTokens": 114,
+      "resultCompleted": true,
+      "resultSubtype": "success",
+      "resultIsError": false,
+      "estimatedCostUsd": 0.014966800000000002,
+      "targetSessionDigest": "f9743692cc71927c62627539e311e34b677c9d98912482b732bf003c8747af68",
+      "originalPid": 173,
+      "inputToolPair": false,
+      "terminalSessionMatched": true
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "model": "sonnet",
+      "resume": true,
+      "rollback": false,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "3d1c37c71c35adc490111a1970f1254d3f024c0157e5a5d39275720c01cf534c"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 3271,
+      "outputTokens": 4,
+      "resultCompleted": true,
+      "resultSubtype": "success",
+      "resultIsError": false,
+      "estimatedCostUsd": 0.016147,
+      "targetSessionDigest": "4b9bb0e0e28c01324d44e85b0239477e8a88fb9781949fdc86f5904c8ab68cff",
+      "inputToolPair": false,
+      "originalPid": 215,
+      "terminalSessionMatched": true
+    }
+  ],
+  "requests": [
+    {
+      "phase": "e41-chain-turn-1",
+      "mode": "noop",
+      "rawCount": 1,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "0da5c03fefa5fb8fc65b6160238b0605a2ffb482ca4a333f8039c125d39b3668",
+      "status": 200,
+      "responseJoined": true
+    },
+    {
+      "phase": "e41-chain-turn-2",
+      "mode": "noop",
+      "rawCount": 3,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "7f10699f8fb031cf17125cd5c9641cdef7c6f47aac491b90618a11b739e545d8",
+      "status": 200,
+      "responseJoined": true
+    },
+    {
+      "phase": "e41-chain-turn-3",
+      "mode": "noop",
+      "rawCount": 5,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "fde66f75e663e326629a710d48a4d47292fac95bc7506d25d7a9ac39cdf0b6b8",
+      "status": 200,
+      "responseJoined": true
+    },
+    {
+      "phase": "e41-chain-turn-4",
+      "mode": "noop",
+      "rawCount": 7,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "515bf9a666c5ab8af9cc466b8706289c4d94740a485703c31bab40bbb29f084e",
+      "status": 200,
+      "responseJoined": true
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "mode": "noop",
+      "rawCount": 9,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "29b38dbe330d1782d39c4743c42d830300a656346354c1525c600a1dae2a4ebb",
+      "status": 200,
+      "responseJoined": true
+    }
+  ],
+  "pluginObservations": [
+    {
+      "phase": "e41-chain-turn-1",
+      "mode": "noop",
+      "rawCount": 1,
+      "effectiveCount": 1,
+      "rawDigest": "018c1de14e4b8eb3075f3b1e8712fe8373df0283461892fff9692ef12db94cff",
+      "effectiveDigest": "018c1de14e4b8eb3075f3b1e8712fe8373df0283461892fff9692ef12db94cff",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-chain-turn-1",
+      "kind": "session",
+      "lineage": "diverged",
+      "incomingCount": 1,
+      "sessionKeyDigest": "9e5ee71038ee34a00a4c17bd43b1f521337943b0ceafb8e61aee50c34dd2fab8"
+    },
+    {
+      "phase": "e41-chain-turn-2",
+      "mode": "noop",
+      "rawCount": 3,
+      "effectiveCount": 3,
+      "rawDigest": "d1dda2504dd5b1276549e69aa8ce1408aac8ac7a0121d248a90205b836ae297f",
+      "effectiveDigest": "d1dda2504dd5b1276549e69aa8ce1408aac8ac7a0121d248a90205b836ae297f",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-chain-turn-2",
+      "kind": "session",
+      "lineage": "continuation",
+      "incomingCount": 3,
+      "sessionKeyDigest": "9e5ee71038ee34a00a4c17bd43b1f521337943b0ceafb8e61aee50c34dd2fab8"
+    },
+    {
+      "phase": "e41-chain-turn-3",
+      "mode": "noop",
+      "rawCount": 5,
+      "effectiveCount": 5,
+      "rawDigest": "39ff5bc125c3d6a481b5e248bc0b9a766c8137c4897ad257582509e790623ec9",
+      "effectiveDigest": "39ff5bc125c3d6a481b5e248bc0b9a766c8137c4897ad257582509e790623ec9",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-chain-turn-3",
+      "kind": "session",
+      "lineage": "continuation",
+      "incomingCount": 5,
+      "sessionKeyDigest": "9e5ee71038ee34a00a4c17bd43b1f521337943b0ceafb8e61aee50c34dd2fab8"
+    },
+    {
+      "phase": "e41-chain-turn-4",
+      "mode": "noop",
+      "rawCount": 7,
+      "effectiveCount": 7,
+      "rawDigest": "c779b100d0b211d2c06fb95153383981fd2b7e1dda23ca34aa523cd7470c7d87",
+      "effectiveDigest": "c779b100d0b211d2c06fb95153383981fd2b7e1dda23ca34aa523cd7470c7d87",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-chain-turn-4",
+      "kind": "session",
+      "lineage": "continuation",
+      "incomingCount": 7,
+      "sessionKeyDigest": "9e5ee71038ee34a00a4c17bd43b1f521337943b0ceafb8e61aee50c34dd2fab8"
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "mode": "noop",
+      "rawCount": 9,
+      "effectiveCount": 9,
+      "rawDigest": "66ae4cefc02db25ddd7d925399f89c2a8e68b547611eb60c808f517d1def85d7",
+      "effectiveDigest": "66ae4cefc02db25ddd7d925399f89c2a8e68b547611eb60c808f517d1def85d7",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "kind": "session",
+      "lineage": "continuation",
+      "incomingCount": 9,
+      "sessionKeyDigest": "9e5ee71038ee34a00a4c17bd43b1f521337943b0ceafb8e61aee50c34dd2fab8"
+    }
+  ],
+  "stages": [
+    {
+      "stage": "e41-chain-turn-1",
+      "rawCount": 1,
+      "lineage": "diverged",
+      "cacheRead": 753,
+      "cacheWrite": 2024,
+      "workingSessionDigest": "b6dee4e333eeab9a03785e167ada610903b24e2e76f2023a12ae870fccdaec41",
+      "historyDigest": "c015a7e782f114d75427bc57b70341215ab5d37d11e8ef0daf644a97ee25eb17",
+      "responseJoined": true
+    },
+    {
+      "stage": "e41-chain-turn-2",
+      "rawCount": 3,
+      "lineage": "continuation",
+      "cacheRead": 2777,
+      "cacheWrite": 119,
+      "workingSessionDigest": "4feddf2eb2de74ca2c88e1a54c70e5451180d09783942b18ad21c282048e1ae5",
+      "historyDigest": "cfed5c118842e1912029534732dc4a8358320d3d071e44279e75371c28b017ca",
+      "responseJoined": true
+    },
+    {
+      "stage": "e41-chain-turn-3",
+      "rawCount": 5,
+      "lineage": "continuation",
+      "cacheRead": 2896,
+      "cacheWrite": 122,
+      "workingSessionDigest": "43be8336ddfefbb244edf348cf84b8956beebc173305064272e3ba8d1412f502",
+      "historyDigest": "8919be84a23ece36c1b0af7404b4ec426c7a632f39a0350dab7381490d0f64d4",
+      "responseJoined": true
+    },
+    {
+      "stage": "e41-chain-turn-4",
+      "rawCount": 7,
+      "lineage": "continuation",
+      "cacheRead": 3018,
+      "cacheWrite": 123,
+      "workingSessionDigest": "f9743692cc71927c62627539e311e34b677c9d98912482b732bf003c8747af68",
+      "historyDigest": "bc3876751ff25e0c4671d8ce94635a1f6b3829df88b8665d949bb5c05402ab4b",
+      "responseJoined": true
+    },
+    {
+      "stage": "e41-saved-fork-followup",
+      "rawCount": 9,
+      "lineage": "continuation",
+      "cacheRead": 3141,
+      "cacheWrite": 126,
+      "workingSessionDigest": "4b9bb0e0e28c01324d44e85b0239477e8a88fb9781949fdc86f5904c8ab68cff",
+      "historyDigest": "62e8f0ebbebf6f3926a598c70045184e7e38192c24e628592a9cff049e51fa2e",
+      "responseJoined": true
+    }
+  ],
+  "children": [
+    {
+      "kind": "client-node-version",
+      "phase": "preparation",
+      "originalPid": 20,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "client-native-version",
+      "phase": "preparation",
+      "originalPid": 22,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "client-client-version",
+      "phase": "preparation",
+      "originalPid": 23,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "execFile",
+      "phase": "e41-chain-turn-1",
+      "originalPid": 43,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-chain-turn-1",
+      "originalPid": 52,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.295"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "error_max_turns",
+          "isError": true
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 1,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-chain-turn-2",
+      "originalPid": 93,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.295"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "error_max_turns",
+          "isError": true
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 1,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-chain-turn-3",
+      "originalPid": 133,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.295"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "error_max_turns",
+          "isError": true
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 1,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-chain-turn-4",
+      "originalPid": 173,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.295"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "success",
+          "isError": false
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-saved-fork-followup",
+      "originalPid": 215,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.295"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "success",
+          "isError": false
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    }
+  ],
+  "supportedHistoryReads": [
+    {
+      "sessionDigest": "b6dee4e333eeab9a03785e167ada610903b24e2e76f2023a12ae870fccdaec41",
+      "settled": true,
+      "rows": 3
+    },
+    {
+      "sessionDigest": "4feddf2eb2de74ca2c88e1a54c70e5451180d09783942b18ad21c282048e1ae5",
+      "settled": true,
+      "rows": 5
+    },
+    {
+      "sessionDigest": "43be8336ddfefbb244edf348cf84b8956beebc173305064272e3ba8d1412f502",
+      "settled": true,
+      "rows": 7
+    },
+    {
+      "sessionDigest": "f9743692cc71927c62627539e311e34b677c9d98912482b732bf003c8747af68",
+      "settled": true,
+      "rows": 8
+    },
+    {
+      "sessionDigest": "4b9bb0e0e28c01324d44e85b0239477e8a88fb9781949fdc86f5904c8ab68cff",
+      "settled": true,
+      "rows": 10
+    },
+    {
+      "sessionDigest": "b6dee4e333eeab9a03785e167ada610903b24e2e76f2023a12ae870fccdaec41",
+      "settled": true,
+      "rows": 3
+    },
+    {
+      "sessionDigest": "4feddf2eb2de74ca2c88e1a54c70e5451180d09783942b18ad21c282048e1ae5",
+      "settled": true,
+      "rows": 5
+    },
+    {
+      "sessionDigest": "43be8336ddfefbb244edf348cf84b8956beebc173305064272e3ba8d1412f502",
+      "settled": true,
+      "rows": 7
+    },
+    {
+      "sessionDigest": "f9743692cc71927c62627539e311e34b677c9d98912482b732bf003c8747af68",
+      "settled": true,
+      "rows": 8
+    }
+  ],
+  "actorScope": "Original observed child handles, SDK factory/iterator/close, and owned HTTP resources. External/global descendant absence is unknown.",
+  "classifierAcceptance": "HELD: undisclosed current trigger and fresh same-window off/on/off controls are missing.",
+  "actualProviderQueries": 5,
+  "grantRead": true,
+  "sourceCredentialLoginRefreshWrites": false,
+  "inputFiles": {
+    "MERIDIAN_ENTRY": {
+      "path": "/opt/e41-package/installed/node_modules/@rynfar/meridian/dist/server.js",
+      "sha256": "f113ca8beb9fe262af774147051fba05d20782c81e74fd23c0f371268ca6f218"
+    },
+    "SDK_ENTRY": {
+      "path": "/opt/e41-package/installed/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
+      "sha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97"
+    },
+    "NATIVE_BIN": {
+      "path": "/opt/e41-package/installed/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+      "sha256": "4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358"
+    },
+    "OPENCLAW_BIN": {
+      "path": "/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs",
+      "sha256": "f1f1c6ae5745ba0cb71bfbb72f4ae43f9b3bdb5ca0af84d5fcdf60eb5ab71430"
+    },
+    "SCRUB_ENTRY": {
+      "path": "/opt/e41/sidecars/node_modules/@rynfar/meridian-plugin-openclaw-scrub/dist/index.js",
+      "sha256": "f8d987dfaf15a19b2ea203c0cb26e907182f6411867433ccd47b15341dcbfb48"
+    }
+  },
+  "nativeVersion": "2.1.295 (Claude Code)",
+  "clientVersion": "OpenClaw 2026.6.11 (e085fa1)",
+  "sdkVersion": "0.2.141",
+  "nativeModelInitWitnesses": [
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.295"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.295"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.295"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.295"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.295"
+    }
+  ],
+  "scrubHook": {
+    "invocations": 5,
+    "errors": 0,
+    "totalMs": 0.024416999998720712
+  },
+  "startupSettled": true,
+  "httpWitnesses": {
+    "proxyCloseSeen": true,
+    "proxyListening": false,
+    "relayListening": false,
+    "remainingSockets": 0,
+    "remainingHandlers": 0,
+    "observedSocketCount": 1
+  },
+  "httpJoined": true,
+  "queryJoins": true,
+  "disposition": "PASS_E41_CHAIN_STREAM"
+}

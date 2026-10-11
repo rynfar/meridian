@@ -1,0 +1,19 @@
+{
+  "status": "DIAGNOSTIC_CORRECTION_ACCEPTED_FULL_TEST_GATE_HELD",
+  "reviewer": "Root adversarial pass, no new delegated review",
+  "productionHead": "d3aadd12a1274d9d0983294f27ef379b17d6eb38",
+  "changedTest": "src/__tests__/claude-auto-mode-harness.test.ts",
+  "sha256": "33fd75c75a88c3553dc40621c948a232b7ff77b6d2abd45e256e1071510326e8",
+  "purpose": "Retain safe selected cleanup facts before failure removes the synthetic proof directory; surface the concrete failed join before derived private-runtime retention.",
+  "assertions": "All original cleanup, custody, retention and acceptance assertions remain; the nominal empty cleanup-failure assertion is reordered, not weakened.",
+  "selectedEvidence": "Existing explicit E71_CONTEXT_EVIDENCE_DIR only; fixed filename, exclusive write, mode 0600, no access credentials or transcript/paths in selected data.",
+  "focusedResult": "FAIL reproduces client signal / unjoined owned work / retained runtime; original full FAIL preserved.",
+  "additionalChecks": "Typecheck and build pass, all commands joined.",
+  "instrumentedQualification": "Three external exact-source instrumentation controls passed but recorded signals attempted after owned child exit/close. Those samples show a separate ownership concern; they do not explain the original non-ESRCH signal failure.",
+  "holds": [
+    "E71 exact client-signal failure and post-close signaling correction with causal controls",
+    "New complete local npm gates",
+    "Native model/socket observer corrections, real before/after, package and final-head CI"
+  ],
+  "modelCalls": 0
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "head": "052c6449ea1d9055164212d32c63bdea1388caaa",
+  "originalRunnerPid": 97551,
+  "originalProcessPid": 48388,
+  "startUTC": "2026-10-10T00:22:19.451956+00:00"
+}

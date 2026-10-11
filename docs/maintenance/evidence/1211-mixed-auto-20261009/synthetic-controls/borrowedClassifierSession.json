@@ -1,0 +1,2545 @@
+{
+  "originalDriverPhysicallyJoined": true,
+  "driverExit": 1,
+  "proof": {
+    "kind": "synthetic-harness-control",
+    "expected": "fixed",
+    "platform": "darwin/arm64",
+    "runtime": {
+      "bun": "1.3.14",
+      "node": "v24.3.0"
+    },
+    "scenario": "mixed-auto-v1",
+    "requestedModel": "claude-sonnet-5-5",
+    "requiredServedModel": "claude-sonnet-5-5",
+    "limits": {
+      "queries": 24,
+      "sdkEstimatedCostUsd": 12,
+      "perQueryBudgetUsd": 0.5,
+      "totalMilliseconds": 10000,
+      "wireRequests": 24,
+      "requestBytes": 2097152,
+      "clientStreamBytes": 2097152,
+      "clientInvocations": 2,
+      "ownedProcesses": 96
+    },
+    "queries": [
+      {
+        "turn": 1,
+        "request": 1,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": false,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 629.98,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 1,
+        "resultEventMs": 631.687,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 2,
+        "terminalReason": "max_turns",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 631.316,
+              "lastEventMs": 631.636,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "tool_use"
+              ],
+              "textObserved": false,
+              "thinkingObserved": false,
+              "distinctTools": 2,
+              "toolHooks": 2,
+              "forwardedHooks": 2,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": 631.597
+            }
+          ]
+        },
+        "iteratorSettledMs": 631.991,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 2,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 1,
+        "toolCount": 2,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": false
+      },
+      {
+        "turn": 1,
+        "request": 2,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": false,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 697.554,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 2,
+        "resultEventMs": 698.03,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 2,
+        "terminalReason": "max_turns",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 697.848,
+              "lastEventMs": 697.952,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "tool_use"
+              ],
+              "textObserved": false,
+              "thinkingObserved": false,
+              "distinctTools": 1,
+              "toolHooks": 1,
+              "forwardedHooks": 1,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": 697.933
+            }
+          ]
+        },
+        "iteratorSettledMs": 698.112,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 1,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 2,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": false
+      },
+      {
+        "turn": 1,
+        "request": 3,
+        "role": "classifier",
+        "wireRequested": "claude-sonnet-5",
+        "requested": "claude-sonnet-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 699.664,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 1,
+        "resultEventMs": 699.986,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "mcpReadiness": {
+          "declaredServers": [],
+          "declaredToolCount": 0,
+          "declaredToolDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 0,
+          "advertisedToolDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 699.771,
+              "lastEventMs": 699.818,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "end_turn"
+              ],
+              "textObserved": true,
+              "thinkingObserved": false,
+              "distinctTools": 0,
+              "toolHooks": 0,
+              "forwardedHooks": 0,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": null
+            }
+          ]
+        },
+        "iteratorSettledMs": 700.033,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 0,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "request": 4,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": false,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 700.798,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 3,
+        "resultEventMs": 701.012,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 2,
+        "terminalReason": "max_turns",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 700.933,
+              "lastEventMs": 700.973,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "tool_use"
+              ],
+              "textObserved": false,
+              "thinkingObserved": false,
+              "distinctTools": 1,
+              "toolHooks": 1,
+              "forwardedHooks": 1,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": 700.967
+            }
+          ]
+        },
+        "iteratorSettledMs": 701.056,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 1,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 4,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": false
+      },
+      {
+        "turn": 1,
+        "request": 5,
+        "role": "classifier",
+        "wireRequested": "claude-sonnet-5",
+        "requested": "claude-sonnet-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 701.81,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 1,
+        "resultEventMs": 701.998,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "mcpReadiness": {
+          "declaredServers": [],
+          "declaredToolCount": 0,
+          "declaredToolDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 0,
+          "advertisedToolDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 701.908,
+              "lastEventMs": 701.925,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "end_turn"
+              ],
+              "textObserved": true,
+              "thinkingObserved": false,
+              "distinctTools": 0,
+              "toolHooks": 0,
+              "forwardedHooks": 0,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": null
+            }
+          ]
+        },
+        "iteratorSettledMs": 702.06,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 0,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "request": 6,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 2,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 807.411,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 2,
+        "resultEventMs": 807.654,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 2,
+        "terminalReason": "max_turns",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 807.562,
+              "lastEventMs": 807.603,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "tool_use"
+              ],
+              "textObserved": false,
+              "thinkingObserved": false,
+              "distinctTools": 1,
+              "toolHooks": 1,
+              "forwardedHooks": 1,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": 807.593
+            }
+          ]
+        },
+        "iteratorSettledMs": 807.724,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 1,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 6,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": false
+      },
+      {
+        "turn": 1,
+        "request": 7,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 3,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 808.761,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 3,
+        "resultEventMs": 809.087,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 2,
+        "terminalReason": "max_turns",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 809.019,
+              "lastEventMs": 809.056,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "tool_use"
+              ],
+              "textObserved": false,
+              "thinkingObserved": false,
+              "distinctTools": 1,
+              "toolHooks": 1,
+              "forwardedHooks": 1,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": 809.047
+            }
+          ]
+        },
+        "iteratorSettledMs": 809.226,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 1,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 7,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": false
+      },
+      {
+        "turn": 1,
+        "request": 8,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 2,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 812.774,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 2,
+        "resultEventMs": 813.129,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 813.052,
+              "lastEventMs": 813.076,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "end_turn"
+              ],
+              "textObserved": true,
+              "thinkingObserved": false,
+              "distinctTools": 0,
+              "toolHooks": 0,
+              "forwardedHooks": 0,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": null
+            }
+          ]
+        },
+        "iteratorSettledMs": 813.174,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 0,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "request": 9,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 3,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 815.898,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 3,
+        "resultEventMs": 816.012,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 815.986,
+              "lastEventMs": 815.993,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "end_turn"
+              ],
+              "textObserved": true,
+              "thinkingObserved": false,
+              "distinctTools": 0,
+              "toolHooks": 0,
+              "forwardedHooks": 0,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": null
+            }
+          ]
+        },
+        "iteratorSettledMs": 816.053,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 0,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "request": 10,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 820.553,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 1,
+        "resultEventMs": 820.771,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 820.738,
+              "lastEventMs": 820.748,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "end_turn"
+              ],
+              "textObserved": true,
+              "thinkingObserved": false,
+              "distinctTools": 0,
+              "toolHooks": 0,
+              "forwardedHooks": 0,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": null
+            }
+          ]
+        },
+        "iteratorSettledMs": 820.829,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 0,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": true
+      },
+      {
+        "turn": 2,
+        "request": 11,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 997.307,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 1,
+        "resultEventMs": 997.857,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 2,
+        "terminalReason": "max_turns",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 997.529,
+              "lastEventMs": 997.781,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "tool_use"
+              ],
+              "textObserved": false,
+              "thinkingObserved": false,
+              "distinctTools": 1,
+              "toolHooks": 1,
+              "forwardedHooks": 1,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": 997.771
+            }
+          ]
+        },
+        "iteratorSettledMs": 997.947,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 1,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 11,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": false
+      },
+      {
+        "turn": 2,
+        "request": 12,
+        "role": "classifier",
+        "wireRequested": "claude-sonnet-5",
+        "requested": "claude-sonnet-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 1009.491,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 1,
+        "resultEventMs": 1009.812,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "mcpReadiness": {
+          "declaredServers": [],
+          "declaredToolCount": 0,
+          "declaredToolDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 0,
+          "advertisedToolDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 1009.576,
+              "lastEventMs": 1009.619,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "end_turn"
+              ],
+              "textObserved": true,
+              "thinkingObserved": false,
+              "distinctTools": 0,
+              "toolHooks": 0,
+              "forwardedHooks": 0,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": null
+            }
+          ]
+        },
+        "iteratorSettledMs": 1009.881,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 0,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": true
+      },
+      {
+        "turn": 2,
+        "request": 13,
+        "role": "working",
+        "wireRequested": "claude-sonnet-5-5",
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "estimatedCostUsd": 0.001,
+        "createdMs": 1014.391,
+        "allowedToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "nativeInitToolCapabilities": [
+          {
+            "catalogPresent": true,
+            "catalogValid": true,
+            "taskOutput": false,
+            "read": false,
+            "clientMcpTaskOutput": false,
+            "clientMcpRead": false,
+            "clientMcpWildcard": false
+          }
+        ],
+        "session": 1,
+        "resultEventMs": 1014.528,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "mcpReadiness": {
+          "declaredServers": [
+            "oc"
+          ],
+          "declaredToolCount": 2,
+          "declaredToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "initCount": 1,
+          "resultCount": 1,
+          "shapeValid": true,
+          "sessionMatched": true,
+          "statuses": [
+            {
+              "name": "oc",
+              "status": "connected"
+            }
+          ],
+          "missingServers": 0,
+          "unconfiguredServers": 0,
+          "duplicateServers": false,
+          "duplicateTools": false,
+          "advertisedToolCount": 2,
+          "advertisedToolDigest": "dd0421b9efea384f732601e901a7b9fb35ee481056ed18706369d224aa61fd7d",
+          "missingTools": 0,
+          "unexpectedTools": 0,
+          "ready": true
+        },
+        "generations": {
+          "assistantEvents": 1,
+          "streamStarts": 1,
+          "distinctGenerations": 1,
+          "missingGenerationIds": 0,
+          "missingToolIds": 0,
+          "conflictingToolOwners": 0,
+          "overflow": false,
+          "uncorrelatedStopEvents": 0,
+          "overlappingStreamStarts": 0,
+          "completeGenerationIds": true,
+          "uncorrelatedHooks": 0,
+          "generations": [
+            {
+              "number": 1,
+              "firstEventMs": 1014.487,
+              "lastEventMs": 1014.496,
+              "assistantEvents": 1,
+              "streamStarts": 1,
+              "stopReasons": [
+                "end_turn"
+              ],
+              "textObserved": true,
+              "thinkingObserved": false,
+              "distinctTools": 0,
+              "toolHooks": 0,
+              "forwardedHooks": 0,
+              "droppedHooks": 0,
+              "unknownHooks": 0,
+              "repeatedHookEvents": 0,
+              "firstHookMs": null
+            }
+          ]
+        },
+        "iteratorSettledMs": 1014.567,
+        "iteratorSettled": true,
+        "sdkToolHookCustody": true,
+        "sdkObservedToolCount": 0,
+        "explicitlyDroppedSdkToolCount": 0,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true,
+        "originalCanonicalResult": true
+      }
+    ],
+    "turns": [
+      {
+        "number": 1,
+        "status": 0,
+        "answered": true,
+        "refused": false
+      },
+      {
+        "number": 2,
+        "status": 0,
+        "answered": true,
+        "refused": false
+      }
+    ],
+    "checks": {
+      "invocationsSucceeded": true,
+      "turnsAnswered": true,
+      "noRefusal": true,
+      "requestedModelIdentity": true,
+      "rootedWireIdentity": true,
+      "requestDecisionsComplete": true,
+      "twoMultiturnAgents": true,
+      "foregroundParallelism": true,
+      "actualAgentAndBashReceipts": true,
+      "sdkToolHookCustody": true,
+      "allQueriesCorrelated": true,
+      "distinctSessionMappings": true,
+      "subagentResume": true,
+      "mainResume": true,
+      "noCollision": true,
+      "boundedLeaseWait": true,
+      "nativeReceipts": true,
+      "costBound": true,
+      "genuineClassifiers": true,
+      "mixedClassifierCoverage": true,
+      "classifierIsolation": true,
+      "classifierNoWorkingLeaseWait": true,
+      "independentClassifierSessions": false,
+      "exactRequestModelOwnership": true,
+      "outsideWritesAndParentReceipt": true,
+      "nativeMcpReadiness": true
+    },
+    "result": "FAIL",
+    "acceptance": false,
+    "requestedClassifierModel": "claude-sonnet-5",
+    "requiredServedClassifierModel": "claude-sonnet-5",
+    "classifierModelScope": "One explicitly pinned native classifier arm only; demotion/fallback and another served model cannot qualify this run.",
+    "identity": {
+      "targetKind": "installed-package",
+      "packageVersion": "0.0.0",
+      "proxyEntrySha256": "508ff3c6e10fa7e46f08dfa579003cd764e1a31ff5a6555d231faaae468c47b6",
+      "sdkVersion": "0.2.141",
+      "sdkEntrySha256": "c340995e3db18fdb815a0241e56be346935b167b1465e0560a0c0e53fff664b6",
+      "clientSha256": "0094cb761d16af7cfb6b3fa84dac2ea5084f1f79aa4c7b62a333a41d9b02010b",
+      "nativeCliSha256": "53a9b47b4d0d9f9614109c804041b0dcf5724362d46b69ab652f16c458d2f906",
+      "clientVersion": "2.1.287",
+      "nativeCliVersion": "2.1.284"
+    },
+    "privateSnapshotCreated": true,
+    "sdkCapacity": 4,
+    "remainingNativeGates": [
+      "background/main overlap",
+      "mixed auto-mode classifiers and subagents",
+      "explicit root and scoped cancellation",
+      "declared nested ancestry cancellation",
+      "incidental parent HTTP abort independence",
+      "E41 all four modes"
+    ],
+    "peakOwnedProcesses": 1,
+    "completedHttpToolTerminals": 7,
+    "wire": [
+      {
+        "request": 1,
+        "turn": 1,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 619.997,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 685.653,
+        "responseBodyTerminalMs": 686.289
+      },
+      {
+        "request": 2,
+        "turn": 1,
+        "actor": 1,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 696.577,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 799.982,
+        "responseBodyTerminalMs": 800.436
+      },
+      {
+        "request": 3,
+        "turn": 1,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 0,
+        "role": "classifier",
+        "classifier": true,
+        "systemEnvelope": true,
+        "requestClass": "auxiliary",
+        "requestedModel": "claude-sonnet-5",
+        "requestStartedMs": 697.018,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 701.127,
+        "responseBodyTerminalMs": 701.298
+      },
+      {
+        "request": 4,
+        "turn": 1,
+        "actor": 2,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 698.502,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 801.471,
+        "responseBodyTerminalMs": 801.71
+      },
+      {
+        "request": 5,
+        "turn": 1,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 0,
+        "role": "classifier",
+        "classifier": true,
+        "systemEnvelope": true,
+        "requestClass": "auxiliary",
+        "requestedModel": "claude-sonnet-5",
+        "requestStartedMs": 699.034,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 702.293,
+        "responseBodyTerminalMs": 702.53
+      },
+      {
+        "request": 6,
+        "turn": 1,
+        "actor": 1,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 806.223,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 808.214,
+        "responseBodyTerminalMs": 808.483
+      },
+      {
+        "request": 7,
+        "turn": 1,
+        "actor": 2,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 808.146,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 809.771,
+        "responseBodyTerminalMs": 810.034
+      },
+      {
+        "request": 8,
+        "turn": 1,
+        "actor": 1,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 811.96,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 813.481,
+        "responseBodyTerminalMs": 813.747
+      },
+      {
+        "request": 9,
+        "turn": 1,
+        "actor": 2,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 815.19,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 816.243,
+        "responseBodyTerminalMs": 816.54
+      },
+      {
+        "request": 10,
+        "turn": 1,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 819.947,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 821.297,
+        "responseBodyTerminalMs": 821.487
+      },
+      {
+        "request": 11,
+        "turn": 2,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 996.108,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 998.327,
+        "responseBodyTerminalMs": 998.593
+      },
+      {
+        "request": 12,
+        "turn": 2,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 0,
+        "role": "classifier",
+        "classifier": true,
+        "systemEnvelope": true,
+        "requestClass": "auxiliary",
+        "requestedModel": "claude-sonnet-5",
+        "requestStartedMs": 1008.8,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 1010.17,
+        "responseBodyTerminalMs": 1010.377
+      },
+      {
+        "request": 13,
+        "turn": 2,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "role": "working",
+        "classifier": false,
+        "systemEnvelope": false,
+        "requestClass": "none",
+        "requestedModel": "claude-sonnet-5-5",
+        "requestStartedMs": 1013.723,
+        "clientToolCapabilities": {
+          "catalogPresent": true,
+          "catalogValid": true,
+          "taskOutput": false,
+          "read": false,
+          "clientMcpTaskOutput": false,
+          "clientMcpRead": false,
+          "clientMcpWildcard": false
+        },
+        "status": 200,
+        "responseHeadersMs": 1014.727,
+        "responseBodyTerminalMs": 1014.891
+      }
+    ],
+    "lineage": [
+      {
+        "turn": 1,
+        "request": 1,
+        "lineage": "new",
+        "divergence": "none",
+        "tools": 2,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 2,
+        "lineage": "new",
+        "divergence": "none",
+        "tools": 1,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 3,
+        "lineage": "continuation",
+        "divergence": "independent-request:auxiliary-request",
+        "tools": 0,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": true
+      },
+      {
+        "turn": 1,
+        "request": 4,
+        "lineage": "new",
+        "divergence": "none",
+        "tools": 1,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 5,
+        "lineage": "continuation",
+        "divergence": "independent-request:auxiliary-request",
+        "tools": 0,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": true
+      },
+      {
+        "turn": 1,
+        "request": 6,
+        "lineage": "continuation",
+        "divergence": "none",
+        "tools": 1,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 7,
+        "lineage": "continuation",
+        "divergence": "none",
+        "tools": 1,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 8,
+        "lineage": "continuation",
+        "divergence": "none",
+        "tools": 0,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 9,
+        "lineage": "continuation",
+        "divergence": "none",
+        "tools": 0,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 10,
+        "lineage": "continuation",
+        "divergence": "none",
+        "tools": 0,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 2,
+        "request": 11,
+        "lineage": "continuation",
+        "divergence": "none",
+        "tools": 1,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 2,
+        "request": 12,
+        "lineage": "continuation",
+        "divergence": "independent-request:auxiliary-request",
+        "tools": 0,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": true
+      },
+      {
+        "turn": 2,
+        "request": 13,
+        "lineage": "continuation",
+        "divergence": "none",
+        "tools": 0,
+        "messages": 2,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      }
+    ],
+    "peakParallelAgentRequests": 2,
+    "sessionPrefixAmbiguous": true,
+    "textReceiptAmbiguous": true,
+    "queryReceipts": [
+      {
+        "number": 1,
+        "request": 1,
+        "actor": 0,
+        "role": "working",
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 2,
+        "request": 2,
+        "actor": 1,
+        "role": "working",
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 3,
+        "request": 3,
+        "actor": 0,
+        "role": "classifier",
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 4,
+        "request": 4,
+        "actor": 2,
+        "role": "working",
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 5,
+        "request": 5,
+        "actor": 0,
+        "role": "classifier",
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 6,
+        "request": 6,
+        "actor": 1,
+        "role": "working",
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 7,
+        "request": 7,
+        "actor": 2,
+        "role": "working",
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 8,
+        "request": 8,
+        "actor": 1,
+        "role": "working",
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 9,
+        "request": 9,
+        "actor": 2,
+        "role": "working",
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 10,
+        "request": 10,
+        "actor": 0,
+        "role": "working",
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 11,
+        "request": 11,
+        "actor": 0,
+        "role": "working",
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 12,
+        "request": 12,
+        "actor": 0,
+        "role": "classifier",
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 13,
+        "request": 13,
+        "actor": 0,
+        "role": "working",
+        "kind": "text",
+        "paired": true
+      }
+    ],
+    "queryLifecycle": [
+      {
+        "query": 1,
+        "request": 1,
+        "actor": 0,
+        "priorRequest": null,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": null,
+        "priorResultOverlapMs": null,
+        "priorIteratorOverlapMs": null
+      },
+      {
+        "query": 2,
+        "request": 2,
+        "actor": 1,
+        "priorRequest": null,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": null,
+        "priorResultOverlapMs": null,
+        "priorIteratorOverlapMs": null
+      },
+      {
+        "query": 3,
+        "request": 3,
+        "actor": 0,
+        "priorRequest": null,
+        "role": "classifier",
+        "priorHttpBodyCompleteBeforeRequest": null,
+        "priorResultOverlapMs": null,
+        "priorIteratorOverlapMs": null
+      },
+      {
+        "query": 4,
+        "request": 4,
+        "actor": 2,
+        "priorRequest": null,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": null,
+        "priorResultOverlapMs": null,
+        "priorIteratorOverlapMs": null
+      },
+      {
+        "query": 5,
+        "request": 5,
+        "actor": 0,
+        "priorRequest": null,
+        "role": "classifier",
+        "priorHttpBodyCompleteBeforeRequest": null,
+        "priorResultOverlapMs": null,
+        "priorIteratorOverlapMs": null
+      },
+      {
+        "query": 6,
+        "request": 6,
+        "actor": 1,
+        "priorRequest": 2,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": true,
+        "priorResultOverlapMs": 0,
+        "priorIteratorOverlapMs": 0
+      },
+      {
+        "query": 7,
+        "request": 7,
+        "actor": 2,
+        "priorRequest": 4,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": true,
+        "priorResultOverlapMs": 0,
+        "priorIteratorOverlapMs": 0
+      },
+      {
+        "query": 8,
+        "request": 8,
+        "actor": 1,
+        "priorRequest": 6,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": true,
+        "priorResultOverlapMs": 0,
+        "priorIteratorOverlapMs": 0
+      },
+      {
+        "query": 9,
+        "request": 9,
+        "actor": 2,
+        "priorRequest": 7,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": true,
+        "priorResultOverlapMs": 0,
+        "priorIteratorOverlapMs": 0
+      },
+      {
+        "query": 10,
+        "request": 10,
+        "actor": 0,
+        "priorRequest": 1,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": true,
+        "priorResultOverlapMs": 0,
+        "priorIteratorOverlapMs": 0
+      },
+      {
+        "query": 11,
+        "request": 11,
+        "actor": 0,
+        "priorRequest": 10,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": true,
+        "priorResultOverlapMs": 0,
+        "priorIteratorOverlapMs": 0
+      },
+      {
+        "query": 12,
+        "request": 12,
+        "actor": 0,
+        "priorRequest": null,
+        "role": "classifier",
+        "priorHttpBodyCompleteBeforeRequest": null,
+        "priorResultOverlapMs": null,
+        "priorIteratorOverlapMs": null
+      },
+      {
+        "query": 13,
+        "request": 13,
+        "actor": 0,
+        "priorRequest": 11,
+        "role": "working",
+        "priorHttpBodyCompleteBeforeRequest": true,
+        "priorResultOverlapMs": 0,
+        "priorIteratorOverlapMs": 0
+      }
+    ],
+    "toolReceipts": [
+      {
+        "number": 1,
+        "actor": 0,
+        "query": 1,
+        "name": "Agent",
+        "paired": true,
+        "resultRequest": 10,
+        "resultMatched": true
+      },
+      {
+        "number": 2,
+        "actor": 0,
+        "query": 1,
+        "name": "Agent",
+        "paired": true,
+        "resultRequest": 10,
+        "resultMatched": true
+      },
+      {
+        "number": 3,
+        "actor": 1,
+        "query": 2,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 6,
+        "resultMatched": true
+      },
+      {
+        "number": 4,
+        "actor": 2,
+        "query": 4,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 7,
+        "resultMatched": true
+      },
+      {
+        "number": 5,
+        "actor": 1,
+        "query": 6,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 8,
+        "resultMatched": true
+      },
+      {
+        "number": 6,
+        "actor": 2,
+        "query": 7,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 9,
+        "resultMatched": true
+      },
+      {
+        "number": 7,
+        "actor": 0,
+        "query": 11,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 13,
+        "resultMatched": true
+      }
+    ],
+    "toolReceiptDiagnostics": [
+      {
+        "number": 1,
+        "wireName": "Agent",
+        "sdkName": "Agent",
+        "sdkNamespace": "client-mcp",
+        "sdkIdOwners": 1,
+        "observerNameMatched": true,
+        "singleClientPrefixNameMatched": true,
+        "inputMatched": true,
+        "hookForwarded": true,
+        "hookInputMatched": true
+      },
+      {
+        "number": 2,
+        "wireName": "Agent",
+        "sdkName": "Agent",
+        "sdkNamespace": "client-mcp",
+        "sdkIdOwners": 1,
+        "observerNameMatched": true,
+        "singleClientPrefixNameMatched": true,
+        "inputMatched": true,
+        "hookForwarded": true,
+        "hookInputMatched": true
+      },
+      {
+        "number": 3,
+        "wireName": "Bash",
+        "sdkName": "Bash",
+        "sdkNamespace": "client-mcp",
+        "sdkIdOwners": 1,
+        "observerNameMatched": true,
+        "singleClientPrefixNameMatched": true,
+        "inputMatched": true,
+        "hookForwarded": true,
+        "hookInputMatched": true
+      },
+      {
+        "number": 4,
+        "wireName": "Bash",
+        "sdkName": "Bash",
+        "sdkNamespace": "client-mcp",
+        "sdkIdOwners": 1,
+        "observerNameMatched": true,
+        "singleClientPrefixNameMatched": true,
+        "inputMatched": true,
+        "hookForwarded": true,
+        "hookInputMatched": true
+      },
+      {
+        "number": 5,
+        "wireName": "Bash",
+        "sdkName": "Bash",
+        "sdkNamespace": "client-mcp",
+        "sdkIdOwners": 1,
+        "observerNameMatched": true,
+        "singleClientPrefixNameMatched": true,
+        "inputMatched": true,
+        "hookForwarded": true,
+        "hookInputMatched": true
+      },
+      {
+        "number": 6,
+        "wireName": "Bash",
+        "sdkName": "Bash",
+        "sdkNamespace": "client-mcp",
+        "sdkIdOwners": 1,
+        "observerNameMatched": true,
+        "singleClientPrefixNameMatched": true,
+        "inputMatched": true,
+        "hookForwarded": true,
+        "hookInputMatched": true
+      },
+      {
+        "number": 7,
+        "wireName": "Bash",
+        "sdkName": "Bash",
+        "sdkNamespace": "client-mcp",
+        "sdkIdOwners": 1,
+        "observerNameMatched": true,
+        "singleClientPrefixNameMatched": true,
+        "inputMatched": true,
+        "hookForwarded": true,
+        "hookInputMatched": true
+      }
+    ],
+    "requestModelWitness": {
+      "capturedRequests": 13,
+      "missingContext": false,
+      "duplicateContext": false,
+      "otherLoggerStore": false
+    },
+    "mixedAutoFacts": {
+      "classifiers": 3,
+      "classifierActors": [
+        0
+      ],
+      "workingRequests": 10,
+      "turnOneClassifiers": 2,
+      "turnTwoClassifiers": 1,
+      "duringChildWorkflow": 2,
+      "completedOutsideWrites": 5
+    },
+    "failureType": "AssertionError",
+    "failureCode": "ERR_ASSERTION",
+    "failure": "Affected-flow assertion failed: independentClassifierSessions",
+    "clientProcesses": [
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED"
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED"
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED"
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED"
+      }
+    ],
+    "relayOperationsJoined": true,
+    "ownedResidualProcesses": 0,
+    "loggerContextDescriptorRestored": true,
+    "targetIdentityUnchanged": true,
+    "ownerGrantUnchanged": true,
+    "runtimeGrantUnchanged": true,
+    "privateRuntimeRemoved": true,
+    "privateRuntimeRetained": false,
+    "cleanupFailures": [],
+    "suppressedLogLines": 13
+  }
+}

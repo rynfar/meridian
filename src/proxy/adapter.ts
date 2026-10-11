@@ -48,6 +48,31 @@ export interface AgentIdentity {
   getParentSessionId?(c: Context, body?: unknown): string | undefined
 
   /**
+   * Optional key of the conversation this request belongs to, for clients
+   * whose subagents carry session keys of their own. Requests under one root
+   * share account routing — the sticky assignment and the priority
+   * assignment — so a subagent lands on its parent's account.
+   *
+   * Everything else stays on `getSessionId`: the session mapping, lineage,
+   * the turn lease, declared automatic ancestry, the durable priority route (coupled to
+   * one session mapping) and the `[1m]` rate-limit bench (scoped per session
+   * so one limited flow never downgrades its siblings).
+   *
+   * Must return a key `getSessionId` produces for the root's own requests.
+   * Undefined, or no method, means the request is its own root.
+   */
+  getRootSessionId?(c: Context, body?: unknown): string | undefined
+
+  /** Internal mapping ownership discriminator; absent for legacy raw keys. */
+  getSessionNamespace?(c: Context, body?: unknown): string | undefined
+
+  /** Public explicit-cancel alias, distinct from a namespaced internal key. */
+  getSessionCancelKey?(c: Context, body?: unknown): string | undefined
+
+  /** Public conversation-cancel alias when its internal root key is escaped. */
+  getRootSessionCancelKey?(c: Context, body?: unknown): string | undefined
+
+  /**
    * Optional client-declared agent mode. Adapters own their header/protocol
    * details; the proxy uses the normalized value for model-tier selection.
    */
@@ -65,6 +90,17 @@ export interface AgentIdentity {
    * stale branch, and refusing it is what stops two histories from merging.
    */
   readonly runsConcurrentTurnsPerSessionKey?: boolean
+
+  /**
+   * True when this request is a client side call that carries the
+   * conversation's session key without being a turn of that conversation.
+   *
+   * Such a request skips lineage lookup and never publishes, evicts or
+   * recovers the session mapping, and never takes the session turn lease: it
+   * has no turn to serialize. Undefined or false keeps normal session handling, which is
+   * what every client that separates its side calls by key already gets.
+   */
+  isAuxiliaryRequest?(c: Context, body?: unknown): boolean
 
   /**
    * Optional trusted identity for a visible human turn.

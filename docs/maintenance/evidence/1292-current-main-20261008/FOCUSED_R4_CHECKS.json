@@ -1,0 +1,38 @@
+[
+  {
+    "label": "r4-typecheck",
+    "argv": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 4.236,
+    "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+  },
+  {
+    "label": "r4-proxy-concurrency-coordination",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-concurrency-coordination.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 7.792,
+    "sha256": "b8b766da4a23b6075e5cc4f529ad2cc495a0457aaede6d57f50c49a9155f0a51"
+  },
+  {
+    "label": "r4-passthrough-early-stop-integration",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/passthrough-early-stop-integration.test.ts"
+    ],
+    "exit": 1,
+    "joined": true,
+    "seconds": 6.323,
+    "sha256": "b1da6351907eced78393f3462909eb668e4672923f1518f75da0a50cdceea50d"
+  }
+]

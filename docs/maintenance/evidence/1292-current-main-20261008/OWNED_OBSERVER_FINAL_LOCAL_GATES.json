@@ -1,0 +1,83 @@
+{
+  "head": "465c35895cbef922669a6bb745d86438f9941c4d",
+  "startedUTC": "2026-10-09T02:57:13.913078+00:00",
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-owned-observer-gates-haqucg8j",
+  "modelCalls": 0,
+  "checks": [
+    {
+      "label": "owned-observer-final-npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 604.338,
+      "sha256": "554ca2cbbbd6161e8b2a3729c9ff85e76814e38c987b29815ed9a7ed4f9fc913"
+    },
+    {
+      "label": "owned-observer-final-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 4.429,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "label": "owned-observer-final-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 3.662,
+      "sha256": "646f7c69ff09fba2420b98b24983519f72e25617e1a2351b590d860228436566"
+    },
+    {
+      "label": "owned-observer-final-caption-control",
+      "argv": [
+        "node",
+        "scripts/e2e-claude-code-progress-captions/caption-shape-control.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.033,
+      "sha256": "b0294b61514a5974faa0bf43c4329b7c7f901b7b9bf09371dbc7a92a4f33ba69"
+    },
+    {
+      "label": "owned-observer-final-mapping-control",
+      "argv": [
+        "bun",
+        "scripts/e2e-claude-code-progress-captions/mapping-observer-control.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.032,
+      "sha256": "7d783e1161a4ddd9099c3128b5cc85dd8c20a0d76752e29fc7be3fcb3ccddf21"
+    },
+    {
+      "label": "owned-observer-final-native-causal-control",
+      "argv": [
+        "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1290/tooling/bun-1.3.11/package/bin/bun",
+        "scripts/e2e-claude-code-progress-captions/native-observer-causal-control.mjs",
+        "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/native-observer-before-model-custody.mjs",
+        "/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008/scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs",
+        "/Users/rynfar/.hermes/node/bin/node"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 6.783,
+      "sha256": "138feb017363c9c7a87651b898316c895a4922bc04cb8167ff44c4608c30119d"
+    }
+  ],
+  "status": "PASS",
+  "headUnchanged": true,
+  "worktreeClean": true,
+  "finishedUTC": "2026-10-09T03:07:33.262236+00:00"
+}

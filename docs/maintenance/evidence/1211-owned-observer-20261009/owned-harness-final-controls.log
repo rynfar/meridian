@@ -1,0 +1,48 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/e72-mixed-auto.test.ts:
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > witnesses the opt-in interrupt through the maintained harness without trusting a product log [1359.30ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects an unrelated error even when a fake product consumes it and returns the expected tools [1544.11ms]
+
+src/__tests__/e72-owned-checkpoint.test.ts:
+(pass) independent owned interrupt observer > binds cap-one and cap-four stops including a prefix result before intent [2.02ms]
+(pass) independent owned interrupt observer > does not qualify a result that merely claims aborted tools [0.18ms]
+(pass) independent owned interrupt observer > correlates buffered prefix results independently of callback promise scheduling [0.21ms]
+(pass) independent owned interrupt observer > still refuses a buffered result when its hook eventually refuses forwarding [0.13ms]
+(pass) independent owned interrupt observer > requires acknowledgement for the final retained hook while allowing an earlier prefix wrapper to settle [0.19ms]
+(pass) independent owned interrupt observer > requires every block closed before the control call [0.28ms]
+(pass) independent owned interrupt observer > rejects session hook ownership [0.11ms]
+(pass) independent owned interrupt observer > rejects nested hook ownership [0.16ms]
+(pass) independent owned interrupt observer > rejects input hook ownership [0.08ms]
+(pass) independent owned interrupt observer > rejects namespace hook ownership [0.06ms]
+(pass) independent owned interrupt observer > rejects kind hook ownership [0.04ms]
+(pass) independent owned interrupt observer > requires a still-retained hook at the call [0.13ms]
+(pass) independent owned interrupt observer > rejects hook release before acknowledgement [0.08ms]
+(pass) independent owned interrupt observer > does not treat a rejected control or unsettled control as joined [0.14ms]
+(pass) independent owned interrupt observer > rejects session terminal mismatch [0.06ms]
+(pass) independent owned interrupt observer > rejects subtype terminal mismatch [0.07ms]
+(pass) independent owned interrupt observer > rejects flag terminal mismatch [0.06ms]
+(pass) independent owned interrupt observer > rejects reason terminal mismatch [0.06ms]
+(pass) independent owned interrupt observer > rejects counter terminal mismatch [0.32ms]
+(pass) independent owned interrupt observer > rejects missingErrors terminal mismatch [0.13ms]
+(pass) independent owned interrupt observer > retains an unrelated iterator failure (generic) [0.15ms]
+(pass) independent owned interrupt observer > retains an unrelated iterator failure (result-shaped) [0.05ms]
+(pass) independent owned interrupt observer > refuses abort after intent [0.21ms]
+(pass) independent owned interrupt observer > refuses close after intent [0.04ms]
+(pass) independent owned interrupt observer > refuses extra-generation after intent [0.04ms]
+(pass) independent owned interrupt observer > refuses nested after intent [0.05ms]
+(pass) independent owned interrupt observer > refuses repeated-control after intent [0.03ms]
+(pass) independent owned interrupt observer > refuses duplicate-result after intent [0.04ms]
+(pass) independent owned interrupt observer > refuses metadata after intent [0.05ms]
+(pass) independent owned interrupt observer > refuses uuid after intent [0.10ms]
+(pass) independent owned interrupt observer > refuses close-failure after intent [0.06ms]
+(pass) independent owned interrupt observer > requires close observation and all exact denial results [0.11ms]
+(pass) versioned E72 qualification remains separate from legacy > qualifies the recorded source/installed tuples through both independent and HTTP custody [0.47ms]
+(pass) versioned E72 qualification remains separate from legacy > refuses receipt-only, missing HTTP/hook custody and unqualified versions [0.12ms]
+(pass) versioned E72 qualification remains separate from legacy > preserves ordinary successful queries and refuses unowned errors [0.06ms]
+
+ 37 pass
+ 35 filtered out
+ 0 fail
+ 83 expect() calls
+Ran 37 tests across 2 files. [2.99s]

@@ -1,0 +1,114 @@
+npm test (pretest tsc --noEmit; process-global mock batches isolated)
+Code head: 4f5ecd7594046bc276a6c9bac76da1cfa44c673c
+Raw log SHA256: 2205c010b089489900f6af910f40c51a1606da45f938ebc04c7dcf1e42c60218
+
+5358 pass
+ 35 skip
+ 0 fail
+ 30419 expect() calls
+Ran 5393 tests across 332 files. [503.30s]
+
+3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [1.80s]
+
+24 pass
+ 0 fail
+ 105 expect() calls
+Ran 24 tests across 1 file. [244.00ms]
+
+5 pass
+ 0 fail
+ 21 expect() calls
+Ran 5 tests across 1 file. [131.00ms]
+
+7 pass
+ 0 fail
+ 135 expect() calls
+Ran 7 tests across 1 file. [496.00ms]
+
+12 pass
+ 0 fail
+ 15 expect() calls
+Ran 12 tests across 1 file. [2.14s]
+
+3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [439.00ms]
+
+53 pass
+ 0 fail
+ 185 expect() calls
+Ran 53 tests across 1 file. [13.72s]
+
+10 pass
+ 0 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [2.11s]
+
+11 pass
+ 0 fail
+ 21 expect() calls
+Ran 11 tests across 1 file. [150.00ms]
+
+8 pass
+ 0 fail
+ 9 expect() calls
+Ran 8 tests across 1 file. [1351.00ms]
+
+95 pass
+ 0 fail
+ 169 expect() calls
+Ran 95 tests across 1 file. [62.00ms]
+
+13 pass
+ 0 fail
+ 39 expect() calls
+Ran 13 tests across 1 file. [56.00ms]
+
+11 pass
+ 0 fail
+ 37 expect() calls
+Ran 11 tests across 1 file. [675.00ms]
+
+76 pass
+ 0 fail
+ 395 expect() calls
+Ran 76 tests across 1 file. [117.46s]
+
+7 pass
+ 0 fail
+ 16 expect() calls
+Ran 7 tests across 1 file. [1.94s]
+
+9 pass
+ 0 fail
+ 28 expect() calls
+Ran 9 tests across 1 file. [349.00ms]
+
+8 pass
+ 0 fail
+ 49 expect() calls
+Ran 8 tests across 1 file. [519.00ms]
+
+24 pass
+ 0 fail
+ 240 expect() calls
+Ran 24 tests across 1 file. [593.00ms]
+
+22 pass
+ 0 fail
+ 226 expect() calls
+Ran 22 tests across 1 file. [723.00ms]
+
+42 pass
+ 0 fail
+ 274 expect() calls
+Ran 42 tests across 1 file. [10.72s]
+
+12 pass
+ 0 fail
+ 92 expect() calls
+Ran 12 tests across 1 file. [5.97s]

@@ -1,0 +1,54 @@
+{
+  "pass": 5762,
+  "skip": 35,
+  "fail": 0,
+  "batches": 22,
+  "expectCalls": 31153,
+  "head": "cc3a06f5682d1f6d3e06defbd91990fa72974edd",
+  "compiledContextControlEnabled": true,
+  "commands": {
+    "npmTest": {
+      "startedAtUTC": "2026-10-09T08:35:10.198889+00:00",
+      "elapsedSeconds": 555.178,
+      "argv": [
+        "env",
+        "E71_COMPILED_CONTEXT_CONTROL=1",
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "childJoined": true,
+      "stdoutAndStderr": "output.log",
+      "outputSHA256": "e5110fb40fba9d121054adc454878a111bc2f8a13051b05f8b4d9e88fc62fa92"
+    },
+    "typecheck": {
+      "startedAtUTC": "2026-10-09T08:33:52.218172+00:00",
+      "elapsedSeconds": 7.392,
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "childJoined": true,
+      "stdoutAndStderr": "output.log",
+      "outputSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    "build": {
+      "startedAtUTC": "2026-10-09T08:33:52.218114+00:00",
+      "elapsedSeconds": 5.682,
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "timedOut": false,
+      "childJoined": true,
+      "stdoutAndStderr": "output.log",
+      "outputSHA256": "9177d575331dcaf408ed699aa8e4ceca1ee557affddac67e9c62a894c3613d0d"
+    }
+  }
+}

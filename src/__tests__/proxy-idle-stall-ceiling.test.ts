@@ -4,13 +4,22 @@ import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
 import { assistantMessage, withMockSdkSessionId, messageStart, textBlockStart, textDelta, blockStop, messageDelta, messageStop } from "./helpers"
 import { UpstreamIdleError } from "../proxy/streamIdleGuard"
+import { settlementBarrier, withTestDeadline } from "./fixtures/settlement"
 
 let stalled = true
 let queries = 0
+let heldNextQuery: { started: ReturnType<typeof settlementBarrier>; release: ReturnType<typeof settlementBarrier> } | undefined
 installSdkMock(() => ({
   query: (params: { options: { includePartialMessages?: boolean } }) => (async function* () {
     queries++
-    if (stalled) throw new UpstreamIdleError(90_000, 90_001)
+    const queryStalls = stalled
+    const held = heldNextQuery
+    heldNextQuery = undefined
+    if (held) {
+      held.started.resolve()
+      await held.release.promise
+    }
+    if (queryStalls) throw new UpstreamIdleError(90_000, 90_001)
     if (params.options.includePartialMessages) {
       for (const event of [messageStart(), textBlockStart(0), textDelta(0, "RECOVERED"), blockStop(0), messageDelta(), messageStop()]) {
         yield withMockSdkSessionId(event, params.options)
@@ -28,10 +37,12 @@ installLoggerMock(() => ({
 installMcpToolsMock(() => ({ createOpencodeMcpServer: () => ({ type: "sdk", name: "opencode", instance: {} }) }))
 const { createProxyServer, clearSessionCache } = await import("../proxy/server")
 type App = ReturnType<typeof createProxyServer>["app"]
-async function request(app: App, session: string | undefined, stream: boolean, text = "hello", model = "haiku") {
+async function request(app: App, session: string | undefined, stream: boolean, text = "hello", model = "haiku", claudeClass?: "main" | "auxiliary") {
   const response = await app.fetch(new Request("http://localhost/v1/messages", {
-    method: "POST", headers: { "content-type": "application/json", ...(session ? { "x-opencode-session": session } : {}) },
-    body: JSON.stringify({ model, max_tokens: 100, stream, messages: [{ role: "user", content: text }] }),
+    method: "POST", headers: { "content-type": "application/json", ...(session ? { "x-opencode-session": session } : {}),
+      ...(claudeClass ? { "x-meridian-agent": "claude-code", "x-claude-code-request-class": claudeClass } : {}) },
+    body: JSON.stringify({ model, max_tokens: 100, stream, messages: [{ role: "user", content: text }],
+      ...(claudeClass ? { metadata: { user_id: JSON.stringify({ session_id: session }) } } : {}) }),
   }))
   const raw = await response.text()
   let error: { type?: string } | undefined
@@ -48,7 +59,7 @@ async function request(app: App, session: string | undefined, stream: boolean, t
 }
 
 describe("HTTP idle retry ceiling", () => {
-  beforeEach(() => { stalled = true; queries = 0; clearSessionCache() })
+  beforeEach(() => { stalled = true; queries = 0; heldNextQuery = undefined; clearSessionCache() })
 
   it.each([false, true])("rejects a repeated terminal request before invoking the SDK, stream=%s", async (stream) => {
     const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
@@ -78,6 +89,65 @@ describe("HTTP idle retry ceiling", () => {
     const retry = await request(app, session, stream)
     expect(retry.error?.type).toBe("upstream_timeout")
     expect(queries).toBe(5)
+  })
+
+  for (const stream of [false, true]) {
+    for (const captionStream of [false, true]) {
+      for (const captionStalls of [false, true]) {
+        it(`keeps the working retry ceiling through ${captionStalls ? "stalled" : "completed"} captions, workStream=${stream}, captionStream=${captionStream}`, async () => {
+          const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+          const session = crypto.randomUUID()
+          const work = () => request(app, session, stream, "working turn", "haiku", "main")
+          const caption = async () => {
+            stalled = captionStalls
+            const result = await request(app, session, captionStream, "progress caption", "haiku", "auxiliary")
+            expect(result.error?.type).toBe(captionStalls ? "upstream_timeout" : undefined)
+            stalled = true
+          }
+
+          expect((await work()).error?.type).toBe("upstream_timeout")
+          await caption()
+          expect((await work()).error?.type).toBe("upstream_timeout")
+          expect((await work()).error?.type).toBe("invalid_request_error")
+          expect(queries).toBe(4)
+
+          // A side call can finish (or stall) while the working request is
+          // blocked. Neither result is progress by the working conversation.
+          await caption()
+          const queriesBeforeRetry = queries
+          const blocked = await work()
+          expect(blocked.status).toBe(400)
+          expect(blocked.error?.type).toBe("invalid_request_error")
+          expect(queries).toBe(queriesBeforeRetry)
+        })
+      }
+    }
+  }
+
+  it.each([false, true])("preserves a working stall recorded while a caption is still running, stream=%s", async (stream) => {
+    const { app } = createProxyServer({ port: 0, host: "127.0.0.1", silent: true })
+    const session = crypto.randomUUID()
+    const work = () => request(app, session, stream, "working turn", "haiku", "main")
+    for (let attempt = 0; attempt < 2; attempt++) expect((await work()).error?.type).toBe("upstream_timeout")
+
+    const held = { started: settlementBarrier(), release: settlementBarrier() }
+    heldNextQuery = held
+    stalled = false
+    const caption = request(app, session, true, "progress caption", "haiku", "auxiliary")
+    try {
+      await withTestDeadline(held.started.promise, "caption query start")
+      stalled = true
+      expect((await withTestDeadline(work(), "overlapping working stall")).error?.type).toBe("invalid_request_error")
+    } finally {
+      held.release.resolve()
+      const completed = await withTestDeadline(caption, "caption completion after working stall")
+      expect(completed.error).toBeUndefined()
+    }
+    expect(queries).toBe(4)
+    const blocked = await work()
+    expect(blocked.status).toBe(400)
+    expect(blocked.error?.type).toBe("invalid_request_error")
+    expect(queries).toBe(4)
   })
 
   it("does not combine unrelated client or unidentified requests", async () => {

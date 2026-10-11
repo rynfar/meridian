@@ -1,0 +1,74 @@
+{
+  "codeHead": "bae7ada3995788c83f6de92e573807c447c587b5",
+  "pretestIncluded": true,
+  "pass": 5935,
+  "skip": 36,
+  "fail": 0,
+  "batches": 22,
+  "commands": [
+    {
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "head": "bae7ada3995788c83f6de92e573807c447c587b5",
+      "headAfter": "bae7ada3995788c83f6de92e573807c447c587b5",
+      "originalProcessPid": 55614,
+      "originalProcessJoined": true,
+      "exit": 0,
+      "startUTC": "2026-10-09T23:34:34.802356+00:00",
+      "endUTC": "2026-10-09T23:50:33.151596+00:00"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "head": "bae7ada3995788c83f6de92e573807c447c587b5",
+      "headAfter": "bae7ada3995788c83f6de92e573807c447c587b5",
+      "originalProcessPid": 32590,
+      "originalProcessJoined": true,
+      "exit": 0,
+      "startUTC": "2026-10-09T23:50:33.152381+00:00",
+      "endUTC": "2026-10-09T23:50:46.567655+00:00"
+    },
+    {
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "head": "bae7ada3995788c83f6de92e573807c447c587b5",
+      "headAfter": "bae7ada3995788c83f6de92e573807c447c587b5",
+      "originalProcessPid": 33934,
+      "originalProcessJoined": true,
+      "exit": 0,
+      "startUTC": "2026-10-09T23:50:46.568221+00:00",
+      "endUTC": "2026-10-09T23:50:54.601102+00:00"
+    }
+  ],
+  "originalProcessesJoined": true,
+  "sourceStableAndCleanAtFinalGateCompletion": true,
+  "compiledBuildLabel": "Certified local build 30 (f5a2a234-8034-4387-8567-af9bde9c73f8)",
+  "rawLogIdentities": [
+    {
+      "name": "npm-test.log",
+      "bytes": 1195403,
+      "sha256": "e6465974cf872bd053281821b83cb115397a28001eddecba7b77b1d45f47c87f",
+      "durableExternalPath": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/final-local-gates/npm-test.log"
+    },
+    {
+      "name": "typecheck.log",
+      "bytes": 53,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7",
+      "durableExternalPath": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/final-local-gates/typecheck.log"
+    },
+    {
+      "name": "build.log",
+      "bytes": 2239,
+      "sha256": "9a498d9b25f3838a096db27ecbe489360ecd77284aa08e10a33fff2976b1c402",
+      "durableExternalPath": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-attempt-stop-implementation-20261009-round6/final-local-gates/build.log"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "typecheck",
+  "argv": [
+    "npm",
+    "run",
+    "typecheck"
+  ],
+  "originalPid": 12700,
+  "joined": true,
+  "exit": 0,
+  "startUTC": "2026-10-10T04:42:07.942386+00:00",
+  "endUTC": "2026-10-10T04:42:15.104349+00:00",
+  "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+}

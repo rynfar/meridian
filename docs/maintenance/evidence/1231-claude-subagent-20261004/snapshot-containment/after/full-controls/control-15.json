@@ -1,0 +1,626 @@
+{
+  "mode": {
+    "noParallel": true
+  },
+  "extras": [],
+  "timeout": "10000",
+  "proof": {
+    "kind": "synthetic-harness-control",
+    "expected": "fixed",
+    "platform": "darwin/arm64",
+    "runtime": {
+      "bun": "1.3.14",
+      "node": "v24.3.0"
+    },
+    "requestedModel": "claude-sonnet-5-5",
+    "requiredServedModel": "claude-sonnet-5-5",
+    "limits": {
+      "queries": 20,
+      "sdkEstimatedCostUsd": 10,
+      "perQueryBudgetUsd": 0.5,
+      "totalMilliseconds": 10000,
+      "wireRequests": 20,
+      "requestBytes": 2097152,
+      "clientStreamBytes": 2097152,
+      "clientInvocations": 2,
+      "ownedProcesses": 96
+    },
+    "queries": [
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": false,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 1,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 1,
+        "toolCount": 2,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": false,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 2,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 2,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 2,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 2,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 3,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 2,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 2,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": false,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 3,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 5,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 3,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": true,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 3,
+        "resultSubtype": "error_max_turns",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": true,
+        "toolRequest": 6,
+        "toolCount": 1,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 3,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 3,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 1,
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 1,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true
+      },
+      {
+        "turn": 2,
+        "requested": "claude-sonnet-5-5",
+        "resumed": true,
+        "resumedSession": 1,
+        "forked": false,
+        "maxTurns": 1,
+        "nativeModels": [
+          "claude-sonnet-5-5"
+        ],
+        "completed": true,
+        "assistantError": false,
+        "resultFlagValid": true,
+        "resultIsError": false,
+        "inputTokens": 12,
+        "outputTokens": 4,
+        "estimatedCostUsd": 0.001,
+        "session": 1,
+        "resultSubtype": "success",
+        "nativeTurns": 1,
+        "terminalReason": "absent",
+        "iteratorSettled": true,
+        "canonicalHttpToolTerminal": false,
+        "toolCount": 0,
+        "acceptedCanonicalResult": true
+      }
+    ],
+    "turns": [
+      {
+        "number": 1,
+        "status": 0,
+        "answered": true,
+        "refused": false
+      },
+      {
+        "number": 2,
+        "status": 0,
+        "answered": true,
+        "refused": false
+      }
+    ],
+    "checks": {
+      "invocationsSucceeded": true,
+      "turnsAnswered": true,
+      "noRefusal": true,
+      "requestedModelIdentity": true,
+      "rootedWireIdentity": true,
+      "requestDecisionsComplete": true,
+      "twoMultiturnAgents": true,
+      "foregroundParallelism": false,
+      "actualAgentAndBashReceipts": true,
+      "allQueriesCorrelated": true,
+      "distinctSessionMappings": true,
+      "subagentResume": true,
+      "mainResume": true,
+      "noCollision": true,
+      "boundedLeaseWait": true,
+      "nativeReceipts": true,
+      "costBound": true
+    },
+    "result": "FAIL",
+    "acceptance": false,
+    "identity": {
+      "targetKind": "installed-package",
+      "packageVersion": "0.0.0",
+      "proxyEntrySha256": "f44563e32edf1ffff60c67af5fd718c699591bd2183c3933645857d0207c8eb6",
+      "sdkVersion": "0.2.141",
+      "sdkEntrySha256": "537a1a08422559f931ce9fb124c3a9f4d1adcec75d9a6d234dce06c160c0a4e5",
+      "clientSha256": "74823c39c157a978505dd71cdd4c21f0396cee91d2a25adcda5e3891a0ffdb12",
+      "nativeCliSha256": "53a9b47b4d0d9f9614109c804041b0dcf5724362d46b69ab652f16c458d2f906",
+      "clientVersion": "2.1.287",
+      "nativeCliVersion": "2.1.284"
+    },
+    "privateSnapshotCreated": true,
+    "sdkCapacity": 4,
+    "remainingNativeGates": [
+      "background/main overlap",
+      "mixed auto-mode classifiers and subagents",
+      "explicit root and scoped cancellation",
+      "declared nested ancestry cancellation",
+      "incidental parent HTTP abort independence",
+      "E41 all four modes"
+    ],
+    "peakOwnedProcesses": 1,
+    "completedHttpToolTerminals": 6,
+    "wire": [
+      {
+        "request": 1,
+        "turn": 1,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 2,
+        "turn": 1,
+        "actor": 1,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 3,
+        "turn": 1,
+        "actor": 1,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 4,
+        "turn": 1,
+        "actor": 1,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 5,
+        "turn": 1,
+        "actor": 2,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 6,
+        "turn": 1,
+        "actor": 2,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 7,
+        "turn": 1,
+        "actor": 2,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 8,
+        "turn": 1,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      },
+      {
+        "request": 9,
+        "turn": 2,
+        "actor": 0,
+        "requestedModelMatched": true,
+        "sessionKeyMatched": true,
+        "tools": 2,
+        "status": 200
+      }
+    ],
+    "lineage": [
+      {
+        "turn": 1,
+        "request": 1,
+        "lineage": "diverged",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 2,
+        "lineage": "diverged",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 3,
+        "lineage": "continuation",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 4,
+        "lineage": "continuation",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 5,
+        "lineage": "diverged",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 6,
+        "lineage": "continuation",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 7,
+        "lineage": "continuation",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 1,
+        "request": 8,
+        "lineage": "continuation",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      },
+      {
+        "turn": 2,
+        "request": 9,
+        "lineage": "continuation",
+        "tools": 2,
+        "messages": 1,
+        "sessionWaitMs": 0,
+        "auxiliary": false
+      }
+    ],
+    "peakParallelAgentRequests": 1,
+    "sessionPrefixAmbiguous": false,
+    "textReceiptAmbiguous": false,
+    "queryReceipts": [
+      {
+        "number": 1,
+        "request": 1,
+        "actor": 0,
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 2,
+        "request": 2,
+        "actor": 1,
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 3,
+        "request": 3,
+        "actor": 1,
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 4,
+        "request": 4,
+        "actor": 1,
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 5,
+        "request": 5,
+        "actor": 2,
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 6,
+        "request": 6,
+        "actor": 2,
+        "kind": "tools",
+        "paired": true
+      },
+      {
+        "number": 7,
+        "request": 7,
+        "actor": 2,
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 8,
+        "request": 8,
+        "actor": 0,
+        "kind": "text",
+        "paired": true
+      },
+      {
+        "number": 9,
+        "request": 9,
+        "actor": 0,
+        "kind": "text",
+        "paired": true
+      }
+    ],
+    "toolReceipts": [
+      {
+        "number": 1,
+        "actor": 0,
+        "query": 1,
+        "name": "Agent",
+        "paired": true,
+        "resultRequest": 8,
+        "resultMatched": true
+      },
+      {
+        "number": 2,
+        "actor": 0,
+        "query": 1,
+        "name": "Agent",
+        "paired": true,
+        "resultRequest": 8,
+        "resultMatched": true
+      },
+      {
+        "number": 3,
+        "actor": 1,
+        "query": 2,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 3,
+        "resultMatched": true
+      },
+      {
+        "number": 4,
+        "actor": 1,
+        "query": 3,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 4,
+        "resultMatched": true
+      },
+      {
+        "number": 5,
+        "actor": 2,
+        "query": 5,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 6,
+        "resultMatched": true
+      },
+      {
+        "number": 6,
+        "actor": 2,
+        "query": 6,
+        "name": "Bash",
+        "paired": true,
+        "resultRequest": 7,
+        "resultMatched": true
+      }
+    ],
+    "failureType": "AssertionError",
+    "failureCode": "ERR_ASSERTION",
+    "failure": "Affected-flow assertion failed: foregroundParallelism",
+    "ownedResidualProcesses": 0,
+    "targetIdentityUnchanged": true,
+    "ownerGrantUnchanged": true,
+    "runtimeGrantUnchanged": true,
+    "privateRuntimeRemoved": true,
+    "privateRuntimeRetained": false,
+    "cleanupFailures": [],
+    "suppressedLogLines": 9
+  }
+}

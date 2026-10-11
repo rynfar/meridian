@@ -1,0 +1,31 @@
+{
+  "arms": [
+    {
+      "exit": 0,
+      "originalAttachPid": 91684,
+      "originalAttachJoined": true,
+      "seconds": 5.020981791021768,
+      "containerId": "5435fb5d279b2c6cdd1b56fe051b9b8985be10f7443ee1f2dcf8bd390c2f361e",
+      "sourceImageCodeHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+      "originalStoppedContainerRemoved": true,
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "actualAffectedClientAcceptance": false
+    },
+    {
+      "exit": 0,
+      "originalAttachPid": 91791,
+      "originalAttachJoined": true,
+      "seconds": 4.662423582980409,
+      "containerId": "89d3c3e96f0dea1a343f03ce91bda25d2bf5eac7ee00536b836daeb53d368065",
+      "sourceImageCodeHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+      "originalStoppedContainerRemoved": true,
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "actualAffectedClientAcceptance": false
+    }
+  ],
+  "image": "sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5",
+  "freshMcpProductionSnapshotHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "scope": "Preparation only; does not qualify any actual affected client/model flow."
+}

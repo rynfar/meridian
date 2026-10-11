@@ -1,0 +1,29 @@
+{
+  "atUTC": "2026-10-09T11:35:41.827842+00:00",
+  "qualified": true,
+  "queries": 5,
+  "actualClientInvocations": 3,
+  "originalE55Checks": "ALL11PASS",
+  "allNativeModelUsageTargetCompletionResponseWitnessesMatched": true,
+  "estimatedSdkCostUsd": 0.1151712,
+  "originalClientSdkIteratorHttpStdioWitnessesJoined": true,
+  "ownedStoppedContainerRemoved": true,
+  "selectedSourceAndGrantUnchanged": true,
+  "grantRetainedOnlyForImmediateInstalledCase": true,
+  "nativeTurnsRetainedAsIndependentResultCounter": [
+    2,
+    1,
+    1,
+    2,
+    1
+  ],
+  "assistantResponsesPerQuery": [
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "rootCorrection": "Original first failed receipt predicate is retained; exact one original model response replaces the unsupported counter equality. All11 original E55 assertions unchanged.",
+  "historicalReporterActualGatewayAndMcpTransportGates": "HELD"
+}

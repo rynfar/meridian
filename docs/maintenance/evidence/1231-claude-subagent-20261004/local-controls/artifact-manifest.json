@@ -1,0 +1,136 @@
+{
+  "scope": "Synthetic local controls only; no native SDK/auth/model/platform acceptance",
+  "finalTypedCodeHead": "6e7ee9f4f3d003de7f1d593983bc9f3af16561cd",
+  "producerBeforeHead": "f3cbbae97cb6e0631a17990ba74eab4e6c402b90",
+  "producerAfterHead": "f361cc24a661ee6cfce2c5383bd77bd6008f61b3",
+  "initialTypecheckHead": "482ec2c5f979def1740eda46d8e2bbc4ff9122be",
+  "finalTypecheckHead": "6e7ee9f4f3d003de7f1d593983bc9f3af16561cd",
+  "artifacts": [
+    {
+      "path": "focused-initial-key-shape.log",
+      "bytes": 8990,
+      "sha256": "b8989f63a2ac6a1ded04c937229156aeea3e6128034de5557cf196450f3bf4da"
+    },
+    {
+      "path": "focused-identity-tree-namespace-final.log",
+      "bytes": 8985,
+      "sha256": "32ebd435fb00856aaad436f68126fff49d8df90be3cc9830995b25ab25822c7b"
+    },
+    {
+      "path": "focused-private-cache-fallback.log",
+      "bytes": 1394,
+      "sha256": "cb2a732c8867238438e652037a358bde84c37054cbcb92705de9c8f116f3666b"
+    },
+    {
+      "path": "focused-concurrency.log",
+      "bytes": 5620,
+      "sha256": "4ca803a7a9878f82eac69deadac1696d715b67c18b0fd4f489a3bb06db37fbfd"
+    },
+    {
+      "path": "focused-declared-cancellation.log",
+      "bytes": 2183,
+      "sha256": "0ea9892eba5baa8b1c72fa34b7e8507062aa3e26a1db483bf2459070ad167593"
+    },
+    {
+      "path": "focused-sticky-routing.log",
+      "bytes": 12832,
+      "sha256": "4ad9828a78c0af7516a581d8820a1d64118a1586148dbbc5fe5cc94c35f922ff"
+    },
+    {
+      "path": "focused-priority-routing.log",
+      "bytes": 75491,
+      "sha256": "99ba190de8b6c2b565487ab17a387a03a3f4d609941acee0eba0b310737c4718"
+    },
+    {
+      "path": "no-nul-producer-before.log",
+      "bytes": 901,
+      "sha256": "69d38bfe6a1def895f06073264f41eac656503cfc795a88bdb2729cf67caeeca",
+      "sourceSha256": "bab4469fb1daf212468b1335b1a68ede6b51c58baa983f033bd78e7807f1c2de",
+      "sanitization": "Trailing horizontal whitespace and final blank lines removed; assertions/output content unchanged"
+    },
+    {
+      "path": "no-nul-producer-after.log",
+      "bytes": 8833,
+      "sha256": "08e6a956361b9b82ee5831c597ff1ee3efe57ca582dda0940df1534395c3354c"
+    },
+    {
+      "path": "typecheck-final-initial.log",
+      "bytes": 156,
+      "sha256": "219e3ee2e0096ead2c74536253b8aab4dc2263f67d944939e313443c6b25bde3"
+    },
+    {
+      "path": "http-block-index-after.log",
+      "bytes": 1318,
+      "sha256": "702bdd6dfb625741c331140849e2896de55cc4ea8cfdd78c3c8f4b96330180f5"
+    },
+    {
+      "path": "typecheck-final-corrected.log",
+      "bytes": 52,
+      "sha256": "7cfcd168ea09e5543ad3f480e27638340042f190a59fa193460a770c8304c2fb",
+      "sourceSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+      "sanitization": "Trailing horizontal whitespace and final blank lines removed; assertions/output content unchanged"
+    },
+    {
+      "path": "sql-representability.json",
+      "bytes": 768,
+      "sha256": "75ba81eb359dd2ca1ca71662e485be4059aff1267524cfa303d99f8823971d94"
+    },
+    {
+      "path": "sql-representability.ts",
+      "bytes": 640,
+      "sha256": "c413560749124a573d83d1b35c57527ecadfcaf395f5c4cea26e9f4cfc553cbb"
+    },
+    {
+      "path": "sql-validator-after.log",
+      "bytes": 63,
+      "sha256": "3c507c2877198fffd864a696f3b970542be33b3eddfdef49eeee3ed51b8cfbc0"
+    }
+  ],
+  "productAndDirectTestIdentities": [
+    {
+      "path": "src/proxy/adapters/claudecode.ts",
+      "bytes": 17960,
+      "sha256": "388f4b577e6892c29bad480b7263b4355a51965b8399739b83e401336d41befa"
+    },
+    {
+      "path": "src/proxy/session/cache.ts",
+      "bytes": 23660,
+      "sha256": "470fa86e596da25e0c7593980a12f93d27f2339ebd9d6092b33d4c2d7041a9ca"
+    },
+    {
+      "path": "src/proxy/session/lineage.ts",
+      "bytes": 36196,
+      "sha256": "75382271c1c6b1d23f624241e41df0f1f189a445eadfcbca1b48dff17111fa86"
+    },
+    {
+      "path": "src/proxy/sessionStore.ts",
+      "bytes": 93094,
+      "sha256": "b0de6ca4abc119381ba83f035378d232376cc95377f15e05e42b8ed377fa986b"
+    },
+    {
+      "path": "src/proxy/sessionTree.ts",
+      "bytes": 11483,
+      "sha256": "c1b3cfb6c8fb41ba3fffae254a7794c32adab201debfa058623e95c0bbc1de5a"
+    },
+    {
+      "path": "src/proxy/server.ts",
+      "bytes": 543200,
+      "sha256": "a35637af2d382ec198ec73194a64e0f34fd861ef5f4aa5bf334325853593c40d"
+    },
+    {
+      "path": "src/__tests__/claude-subagent-isolation.test.ts",
+      "bytes": 27912,
+      "sha256": "1ac8d3d5266dc2082fa8e6a8c68d7d3aed90c1ec61feb2b3f23c9bbe58743940"
+    },
+    {
+      "path": "src/__tests__/claude-code-session-identity.test.ts",
+      "bytes": 6604,
+      "sha256": "9aa1abfb84f75c22728d5ecf86a473545c0209a48b7305bcbd4bd2c0ec2e91be"
+    },
+    {
+      "path": "src/__tests__/session-key-namespace.test.ts",
+      "bytes": 6359,
+      "sha256": "dd6b3225ce88baa9300bdbd2e525a04dd511b77c7d566f15ca8dd09f43dff91e"
+    }
+  ]
+}

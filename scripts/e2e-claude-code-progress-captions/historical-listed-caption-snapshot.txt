@@ -1,0 +1,22 @@
+  async function snapshot(wire) {
+    need(state?.readSessionStoreSnapshot && state?.readSessionStoreGenerationSnapshot && adapter?.getSessionId && Context, 'owned-mapping-helper-unavailable', 'MISSING');
+    need(wire?.headers instanceof Headers && wire.session && wire.agent, 'owned-working-wire-identity-missing', 'MISSING');
+    // Derive identity with the selected product source, including its namespace
+    // and escaping rules. Root routing/cancel identity is not working authority.
+    const context = new Context(new Request('http://caption-observer.invalid/v1/messages', { headers: wire.headers }));
+    const adapterSessionId = adapter.getSessionId(context, wire.body);
+    let selected;
+    try { selected = selectWorkingMapping(adapterSessionId, PROFILE, state.readSessionStoreSnapshot()); }
+    catch (error) {
+      if (error instanceof MappingObservationError) throw new GateError(error.code, 'MISSING');
+      throw error;
+    }
+    const { key, mapping } = selected;
+    need(mapping.currentTranscript?.configDir === join(privateRoot, 'config', 'profiles', PROFILE) && mapping.currentTranscript?.projectDir === join(privateRoot, 'backend-work'), 'owned-locator-scope');
+    const sessions = await sdk.listSessions({ dir: join(privateRoot, 'backend-work'), includeWorktrees: false });
+    need(sessions.some(s => s.sessionId === mapping.claudeSessionId), 'owned-sdk-session-not-listed', 'MISSING');
+    const history = await sdk.getSessionMessages(mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
+    need(history.length > 0, 'owned-sdk-history-empty', 'MISSING');
+    const generations = state.readSessionStoreGenerationSnapshot(adapterSessionId, [PROFILE]);
+    return { key, mapping: structuredClone(mapping), generations, history, public: { adapterSessionDigest: idDigest(adapterSessionId), storageKeyDigest: idDigest(key), mappingDigest: digest(mapping), generationsDigest: digest(generations), sdkSessionDigest: idDigest(mapping.claudeSessionId), lineageDigest: idDigest(mapping.lineageHash), messageCount: mapping.messageCount, checkpointDigest: idDigest(mapping.passthroughToolCallAssistantUuid), pendingIdDigests: (mapping.passthroughToolCallIds ?? []).map(idDigest), historyDigest: digest(history), historyLength: history.length } };
+  }

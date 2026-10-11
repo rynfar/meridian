@@ -1,0 +1,43 @@
+{
+  "head": "72793323c88a03f98a02ab0782a6f87eadfe513d",
+  "files": [
+    {
+      "path": "src/proxy/adapter.ts",
+      "sha256": "148a6b3641b5e5ea957d40d0587cc725d8df9b95d3df60d6bdb372923737a375"
+    },
+    {
+      "path": "src/proxy/adapters/claudecode.ts",
+      "sha256": "3cac905b5b1f299e66ec4236e71a5c74f460a781a160027537396b63961cdc55"
+    },
+    {
+      "path": "src/proxy/adapters/claudecodeProgress.ts",
+      "sha256": "c00094c263510854e58086579265a8c450eabef4c6e7ec9420e883206e94cf0b"
+    },
+    {
+      "path": "src/proxy/adapters/sessionIdentity.ts",
+      "sha256": "c698910e2b149811c3d0fb57ce3104548ec1485939c0e96fb2b8396d7a67b10c"
+    },
+    {
+      "path": "src/proxy/server.ts",
+      "sha256": "2e64f95c3c99a817a89cf1c2af3d377eea565a8933df85e70ce880283b369681"
+    },
+    {
+      "path": "src/proxy/session/cache.ts",
+      "sha256": "3935a3a4dbe8663e0b43d19ec7dd372b9836f2013502c86ed3308d852074757c"
+    },
+    {
+      "path": "src/proxy/session/lineage.ts",
+      "sha256": "a19de3a39c930ec98461b6028a21cf0376c3cdd9037495563785b063144e0326"
+    },
+    {
+      "path": "src/proxy/sessionStore.ts",
+      "sha256": "88204c35b83ab4ec38c7d43a6e18ee7311a693b99b1a3f01c0dbddfdcd64a8b3"
+    },
+    {
+      "path": "src/proxy/sessionTree.ts",
+      "sha256": "c1b3cfb6c8fb41ba3fffae254a7794c32adab201debfa058623e95c0bbc1de5a"
+    }
+  ],
+  "verifiedAtHead": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+  "allNineFilesUnchanged": true
+}

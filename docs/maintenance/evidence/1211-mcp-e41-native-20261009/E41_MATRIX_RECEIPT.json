@@ -1,0 +1,195 @@
+{
+  "atUTC": "2026-10-09T12:49:52.622715+00:00",
+  "cases": [
+    {
+      "target": "source",
+      "mode": "chain",
+      "stream": false,
+      "queries": 5,
+      "verdict": {
+        "batches": [
+          1,
+          1,
+          1
+        ],
+        "realAnswers": 3,
+        "immutableParents": 4,
+        "distinctContinuations": 4,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 9,
+      "estimatedSdkCostUsd": 0.07575,
+      "reportSHA256": "d0a5be1362e885f3e4e3a62b76b359f3d09e25291a95b073bd916d896d789c28"
+    },
+    {
+      "target": "source",
+      "mode": "chain",
+      "stream": true,
+      "queries": 5,
+      "verdict": {
+        "batches": [
+          1,
+          1,
+          1
+        ],
+        "realAnswers": 3,
+        "immutableParents": 4,
+        "distinctContinuations": 4,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 9,
+      "estimatedSdkCostUsd": 0.0613056,
+      "reportSHA256": "45dcfe0cf7f0fbb7dd762c2aac445a4803c64d6a86e59e5252c8855a6b07ed10"
+    },
+    {
+      "target": "source",
+      "mode": "parallel",
+      "stream": false,
+      "queries": 3,
+      "verdict": {
+        "batches": [
+          3
+        ],
+        "realAnswers": 3,
+        "immutableParents": 2,
+        "distinctContinuations": 2,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 7,
+      "estimatedSdkCostUsd": 0.038819200000000005,
+      "reportSHA256": "876401590486ffa54cf2cc89d45bd566a21fe08cd4fefc57837f046ec9d22c0c"
+    },
+    {
+      "target": "source",
+      "mode": "parallel",
+      "stream": true,
+      "queries": 3,
+      "verdict": {
+        "batches": [
+          3
+        ],
+        "realAnswers": 3,
+        "immutableParents": 2,
+        "distinctContinuations": 2,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 7,
+      "estimatedSdkCostUsd": 0.038245600000000005,
+      "reportSHA256": "415f5b3655f9301b34175f0fc72d5aadee421a140302fae215f8a48b8e3d629c"
+    },
+    {
+      "target": "package",
+      "mode": "chain",
+      "stream": false,
+      "queries": 5,
+      "verdict": {
+        "batches": [
+          1,
+          1,
+          1
+        ],
+        "realAnswers": 3,
+        "immutableParents": 4,
+        "distinctContinuations": 4,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 9,
+      "estimatedSdkCostUsd": 0.0790102,
+      "reportSHA256": "487b94722c5d2a71fb7a1fdad358de91c226f81984ebc4be816727c35c303f24"
+    },
+    {
+      "target": "package",
+      "mode": "chain",
+      "stream": true,
+      "queries": 5,
+      "verdict": {
+        "batches": [
+          1,
+          1,
+          1
+        ],
+        "realAnswers": 3,
+        "immutableParents": 4,
+        "distinctContinuations": 4,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 9,
+      "estimatedSdkCostUsd": 0.06435260000000001,
+      "reportSHA256": "bf620c4a3d0cb976f8f2d732c2753baf3c23ebf81b4ea8512550fd4401104586"
+    },
+    {
+      "target": "package",
+      "mode": "parallel",
+      "stream": false,
+      "queries": 3,
+      "verdict": {
+        "batches": [
+          3
+        ],
+        "realAnswers": 3,
+        "immutableParents": 2,
+        "distinctContinuations": 2,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 7,
+      "estimatedSdkCostUsd": 0.0404172,
+      "reportSHA256": "3b6bd870189a7429465b064a586342a2ee6ac754c9c262d143eb3252d55e6ae0"
+    },
+    {
+      "target": "package",
+      "mode": "parallel",
+      "stream": true,
+      "queries": 3,
+      "verdict": {
+        "batches": [
+          3
+        ],
+        "realAnswers": 3,
+        "immutableParents": 2,
+        "distinctContinuations": 2,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      },
+      "observedOriginalChildrenJoined": 7,
+      "estimatedSdkCostUsd": 0.0398758,
+      "reportSHA256": "911e9292681dd7d95549018688228f6586601cc8c21490fee1e0181aaece01c7"
+    }
+  ],
+  "allEightPass": true,
+  "totalSdkQueries": 32,
+  "estimatedSdkCostUsd": 0.4377762,
+  "observedOriginalChildrenJoined": 64,
+  "originalNativeAttachHandlesJoined": 8,
+  "originalDriverChildrenJoined": 16,
+  "originalMatrixDriverTerminal": true,
+  "allOwnedStoppedNativeAndPreparationContainersRemoved": true,
+  "taskAccessOnlyGrantRemoved": true,
+  "privateSourceQualificationRemoved": true,
+  "privateSdkRuntimeFilesRemoved": true,
+  "supportedCredentialSourceUnchanged": true,
+  "nativeActorScope": "Original observed children/stdio and SDK/public-history/HTTP resources only; external/global descendant absence unknown",
+  "productionSourceHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "codeTestHead": "69374accc89cbe00d8173db589a29c968b37ffd8",
+  "priorDocumentationDeliveryHead": "4535e09a6f519a5ab4b893c6d097db7b7456bde2",
+  "scope": "Current changed-code bounded E41 four-mode source/installed parity; owned OpenCode protocol fixture, no actual OpenCode/OpenClaw actor",
+  "wholeChangeAcceptance": "HELD",
+  "newPRs": 0,
+  "merges": 0,
+  "releases": 0,
+  "comments": 0
+}

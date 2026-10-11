@@ -1,4 +1,133 @@
+## Current #1322 kraken evidence — 2026-10-11
+
+The owner's renewed third profile removes the login hold. Current source and
+independently installed actual mixed-auto/Agent handback checks each pass27/27
+on the explicit Sonnet/SDK/client/native tuple. Source E41 chain/nonstreaming
+passes, but chain/streaming resumed turn2 returns an error terminal and remains
+unqualified. Later E41/caption cases are unexecuted; no whole-change acceptance.
+See [the current evidence](docs/maintenance/evidence/1322-kraken-live-20261011/README.md).
+
 # End-to-End Testing
+
+## Owner-deferred #1211/#1322 current qualification
+
+[Current saved packet](docs/maintenance/evidence/1211-checkpoint-json-identity-20261010/README.md)
+records code `ee3671ee`, the maintained wide/deep/large input matrix and unchanged
+EOF matrix. Source and independently installed native runtimes pass 48 cases /
+96 scripted Queries; no actual coding-client/model acceptance is implied.
+The original full local test gate fails at a synthetic report EOF; a diagnostic
+pass leaves its cause unexplained. Standalone types/build pass. Fresh actual
+client, E41 and caption checks remain unexecuted; owner deferral takes precedence.
+Retain every inherited gate and resume this ticket only when the owner returns.
+
+## Current #1211/#1322 completed native stream checkpoint qualification
+
+[Current runnable before/after packet](docs/maintenance/evidence/1211-complete-stream-stop-20261010/README.md)
+qualifies clean correction `34b49d82` and its newly certified source/independent
+package runtime. Unchanged SDK 0.2.141/native 2.1.284 source and native 2.1.296
+installed package pass four immediate-EOF controls then fail the first 150 ms
+delayed-EOF checkpoint at HTTP 500. Both already have complete generation,
+exact hook/denial and acknowledged intent; supported public results show the
+same one-error `aborted_streaming` tool-use diagnostic. The correction admits
+only that exact tuple behind all existing checkpoint-ownership and error gates.
+
+The maintained `scripts/e2e-native-stop-eof.mjs` is credential-free and uses a
+scripted loopback provider inside a read-only network-none owned Linux runtime.
+After correction, source and independent tarball each pass twelve EOF delays ×
+one/three tools × stream/nonstream cases, 48 native scripted Queries combined.
+The four 750 ms modes per target actually exercise the new tuple with independent
+public witnesses, exact results, public UUID, distinct durable fork, immutable
+original history, no denial tail and physical cleanup. Direct HTTP shape is
+not actual coding-client/model proof. The exact tested tarball is escrowed.
+
+Changed actual Claude Code 2.1.287 mixed-auto-handback-v3 source and package each
+pass 27/27 with exact committed observers, SDK 0.2.141, native 2.1.284/2.1.296,
+Sonnet 5 classifiers/Sonnet 5.5 working: 38 Queries/$2.1889227 combined. Original
+processes join; source/task grants remain unchanged and task grants/runtime/
+containers are removed. Actual stops use aborted-tools; the new streaming
+tuple is exercised separately by the native matrix. Changed E41 source and independent package each pass all four chain/parallel × streaming/nonstreaming modes, 32 real Sonnet 5.5 SDK Queries, exact pairing, cache continuity, immutable parents, saved durable forks and physical cleanup. The thin sidecar image retains every changed application layer; the original zero-query missing-fixture failure is preserved. This is direct HTTP protocol-fixture proof, not actual OpenCode-client acceptance.
+
+Final clean-head local gates at `34b49d82`: 6,018 pass / 36 skip / zero fail in
+all 22 isolated npm batches plus pretest; standalone typecheck/build pass.
+The packet records scoped root adversarial inspection, meaningful negatives
+and preserved original failures. Historical actual-model R11/R15 remain
+FAIL 20/27 with missing public diagnostics; exact retrospective attribution is
+unproven. Cancellation/parent-abort, caption/reporter/cache/overlap/abort,
+native 2.1.295/new tuple, broader client/platform/package, historical attribution,
+whole-change adversarial review and final delivery-head CI remain separate
+acceptance holds. No blind live reruns, merge or release follows these passes.
+
+## Prior #1211/#1322 actual-flow qualification and remaining holds
+
+[Current native inbox and actual-flow packet](docs/maintenance/evidence/1211-native-inbox-current-20261010/README.md)
+qualifies unchanged production `bae7ada3` on source and independently installed
+runtime built at `6d773781`. Source SDK 0.2.141/native 2.1.284 and installed
+SDK 0.2.141/native 2.1.296 pass all four E41 protocol modes, with exact pairing,
+immutable parents, distinct forks and cache continuity. This is direct HTTP
+protocol-fixture evidence, not an actual OpenCode-client claim.
+
+Actual Claude Code 2.1.287 mixed-auto source and installed each pass 27/27 in R16;
+R17's single justified additional source cohort also passes 27/27. Sonnet 5
+classifiers and Sonnet 5.5 working queries retain exact child/header/footer,
+final-call, HTTP/SDK handback, native-stop, model/cost and physical custody gates.
+The live observer has a diagnostic-only overlay on Git `ed3ecbf6`; this is not
+exact Git observer content. Current maintained code is `58f3055e`; no application,
+package, plugin or lock delta separates it from that runtime build.
+
+R11 and exact-Git R15 remain FAIL 20/27 with an unexplained native terminal/iterator
+failure and fresh child lineage. Later passes did not explain the cause. All
+failed cases are preserved; no arbitrary abort/error qualifies. Keep cancellation/
+parent-abort, caption/reporter, native 2.1.295 observer, wider client/platform/package,
+historical attribution, full final review and final-head CI gates open. The WORK
+source was independently fresh and used read-only; no agent refresh/login occurred.
+Use `meridian profile login work` when owner renewal is required.
+
+## Prior #1211/#1322 owned-interrupt offline qualification
+
+[Committed probe and replay packet](docs/maintenance/evidence/1211-attempt-owned-stop-20261009/README.md)
+qualifies production code `bae7ada3` with actual SDK/native but a scripted local
+provider: source SDK0.2.141/native2.1.284 and independently installed package
+SDK0.2.141/native2.1.296 each pass one/three tools × stream/nonstream, durable fork,
+exact client results and unchanged supported public source history. Native counters
+are not API-round counters; cap-one owned interruption has its separately bound
+`error_max_turns`/`aborted_tools`/counter-two tuple. Original failures and corrected
+negatives, process/stdio versus HTTP/backend/listener custody and exact artifact
+identities are escrowed. No actual model or coding client is used by these probes.
+
+This changes production. Prior actual passes qualify only their original artifacts;
+changed-head actual E41/E71/E72, mixed handback, cancellation/parent-abort and caption/
+reporter flows plus wider platform/client/package and final-head CI remain held.
+The prior 24/27 mixed source FAIL remains. Before another bounded real run, renew
+its profile with `meridian profile login work`; renewal has not been assumed.
+The [maintained observer and independent native qualification](docs/maintenance/evidence/1211-owned-observer-20261009/README.md)
+now bind this protocol when `--checkpoint-protocol owned-interrupt-v1` is explicitly
+selected. The legacy default and strict mixed handback predicate remain unchanged.
+Observer/test code `052c6449` passes native source2.1.284 and installed2.1.296
+proofs with SDK0.2.141, and meaningful synthetic positive/unrelated-error controls.
+Native2.1.295 with the new observer remains unexecuted. At this prior offline
+checkpoint actual-client/model runs and inherited gates were open; no arbitrary aborted
+result or unrelated iterator failure qualifies.
+
+## Overlapping passthrough queries
+
+```sh
+bun scripts/e2e-passthrough-mcp-overlap.mjs
+```
+
+Credential-free: the installed Claude executable runs through the Agent SDK
+with the options `buildQueryOptions` produces, against a loopback Anthropic API
+fixture, so no model is called. One passthrough tool set is built once and
+handed to two queries, as Meridian hands a conversation's cached tool set to
+each of its queries. The fixture holds the first query's model request open
+while the second query runs. Both queries must report the `oc` server
+connected, reach the model with identical tool definitions, and leave no
+`Failed to connect SDK MCP server` entry in the CLI's MCP logs: that entry is
+the signature of a turn that ran without the client's tools.
+
+**Verified 2026-10-05:** Linux, Claude Code 2.1.284, Agent SDK 0.2.141: passes
+with each query building its own MCP server. On main 74d0a499, which hands both
+queries one server instance, the second query reports `oc` failed, its model
+request carries no tools, and the CLI logs `SDK MCP server not found: oc`.
 
 ## Shared header separator hover (#1262)
 
@@ -1243,6 +1372,8 @@ curl -s -X PUT -H 'Content-Type: application/json' -d '{"checkForUpdates":false}
 | E66 | [Interrupted turn after a settled checkpoint](#e66-interrupted-turn-after-a-settled-checkpoint) | **Automated, real proxy + SDK + Claude Max**: `bun scripts/e2e-checkpoint-interrupted-turn.mjs`. An OpenCode-keyed tool round whose complete result is followed by a partial assistant turn (what a dropped stream leaves) must resume the stored session; a result for an unknown call is the negative control and must still take the fresh replay. **Run before releases touching the passthrough early-stop checkpoint or checkpoint replay** | 2026-09-26 |
 | E67 | [OpenCode V2 interrupted tool turn](#e67-opencode-v2-interrupted-tool-turn) | **Actual OpenCode 2.0.16 client and Meridian V2 plugin, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-checkpoint-fault.mjs`. Inject one partial SSE failure after the real client tool call; require the client's exact retry shape and SDK resume, plus a same-session recovery. **Run before releases touching keyed checkpoint recovery** | 2026-09-26 |
 | E68 | [OpenCode V2 user-invoked skill](#e68-opencode-v2-user-invoked-skill) | **Actual OpenCode V2 server, real SDK/model**: `E2E_OPENCODE_BIN=/path/to/opencode E2E_PLUGIN_PATH=/path/to/opencode-scrub/dist/index.js bun scripts/e2e-opencode-skill-content.mjs`. A skill invoked with no typed text must reach the SDK prompt inside `<skill_content>` and drive the reply. **Run before releases touching user-text sanitization** | 2026-09-27 |
+| E71 | [Claude Code auto-mode classifier isolation](#e71-claude-code-auto-mode-classifier-isolation) | **Bounded native Linux x64 before/after PASS**, explicit target/client/SDK, separate requested/served main and classifier pins, and owned read-only grant: `bun scripts/e2e-claude-code-auto-mode.mjs` with the required E71 options below. Actual Claude Code CLI in `--permission-mode auto`; synthetic controls and historical contributor observations do not establish current acceptance. Exact request witnesses bind each SDK query to its classified wire request. Requires shape and header isolation, later main resume, no collisions/refusals, and the selected single classifier arm; selector changes and internal retries remain qualified separately. **Run before releases touching the independence guards, the turn lease, or Claude Code detection** | 2026-10-09 |
+| E72 | [Claude Code Agent-tool subagent session isolation](#e72-claude-code-agent-tool-subagent-session-isolation) | **Bounded native Linux x64 foreground before/after PASS**, explicit target/Claude Code 2.1.287/SDK/Sonnet and owned read-only grant: `bun scripts/e2e-claude-code-subagent-session.mjs` with the E72 options below. Requires two observed parallel foreground Agent children, exact Agent/Bash SDK + HTTP + execution receipts, distinct session chains, later child/parent resume, complete request decisions and bounded waits. Background, mixed auto-mode and native cancellation gates remain open. **Run before releases touching session identity, the turn lease, account routing, or Claude Code detection** | 2026-10-09 |
 | E73 | [Unknown thinking display values](#e73-unknown-thinking-display-values) | **Automated**: `bun scripts/e2e-thinking-display-interactive.mjs` — actual Claude Code 2.1.287 TUI in a PTY, real proxy/SDK/bundled subprocess. Requires an answer rendered in the client, live-prompt framing, supported-display controls and joined cleanup. The separate HTTP-shaped gate remains a backend smoke test. **Run before releases touching thinking passthrough or the SDK/CLI version** | 2026-10-01 |
 
 | P1 | [Profile: List & Auth Status](#p1-profile-list--auth-status) | `/profiles/list` returns profiles with emails, login status, auth timestamps | - |
@@ -4703,6 +4834,28 @@ PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs
 PROBE_PARALLEL=1 bun scripts/e2e-passthrough-turns.mjs --stream
 ```
 
+For the bounded installed-target E41 observer in
+`scripts/e2e-openclaw-native.mjs`, select `E2E_E41_MODE=chain|parallel` and
+`E2E_E41_STREAM=0|1`. Its explicit default remains `opus[1m]` with backend
+2.1.284. `E2E_E41_MODEL=claude-sonnet-5-5` pins the Sonnet wire request, SDK
+selection, native init and supported-history model; other model values fail.
+`E2E_E41_NATIVE_VERSION=2.1.295` permits the independently installed candidate's
+backend only when its actual executable and init version match. Model/version
+selection without E41 mode fails before reading any grant. Supply the same
+absolute target/SDK/native/client/scrub/output paths documented for the native
+observer and a private read-only access-only token fixture. Use `--prepare-only`
+without credentials first. This observer drives an owned OpenCode protocol
+fixture, not an actual OpenCode or OpenClaw client.
+
+Each E41 arm admits at most eight SDK queries with a $0.50 SDK-estimated budget
+per query and $4 total, requires each native model/usage/completion receipt,
+and preserves the exact batching, fork/source-history and 95% cache-floor
+assertions. Successful results require boolean `is_error: false`; a capped
+tool checkpoint requires `error_max_turns`, boolean `is_error: true` and an
+actual HTTP tool terminal. Original child/pipe, iterator, response, supported
+read and listener/socket joins remain required. Preparation and malformed-input
+controls establish no native acceptance.
+
 Before interpreting a signed-thinking run, the offline fidelity control can
 check JSON replay, streaming thinking/signature deltas, and redacted data:
 
@@ -5544,6 +5697,25 @@ conversation fingerprint, exactly as a direct Claude Code request already does.
 bun scripts/e2e-passthrough-claude-code-session.mjs
 ```
 
+The bounded observer `scripts/e2e-passthrough-claude-code-native.mjs` runs these
+same three client invocations and eleven assertions against an explicit source
+or independently installed target. Supply absolute `E55_ENTRY`, `E55_SDK_ENTRY`,
+`E55_NATIVE_BIN`, `E55_CLIENT_BIN`, and a new private `E55_OUTPUT_DIR`;
+`E55_CLIENT_VERSION=2.1.287` and `E55_NATIVE_VERSION=2.1.284|2.1.295` pin actual
+executables. Run `--prepare-only` without credentials first. Native execution
+requires a task-owned read-only access-only `E55_TOKEN_FILE` and supported-source
+`E55_GRANT_EXPIRES_AT` in epoch milliseconds covering the full run plus one minute.
+The observer pins exact Sonnet5-5, uses a dynamically bound loopback port,
+isolates runtime/client state and supplies only dummy client authentication.
+It bounds SDK admission to sixteen queries, $0.50 SDK-estimated per query and
+$8 total, with an eight-minute execution deadline. Canonical native results,
+model/usage/target receipts and original child/stdio/iterator/socket/listener
+joins are additional requirements. Preparation is not live acceptance, and
+this remains a real Claude Code client parity gate rather than a LiteLLM test.
+The SDK result's `num_turns` counter is retained separately from its `maxTurns`
+option. A one-round tool checkpoint must contain exactly one original unique
+assistant response ID; it cannot qualify by matching a turn counter alone.
+
 `MERIDIAN_DEFAULT_AGENT=passthrough` resolves the ambiguous `claude-cli/`
 User-Agent to the passthrough adapter, reproducing the reported topology
 without a LiteLLM instance: same adapter, same absent `x-litellm-session-id`,
@@ -6149,6 +6321,608 @@ trimmed 12 messages (~3114 estimated tokens) and answered from the kept tail.
 **Not covered.** The original 400 (`context_overflow` on an oversized replay) was
 not reproduced live, and neither was the reactive retry, which needs a real
 overflow from the model. Those remain covered only by the mocked envelope tests.
+
+Current caption source proof (2026-10-10 UTC) is retained in
+[the overlap/input-boundary packet](docs/maintenance/evidence/1211-caption-overlap-current-20261010/README.md).
+At clean537c4c87, both real native overlap orders require two live MCP samples,
+exact saved checkpoint fork, independent caption, immutable source history and
+all3 durable Reads once. Both orders/hints1, sequential/hints0 and disabled/hints1
+PASS on pinned Darwin arm64 / Claude Code2.1.292 / SDK0.2.141 / Bun1.3.11 /
+Opus5.5 client and exact1m backend. Source/private grant and scoped physical
+custody qualify; bundled package/private recovery/actual cancellation/reporter
+and global native absence remain separate. Full local6020/36/0 gates pass.
+A separate credential-free native control finds a new valid87KB input budget
+HTTP500 before owned intent. Correct it and escrow meaningful controls before
+source acceptance; preserve the failed legacy provider fixture and all inherited
+live/client/platform/package/whole-change/final-head CI holds. Passing caption
+cases do not erase this source finding.
+
+## E71: Claude Code auto-mode classifier isolation
+
+**Purpose:** prove that the actual Claude Code auto-mode classifier can run
+beside its conversation without replacing its mapping, waiting for its turn
+lease, or breaking subsequent resume. The corrected delivery has bounded
+Linux/x64 native coverage recorded below; the historical observations remain
+qualified separately.
+
+The classifier shares the conversation's `metadata.user_id` session key.
+The native `x-claude-code-request-class` header is authoritative when present.
+Without that header or native CLI identification, the fallback requires a system text block beginning
+`You are a security monitor for autonomous AI coding agents.` with paired,
+newline-delimited `<cc_automode_permissions>` markers in the same block. A
+billing block can precede it. Default or false streaming and omitted stops are
+valid; supplied stops must contain exactly one known verdict stop.
+User text or ordinary XML stop sequences do not establish a classifier.
+Official CLI distribution inspection supports this shape statically; actual
+emitted wire and model receipts still require the native gate.
+
+The CLI names its request class in `x-claude-code-request-class`, but sends it
+only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL, or
+under a remote flag. The adapter therefore uses the header when present and
+otherwise the shape: session key, no tools, not streamed. A request carrying
+the CLI's own `x-claude-code-session-id` needs nothing more, which also covers
+the session-state classifier (one `Current state: …` message, no stop
+sequence). Other requests retain the classifier system-envelope safeguard
+described above and accept at most one known verdict stop when supplied.
+Malformed tool or streaming fields never establish fallback classification.
+
+Run the committed harness unchanged against the unchanged baseline and fixed
+head. Both use four actual `--permission-mode auto` invocations: two tool
+turns, an ordinary resumed turn, and a tool turn with gateway hint headers.
+The date writes land outside the client's project so the permission classifier
+must actually run. For example, with a ready explicitly owned fixture mounted
+read-only (0400), an independently installed target and the implicated versions:
+
+```bash
+bun scripts/e2e-claude-code-auto-mode.mjs \
+  --target-root /owned/installed/meridian --entry dist/server.js \
+  --client /owned/claude-code-2.1.286 --client-version 2.1.286 \
+  --native-cli /owned/sdk-claude-code-2.1.284 --native-cli-version 2.1.284 \
+  --sdk-version 0.2.141 \
+  --model claude-sonnet-5-5 --served-model claude-sonnet-5-5 \
+  --classifier-model claude-sonnet-5 --classifier-served-model claude-sonnet-5 \
+  --grant-file /owned/read-only-grant.json --proof-dir /owned/private/e71-fixed \
+  --max-queries 20 --max-cost-usd 10 --timeout-ms 1200000
+```
+
+For changes to per-query MCP construction, append `--require-mcp-readiness`.
+It adds a per-query public SDK `system/init` witness and requires every declared
+MCP server to be connected with its complete declared tool catalog. The init
+must belong to that query's canonical final session. Missing/failed/pending
+servers, empty or changed catalogs, duplicate init/result receipts and borrowed
+sessions fail even if the model returns success. Only owned namespace names,
+counts, statuses and catalog digests are retained; raw sessions, config and
+provider diagnostics stay private. The existing model, hook, history, admission
+and cleanup assertions remain required. Historical/default baseline controls
+without this explicit option retain their original assertion set.
+
+**Current per-query MCP witness (2026-10-09):** explicit readiness mode passes all
+nineteen checks on source and independently installed E71/E72 with actual clients
+2.1.286/2.1.287, SDK 0.2.141, backends 2.1.284/2.1.295 and Linux/x64 Bun 1.3.11.
+Main requested/served Sonnet5-5 and classifier Sonnet5 remain pinned. Thirty-eight
+queries retain their own public init/final receipts and full declared catalogs;
+all original flow/custody checks remain required. The new observer is a separate
+read-only mount outside certified runtime 15f, not part of its older image.
+[Exact source/package proof, controls and root review](docs/maintenance/evidence/1211-native-mcp-readiness-20261009/README.md)
+retain remaining historical/background/mixed/cancellation/caption/final-head CI
+holds. This closes readiness only for the recorded current four arms.
+
+Pin the actual implicated model IDs; a nearby model cannot establish acceptance.
+The source report used the `sonnet` alias and did not escrow its exact served
+ID. The explicit model above is a current candidate, not a replacement for
+that missing historical identity. For a source target, additionally pass its
+complete `--source-head`; it must be clean. A compiled source target must have
+matching clean build certification and artifact hashes. The target's own
+installed SDK is observed; the harness's dependency installation is not used
+as a substitute. Explicit client/native versions and public executable hashes
+are recorded. Missing inputs, expired grants and failed read-only OAuth usage
+readiness stop before generation.
+
+Main and classifier identities are separate required inputs. Official client
+2.1.286 selects the classifier independently: a Sonnet5-5 main can use the
+distinct Sonnet5 probe, then fall back to the main after probe demotion.
+Feature configuration, policy, entitlement and provider remapping can also
+affect selection; static catalog/source facts do not prove what a native run
+emits. `--classifier-model` pins exactly one audited arm for the run: the
+Sonnet5 probe or the requested main fallback. `--classifier-served-model`
+pins its exact required served identity. The harness never forces client
+configuration to select that arm. A legitimate different selection or
+within-invocation demotion fails the selected arm's qualification rather
+than passing through an all-query model allowlist. Preserve that failure
+and separately qualify another explicit arm if needed.
+
+Each relay-owned request ID and role is matched to the actual target's private
+logger request context through a harness-only AsyncLocalStorage witness.
+Source and compiled targets use the same observer; saved proof contains
+ordinals, roles, public model IDs and match facts, not raw request IDs or
+context. Each SDK query must name its own request's full wire model or the
+supported `sonnet` tier with that exact version pin. Its observed served
+model must match the separately declared main or classifier served pin.
+Missing, unmatched or reused request contexts fail qualification. This
+receipt checks differing model pins; it relies on the verified target logger
+context for same-model ownership and does not independently authenticate a
+hostile target or distinguish swapped requests with identical model pins.
+The bounded benchmark requires one SDK query per wire request: legitimate
+internal resume/context/rate-limit retries retain the same request ID and
+are conservatively rejected here. This is a benchmark limit, not evidence
+of corrupted or malicious client behavior; retry acceptance is separate.
+
+`--expect-unfixed` requires the same controls, but exactly the four original
+defect assertions (shape isolation, header isolation, later-main resume and
+no collision) must fail. It does not waive client success, shared-key native
+classifier occurrence, outside tool writes, model receipts or cost bounds.
+`--rehearsal` fences SDK query before invocation and records zero-query setup
+only. `--fail-after-copy` exercises failed setup cleanup; neither mode can
+establish native acceptance. The synthetic mode accepts only independently
+generated non-auth target/SDK fixtures and always reports acceptance false.
+Its controls are in `src/__tests__/claude-auto-mode-harness.test.ts`.
+
+The harness clears ambient auth/provider/proxy overrides before imports, uses
+separate private proxy settings/store/account/workdir and client home/config/
+XDG/project directories, and allocates both loopback ports dynamically. The
+runtime credential snapshot omits refresh authority; the owner fixture is
+never supplied to a mutable runtime. It must belong to the runtime user, have
+one hard link, and remain valid throughout the bounded run plus its safety
+margin. No auth refresh namespace or ambient provider paths are inherited.
+Snapshot file type and grant ownership/permissions are checked before content
+reads. Each snapshot reads a regular file through a no-follow, nonblocking
+descriptor,
+verifies its identity against the selected path before and after reading,
+and rejects symlink or nonregular grant inputs without reading their content.
+Client requests/output, SDK query count, total execution time and
+SDK-estimated cost are bounded. The cost ceiling is
+divided across the maximum queries through the SDK's `maxBudgetUsd`; an
+insufficient budget leaves the gate failed rather than relaxing assertions.
+Cleanup closes relay admission, aborts owned work, closes the proxy and relay,
+and requires bounded settlement of relay handlers and cloned HTTP receipt
+readers before restoring the logger context or removing the private runtime.
+A settled clone-read failure fails receipt acceptance but permits joined
+teardown; a pending read or cancellation fails cleanup and retains the private
+fixture. Cleanup also checks owner-file bytes/inode/permissions and public
+target identities without
+publishing credential fingerprints. It removes the private snapshot/runtime
+only after successful joining; a failed join retains the private fixture and
+keeps acceptance closed.
+
+The sanitized `claude-auto-mode-results.json` contains only identities,
+protocol enums/counters, booleans and SDK completion/model/cost facts. It saves
+no generated prose, raw provider errors, tokens or private SDK transcripts.
+The result file is reserved exclusively as a private, owned, single-link
+descriptor before setup. Existing files or links are rejected without
+overwriting their targets; use a fresh proof directory for each attempt.
+A relay request ID matches each wire request to exactly one adapter decision;
+equal aggregate classifier counts cannot satisfy isolation. A fixed pass
+requires actual classifier traffic on both shape and header paths, zero
+classifier session-turn wait with adequate SDK capacity, every later main
+request resuming, no collision/refusal, successful client turns/tool writes
+and positive assistant usage from each role's exact required served model.
+A normal successful SDK result with boolean `is_error: false` is required unless the
+one-turn passthrough cap ends with `error_max_turns`, boolean `is_error: true`
+and the same query's tool IDs/arguments match a complete HTTP tool terminal
+for the owned outside write. SDK tool IDs cannot be shared between queries or
+repeated in different HTTP terminals. SSE tool receipts require message start,
+closed blocks before the terminal delta, and message stop, with no later
+content. Missing/unclosed terminals,
+provider refusals and other SDK error results fail. Baseline wait is measured
+without weakening the fixed zero-wait assertion. Copy this result into durable
+review evidence after a native run; a temporary directory or synthetic green
+alone is insufficient. The original AsyncLocalStorage run descriptor must be
+restored exactly after joined work. Restorable descriptor drift still fails
+cleanup qualification, even when restoration succeeds; failed restoration
+must be reported as failed rather than inferred from joined process counts.
+
+**Current bounded proof (2026-10-09):** unchanged baseline `11dc1556` versus
+corrected source `cc3a06f5`, same maintained harness, Linux/x64 guest executables
+under an ARM Docker host, Bun 1.3.11, client 2.1.286, SDK 0.2.141/backend 2.1.284,
+main `claude-sonnet-5-5` and classifier `claude-sonnet-5`. Baseline reproduces the
+four named isolation/resume/collision defects; candidate passes all eighteen
+checks, ten queries per arm. [Sanitized source frames and review](docs/maintenance/evidence/1211-linux-auto-mode-20261009/README.md)
+preserve earlier failures, complete original custody and scope. The independently
+installed `c7828d8b` tarball also passes all eighteen checks with its own
+SDK 0.2.141/backend 2.1.295 and ten queries; [the installed receipt](docs/maintenance/evidence/1211-linux-agent-20261009/README.md)
+retains exact package hashes. Historical deployment/model identity, selector
+variants, broader parity and final-head CI remain open.
+
+**Contributor-reported historical before/after (2026-09-30, Linux x64, Bun 1.2.20, Agent SDK 0.2.141, Claude
+Code 2.1.286, `sonnet`).** Baseline `0ec52a2`: FAIL, 4 checks. 0 of 10
+requests isolated; all 3 classifier requests (`tools=0 stream=false
+msgCount=1`, one with request class `auxiliary`) classified
+`unrelated-history`, and the main request after each one (msgCount 5, 11, 20)
+diverged `unrelated-history` too. Branch: PASS. 3 of 10 requests isolated as
+`auxiliary-request` (2 by shape, 1 by header), 6 of 6 later main requests
+resumed, no collisions, classifier `sessionWait` 0ms each. The gate imports
+`src/` directly rather than the built bundle, and this run used Bun 1.2.20 (not
+the `packageManager` 1.3.11). These observations do not validate the current
+corrected harness, package, system-envelope fallback or execution environment.
+
+**Contributor-reported historical live traffic (2026-09-30, owner's working proxy, one ongoing auto-mode
+Claude Code session of ~700 messages).** The branch build replaced the
+installed 1.79.0 at 20:30:29 local; counts below are from the proxy journal,
+20:00 to 20:37, before an unrelated subagent collision began.
+
+| | 1.79.0 (20:00–20:30) | Branch (20:30–20:37) |
+|---|---|---|
+| Main requests resumed (`continuation`) | 2 of 32 | 10 of 12 |
+| Classifier requests isolated | 0 of 4 | 6 of 6 |
+| Max session-lease wait, classifier / main | 105s / 189s | 0ms / 16ms |
+| Cache hit per request (journal `usage:` lines) | 14–98%, median 64%, all requests | 100% on resumed main requests; 38–39% on classifier calls |
+
+The two branch requests that did not resume: the first after the restart
+(`not-found`, because earlier classifier calls had already overwritten the
+mapping), and one `modified-history` from an interrupted turn.
+
+## E72: Claude Code Agent-tool subagent session isolation
+
+**Purpose:** demonstrate that two actual foreground Claude Code Agent children
+keep separate resumable SDK session chains while the parent continues after
+their work and through a native `--resume` invocation. Current bounded
+Linux/x64 source before/after and independently installed foreground coverage
+pass with exact requested/served Sonnet5-5. The historical contributor report
+remains qualified separately.
+
+The client sends its root conversation ID in `metadata.user_id` and stamps
+`x-claude-code-agent-id` on native child requests. The adapter preserves root
+account affinity while isolating child lineage and turn leases. The public
+root ID remains a client identifier; internal scoped identities must also
+avoid collisions with arbitrary existing bare metadata IDs. E72 uses one
+explicit owned account, so it does not establish sticky or process-local
+priority routing across multiple accounts.
+
+Run the same committed harness against an unchanged baseline and fixed target
+on Linux x64. It requires the implicated client version 2.1.287 and explicitly
+identified target SDK/native executable and requested/served Sonnet IDs:
+
+```bash
+bun scripts/e2e-claude-code-subagent-session.mjs \
+  --target-root /owned/installed/meridian --entry dist/server.js \
+  --client /owned/claude-code-2.1.287 --client-version 2.1.287 \
+  --native-cli /owned/sdk-claude-code-2.1.284 --native-cli-version 2.1.284 \
+  --sdk-version 0.2.141 \
+  --model claude-sonnet-5-5 --served-model claude-sonnet-5-5 \
+  --grant-file /owned/read-only-grant.json --proof-dir /owned/private/e72-fixed \
+  --max-queries 20 --max-cost-usd 10 --timeout-ms 1200000
+```
+
+For changes to per-query MCP construction, append `--require-mcp-readiness`.
+It adds a per-query public SDK `system/init` witness and requires every declared
+MCP server to be connected with its complete declared tool catalog. The init
+must belong to that query's canonical final session. Missing/failed/pending
+servers, empty or changed catalogs, duplicate init/result receipts and borrowed
+sessions fail even if the model returns success. Only owned namespace names,
+counts, statuses and catalog digests are retained; raw sessions, config and
+provider diagnostics stay private. The existing model, hook, history, admission
+and cleanup assertions remain required. Historical/default baseline controls
+without this explicit option retain their original assertion set.
+
+**Current per-query MCP witness (2026-10-09):** explicit readiness mode passes all
+nineteen checks on source and independently installed E71/E72 with actual clients
+2.1.286/2.1.287, SDK 0.2.141, backends 2.1.284/2.1.295 and Linux/x64 Bun 1.3.11.
+Main requested/served Sonnet5-5 and classifier Sonnet5 remain pinned. Thirty-eight
+queries retain their own public init/final receipts and full declared catalogs;
+all original flow/custody checks remain required. The new observer is a separate
+read-only mount outside certified runtime 15f, not part of its older image.
+[Exact source/package proof, controls and root review](docs/maintenance/evidence/1211-native-mcp-readiness-20261009/README.md)
+retain remaining historical/background/mixed/cancellation/caption/final-head CI
+holds. This closes readiness only for the recorded current four arms.
+
+Pin the actual implicated native executable and model identities. The example
+Sonnet ID is a candidate, not a reconstruction of the contributor's `sonnet`
+alias: the exact historical served model and native executable were not
+escrowed. For a source target, also provide its full `--source-head`; it must
+be clean. Compiled source targets require matching clean build certification
+and all recorded artifact hashes. The target's own installed SDK is observed,
+with public executable/package hashes and strict version probes. The current
+script checks every wire model ID against the main requested ID. An SDK `sonnet` tier alias qualifies only with
+the exact `ANTHROPIC_DEFAULT_SONNET_MODEL` version pin; an exact full SDK model
+ID also qualifies. The harness
+does not discover credentials, client binaries, profiles or configuration.
+
+**Bounded background scenario (native acceptance held):** append
+`--scenario background --require-mcp-readiness` to the explicit E72 invocation.
+Foreground remains the default. The new scenario requires two actual background
+Agent launches with handles identifying the corresponding observed wire children,
+four exact child Bash results, one parent `echo parent-overlap` result and two
+blocking TaskOutput results on those handles. An initial child may fork an earlier
+observed parent checkpoint only with an explicit SDK fork, distinct returned
+session and subsequent own-chain resumes; direct parent borrowing or an unowned
+checkpoint fails. Child first commands are exactly
+`sleep 2 && echo alpha-1` / `sleep 2 && echo beta-1`, followed by each separate
+second echo. Parent and child response bodies must overlap; overlapping children
+alone cannot pass. Each task completion result must arrive after every original
+response body on its own child's chain has completed. TaskOutput may be emitted
+by the query that receives the launch handles, including when parent Bash work
+was batched with the launches; issuing the wait before those handles fails. The
+prompt requests explicit `block: true` and `timeout: 30000`. Sanitized counts
+identify handle, bounded-wait and child-body-order failures without saving IDs
+or generated text. All original model, hook,
+query/session/history/admission/cleanup requirements remain required, plus MCP
+readiness. The background assertion set has twenty checks in this mode.
+
+The public [tool reference](https://code.claude.com/docs/en/tools-reference)
+deprecates TaskOutput. This explicitly pinned probe retains its strict path;
+missing/deprecated tool behavior is a failed or missing gate, not permission to
+substitute another tool and claim success. Raw task handles/launch output stay in
+memory; only tool names, ordinal aliases, event order and receipt facts are saved.
+Meaningful synthetic controls reject foreground results, missing/borrowed handles,
+unknown task owners, unbounded waits, absent/early completion and serial parent
+work. Their success is not native acceptance. The E71/E72 client helper now retires
+birth-PID signal authority at exit and retains explicit exit/close/stdio witnesses.
+Concurrent abort and cleanup requests coalesce a successfully sent termination;
+KILL can still escalate TERM. A refused signal remains retryable and its failure
+stays recorded after a successful retry and physical join.
+
+The 2026-10-09 unchanged-main and corrected-source native attempts both made
+zero TaskOutput calls. The candidate additionally failed the existing native
+max-turn result predicate and recorded a 9,256 ms child lease wait. All original
+task custody joined and was removed; package testing was not admitted after the
+source failure. Preserve these negative results and diagnose public capability,
+SDK generation/counter and child-lease receipts before changing an acceptance
+gate. See the [background evidence and open findings](docs/maintenance/evidence/1211-background-native-20261009/README.md).
+The maintained observer records fixed capability booleans from incoming client
+catalogs, SDK allowed tools and public native init catalogs. Distinct observed
+generation counts use public model-message IDs, deduplicating streamed starts
+and assistant fragments; envelope UUIDs never count as generations. Missing IDs,
+conflicting tool owners and bounded-map overflow stay explicit. Only ordinal
+generation/hook counts and monotonic timestamps leave memory. Same-actor HTTP
+body, SDK result and iterator timing can locate overlap with a later request;
+iterator settlement and a close call do not establish physical native exit or
+the exact lease-release instant. These diagnostics do not alter any of the
+twenty acceptance checks or qualify a noncanonical max-turn result.
+The [network-disabled pinned counter controls](docs/maintenance/evidence/1211-native-turn-counter-20261009/README.md)
+now directly count API requests for SDK 0.2.141 with native 2.1.284/2.1.295.
+One capped tool generation reports two turns; two API rounds with three parallel
+tools then text report four. Both repeated-tool negatives and physical joins are
+retained. These observations do not change the original predicate or establish
+actual background acceptance. A [separate Read completion proof design](docs/maintenance/evidence/1211-native-turn-counter-20261009/READ_COMPLETION_DESIGN.md)
+requires owned output paths and final assistant reports bound to actual child
+terminals; labels also present in the initial prompt cannot qualify completion.
+The versioned `--scenario background-read-v2` implements this proof with one
+Read per advertised launch path, exact complete final-report matching, child
+terminal-before-Read ordering and separately pinned native counter rules.
+The cap-one handoff requires one generation/counter two. The cap-four handoff
+requires four generations/counter five, with one original forwarded generation
+containing one to three tools and three subsequent single-tool generations
+explicitly dropped by the original policy. All per-generation hook counts and
+fates must agree; missing hooks, another forwarded generation or excess
+generations fail. Credential-free controls qualify both native 2.1.284 and
+2.1.295; this changes the versioned proof, never the production turn cap.
+Direct and maintained-harness controls exercise path ownership, early/partial
+reads, prompt-only or foreign output and public-generation bounds. These are
+synthetic controls. The [versioned Read evidence](docs/maintenance/evidence/1211-background-read-v2-20261009/README.md)
+records corrected source and independently installed candidate **PASS on all
+21 checks**, following full local gates. Both actual client arms matched their
+own two completed numbered-record reports. The baseline remains **FAIL** at
+the public-generation bound: one successful query emitted five generations
+under cap four. Its four named lineage defects remain reproduced, and full
+before/after acceptance stays held pending that budget qualification. Earlier
+cap-four negatives are preserved; no production cap or original predicate was
+changed. Broader scenario/model/client/CI gates remain separate.
+The [malformed native retry controls](docs/maintenance/evidence/1211-native-generation-retry-20261009/README.md)
+reproduce a separate cap bypass in SDK 0.2.141/native 2.1.284 and 2.1.295:
+three tool generations followed by a text-only `tool_use` stop cause a fifth
+API request at cap four; an ordinary fourth `end_turn` stops after four.
+The same guard rejects every overflow. Public stop-reason diagnostics require
+partial stream events; non-partial assistant fragments omit terminal reasons.
+The historical baseline observer lacked those fields, so this possible cause
+is not retrospective attribution or acceptance. Preserve its failure and bounds.
+
+Version probes are included in those owned handles. No background, mixed-auto or
+cancellation acceptance is established until exact actual-client/source/installed
+proof is run and audited; existing prior proof retains its original observer SHA.
+
+**Separate mixed-auto/ancillary model gate:** actual classifier requests need
+separate exact model identities and per-request SDK/wire/served correlation.
+The official 2.1.286 auto-mode selector can use `claude-sonnet-5` for a
+`claude-sonnet-5-5` main and later fall back to the main model. E72 uses default
+permission mode with Agent/Bash preallowed and does not establish mixed auto
+mode. Its current universal-main model checks qualify only the foreground
+scenario without classifier traffic; no gate alteration is required if that
+actual scenario emits none. Any classifier traffic needs exact role-aware
+model correlation. The finalized parent E71 role-aware witness and controls are settled. E72
+carry-over remains a separate qualification if actual classifier traffic appears.
+Existing synthetic successes are not native acceptance and do not close
+mixed-flow acceptance.
+
+**Mixed auto-mode native failure and diagnostic gate:** opt-in
+`--scenario mixed-auto-v1 --require-mcp-readiness` additionally requires
+explicit `--classifier-model claude-sonnet-5` and
+`--classifier-served-model claude-sonnet-5` for this pinned arm. It keeps
+Sonnet 5.5 working requests, uses actual auto permission mode with only Agent
+preapproved, and requires five fresh Bash writes outside the project. The
+[mixed evidence](docs/maintenance/evidence/1211-mixed-auto-20261009/README.md)
+preserves an actual source FAIL: all seven expected calls match, but two extra
+HTTP tools do not match SDK name/input receipts. Twenty-four of twenty-six
+checks pass; installed and baseline cases are UNEXECUTED after that failure.
+Sanitized tool-name/namespace/input diagnostics are verification facts only;
+the strict seven-call predicate and every original acceptance check remain.
+Actual cause qualification and source/installed/baseline acceptance remain
+open. Existing foreground and Read results retain their original scope.
+
+**Versioned native handback scenario:**
+`--scenario mixed-auto-handback-v2 --require-mcp-readiness` uses the same
+explicit model pins and bounds, and requires both final `SubagentHandback`
+calls defined by pinned client 2.1.287. Exactly nine SDK/hook/HTTP calls must
+qualify: the seven required Agent/Bash calls plus one final handback per child.
+Each complete two-line report must reach that child's matched parent Agent
+result, with a declared wire message schema and no recipient override or later
+child request. A new `nativeHandbackReports` gate makes 27 required checks.
+Original mixed-v1 remains failed and retains its four-name normalization and
+seven-call policy. The [handback packet](docs/maintenance/evidence/1211-mixed-auto-handback-20261009/README.md)
+preserves both failures, canonical focused controls and the pinned client's
+static protocol. Actual v2 source/installed/baseline acceptance remains open.
+
+**Pinned inbox correction (v3, scoped actual cases):**
+`--scenario mixed-auto-handback-v3` verifies the native 2.1.287 transport
+observed in an isolated scripted-provider control: a reference-only Agent
+result and a separate system-role `<agent-message>` envelope. That transport
+role carries untrusted agent data. The matching child header, result footer,
+complete indented report and permission boundary must agree. Parallel reports
+may share one text block; every full envelope, separator and final numeric
+token-budget footer must validate. The same full
+report must reach the correlated SDK user-input stream. The maintained tests
+reject missing, duplicate, damaged, wrong-role and wrong-sender envelopes,
+and a proxy that drops the report before SDK input. The prompt specifies an
+exact tool-input JSON object with a real newline, avoiding the v2 instruction's
+ambiguous “JSON string” wording. All final-call, ownership, model, query,
+cost, native-stop and cleanup gates remain required. Earlier v2/raw and
+ordinary-report-frame failures are retained; they cannot establish handback
+delivery loss. The current diagnostic-overlay source and installed actual cases pass 27/27;
+see the current packet above. Exact-Git R15 and earlier unexpected native
+iterator-error cause, wider flows and final-head CI remain held.
+
+Turn 1 asks for exactly two parallel foreground general-purpose Agent calls;
+ALPHA runs separate `echo alpha-1` and `echo alpha-2` Bash calls, and BETA runs
+`echo beta-1` and `echo beta-2`. Turn 2 resumes the same parent and requests
+`AGAIN`. Default permission mode pre-allows `Bash(echo:*)` and `Agent`, so this
+scenario covers foreground child lineage. It does not replace E71's actual
+auto-mode classifier flow.
+
+**Pass criteria:**
+
+- Both native client invocations succeed without HTTP refusal, and answer
+  their requested terminal words. These words alone cannot establish a pass.
+- All wire requests carry the owned root identity; exactly two child IDs each
+  make at least three turn-1 requests, and two child HTTP requests actually
+  overlap through their completed response bodies, including staggered SSE
+  headers. Every wire request has exactly one adapter decision, and no extra
+  decision can hide behind an aggregate count.
+- The actual implicated SDK forwards exactly two Agent launches and four exact
+  Bash tool uses. The supported SDK `mcp__oc__Agent`/`mcp__oc__Bash` names are normalized
+  only to their exact client names. Each tool ID/name/canonical input matches one complete HTTP
+  tool terminal and a successful subsequent native client tool result on its
+  own actor. Agent results contain both child outputs. SDK tool ownership and
+  HTTP terminal IDs cannot be reused across requests. Observe the original public
+  SDK `PreToolUse` hooks without changing their results: every forwarded call
+  needs its exact name/input/ID and canonical forwarding denial. Later SDK-only
+  calls require the exact already-handled block outcome after the forwarded
+  checkpoint and must appear in neither HTTP tools nor client results. Retain
+  those dropped-call counts; unknown, missing, changed or false witnesses fail.
+  Advertised tool counts
+  and generated prose do not substitute for these receipts.
+- Every tool-bearing SDK query pairs through its tool IDs. Tool-less final and
+  resumed queries pair through exact SDK/HTTP text held only in memory and
+  their requested resume identity. Ambiguous final text or session prefixes
+  fail this owned benchmark; this is not a general protocol identity layer.
+  Every wire request has one SDK query, and each actor's complete query count
+  and resume chain match its own wire flow, including
+  explicitly requested managed fork targets. Parent and children have disjoint
+  observed SDK session identities. Every later child and main wire request
+  logs `lineage=continuation`; no `unrelated-history`/`concurrent-race` occurs.
+  Every decision has an explicit finite 0–1000ms session-turn wait.
+- Every query settles its iterator, reports the exact served model with
+  positive assistant input/output usage, and supplies a canonical boolean
+  result/error flag and finite cost. The narrow `error_max_turns` exception
+  requires true `is_error`, one permitted turn and a complete paired tool
+  terminal. Ordered SSE receipts require message start, unique tool blocks,
+  closed inputs, tool-use terminal delta and final message stop.
+
+`--expect-unfixed` uses the same meaningful tool/wire/model controls but requires
+four named defects: separate session chains, later-child resume, later-main
+resume and absence of collisions must all fail. It records baseline lease waits
+without relaxing the fixed ceiling. A fixed target given this flag fails.
+`--rehearsal` fences SDK generation before invocation and records zero-query
+setup only. `--fail-after-copy` exercises failed private-account setup. The
+marked `--synthetic` target/SDK fixtures never use a real grant and always
+report acceptance false; their controls are in
+`src/__tests__/claude-subagent-harness.test.ts`.
+
+The source grant must be owned by the runtime user, mode 0400, single-link and
+valid for the full run plus a safety margin. An explicit read-only OAuth usage
+readiness check precedes native generation. The fresh runtime snapshot omits
+refresh authority and is separate from the immutable source fixture. Ambient
+auth/provider/proxy variables are cleared before target imports; fresh proxy
+and client HOME/config/XDG/work/store/plugin directories are distinct, and
+both loopback ports are dynamically allocated. SDK query/request counts,
+request/response/client output bytes, total time and SDK-estimated cost are
+bounded; `maxBudgetUsd` divides the cost ceiling across the maximum queries.
+The harness samples an owned process census with a 96-process ceiling and
+aborts on excess. Cleanup aborts and joins SDK queries, child groups, HTTP
+receipts, proxy startup, proxy and relay, then checks source grant and public
+artifact byte/inode/mode invariance. An unjoined runtime is retained privately
+and keeps acceptance closed.
+
+Use a fresh private proof directory per attempt. Before reading a grant, the
+harness exclusively reserves an owned mode-0600 result descriptor; existing
+files and links are rejected without overwriting their targets. Sanitized
+`claude-subagent-results.json` contains artifact hashes, protocol facts,
+ordinal aliases and counters. It saves no real agent/session/tool IDs, tool
+arguments, prompts, generated prose, credentials or private SDK transcripts.
+Escrow native baseline/fixed reports as durable PR/CI artifacts and link them
+from the review handoff. [Prepared synthetic correction evidence](docs/maintenance/evidence/1231-claude-subagent-20261004/harness-controls/REPORT.md)
+does not establish native acceptance.
+
+**Current bounded proof (2026-10-09):** the same original-hook observer runs
+baseline `11dc1556` and corrected `c7828d8b`, client 2.1.287, SDK 0.2.141/backend 2.1.284,
+Bun 1.3.11, requested/served `claude-sonnet-5-5`, Linux/x64 guest under ARM Docker.
+Each arm makes nine queries and two actual client invocations. Baseline reproduces
+the four named mapping/resume/collision defects; candidate passes all eighteen
+checks, including exact forwarded tool receipts and accounted SDK-only drops.
+An independently installed matching tarball also passes all eighteen foreground
+checks using its own SDK 0.2.141/backend 2.1.295, nine queries.
+[The source/package frames, original failures and root adversarial review](docs/maintenance/evidence/1211-linux-agent-20261009/README.md)
+retain the exact assertion correction, original custody and bounds. No broader
+foreground/background or historical-platform acceptance follows from this tuple.
+
+**Remaining native gates:** the historical reporter's exact served model and
+original host; background child/main overlap;
+mixed auto-mode classifier + child traffic; explicit root/scoped/nested cancel;
+incidental parent HTTP abort independence; and all four affected E41 modes.
+Native acceptance of this foreground harness applies only to its stated
+scenario. Background child request 1 can fork a main-flow snapshot, so its
+first request still replays the inherited history; this layer does not prove
+that initial replay was removed.
+
+**Historical contributor observation (2026-10-01):** Linux x86_64, Bun 1.3.11,
+Agent SDK 0.2.141, Claude Code 2.1.287, `sonnet` alias. Baseline `55b3110` failed
+four original checks: each child made three requests, zero of four later child
+turns resumed, the later parent diverged, and child waits were 1.7–8.9s. The
+contributor branch reported four of four later child and two of two later main
+requests continuing across nine requests, no collisions and a longest wait of
+1ms. That prior harness imported source directly, used default auth/config and
+omitted the bounded exact model/tool/cleanup proof now required. The current
+bounded rerun is recorded above; historical served identity remains unescrowed.
+
+**Latest mixed handback attempt (2026-10-09):** observer `184df6c8` passes full
+local gates (5,884 pass / 36 skip / zero fail) and three zero-query rehearsals.
+Its single actual source run remains FAIL: all nine Agent/Bash/SubagentHandback
+names and SDK/hook/HTTP inputs match, but exact child reports are not observed
+in their matched parent results. One parent query emits five public generations
+under cap four after a thinking-only fourth `end_turn`. Twenty-four of 27 checks
+pass; no failed check or bound is relaxed. Installed/baseline native flows remain
+UNEXECUTED after source audit failure. Network-disabled source/installed runtime
+controls reproduce five loopback API rounds versus four with normal text,
+without credentials or actual model calls. The [current qualified packet](docs/maintenance/evidence/1211-mixed-auto-handback-20261009/README.md)
+retains all original failures, exact joins, runtime-mechanism limits and holds.
+
+**Earlier diagnostic/discovery checkpoint (2026-10-09):** observer `49d8a0a9`
+adds private-input/launch-prompt/structured-result/caller-message facts without
+changing report, ownership or generation acceptance. Its full local gates pass
+(5,889 / 36 / zero), with 35 focused checks, 28 synthetic executions and three
+zero-query rehearsals. Structured and inbox controls still fail the strict gate.
+The [new packet](docs/maintenance/evidence/1211-handback-diagnostics-interrupt-20261009/README.md)
+escrows seven offline SDK queries/eight directly counted loopback API rounds.
+Earlier hook-completion interrupts preserve a public fork on native 2.1.284 and
+2.1.295, but return an error, not normal success. Later denial settlement returns
+`aborted_streaming` and can race another API round without another complete
+public generation. Both later attempts remain FAIL. Production stop timing,
+integrated checkpoint acceptance, actual handback format and affected-flow live
+proof remain open. Existing caps and predicates are unchanged; no real models or
+credential reads occur in these discovery controls, and all owned custody joins.
+
+**Current final-hook discovery checkpoint (2026-10-09):** the
+[public-event-only stop packet](docs/maintenance/evidence/1211-held-denial-interrupt-20261009/README.md)
+falsifies holding all denials until all hooks arrive. Releasing complete observed
+prefix denials and retaining the final hook through owned interrupt acknowledgement
+passes on SDK 0.2.141/native 2.1.284 and 2.1.295. Public IDs, all block closures,
+same-generation metadata/UUID and exact hook-input custody define the final
+trigger; each stopped query makes one API round and observes both owned iterator
+results once. Its error result remains rejected by existing product acceptance.
+Both public forks retain both real client results exactly once and exact unchanged
+original history. Ten exploratory queries, nine recorded API rounds plus one
+failed attempt's unknown count; no real credentials/models. All custody joins or
+is removed. This is a mechanism discovery with frozen source options, not an
+integrated proxy/client/model fix. Production implementation, actual mixed-source
+24/27 failure and all inherited live/CI holds remain open.
 
 ## E73: Unknown thinking display values
 

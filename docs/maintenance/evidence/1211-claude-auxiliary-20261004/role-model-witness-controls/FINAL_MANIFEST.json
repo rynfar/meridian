@@ -1,0 +1,956 @@
+{
+  "scope": "Final E71 harness-only candidate; synthetic and actual source/certified-existing-compiled target mocked-SDK evidence; no native acceptance",
+  "finalHarness": {
+    "path": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004/scripts/e2e-claude-code-auto-mode.mjs",
+    "bytes": 47968,
+    "sha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765"
+  },
+  "finalTest": {
+    "path": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004/src/__tests__/claude-auto-mode-harness.test.ts",
+    "bytes": 52410,
+    "sha256": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5"
+  },
+  "frozenHarnessCopy": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-e71-auto-mode.mjs",
+    "bytes": 47968,
+    "sha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765"
+  },
+  "frozenTestCopy": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-claude-auto-mode-harness.test.ts",
+    "bytes": 52410,
+    "sha256": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5"
+  },
+  "finalFocusedRun": {
+    "execSession": 53506,
+    "command": "E71_COMPILED_CONTEXT_CONTROL=1 E71_CONTEXT_EVIDENCE_DIR=/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context bun test src/__tests__/claude-auto-mode-harness.test.ts",
+    "cwd": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004",
+    "exitCode": 0,
+    "pass": 34,
+    "fail": 0,
+    "skips": 0,
+    "assertions": 1124,
+    "seconds": 65.11,
+    "sourceExecuted": true,
+    "compiledExecuted": true,
+    "log": {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-focused.log",
+      "bytes": 5589,
+      "sha256": "0811be3c547f9ad91229d0f580f1772e306e2b381b4789d5b68a93d637d9a969"
+    }
+  },
+  "cancelEntrySubset": {
+    "execSession": 55728,
+    "exitCode": 0,
+    "pass": 1,
+    "assertions": 57,
+    "seconds": 7.15,
+    "log": {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration.log",
+      "bytes": 330,
+      "sha256": "81df61f8424489615a81cf1281109633387fb3dda5c3ec1bed3704a0508594a2"
+    }
+  },
+  "staticChecks": [
+    {
+      "command": [
+        "node",
+        "--check",
+        "scripts/e2e-claude-code-auto-mode.mjs"
+      ],
+      "cwd": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "cwd": "/Users/rynfar/repos/meridian-claude-auxiliary-1211-20261004",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "actualTargetAndCloneReceipts": [
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-error.json",
+        "bytes": 15546,
+        "sha256": "8b175cd96cfb2c23d9ea82094922a4dff9fa694d0ed0df997ac3318815d61356"
+      },
+      "case": "clone-error",
+      "kind": "synthetic-harness-control",
+      "statuses": null,
+      "result": "FAIL",
+      "acceptance": false,
+      "loggerRestored": true,
+      "sdkJoined": null,
+      "externalFetchAttempts": null,
+      "compiledSourceHead": null,
+      "relayOperationsJoined": true,
+      "httpReceiptsJoined": true,
+      "pendingHttpReceipts": 0,
+      "privateRuntimeRemoved": true
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-hang.json",
+        "bytes": 8702,
+        "sha256": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+      },
+      "case": "clone-hang",
+      "kind": "synthetic-harness-control",
+      "statuses": null,
+      "result": "FAIL",
+      "acceptance": false,
+      "loggerRestored": false,
+      "sdkJoined": null,
+      "externalFetchAttempts": null,
+      "compiledSourceHead": null,
+      "relayOperationsJoined": true,
+      "httpReceiptsJoined": false,
+      "pendingHttpReceipts": 1,
+      "privateRuntimeRemoved": false
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-duplicate.json",
+        "bytes": 668,
+        "sha256": "89c7876981269a6cab41d5828852aa0480c907f57123ec431f7383c63c470046"
+      },
+      "case": "compiled-duplicate",
+      "kind": "compiled",
+      "statuses": [
+        500,
+        200
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-positive.json",
+        "bytes": 793,
+        "sha256": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445"
+      },
+      "case": "compiled-positive",
+      "kind": "compiled",
+      "statuses": [
+        200,
+        200
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-swap.json",
+        "bytes": 791,
+        "sha256": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006"
+      },
+      "case": "compiled-swap",
+      "kind": "compiled",
+      "statuses": [
+        500,
+        500
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-unmatched.json",
+        "bytes": 668,
+        "sha256": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa"
+      },
+      "case": "compiled-unmatched",
+      "kind": "compiled",
+      "statuses": [
+        200,
+        500
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-duplicate.json",
+        "bytes": 628,
+        "sha256": "c6c681024449c5235c1c6aa0349ee0dca44dc1088f4cb623969d96714314e324"
+      },
+      "case": "source-duplicate",
+      "kind": "source",
+      "statuses": [
+        500,
+        200
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": null,
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-positive.json",
+        "bytes": 753,
+        "sha256": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f"
+      },
+      "case": "source-positive",
+      "kind": "source",
+      "statuses": [
+        200,
+        200
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": null,
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-swap.json",
+        "bytes": 751,
+        "sha256": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1"
+      },
+      "case": "source-swap",
+      "kind": "source",
+      "statuses": [
+        500,
+        500
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": null,
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    },
+    {
+      "file": {
+        "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-unmatched.json",
+        "bytes": 628,
+        "sha256": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2"
+      },
+      "case": "source-unmatched",
+      "kind": "source",
+      "statuses": [
+        200,
+        500
+      ],
+      "result": null,
+      "acceptance": null,
+      "loggerRestored": true,
+      "sdkJoined": true,
+      "externalFetchAttempts": 0,
+      "compiledSourceHead": null,
+      "relayOperationsJoined": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "privateRuntimeRemoved": null
+    }
+  ],
+  "separateAudit": {
+    "report": {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/classifier-model-selection-audit/REPORT.md",
+      "bytes": 9337,
+      "sha256": "3fc3bd9489ee264c6e631ba8ee9c71d995b79d89b035fba021f4d4c9deedc2a1"
+    },
+    "nativeGateOpen": true
+  },
+  "separateSnapshotManifest": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/snapshot-pre-read-controls/MANIFEST.json",
+    "bytes": 3957,
+    "sha256": "22dad9b237e18848191e27d452deb41b0cf698f764a545e2dc420b4cae0e3b0c"
+  },
+  "separateReceiptJoinManifest": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/MANIFEST.json",
+    "bytes": 6989,
+    "sha256": "ff9e6e3c3d73f8e35cdd3d6f754f3355207e9f150050988d0f7f5007424ef878"
+  },
+  "historicalPrejoinManifest": {
+    "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/PREJOIN_PROVENANCE.json",
+    "bytes": 2430,
+    "sha256": "61ac14a61f8b2b832f846fe9af386fad8dace6a4ee4ab4333b2b728aa84e5bf3"
+  },
+  "historicalRuns": {
+    "85645": "30pass/1skip/980assertions: compiled skipped due cleared MERIDIAN env flags; not compiled proof",
+    "82655": "34pass/1122assertions: older read-never clone fixture; pending read only, cancellation entry unproven",
+    "98415": "1pass/55assertions: older read-never clone fixture; pending read only"
+  },
+  "scopeLimits": [
+    "Static selector inspection does not prove actual runtime emitted/served IDs",
+    "Logger/relay provenance not hostile target identity attestation; same-model forged context swaps indistinguishable",
+    "One-SDK-query-per-wire benchmark conservatively fails legitimate retry paths; no-retry native arm only",
+    "Existing compiled80d target, not rebuilt final checkout",
+    "Actual Linuxx64 client/SDK/model/auth execution and release remain open",
+    "No delegated full npm test/typecheck/build/commit/push/GH or E72 edits"
+  ],
+  "files": [
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/FINAL_DELTA.patch",
+      "bytes": 81031,
+      "sha256": "221ad11e8357c3dc3b8a2c8c598abd17c07021bb61d25b90bc3f6a3929f2b50e"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/FINAL_REPORT.md",
+      "bytes": 10661,
+      "sha256": "721c9cc713b35c222759edb8014a68e5a137179fbf3908688e6cb8b66a17fa28"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/INDEPENDENT_FINAL_REVIEW.json",
+      "bytes": 8620,
+      "sha256": "3fcb271c30e64dc5a1e21988179f0bf8662c17dfcdeaef423ec2f112766c18f5"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/INDEPENDENT_FINAL_REVIEW.md",
+      "bytes": 4076,
+      "sha256": "aca5bc237ea2c0705c17dc60a5324bae4dfd2eb12b8cd9bfd4fc845df99344aa"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/PREJOIN_PROVENANCE.json",
+      "bytes": 2430,
+      "sha256": "61ac14a61f8b2b832f846fe9af386fad8dace6a4ee4ab4333b2b728aa84e5bf3"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/actual-target-iteration.log",
+      "bytes": 349,
+      "sha256": "4ff5fe40d5561792aefb5a7c4cbac7a0c20023a7872512fbb9ee372f8bd606ed"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/after-duplicate-request.json",
+      "bytes": 7300,
+      "sha256": "271043834ce775f06c6ac4294f2d997177577bc58b8a784c39b9744bb145a35e"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/after-missing-context.json",
+      "bytes": 4639,
+      "sha256": "eaee3d50ab6c973ad23d42eec72eff5ccea7ec8455d5c839ade4a3a4443ed1ab"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/after-mixed-models.json",
+      "bytes": 15459,
+      "sha256": "e2cc8af3fab789430cfd9fcd0ec08e3008bc880efd1a8d91a33d9af58f0f0fa2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/after-unmatched-context.json",
+      "bytes": 4639,
+      "sha256": "eaee3d50ab6c973ad23d42eec72eff5ccea7ec8455d5c839ade4a3a4443ed1ab"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/before-after-driver.ts",
+      "bytes": 32536,
+      "sha256": "ff93774586a45d4cee3651bdc1876a4b260568ca9975327d8eae04cdb8dd2808"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/before-after-summary.json",
+      "bytes": 2785,
+      "sha256": "5c2de4bd5c6af62b9509958fd3f223a04992d5856189734a1e38f38cb8f424cf"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/before-after.log",
+      "bytes": 2763,
+      "sha256": "000bc79ac5937f80df4e19e9a15fdc9ed0c3097e4a9f1c58831fe5538754bab5"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/before-duplicate-request.json",
+      "bytes": 18335,
+      "sha256": "ee96636ea973e0915a83caaacd2244e090f3962c5cbde102c80d0e234e4b4972"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/before-missing-context.json",
+      "bytes": 12545,
+      "sha256": "813f82a20ad08372670ab418e920b299d0224259981ab1be1e5ec7a35e7b38da"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/before-mixed-models.json",
+      "bytes": 12562,
+      "sha256": "d3245d09808c7c7186158192f14dba82c5fb842afe289fcb868989b8e0b6760b"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/before-unmatched-context.json",
+      "bytes": 12545,
+      "sha256": "813f82a20ad08372670ab418e920b299d0224259981ab1be1e5ec7a35e7b38da"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-error-cancel-marker.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-error-marker.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-error-preload.mjs",
+      "bytes": 728,
+      "sha256": "0af328c664ccadbb95b2574a48e7883ee3f0af71c1dbbade0efbe7f2d4dd4a14"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-error.json",
+      "bytes": 15546,
+      "sha256": "8b175cd96cfb2c23d9ea82094922a4dff9fa694d0ed0df997ac3318815d61356"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-hang-cancel-marker.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-hang-marker.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-hang-preload.mjs",
+      "bytes": 730,
+      "sha256": "d62ed5ff6c4342d06d6305d50e72ec045843fa6a72302d63cea026a7880deb4a"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration/clone-hang.json",
+      "bytes": 8702,
+      "sha256": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/cancel-entry-iteration.log",
+      "bytes": 330,
+      "sha256": "81df61f8424489615a81cf1281109633387fb3dda5c3ec1bed3704a0508594a2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/certified80d-build-provenance.json",
+      "bytes": 40364,
+      "sha256": "b1d3e79e1a13e9a5514d048c59cb6c47fc20708de7bd864b40a4f4e68ef84972"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-duplicate-runner.mjs",
+      "bytes": 8104,
+      "sha256": "5507b3fc765e3e4961d441af4051d75267895ee2791dafed8461b57199daa154"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-duplicate.json",
+      "bytes": 668,
+      "sha256": "d48071f9a346a9c5f7ad65c7ad3ba972c4717abec60ed5d49dd7f381d7a9512a"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-positive-runner.mjs",
+      "bytes": 8103,
+      "sha256": "f9ed7a995b3d6b80c3b888b117054c0604d2b635d22553bf0baca67960e2c11a"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-positive.json",
+      "bytes": 793,
+      "sha256": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-swap-runner.mjs",
+      "bytes": 8099,
+      "sha256": "3c4827a2aa27700e2ca41fddaa5efa864fff59105c44d17f318037a0bdd0e4f2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-swap.json",
+      "bytes": 791,
+      "sha256": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-unmatched-runner.mjs",
+      "bytes": 8104,
+      "sha256": "4503a542fa4ead66106c6f245bb69e1102649ba219b54225a955e8e84be7c5d1"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/compiled-unmatched.json",
+      "bytes": 668,
+      "sha256": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-duplicate-runner.mjs",
+      "bytes": 8068,
+      "sha256": "f9fc73882ac1fd0fa024568c06f0ca59f7abc92bf4c074a34b7a2ff4ad32a0d2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-duplicate.json",
+      "bytes": 628,
+      "sha256": "75bd00cee21f7781ffb3b7d18f1a39fb5a24ddfb91716db0f02ef8aef61bf76a"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-positive-runner.mjs",
+      "bytes": 8067,
+      "sha256": "ee8d2d8c1f9de3d2cde02f9dfd88cf1eb8ab03b1fbba4bd176efd44030d02435"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-positive.json",
+      "bytes": 753,
+      "sha256": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-swap-runner.mjs",
+      "bytes": 8063,
+      "sha256": "fc7956a59c6080c8a6da05d56ad1407b453383e2ea15ae685f1437cbbadfd456"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-swap.json",
+      "bytes": 751,
+      "sha256": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-unmatched-runner.mjs",
+      "bytes": 8068,
+      "sha256": "f10ab7074b01697eb77b084aa8fc5534505772012ae98914d53f11d8659c2a89"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-actual-context/source-unmatched.json",
+      "bytes": 628,
+      "sha256": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-error-cancel-marker.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-error-marker.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-error-preload.mjs",
+      "bytes": 728,
+      "sha256": "18df74d4a151cde7fdb520aa2574daafb07aa6bbf235d35fccd2b2eeb5e6d4fd"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-error.json",
+      "bytes": 15546,
+      "sha256": "8b175cd96cfb2c23d9ea82094922a4dff9fa694d0ed0df997ac3318815d61356"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-hang-cancel-marker.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-hang-marker.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-hang-preload.mjs",
+      "bytes": 730,
+      "sha256": "b373a60df99a7542799c4d759e71b03de7319a9a0907865a2d1d9057ecc484ea"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/clone-hang.json",
+      "bytes": 8702,
+      "sha256": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-duplicate-runner.mjs",
+      "bytes": 8104,
+      "sha256": "3096b367a11e4c9d1fb888f7776dc4e2b452e5cdeb251a1b6fad9afa1bee05a0"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-duplicate.json",
+      "bytes": 668,
+      "sha256": "89c7876981269a6cab41d5828852aa0480c907f57123ec431f7383c63c470046"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-positive-runner.mjs",
+      "bytes": 8103,
+      "sha256": "272323aa33027cbd624fb8a28347871ba8c03443be1aae337e9cfd86a7708169"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-positive.json",
+      "bytes": 793,
+      "sha256": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-swap-runner.mjs",
+      "bytes": 8099,
+      "sha256": "c6a0fae2884c46aff4af7d46e8f596147b24c8ef7508fa17f4603ab7e61642b6"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-swap.json",
+      "bytes": 791,
+      "sha256": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-unmatched-runner.mjs",
+      "bytes": 8104,
+      "sha256": "e926622d2f56aed2c63176801c8ea2977ef252af05875fe4d55a6d9ad1c6b957"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/compiled-unmatched.json",
+      "bytes": 668,
+      "sha256": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-duplicate-runner.mjs",
+      "bytes": 8068,
+      "sha256": "69b51be11a3f5ff3c32a3aea8dbea549fb134232367ac30a02947119e438afd8"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-duplicate.json",
+      "bytes": 628,
+      "sha256": "c6c681024449c5235c1c6aa0349ee0dca44dc1088f4cb623969d96714314e324"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-positive-runner.mjs",
+      "bytes": 8067,
+      "sha256": "f6e3fb15914601a9627628ba7dded64205367543e110f0ad5774f48b2e747fe6"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-positive.json",
+      "bytes": 753,
+      "sha256": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-swap-runner.mjs",
+      "bytes": 8063,
+      "sha256": "d82d33f7c6c6d5f1fbc587cb6e4452935512c6c71b4d126cc987e3405a430ef2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-swap.json",
+      "bytes": 751,
+      "sha256": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-unmatched-runner.mjs",
+      "bytes": 8068,
+      "sha256": "32b6482e576c3603ce05fb7fb099965cf960a1bc0b6ede3ca2089c7f437ec517"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-context/source-unmatched.json",
+      "bytes": 628,
+      "sha256": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-cancel-entry-focused.log",
+      "bytes": 5589,
+      "sha256": "0811be3c547f9ad91229d0f580f1772e306e2b381b4789d5b68a93d637d9a969"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-claude-auto-mode-harness.test.ts",
+      "bytes": 52410,
+      "sha256": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-e71-auto-mode.mjs",
+      "bytes": 47968,
+      "sha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/clone-error-marker.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/clone-error-preload.mjs",
+      "bytes": 558,
+      "sha256": "d1ad578aacdbe126f4c2bfca5de3fbd9f7b08b2b1d47cbf857f68e74ec74b12c"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/clone-error.json",
+      "bytes": 15546,
+      "sha256": "8b175cd96cfb2c23d9ea82094922a4dff9fa694d0ed0df997ac3318815d61356"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/clone-hang-marker.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/clone-hang-preload.mjs",
+      "bytes": 521,
+      "sha256": "140f93fd1db62a783b94339fc47c0790913b09cda86dd60c35ab36feb5f816a9"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/clone-hang.json",
+      "bytes": 8702,
+      "sha256": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-duplicate-runner.mjs",
+      "bytes": 8104,
+      "sha256": "b58ca33a2efc3d0c0e2b9e28e37bda4baab37a1d6c4025fbb4e3cca65b554720"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-duplicate.json",
+      "bytes": 668,
+      "sha256": "89c7876981269a6cab41d5828852aa0480c907f57123ec431f7383c63c470046"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-positive-runner.mjs",
+      "bytes": 8103,
+      "sha256": "99197c5cb0c5fb3d9518053d7208c1bfa778ac43e31a4cfd8dd4d684b3792039"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-positive.json",
+      "bytes": 793,
+      "sha256": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-swap-runner.mjs",
+      "bytes": 8099,
+      "sha256": "a1d1c486432457a1568cb15566ffa7e53b1998e37e29fcf5d09b0e1737466332"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-swap.json",
+      "bytes": 791,
+      "sha256": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-unmatched-runner.mjs",
+      "bytes": 8104,
+      "sha256": "71452f1b97ce78d6bc412f4524e6cae3716e7b5c9f5c532f85a15535b44470e5"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/compiled-unmatched.json",
+      "bytes": 668,
+      "sha256": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-duplicate-runner.mjs",
+      "bytes": 8068,
+      "sha256": "3dfded2edabb2f45aca1dec6e6214383d4cec00216f8d2cb8eba9bee4b34367e"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-duplicate.json",
+      "bytes": 628,
+      "sha256": "75bd00cee21f7781ffb3b7d18f1a39fb5a24ddfb91716db0f02ef8aef61bf76a"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-positive-runner.mjs",
+      "bytes": 8067,
+      "sha256": "95b7b298da155021529c186ffa97e1b2ecc585baefa1d7b0ec1d9f9d9c6762bb"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-positive.json",
+      "bytes": 753,
+      "sha256": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-swap-runner.mjs",
+      "bytes": 8063,
+      "sha256": "aeb7cf0d3eec1564c4305e3c181dd784961f13ab6fc592522ade2d4ac5c73055"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-swap.json",
+      "bytes": 751,
+      "sha256": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-unmatched-runner.mjs",
+      "bytes": 8068,
+      "sha256": "9c51e27eaea3a3fbb24079918b89243ba70b96a2338b8d7fb48af7144e684dc2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-context/source-unmatched.json",
+      "bytes": 628,
+      "sha256": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-postjoin-focused.log",
+      "bytes": 5583,
+      "sha256": "b32e6a9df939c0e5f68f9b0dc87fc6f3e0d6a843af7262b0e434abbd47b35342"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/final-static-checks.json",
+      "bytes": 445,
+      "sha256": "80d1c04d3c41731c597a9c02366f4048f24f8dadbb46f0283e751fe36137e409"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/focused-final-with-containment.log",
+      "bytes": 5416,
+      "sha256": "01720b2415d09a31c889f79bd5040ec72c42085a87d839af6785d3e14e2f7053"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/focused-final.log",
+      "bytes": 5267,
+      "sha256": "2e2e48ecd1c36ff670bff694a8c543a7af048311d6341d8ae245f70b910c63de"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/frozen-e71-auto-mode.mjs",
+      "bytes": 46508,
+      "sha256": "8d50248a6a8eaea377a5bd0e55a21a5929ec4ac48c0385c0865b2bf53eace0bd"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/MANIFEST.json",
+      "bytes": 6989,
+      "sha256": "ff9e6e3c3d73f8e35cdd3d6f754f3355207e9f150050988d0f7f5007424ef878"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/REPORT.md",
+      "bytes": 3842,
+      "sha256": "0a4580e2c98c21d75d5bedfa1d5b609f1dc67099b5812f07fac55bd39fc785dd"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-clone-cancellation-entered.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-clone-receipt-entered.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-proof.json",
+      "bytes": 8702,
+      "sha256": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/after-stdout.log",
+      "bytes": 165,
+      "sha256": "770a4993ed93474ddb32bca0b2f3b641eefe91a3717953b8a16827ac30c7a756"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-after-summary.json",
+      "bytes": 1414,
+      "sha256": "502b88f3ea8f36c4dfccb6200ba493c967d54fb6019715614fcda5f470d35cff"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-after.log",
+      "bytes": 1170,
+      "sha256": "49a0d1e7f1be5dd3cfd2779447a043d9271464addb3b66f9e16866d774995ea5"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-clone-cancellation-entered.txt",
+      "bytes": 36,
+      "sha256": "d2fc3e168fd02660f4a5d7c549dd7d7f4c24b7cf57bee7a1514e56680cd1fb72"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-clone-receipt-entered.txt",
+      "bytes": 36,
+      "sha256": "9ea6723f314fedabc0565d1cc3b56ade0a6bb4d5c1cb4d793d631f6e08e17164"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-proof.json",
+      "bytes": 8409,
+      "sha256": "987f67b6084835611cd7710fcd515b092a673f1e41d0d6620d70e74613e7bf26"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-stderr.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/before-stdout.log",
+      "bytes": 164,
+      "sha256": "627e77784851c429e33cdac908d9e678615e1756a09a29cbce704901b2f4802d"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/shared-cancel-preload.mjs",
+      "bytes": 782,
+      "sha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/http-receipt-join-controls/shared-cancellation-driver.ts",
+      "bytes": 18440,
+      "sha256": "a62674ee125d7a6bb58d7f621bf3f12e6f0d2270299bb51061799f52fdb43a05"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/independent-doc-validation.json",
+      "bytes": 473,
+      "sha256": "01770ecbd110bbf1421f5c64bead47f6528022b27fd1c37c3224908e3c991d48"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/independent-review-prejoin.json",
+      "bytes": 2378,
+      "sha256": "9fc0ead2e2219a2a8a88ddea1194a96ab1cb8928f87255591ae1748b98b0cf0e"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/initial-positive.log",
+      "bytes": 335,
+      "sha256": "975fb4bf8f384e428932d33772d3bf678da378c02f242a32be89add61d9fc614"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/join-controls-iteration/clone-error-preload.mjs",
+      "bytes": 558,
+      "sha256": "8298297e935866da2afed0c83d0113378ec1d9c738b84415ea4b59000f75494f"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/join-controls-iteration/clone-error.json",
+      "bytes": 15546,
+      "sha256": "8b175cd96cfb2c23d9ea82094922a4dff9fa694d0ed0df997ac3318815d61356"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/join-controls-iteration/clone-hang-preload.mjs",
+      "bytes": 521,
+      "sha256": "6e84eb243b0c1876a16b4acba23d44389e84f7b3af1b88460bc5c8753b42beb7"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/join-controls-iteration/clone-hang.json",
+      "bytes": 8702,
+      "sha256": "f270be31ab3dad93e61a38dcfe049305b9d90d7eca76031cc5866bc4f5728fbb"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/join-controls-iteration.log",
+      "bytes": 330,
+      "sha256": "244673f8b6ea838a072bd3bc9898ec2f9e162db5b7540ba757cc396e29666373"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/prejoin-claude-auto-mode-harness.test.ts",
+      "bytes": 48444,
+      "sha256": "9a1cdef732cb15d23d36884322131b00035c8368a72942d62dafd3bc43d263b1"
+    },
+    {
+      "path": "/tmp/meridian-backlog-20261004/meridian/1211/role-model-witness-controls/role-controls-iteration.log",
+      "bytes": 825,
+      "sha256": "5dac34f0e65814951ef98fccdbd8616569c8a7c285204161a1df3ac8b42f9b5d"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-concurrency-coordination.test.ts:
+(pass) SDK and Session concurrency coordination > holds the SDK permit for the complete streaming lifecycle [290.14ms]
+(pass) SDK and Session concurrency coordination > shares the SDK permit across ProxyServer instances [58.53ms]
+(pass) SDK and Session concurrency coordination > uses the latest resume state for a continuation that waited [78.73ms]
+[PROXY] Session not resumable (key=conflict…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > returns an Anthropic-compatible invalid request for a stale repeated branch [30.46ms]
+[PROXY] Undo detected (key=omp-sess…): prefix overlap 2/3, rollback UUID: none (legacy session).
+(pass) SDK and Session concurrency coordination > answers, instead of refusing, the loser of a race an adapter declares (#870) [58.47ms]
+[PROXY] Session not resumable (key=pluginle…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > answers, instead of refusing, a plugin-less OpenCode client's concurrent turn (#1024) [57.31ms]
+[PROXY] Session not resumable (key=plugged…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > still refuses the loser when the OpenCode plugin's signal is present [29.28ms]
+[PROXY] Session not resumable (key=spoofed…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > refuses a client that spoofs the synthesized-session marker [29.60ms]
+[PROXY] Session not resumable (key=claude-c…): reason=unrelated-history, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > answers, instead of refusing, a headless Claude Code client's concurrent turn (#1043) [60.40ms]
+(pass) SDK and Session concurrency coordination > keeps a Claude Code conversation resumable across an auto-mode classifier request [89.84ms]
+(pass) SDK and Session concurrency coordination > never queues a classifier request behind the conversation's running turn [58.50ms]
+(pass) SDK and Session concurrency coordination > treats a declared non-auxiliary request class as a normal turn [30.35ms]
+(pass) SDK and Session concurrency coordination > keeps a header-labelled auxiliary independent of a complete checkpoint (stream=false, refusal=false) [58.19ms]
+(pass) SDK and Session concurrency coordination > keeps a header-labelled auxiliary independent of a complete checkpoint (stream=false, refusal=true) [73.79ms]
+(pass) SDK and Session concurrency coordination > keeps a header-labelled auxiliary independent of a complete checkpoint (stream=true, refusal=false) [61.02ms]
+(pass) SDK and Session concurrency coordination > keeps a header-labelled auxiliary independent of a complete checkpoint (stream=true, refusal=true) [84.66ms]
+(pass) SDK and Session concurrency coordination > publishes and resumes ordinary XML-stopped Claude Code conversations [158.61ms]
+(pass) SDK and Session concurrency coordination > never queues a Claude Code subagent turn behind its parent's running turn [68.17ms]
+(pass) SDK and Session concurrency coordination > resumes a Claude Code parent and its subagent each on their own session [125.66ms]
+(pass) SDK and Session concurrency coordination > runs two parallel subagents of one conversation without serializing them [58.95ms]
+(pass) SDK and Session concurrency coordination > isolates a subagent's classifier call as auxiliary [56.94ms]
+(pass) SDK and Session concurrency coordination > keeps the shared key when the agent id is malformed [30.59ms]
+[PROXY] Undo detected (key=omp-undo…): prefix overlap 2/3, rollback UUID: winner-uuid-2.
+(pass) SDK and Session concurrency coordination > replays a declared-flow loser instead of rewinding the turn it lost to (#870) [34.43ms]
+[PROXY] Undo detected (key=omp-fork…): prefix overlap 2/3, rollback UUID: winner-uuid-2.
+(pass) SDK and Session concurrency coordination > keeps a per-request fork signal's undo when it loses the same race (#870) [41.03ms]
+[PROXY] Undo detected (key=tool-loo…): prefix overlap 2/3, rollback UUID: winner-uuid-2.
+(pass) SDK and Session concurrency coordination > replays a synthesized-key loser instead of rewinding the session it lost to [33.80ms]
+(pass) SDK and Session concurrency coordination > does not refuse a turn because a DIFFERENT profile advanced the same session id [375.63ms]
+[PROXY] Session not resumable (key=hot:hot-…): reason=unrelated-history, prefix overlap 0/2, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > rejects a stale turn when a hot priority profile appears after the arrival snapshot [3224.38ms]
+[PROXY] Session not resumable (key=declared…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > lets a declared concurrent flow replay instead of refusing it [108.72ms]
+[PROXY] Session not resumable (key=declared…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+(pass) SDK and Session concurrency coordination > lets an OpenCode subagent mode replay instead of refusing it [57.13ms]
+(pass) SDK and Session concurrency coordination > aborts a wedged turn without releasing its fencing lease early [2147.10ms]
+
+ 30 pass
+ 0 fail
+ 168 expect() calls
+Ran 30 tests across 1 file. [8.08s]

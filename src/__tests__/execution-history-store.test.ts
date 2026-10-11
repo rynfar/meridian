@@ -89,6 +89,34 @@ describe("durable raw proof and execution reuse proof", () => {
     expect(stored?.passthroughToolCallIds).toBeUndefined()
   })
 
+  it.each([false, true])("keeps namespace ownership separate from transformed execution proof (priority=%s)", priority => {
+    const key = "work:namespaced-transformed"
+    const namespace = "claude-code:1"
+    const mapping = lookupSharedSessionResult(key)
+    if (mapping.status === "error") throw mapping.error
+    const publication = priority ? priorityPublication("namespaced-transformed") : undefined
+    expect(storeSession(key, messages, "sdk-namespaced", undefined,
+      ["old-user", "new-assistant"], undefined, "old-checkpoint", ["old-tool"],
+      undefined, undefined, mapping.generation, publication, false, namespace)).not.toBe(false)
+    const stored = lookupSharedSession(key)
+    expect(stored?.keyNamespace).toBe(namespace)
+    expect(stored?.lineageHash).toBe("")
+    expect(stored?.clientLineageHash).toBe(computeLineageHash(messages))
+    expect(stored?.sdkMessageUuids).toEqual([null, "new-assistant"])
+    expect(stored?.passthroughToolCallAssistantUuid).toBeUndefined()
+    expect(stored?.passthroughToolCallIds).toBeUndefined()
+    expect(lookupSession(key, continuation, undefined, namespace).type).toBe("continuation")
+    expect(lookupSession(key, continuation).type).toBe("diverged")
+
+    // Reload the serialized authority rather than relying on a memory-only field.
+    setSessionStoreDir(null)
+    setSessionStoreDir(directory)
+    expect(lookupSharedSession(key)?.keyNamespace).toBe(namespace)
+    expect(lookupSharedSession(key)?.clientLineageHash).toBe(computeLineageHash(messages))
+    expect(lookupSession(key, continuation, undefined, namespace).type).toBe("continuation")
+    expect(lookupSession(key, continuation).type).toBe("diverged")
+  })
+
   it("fails closed on malformed persisted raw proof rather than granting SDK resume", () => {
     storeSession("malformed", messages, "sdk-malformed", undefined, undefined, undefined,
       undefined, undefined, undefined, undefined, undefined, undefined, false)

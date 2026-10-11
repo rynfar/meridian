@@ -1,0 +1,22 @@
+{
+  "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "command": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "pid": 16510,
+  "processGroup": 16510,
+  "startedUtc": "2026-10-05T05:03:42.453226+00:00",
+  "removedEnvNames": [
+    "CLAUDE_AGENT_SDK_VERSION"
+  ],
+  "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/final-build.log",
+  "exitCode": 0,
+  "elapsedSeconds": 4.341452958993614,
+  "completedUtc": "2026-10-05T05:03:46.794954+00:00",
+  "logBytes": 2237,
+  "logSha256": "480f59c5f8e4c604ce47099a4177b235bc43d999e73e0aaa41790f6594ccf651",
+  "sourceUnchanged": true,
+  "terminalProcessWaitObserved": true
+}

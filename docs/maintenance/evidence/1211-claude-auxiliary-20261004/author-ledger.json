@@ -1,0 +1,112 @@
+{
+  "sourceHead": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+  "initialBase": "8e1c8bf738d7372ded01f28e99d6ec167acaf76f",
+  "initialIncorporation": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "commits": [
+    {
+      "source": "b06c0aab235ee01e9b2c17715deeabbd08c22a81",
+      "initialIncorporation": "65b3b7d24ba4914e42a24942b6c34add7bea4fbe",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:13:30-05:00",
+      "subject": "fix(session): add an auxiliary-request independence cause",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "8f77580fc32c9e9f9bc3ffdf68ec4ed33f730884"
+    },
+    {
+      "source": "b8d2bbeeeb37fa1d797981c0da17efc1d871014d",
+      "initialIncorporation": "6b7c430e822909e89a52c1353bea3a80bcce11e8",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:16:40-05:00",
+      "subject": "fix(claude-code): detect auto-mode classifier side requests",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "aea593ecbd2bcbcb23b7651ccd226bd78854a596"
+    },
+    {
+      "source": "cdb7dce8299c137f0adc677d012f99e8db412f95",
+      "initialIncorporation": "43b5435d4f0f7b38747099b1700c861d73257bca",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:20:53-05:00",
+      "subject": "fix(session): keep Claude Code classifier requests off the session mapping and lease",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "cb6c92c4a6c388c61f9e412f9809250210c0a5e7"
+    },
+    {
+      "source": "76d72bac5a0482dbd4e797a7ff670fb30cde6c56",
+      "initialIncorporation": "2d7499f3587377cb0b9a34f3d1435e8c7ee6cee7",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:37:55-05:00",
+      "subject": "test: live gate for Claude Code auto-mode session isolation",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "734f543f42c5e253048c5d56cea697d897b30479"
+    },
+    {
+      "source": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+      "initialIncorporation": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T21:11:01-05:00",
+      "subject": "docs: record live acceptance and correct the auxiliary hook contract",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "af0fad6318011520d54460dc2f11075e402a1009"
+    }
+  ],
+  "maintainerCorrectionsSeparate": true,
+  "rebasedBase": "74d0a49953211eb8e2c1ccae275971aa0d624c1c",
+  "initialFrozenCorrectionHead": "f11e60e5b2480bd76a6d5921b8386f58ae53856c",
+  "rebasePreservedAllCorrectionBlobs": true,
+  "latestMaintainerHarnessCorrection": {
+    "parentHead": "cd8b5063a1e001f61eb610f82c05e8bd6e20974a",
+    "productionModulesUnchanged": true,
+    "reviewedFileSha256": {
+      "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+      "src/__tests__/claude-auto-mode-harness.test.ts": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5",
+      "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+    },
+    "direction": "Role-aware model receipts, metadata-first snapshots and joined HTTP observer cleanup; original five contributor tuples unchanged",
+    "nativeAcceptance": false,
+    "freshFinalGatesRequired": false,
+    "freshDeliveryHeadCIRequired": true
+  },
+  "typedArtifactGuardCorrection": {
+    "parentHead": "72b766b497eaf96069c6633499ac813e58908e1d",
+    "testSha256": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+    "scriptAndE2EUnchanged": true,
+    "sourceAuthorTuplesUnchanged": true,
+    "originalFullPretestExit": 2,
+    "noSuitesRanBeforeCorrection": true,
+    "standaloneTypecheckExit": 0,
+    "focusedTests": 2,
+    "focusedAssertions": 72,
+    "freshFullGatePending": false
+  },
+  "finalSourceStableLocalGates": {
+    "head": "a088de329febb62b147eb4af82f570ccf3b879bc",
+    "tree": "f8cbaa6e8aca90a62157f68dd66a1c3134aa0cca",
+    "sourceSha256": {
+      "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+      "src/__tests__/claude-auto-mode-harness.test.ts": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+      "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+    },
+    "npmTest": {
+      "pass": 5431,
+      "skip": 36,
+      "fail": 0,
+      "assertions": 28123,
+      "batches": 19
+    },
+    "standaloneTypecheckExit": 0,
+    "buildExit": 0,
+    "buildCertification": "verified",
+    "buildArtifactCount": 409,
+    "currentSourceAndCompiledFocusedTests": 2,
+    "currentSourceAndCompiledFocusedAssertions": 72,
+    "evidence": "final-role-local-gates/result.json",
+    "evidenceOnlyDeliveryFollowsTestedSource": true,
+    "nativeAcceptance": false,
+    "freshDeliveryHeadCIRequired": true
+  }
+}

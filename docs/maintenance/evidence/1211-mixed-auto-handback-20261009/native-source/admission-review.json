@@ -1,0 +1,49 @@
+{
+  "atUTC": "2026-10-09T21:35:25.920219+00:00",
+  "observerHead": "184df6c8575836047044cbf7aef56333cee7349f",
+  "review": "ROOT_SCOPED_NATIVE_ADMISSION",
+  "sourcePackageBaselineOrder": [
+    "e72-source",
+    "e72-package",
+    "e72-baseline"
+  ],
+  "rehearsedCases": 3,
+  "allIdentityAndFrozenByteChecksExact": true,
+  "requiredCheckCount": 27,
+  "nativeQueryAndGenerationPredicates": "AST_EXACT_FROM_R2",
+  "newPublicLinkAuditorControls": 16,
+  "cohortBounds": {
+    "queriesPerCase": 24,
+    "estimatedSdkUsdPerCase": 12,
+    "msPerCase": 600000
+  },
+  "originalR1AndR2Failures": "IMMUTABLE_FAIL",
+  "noNativeBeforeFourExactHeadLocalGates": true,
+  "supportedCredentialSourceReadOnly": true,
+  "taskAccessOnlyGrant0400": true,
+  "fullCohortExpiryMarginMs": null,
+  "noNextCaseAfterAuditFailure": true,
+  "expectedBaselineDefects": [
+    "distinctSessionMappings",
+    "subagentResume",
+    "mainResume",
+    "noCollision",
+    "classifierIsolation"
+  ],
+  "allOtherBaselineGatesRequired": true,
+  "parentReportTextVerifiedInPrivateObserver": "Public audit independently checks original ordinal ownership/order/schema/custody facts, not raw text",
+  "wholeChangeAcceptance": "HELD",
+  "nativeStatus": "UNEXECUTED",
+  "broaderHolds": [
+    "baseline extra-generation historical attribution",
+    "cancellation and parent-abort",
+    "caption/reporter tuple",
+    "broader package/client/platform",
+    "final delivery-head CI"
+  ],
+  "arrivalOrderQualification": "Public child actor aliases may arrive in either order; expected-child report links determine association. Reversed arrival-order positive qualifies.",
+  "initialThreeCaseAdmission": "DENIED_BEFORE_ANY_NATIVE_CALL_OR_GRANT_CREATION",
+  "perCaseAdmission": "Every case independently requires all four original gates, frozen code/controller identity, same original role/model/tool/MCP/receipt assertions, unchanged complete 600-second/24-query/$12 bounds and more than 660 seconds of read-only grant validity. No later case after failed audit. Insufficient validity leaves all remaining cases UNEXECUTED and cohort incomplete.",
+  "nextCompleteCaseExpiryMarginMs": 660000,
+  "allThreeCasesRequiredForCohortCompletion": true
+}

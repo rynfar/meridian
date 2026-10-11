@@ -1,0 +1,78 @@
+{
+  "synthetic": true,
+  "actualOsSignals": 0,
+  "nativeQueries": 0,
+  "old": {
+    "first": "SENT",
+    "second": "FAILED",
+    "unjoinedAfterSignals": true,
+    "escalation": "SENT",
+    "actualCalls": [
+      "SIGTERM",
+      "SIGKILL"
+    ],
+    "facts": {
+      "spawned": true,
+      "spawnError": false,
+      "exit": true,
+      "close": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "signalAttempts": 3,
+      "signalFailures": 1,
+      "signals": [
+        {
+          "signal": "SIGTERM",
+          "result": "SENT"
+        },
+        {
+          "signal": "SIGTERM",
+          "result": "FAILED",
+          "code": "EPERM"
+        },
+        {
+          "signal": "SIGKILL",
+          "result": "SENT"
+        }
+      ],
+      "join": "JOINED"
+    }
+  },
+  "corrected": {
+    "first": "SENT",
+    "second": "ALREADY_SENT",
+    "unjoinedAfterSignals": true,
+    "escalation": "SENT",
+    "actualCalls": [
+      "SIGTERM",
+      "SIGKILL"
+    ],
+    "facts": {
+      "spawned": true,
+      "spawnError": false,
+      "exit": true,
+      "close": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "signalAttempts": 2,
+      "signalFailures": 0,
+      "signalCoalesced": 1,
+      "signals": [
+        {
+          "signal": "SIGTERM",
+          "result": "SENT"
+        },
+        {
+          "signal": "SIGKILL",
+          "result": "SENT"
+        }
+      ],
+      "join": "JOINED"
+    }
+  },
+  "qualification": "Deterministically proves duplicate-send refusal and idempotent correction; does not establish the underlying OS cause of the original EPERM."
+}

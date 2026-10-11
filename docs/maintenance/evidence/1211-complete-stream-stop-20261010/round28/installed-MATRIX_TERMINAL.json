@@ -1,0 +1,52 @@
+{
+  "target": "installed",
+  "rows": [
+    {
+      "originalPid": 34113,
+      "joined": true,
+      "exit": 0,
+      "target": "installed",
+      "mode": "chain",
+      "stream": "0",
+      "phase": "prepare"
+    },
+    {
+      "originalPid": 34130,
+      "joined": true,
+      "exit": 0,
+      "target": "installed",
+      "mode": "chain",
+      "stream": "0",
+      "phase": "live"
+    },
+    {
+      "originalPid": 35575,
+      "joined": true,
+      "exit": 0,
+      "target": "installed",
+      "mode": "chain",
+      "stream": "1",
+      "phase": "live"
+    },
+    {
+      "originalPid": 36327,
+      "joined": true,
+      "exit": 0,
+      "target": "installed",
+      "mode": "parallel",
+      "stream": "0",
+      "phase": "live"
+    },
+    {
+      "originalPid": 37162,
+      "joined": true,
+      "exit": 0,
+      "target": "installed",
+      "mode": "parallel",
+      "stream": "1",
+      "phase": "live"
+    }
+  ],
+  "qualified": true,
+  "finishedUTC": "2026-10-10T04:51:25.520870+00:00"
+}

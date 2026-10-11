@@ -1,0 +1,10 @@
+{
+  "allCreatedOwnedContainersStoppedAndRemoved": true,
+  "allObservedOriginalAttachesAndAuditorsJoined": true,
+  "sourceSerializationUnchangedThisCohort": true,
+  "taskGrantUnchangedBeforeRemoval": true,
+  "taskAccessOnlyGrantAndPrivateQualificationRemoved": true,
+  "actualCases": 1,
+  "nextCaseAfterAuditFailure": false,
+  "wholeChangeAcceptance": "HELD"
+}

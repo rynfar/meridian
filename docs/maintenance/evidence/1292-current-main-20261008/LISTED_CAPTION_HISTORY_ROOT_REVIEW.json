@@ -1,0 +1,30 @@
+{
+  "atUTC": "2026-10-09T03:30:03.250953+00:00",
+  "reviewer": "Root adversarial review; no new delegated independent review",
+  "decision": "FIT_FOR_COMPLETE_LOCAL_CHECKS_THEN_FRESH_NATIVE_BEFORE_AFTER_ATTEMPTS",
+  "parentHead": "44698a5c42a4810f114b46142e7a041fdffc49a4",
+  "finding": "Baseline after-caption snapshot incorrectly required listSessions discovery even though supported getSessionMessages returned the newly published two-message session. It prevented observing the already reproduced mapping/checkpoint loss and the subsequent replay.",
+  "actualEvidence": {
+    "nativeAttempt": "OWNED_OBSERVER_NATIVE_R2_BASELINE_ATTEMPT.json",
+    "reportStatus": "MISSING",
+    "firstFailure": "owned-sdk-session-not-listed",
+    "actualCaptionRecognized": true,
+    "actualModels": "Client claude-opus-5-5; backend SDK opus[1m], environment pin claude-opus-5-5, native claude-opus-5-5[1m], all 2.1.292 / SDK0.2.141",
+    "diagnosis": "Public owned store has a replacement SDK session, no checkpoint or pending IDs. Public getSessionMessages returns two messages although listSessions omits it. Historical source messages remain inspectable through public APIs.",
+    "physicalCustody": "All four source gates, six direct children, SDK/query/pipe/socket/listener/writer/parent joins positive. Access-only input removed after explicit audit. Secondary/global absence UNKNOWN."
+  },
+  "correction": "Only pinned baseline after-caption snapshot may record an unlisted but nonempty supported SDK history. Before/afterWork and every fixed snapshot still require listing, exact selected adapter/profile/locator, and nonempty history. Baseline additionally requires a changed SDK session and cleared checkpoint/pending IDs, then the original real replay/three-read/source-history assertions. Sanitized snapshots persist immediately so later failure retains causal observations.",
+  "controls": "Exact frozen prior snapshot rejects the observed readable-but-unlisted fixture. Current observes it only for baseline after-caption; baseline working and fixed after-caption still reject, empty history rejects. Existing agent/root/generation false-pass/false-failure controls remain green. Typecheck/syntax PASS, all controls joined.",
+  "inspected": [
+    "Baseline commit/tree pin remains mandatory; fixed cannot select this exception",
+    "No request/prompt/model/context/credential/SDK/process/socket ownership modification",
+    "No private SDK file inspection or raw transcripts; public output only selected hashes/counts",
+    "No native attempt report rewriting or automatic success from cleanup",
+    "Complete native client/read/checkpoint/replay, package and CI gates remain separate"
+  ],
+  "holds": [
+    "New complete local gates after harness change",
+    "Fresh provenance/grant qualification and baseline/candidate attempts",
+    "All inherited hint/overlap/cancellation/E41/E55/reporter/shared-MCP/package/final-head CI gates"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "originalPid": 70524,
+  "originalJoined": true,
+  "exit": 0,
+  "argv": [
+    "docker",
+    "build",
+    "--platform",
+    "linux/amd64",
+    "--progress=plain",
+    "--tag",
+    "meridian1211:complete-stream-r23-corrected",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-complete-stream-stop-build-20261010-round23/build-context"
+  ],
+  "finishedUTC": "2026-10-10T04:32:46.213497+00:00",
+  "logSHA256": "d15edd574bfbd3823f801133354a726beb33b300d74f29263e2ea9a324babf51"
+}

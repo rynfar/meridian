@@ -1,0 +1,9 @@
+{
+  "pass": 5656,
+  "skip": 35,
+  "fail": 1,
+  "batchesExecuted": 17,
+  "head": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+  "terminal": "EXIT1 original session4293 joined",
+  "failure": "Existing store-mutation-loop-lag ratio 11.115167ms against10.912125ms bound"
+}

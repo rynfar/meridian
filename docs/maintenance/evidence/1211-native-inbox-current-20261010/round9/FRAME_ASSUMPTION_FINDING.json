@@ -1,0 +1,16 @@
+{
+  "atUTC": "2026-10-10T01:15:56.088032+00:00",
+  "finding": "Raw exact-message substring is incompatible with native client handback framing",
+  "controlledNativeClient": "2.1.287",
+  "actualModels": 0,
+  "realGrants": 0,
+  "rootActorBound": true,
+  "explicitForeground": true,
+  "twoChildBashCalls": true,
+  "knownExactOrdinaryReportSupplied": true,
+  "nativeFrameIndentsEveryReportLine": true,
+  "fixtureHandbackToolInvoked": false,
+  "controlWholeAcceptance": false,
+  "actualR9InputExactButRawParentMatchFalse": true,
+  "scope": "A concrete native-format observation; actual mixed framed message/actor pairing remains unproven until changed-protocol actual run. No product behavior fix inferred."
+}

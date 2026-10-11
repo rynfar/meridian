@@ -1,0 +1,16 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/claude-subagent-isolation.test.ts:
+(pass) Claude Code Agent cancellation isolation > explicit root cancellation reaches undeclared native agents and every active classifier [1279.38ms]
+(pass) Claude Code Agent cancellation isolation > keeps undeclared native agents alive when the main request signal closes [1380.02ms]
+(pass) Claude Code Agent cancellation isolation > keeps undeclared native agents alive when the main response body closes [1441.25ms]
+(pass) Claude Code Agent cancellation isolation > explicit scoped-agent cancellation leaves the main and sibling mappings untouched [2976.63ms]
+(pass) Claude Code Agent key and checkpoint isolation > resumes an ordinary arbitrary raw main ID from its unmarked legacy checkpoint [301.54ms]
+(pass) Claude Code Agent key and checkpoint isolation > separates a native agent from a bare main ID matching the old derived string [1244.36ms]
+(pass) Claude Code Agent key and checkpoint isolation > keeps a subagent classifier refusal from evicting the main and sibling checkpoints [1815.44ms]
+(pass) Claude Code Agent key and checkpoint isolation > replays an unmarked legacy reserved-key collision without inheriting its checkpoint or transcript [927.89ms]
+
+ 8 pass
+ 0 fail
+ 144 expect() calls
+Ran 8 tests across 1 file. [11.86s]

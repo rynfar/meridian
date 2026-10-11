@@ -1,0 +1,50 @@
+{
+  "sourceHead": "44ae1bc2155ae89dfbb49f3f80131c979e514024",
+  "image": "sha256:23ad4ef93dc07d83f0b33f60546eef0fcc221545545b1a1b61c38eaf1f13cceb",
+  "inputs": [
+    {
+      "path": "e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430",
+      "mode": "0444"
+    },
+    {
+      "path": "passthroughCheckpointStop.ts",
+      "bytes": 15935,
+      "sha256": "6e7136bebebc0cc0402a2f3fa7718de6a8fe22010bb3acae8b94be1c3e6bd906",
+      "mode": "0444"
+    },
+    {
+      "path": "native-turn-counter.mjs",
+      "bytes": 26352,
+      "sha256": "a4edb2814af16749382b322025d4ae901819f1c25b24e080ebfc2dbb7c1b5417",
+      "mode": "0444"
+    },
+    {
+      "path": "e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815",
+      "mode": "0444"
+    },
+    {
+      "path": "e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685",
+      "mode": "0444"
+    },
+    {
+      "path": "passthroughEarlyStop.ts",
+      "bytes": 21011,
+      "sha256": "bbc947882270d77d090e984dd5c1fe373037f1d1320b4e618490a4fc9a3ac7db",
+      "mode": "0444"
+    },
+    {
+      "path": "passthroughDenial.ts",
+      "bytes": 1398,
+      "sha256": "6158e21da0b5559b00f465b6749a7f9753d323237fc21820b61a6a21ef247560",
+      "mode": "0444"
+    }
+  ],
+  "realCredentialReads": 0,
+  "modelNetworkDisabled": true
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "case": "e72-source",
+    "originalAttachPid": 72404,
+    "originalAttachJoined": true,
+    "nativeExit": 0,
+    "originalAuditorPid": 20802,
+    "originalAuditorJoined": true,
+    "auditExit": 0
+  },
+  {
+    "case": "e72-package",
+    "originalAttachPid": 26836,
+    "originalAttachJoined": true,
+    "nativeExit": 0,
+    "originalAuditorPid": 61361,
+    "originalAuditorJoined": true,
+    "auditExit": 0
+  }
+]

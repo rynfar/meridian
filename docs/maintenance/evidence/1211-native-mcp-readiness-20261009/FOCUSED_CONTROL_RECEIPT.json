@@ -1,0 +1,18 @@
+{
+  "newWitnessTests": {
+    "pass": 27,
+    "fail": 0,
+    "assertions": 45,
+    "originalTerminalExit": 0
+  },
+  "existingHarnessTests": {
+    "originalSession": 94791,
+    "pass": 69,
+    "skip": 1,
+    "fail": 0,
+    "assertions": 2184,
+    "originalTerminalExit": 0,
+    "compiledControlRequiresFullGate": true
+  },
+  "observerHead": "2595d05db52bef6ee22bdf6dce9f218893119425"
+}

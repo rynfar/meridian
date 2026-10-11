@@ -1,0 +1,11 @@
+{
+  "queryPromptMode": "production string prompt",
+  "trigger": "complete first streamed generation AND both PreToolUse hook witnesses",
+  "tools": 2,
+  "cap": 4,
+  "network": "none",
+  "credentialReads": 0,
+  "productionChanges": false,
+  "durableResumeAcceptance": false,
+  "purpose": "Qualify public interrupt result/round behavior before considering checkpoint or product use."
+}

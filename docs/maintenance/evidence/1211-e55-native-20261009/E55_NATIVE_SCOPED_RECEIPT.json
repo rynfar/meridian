@@ -1,0 +1,16 @@
+{
+  "harnessHead": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+  "compiledProductionSnapshotHead": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "sourceAndInstalledOriginalE55Checks": "11PASS_EACH",
+  "qualifiedSourceAndInstalledQueries": 10,
+  "retainedOriginalFailedObserverQueries": 5,
+  "allRetainedNativeQueries": 15,
+  "allRetainedActualClientInvocations": 9,
+  "estimatedSdkCostUsd": 0.41448680000000004,
+  "allOriginalHandlesTerminalAndWitnessesJoined": true,
+  "allOwnedStoppedContainersAccessGrantAndPrivateRuntimeRemoved": true,
+  "selectedSupportedSourceUnchanged": true,
+  "noLoginRefreshWrites": true,
+  "sharedSdkMcpTransportRetryReadiness": "NOT_VERIFIED",
+  "wholeChangeAcceptance": "HELD"
+}

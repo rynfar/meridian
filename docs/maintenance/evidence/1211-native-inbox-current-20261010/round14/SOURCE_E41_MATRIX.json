@@ -1,0 +1,99 @@
+{
+  "atUTC": "2026-10-10T02:45:23.581540+00:00",
+  "runtimeSourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "imageId": "sha256:d1948deed0125beec3bc8eeb31d455f6478894c70a5e716f2b152de15108112e",
+  "model": "claude-sonnet-5-5",
+  "sdkVersion": "0.2.141",
+  "nativeVersion": "2.1.284",
+  "sourceFourModeMatrix": "PASS",
+  "queries": 16,
+  "costUsd": 0.1160836,
+  "cases": [
+    {
+      "mode": "parallel",
+      "stream": false,
+      "queries": 3,
+      "costUsd": 0.0157422,
+      "qualified": true,
+      "reportSHA256": "572c1c1ade17d9e1dc456111b44bec3611b9f4a4918cbd831f9d310cfcccf608",
+      "verdict": {
+        "batches": [
+          3
+        ],
+        "realAnswers": 3,
+        "immutableParents": 2,
+        "distinctContinuations": 2,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      }
+    },
+    {
+      "mode": "parallel",
+      "stream": true,
+      "queries": 3,
+      "costUsd": 0.045265599999999996,
+      "qualified": true,
+      "reportSHA256": "5b44fc1e068ca000866b23dae07739527a75888b890ce0b077c19a87877d5645",
+      "verdict": {
+        "batches": [
+          3
+        ],
+        "realAnswers": 3,
+        "immutableParents": 2,
+        "distinctContinuations": 2,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      }
+    },
+    {
+      "mode": "chain",
+      "stream": false,
+      "queries": 5,
+      "costUsd": 0.031133,
+      "qualified": true,
+      "reportSHA256": "f0e483590a9fc21f3cf5107ef31e802c2ef5b93590bda1fa9b20717a1b8c5732",
+      "verdict": {
+        "batches": [
+          1,
+          1,
+          1
+        ],
+        "realAnswers": 3,
+        "immutableParents": 4,
+        "distinctContinuations": 4,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      }
+    },
+    {
+      "mode": "chain",
+      "stream": true,
+      "queries": 5,
+      "costUsd": 0.0239428,
+      "qualified": true,
+      "reportSHA256": "2a7b2dfaa4e91a079be390b62e5342ae74a13084e54d05530994607643692cce",
+      "verdict": {
+        "batches": [
+          1,
+          1,
+          1
+        ],
+        "realAnswers": 3,
+        "immutableParents": 4,
+        "distinctContinuations": 4,
+        "cachedPrefixFloor": 0.95,
+        "actualModel": "claude-sonnet-5-5",
+        "savedForkFollowup": true
+      }
+    }
+  ],
+  "allOriginalActorsJoinedAndOwnedRuntimeGrantContainersRemoved": true,
+  "sourceGrantUnchangedEveryCase": true,
+  "actualOpenCodeOrClaudeCodeClientClaim": false,
+  "scope": "E41 direct HTTP fixture, real SDK/native/model; affected-client and installed matrix separate",
+  "priorR13BootAdmissionFailure": "preserved, zero queries; corrected owned machine-ID mount only; no admission bypass",
+  "wholeChangeAcceptance": "HELD"
+}

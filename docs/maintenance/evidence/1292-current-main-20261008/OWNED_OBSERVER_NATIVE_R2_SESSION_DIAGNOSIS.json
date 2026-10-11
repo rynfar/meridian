@@ -1,0 +1,64 @@
+{
+  "operation": "SUPPORTED_OWNED_SDK_AND_PRODUCT_STORE_DIAGNOSIS",
+  "mappings": [
+    {
+      "keyDigest": "96bcbc51ae11d47181897173ac1d0e3f0103e6d2830ddad65b1c6f211094bb97",
+      "sessionDigest": "79ed7422505614994a4baa75c623453116d3645fcd6fc7875eb2c47cb6a488bc",
+      "mappingDigest": "8b631a6fcf23af03b11978b80156fd42050e9163a1485a055f88db8e4a363d5f",
+      "messageCount": 5,
+      "checkpointDigest": null,
+      "pendingIdDigests": [],
+      "currentListed": false,
+      "currentHistoryLength": 2,
+      "currentHistoryDigest": "f36be3d89f21e2e97f124a2cfcf7e04416ea003020f9b74d08409123d8df1591"
+    }
+  ],
+  "sessions": [
+    {
+      "sessionDigest": "990c3b2ee908b9ef5a49676f4190a945e6fcaceb3df1618974d5f3c4ca83a566",
+      "historyLength": 5,
+      "historyDigest": "9823a614eb489320ab2c11b1eff8578176dbe1f7aa1095a73b69d0a7c3375fa6",
+      "checkpointRows": [
+        {
+          "uuidDigest": "360c05dff9e072b31d3292e31206674857bd65750a7f9439cfa3734d046332ef",
+          "type": "assistant"
+        }
+      ],
+      "captionTextPresent": false,
+      "models": [
+        "claude-opus-5-5"
+      ]
+    },
+    {
+      "sessionDigest": "69f1f6a52399917c5f9356f675dd80080ac12fa9398a95cff167539c5bddcfa7",
+      "historyLength": 3,
+      "historyDigest": "7cbb107fe072e94b16910a5e01f5734e55fdf73b5a101699d730ad1844b9bab0",
+      "checkpointRows": [
+        {
+          "uuidDigest": "360c05dff9e072b31d3292e31206674857bd65750a7f9439cfa3734d046332ef",
+          "type": "assistant"
+        }
+      ],
+      "captionTextPresent": false,
+      "models": [
+        "claude-opus-5-5"
+      ]
+    },
+    {
+      "sessionDigest": "624ac2fa487885ceda9640723fdcd745ce6fc307a80cd3fb44bd16c118713736",
+      "historyLength": 3,
+      "historyDigest": "1bbab4e92f22ea5bf2b8821dc7b3c1842e91560ca0f96d738560ae88feec9f1e",
+      "checkpointRows": [],
+      "captionTextPresent": false,
+      "models": [
+        "claude-opus-5-5"
+      ]
+    }
+  ],
+  "modelCalls": 0,
+  "privateSdkFilesRead": false,
+  "rawTranscriptsPrinted": false,
+  "storeWrites": false,
+  "sourceCredentialOperations": false,
+  "diagnosticProcessJoined": true
+}

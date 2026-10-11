@@ -1,0 +1,18 @@
+{
+  "sourceAndInstalledReceipts": [
+    {
+      "round": 14,
+      "receipt": "round14/SOURCE_E41_MATRIX.json"
+    },
+    {
+      "round": 15,
+      "receipt": "round15/INSTALLED_E41_MATRIX.json"
+    }
+  ],
+  "scope": "Direct HTTP protocol fixtures; no actual OpenCode-client claim",
+  "liveSdk": "0.2.141",
+  "sourceNative": "2.1.284",
+  "installedNative": "2.1.296",
+  "model": "claude-sonnet-5-5",
+  "wholeChangeAcceptance": "HELD"
+}

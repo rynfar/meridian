@@ -1,0 +1,122 @@
+[
+  {
+    "label": "r5-passthrough-early-stop-integration",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/passthrough-early-stop-integration.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 7.444,
+    "sha256": "4e1e50fec9fef8d3904139edd5d39422701639269910bd8b0739f82201ca76a4"
+  },
+  {
+    "label": "r5-proxy-session-tree-cancellation",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-session-tree-cancellation.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 1.649,
+    "sha256": "15f51a01881b3c810ef4f362b0d3ff4a24992020db6dcf25a4567784e54989f5"
+  },
+  {
+    "label": "r5-silent-turn-recovery",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/silent-turn-recovery.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 1.379,
+    "sha256": "0dabb0a1e46001ddfc347c020b034005ccc29c64490520eabe0d7b60ada29ae1"
+  },
+  {
+    "label": "r5-proxy-idle-stall-ceiling",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-idle-stall-ceiling.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 2.028,
+    "sha256": "6d93b789d9cd5bbdc365a0d46fbea67744ac53b29ebe0a0370155cfec8cb6a9f"
+  },
+  {
+    "label": "r5-claude-subagent-isolation",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/claude-subagent-isolation.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 9.689,
+    "sha256": "64e59581f58cd3eddae9661140e60d773c02f87b5d35e4ee7b912a483a28aa27"
+  },
+  {
+    "label": "r5-proxy-claude-auxiliary-recovery",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-claude-auxiliary-recovery.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 1.494,
+    "sha256": "446dbc8a56883fe63bfb7108f97ef950d4f18a8aacac6a9b855f1aea3f1c5799"
+  },
+  {
+    "label": "r5-session-key-namespace",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/session-key-namespace.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 0.097,
+    "sha256": "269299aa7ca7a88481605e89f1c20a84da6b1849837e9515bcbc93d64d3e89c4"
+  },
+  {
+    "label": "r5-claude-code-session-identity",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/claude-code-session-identity.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 0.028,
+    "sha256": "dbb54814b25aec1ba5b6208f2bba302e13cd9dd2ea960e59840f55ea7b726a2e"
+  },
+  {
+    "label": "r5-priority-routing-integration",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/priority-routing-integration.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 126.023,
+    "sha256": "3b05828815b2dc76ef70da298079097e597ed42eed884f7ba3f9adf4e7309ce4"
+  },
+  {
+    "label": "r5-sticky-routing-integration",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/sticky-routing-integration.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 1.125,
+    "sha256": "f3caaf600bf303fd4b2bc65fb632368f033015649f1d57a1f56eda3982971851"
+  }
+]

@@ -1,0 +1,79 @@
+{
+  "baseObserverHead": "51cefe3c3a7874d168dd8c1e361f9cdedd982a05",
+  "runtimeSourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "contentKind": "frozen diagnostic overlay; not an exact Git observer tree",
+  "inputs": [
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 81988,
+      "sha256": "195d25bf4c34d0a85ca9b4b05bce5623273602262072436728f825359fd6ca69",
+      "mode": "0444",
+      "baselineGitSHA256": "36b0f0d0f191afc9efe55599f96b00bfac90cc1ba42320f67714ae1563b47d5a",
+      "diagnosticOverlay": true
+    },
+    {
+      "path": "scripts/lib/e2eMcpReadiness.mjs",
+      "bytes": 4382,
+      "sha256": "31c92572277279102681d1519a2b6198808396c4d4c15fc61d76f9736affdae7",
+      "mode": "0444",
+      "baselineGitSHA256": "31c92572277279102681d1519a2b6198808396c4d4c15fc61d76f9736affdae7",
+      "diagnosticOverlay": false
+    },
+    {
+      "path": "scripts/lib/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430",
+      "mode": "0444",
+      "baselineGitSHA256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430",
+      "diagnosticOverlay": false
+    },
+    {
+      "path": "scripts/lib/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685",
+      "mode": "0444",
+      "baselineGitSHA256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685",
+      "diagnosticOverlay": false
+    },
+    {
+      "path": "scripts/lib/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815",
+      "mode": "0444",
+      "baselineGitSHA256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815",
+      "diagnosticOverlay": false
+    },
+    {
+      "path": "src/proxy/passthroughDenial.ts",
+      "bytes": 1398,
+      "sha256": "6158e21da0b5559b00f465b6749a7f9753d323237fc21820b61a6a21ef247560",
+      "mode": "0444",
+      "baselineGitSHA256": "6158e21da0b5559b00f465b6749a7f9753d323237fc21820b61a6a21ef247560",
+      "diagnosticOverlay": false
+    },
+    {
+      "path": "scripts/e2e-claude-code-auto-mode.mjs",
+      "bytes": 49587,
+      "sha256": "636be8db328b5556fb933beeeee6769f8fcacf099b4ab485c1eba81486c84501",
+      "mode": "0444",
+      "baselineGitSHA256": "636be8db328b5556fb933beeeee6769f8fcacf099b4ab485c1eba81486c84501",
+      "diagnosticOverlay": false
+    },
+    {
+      "path": "scripts/lib/e2eMixedAuto.mjs",
+      "bytes": 12349,
+      "sha256": "8046219a45d1a1ebd74011adedfb2839e10fa0deb2998dc78a3ef8066836bab1",
+      "mode": "0444",
+      "baselineGitSHA256": "8046219a45d1a1ebd74011adedfb2839e10fa0deb2998dc78a3ef8066836bab1",
+      "diagnosticOverlay": false
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 12236,
+      "sha256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3",
+      "mode": "0444",
+      "baselineGitSHA256": "8aafa27c9cda868b0631ad033a3630a72e0defb7238389c73f68b081d476adf3",
+      "diagnosticOverlay": false
+    }
+  ]
+}

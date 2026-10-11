@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T22:42:22.480940+00:00",
+  "deliveryHead": "20336b22da7f3eec759347acfe9a434ec67475ea",
+  "baselineProbe": "interrupt-resume-source at same delivery head",
+  "delta": "Hold both owned fixture PreToolUse denials until complete streamed generation, all blocks closed, complete assistant metadata and UUID plus all hooks; public interrupt acknowledgement before release; exact same canonical result/API/fork assertions.",
+  "maximumQueries": 2,
+  "capPerQuery": 4,
+  "maximumLoopbackApiRoundsPerQuery": 8,
+  "hostDeadlineSeconds": 400,
+  "queryDeadlineSeconds": 25,
+  "network": "none",
+  "credentials": "fake ephemeral fixture only; no real reads",
+  "actualModelClientAcceptance": false,
+  "forkAfterFailure": "UNEXECUTED"
+}

@@ -1,0 +1,15 @@
+{
+  "atUTC": "2026-10-09T22:42:22.480940+00:00",
+  "deliveryHead": "20336b22da7f3eec759347acfe9a434ec67475ea",
+  "baselineProbe": "held-terminal-source passed, but trigger used fixture response ID list and count",
+  "delta": "Stop uses only public stream tool IDs, all closed block indices, full same-generation assistant metadata with UUID, exact owned hook IDs and privately equal metadata/hook inputs. Independent script oracle retained only in post-result assertions. Also require one iterator-observed result per owned tool, preserving old result/API/fork predicates.",
+  "maximumQueries": 2,
+  "capPerQuery": 4,
+  "maximumLoopbackApiRoundsPerQuery": 8,
+  "hostDeadlineSeconds": 400,
+  "queryDeadlineSeconds": 25,
+  "network": "none",
+  "credentials": "fake ephemeral fixture only; no real reads",
+  "actualModelClientAcceptance": false,
+  "forkAfterFailure": "UNEXECUTED"
+}

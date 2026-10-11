@@ -1,0 +1,6 @@
+Original tool session 64108 completed with exit 2 before the missing synthetic Mode properties were declared.
+
+src/__tests__/claude-subagent-harness.test.ts(252,32): error TS2353: Object literal may only specify known properties, and 'sdkPublicDiagnostics' does not exist in type 'Mode'.
+src/__tests__/claude-subagent-harness.test.ts(267,32): error TS2353: Object literal may only specify known properties, and 'sdkPublicDiagnostics' does not exist in type 'Mode'.
+
+Corrected declarations are in a80fac56; later standalone, pretest and build gates pass.

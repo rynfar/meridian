@@ -1,0 +1,13 @@
+{
+  "atUTC": "2026-10-10T04:09:39.583963+00:00",
+  "sourceRound": 20,
+  "sourceFourImmediateClosureControlsPass": true,
+  "sourceDelayedClosureReproducesRejectedNativeResult": true,
+  "sourceOriginalActorsInputsAndCleanupQualified": true,
+  "sourceProductAcceptance": false,
+  "admission": "Only zero-credential/model installed native causal comparison, after original source container and driver terminate; no actual model or product acceptance admission",
+  "fullNativeResultReason": "aborted_streaming",
+  "counter": 3,
+  "providerCancellationBetweenOwnedInterruptRequestAndAcknowledgement": true,
+  "priorRealFailureCauseStillHeld": true
+}

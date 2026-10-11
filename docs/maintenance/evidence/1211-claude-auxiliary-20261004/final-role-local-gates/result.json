@@ -1,0 +1,83 @@
+{
+  "sourceHead": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "sourceTree": "f8cbaa6e8aca90a62157f68dd66a1c3134aa0cca",
+  "cleanBeforeAndAfterAllGates": true,
+  "sourceSha256": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+    "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+  },
+  "runtimeIdentity": "runtime-identity.json",
+  "originalFreezePlatformReported": "macOS-26.6.2-x86_64-i386-64bit",
+  "platformQualification": "The immutable initial Python freeze string reports x86_64; separately observed Node/Bun processes and uname report arm64. Current login-shell Python also reports arm64. These are separate observations, not native-client proof.",
+  "npmTest": {
+    "exit": 0,
+    "pass": 5431,
+    "skip": 36,
+    "fail": 0,
+    "assertions": 28123,
+    "batches": 19,
+    "pretestTypecheckExecuted": true,
+    "optionalCompiledContextSkippedInFullSuite": true,
+    "rawLogSha256": "3232f4d135d9748892b6f1682ac471f116ecc64f38190477c03bec723784dfc2"
+  },
+  "standaloneTypecheck": {
+    "head": "a088de329febb62b147eb4af82f570ccf3b879bc",
+    "tree": "f8cbaa6e8aca90a62157f68dd66a1c3134aa0cca",
+    "cleanBefore": true,
+    "command": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "startedUtc": "2026-10-05T04:37:14.792602+00:00",
+    "finishedUtc": "2026-10-05T04:37:19.933742+00:00",
+    "exit": 0,
+    "logSha256": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+    "headAfter": "a088de329febb62b147eb4af82f570ccf3b879bc",
+    "cleanAfter": true
+  },
+  "build": {
+    "exit": 0,
+    "certification": "verified",
+    "sourceHead": "a088de329febb62b147eb4af82f570ccf3b879bc",
+    "dirty": false,
+    "counter": 2,
+    "artifactCount": 409,
+    "allArtifactHashesVerified": true,
+    "provenanceSha256": "1bd255f4c35eb42f7a31a0cace7d1d45d6625806124ea0351fa1553b600c8268",
+    "nativeBuildOrLoad": false
+  },
+  "currentSourceAndCompiledOwnershipSubset": {
+    "exit": 0,
+    "tests": 2,
+    "assertions": 72,
+    "filtered": 32,
+    "cases": 8,
+    "compiledSourceHead": "a088de329febb62b147eb4af82f570ccf3b879bc",
+    "allSDKAuthExecutableResolutionMocked": true,
+    "externalFetchAttempts": 0,
+    "allGeneratorsJoinedAndLoggerDescriptorsRestored": true,
+    "nativeQueries": 0,
+    "details": "current-artifact-context/"
+  },
+  "initialFailure": {
+    "head": "72b766b497eaf96069c6633499ac813e58908e1d",
+    "pretestExit": 2,
+    "suitesRun": 0,
+    "preservedIn": "../typed-artifact-hash-correction/"
+  },
+  "priorFocusedProof": {
+    "testSha256": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5",
+    "tests": 34,
+    "assertions": 1124,
+    "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+    "scope": "Historical synthetic result before typed guard; prior skipped/pending-read receipts remain qualified"
+  },
+  "independentRootTypedEscrowReviewSha256": "bee5d1335d04de396851ef517defe8864d0fe12e917a3b469a5d695d8520e9a1",
+  "finalDeliveryWillBeEvidenceOnlyAfterTestedSource": true,
+  "newHeadCIRequired": true,
+  "affectedFlowNativeAcceptance": false,
+  "sourcePRClosed": false,
+  "releaseAuthorized": false
+}

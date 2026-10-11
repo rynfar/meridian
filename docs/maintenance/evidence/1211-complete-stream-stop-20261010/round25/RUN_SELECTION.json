@@ -1,0 +1,13 @@
+{
+  "sourceHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "imageReceipt": "../pr1211-complete-stream-stop-build-20261010-round23/CHANGED_BUILD_IDENTITY.json",
+  "exactCommittedObserverBytes": true,
+  "renewalNotAssumed": true,
+  "liveSourceReadOnlyWithIndependentTTLCheck": true,
+  "scope": "one material-correction-justified changed actual Claude Code 2.1.287 mixed-auto-handback-v3 source case; installed only after source acceptance and physical cleanup",
+  "maxQueriesPerTarget": 24,
+  "maxCostUsdPerTarget": 12,
+  "originalHistoricalFailuresPreserved": true,
+  "freshUnexplainedFailureDoesNotAdmitRerunOrInstalledCase": true,
+  "requiredOriginalSourcePackageNativeControls": "both terminal-qualified before rehearsal; local gates before live"
+}

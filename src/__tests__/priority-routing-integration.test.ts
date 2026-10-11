@@ -302,6 +302,7 @@ type PostMessagesOptions = {
   readonly stream: boolean
   readonly signal?: AbortSignal
   readonly tools?: readonly Record<string, unknown>[]
+  readonly metadata?: Readonly<Record<string, string>>
 }
 
 async function postMessages(app: TestApp, options: PostMessagesOptions): Promise<Response> {
@@ -316,6 +317,7 @@ async function postMessages(app: TestApp, options: PostMessagesOptions): Promise
       stream: options.stream,
       messages,
       ...(options.tools ? { tools: options.tools } : {}),
+      ...(options.metadata ? { metadata: options.metadata } : {}),
     }),
     ...(options.signal ? { signal: options.signal } : {}),
   }))
@@ -327,6 +329,26 @@ async function post(app: TestApp, headers: Record<string, string> = {}, content:
 
 async function postStream(app: TestApp, options: Omit<PostMessagesOptions, "stream">): Promise<Response> {
   return postMessages(app, { ...options, stream: true })
+}
+
+async function postClaudeCode(app: TestApp, sessionId: string, content: string, agentId?: string): Promise<number> {
+  const response = await app.fetch(new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-agent": "claude-cli/2.1.287",
+      ...(agentId ? { "x-claude-code-agent-id": agentId } : {}),
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5",
+      max_tokens: 128,
+      stream: false,
+      messages: [{ role: "user", content }],
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    }),
+  }))
+  await response.text()
+  return response.status
 }
 
 const OPENING_MESSAGE = "shared opening"
@@ -584,6 +606,130 @@ describe("priority routing", () => {
     // NEW session ALSO goes to personal for now — exhaustion outlives one
     // success elsewhere. This asserts the assignment layer specifically.
   }, 20_000)
+
+  it("keeps Claude main affinity when its same-key auxiliary succeeds on a fallback profile", async () => {
+    const originalNow = Date.now
+    let routingNow = originalNow()
+    Date.now = () => routingNow
+    try {
+      const app = createTestApp()
+      const metadata = { user_id: JSON.stringify({ session_id: "claude-auxiliary-affinity" }) }
+      const opening = "Claude main opening before a classifier side call"
+      const mainHeaders = { "x-meridian-agent": "claude-code", "x-claude-code-request-class": "main" }
+      const main = await postMessages(app, { headers: mainHeaders, metadata, content: opening, stream: false })
+      expect(main.status).toBe(200)
+      await main.json()
+      expect(capturedEnvs).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-work")
+
+      capturedEnvs = []
+      capturedSdkCalls = []
+      failureMessage = SUBSCRIPTION_REFUSAL
+      failingDirs.add("prof-work")
+      const auxiliary = await postMessages(app, {
+        headers: { "x-meridian-agent": "claude-code", "x-claude-code-request-class": "auxiliary" },
+        metadata,
+        content: "independent classifier verdict request",
+        stream: false,
+      })
+      expect(auxiliary.status).toBe(200)
+      await auxiliary.json()
+      expect(capturedEnvs.some(dir => dir.includes("prof-work"))).toBe(true)
+      expect(capturedEnvs.at(-1)).toContain("prof-personal")
+      expect(capturedSdkCalls.every(call => call.resume === undefined)).toBe(true)
+
+      // Restore A's health and pass the HTTP-reported cooldown. Retaining B
+      // below would therefore be an assignment mutation, not a spent-account
+      // skip. The clock is private to this synchronous test and restored even
+      // if any assertion fails.
+      const marks = await exhaustedMarks(app)
+      expect(marks.some(mark => mark.id === "work")).toBe(true)
+      routingNow = Math.max(routingNow, ...marks.map(mark => mark.until)) + 1
+      failingDirs.clear()
+      capturedEnvs = []
+      capturedSdkCalls = []
+      const continued = await postMessages(app, {
+        headers: mainHeaders,
+        metadata,
+        content: [
+          { role: "user", content: opening },
+          { role: "assistant", content: [{ type: "text", text: "ok from /tmp/meridian-test-prof-work" }] },
+          { role: "user", content: "main continues after the classifier" },
+        ],
+        stream: false,
+      })
+      expect(continued.status).toBe(200)
+      await continued.json()
+      expect(capturedEnvs).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-work")
+      expect(capturedSdkCalls[0]!.resume).toBeDefined()
+    } finally {
+      Date.now = originalNow
+      failingDirs.clear()
+    }
+  })
+
+  it("retains a Claude primary's successful fallback after the preferred profile recovers", async () => {
+    const originalNow = Date.now
+    let routingNow = originalNow()
+    Date.now = () => routingNow
+    try {
+      const app = createTestApp()
+      const metadata = { user_id: JSON.stringify({ session_id: "claude-primary-fallback-affinity" }) }
+      const headers = { "x-meridian-agent": "claude-code", "x-claude-code-request-class": "main" }
+      const opening = "Claude primary falls back normally"
+      failureMessage = SUBSCRIPTION_REFUSAL
+      failingDirs.add("prof-work")
+      const first = await postMessages(app, { headers, metadata, content: opening, stream: false })
+      expect(first.status).toBe(200)
+      await first.json()
+      expect(capturedEnvs.some(dir => dir.includes("prof-work"))).toBe(true)
+      expect(capturedEnvs.at(-1)).toContain("prof-personal")
+
+      const marks = await exhaustedMarks(app)
+      expect(marks.some(mark => mark.id === "work")).toBe(true)
+      routingNow = Math.max(routingNow, ...marks.map(mark => mark.until)) + 1
+      failingDirs.clear()
+      capturedEnvs = []
+      capturedSdkCalls = []
+      const next = await postMessages(app, {
+        headers,
+        metadata,
+        content: [
+          { role: "user", content: opening },
+          { role: "assistant", content: [{ type: "text", text: "ok from /tmp/meridian-test-prof-personal" }] },
+          { role: "user", content: "ordinary main continuation" },
+        ],
+        stream: false,
+      })
+      expect(next.status).toBe(200)
+      await next.json()
+      expect(capturedEnvs).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-personal")
+      expect(capturedSdkCalls[0]!.resume).toBeDefined()
+    } finally {
+      Date.now = originalNow
+      failingDirs.clear()
+    }
+  })
+
+  it("keeps a Claude Code subagent on its conversation's assigned account", async () => {
+    const app = createTestApp()
+    const sessionId = `cc-priority-${crypto.randomUUID()}`
+    // The conversation is assigned to personal while personal is preferred.
+    process.env.MERIDIAN_PROFILE_ORDER = "personal,work"
+    expect(await postClaudeCode(app, sessionId, "cc opening")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+    process.env.MERIDIAN_PROFILE_ORDER = "work,personal"
+    capturedEnvs = []
+
+    // A brand-new conversation drains back to the preferred account...
+    expect(await postClaudeCode(app, `cc-priority-new-${crypto.randomUUID()}`, "cc unrelated")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-work")
+    // ...while a subagent of the assigned conversation stays with it.
+    expect(await postClaudeCode(app, sessionId, "cc subagent task", "a4a81dc1bbf7ee837")).toBe(200)
+    expect(capturedEnvs.at(-1)).toContain("prof-personal")
+  })
 
   it("defaults an unset priority failback policy to new-conversation affinity", async () => {
     // Given

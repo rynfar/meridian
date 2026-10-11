@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/collision-control/proxy-concurrency-coordination.test.ts",
+    "-t",
+    "retries a fresh namespaced request"
+  ],
+  "exit": 1,
+  "joined": true,
+  "seconds": 0.7208878749515861,
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-collision-probe-6c4xn3_h",
+  "controlSha256": "c59c2f32e212e11886147d76f2d13c0a1ff6ebb0f4c312eb72d2c142b3e90296",
+  "logSha256": "c075d8144acaad6545944138f9959b2752ce658a2c1fc4582e9a34cf64d424ec",
+  "modelCalls": 0,
+  "sourceModified": false
+}

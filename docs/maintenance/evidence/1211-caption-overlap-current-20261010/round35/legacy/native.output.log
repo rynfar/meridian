@@ -1,0 +1,1 @@
+{"outcome":"FAIL","cases":0,"failure":"proxy HTTP request failed\n\n500 !== 200\n","cleanup":{"admissionClosed":true,"providerBodiesJoined":true,"requestsSettled":true,"backendClosed":true,"listenerClosed":true,"nativeActorCensusEmpty":true,"residualNativeActors":[],"privateRuntimeRemoved":true}}

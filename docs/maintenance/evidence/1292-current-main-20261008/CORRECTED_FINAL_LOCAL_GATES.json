@@ -1,0 +1,24 @@
+{
+  "head": "a022326ad8c8700177a9454dac0353fa3ea13b38",
+  "startedUTC": "2026-10-09T00:53:01.044832+00:00",
+  "isolatedFixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-dependencies-d8h0519t",
+  "runnerPID": 88419,
+  "modelCalls": 0,
+  "checks": [
+    {
+      "label": "corrected-final-npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "exit": 1,
+      "joined": true,
+      "seconds": 376.844,
+      "sha256": "aa154deb6ebd0c7f3ee6bd9818a63f1cd26cdf2fa77329ccf72955a80ceee19f"
+    }
+  ],
+  "status": "FAIL",
+  "finishedUTC": "2026-10-09T00:59:17.896242+00:00",
+  "headUnchanged": true,
+  "worktreeClean": true
+}

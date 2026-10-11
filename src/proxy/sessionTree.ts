@@ -23,9 +23,10 @@
  *   2. **Abort, not completion.** Only an actual abort of a node propagates. A
  *      parent turn that finishes normally leaves its children alone — a child
  *      routinely outlives the parent turn that spawned it.
- *   3. **Self-gating.** Propagation can only reach a request that declared a
+ *   3. **Self-gating.** Automatic propagation can only reach a request that declared a
  *      parent, so a client that does not stamp linkage is unaffected with no
- *      config flag to set.
+ *      config flag to set. Explicit conversation cancellation may additionally
+ *      select an adapter-declared live group; that is never an automatic edge.
  *
  * Pure bookkeeping: no HTTP, no I/O, no logging. The caller supplies the abort
  * handle and owns the eviction/telemetry discipline that follows an abort.
@@ -40,10 +41,18 @@ export interface SessionTreeRegistration {
 export interface SessionTreeEntry {
   /** Request id, for logging and for the cancellation result. */
   readonly requestId: string
-  /** This request's client-session key, exactly as the adapter derived it. */
+  /** Conversation key, or a private request key for auxiliary work. */
   readonly sessionKey: string
   /** The IMMEDIATE parent's session key, when the client stamped linkage. */
   readonly parentKey?: string
+  /** Preserve a declared ancestor when auxiliary work has a private leaf key. */
+  readonly additionalParentKey?: string
+  /** Explicit route alias; absent means sessionKey is itself the public key. */
+  readonly explicitCancelKey?: string
+  /** Conversation-wide explicit cancellation, never an automatic parent edge. */
+  readonly explicitRootKey?: string
+  /** Internal root used for declared ancestry when its public alias escaped. */
+  readonly explicitRootSessionKey?: string
   /**
    * Abort this request. Must route through the same abort path a client
    * disconnect uses, so the eviction, permit release, and lease release that
@@ -59,7 +68,7 @@ export interface SessionTreeStats {
   linked: number
   /** Cancellations that aborted at least one live request, since start. */
   propagations: number
-  /** Descendant requests aborted by an ancestor's cancellation, since start. */
+  /** Declared descendant requests aborted by an ancestor's cancellation. */
   cancelledDescendants: number
 }
 
@@ -114,10 +123,10 @@ export class SessionTreeRegistry {
     this.entries.set(token, entry)
     // A self-link is meaningless and would make a node its own descendant, so
     // it is dropped at the index rather than defended against on every walk.
-    const indexedParent = entry.parentKey && entry.parentKey !== entry.sessionKey
-      ? entry.parentKey
-      : undefined
-    if (indexedParent) {
+    const indexedParents = new Set([entry.parentKey, entry.additionalParentKey].filter(
+      (key): key is string => Boolean(key) && key !== entry.sessionKey,
+    ))
+    for (const indexedParent of indexedParents) {
       let siblings = this.childrenByParent.get(indexedParent)
       if (!siblings) {
         siblings = new Set()
@@ -131,11 +140,12 @@ export class SessionTreeRegistry {
         if (released) return
         released = true
         this.entries.delete(token)
-        if (!indexedParent) return
-        const siblings = this.childrenByParent.get(indexedParent)
-        if (!siblings) return
-        siblings.delete(token)
-        if (siblings.size === 0) this.childrenByParent.delete(indexedParent)
+        for (const indexedParent of indexedParents) {
+          const siblings = this.childrenByParent.get(indexedParent)
+          if (!siblings) continue
+          siblings.delete(token)
+          if (siblings.size === 0) this.childrenByParent.delete(indexedParent)
+        }
       },
     }
   }
@@ -143,6 +153,7 @@ export class SessionTreeRegistry {
   /** Live requests whose ancestry chain reaches `sessionKey`, nearest first. */
   descendantsOf(sessionKey: string): SessionTreeEntry[] {
     const visitedKeys = new Set<string>([sessionKey])
+    const visitedEntries = new Set<number>()
     let frontier = [sessionKey]
     const found: SessionTreeEntry[] = []
     for (let depth = 0; depth < MAX_SUBTREE_DEPTH && frontier.length > 0; depth++) {
@@ -151,8 +162,10 @@ export class SessionTreeRegistry {
         const tokens = this.childrenByParent.get(parentKey)
         if (!tokens) continue
         for (const token of tokens) {
+          if (visitedEntries.has(token)) continue
           const entry = this.entries.get(token)
           if (!entry) continue
+          visitedEntries.add(token)
           found.push(entry)
           // Several live requests can share one child key (a queued turn behind
           // the running one). Descend through that key only once.
@@ -191,10 +204,20 @@ export class SessionTreeRegistry {
   }
 
   private cancel(sessionKey: string, options: CancelOptions): SessionTreeCancellation {
-    const descendants = this.descendantsOf(sessionKey)
-    const targets = options.includeSelf
-      ? [...this.liveRequestsFor(sessionKey), ...descendants]
-      : descendants
+    const live = options.includeSelf ? [...this.entries.values()] : []
+    const rootOrigins = live.filter(entry => entry.explicitRootKey === sessionKey)
+    // An arbitrary raw root ID may look like a scoped cancel key. Prefer its
+    // live conversation group; never interpret it as another agent's alias.
+    const origins = rootOrigins.length > 0 ? rootOrigins : live.filter(entry =>
+      (entry.explicitCancelKey ?? entry.sessionKey) === sessionKey)
+    const ancestryRoots = rootOrigins.length > 0
+      ? new Set(rootOrigins.map(entry => entry.explicitRootSessionKey ?? sessionKey))
+      : new Set([sessionKey])
+    const descendants = [...ancestryRoots].flatMap(key => this.descendantsOf(key))
+    if (options.includeSelf) {
+      for (const origin of origins) descendants.push(...this.descendantsOf(origin.sessionKey))
+    }
+    const targets = [...new Set(options.includeSelf ? [...origins, ...descendants] : descendants)]
     if (targets.length === 0) return EMPTY_CANCELLATION
 
     const keys: string[] = []
@@ -213,14 +236,14 @@ export class SessionTreeRegistry {
       requestIds.push(entry.requestId)
     }
     this.propagations++
-    this.cancelledDescendants += descendants.length
+    this.cancelledDescendants += new Set(descendants).size
     return { keys, requestIds }
   }
 
   stats(): SessionTreeStats {
     let linked = 0
     for (const entry of this.entries.values()) {
-      if (entry.parentKey) linked++
+      if (entry.parentKey || entry.additionalParentKey) linked++
     }
     return {
       tracked: this.entries.size,

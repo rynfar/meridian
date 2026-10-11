@@ -1,0 +1,23 @@
+{
+  "atUTC": "2026-10-10T03:30:14.535751+00:00",
+  "codeHead": "58f3055e17e90df0da1bb3ff056b7feffd151894",
+  "baseHead": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+  "files": [
+    {
+      "path": "CURRENT_OBSERVER_DIFF.patch",
+      "bytes": 70690,
+      "sha256": "a6e097bcd905f611ce249a6ea30629b6d5c5bd711cda3b6c04791ab36f649c52"
+    },
+    {
+      "path": "WHOLE_CHANGE_CODE_DIFF.patch",
+      "bytes": 976018,
+      "sha256": "5fbd97c7c14abd34a3f5a9b79ce9e74841dc586610580042d7b35c93123cd497"
+    },
+    {
+      "path": "ROOT_REVIEW.md",
+      "bytes": 4230,
+      "sha256": "13182868f2571dde1815f88ab1656c3efdbde2cfeed39002360a1f788b884bba"
+    }
+  ],
+  "wholeChangeAcceptance": "HELD"
+}

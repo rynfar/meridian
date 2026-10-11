@@ -1,0 +1,13 @@
+{
+  "head": "b126222a6fc3f475d9c493a86852db83d24347c6",
+  "originalPid": 84021,
+  "exit": 0,
+  "originalChildJoined": true,
+  "seconds": 690.0724783329642,
+  "logSHA256": "dcafe9d814f44ae5bcec1a9a081db4fe4bac086ab09b4ddc65dfffd6d44c0385",
+  "headAfter": "b126222a6fc3f475d9c493a86852db83d24347c6",
+  "pass": 5769,
+  "skip": 35,
+  "fail": 0,
+  "batches": 22
+}

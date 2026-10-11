@@ -1,0 +1,23 @@
+{
+  "phase": "rehearsal",
+  "result": "REHEARSAL",
+  "qualifiedBeforeOuterCustody": true,
+  "harnessCustody": true,
+  "queries": 0,
+  "actualClients": 0,
+  "checks": {},
+  "failure": null,
+  "identity": {
+    "targetKind": "source",
+    "sourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+    "packageVersion": "1.80.0",
+    "proxyEntrySha256": "7c5efc44d215cf411b4b60dd90349b9b0feeb783303e1847003b4f78107522a7",
+    "sdkVersion": "0.2.141",
+    "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+    "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+    "nativeCliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+    "clientVersion": "2.1.287",
+    "nativeCliVersion": "2.1.284"
+  },
+  "reportSHA256": "5259d90d127415fcd40229883471bb84cd2a7338489cc5fec319fbe323098907"
+}

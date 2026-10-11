@@ -1,0 +1,156 @@
+{
+  "atUTC": "2026-10-09T03:36:41.714633+00:00",
+  "issue": 1315,
+  "status": "SOURCE_CONFIRMED_MODEL_SCOPED_ADVERTISEMENT_DEFECT_IMPLEMENTATION_AND_AFFECTED_CLIENT_LIVE_HELD",
+  "sourceHead": "6585b66a01e26244381709e6db78825cd4056e18",
+  "sourceBytes": {
+    "src/proxy/models.ts": "0e5b6eed54d9840b399527bfe9da4b5e2650d403aa46565eab4d4971690e6780",
+    "src/proxy/openai.ts": "c394e1e9d45f957bd4b44db812a6e987880d0cdabb0fc1982f8aa788c0c6bf75"
+  },
+  "catalog": [
+    {
+      "plan": "pro",
+      "models": [
+        {
+          "id": "claude-sonnet-5-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-sonnet-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-sonnet-4-6",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-opus-5-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-opus-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-opus-4-6",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-opus-4-7",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-opus-4-8",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-fable-5-1",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-fable-5",
+          "context_window": 200000
+        }
+      ]
+    },
+    {
+      "plan": "max",
+      "models": [
+        {
+          "id": "claude-sonnet-5-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-sonnet-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-sonnet-4-6",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-opus-5-5",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-5",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-4-6",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-4-7",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-4-8",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-fable-5-1",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-fable-5",
+          "context_window": 1000000
+        }
+      ]
+    },
+    {
+      "plan": "team",
+      "models": [
+        {
+          "id": "claude-sonnet-5-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-sonnet-5",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-sonnet-4-6",
+          "context_window": 200000
+        },
+        {
+          "id": "claude-opus-5-5",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-5",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-4-6",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-4-7",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-opus-4-8",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-fable-5-1",
+          "context_window": 1000000
+        },
+        {
+          "id": "claude-fable-5",
+          "context_window": 1000000
+        }
+      ]
+    }
+  ],
+  "officialSource": "https://code.claude.com/docs/en/model-config#extended-context",
+  "officialFacts": "Native 1M for Opus4.7+, Sonnet5+ and Fable. Opus4.6 extended variant still has subscription/usage-credit requirements. Recognized gateway model IDs inherit model context; explicit disable flags cap native windows.",
+  "productFinding": "One subscription boolean controls every Opus4.6+ and Fable catalog row, advertising newer native-1M models at 200k on Pro. Merely adding Pro to the tier set would over-advertise Opus4.6; a model-specific correction is required.",
+  "scope": "Direct current-source pure-function reproduction and official-documentation comparison, not actual HTTP auth/client/model/context or published-version acceptance. No source edit, model call or credential read/write.",
+  "revisit": "Reconcile with retained #1212/#1213 native-context correction; use isolated current-main branch, negative Opus4.6/legacy/opt-out/custom-pin controls, actual macOS Pro/Codex via opencodex catalog and compaction proof; exact client versions not provided.",
+  "joined": true,
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1315-source-only-m3vea8w9",
+  "publicComments": 0,
+  "issueClosed": false
+}

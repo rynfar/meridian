@@ -1,0 +1,22 @@
+{
+  "phase": "live",
+  "mode": "parallel",
+  "stream": true,
+  "qualified": false,
+  "exit": 1,
+  "originalDriverPid": 59698,
+  "originalAttachPid": 59736,
+  "originalAttachJoined": true,
+  "hostDeadlineExceeded": false,
+  "ownedContainerRemoved": true,
+  "sourceGrantUnchanged": true,
+  "taskGrantUnchanged": true,
+  "taskGrantRemoved": true,
+  "ownedRuntimeRemoved": true,
+  "queries": 0,
+  "costUsd": 0,
+  "failureClass": "AssertionError",
+  "firstFailure": "[PROXY] Refusing to start: cannot capture a process incarnation on this host, so no request that touches a session could be served.\n  platform: linux\n  cause: no readable /etc/machine-id or /var/lib/dbus/machine-id, or /proc is not mounted. Distroless, scratch, chroot and gVisor images commonly lack machine-id: generate one (`dbus-uuidgen > /etc/machine-id`) or bind-mount the host's.\n  Set MERIDIAN_ALLOW_MISSING_BOOT_IDENTITY=1 to start anyway (requests will still fail).",
+  "finishedUTC": "2026-10-10T02:39:17.727130+00:00",
+  "wholeChangeAcceptance": "HELD"
+}

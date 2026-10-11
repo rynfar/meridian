@@ -1,0 +1,50 @@
+{
+  "status": "FIT_FOR_COMPLETE_LOCAL_CHECKS_THEN_FRESH_BOUNDED_NATIVE_QUALIFICATION",
+  "reviewer": "Root adversarial review; no new delegated independent review",
+  "parentHead": "38ef41de",
+  "findingsCorrected": [
+    "Legitimate extended-context model labels were discarded",
+    "Exact requested/SDK/pin/native-context correlation was missing",
+    "Model acceptance was conflated with physical query/gate/client joins",
+    "Bun listener close alone left accepted-socket close events unobserved"
+  ],
+  "modelContract": "Client core ID remains exact. The selected source fixture now explicitly pins backend SDK opus[1m], full native Opus ID plus [1m], wire core/context ID and ANTHROPIC_DEFAULT_OPUS_MODEL. No stripping, tier substitution or context fallback qualifies. Pins and helper role/hash are required in provenance. These are future admitted labels, not retrospective observations of discarded historical labels.",
+  "custodyContract": "Physical source executor/gate/query/handle/iterator/close and direct client/stdio joins remain required, independently of model evidence. Missing model evidence remains an acceptance finding with first failure preserved. Only recorded accepted sockets are destroyed after public proxy admission retirement or relay listener close. No PID sweep, broader network/global absence or config/history cleanup permission is added. Access input cleanup remains root review only.",
+  "tests": {
+    "pureMappingAndObservation": "10 pass / 0 fail",
+    "typecheck": 0,
+    "syntax": 0,
+    "existingMappingAndCaptionControls": "PASS",
+    "pinnedExactSnippetCausalControl": "Old proxy/relay closure deadlines reproduced; exact current closure blocks witness every accepted socket. All four Node peers and their streams join. Old label loss and custody/model conflation reproduced; missing/wrong model acceptance remains refused."
+  },
+  "initialControlQualification": "R1 copied relay callback into its observation after the observation snapshot. R2 corrects that metadata timing and explicitly pins runtime/platform/Node binary; R1 retained, no closure result rewritten.",
+  "inspected": [
+    "Strict CLI pins, required options and tuple metadata agree",
+    "Helper role is canonical and SHA-pinned with other inputs",
+    "Actual SDK env version pin is captured from each query, not inferred from alias",
+    "Bounded label sanitizer omits prose/credentials and retains literal context suffix",
+    "Existing working mapping/generation/history/checkpoint/MCP/overlap/cancellation assertions are unchanged",
+    "No real SDK/native/model invocation, credentials or source-store writes during controls",
+    "SDK instance shared-MCP limitation, reporter tuple and package/CI holds remain separate"
+  ],
+  "sourceIdentity": {
+    "scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs": "0a63004a773f654fd3559229e834601dcb304e3185608db70688d31d1d040e06",
+    "scripts/e2e-claude-code-progress-captions/native-observations.ts": "e9482dfe78c9d0c01459724bbe5f377636296ae16840fee7a19a03c3dd3d53c1",
+    "scripts/e2e-claude-code-progress-captions/native-observer-causal-control.mjs": "3f5cc2bd827671990e0c3a08625853d7ffba657cc994a8196772f6f121cfd8a6",
+    "scripts/e2e-claude-code-progress-captions/README.md": "7a50a07d51670273ca9edae2ec48bfa673518a975dd65d8dbde22d26c4cbea51",
+    "src/__tests__/caption-native-observations.test.ts": "9142939da7f4039002b2234470d00e8c668004923c8777aa1597d47558a0a316"
+  },
+  "newModelCalls": 0,
+  "allToolSessionsJoined": [
+    15713,
+    27978,
+    96142
+  ],
+  "holds": [
+    "Current complete npm/type/build checks",
+    "Fresh exact source/harness/helper/runtime/Hono provenance",
+    "Supported read-only credential readiness and bounded grant custody qualification",
+    "Actual baseline/candidate/hint-fallback/overlap/cancellation proof",
+    "Inherited native parity/reporter tuple/shared MCP/package/final-head CI"
+  ]
+}

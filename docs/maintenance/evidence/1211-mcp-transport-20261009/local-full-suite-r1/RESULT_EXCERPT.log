@@ -1,0 +1,529 @@
+(skip) profile-scoped token refresh route > refreshes the requested profile credentials instead of the default store
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+ 5319 pass
+ 35 skip
+ 0 fail
+ 29216 expect() calls
+Ran 5354 tests across 331 files. [415.72s]
+(skip) writes to the explicit inherited Claude credential context used by requests
+
+ 5319 pass
+ 35 skip
+ 0 fail
+ 29216 expect() calls
+Ran 5354 tests across 331 files. [415.72s]
+bun test v1.3.14 (0d9b296a)
+
+ 5319 pass
+ 35 skip
+ 0 fail
+ 29216 expect() calls
+Ran 5354 tests across 331 files. [415.72s]
+bun test v1.3.14 (0d9b296a)
+
+ 35 skip
+ 0 fail
+ 29216 expect() calls
+Ran 5354 tests across 331 files. [415.72s]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-async-ops.test.ts:
+[PROXY] Plugins loaded: 3 active, 0 disabled, 1 errors
+(pass) proxy async ops > serves async health endpoint with correct response schema [394.89ms]
+(pass) proxy async ops > keeps CLI missing-binary warning behavior [1.30ms]
+
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [1232.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) proxy async ops > keeps CLI missing-binary warning behavior [1.30ms]
+
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [1232.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [1232.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-session-store.test.ts:
+(pass) Shared session store > should store and retrieve a session [35.60ms]
+(pass) Shared session store > snapshots key-bound absence for every configured profile scope [1.50ms]
+(pass) Shared session store > rejects replacement, delete/recreate, and absent-key ABA by exact generation [13.10ms]
+
+ 24 pass
+ 0 fail
+ 105 expect() calls
+Ran 24 tests across 1 file. [182.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) Shared session store > rejects replacement, delete/recreate, and absent-key ABA by exact generation [13.10ms]
+
+ 24 pass
+ 0 fail
+ 105 expect() calls
+Ran 24 tests across 1 file. [182.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 24 pass
+ 0 fail
+ 105 expect() calls
+Ran 24 tests across 1 file. [182.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/session-store-pruning.test.ts:
+(pass) Session store count-based pruning > keeps all entries when under capacity [37.87ms]
+(pass) Session store count-based pruning > does NOT prune by time — old sessions survive [2.12ms]
+(pass) Session store count-based pruning > preserves most recently used entries during pruning [9.01ms]
+
+ 5 pass
+ 0 fail
+ 21 expect() calls
+Ran 5 tests across 1 file. [101.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) Session store count-based pruning > preserves most recently used entries during pruning [9.01ms]
+
+ 5 pass
+ 0 fail
+ 21 expect() calls
+Ran 5 tests across 1 file. [101.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 5 pass
+ 0 fail
+ 21 expect() calls
+Ran 5 tests across 1 file. [101.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-session-store-locking.test.ts:
+(pass) Shared session store locking > preserves every entry from real concurrent writer processes [300.70ms]
+(pass) Shared session store locking > fails all mutations closed when the store is corrupt [3.72ms]
+(pass) Shared session store locking > writes through a unique mode-0600 temporary file and leaves no artifacts [2.16ms]
+
+ 7 pass
+ 0 fail
+ 135 expect() calls
+Ran 7 tests across 1 file. [431.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) Shared session store locking > writes through a unique mode-0600 temporary file and leaves no artifacts [2.16ms]
+
+ 7 pass
+ 0 fail
+ 135 expect() calls
+Ran 7 tests across 1 file. [431.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 7 pass
+ 0 fail
+ 135 expect() calls
+Ran 7 tests across 1 file. [431.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/session-fingerprint-context.test.ts:
+[PROXY] 4dad9349-1429-470c-8765-d2d38b3fab1f adapter=opencode model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] c1322631-9432-4c33-90cb-9e934e7551b0 TOKEN WARN: Cache hit rate 0% on resume — normal after proxy restart, cache will re-prime on next turn.
+(pass) Fingerprint resume: OpenCode CWD-key transition > moves once from the override key to the client key and keeps the new key across restart [158.82ms]
+
+ 12 pass
+ 0 fail
+ 15 expect() calls
+Ran 12 tests across 1 file. [2.04s]
+bun test v1.3.14 (0d9b296a)
+(pass) Fingerprint resume: OpenCode CWD-key transition > moves once from the override key to the client key and keeps the new key across restart [158.82ms]
+
+ 12 pass
+ 0 fail
+ 15 expect() calls
+Ran 12 tests across 1 file. [2.04s]
+bun test v1.3.14 (0d9b296a)
+
+ 12 pass
+ 0 fail
+ 15 expect() calls
+Ran 12 tests across 1 file. [2.04s]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-context-usage-store.test.ts:
+(pass) GET /v1/sessions/:claudeSessionId/context-usage — shared store > returns usage persisted in the shared session store [40.21ms]
+(pass) GET /v1/sessions/:claudeSessionId/context-usage — shared store > returns the last usage iteration from the shared session store [5.71ms]
+(pass) GET /v1/sessions/:claudeSessionId/context-usage — shared store > falls back to top-level usage when iterations is empty [4.24ms]
+
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [490.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) GET /v1/sessions/:claudeSessionId/context-usage — shared store > falls back to top-level usage when iterations is empty [4.24ms]
+
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [490.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 3 pass
+ 0 fail
+ 16 expect() calls
+Ran 3 tests across 1 file. [490.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/models-auth-status.test.ts:
+(pass) getClaudeAuthStatusAsync — real implementation > hides the console window when probing auth status [1.91ms]
+(pass) auth refresh owns the actual asynchronous resolver path > a preference change cannot bypass an older resolver with unconfirmed custody [3025.05ms]
+(pass) auth refresh owns the actual asynchronous resolver path > settings retain a failed version slot and bounded shutdown until real pipe witnesses arrive [3034.28ms]
+
+ 53 pass
+ 0 fail
+ 185 expect() calls
+Ran 53 tests across 1 file. [13.56s]
+bun test v1.3.14 (0d9b296a)
+(pass) auth refresh owns the actual asynchronous resolver path > settings retain a failed version slot and bounded shutdown until real pipe witnesses arrive [3034.28ms]
+
+ 53 pass
+ 0 fail
+ 185 expect() calls
+Ran 53 tests across 1 file. [13.56s]
+bun test v1.3.14 (0d9b296a)
+
+ 53 pass
+ 0 fail
+ 185 expect() calls
+Ran 53 tests across 1 file. [13.56s]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-passthrough-thinking.test.ts:
+[PROXY] 52b8ed4c-ab62-4812-86f0-c2557bd1c06a adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] f0732f50-a2e9-4300-9419-89da5a9069b2 usage: input=10 output=50 cache=0%
+(pass) passthrough streaming — thinking block filtering > does not strip thinking blocks in non-passthrough mode [37.05ms]
+
+ 10 pass
+ 0 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [898.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) passthrough streaming — thinking block filtering > does not strip thinking blocks in non-passthrough mode [37.05ms]
+
+ 10 pass
+ 0 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [898.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 10 pass
+ 0 fail
+ 36 expect() calls
+Ran 10 tests across 1 file. [898.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-session-recovery.test.ts:
+(pass) Session recovery — previousClaudeSessionId > should not set previousClaudeSessionId on first store [32.79ms]
+(pass) Session recovery — listStoredSessions > should list all stored sessions [2.46ms]
+(pass) Session recovery — listStoredSessions > should include previousClaudeSessionId in listing [2.47ms]
+
+ 11 pass
+ 0 fail
+ 21 expect() calls
+Ran 11 tests across 1 file. [94.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) Session recovery — listStoredSessions > should include previousClaudeSessionId in listing [2.47ms]
+
+ 11 pass
+ 0 fail
+ 21 expect() calls
+Ran 11 tests across 1 file. [94.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 11 pass
+ 0 fail
+ 21 expect() calls
+Ran 11 tests across 1 file. [94.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-thinking-setting.test.ts:
+[PROXY] d54dfeef-b374-43e3-8816-729c6233aeb1 thinking disabled (per-adapter setting)
+[PROXY] 418ad83d-9eb1-49ec-9d27-e6b641b2a33f usage: input=10 output=50 cache=0%
+(pass) per-adapter thinking setting — explicit "disabled" is authoritative > "adaptive" applies as a default only when the client sent nothing [33.73ms]
+
+ 8 pass
+ 0 fail
+ 9 expect() calls
+Ran 8 tests across 1 file. [863.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) per-adapter thinking setting — explicit "disabled" is authoritative > "adaptive" applies as a default only when the client sent nothing [33.73ms]
+
+ 8 pass
+ 0 fail
+ 9 expect() calls
+Ran 8 tests across 1 file. [863.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 8 pass
+ 0 fail
+ 9 expect() calls
+Ran 8 tests across 1 file. [863.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/models.test.ts:
+(pass) mapModelToClaudeModel > maps opus 4.6 models to opus[1m] [0.14ms]
+(pass) rate-limit bench is scoped to the session that earned it (#901) > clears session benches along with their profile on reset [0.03ms]
+(pass) rate-limit bench is scoped to the session that earned it (#901) > applies the same scoping to the fable and sonnet[1m] tiers [0.03ms]
+
+ 95 pass
+ 0 fail
+ 169 expect() calls
+Ran 95 tests across 1 file. [38.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) rate-limit bench is scoped to the session that earned it (#901) > applies the same scoping to the fable and sonnet[1m] tiers [0.03ms]
+
+ 95 pass
+ 0 fail
+ 169 expect() calls
+Ran 95 tests across 1 file. [38.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 95 pass
+ 0 fail
+ 169 expect() calls
+Ran 95 tests across 1 file. [38.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/replay-budget.test.ts:
+(pass) replay budget > returns the same array when it fits [0.18ms]
+(pass) replay budget > keeps the reserve proportionate to the window [0.04ms]
+(pass) replay budget > honours the budget override and ignores unusable values [0.04ms]
+
+ 13 pass
+ 0 fail
+ 39 expect() calls
+Ran 13 tests across 1 file. [41.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) replay budget > honours the budget override and ignores unusable values [0.04ms]
+
+ 13 pass
+ 0 fail
+ 39 expect() calls
+Ran 13 tests across 1 file. [41.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 13 pass
+ 0 fail
+ 39 expect() calls
+Ran 13 tests across 1 file. [41.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-health-build.test.ts:
+(pass) cold executable readiness > leaves liveness responsive while asynchronous executable resolution is pending [10.66ms]
+(pass) /health build provenance > reports an available update once the check resolves [4.04ms]
+(pass) /health build provenance > attaches build to the not-logged-in response too [1.00ms]
+
+ 11 pass
+ 0 fail
+ 37 expect() calls
+Ran 11 tests across 1 file. [488.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) /health build provenance > attaches build to the not-logged-in response too [1.00ms]
+
+ 11 pass
+ 0 fail
+ 37 expect() calls
+Ran 11 tests across 1 file. [488.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 11 pass
+ 0 fail
+ 37 expect() calls
+Ran 11 tests across 1 file. [488.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/priority-routing-integration.test.ts:
+[PROXY] Could not verify Claude auth status for profile "work": `claude auth status` exited with code 1 reporting loggedIn: false (1 in a row; no status known yet; next check in 5s)
+[PROXY] 7a2ba9ad-3595-41c3-896b-78b4814b0d24 usage: input=10 output=50 cache=0%
+(pass) keyless priority affinity > lands a keyless fork on the same account as its parent [10138.18ms]
+
+ 76 pass
+ 0 fail
+ 395 expect() calls
+Ran 76 tests across 1 file. [115.26s]
+bun test v1.3.14 (0d9b296a)
+(pass) keyless priority affinity > lands a keyless fork on the same account as its parent [10138.18ms]
+
+ 76 pass
+ 0 fail
+ 395 expect() calls
+Ran 76 tests across 1 file. [115.26s]
+bun test v1.3.14 (0d9b296a)
+
+ 76 pass
+ 0 fail
+ 395 expect() calls
+Ran 76 tests across 1 file. [115.26s]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/follow-active-integration.test.ts:
+[PROXY] Could not verify Claude auth status for profile "personal": `claude auth status` exited with code 1 reporting loggedIn: false (1 in a row; no status known yet; next check in 5s)
+[PROXY] Active profile switched to: work (from unset, ua: unknown)
+(pass) POST /profiles/active under follow mode > switching still works when the mode is off [2.77ms]
+
+ 7 pass
+ 0 fail
+ 16 expect() calls
+Ran 7 tests across 1 file. [1.92s]
+bun test v1.3.14 (0d9b296a)
+(pass) POST /profiles/active under follow mode > switching still works when the mode is off [2.77ms]
+
+ 7 pass
+ 0 fail
+ 16 expect() calls
+Ran 7 tests across 1 file. [1.92s]
+bun test v1.3.14 (0d9b296a)
+
+ 7 pass
+ 0 fail
+ 16 expect() calls
+Ran 7 tests across 1 file. [1.92s]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/store-mutation-loop-lag.test.ts:
+[loop-lag] 6.6 MB store: warm mutation median 5.2 ms, max 6.7 ms; full-document baseline median 21.8 ms
+(pass) copy-on-write store mutations > discards a mutator's partial changes when it throws [1.95ms]
+(pass) copy-on-write store mutations > builds a mutation on a foreign writer's document, not on the stale cache [2.48ms]
+
+ 9 pass
+ 0 fail
+ 28 expect() calls
+Ran 9 tests across 1 file. [288.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) copy-on-write store mutations > builds a mutation on a foreign writer's document, not on the stale cache [2.48ms]
+
+ 9 pass
+ 0 fail
+ 28 expect() calls
+Ran 9 tests across 1 file. [288.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 9 pass
+ 0 fail
+ 28 expect() calls
+Ran 9 tests across 1 file. [288.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/profile-credential-isolation.test.ts:
+(pass) profile native-credential metadata isolation > API keys do not inherit a host subscription or renewal warning [42.59ms]
+(pass) profile native-credential metadata isolation > default-directory Claude subscriptions retain their own metadata [0.90ms]
+(pass) profile native-credential metadata isolation > auth-status failure is not made healthy by ignoring an unrelated store [0.67ms]
+
+ 8 pass
+ 0 fail
+ 49 expect() calls
+Ran 8 tests across 1 file. [455.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) profile native-credential metadata isolation > auth-status failure is not made healthy by ignoring an unrelated store [0.67ms]
+
+ 8 pass
+ 0 fail
+ 49 expect() calls
+Ran 8 tests across 1 file. [455.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 8 pass
+ 0 fail
+ 49 expect() calls
+Ran 8 tests across 1 file. [455.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/header-settings-routes.test.ts:
+(pass) claude header consent > defaults off, exposes the OS name only to settings, and prevents cached consent [32.84ms]
+(pass) antigravity header consent > keeps draining health status and liveness/readiness shapes, with hostname only on health [0.51ms]
+(pass) antigravity header consent > keeps auth/account error responses while applying current consent only to health [1.11ms]
+
+ 24 pass
+ 0 fail
+ 240 expect() calls
+Ran 24 tests across 1 file. [486.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) antigravity header consent > keeps auth/account error responses while applying current consent only to health [1.11ms]
+
+ 24 pass
+ 0 fail
+ 240 expect() calls
+Ran 24 tests across 1 file. [486.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 24 pass
+ 0 fail
+ 240 expect() calls
+Ran 24 tests across 1 file. [486.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/priority-session-store.test.ts:
+(pass) durable priority route publication > upgrades lazily and publishes route plus mapping in one document [39.35ms]
+[sessionStore] priority route read failed: session store priority route "strict-route" has unknown or missing fields
+(pass) durable priority route publication > fails closed on a strict malformed-v3 route matrix without rewriting the file [10.21ms]
+
+ 22 pass
+ 0 fail
+ 226 expect() calls
+Ran 22 tests across 1 file. [601.00ms]
+bun test v1.3.14 (0d9b296a)
+(pass) durable priority route publication > fails closed on a strict malformed-v3 route matrix without rewriting the file [10.21ms]
+
+ 22 pass
+ 0 fail
+ 226 expect() calls
+Ran 22 tests across 1 file. [601.00ms]
+bun test v1.3.14 (0d9b296a)
+
+ 22 pass
+ 0 fail
+ 226 expect() calls
+Ran 22 tests across 1 file. [601.00ms]
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/proxy-concurrency-coordination.test.ts:
+(pass) SDK and Session concurrency coordination > holds the SDK permit for the complete streaming lifecycle [483.13ms]
+764 |     expect(toolServer(0)).toBeDefined()
+765 |     expect(toolServer(1)).toBe(toolServer(0))
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: {
+  type: "sdk",
+  name: "test",
+Received: serializes to the same string
+
+      at <anonymous> (/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008/src/__tests__/proxy-concurrency-coordination.test.ts:765:27)
+(fail) SDK and Session concurrency coordination > gives a progress caption its own tool server while the working turn keeps the session's [107.14ms]
+(pass) SDK and Session concurrency coordination > does not queue a progress summary behind its subagent's running turn [70.00ms]
+(pass) SDK and Session concurrency coordination > treats a declared non-auxiliary request class as a normal turn [33.49ms]
+(pass) SDK and Session concurrency coordination > keeps a header-labelled auxiliary independent of a complete checkpoint (stream=false, refusals=0) [68.38ms]
+(pass) SDK and Session concurrency coordination > keeps a header-labelled auxiliary independent of a complete checkpoint (stream=false, refusals=1) [86.39ms]
+(pass) SDK and Session concurrency coordination > aborts a wedged turn without releasing its fencing lease early [2130.44ms]
+
+1 tests failed:
+(fail) SDK and Session concurrency coordination > gives a progress caption its own tool server while the working turn keeps the session's [107.14ms]
+
+ 41 pass
+ 1 fail
+ 265 expect() calls
+1 tests failed:
+(fail) SDK and Session concurrency coordination > gives a progress caption its own tool server while the working turn keeps the session's [107.14ms]
+
+ 41 pass
+ 1 fail
+ 265 expect() calls
+Ran 42 tests across 1 file. [10.04s]
+(fail) SDK and Session concurrency coordination > gives a progress caption its own tool server while the working turn keeps the session's [107.14ms]
+
+ 41 pass
+ 1 fail
+ 265 expect() calls
+Ran 42 tests across 1 file. [10.04s]
+ 41 pass
+ 1 fail
+ 265 expect() calls
+Ran 42 tests across 1 file. [10.04s]

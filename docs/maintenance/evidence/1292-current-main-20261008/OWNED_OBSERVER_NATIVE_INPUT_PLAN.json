@@ -1,0 +1,47 @@
+{
+  "atUTC": "2026-10-09T02:59:15.053603+00:00",
+  "status": "PREPARED_NOT_INVOKED_CURRENT_FULL_LOCAL_GATES_RUNNING",
+  "sourceArms": [
+    {
+      "arm": "baseline",
+      "source": "/Users/rynfar/repos/meridian-caption-baseline-ae470-20261008",
+      "head": "ae470d511f1f170168c7b95140ba0bb56d99d179",
+      "tree": "0fef592183db00ce0bc81c988d51124b76bd374a",
+      "inputs": 550,
+      "provenance": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/owned-observer-baseline-source-provenance.json",
+      "sha256": "753644bebd50fe3e229c811a4d917b759739b9f518b4a459d0886db835f20d2f",
+      "nativeModel": "claude-opus-5-5",
+      "backendSdkModel": "opus[1m]",
+      "backendNativeModel": "claude-opus-5-5[1m]"
+    },
+    {
+      "arm": "fixed",
+      "source": "/Users/rynfar/repos/meridian-claude-sidecalls-stack-1292-20261008",
+      "head": "465c35895cbef922669a6bb745d86438f9941c4d",
+      "tree": "30acdad3168a5fcf6e6c3c3f21008f1590c07fa4",
+      "inputs": 566,
+      "provenance": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-source-reconciliation-20261008-round1/owned-observer-fixed-source-provenance.json",
+      "sha256": "4157e7e6360e561b22f0bd6a198af718e84fdd7da26543369dfa50156adda2f3",
+      "nativeModel": "claude-opus-5-5",
+      "backendSdkModel": "opus[1m]",
+      "backendNativeModel": "claude-opus-5-5[1m]"
+    }
+  ],
+  "grantStaged": false,
+  "modelCalls": 0,
+  "requiredBeforeInvocation": [
+    "Current complete local PASS",
+    "Fresh final before-invocation identities including any later evidence-only commit",
+    "Pinned runtime version/byte readiness",
+    "Supported credential-store read-only readiness",
+    "Bounded parent/worker/custody and access-only grant qualification",
+    "New unique attempt output, original terminal attempt never reused"
+  ],
+  "historicalAttemptPreserved": "baseline-sequential-hints1/report.json; first failure and original custody uncertainty unchanged",
+  "inheritedHolds": [
+    "Reporter tuple",
+    "Shared-MCP transport/readiness",
+    "Overlap/cancellation/native parity",
+    "Package/final-head CI"
+  ]
+}

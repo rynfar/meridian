@@ -1,0 +1,26 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/e72-mixed-auto.test.ts:
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > verifies exact native framing and child ownership through the maintained v3 harness [1001.32ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > preserves v2 raw-substring rejection of a native framed report [895.58ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-frame wrongFramedActor in the maintained v3 harness [981.78ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-frame wrongFramedReport in the maintained v3 harness [920.26ms]
+
+src/__tests__/e72-native-handback-frame.test.ts:
+(pass) pinned native handback framing > decodes the independently captured native control without altering report bytes [0.44ms]
+(pass) pinned native handback framing > requires the pinned client, exact child, footer target and complete report [0.05ms]
+(pass) pinned native handback framing > rejects prose, structured JSON, multiple blocks, borrowed framing and damaged footers [0.06ms]
+(pass) pinned native handback framing > preserves intentional blank lines and leading spaces inside the report [0.03ms]
+(pass) pinned native handback framing > rejects oversized payloads without returning report or actor text [0.19ms]
+
+src/__tests__/e72-handback-encoding.test.ts:
+(pass) handback encoding diagnostics preserve strict acceptance > distinguishes literal escapes, JSON quoting, CRLF and a trailing line feed [0.56ms]
+(pass) handback encoding diagnostics preserve strict acceptance > separates actual-input delivery from fixed expected wording without qualifying it [0.05ms]
+(pass) handback encoding diagnostics preserve strict acceptance > requires whole direct JSON and never searches nested report objects [0.09ms]
+(pass) handback encoding diagnostics preserve strict acceptance > keeps missing, empty, oversized and invalid values explicit and payload-free [0.27ms]
+
+ 13 pass
+ 37 filtered out
+ 0 fail
+ 96 expect() calls
+Ran 13 tests across 3 files. [3.85s]

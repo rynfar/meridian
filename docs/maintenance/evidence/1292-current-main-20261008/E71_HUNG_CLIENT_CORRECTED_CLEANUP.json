@@ -1,0 +1,11 @@
+{
+  "acceptance": false,
+  "privateRuntimeRemoved": true,
+  "ownedResidualProcesses": 0,
+  "cleanupFailures": [],
+  "loggerContextDescriptorRestored": true,
+  "relayOperationsJoined": true,
+  "httpReceiptsJoined": true,
+  "pendingHttpReceipts": 0,
+  "pendingRelayHandlers": 0
+}

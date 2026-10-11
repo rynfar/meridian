@@ -1,0 +1,62 @@
+[
+  {
+    "label": "r7-typecheck",
+    "argv": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 5.328,
+    "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+  },
+  {
+    "label": "r7-concurrency",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-concurrency-coordination.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 8.388,
+    "sha256": "db3cfbc5777c582f4780529d338140cc3fbade6d38a8f1da898ccb06fdf0cf5e"
+  },
+  {
+    "label": "r7-namespace",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/session-key-namespace.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 0.089,
+    "sha256": "13b89402fa7f1236395b5663e35bf148dee08b54de4183da381a0b759e14ffbb"
+  },
+  {
+    "label": "r7-auxiliary-recovery",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-claude-auxiliary-recovery.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 0.985,
+    "sha256": "260f10c892c30ce9d14062c1b54bd4a9ad85c6bad689d11a5b84ce38cf975e81"
+  },
+  {
+    "label": "r7-canonical-recovery",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-session-recovery.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 0.085,
+    "sha256": "4e000480e61b72d0439cde6905792ef57795691b2a29b98ece9c690aafca3603"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "id": "66ad574b24dea437bd37d4d8ac9c4aa7d7f76db23f16aaee87ca48ff00962d9d",
+  "state": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-10T04:34:52.578361574Z",
+    "FinishedAt": "2026-10-10T04:35:55.010670117Z"
+  }
+}

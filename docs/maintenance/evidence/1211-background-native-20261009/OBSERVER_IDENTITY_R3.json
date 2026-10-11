@@ -1,0 +1,37 @@
+{
+  "head": "4f5ecd7594046bc276a6c9bac76da1cfa44c673c",
+  "productionRuntimeHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "observerOutsideRuntime": true,
+  "inputs": [
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 58892,
+      "SHA256": "9c903aa6d184b1103b15ba599a450489de7383dd386b44fa02368a4002dd26e2",
+      "mode": "0444"
+    },
+    {
+      "path": "scripts/e2e-claude-code-auto-mode.mjs",
+      "bytes": 49587,
+      "SHA256": "636be8db328b5556fb933beeeee6769f8fcacf099b4ab485c1eba81486c84501",
+      "mode": "0444"
+    },
+    {
+      "path": "scripts/lib/e2eMcpReadiness.mjs",
+      "bytes": 4382,
+      "SHA256": "31c92572277279102681d1519a2b6198808396c4d4c15fc61d76f9736affdae7",
+      "mode": "0444"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "SHA256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430",
+      "mode": "0444"
+    },
+    {
+      "path": "src/proxy/passthroughDenial.ts",
+      "bytes": 1398,
+      "SHA256": "6158e21da0b5559b00f465b6749a7f9753d323237fc21820b61a6a21ef247560",
+      "mode": "0444"
+    }
+  ]
+}

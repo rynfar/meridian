@@ -1,0 +1,628 @@
+{
+  "kind": "native-affected-flow",
+  "expected": "unfixed",
+  "platform": "linux/x64",
+  "runtime": {
+    "bun": "1.3.11",
+    "node": "v24.3.0"
+  },
+  "requestedModel": "claude-sonnet-5-5",
+  "requiredServedModel": "claude-sonnet-5-5",
+  "limits": {
+    "queries": 20,
+    "sdkEstimatedCostUsd": 10,
+    "perQueryBudgetUsd": 0.5,
+    "totalMilliseconds": 600000,
+    "wireRequests": 20,
+    "requestBytes": 2097152,
+    "clientStreamBytes": 2097152,
+    "clientInvocations": 2,
+    "ownedProcesses": 96
+  },
+  "queries": [
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 1,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 23148,
+      "outputTokens": 25,
+      "estimatedCostUsd": 0.052740800000000004,
+      "session": 1,
+      "resultSubtype": "success",
+      "nativeTurns": 5,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 4,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 2,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 17884,
+      "outputTokens": 103,
+      "estimatedCostUsd": 0.0348034,
+      "session": 2,
+      "resultSubtype": "success",
+      "nativeTurns": 3,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 2,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 3,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 17878,
+      "outputTokens": 25,
+      "estimatedCostUsd": 0.025713800000000002,
+      "session": 3,
+      "resultSubtype": "success",
+      "nativeTurns": 3,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 2,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 4,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 18746,
+      "outputTokens": 81,
+      "estimatedCostUsd": 0.029491800000000002,
+      "session": 4,
+      "resultSubtype": "success",
+      "nativeTurns": 3,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 2,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 5,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 18734,
+      "outputTokens": 116,
+      "estimatedCostUsd": 0.029750200000000004,
+      "session": 5,
+      "resultSubtype": "success",
+      "nativeTurns": 3,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 2,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 6,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 18590,
+      "outputTokens": 3,
+      "estimatedCostUsd": 0.019484,
+      "session": 6,
+      "resultSubtype": "success",
+      "nativeTurns": 1,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 0,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 7,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 18580,
+      "outputTokens": 3,
+      "estimatedCostUsd": 0.019404,
+      "session": 7,
+      "resultSubtype": "success",
+      "nativeTurns": 1,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 0,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 1,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": false,
+      "forked": false,
+      "requestedSession": 8,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 23133,
+      "outputTokens": 5,
+      "estimatedCostUsd": 0.0228404,
+      "session": 8,
+      "resultSubtype": "success",
+      "nativeTurns": 1,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 0,
+      "acceptedCanonicalResult": true
+    },
+    {
+      "turn": 2,
+      "requested": "sonnet",
+      "versionPin": "claude-sonnet-5-5",
+      "resumed": true,
+      "resumedSession": 8,
+      "forked": true,
+      "requestedSession": 9,
+      "maxTurns": 4,
+      "nativeModels": [
+        "claude-sonnet-5-5"
+      ],
+      "completed": true,
+      "assistantError": false,
+      "resultFlagValid": true,
+      "resultIsError": false,
+      "inputTokens": 23179,
+      "outputTokens": 7,
+      "estimatedCostUsd": 0.028450200000000002,
+      "session": 9,
+      "resultSubtype": "success",
+      "nativeTurns": 1,
+      "terminalReason": "other",
+      "iteratorSettled": true,
+      "canonicalHttpToolTerminal": false,
+      "toolCount": 0,
+      "acceptedCanonicalResult": true
+    }
+  ],
+  "turns": [
+    {
+      "number": 1,
+      "status": 0,
+      "answered": true,
+      "refused": false
+    },
+    {
+      "number": 2,
+      "status": 0,
+      "answered": true,
+      "refused": false
+    }
+  ],
+  "checks": {
+    "invocationsSucceeded": true,
+    "turnsAnswered": true,
+    "noRefusal": true,
+    "requestedModelIdentity": true,
+    "rootedWireIdentity": true,
+    "requestDecisionsComplete": true,
+    "twoMultiturnAgents": true,
+    "foregroundParallelism": true,
+    "actualAgentAndBashReceipts": true,
+    "internalToolSearchStayedInternal": true,
+    "allQueriesCorrelated": false,
+    "distinctSessionMappings": false,
+    "subagentResume": false,
+    "mainResume": false,
+    "noCollision": false,
+    "boundedLeaseWait": false,
+    "nativeReceipts": false,
+    "costBound": true
+  },
+  "result": "FAIL",
+  "acceptance": false,
+  "identity": {
+    "targetKind": "source",
+    "sourceHead": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+    "packageVersion": "1.80.0",
+    "proxyEntrySha256": "be4cd3274a4bf7e11adf3b8303803c816a66506b81e4bf15c46ac5f0165ba7f3",
+    "sdkVersion": "0.2.141",
+    "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+    "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+    "nativeCliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+    "clientVersion": "2.1.287",
+    "nativeCliVersion": "2.1.284"
+  },
+  "privateSnapshotCreated": true,
+  "sdkCapacity": 4,
+  "remainingNativeGates": [
+    "background/main overlap",
+    "mixed auto-mode classifiers and subagents",
+    "explicit root and scoped cancellation",
+    "declared nested ancestry cancellation",
+    "incidental parent HTTP abort independence",
+    "E41 all four modes"
+  ],
+  "readinessStatus": 200,
+  "peakOwnedProcesses": 4,
+  "completedHttpToolTerminals": 6,
+  "wire": [
+    {
+      "request": 1,
+      "turn": 1,
+      "actor": 0,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 20,
+      "status": 200
+    },
+    {
+      "request": 2,
+      "turn": 1,
+      "actor": 1,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 18,
+      "status": 200
+    },
+    {
+      "request": 3,
+      "turn": 1,
+      "actor": 2,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 18,
+      "status": 200
+    },
+    {
+      "request": 4,
+      "turn": 1,
+      "actor": 1,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 18,
+      "status": 200
+    },
+    {
+      "request": 5,
+      "turn": 1,
+      "actor": 2,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 18,
+      "status": 200
+    },
+    {
+      "request": 6,
+      "turn": 1,
+      "actor": 1,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 18,
+      "status": 200
+    },
+    {
+      "request": 7,
+      "turn": 1,
+      "actor": 2,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 18,
+      "status": 200
+    },
+    {
+      "request": 8,
+      "turn": 1,
+      "actor": 0,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 20,
+      "status": 200
+    },
+    {
+      "request": 9,
+      "turn": 2,
+      "actor": 0,
+      "requestedModelMatched": true,
+      "sessionKeyMatched": true,
+      "tools": 20,
+      "status": 200
+    }
+  ],
+  "lineage": [
+    {
+      "turn": 1,
+      "request": 1,
+      "lineage": "new",
+      "divergence": "not-found",
+      "tools": 20,
+      "messages": 2,
+      "sessionWaitMs": 5,
+      "auxiliary": false
+    },
+    {
+      "turn": 1,
+      "request": 2,
+      "lineage": "new",
+      "divergence": "unrelated-history",
+      "tools": 18,
+      "messages": 2,
+      "sessionWaitMs": 4373,
+      "auxiliary": false
+    },
+    {
+      "turn": 1,
+      "request": 3,
+      "lineage": "new",
+      "divergence": "unrelated-history",
+      "tools": 18,
+      "messages": 2,
+      "sessionWaitMs": 9801,
+      "auxiliary": false
+    },
+    {
+      "turn": 1,
+      "request": 4,
+      "lineage": "new",
+      "divergence": "unrelated-history",
+      "tools": 18,
+      "messages": 5,
+      "sessionWaitMs": 5221,
+      "auxiliary": false
+    },
+    {
+      "turn": 1,
+      "request": 5,
+      "lineage": "new",
+      "divergence": "unrelated-history",
+      "tools": 18,
+      "messages": 5,
+      "sessionWaitMs": 4960,
+      "auxiliary": false
+    },
+    {
+      "turn": 1,
+      "request": 6,
+      "lineage": "new",
+      "divergence": "unrelated-history",
+      "tools": 18,
+      "messages": 8,
+      "sessionWaitMs": 5114,
+      "auxiliary": false
+    },
+    {
+      "turn": 1,
+      "request": 7,
+      "lineage": "new",
+      "divergence": "unrelated-history",
+      "tools": 18,
+      "messages": 8,
+      "sessionWaitMs": 2566,
+      "auxiliary": false
+    },
+    {
+      "turn": 1,
+      "request": 8,
+      "lineage": "new",
+      "divergence": "unrelated-history",
+      "tools": 20,
+      "messages": 5,
+      "sessionWaitMs": 1,
+      "auxiliary": false
+    },
+    {
+      "turn": 2,
+      "request": 9,
+      "lineage": "continuation",
+      "tools": 20,
+      "messages": 8,
+      "sessionWaitMs": 2,
+      "auxiliary": false
+    }
+  ],
+  "peakParallelAgentRequests": 2,
+  "sessionPrefixAmbiguous": false,
+  "textReceiptAmbiguous": false,
+  "queryReceipts": [
+    {
+      "number": 1,
+      "kind": "tools",
+      "paired": false
+    },
+    {
+      "number": 2,
+      "kind": "tools",
+      "paired": false
+    },
+    {
+      "number": 3,
+      "kind": "tools",
+      "paired": false
+    },
+    {
+      "number": 4,
+      "kind": "tools",
+      "paired": false
+    },
+    {
+      "number": 5,
+      "kind": "tools",
+      "paired": false
+    },
+    {
+      "number": 6,
+      "request": 6,
+      "actor": 1,
+      "kind": "text",
+      "paired": true
+    },
+    {
+      "number": 7,
+      "request": 7,
+      "actor": 2,
+      "kind": "text",
+      "paired": true
+    },
+    {
+      "number": 8,
+      "request": 8,
+      "actor": 0,
+      "kind": "text",
+      "paired": true
+    },
+    {
+      "number": 9,
+      "request": 9,
+      "actor": 0,
+      "kind": "text",
+      "paired": true
+    }
+  ],
+  "toolReceipts": [
+    {
+      "number": 1,
+      "actor": 0,
+      "query": 1,
+      "name": "Agent",
+      "paired": true,
+      "resultRequest": 8,
+      "resultMatched": true
+    },
+    {
+      "number": 2,
+      "actor": 0,
+      "query": 1,
+      "name": "Agent",
+      "paired": true,
+      "resultRequest": 8,
+      "resultMatched": true
+    },
+    {
+      "number": 3,
+      "actor": 1,
+      "query": 2,
+      "name": "Bash",
+      "paired": true,
+      "resultRequest": 4,
+      "resultMatched": true
+    },
+    {
+      "number": 4,
+      "actor": 2,
+      "query": 3,
+      "name": "Bash",
+      "paired": true,
+      "resultRequest": 5,
+      "resultMatched": true
+    },
+    {
+      "number": 5,
+      "actor": 1,
+      "query": 4,
+      "name": "Bash",
+      "paired": true,
+      "resultRequest": 6,
+      "resultMatched": true
+    },
+    {
+      "number": 6,
+      "actor": 2,
+      "query": 5,
+      "name": "Bash",
+      "paired": true,
+      "resultRequest": 7,
+      "resultMatched": true
+    }
+  ],
+  "failureType": "AssertionError",
+  "failureCode": "ERR_ASSERTION",
+  "failure": "Affected-flow assertion failed: allQueriesCorrelated",
+  "ownedResidualProcesses": 0,
+  "targetIdentityUnchanged": true,
+  "ownerGrantUnchanged": true,
+  "runtimeGrantUnchanged": true,
+  "privateRuntimeRemoved": true,
+  "privateRuntimeRetained": false,
+  "cleanupFailures": [],
+  "suppressedLogLines": 54
+}

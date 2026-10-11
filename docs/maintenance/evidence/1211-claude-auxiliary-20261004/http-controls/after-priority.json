@@ -1,0 +1,19 @@
+{
+  "head": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "command": [
+    "bun",
+    "test",
+    "--timeout",
+    "10000",
+    "src/__tests__/priority-routing-integration.test.ts",
+    "--test-name-pattern",
+    "Claude main affinity|Claude primary"
+  ],
+  "exit": 0,
+  "fileSha256": {
+    "src/proxy/server.ts": "b01c4dfad1cc29d2664c0d371cf6d3cc20722e0527a1a9beb163d5f1da005084",
+    "src/proxy/sessionTree.ts": "dd3ce916a8af8fd0b109dfda23c616faa769446eac210ef5cc879ca31f2edab9",
+    "src/__tests__/priority-routing-integration.test.ts": "a7bacb95809c963ab7450ebb550a1a01fa28509ed700c756126480ef5211802c"
+  },
+  "sourceStableDuringRun": true
+}

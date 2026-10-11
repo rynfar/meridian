@@ -1,0 +1,7 @@
+FROM meridian1211:owned-observer-r8-current
+USER root
+RUN mkdir -p /opt/e41/sidecars && chown 501:501 /opt/e41 /opt/e41/sidecars
+USER 501:501
+WORKDIR /opt/e41
+RUN npm install --prefix /opt/e41/sidecars --ignore-scripts --omit=optional --no-audit --no-fund openclaw@2026.6.11 @rynfar/meridian-plugin-openclaw-scrub@0.1.0
+WORKDIR /opt/e71/current

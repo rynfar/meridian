@@ -62,6 +62,8 @@ export interface TranscriptLocator {
 
 export interface StoredSession {
   claudeSessionId: string
+  /** Internal ownership marker; absent on legacy raw-client mappings. */
+  keyNamespace?: string
   /** Monotonic per-entry revision retained for diagnostics and upgrades. */
   revision?: number
   /** Unique publication token. Replaced on every durable mapping mutation. */
@@ -711,6 +713,10 @@ function validateStoredSession(key: string, value: unknown): asserts value is St
   }
   if (entry.lineageHash !== undefined && typeof entry.lineageHash !== "string") {
     throw new Error(`session store entry ${JSON.stringify(key)} has invalid lineageHash`)
+  }
+  if (entry.keyNamespace !== undefined
+    && (typeof entry.keyNamespace !== "string" || entry.keyNamespace.length === 0)) {
+    throw new Error(`session store entry ${JSON.stringify(key)} has invalid keyNamespace`)
   }
   if (entry.clientLineageHash !== undefined && typeof entry.clientLineageHash !== "string") {
     throw new Error(`session store entry ${JSON.stringify(key)} has invalid clientLineageHash`)
@@ -1364,7 +1370,11 @@ export function storeSharedSession(
   sourceTranscript?: TranscriptLocator,
   expectedGeneration?: StoredSessionGeneration | null,
   clientLineageHash?: string | null,
+  keyNamespace?: string,
 ): StoredSessionGeneration | false {
+  if (keyNamespace !== undefined && (typeof keyNamespace !== "string" || keyNamespace.length === 0)) {
+    throw new Error("keyNamespace must be a non-empty string")
+  }
   if (currentTranscript !== undefined) {
     validateTranscriptLocator(currentTranscript, claudeSessionId)
   }
@@ -1380,14 +1390,17 @@ export function storeSharedSession(
   let storedGeneration: StoredSessionGeneration | false = false
   mutateStore(({ sessions: store, meta }) => {
     if (isPriorityRollbackMapping(meta, key)) return false
-    const existing = store[key]
+    const previous = store[key]
     if (expectedGeneration !== undefined) {
-      const actual = keyGeneration(key, existing, meta)
+      const actual = keyGeneration(key, previous, meta)
       const expected = expectedGeneration === null
         ? `a:${keyDigest(key)}:0`
         : expectedGeneration
       if (actual !== expected) return false
     }
+    // A legacy raw ID can equal a newly reserved key. Fresh replay may replace
+    // that ambiguous slot, but must not inherit its SDK history/checkpoints.
+    const existing = previous?.keyNamespace === keyNamespace ? previous : undefined
     // Preserve the previous Claude session ID when the mapping changes.
     // This enables recovery when a lineage bug causes the original session
     // to be abandoned — the old ID still identifies the full conversation
@@ -1409,6 +1422,7 @@ export function storeSharedSession(
       : existing?.previousTranscript
     store[key] = {
       claudeSessionId,
+      ...(keyNamespace === undefined ? {} : { keyNamespace }),
       revision: (existing?.revision ?? 0) + 1,
       generationId: randomUUID(),
       createdAt: existing?.createdAt || Date.now(),
@@ -1626,6 +1640,7 @@ export interface SharedSessionPriorityPublication {
 export interface SharedSessionAndPriorityAssignmentOptions {
   key: string
   claudeSessionId: string
+  keyNamespace?: string
   messageCount: number
   lineageHash: string
   clientLineageHash?: string
@@ -1653,6 +1668,10 @@ export interface SharedSessionAndPriorityAssignmentResult {
 }
 
 function validatePriorityPublicationInput(options: SharedSessionAndPriorityAssignmentOptions): void {
+  if (options.keyNamespace !== undefined
+    && (typeof options.keyNamespace !== "string" || options.keyNamespace.length === 0)) {
+    throw new Error("keyNamespace must be a non-empty string")
+  }
   if (!options.key || options.key.length > 1_024) throw new Error("priority publication requires a bounded mapping key")
   if (!options.priority.routeKey || options.priority.routeKey.length > 512) {
     throw new Error("priority publication requires a bounded route key")
@@ -1696,9 +1715,10 @@ export function storeSharedSessionAndPriorityAssignment(
   validatePriorityPublicationInput(options)
   let result: SharedSessionAndPriorityAssignmentResult | false = false
   mutateStore((document) => {
-    const existing = document.sessions[options.key]
-    const actualMappingGeneration = keyGeneration(options.key, existing, document.meta)
+    const previous = document.sessions[options.key]
+    const actualMappingGeneration = keyGeneration(options.key, previous, document.meta)
     if (actualMappingGeneration !== options.expectedMappingGeneration) return false
+    const existing = previous?.keyNamespace === options.keyNamespace ? previous : undefined
     if (document.meta.version === PRIORITY_STORE_META_VERSION) {
       const markerOwners = Object.entries(document.meta.priorityRollbackMappings)
         .filter(([, rollback]) => rollback.mappingKey === options.key)
@@ -1744,6 +1764,7 @@ export function storeSharedSessionAndPriorityAssignment(
       : existing?.previousTranscript
     const stored: StoredSession = {
       claudeSessionId: options.claudeSessionId,
+      ...(options.keyNamespace === undefined ? {} : { keyNamespace: options.keyNamespace }),
       revision: (existing?.revision ?? 0) + 1,
       generationId: randomUUID(),
       createdAt: existing?.createdAt || Date.now(),
@@ -1859,7 +1880,7 @@ export function storeSharedSessionAndPriorityAssignment(
     result = {
       mappingGeneration,
       assignmentGeneration: getPriorityAssignmentGeneration(assignment, options.priority.routeKey),
-      previousMapping: existing ? structuredClone(existing) : null,
+      previousMapping: previous ? structuredClone(previous) : null,
       previousAssignment: existingAssignment ? structuredClone(existingAssignment) : null,
     }
     return true
@@ -2084,11 +2105,17 @@ export function attachSharedTranscriptLocator(
 export function evictSharedSession(
   key: string,
   expectedGeneration?: StoredSessionGeneration,
+  ownership?: { readonly keyNamespace: string | undefined },
 ): boolean {
   let evicted = false
   mutateStore(({ sessions: store, meta }) => {
     const existing = store[key]
     if (!existing) {
+      evicted = true
+      return false
+    }
+    // Check ownership under the mutation lock, not through an earlier read.
+    if (ownership && existing.keyNamespace !== ownership.keyNamespace) {
       evicted = true
       return false
     }

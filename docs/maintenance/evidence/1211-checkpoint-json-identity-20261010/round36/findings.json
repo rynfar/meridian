@@ -1,0 +1,13 @@
+{
+  "head": "ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf",
+  "scope": "valid JSON identity correction",
+  "disposition": "NO_MATERIAL_SCOPED_SOURCE_FINDINGS_WITH_INHERITED_ACCEPTANCE_HOLDS",
+  "resolved": [
+    "P2-checkpoint-valid-input-budget"
+  ],
+  "findings": [],
+  "wholeChangeAcceptance": "HELD",
+  "localGate": "HELD_UNEXPLAINED_SYNTHETIC_REPORT_TRUNCATION",
+  "actualCurrentFlows": "UNEXECUTED_GATE_HOLD",
+  "ownerDisposition": "DEFER_UNTIL_OWNER_READY"
+}

@@ -1,0 +1,20 @@
+{
+  "atUTC": "2026-10-10T05:16:24.722393+00:00",
+  "remoteHead": "537c4c8740c23d58d3835884d00b1143e5ac7366",
+  "remoteBodyExact": true,
+  "draftOpen": true,
+  "base": "main",
+  "linked": true,
+  "normalPushJoined": true,
+  "pushOriginalSession": 15617,
+  "localGatesOriginalSession": 60309,
+  "localGatesDriverPid": 99653,
+  "nativeSequenceOriginalSession": 17522,
+  "nativeSequencePid": 15337,
+  "nativeArms": "not yet admitted; wait original exact-head gates",
+  "r29NativeOriginalSession": 6009,
+  "r29NativeOriginalJoinedExit": 0,
+  "r29NativeQualified": true,
+  "wholeChangeAcceptance": "HELD",
+  "goalTurnClassification": "progress"
+}

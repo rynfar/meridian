@@ -1,0 +1,9 @@
+{
+  "initialHead": "b5bfcb9dd30cc8f94e9afeeb6774cac258a24f2c",
+  "correctedHead": "49d8a0a9",
+  "initialTestAndTypecheckExit": 2,
+  "initialBuildExit": 0,
+  "reason": "JS default empty callerMessages inferred as never[] in TypeScript callers, and parentResultContent inferred required. Added explicit unknown-input JSDoc and optional result/actor fields without changing runtime logic.",
+  "initialProcessesJoined": true,
+  "initialOutputsRetained": "gates/"
+}

@@ -1,0 +1,14 @@
+{
+  "originalSession": 11094,
+  "originalMatrixChildPid": 25061,
+  "originalAttachPid": 25064,
+  "originalActorsJoined": true,
+  "containerRuntimeTaskGrantRemoved": true,
+  "modelQueries": 0,
+  "firstFailure": "pinned OpenClaw sidecar file absent in changed client-only runtime",
+  "diagnosis": "environment fixture missing; no credential diagnosis",
+  "correction": "copy the same qualified R14 sidecar directory into a thin child image over immutable changed application image; source/package hashes remain mandatory",
+  "changedApplicationImage": "sha256:c07ed57b13929b0bc91e0d46da574bb9bfd0bb11f8e62e84b889281394db0e68",
+  "priorQualifiedSidecarImage": "sha256:d1948deed0125beec3bc8eeb31d455f6478894c70a5e716f2b152de15108112e",
+  "atUTC": "2026-10-10T04:47:58.746848+00:00"
+}

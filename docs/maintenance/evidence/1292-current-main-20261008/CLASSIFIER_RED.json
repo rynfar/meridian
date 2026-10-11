@@ -1,0 +1,13 @@
+{
+  "head": "2ba229f72dd9038ff63a3e32a52181c1e50f275c",
+  "workingTestAdded": true,
+  "argv": [
+    "bun",
+    "test",
+    "src/__tests__/claude-code-adapter.test.ts",
+    "src/__tests__/claude-code-progress.test.ts"
+  ],
+  "exit": 1,
+  "joined": true,
+  "sha256": "b00f2202db89a9edb23522b1c3800b73858589cd0bfeaf5f5881aa0d7c325bfc"
+}

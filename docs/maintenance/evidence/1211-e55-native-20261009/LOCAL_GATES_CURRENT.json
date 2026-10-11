@@ -1,0 +1,41 @@
+{
+  "head": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+  "npmTest": {
+    "head": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+    "originalPid": 32371,
+    "exit": 0,
+    "originalChildJoined": true,
+    "seconds": 712.7791526669753,
+    "logSHA256": "92c34ea84df85894754953a463d7ad9453788ad0ac098156a572d917c15fc502",
+    "headAfter": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+    "pass": 5769,
+    "skip": 35,
+    "fail": 0,
+    "batches": 22
+  },
+  "typecheck": {
+    "head": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+    "originalPid": 29645,
+    "exit": 0,
+    "originalChildJoined": true,
+    "seconds": 6.8649562079808675,
+    "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7",
+    "headAfter": "838d4a29dc4702a41c83d23dc39c4e04907c972b"
+  },
+  "build": {
+    "head": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+    "originalPid": 29644,
+    "exit": 0,
+    "originalChildJoined": true,
+    "seconds": 5.851131333969533,
+    "logSHA256": "ec1711d4d0519f80c4e5398c9a961ffee95e31616acda0eb3ada27525cf4610c",
+    "headAfter": "838d4a29dc4702a41c83d23dc39c4e04907c972b"
+  },
+  "scope": "Immutable harness/test/docs head838; all nine production files unchanged; pretest plus22 process-isolated batches; E71_COMPILED_CONTEXT_CONTROL=1 lane retained. No correction claimed for the earlier unattributed store performance failure.",
+  "localRuntime": "Darwin arm64, Bun1.3.14, Node22.22.3",
+  "focusedPureCompletionControls": {
+    "pass": 4,
+    "fail": 0,
+    "assertions": 16
+  }
+}

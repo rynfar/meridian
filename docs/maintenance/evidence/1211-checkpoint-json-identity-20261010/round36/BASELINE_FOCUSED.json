@@ -1,0 +1,7 @@
+{
+  "baselineHead": "c8b5dfb5c2823185edd0941c5193bc7104fb584f",
+  "exit": 1,
+  "sameThreePositiveControls": true,
+  "moduleImportsRedirectedOnly": true,
+  "logSHA256": "f8e861962fb095196c4415bca1ab8f4151a173abad48845ad137c2c2f4659991"
+}

@@ -1,0 +1,40 @@
+{
+  "observerHead": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+  "productionSourceHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "disposition": "NEGATIVE_SOURCE_CAP4_NOT_QUALIFIED",
+  "originalResultUnchanged": "FAIL",
+  "onlyFailedCheck": "nativeReceipts",
+  "completedReadReports": 2,
+  "readFormat": "numbered-records",
+  "allTwentyOtherChecksPass": true,
+  "maximumLeaseWaitMs": 7,
+  "unsupportedCappedQueries": [
+    {
+      "query": 1,
+      "maxTurns": 4,
+      "nativeTurns": 5,
+      "publicGenerations": 4,
+      "subtype": "error_max_turns",
+      "terminalReason": "max_turns",
+      "hookCustody": true,
+      "canonicalHttpTerminal": true,
+      "forwardedHooks": 2,
+      "droppedHooks": 3
+    },
+    {
+      "query": 10,
+      "maxTurns": 4,
+      "nativeTurns": 5,
+      "publicGenerations": 4,
+      "subtype": "error_max_turns",
+      "terminalReason": "max_turns",
+      "hookCustody": true,
+      "canonicalHttpTerminal": true,
+      "forwardedHooks": 2,
+      "droppedHooks": 3
+    }
+  ],
+  "sourceInstalledSameAssertionsUnrelaxed": true,
+  "installedActualCase": "UNEXECUTED",
+  "newRequiredEvidence": "Credential-free native/API-count qualification of cap-four handoff followed by only dropped calls, source and installed tuples. Only then separately review any versioned predicate correction and rerun final local/native gates."
+}

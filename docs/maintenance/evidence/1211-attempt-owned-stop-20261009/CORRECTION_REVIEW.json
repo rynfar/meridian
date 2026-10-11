@@ -1,0 +1,57 @@
+{
+  "reviewHead": "44ae1bc2155ae89dfbb49f3f80131c979e514024",
+  "reviewType": "root adversarial source pass; no delegated review",
+  "atUTC": "2026-10-09T23:21:18.754777+00:00",
+  "disposition": "CORRECTIONS_COMPONENT_QUALIFIED_WITH_INTEGRATED_LIVE_PACKAGE_CI_HOLDS",
+  "findings": [
+    {
+      "id": "R6-1",
+      "priority": "P1",
+      "status": "source-confirmed",
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "behavior": "An accepted forwarded hook in a mixed SDK-owned generation calls fail(). The next event throws, replacing the original drain with a proxy error. Unsupported ownership must disable stopping for that generation and release holds while preserving the existing path. The current mixed-work unit test asserts only no interrupt, omitting failure/drain behavior."
+    },
+    {
+      "id": "R6-2",
+      "priority": "P1",
+      "status": "native-confirmed",
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "behavior": "Terminal qualification compares native num_turns with the operator cap although prior exact pinned receipts establish that two tools can count four turns at one API generation. HTTP positives manufacture num_turns equal to cap one. Native cap-one production options remain unproven and may be refused.",
+      "nativeFailure": "fresh-component-cap1/output/COUNTER_DISCOVERY.json: one API generation at cap one returns error_max_turns/is_error true/aborted_tools/num_turns two; acknowledgement, exact iterator error, both results/history and physical joins qualify but current component rejects."
+    },
+    {
+      "id": "R6-3",
+      "priority": "P2",
+      "status": "source-confirmed",
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "behavior": "Nested SDK events fail even before stop intent, although SDK-owned work should retain its existing behavior when it cannot own a checkpoint. A nested pre-intent event must suppress control without altering the original SDK error classification/drain; an event after retained intent still refuses qualification."
+    }
+  ],
+  "correctedHead": "bae7ada3995788c83f6de92e573807c447c587b5",
+  "correctionFacts": [
+    "Mixed SDK work skips held control without introducing a failure; subsequent root generation can still qualify.",
+    "Nested public events and native subagent hooks disable pre-intent control while post-intent nested work refuses qualification.",
+    "Accepted hooks now bind to admitted init session.",
+    "Owned cap-one max-turn result requires aborted_tools, count exactly two and one public generation.",
+    "Owned error_during_execution requires a positive safe native counter; original Query cap and separately observed generation bound remain in force. Eight exact native matrix rows qualify one real API request each, including native counter five at cap four.",
+    "The former counter-greater-than-cap unit negative was based on disproven native/API equality. It is replaced with an invalid-counter negative; over-cap generation rejection remains unchanged.",
+    "HTTP positives now use actual observed cap-one subtype/counter, rather than an invented count equal to the cap."
+  ],
+  "focusedTests": {
+    "pass": 46,
+    "fail": 0,
+    "typecheckExit": 0
+  },
+  "nativeCorrectedComponentCases": 10,
+  "actualClientModelAcceptance": false,
+  "integratedHTTPStatus": "PASS: source one/three tools \u00d7 stream/nonstream, eight original SDK/native API requests; exact client calls/results, durable fork, supported public history, source unchanged, original HTTP/backend/listener joins plus empty actor census. SDK/native component separately has full native/stdio witnesses. Does not establish actual model/client acceptance.",
+  "finalFullLocalGates": "PASS at bae7ada3: 5935/36/0, all 22 npm isolated batches plus pretest; standalone typecheck/build exit zero, all original processes joined.",
+  "fixtureFailuresPreserved": [
+    "Source image absent; no native invocation.",
+    "First fresh build omitted required examples; no image/native cases.",
+    "Raw image-ID Dockerfile FROM failed resolution; no native invocation.",
+    "Integrated fixture lacked machine-id; zero model requests.",
+    "Initial integrated SSE decoder omitted text_delta, fails after two completed cases and six API requests; independent same-byte decoder reproduction fails before/fixes after."
+  ],
+  "installedIntegratedHTTPStatus": "PASS: actual independently packed/installed Meridian entrypoint, SDK 0.2.141/native 2.1.296, four cases/eight requests; portable controller independently replays the same four cases/eight requests."
+}

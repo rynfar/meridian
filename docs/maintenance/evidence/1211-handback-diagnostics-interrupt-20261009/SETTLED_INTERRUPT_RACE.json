@@ -1,0 +1,50 @@
+{
+  "status": "INTEGRATED_STOP_DESIGN_HELD",
+  "initialLaterPhaseCase": {
+    "queries": 1,
+    "directLoopbackApiRounds": 1,
+    "interruptAtApiRounds": 1,
+    "settledDenialResults": 2,
+    "result": {
+      "subtype": "error_during_execution",
+      "isError": true,
+      "numTurns": 4,
+      "terminalReason": "aborted_streaming",
+      "atMs": 4706.468
+    },
+    "publicHistory": {
+      "messages": 6,
+      "bothToolsPresentOnce": true,
+      "checkpointUuidPresent": true,
+      "resultBlocks": 2
+    },
+    "failure": "Expected earlier-phase aborted_tools but actual result is aborted_streaming."
+  },
+  "followupLaterPhaseCase": {
+    "queries": 1,
+    "directLoopbackApiRounds": 2,
+    "interruptAtApiRounds": 1,
+    "settledDenialResults": 2,
+    "result": {
+      "subtype": "error_during_execution",
+      "isError": true,
+      "numTurns": 4,
+      "terminalReason": "aborted_streaming",
+      "atMs": 9302.784
+    },
+    "publicHistory": {
+      "messages": 6,
+      "bothToolsPresentOnce": true,
+      "checkpointUuidPresent": true,
+      "resultBlocks": 2
+    },
+    "failure": "A second local API round races an interrupt requested after full denial settlement; existing one-round/generation-identity discovery assertion fails. No new acceptance rule or budget relaxation."
+  },
+  "actualModelAcceptance": false,
+  "installedLaterPhaseCase": "UNEXECUTED",
+  "laterPhaseForkResume": "UNEXECUTED after first case failed",
+  "allOriginalProcessesAndNativeCustodyJoinedRemoved": true,
+  "totalR4ExploratoryQueries": 7,
+  "totalR4DirectLoopbackApiRounds": 8,
+  "nextAction": "Investigate interruption ownership/timing at a complete forwarded generation before returning held denials, or qualify the bounded concurrent follow-up and full fork safety. Do not assume one provider round from one public generation."
+}

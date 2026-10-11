@@ -1,3 +1,24 @@
+## #1322 resumed with kraken — 2026-10-11
+
+Owner login deferral is lifted for the requested live checks. The third profile
+`kraken` is verified usable; `work` and `personal` are excluded from isolated
+actual runs. Candidate `a7182c9b` includes current main `6e510dbc`; all original
+contributor commits remain intact. Local npm/typecheck/build pass (6,047 tests,
+zero failures, 36 skips). Source and installed actual mixed-auto/Agent-handback
+checks each pass27/27, with exact native/model and physical custody receipts.
+Source E41 chain/nonstreaming passes; source chain/streaming fails at resumed
+turn2 with an error terminal. Its exact subtype/cause was discarded by the
+observer, so no quota/stream-stop/regression attribution is made. Later E41 and
+caption admission stops, all original actors join, and grants are removed.
+
+The existing #1322 stays OPEN DRAFT. The new E41 failure and all inherited
+whole-change/native/caption/reporter/platform/CI holds remain; historical green
+proofs do not replace current missing cases. The historical local synthetic EOF
+failure remains unexplained despite passing current controls. See the
+[current live record](evidence/1322-kraken-live-20261011/README.md). No new PR,
+source closure, release or community comment. Next: retain raw safe native
+terminal classification in the observer before any causal diagnostic rerun.
+
 ## Telemetry #1328 bounded correction — 2026-10-10
 
 The authored source `f1418967` is incorporated as `a996d282`; maintainer source/escrow checkpoint `52ebd351` preserves contributor credit and fixes fixture joins plus the per-write blocking description. The identical short-lock control fails current main; 26 focused tests pass. Full local gates pass 5,562 tests / zero failures / 35 skips, standalone typecheck and build with Bun 1.3.11 / Node 22.22.3. Real Linux x64 denial-path HTTP controls retain 1/6 contended rows before versus 6/6 after, with 2/2 ordinary rows on both sides. The same final escrow/source hashes were executed, all direct children/pipes joined, and final counts follow shutdown. Stronger stress and startup failures are preserved explicitly. [Evidence and root adversarial review](evidence/1328-telemetry-busy.md) qualify the remaining long-lock/drop/latency limits; no actual OpenCode-client or successful-model claim is made.
@@ -37,6 +58,677 @@ zero model calls. Final-head CI remains pending. No merge, source closure or
 release is claimed. Owner checkout/index/dirty bytes are unchanged.
 
 # Upstream review handoff
+
+## Owner-deferred #1211 / draft #1322 (2026-10-10 UTC)
+
+The owner has deferred this ticket until back at their computer. Resume only
+on their instruction; continue the oldest other PRs and issues that do not need
+owner action. [Saved correction and evidence](evidence/1211-checkpoint-json-identity-20261010/README.md)
+records code `ee3671ee`: valid wide/deep/large JSON checkpoint inputs retain exact
+identity without undocumented limits. Scoped adversarial review finds no
+remaining blocker in that correction; whole-change acceptance remains open.
+
+Focused checks pass 109 tests. Source and independent installed native matrices
+pass 48 cases / 96 scripted Queries with full input, fork, results, history and
+cleanup witnesses. These are credential-free component checks. The original
+full `npm test` fails: 5,581 pass / 36 skip / one legacy synthetic report EOF
+failure; later isolated batches are unreached. One diagnostic pass does not
+explain the failure. Standalone typecheck/build pass. No new actual client/model
+calls ran; the live sequence refused admission at the failed local gate.
+
+All inherited affected-client, cancellation/cache/reporter/platform/native,
+whole-change review and final-head CI holds remain. #1322 stays draft; source
+PRs and issues stay open. Owner checkout and contributor identities are preserved.
+No new PR/worktree, merge, closure or release accompanies this checkpoint.
+
+## Current caption source matrix and valid-input source hold (2026-10-10 UTC)
+
+Clean code537c4c87 strengthens the maintained overlap observer after root review
+found that MCP lifetime plus a later Read alone did not prove working lineage.
+Both actual forwarding orders now require one independent caption query, exact
+saved checkpoint fork/resume, immutable original supported SDK history and all
+three owned Reads exactly once; malformed/mismatched/duplicate/error controls
+remain refused. At most24 backend Queries are admitted per source fixture.
+
+[Current packet](evidence/1211-caption-overlap-current-20261010/README.md)
+preserves the limited prior R29 PASS and the stronger R31–R34 source proofs.
+Work-first/hints1, caption-first/hints1, sequential/hints0 and disabled/hints1
+all PASS on actual native Claude Code2.1.292 / SDK0.2.141 / Darwin arm64 /
+Bun1.3.11 / Node22.22.3. Exact Opus5.5 client and1m backend alias/pin/native
+labels independently match. Twenty-seven backend Queries in the four stronger
+arms. All observed gates/direct actors/iterators/stdio/callbacks/local sockets/
+listeners/writers/original parent join. Source/task access inputs remain exact;
+private task grants are removed after scoped audit. No agent login/refresh/write;
+secondary/global native descendant absence remains UNKNOWN.
+
+Full local gates at clean537c4c87: **6,020 pass /36 skip /zero fail**, all22
+isolated npm batches/pretest plus standalone typecheck/build; original controller
+and commands join. The initial TS2532 guard error is preserved and corrected
+before the unpushed maintainer commit is amended. Owner head/index/all12 dirty
+files and18 contributor raw Author/AuthorDate/full-message/ancestry records stay
+exact; expanded #1231 stays excluded.
+
+**New material source blocker:** [R35 review](evidence/1211-caption-overlap-current-20261010/round35/REVIEW.md)
+reproduces a valid87KB JSON tool input becoming HTTP500 solely at the checkpoint
+identity's16,384-node budget, before intent. Smaller real native source controls
+preserve exact input, handoff, fork/results/history and custody. Five scripted
+native Queries; zero grants/models/coding clients. Original failing classifier
+is preserved; a separate receipt qualifies the500 assertion suffix without a
+rerun. The guard-off legacy probe is a fixture400 on its legitimate second API
+round, not main/published baseline success. Correct identity handling and retain
+all ownership/cap/error/cancellation/retirement/join requirements before source
+acceptance; escrow the maintained wide/deep/malformed/mismatch control.
+
+Current host compiled core and frozen Linux artifact have distinct hashes;
+only tracked production source is unchanged. No binary/package equivalence is
+promoted. Remaining root/scoped/declared cancellation, parent HTTP-abort
+independence, private cache/children, baseline discovery, unknown reporter,
+installed caption/actual-client/platform, historical R11/R15 cause, native295,
+complete whole-change adversarial review and final-head CI holds remain. No
+native parent-agent identity is fabricated. Existing #1322 stays draft; source
+PRs/#1288 remain open. No new PR/worktree, merge, closure, release or comment.
+The full backlog goal is active; next correct the material input identity issue.
+
+## Prior oldest #1211 / existing #1322 complete-stream correction (2026-10-10 UTC)
+
+Clean source correction `34b49d82` fixes a bounded native failure: a complete
+forwarded tool generation can arrive while its provider SSE body remains open.
+An acknowledged owned interruption then reports one exact `aborted_streaming`
+tool-use diagnostic; the old guard returned HTTP 500. Both unchanged source
+SDK 0.2.141/native 2.1.284 and independent/native 2.1.296 package pass four
+immediate-EOF controls before failing the first 150 ms delayed case. Original
+eighteen scripted Queries, public timing/result/error witnesses and cleanup
+remain retained. Historical actual-model R11/R15 attribution stays unproven.
+
+[Current reproducible correction packet](evidence/1211-complete-stream-stop-20261010/README.md)
+contains the maintained repository harness, exact tested tarball, before/after
+receipts, all setup/test failures and [scoped root review](evidence/1211-complete-stream-stop-20261010/ROOT_REVIEW.md).
+The new result qualifies only behind the existing session, closed-block,
+metadata/input, UUID, retained-hook, intent/acknowledgement, exact denial,
+generation cap, iterator-error, cancellation and retirement checks. Unrelated
+and extra errors stay refused. Independent witness/row reasons must agree;
+native 2.1.295 remains unexecuted for the new tuple. Public interfaces, caps,
+operator override, kill switch and package/dependency versions are unchanged.
+
+The new certified source/independent install runtime is
+`sha256:c07ed57b13929b0bc91e0d46da574bb9bfd0bb11f8e62e84b889281394db0e68`,
+built at `34b49d82`; all 3,607 tracked source blobs/executable modes match.
+Source/package core bytes match and differ from the unchanged baseline. Both
+targets pass all twelve 0/150/750 ms × one/three tools × HTTP stream/nonstream
+cases, 48 combined scripted native Queries. All four 750 ms modes per target
+actually exercise the exact streaming tuple; public UUID, exact once-only real
+results, durable fork, unchanged original history, no denial tail, independent
+qualification and physical cleanup pass. Zero real credentials/models/clients
+in this component matrix.
+
+Actual Claude Code 2.1.287 mixed-auto-handback-v3 source and installed each pass
+27/27 with exact committed observers, SDK 0.2.141, native 2.1.284/2.1.296, Sonnet 5
+classifiers/Sonnet 5.5 working; 38 Queries, estimated $2.1889227 combined. Exact
+child/header/footer, final-call, HTTP inbox plus SDK replay, model/cost and
+grant/process/runtime/container custody qualify. These actual stops use the
+existing aborted-tools branch; the new streaming tuple is proved separately
+above. Changed E41 source and independent package each pass all four chain/parallel × streaming/nonstreaming modes, 32 real Sonnet 5.5 SDK Queries, exact pairing, cache continuity, immutable parents, saved durable forks and physical cleanup. The thin sidecar image retains every changed application layer; the original zero-query missing-fixture failure is preserved. This is direct HTTP protocol-fixture proof, not actual OpenCode-client acceptance.
+
+Final local gates at clean unchanged `34b49d82`: **6,018 pass / 36 skip / zero
+fail**, all 22 isolated npm batches plus pretest; standalone typecheck/build
+exit 0, original controller and all gate commands joined. Owner head/index/all
+twelve dirty-file identities and all eighteen raw contributor author/date/full
+message/ancestry records remain exact. Maintainer corrections are separate;
+expanded #1231 stays excluded. No delegated/whole-change approval asserted.
+
+Existing #1322 remains draft; source PRs/#1288 remain open. Still held:
+historical R11/R15 native cause, root/scoped/nested cancellation and incidental
+parent HTTP-abort independence, caption/reporter baseline/cache/overlap/abort,
+native 2.1.295 with the new observer/tuple, broader actual client/platform/package
+and historical provider/wait attribution, complete final whole-change
+adversarial review, and exact final delivery-head CI including `test`. Existing
+WORK access was independently qualified and used read-only; no agent login,
+refresh or source write. Owner renewal command is `meridian profile login work`.
+No new PR/worktree, merge, source closure, release or community comment. Full
+backlog goal remains active; continue remaining affected-flow evidence and
+whole-change review after final-head CI.
+
+## Prior oldest #1211 / existing #1322 native inbox and actual-flow checkpoint (2026-10-10 UTC)
+
+Code `58f3055e` preserves production `bae7ada3`. Current source and independent
+npm-pack/install runtime remain built at `6d773781`; application, package, plugin
+and lock content are unchanged. The diagnostic live observer is an explicit
+recording overlay on Git `ed3ecbf6`, not exact Git observer content. Existing
+#1322 stays draft; all source PRs/#1288 stay open, expanded #1231 stays excluded.
+No new PR/worktree or owner-checkout mutation.
+
+[Current durable native-inbox packet](evidence/1211-native-inbox-current-20261010/README.md)
+retains R8–R17 real cases and all setup/failure records. Independently controlled
+actual Claude Code 2.1.287 proves reference-only Agent results and complete,
+permission-bounded parallel system inbox envelopes. Maintained v3 requires the
+exact message-only JSON input, final child call, private child header/parent
+footer agreement, matching complete HTTP inbox and SDK user-input delivery.
+SDK replay remains untrusted agent data. v1/v2 predicates are unchanged.
+
+R14 source and R15 independently installed E41 each pass all four parallel/chain
+× streaming/nonstreaming modes: 32 real SDK 0.2.141 / Sonnet 5.5 queries. Native is
+2.1.284 source and 2.1.296 installed. These are direct HTTP protocol fixtures,
+not actual OpenCode-client proof. R16 actual Claude Code 2.1.287 mixed-auto source
+and installed each pass 27/27, with Sonnet5 classifiers and Sonnet5.5 working;
+R17's one additional justified source cohort passes 27/27. Original actors join,
+grants remain unchanged, owned task grant/runtime/containers are removed.
+
+**Material hold:** R11 and exact-Git R15 fail 20/27 with an unqualified public
+native terminal reason/iterator failure and fresh child lineage. Later passing
+cases did not reproduce or explain the cause. R15's BETA report reaches both
+HTTP and SDK input. No arbitrary aborted/error result qualifies. No more blind
+model reruns; the next investigation must provide bounded public-native/SDK
+causal evidence. Keep historical provider/wait attribution separate.
+
+The exact-ed3 full gate failed at four serial background negative controls
+sharing 30 seconds: 5,548 pass / 36 skip / one failure/error. R18 splits only their test boundary:
+same modes/assertions, 10-second harness and 30-second per-test bounds; four focused controls
+pass with 128 assertions and typecheck exit 0. Final clean code head `58f3055e` passes 6,007 tests / 36 skip / zero fail across all 22 isolated npm batches plus pretest; standalone typecheck/build exit 0 and all original commands join.
+The earlier f284 full gate 6,001/36/0 remains historical. [Scoped root adversarial
+review](evidence/1211-native-inbox-current-20261010/ROOT_REVIEW.md) records parser,
+SDK iterator, negative-control and timeout review; no delegated or whole-change
+approval. All 18 contributor author/date/full-message/ancestry records and owner
+head/index/twelve dirty-file identities remain exact.
+
+Remaining: unexplained native cause; root/scoped/nested cancellation and incidental
+parent-abort independence; caption/reporter baseline/cache/overlap/abort; native
+2.1.295 with current observer; wider actual client/platform/package and historical
+attribution; complete final whole-change adversarial review; final delivery-head
+CI including `test`. The WORK source was independently fresh and used read-only;
+no agent login/refresh/source write. Owner refresh command remains
+`meridian profile login work`. No merge, source closure, release or community
+comment. Full backlog goal remains active.
+
+## Prior oldest #1211 / existing #1322 independent stop observer (2026-10-10 UTC)
+
+Observer/test code `052c6449` supersedes the observer-pending hold below.
+Production remains `bae7ada3`; no production/public-interface/package delta in
+this correction. Existing draft #1322 and all source PRs remain open; main and
+source heads are unchanged, expanded #1231 stays excluded. No new PR/worktree.
+
+[Current durable observer packet and runnable replay](evidence/1211-owned-observer-20261009/README.md)
+adds explicit `--checkpoint-protocol owned-interrupt-v1` to the maintained actual
+client harness. It independently witnesses each original Query's public generation,
+closed blocks, exact metadata/UUID/session/hook inputs, final retained hook, public
+interrupt/acknowledgement, exact result/iterator error, all denial results and
+iterator/close settlement. It does not trust the production log. Legacy default,
+strict handback delivery predicate, model/cost/HTTP and physical custody gates
+remain separate. New observer on native2.1.295 remains UNEXECUTED; selector
+eligibility is not acceptance.
+
+[Scoped root adversarial review](evidence/1211-owned-observer-20261009/ROOT_REVIEW.md)
+records the initial native FAIL caused by callback/event ordering and its
+correction. Earlier prefix wrappers may settle during the control; final retained
+hook must settle after acknowledgement. Exact eventual hook output remains
+mandatory. Negative controls reject unrelated errors even when the fake product
+consumes them and returns expected tools. No delegated/whole-change approval.
+
+Final exact-observer source SDK0.2.141/native2.1.284 and independently installed
+SDK0.2.141/native2.1.296 each pass four one/three-tool × stream/nonstream cases,
+exact calls/results/public UUID/distinct fork/no denial tail/unchanged supported
+source history. Forty SDK/API requests across five offline runs are directly
+recorded, including the failed run. All original attaches, native/runtime/HTTP/
+backend/listener custody join and owned containers/runtime are removed; inputs
+unchanged. Zero real grants/models/coding clients. Maintained synthetic positive
+and unrelated-error negative retain separate thirteen-query proof receipts.
+
+Final local gates at clean `052c6449`: **5,972 pass / 36 skip / zero fail**,
+all twenty-two isolated npm batches plus pretest; standalone typecheck/build pass.
+Owner head/index/twelve dirty files and eighteen raw author/date/full-message/
+ancestry records remain exact. The prior actual mixed source remains FAIL 24/27.
+Renewed `work` login is NOT ASSUMED (`meridian profile login work`). Actual changed
+E41/E71/E72 source/package/client/model/platform, strict handback, cancellation/
+parent-abort independence, caption/reporter, broader client/platform/package,
+historical count/wait attribution and final delivery-head CI remain open. Next
+qualify the bounded real runs using this observer when auth is renewed, and
+continue independent cancellation/reporter preparation meanwhile. No merge,
+source closure, release or community comment. Full backlog goal remains active.
+
+## Prior production checkpoint (2026-10-09 UTC)
+
+## Current oldest #1211 / existing #1322 attempt-owned checkpoint correction (2026-10-09 UTC)
+
+Production code `bae7ada3` supersedes the implementation-pending checkpoint below.
+Existing draft #1322 remains held and continues oldest original #1211. Main
+`11dc1556` and original #1211/#1231/#1283/#1292 heads were refreshed unchanged;
+expanded #1231 stays excluded. No new PR or worktree.
+
+[Current durable packet and runnable replay](evidence/1211-attempt-owned-stop-20261009/README.md)
+contains the actual initial findings/failures and their correction: mixed/nested
+SDK work wrongly faulted before stop intent, and native counters were incorrectly
+bounded by the API-generation cap. The native cap-one failure is retained.
+The control now binds each admitted Query/hook/session, holds only the complete
+final forwarded hook through public interrupt acknowledgement, qualifies its exact
+owned terminal/error, retires before cleanup awaits and fences unjoined custody.
+Caps, operator override, kill switch and public interfaces remain unchanged.
+
+[Root scoped adversarial review](evidence/1211-attempt-owned-stop-20261009/ROOT_REVIEW.md)
+records all three corrections and negatives; no delegated or whole-change approval.
+Final local gates at `bae7ada3`: **5,935 pass / 36 skip / zero fail**, all 22 npm
+isolated batches plus pretest, standalone typecheck/build pass and original joins.
+Forty-six focused checks pass. Initial mixed-source full-suite failures remain
+unqualified; the corrected stable-head gate and full module-load HTTP check pass.
+
+Real SDK/native component matrix and cap-one public fork pass. Integrated source
+SDK0.2.141/native2.1.284 and independently npm-installed package SDK0.2.141/native
+2.1.296 pass one/three tools × streaming/nonstreaming: exact calls/results,
+published UUID, distinct durable fork, no denial tail, unchanged supported public
+source history. Portable installed replay passes separately. All 51 scripted SDK
+queries/API rounds are directly recorded; zero real credentials/models or actual
+coding clients. Original native/stdio witnesses are component-scoped; integrated
+HTTP/backend/listener settlement and empty native censuses qualify separately.
+Inputs stay exact, actors join and owned runtime/containers are removed. Missing
+image, build-context, fixture machine-id and SSE decoder failures are retained.
+
+Prior actual mixed source stays **FAIL 24/27**. Changed-code actual client/model
+E41/E71/E72, exact handback format, cancellation/parent-abort independence,
+caption/reporter baseline/cache/overlap/abort, broader platform/client/package,
+historical real provider-count/wait attribution and final delivery-head CI remain
+open. Maintained actual-client observer must bind this exact owned interruption;
+never accept arbitrary aborted/error results. `work` renewal is NOT ASSUMED;
+command: `meridian profile login work`. Next finish these bounded real gates with
+renewed auth. Owner head/index/all twelve dirty files and all eighteen raw author/
+date/full-message/ancestry records remain exact. Source PRs stay open. No merge,
+release or external comment; full backlog goal stays active.
+
+## Earlier oldest #1211 / existing #1322 final-hook interrupt discovery (2026-10-09 UTC)
+
+Existing draft #1322 remains held, at reviewed delivery `20336b22`, base
+`11dc1556`, unchanged production/artifact `15f44351`. The
+[current runnable discovery packet](evidence/1211-held-denial-interrupt-20261009/README.md)
+falsifies holding every denial while waiting for every hook: the diagnostic
+failure has a full two-tool generation and metadata but only one held hook.
+Release complete observed prefix denials so serial dispatch can continue; retain
+the final observed hook until owned public interrupt acknowledgement.
+
+Source native 2.1.284 and independently installed native 2.1.295, both SDK 0.2.141,
+pass that mechanism and the final public-event-only observer. The final trigger
+uses public tool IDs, all block closures, same-generation assistant metadata and
+UUID, and exact hook IDs/inputs. Each interrupted query uses one API round,
+observes both owned iterator results once, then returns error_during_execution /
+is_error true / aborted_tools / native num_turns four / exit one. Existing
+canonical acceptance still rejects it. Supported public history retains both
+calls and UUID; a distinct successful fork contains both client results once,
+no denial tail, and exact unchanged original public history.
+
+Ten exploratory queries ran in six network-disabled containers. Nine API rounds
+are directly recorded plus an unrecorded count from the initial failed attempt;
+do not infer a total. Both all-held failures remain FAIL with forks UNEXECUTED.
+All original drivers, native/stdios, iterators and listeners join; owned runtime
+and container custody is removed. No real credentials or models were used.
+Installed arms run installed SDK/native with SOURCE options, not installed proxy.
+
+The [scoped adversarial review](evidence/1211-held-denial-interrupt-20261009/ROOT_REVIEW.md)
+retains the fixture-oracle correction, missing first count and production holds.
+Next implement the [attempt-owned stop contract](evidence/1211-held-denial-interrupt-20261009/PRODUCTION_STOP_CONTRACT.md),
+including tagged hooks, exact session/result/error binding and lifecycle fencing.
+Then verify actual integrated source/package and remaining affected flows. The
+previous active-code local gates remain 5,889 pass / 36 skip / zero fail,
+typecheck/build pass; this packet changes documentation/escrow only. Owner
+head/index/all twelve dirty identities and all eighteen raw contributor records
+match. Original #1211/#1231/#1283/#1292 heads remain unchanged/open; expanded
+#1231 stays excluded. Work login renewal is NOT ASSUMED; command is
+`meridian profile login work`. All live, handback, cancellation/parent-abort,
+caption/reporter, platform/client/package/history and final-head CI gates remain
+held. No new PR/worktree, merge, source closure, release or external comment.
+
+## Earlier oldest #1211 / existing #1322 native generation-limit diagnosis (2026-10-09 UTC)
+
+That earlier checkpoint superseded the then-pending/unexecuted descriptions below.
+Existing draft #1322 continues original-creation oldest-first. Main `11dc1556`,
+source heads, owner checkout/index/twelve dirty files and eighteen raw contributor
+records remain exact; expanded #1231 stays excluded. Three worktrees remain.
+
+[Native generation-retry evidence](evidence/1211-native-generation-retry-20261009/README.md)
+reproduces five directly counted API requests at cap four on both pinned
+SDK0.2.141/native2.1.284 and2.1.295. A text-only fourth response marked tool_use
+triggers a native retry; changing that stop to end_turn makes four requests.
+Eight final credential-free/network-disabled controls make 36 local API requests.
+The existing versioned Read guard accepts normal responses and rejects overflows.
+Production source `15f44351`, caps and all original acceptance predicates remain
+unchanged. Observer/test `0cf7aa70` adds only fixed public stop enums and content
+presence/uncertainty diagnostics. Non-partial SDK fragments lack terminal stop
+reasons; the failed source diagnostic control and unexecuted installed counterpart
+are preserved. All original native/stdio/iterator/listener/container custody joins.
+
+The historical real-model baseline is still FAIL: its observer did not retain
+stop reasons, so this controlled possible cause cannot qualify that old query.
+Source/installed live Read proofs retain their original observer/head and scope.
+Prior delivery-head `021bfe2e` now has successful required test and terminal CI;
+new delivery-head checks remain a separate gate. Local code gates, scoped root
+review and new delivery identity are recorded in the linked evidence. Mixed-auto,
+root/scoped/nested cancellation/parent abort, caption/reporter, broader package/
+client/platform, historical wait and full before-after holds remain open.
+Next advance independent affected-flow gates or qualify a newly instrumented
+causal observation; no uninstrumented baseline rerun. No new PR or merge.
+
+## Earlier oldest #1211 / existing #1322 pinned counter control (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first through existing draft #1322;
+it inherits #1211's age. Source heads and main `11dc1556` were refreshed and
+remain unchanged. Expanded #1231 stays excluded; #1283 is only the demonstrated
+MCP dependency. Owner checkout/index/twelve dirty files and eighteen raw
+contributor identities remain exact. Three retained worktrees remain sufficient.
+
+[Pinned counter evidence and adversarial review](evidence/1211-native-turn-counter-20261009/README.md)
+qualify twelve scripted cases each for SDK 0.2.141/native 2.1.284 and installed
+SDK/native 2.1.295 on Linux/x64. Both arms produce the same observations:
+cap-one tool handoffs make one API request/one distinct public generation but
+report `error_max_turns`/`num_turns: 2`; a three-tool response then text makes
+two requests but reports four turns. Repeated-tool negatives make two requests
+and two generations at cap two, reporting three turns. Every scripted response
+ID matches the public SDK ID set; all thirty-six requests stay within their caps.
+Result counters cannot establish actual API-round counts for these tuples.
+
+Both early discovery failures are preserved. The SDK replaces a post-result
+exit error with the preceding native result text; corrected controls compare it
+privately and require actual exit one, max-turn flags/reason and physical joins.
+All four original driver/attach handles, native/stdio/iterator/listener witnesses
+join; containers and private runtimes are removed, immutable inputs exact.
+Network is disabled and real credential/model calls are zero. The installed arm
+uses installed SDK/CLI with source query-options, not the installed proxy.
+
+The original twenty-check background gate and canonical predicate remain intact.
+Anthropic's frozen 2.1.277 changelog confirms TaskOutput removal in favor of Read;
+the prior actual 2.1.287 catalog agrees. A separate versioned Read proof design
+requires owned launch paths, exact final assistant reports bound to child HTTP
+terminals, original execution receipts/ordering/overlap/resume/MCP/model/custody
+and negative controls. Prompt substrings alone cannot qualify completion.
+Its implementation and actual native baseline/source/installed proof remain
+UNEXECUTED. Next implement it, run final local code gates, then actual E72.
+Current application code is unchanged from `a80fac56`'s 5,819/35/0 local gates;
+runtime remains `15f44351`. No production cap/predicate change, merge, closure,
+new PR or release. Historical 9,256 ms lease wait remains un-attributed; all
+background/mixed-auto/cancellation/caption/reporter/platform/gateway/package
+and final delivery-head CI holds remain explicit.
+
+## Earlier oldest #1211 / existing #1322 public background diagnostics (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first. The fresh paginated discovery
+covers six managed repositories, 29 open PRs and 22 issues; earlier holds remain.
+#1322 inherits #1211's age; expanded #1231 remains excluded, and #1283 remains
+only the demonstrated MCP dependency. No new PR, merge, source closure or release.
+
+[Public diagnostic evidence and root adversarial review](evidence/1211-background-public-diagnostics-20261009/README.md)
+at observer/test `a80fac56` retain unchanged production `15f44351` on main `11dc1556`.
+All 22 npm batches pass: 5,819 tests / 35 skips / zero failures, with pretest,
+standalone typecheck/build and all original gate processes joined. Forty-six
+focused controls and six exact-expression timing controls pass. Source and
+installed startup rehearsals have zero queries/real credential reads and all
+owned custody removed. The first typecheck declaration failure is preserved.
+
+One actual Linux/x64 source case makes eleven SDK 0.2.141/Sonnet5-5 queries
+through two Claude Code 2.1.287 invocations/backend 2.1.284 (estimated $0.605717).
+All eleven valid client catalogs advertise Read and omit TaskOutput; public
+SDK/native catalogs agree. Four child queries each expose one distinct public
+model-message ID but report `error_max_turns`/`num_turns: 2` at cap one. Streamed
+starts/fragments are deduplicated, not counted as additional generations. The
+original twenty checks remain unchanged: strict TaskOutput/canonical-result
+acceptance fails, despite correct child results, overlaps, mappings/resume/MCP.
+Maximum lease wait is 7 ms; the historical 9,256 ms wait is not reproduced,
+attributed or fixed. All original driver/attach/auditor/client-pipe/iterator
+witnesses join; source/observer identities are exact and the owned grant,
+container and private runtime are removed. Package native remains UNEXECUTED.
+
+Next establish the pinned SDK/CLI counter semantics with a network-disabled
+scripted API control, then define a separate actual-client completion proof for
+the observed advertised mechanism. Preserve owned handles, exact child outputs,
+terminal ordering, parent/child overlap, model/MCP/custody and cost bounds; retain
+the original TaskOutput failure and historical wait. Background, mixed-auto,
+cancellation, caption, reporter/client/model/platform/gateway, broader package
+and final delivery-head CI holds remain. All eighteen raw contributor identities
+and the owner's checkout/index/twelve dirty-file identities remain exact.
+Worktree cleanup leaves owner main/desktop and the current backlog workspace;
+recreate retired trees from their recorded external recovery refs before reuse.
+
+## Earlier #1211 / #1322 per-query native MCP checkpoint (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first; #1322 inherits source #1211's
+age. Newer #1283 remains its necessary MCP dependency. Older owner deferrals,
+no-review and missing-proof holds remain explicit. No new PR, merge or closure.
+
+[New native MCP readiness proof and adversarial review](evidence/1211-native-mcp-readiness-20261009/README.md)
+qualify source and independently installed E71/E72: all nineteen checks per arm,
+38 real SDK queries and 12 actual client invocations. Every query retains matching
+public init/final identity; 32 declared-server queries are connected with full
+catalogs, six intentional tool-free classifier queries retain their own receipts.
+All original hooks/model/usage/history/admission/cleanup checks remain required.
+Main Sonnet5-5/classifier Sonnet5, SDK 0.2.141, E71 client 2.1.286/E72 client 2.1.287,
+source backend 2.1.284/installed 2.1.295, Linux/x64/Bun 1.3.11. Readiness 200 in all arms.
+Original native attaches/auditors/both cohort drivers join; task grant/containers/
+private runtime removed; supported source credential unchanged. SDK estimate $2.533308.
+
+Observer/test 2595d05d is a separately qualified read-only mount outside immutable
+runtime 15f44351. All production source remains identical; observer/helper/denial
+bytes match committed identities. Twenty-seven failure/privacy/immutability
+controls pass. Root review corrected summary mutation before these executions;
+prior independent production reviews retain their scopes. Full local observer
+code gate: **5,801 pass / 35 skip / 0 fail in 22 isolated npm batches**, compiled E71
+control enabled, pretest plus standalone typecheck/build. All original commands
+joined and head remained frozen; only documentation/evidence follows.
+Owner checkout and all 18 raw contributor records remain exact. Fresh six-repo
+queue is 29 PRs/22 issues; no new discovery/behavior-disposition claim.
+
+**Held:** historical reporter/client/model/host and actual gateway; background/
+mixed-auto and root/scoped/nested cancellation/incidental parent abort; caption
+baseline request discovery/hints0/overlap/abort/cache; MCP readiness in other
+implicated native flows; broader package/registry parity; older unattributed
+failures; required final-head CI. Keep #1322 draft and source reports open.
+Next prepare meaningful credential-free background/mixed/cancellation actor
+controls using existing role-aware model, hook, MCP and original cleanup witnesses.
+Current four-arm readiness is not whole-change acceptance.
+
+## Earlier #1211 / #1322 native side-call checkpoint at f9fffd39 (2026-10-09 UTC)
+
+Continue combined original-creation oldest-first order through existing draft
+#1322 for source #1211. Newer #1283 remains its recorded necessary dependency;
+older explicit deferrals/no-review/missing-proof holds remain. No new PR or merge.
+
+[Current MCP-corrected E71/E72 source/installed proof](evidence/1211-mcp-sidecalls-native-20261009/README.md)
+passes all 18 original assertions per arm: source and installed auto-classifier
+E71, plus source and installed foreground Agent E72. Actual client 2.1.286/E71
+and 2.1.287/E72, SDK 0.2.141, source backend 2.1.284/installed 2.1.295, Bun 1.3.11,
+Linux/x64 guest. Main requested/served Sonnet5-5; classifier requested/served
+Sonnet5. All four unchanged readiness responses are 200. Thirty-eight actual SDK
+queries/twelve real client invocations cost approximately$3.616100
+by SDK estimates. E71 independent auxiliary mappings/resume/logger ownership pass;
+E72 exact two parallel foreground Agent/four Bash receipts and disjoint resumable
+chains pass. Each E72 arm retains nine canonical later SDK drops in visible counters.
+
+Original attaches/auditors and maintained harness SDK/client/HTTP/Linux owned
+census/private-runtime witnesses joined; task grant/containers/private qualification
+removed after audit; supported credential source unchanged. Four startup rehearsals
+use only a fake grant and make zero queries. First external result-tag audit mistake
+is retained; its successful original native rehearsal was audited without repeat.
+
+Runtime/harness remains certified image15f44351; current test 693/incoming docs aae2
+change no production or harness bytes. Fresh source/package qualification retains
+432 compiled/1,849 tracked-source identities. Local full code gate remains
+5,774/35/0 in 22 npm-isolated batches plus typecheck/build. Root evidence review
+finds no surviving material new finding; previous independent scopes remain.
+Owner checkout and all 18 raw contributor records remain unchanged.
+
+**Held:** historical reporter tuple; background/mixed-auto and root/scoped/nested
+cancellation/incidental parent abort; caption baseline/hints0/overlap/abort/cache;
+MCP readiness per actual inference; broader package/registry parity; older
+unattributed local/CI failures; required final-head CI. Current E71/E72/E41/E55
+qualify only their exact recorded scopes. Keep #1322 draft and source reports open.
+Continue background/mixed/cancellation/caption and MCP-readiness work in this
+existing delivery; no release or community comment.
+
+## Earlier #1211 / #1322 E41 parity checkpoint ataae2e280 (2026-10-09 UTC)
+
+Continue the combined original-creation oldest-first queue. The unchanged older
+#1211 source22566e8a continues through existing draft #1322; #1283 is a necessary
+recorded dependency, not a newer queue item. No new PR or merge.
+
+[Current MCP-corrected E41 source/installed matrix](evidence/1211-mcp-e41-native-20261009/README.md)
+passes all four chain/parallel × JSON/SSE modes on both arms:32 real SDK queries,
+three uniquely paired file-read answers per case, immutable parent histories,
+preceding working-session continuation, saved-fork follow-up and95% cache-prefix
+reuse. Exact Sonnet5-5/SDK0.2.141/source backend2.1.284/installed2.1.295/Bun1.3.11,
+Linux/x64 guest. This is an owned OpenCode protocol fixture, not an actual
+OpenCode/OpenClaw actor. All8 original attaches,64 observed children/stdio,
+SDK/public-history/HTTP witnesses and16 matrix-driver children joined. Grant,
+owned containers and private SDK/runtime files were removed after audit;
+supported credential source unchanged. SDK-estimated cost$0.437776.
+
+Runtime remains certified image15f44351, tarball91963797, all432 compiled and1,849
+tracked source rows qualified. Incoming documentation4535e09a/current test69374acc
+change no runtime or harness bytes. Current full code gate remains5,774/35/0 in22
+isolated npm batches plus typecheck/build. This increment is proof/documentation
+only; prior causal MCP controls, actual E55, author18 and owner-checkout invariants
+remain preserved. Root adversarial evidence review finds no material new finding.
+
+**Held:** current-code E71/E72/caption/background/mixed/root/scoped/nested
+cancellation/incidental parent abort; actual historical reporter tuple/gateway;
+native MCP readiness per real inference; broader package/registry parity; older
+unattributed local/CI failures; required final-head CI. Earlier E71/E72 results
+retain only their explicit earlier heads. Current E55 and E41 qualify their
+bounded current scopes. Keep #1322 draft and source reports open. Continue
+current native side-call acceptance in this delivery; no release/community comment.
+
+## Earlier #1211 / #1322 MCP dependency checkpoint at4535e09a (2026-10-09 UTC)
+
+Continue one combined queue ordered by original issue/PR creation ascending.
+Replacement delivery inherits source age. Older thirteen items retain explicit
+owner deferrals, no-review or concrete missing-proof/release holds. Current source
+#1211 remains22566e8a; existing draft #1322 is its delivery. Fresh six-repository
+pagination finds29 PRs and21 issues. No new PR or independent newer backlog item.
+
+[Current MCP dependency evidence and root review](evidence/1211-mcp-transport-20261009/README.md)
+record why newer #1283 is necessary: unchanged productiond367 reproduces a failed
+second SDK MCP connection with an empty tool catalog despite result success.
+Complete authored source571a6716 is incorporated as52965e11, preserving Nowaker's
+raw Author/AuthorDate/full message; three reviewed bounded fixture files form
+separate maintainer commit15f44351. Other old prepared1283 production corrections
+are excluded. Current test correction is69374acc. Eighteen contributor records
+remain exact and in ancestry; expanded #1231 at5afedf10 remains excluded.
+
+The same credential-free real SDK/native overlap harness qualifies candidate
+catalog/readiness continuity and reproduces the same failure when deliberately
+sharing a server. Seven transport cases include cancellation, exit42, timeout and
+TERM-resistant forced-kill controls. All seven original attaches/seventeen
+observed original children/iterators/listeners joined and owned containers/sandboxes
+were removed. Ten transport entries are not external model or actual-client proof.
+
+Fresh certified Linux source image15f and independent tarball match432 compiled
+files and1,849 tracked source rows. Current693 changes only the caption test;
+production/scripts are byte-identical to15f. Both current original E55 native arms
+pass11 assertions, three actual client2.1.287 invocations and five Sonnet5-5 queries
+each, SDK0.2.141/source backend2.1.284/installed2.1.295. Original18 child witnesses
+and two attaches joined; task grant/containers/private SDK runtime removed after
+sanitized escrow. Credential source unchanged. SDK-estimated cost$0.234818.
+This does not establish actual OpenCode/OpenClaw/LiteLLM or MCP readiness per inference.
+
+First full15f fails one obsolete caption server-identity expectation;693 preserves
+catalog ownership while checking distinct query servers. Focused42/274 passes.
+Final full693 passes5,774 tests/35 skips/zero failures across22 isolated batches,
+with pretest and standalone typecheck/build; every original handle joined.
+First failures, exact commands, logs/excerpts and artifact hashes are retained.
+Root adversarial increment review finds no surviving material source finding;
+prior independent reviews retain their recorded scopes. Owner checkout/index/status
+and all12 dirty files remain unchanged.
+
+**Held:** fresh changed-code E41 four-mode source/installed proof; impact-appropriate
+E71/E72/caption/background/mixed/cancellation gates; actual historical tuple and
+native inference MCP readiness; older unattributed CI failures; and required final-head
+CI. Earlier E71/E72/E41 proofs remain qualified only at their explicit older heads.
+Keep #1322 draft and source reports open. Continue current dependency acceptance in
+this existing delivery; no new PR, merge, release or community comment.
+
+## Earlier #1211 / #1322 checkpoint at23533332 (2026-10-09 UTC)
+
+Continue the combined original-creation oldest-first queue. Original source
+[#1211](https://github.com/rynfar/meridian/pull/1211) is unchanged at `22566e8a`;
+existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues it.
+Main remains `11dc1556`; foreground E72 head is `c7828d8b` and the current
+E41 harness/native head is `d3676c64`; current E55 observer/test head is
+`838d4a29`. All nine production
+files match the preceding qualified E71 correction exactly. All seventeen raw
+contributor author records and full commit messages remain exact and in ancestry;
+expanded #1231 at `5afedf10` is excluded. Source #1292 remains `21e028a5`.
+
+[Current foreground E72 source/package proof and root adversarial review](evidence/1211-linux-agent-20261009/README.md)
+qualify the same-harness Linux/x64 baseline failure and all-eighteen-check
+candidate pass: client 2.1.287, SDK 0.2.141/backend 2.1.284, Bun 1.3.11 and exact
+requested/served Sonnet5-5. Each arm makes nine queries and two actual invocations,
+with two parallel foreground children, exact Agent/Bash results, separate
+resumable chains and bounded leases. Five earlier failed source frames and the
+reverted ToolSearch hypothesis remain retained. The corrected observer returns
+every original public SDK hook outcome unchanged and accounts for all later
+already-handled SDK calls; ten baseline and eight candidate drops remain visible.
+All thirty focused controls pass.
+
+Independent installed tarball matches all 431 certified compiled artifacts at
+`c7828d8b` and uses its own SDK 0.2.141/backend 2.1.295. Installed E71 and foreground
+E72 each pass all eighteen checks, ten and nine queries respectively. Source
+[bounded E71 before/after](evidence/1211-linux-auto-mode-20261009/README.md)
+remains qualified separately with client 2.1.286, main Sonnet5-5/classifier Sonnet5.
+Across thirteen retained native frames, 122 actual SDK queries have original
+custody joined, zero owned residuals and removed access grants/containers;
+supported source credentials remain unchanged. This is bounded proof only.
+
+[Current bounded Sonnet E41 matrix and root adversarial review](evidence/1211-e41-sonnet-native-20261009/README.md)
+pass all four chain/parallel × JSON/SSE modes on both source and independently
+installed tarball at `d3676c64`: 32 real SDK queries, approximately $0.436726
+SDK-estimated cost. Exact model is Sonnet5-5, SDK 0.2.141, source backend 2.1.284
+and installed backend 2.1.295, Linux/x64 guest on the ARM Docker host. Exact
+three-file answer batching, unique preceding-parent continuations, immutable
+original histories, saved-fork follow-up and 95% cache-prefix reuse pass. This
+is an owned OpenCode protocol fixture, not an actual OpenCode/OpenClaw client.
+The fresh tarball matches all 432 compiled files and all 1,767 tracked source
+files; both original clone/build handles joined. All eight original native
+attach/child/pipe/iterator/public-read/HTTP witnesses joined. Owned stopped
+containers and the access-only grant were removed after audit; task-owned
+private runtime files were removed after sanitized escrow. Source credentials
+remain unchanged. The read-only usage endpoint 429 remains retained; actual
+model access is established by these queries, not endpoint recovery.
+Root incremental review finds no additional material source finding; prior
+independent reviews retain their scopes.
+
+[Current bounded E55 source/installed proof and root adversarial review](evidence/1211-e55-native-20261009/README.md)
+qualify all eleven original assertions on each arm: three actual Claude Code
+client invocations and five exact Sonnet5-5 SDK queries per arm. Client2.1.287,
+SDK0.2.141, source backend2.1.284/installed backend2.1.295 and Linux/x64 are pinned.
+The first source observer failure is retained: all original client assertions
+passed, but the observer incorrectly equated result num_turns with option maxTurns.
+The corrected observer retains the result counter and independently requires one
+original unique assistant response plus an actual tool and canonical capped result.
+All original observed process/stdio/iterator/HTTP/socket witnesses joined; all three
+stopped containers, access grants and task-owned private runtime files were removed.
+Supported source credentials remain unchanged. Production stays at d3676c64; the
+known immutable image receives two explicitly recorded read-only current harness
+overlays. Earlier tarball/compiled identities remain qualified; no new product
+snapshot or historical/LiteLLM/MCP transport acceptance is claimed.
+The corrected immutable head838 full npm gate passes 5,769 tests / 35 skips / zero
+failures in22 isolated batches, with pretest, standalone typecheck/build and the
+original child joined. Four focused pure controls pass16 assertions. Root incremental
+review records no surviving material scoped finding; prior independent scopes remain.
+
+Full unchanged local npm gate passes 5,765 tests / 35 skips / zero failures
+in 22 isolated batches
+at `c7828d8b`, with certified compiled-context lane, pretest and standalone
+typecheck/build. Local runtime is Darwin arm64 / Bun 1.3.14 / Node 22.22.3. The first
+complete attempt stopped at 17 batches with 5,656 passes / 35 skips / one
+unchanged store
+performance failure. Its log is retained. Paired syscall diagnostics and a
+controlled delay on unchanged main establish sensitivity to unequal fsync work;
+that original unprofiled failure remains unattributed, and the green rerun is
+not called a correction. Root incremental adversarial review finds no additional
+material source defect; prior independent reviews retain their source-only scope.
+The fresh full npm gate at `d3676c64` also passes 5,765 / 35 skipped / zero fail
+in 22 batches, with original child joined, pretest and standalone typecheck/build.
+
+**Held:** historical reporter model/host; background/mixed-auto child flows;
+root/scoped/nested cancellation and incidental parent abort;
+shared SDK MCP transport/retry/tool readiness and actual historical gateway;
+caption baseline discovery/hints0/overlap/abort/cache requirements;
+unspecified #1288 tuple; broader package parity; the undiagnosed older remote
+E72 PID-zero CI failure; and required final-head CI. Keep #1322 draft and source
+reports open. No new PR, merge, release or community comment. The owner checkout
+and all twelve dirty items remain untouched. Refreshed six-repo inventory has 29
+PRs and 21 issues; older concrete blockers and owner deferrals remain recorded.
 
 ## Current queue reduction and ordering (2026-10-09 UTC)
 
@@ -460,6 +1152,95 @@ are complete. Final evidence review and final-head CI remain before merge;
 its durable evidence receipts.
 Other historical dispositions below remain qualified by
 their own recorded scopes and dates.
+
+## Current continuation — 2026-10-04 (Claude auxiliary model and observer witnesses)
+
+The [current #1211 correction record](evidence/1211-claude-auxiliary-20261004/README.md)
+escrows the official 29-slice classifier-model audit, historical requested-model
+controls, metadata-first grant snapshots, role-aware per-request model witnesses
+and joined HTTP observer cleanup. Both independent final reviews pass for script
+`e2f58e5a`, test `b58d12c7` and E71 instructions `f4410422`. The maintained
+focused gate passes 34 tests / 1,124 assertions / no skips with real source and
+existing certified `80d1ce81` compiled request plumbing plus mocked SDK/auth.
+Entered permanent cancellation has same-preload before/after proof; the corrected
+harness truthfully retains its logger/private runtime until cloned readers join.
+Historical prejoin, pending-read and compiled-skip runs remain explicit.
+
+The first full gate at clean `72b766b4` stopped during pretest typecheck
+before any suite. Its raw TS2769 failures are preserved. A separate explicit
+artifact-hash string guard corrects test typing without changing digest/model/
+ownership expectations; `64f2cba2` passes standalone typecheck and the actual
+source/compiled subset (2 tests / 72 assertions). The 34/1,124 result above
+is historical `b58d12c7` proof. The [final local gates](evidence/1211-claude-auxiliary-20261004/final-role-local-gates/REPORT.md)
+pass at clean `a088de329febb62b147eb4af82f570ccf3b879bc`: 5,431 pass / 36 skip /
+0 fail, 28,123 assertions, all 19 batches, standalone typecheck and fresh build.
+Verified build provenance names that exact source and 409 checked artifacts.
+The current source/current certified compiled HTTP subset also passes 2 tests /
+72 assertions over eight ownership cases with mocked SDK/auth/executable paths.
+Older compiled `80d1ce81` evidence remains historical; the ordinary full suite
+skips the opt-in compiled case, separately executed in this final subset.
+
+All five Noah Passalacqua source Author/AuthorDate/subject tuples remain exact;
+this is a separate maintainer harness correction with no production/public-API
+change. Root's fresh current-main read is `74d0a499`; no rebase is needed.
+Draft [#1279](https://github.com/rynfar/meridian/pull/1279) at prior `cd8b5063`
+has all six executed checks passing plus expected changelog skip, with no
+comments/reviews. That CI and the earlier `80d1ce81` full gates apply only to
+those historical heads. The final evidence-only delivery follows source-stable
+`a088de32`; new-head CI remains required. Node/Bun report macOS arm64; the first
+immutable Python freeze
+reports x86_64 and the current Python observation arm64, retained as distinct
+process observations rather than native-client proof.
+Actual Linux/client/model E71, E55 and all four E41 acceptance gates remain open,
+including selector/policy/entitlement/probe/demotion and separate retry limits.
+No native/auth/model call, source closure, release or external message is
+authorized by this checkpoint. The lower continuation entries remain historical.
+
+## Current continuation — 2026-10-04 (approved SQLite and Claude auxiliary corrections)
+
+The owner approved [#1277](https://github.com/rynfar/meridian/issues/1277),
+and the issue records that approval. [Review #1278](https://github.com/rynfar/meridian/pull/1278)
+merged as `74d0a49953211eb8e2c1ccae275971aa0d624c1c` from exact reviewed
+`ef4b629977b7705efd00459acd457c66ca58dc7a`, matching tree
+`fabaf59afb96133c43bf1aa6f7c182d61c307fa2`. All six executed final-head
+checks passed, including [test](https://github.com/rynfar/meridian/actions/runs/37250864506),
+plus the expected changelog skip; human authorship and blank squash body were
+verified. This merge contains maintenance documentation only. The earlier
+#1278 final-head CI/review-pending statements below are historical.
+
+The approved opt-in SQL corrections are active in an isolated worktree. Four
+actual Aleksey-authored SQL commits are preserved; the uncorrected inherited
+SSE layer is explicitly excluded. Opaque ownership, joined shutdown, exact
+JSON codec, exclusive maintenance and cleanup corrections have focused controls.
+Profile-pruning parity, bounded GC work, historical SQL stages, guarded native
+carrier packaging and actual platform/client/model proof remain gates. Both
+submitted SQL heads stay held; approval does not establish their acceptance.
+
+[#1211](https://github.com/rynfar/meridian/pull/1211) is being incorporated with
+[durable correction evidence](evidence/1211-claude-auxiliary-20261004/README.md).
+Its earlier public-API hold inferred too much from internal TypeScript exports:
+the adapter hooks are outside the published package interface and no owner
+defer was given. All five Noah-authored commits preserve Author/AuthorDate;
+maintainer corrections are separate. Complete source and production correction
+reviews resolve mapping/checkpoint authority, cancellation, priority affinity,
+classifier false positives and adjacent retry accounting. The actual-client
+harness resolves all five independent receipt/containment findings; final
+correction review passes. Frozen `80d1ce81` passes all 19 npm stages:
+5,417 pass / 35 skips / 0 failures, plus standalone typecheck/build. The first
+full-stage failure in the new body-cancellation test is preserved; a reviewed
+test-only correction now observes actual finalizer retirement before all
+original survival assertions. Delivery-head CI remains pending. Native Linux Claude
+Code/Sonnet E71, E55 parity and all four E41 modes remain acceptance gates.
+This correction of #1211's internal scope approves no other public proposal.
+
+Draft [#1276](https://github.com/rynfar/meridian/pull/1276) at `e47fbb28` has
+all six executed checks passing, including
+[test](https://github.com/rynfar/meridian/actions/runs/37245344327), plus the
+expected changelog skip. Actual SDK/client/native Windows proof remains open;
+green CI does not permit landing it. Sonnet #1267's actual Meridian OpenCode
+V2 plugin setup is verified; its working owner inference gate remains open.
+Source PRs/issues remain open. No release or external-comment authority is
+inferred; the user's dirty root checkout remains preserved.
 
 ## Current continuation — 2026-10-04 (complete SQLite review)
 
@@ -4079,8 +4860,8 @@ Its release/main commit at this checkpoint was
   package live V2; verified registry signatures and SLSA provenance matching the
   release commit. This is historical evidence for that candidate, not a substitute
   for tests on future changes.
-- Frozen install used SDK0.2.141/Claude Code2.1.259; fresh npm package gates used
-  SDK0.2.141/Claude Code2.1.261. Actual clients: V1 1.18.11 and V2 beta18866
+- Frozen install used SDK 0.2.141/Claude Code2.1.259; fresh npm package gates used
+  SDK 0.2.141/Claude Code2.1.261. Actual clients: V1 1.18.11 and V2 beta18866
   (extended live, separate working directories), plus beta18314 scripted package
   compatibility. Do not describe the beta18314 release check as extended live.
 
@@ -4385,3 +5166,331 @@ reproduce, retain contributor authorship, correct separately, run real affected-
 E2E plus npm test/typecheck/build, inspect exact-head CI and finish only within the
 owner's authorized scope. If the required model/platform/environment or product
 decision is missing, record the precise blocker and leave that item incomplete.
+
+
+## Current continuation — 2026-10-08 (current Claude side-call stack)
+
+[#1292](https://github.com/rynfar/meridian/pull/1292) is reconciled from current
+`21e028a5` on main `74ee5515`, with the corrected original #1211/#1231 parent
+subset. The expanded current #1231 proposal is excluded. [Current review and
+proof](evidence/1292-current-main-20261008/REVIEW.md) records seventeen exact
+raw Author/AuthorDate/full-message mappings, separate maintainer corrections,
+492 unchanged inherited escrow files, six corrected source/control findings
+and passing focused preservation controls. The mapping WeakMap is private
+ownership bookkeeping; classification uses an internal adapter hook. The
+executable-selection approval in #1319 supplies no authority for other public
+proposals.
+
+The first full local gates pass at `50923ff0`; a subsequent direct control
+reproduced a protected-legacy-slot fresh-retry failure in both response modes.
+Separate correction `b6a1c6eb` retains that slot's CAS fence without pretending
+it was evicted, passes all four collision/fallback controls and preserves
+namespace, auxiliary and canonical recovery controls. The repeated final local
+gates now pass at clean `3cd230cc`: 21 npm batches, 5,663 pass / 36 skip /
+0 fail, standalone typecheck and build, all joined. Native E71/E72 caption and
+state-card proof, both overlap orders, cancellation custody, E41/E55 parity,
+installed-package proof and final delivery-head CI remain open. The older
+caption harness must observe the actual namespaced agent mapping before reuse;
+#1288's reporter tuple remains unspecified, and #1283's separately recorded
+shared SDK MCP-instance limitation still qualifies retries/main followups.
+Historical login/runtime/custody failures remain recorded. Source PRs/issues
+stay open. No model call, credential grant/refresh, delegation, push, merge,
+source closure, release or community message occurred in this correction turn.
+
+The first repeated gate at `a022326a` fails only the two new extended-context
+goldens under unrelated global model mocks; both checkpoint collision controls
+pass. The failed run is retained. The concurrency file is now an isolated final
+process in `npm test` (21 batches), with all 42 controls/assertions intact. The new
+complete gates pass at `3cd230cc`; no production change accompanies this isolation.
+Both exact owned local fixtures were removed after all commands joined. The
+owner checkout, index and twelve dirty/untracked files remain unchanged. Current
+local receipts and logs are escrowed with the historical PASS and causal FAIL.
+The native caption mapping observer now has an actual adapter-key correction
+and root review, with six focused controls and exact-function false-pass/false-fail
+causality proof. The changed harness/test requires new full local checks. Exact
+native runtime/custody and all inherited native/product/package/CI holds remain.
+
+
+Current #1292 native checkpoint: one baseline attempt is terminal, with the
+original failure preserved. Actual native 2.1.292 emitted its caption followed
+by an exact system task-budget frame. Both observer and headerless fallback
+missed it. A separate bounded source correction now passes focused classification
+and HTTP checkpoint-preservation controls; see
+[evidence](evidence/1292-current-main-20261008/REVIEW.md) and the explicit root
+adversarial receipt. Prior full local PASS at `f41a6524` is historical; new full
+checks remain required. All observed source gates, direct processes and parent
+pipes joined, and the private access grant was removed after the supplemental
+root custody audit. Model-label and accepted-socket observers require correction
+before another native attempt. Baseline/candidate acceptance and inherited
+package/client/final-head CI gates remain open.
+
+
+The current #1292 full npm run is **FAIL**, not accepted: first batch 5,233 pass /
+36 skip / 1 E71 custody failure; remaining 20 batches unexecuted. All runner
+processes joined. The new diagnostic preserves concrete client-signal/unjoined
+work/runtime-retention failures without weakening cleanup assertions. Typecheck
+and build pass. See the latest [review](evidence/1292-current-main-20261008/REVIEW.md)
+for the failed receipts, separate post-close signal concern and executed pinned
+Bun socket control. Fix the exact E71 ownership failure and remaining native
+model/socket observer issues before relying on a green rerun or a new live arm.
+The executable #1319 approval and #1321 final-head CI hold remain unchanged.
+
+
+E71 ownership correction: exact observed birth PID, signaling retirement at
+exit, explicit child/pipe joins and sticky signal failures. Root review and
+reproducible prior/current refusal control are
+[escrowed](evidence/1292-current-main-20261008/E71_OWNED_CLIENT_ROOT_ADVERSARIAL_REVIEW.json).
+38 E71/ownership controls pass, one compiled control skips, typecheck/syntax
+pass and all runners join. The original full FAIL and unknown historical OS
+errno remain qualified. New full local gates and native model/socket observer
+corrections still precede another live attempt. No merge or gate waiver.
+
+
+Native caption model/socket observer corrections are now statically reviewed
+and credential-free controlled. Exact wire/SDK/env-pin/native-context labels
+and a canonical helper row are required; model acceptance remains independent
+of physical source/client custody. The exact old/new cleanup snippets reproduce
+old socket deadlines and witness all current closures on pinned Bun/Node, with
+all four peers joined. See the
+[root review](evidence/1292-current-main-20261008/NATIVE_MODEL_CUSTODY_OBSERVER_ROOT_REVIEW.json).
+Ten controls, typecheck, syntax and existing causality controls pass. No new
+model call or grant. New full local gates and fresh invocation/provenance
+qualification still precede actual before/after proof; inherited holds remain.
+
+
+Current combined #1292 correction passes complete local gates at
+`465c35895cbef922669a6bb745d86438f9941c4d`: all 21 npm batches, 5,684 pass / 36 skip /
+0 fail, pretest and standalone typecheck, build and all three causality controls.
+All commands and session 19888 join; source/head stay clean and exact.
+[Summary](evidence/1292-current-main-20261008/OWNED_OBSERVER_FINAL_LOCAL_SUMMARY.json)
+retains earlier failures and separate acceptance holds. Source/SDK/helper/Hono/
+runtime plans and read-only access readiness are prepared; no new native call
+or grant. Refresh provenance to the evidence-checkpoint head before a new
+unique baseline attempt, then actual candidate proof. Reporter tuple, shared
+MCP, overlap/cancellation/native parity, package and final-head CI remain open.
+The owner checkout remains exact; #1320/#1321 CI watches are retained.
+
+
+Latest #1292 native status: **R2 baseline MISSING / candidate unexecuted**.
+Actual caption and exact model/context witnesses now work; all scoped physical
+joins are positive and the private access-only input has been removed after
+review. The observed baseline caption replaced the working session and cleared
+its checkpoint; the replacement has two messages through public SDK reads but
+is absent from discovery. A separately reviewed bounded observer correction
+records this defect only in the pinned baseline after-caption phase, retains all
+fixed/working/nonempty-history assertions, and strengthens baseline replacement
+requirements. See [root review](evidence/1292-current-main-20261008/LISTED_CAPTION_HISTORY_ROOT_REVIEW.json).
+New full local gates and fresh provenance/native baseline/candidate proof remain
+required. Earlier local PASS is historical after this harness-only change.
+No active jobs or staged grant; the owner checkout remains exact. CI watches
+were stopped on the manual approval handback; #1320/#1321 gates remain open.
+
+
+Latest #1292 integration checkpoint: **full local PASS and actual native
+sequential/hints1 candidate PASS at `6585b66a`**, draft delivery permitted with
+all remaining native/package/final-head CI holds. The real caption preserves
+working mapping/generation/history; the next query resumes the exact checkpoint;
+three Read results are durable once, source history immutable and all scoped
+physical joins positive. The baseline remains MISSING at final discovery, with
+core replacement/replay concretely witnessed and source integrity independently
+confirmed. See the [draft root review](evidence/1292-current-main-20261008/DRAFT_INTEGRATION_ROOT_REVIEW.json)
+and preserved before/after reports. No staged grant or active jobs remain.
+All seventeen raw contributor identities/messages match; the owner checkout is
+exact. Expanded current #1231 remains excluded. No source closure or merge.
+Fresh whole-queue discovery still covers six managed repositories / 31 PRs /
+22 issues; #1315's model-specific advertisement defect is confirmed at source
+and recorded with implementation/actual Pro-client holds.
+
+
+Draft delivery is now [#1322](https://github.com/rynfar/meridian/pull/1322),
+branch `codex/claude-sidecalls-stack-1292-20261008`, from exact current main
+`74ee5515cde58a4df03a48c0ca38abb20ccad648`. Initial remote head is
+`a9d3501e93835a82cb5a415f5ee0c248bc076ad5`; tested local/native source is
+`6585b66a01e26244381709e6db78825cd4056e18`, with only documentation afterward.
+The PR is linked to the active thread, remains draft, and contains the root
+adversarial review, committed runnable harness, immutable failures and scoped
+actual candidate proof. #1211/#1231/#1292 and #1288 stay open. Expanded #1231
+is excluded. No merge, source closure, release or community comment occurred.
+Next native/package invocation must refresh commit/tree provenance to the actual
+current head; no old compiled build or green CI is promoted to a new-head claim.
+
+
+### 2026-10-09: versioned background Read source/installed proof
+
+Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues
+the original oldest-source #1211 lane, without a new PR or worktree.
+[Read evidence](evidence/1211-background-read-v2-20261009/README.md) records
+observer/control head `3da52f210fdc602a2d7f063f8371a7fb0e98d4ca` and unchanged
+production source/package `15f44351bbc8ddfd669db3254eac86736b61a02e`.
+Local gates: 5,852 pass / 35 skip / zero fail, 22 npm-isolated batches,
+standalone typecheck and build; all original gate processes joined.
+
+The actual Claude Code 2.1.287 / SDK 0.2.141 / Sonnet 5.5 Linux x64 source
+(native 2.1.284) and independently installed candidate (native 2.1.295) each
+pass all 21 versioned Read checks. Each uses 13 original SDK queries and
+two actual client invocations; nine original tool/execution receipts bind
+two unique background launches, four child Bash results, overlapping parent
+work and two completed numbered-record Read reports to the owned child
+HTTP final reports. Session resumes, model, MCP, hook, cost and physical
+cleanup/custody gates pass. Owned native clients/pipes, SDK iterators,
+listeners and censuses joined; immutable targets/grants stayed exact;
+private runtimes, grants and stopped containers were removed.
+
+Prior cap-four failures remain unchanged. Network-disabled source/installed
+native controls measured four API rounds / four public generations / counter
+five and qualified only first handoff followed by three single-tool drops.
+The corrected versioned proof retains its existing generation bounds, original
+foreground/TaskOutput predicates and production caps. Three Read positives
+and 23 faulty Read executions remain respectively PASS/FAIL in 100 sanitized
+maintained-harness execution receipts. Root adversarial review is escrowed;
+no delegated review or whole-change merge acceptance is asserted.
+
+**New baseline hold:** corrected unchanged-main baseline still fails the
+native public-generation guard: one successful cap-four query emitted five
+complete public generations. Both owned Read completions and all four named
+lineage defects were observed. The baseline cohort stopped and stayed FAIL;
+a separate first corrected candidate cohort used the same assertions, with
+installed execution admitted only after source audit. Direct provider API
+counts/root cause of the extra generation remain unqualified; complete
+before/after acceptance remains held. Do not raise the bound or erase
+these failures. SDK-estimated cost across all five attempts is $7.4444
+(64 SDK queries / ten client invocations); it is not a billing receipt.
+
+Owner head/index/all twelve dirty-file identities and all eighteen raw
+contributor author/date/full-message/ancestry records stay exact. Expanded
+#1231 remains excluded; source heads were refreshed and all source PRs stay
+open. #1322 stays draft. Baseline budget qualification, mixed-auto/classifier,
+root/scoped/nested cancellation and parent-abort, caption/reporter tuple,
+broader packaging/platform/client proof, historical wait attribution and
+final delivery-head CI remain open. No merge, release or external comment.
+
+### 2026-10-09: mixed auto-mode source failure preserved
+
+Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) continues
+oldest original #1211 without another PR or worktree. The
+[mixed packet](evidence/1211-mixed-auto-20261009/README.md) escrows the original
+source FAIL, custody and audit, synthetic controls, fatal-delivery test cause
+and root scoped review. Production source remains `15f44351`; observer content
+was `63f90fa3`, full local gate head `6cb15163` (5,869 pass / 36 skip / zero
+fail, typecheck/build/compiled context control, all original processes joined).
+
+Actual Linux x64 Claude Code 2.1.287 / SDK 0.2.141 / native CLI 2.1.284 used
+Sonnet 5.5 working requests and nine Sonnet 5 classifiers. Nineteen queries
+across two client turns completed. All seven required Agent/Bash calls and
+five outside-project writes matched; two additional unmatched client-visible
+tools fail both tool-receipt gates. All other twenty-four checks pass. The
+original packet lacks their raw names/inputs, so normalization, changed-input
+and client-behavior attribution remain open. Installed and baseline mixed
+cases were UNEXECUTED after this source audit failed. Original process/pipe,
+SDK and container joins, unchanged targets/grants and private cleanup qualify.
+
+Diagnostics now add only fixed tool-name enums, namespaces, ownership counts
+and input/name/hook match booleans. Acceptance predicates and bounds are
+unchanged. Nineteen focused synthetic controls pass; all three new unexpected
+tool/name/input negatives retain FAIL and cannot establish native acceptance.
+New final local gates and frozen rehearsal are prerequisites to the next
+bounded diagnostic source run. Preserve the original failure and qualify its
+cause before altering normalization or the scenario. Owner checkout and all
+eighteen contributor mappings requalify exactly. Expanded #1231 stays excluded;
+all inherited baseline, cancellation/parent-abort, caption/reporter, package,
+platform/client and delivery-head CI holds remain. No merge or source closure.
+
+### 2026-10-09: mixed native handback protocol correction
+
+[Versioned handback evidence](evidence/1211-mixed-auto-handback-20261009/README.md)
+records diagnostic head `0f792f16` final local gates (5,873 pass / 36 skip /
+zero fail, 22 npm batches plus typecheck/build/compiled context control) and
+its original source diagnostic FAIL. Both additional calls match unique SDK
+ownership, one MCP prefix and exact hook/assistant/HTTP inputs; the four-name
+observer normalizer does not recognize them. Other 24 checks pass. The source
+cohort stops, cleans up and retains the failure; package and baseline remain
+UNEXECUTED. Exact original names are still unknown because they were not saved.
+
+Static network-disabled inspection of the same official client binary verifies
+SubagentHandback's final-report contract: a message goes to the implicit caller
+and becomes the Agent result; plain final text is not delivered when active.
+New opt-in `mixed-auto-handback-v2` therefore requires exactly nine original
+calls, with two uniquely paired final child handbacks and complete exact reports
+delivered to their own parent results. Declared schema, message-only payload,
+final-child position, canonical SDK/hook/HTTP custody and all original execution,
+model/session/classifier/cap gates remain necessary. Legacy v1 still rejects
+extra handbacks. No general tool filter or larger model/runtime bound is used.
+
+Thirty canonical focused tests pass, including 26 fake harness executions
+and nine handback negatives. A bare-bun five-second timeout was retained with
+its missing per-case PID limitation; owned fake process metadata was checked,
+fake grants removed and the empty-proof fixture preserved. Canonical tests use
+the existing repository 30-second setting with identical subprocess/native
+bounds. New v2 full local gates, frozen rehearsals and actual flows remain open.
+Existing #1322 stays draft; all inherited holds, original source identities and
+expanded #1231 exclusion remain. No new PR, merge, closure or release.
+
+
+### 2026-10-09: handback source failure and thinking-only native retry
+
+Existing draft [#1322](https://github.com/rynfar/meridian/pull/1322) remains held.
+The [current handback packet](evidence/1211-mixed-auto-handback-20261009/CURRENT_NATIVE_STATUS.json)
+binds clean observer/test head `184df6c8`: 5,884 pass / 36 skip / zero fail
+across 22 npm batches, typecheck/build/compiled control and three zero-query
+rehearsals. Its single actual source invocation stays FAIL: 24/27 checks,
+19 SDK queries, two real client invocations, five writes. All nine tool names
+and hook/assistant/HTTP inputs match, including literal SubagentHandback.
+Exact reports are not observed in their paired parent results; private input,
+launch-prompt and structured-result facts remain unescrowed. Query 17 emits
+five public generations under cap four after a thinking-only fourth end_turn.
+The guards reject both gaps; no acceptance/budget assertion is relaxed.
+
+Network-disabled source/installed SDK/native controls directly reproduce that
+empty-thinking retry (five API rounds versus four with normal text), four SDK
+queries / 18 local API rounds total, zero credentials or actual model calls.
+The wrong initial installed executable path and zero-case failure are preserved,
+and static qualification binds the corrected hoisted path. This establishes a
+runtime mechanism, not direct real-provider API counts or historical attribution.
+
+All original actors and private runtime/grant/stopped-container cleanup qualify;
+owner checkout and all eighteen raw contributor records remain exact. Native
+package/baseline are UNEXECUTED after source audit failure. Initial whole-cohort
+credential admission failed before generation; per-case admission retained full
+bounds. Renewed read-only Claude login is needed for another bounded real run.
+Next: qualify exact handback message, parent-launch instruction and parent-result
+encoding separately; investigate/enforce native generation bounds without
+raising them. Continue cancellation/parent-abort and caption/reporter gates.
+No source closure, merge or release is authorized by these failed proofs.
+
+### 2026-10-09: handback diagnostics and interrupted-checkpoint discovery
+
+Existing draft #1322 continues oldest original #1211. The
+[current diagnostic/discovery packet](evidence/1211-handback-diagnostics-interrupt-20261009/README.md)
+binds code head `49d8a0a9`: 5,889 pass / 36 skip / zero failures across all 22
+npm-isolated batches, including pretest, standalone typecheck/build and compiled
+request-context control. Thirty-five focused checks, twenty-eight synthetic
+executions and three zero-query source/package/baseline rehearsals pass. The
+initial new test-expectation and JS declaration failures are retained.
+
+New facts distinguish exact child input, launch-prompt naming/report text,
+parent structured result identity/disposition/report/warning and caller-message
+occurrences. Inputs, prompts, IDs, reports and warnings stay private. None changes
+the original strict acceptance predicates: structured and inbox controls still
+FAIL that gate. The actual mixed source proof remains FAIL 24/27; its missing
+historical private facts cannot be reconstructed.
+
+Network-disabled public SDK/native discovery at SDK 0.2.141 with native 2.1.284
+and independently installed 2.1.295 shows that interrupt after full generation
+and hooks yields `error_during_execution` / `aborted_tools`, preserves both
+parallel calls, and supports a distinct fork with both real client results once
+and unchanged original public history. This is direct SDK/native discovery,
+not integrated proxy/client/model acceptance. Later full-denial settlement yields
+`aborted_streaming`; a second direct API round can race an interrupt issued at
+round one. Both later attempts remain FAIL; their fork/resume and installed
+later-phase counterpart are UNEXECUTED. Seven exploratory queries/eight local
+API rounds total; zero real credentials or models. All original actors, pipes,
+iterators, listeners, private runtimes, fake grants and stopped containers join
+or are removed. No production interrupt/result/cap change is made.
+
+Next investigate owned stop timing around full forwarded generation and held
+denial release; do not infer provider-request counts from public generation IDs.
+Then implement/verify production and qualify handback format in a bounded real
+run with renewed profile-qualified auth. All inherited cancellation/parent-abort,
+caption/reporter, platform/client/package/history and final-head CI holds remain.
+Owner checkout and all eighteen contributor records remain exact. No new PR,
+worktree, merge, source closure, release or external comment.

@@ -1,0 +1,22 @@
+{
+  "phase": "live",
+  "mode": "chain",
+  "stream": true,
+  "qualified": false,
+  "exit": 1,
+  "originalDriverPid": 62418,
+  "originalAttachPid": 64239,
+  "originalAttachJoined": true,
+  "hostDeadlineExceeded": false,
+  "ownedContainerRemoved": true,
+  "sourceGrantUnchanged": true,
+  "taskGrantUnchanged": true,
+  "taskGrantRemoved": true,
+  "ownedRuntimeRemoved": true,
+  "queries": 2,
+  "costUsd": 0.004155599999999999,
+  "failureClass": "AssertionError",
+  "firstFailure": "e41-native-completion-model-usage-receipt-missing",
+  "finishedUTC": "2026-10-11T05:06:05.385079+00:00",
+  "wholeChangeAcceptance": "HELD"
+}

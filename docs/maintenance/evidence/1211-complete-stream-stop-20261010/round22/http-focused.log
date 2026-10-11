@@ -1,0 +1,38 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/passthrough-checkpoint-stop-http.test.ts:
+[PROXY] d6f7d003-05ff-4925-a38c-1976bcdd7734 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=3ms msgCount=1 msgs=user[string]
+[PROXY] d6f7d003-05ff-4925-a38c-1976bcdd7734 usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > qualifies only the owned owned interruption, stream=false [465.54ms]
+[PROXY] edd1b69f-6890-45cd-844e-77f36f29ae04 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] edd1b69f-6890-45cd-844e-77f36f29ae04 usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > qualifies only the owned completed-stream interruption, stream=false [47.25ms]
+[PROXY] fb37fcfa-870f-4838-aa1d-5d3a57f01bea adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses unrelated after a visible checkpoint, stream=false [54.42ms]
+[PROXY] d6c6332e-6de8-483c-a1f6-57b69486ff5c adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses wrong-result after a visible checkpoint, stream=false [49.39ms]
+[PROXY] 7e64760a-bd94-4821-a68e-310976655e61 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses close-failure after a visible checkpoint, stream=false [49.91ms]
+[PROXY] 4a7effba-7018-4edb-abdb-5f4e35758065 adapter=opencode model=sonnet stream=false tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 4a7effba-7018-4edb-abdb-5f4e35758065 usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > leaves the early-stop kill switch intact, stream=false [44.65ms]
+[PROXY] 2780f4d9-67fa-4dbd-9e27-f3cf1bfcb809 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 2780f4d9-67fa-4dbd-9e27-f3cf1bfcb809 usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > qualifies only the owned owned interruption, stream=true [58.76ms]
+[PROXY] 02e6defc-d4a0-400c-a2d0-9bbbea8d727f adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 02e6defc-d4a0-400c-a2d0-9bbbea8d727f usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > qualifies only the owned completed-stream interruption, stream=true [48.51ms]
+[PROXY] be6a9ad5-6d1b-41ca-96c3-c3bbe6e5813e adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=3ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses unrelated after a visible checkpoint, stream=true [49.29ms]
+[PROXY] 8c1f3d15-21da-4023-9583-f5de08cbad83 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=3ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses wrong-result after a visible checkpoint, stream=true [45.72ms]
+[PROXY] 17734a6c-97f1-4980-9e54-eaf447072786 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=2ms msgCount=1 msgs=user[string]
+(pass) HTTP attempt-owned checkpoint interrupt > refuses close-failure after a visible checkpoint, stream=true [42.92ms]
+[PROXY] 7bf0bc30-cdf1-4278-af92-51eed9f1a374 adapter=opencode model=sonnet stream=true tools=1 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 7bf0bc30-cdf1-4278-af92-51eed9f1a374 usage: input=1 output=1 cache=0%
+(pass) HTTP attempt-owned checkpoint interrupt > leaves the early-stop kill switch intact, stream=true [51.50ms]
+
+ 12 pass
+ 0 fail
+ 72 expect() calls
+Ran 12 tests across 1 file. [2.35s]

@@ -1,0 +1,27 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/e72-mixed-auto.test.ts:
+(pass) mixed auto observer structural controls > distinguishes name normalization, changed inputs and missing owners without exposing payloads [2.05ms]
+(pass) mixed auto observer structural controls > requires the native system envelope, exact root and bounded classifier shape [0.76ms]
+(pass) mixed auto observer structural controls > quotes owned paths and rejects malformed directory inputs [2.12ms]
+(pass) mixed auto observer structural controls > physically joins both successful and rejected relay handlers [1.10ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > binds interleaved classifiers to independent sessions while preserving parent/child chains [1587.40ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects wrongClassifierModel [1825.48ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects borrowedClassifierSession [1576.21ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects classifierNotIsolated [1594.21ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects classifierWait [1420.19ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects noClassifiers [1350.64ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects forgedClassifier [1916.58ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects missingWrite [1920.18ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects changedCommand [2015.65ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects noLoggerContext before accepting SDK ownership [1246.91ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects duplicateQuery before accepting SDK ownership [1334.93ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > retains failed acceptance and diagnoses unexpectedClientTool [1422.40ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > retains failed acceptance and diagnoses changedClientToolName [1305.86ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > retains failed acceptance and diagnoses changedClientToolInput [1366.66ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > holds restoration and the fixture when a rejected duplicate leaves an unconsumed SDK query [1140.64ms]
+
+ 19 pass
+ 0 fail
+ 221 expect() calls
+Ran 19 tests across 1 file. [23.24s]

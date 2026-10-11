@@ -1,0 +1,91 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/session-key-namespace.test.ts:
+(pass) Mapping namespace ownership > preserves ordinary unmarked main-session lookup and continuation [29.26ms]
+(pass) Mapping namespace ownership > rejects legacy authority in a namespaced lookup and leaves its bytes unchanged [2.64ms]
+(pass) Mapping namespace ownership > freshly replaces an ambiguous legacy slot without inheriting checkpoint/recovery/transcript ownership [3.36ms]
+(pass) Mapping namespace ownership > does not evict an unproven namespace or alter its synthetic transcript on cancellation [3.56ms]
+(pass) Mapping namespace ownership > fences a stale namespaced replacement and preserves the winning ordinary mapping [3.05ms]
+
+src/__tests__/claude-code-adapter.test.ts:
+(pass) claudeCodeAdapter — identity > has name 'claude-code'
+(pass) claudeCodeAdapter.getSessionId > extracts a session ID from Claude Code's JSON-string metadata [0.09ms]
+(pass) claudeCodeAdapter.getSessionId > accepts object-form metadata for compatible gateways [0.01ms]
+(pass) claudeCodeAdapter.getSessionId > keeps the key equal to session_id when parent linkage is present [0.03ms]
+(pass) claudeCodeAdapter.getSessionId > reports no parent for a root session [0.01ms]
+(pass) claudeCodeAdapter.getSessionId > falls back to fingerprinting when metadata is absent or malformed [0.04ms]
+(pass) claudeCodeAdapter.getSessionId > ignores unrelated session headers
+(pass) Claude Code subagent session keys > keys the main conversation by its bare session id [0.02ms]
+(pass) Claude Code subagent session keys > keys an Agent-tool subagent by session id and agent id [0.03ms]
+(pass) Claude Code subagent session keys > gives parallel subagents distinct keys [0.01ms]
+(pass) Claude Code subagent session keys > ignores a malformed or oversized agent id [0.03ms]
+(pass) Claude Code subagent session keys > never manufactures a key from an agent id alone
+(pass) Claude Code subagent session keys > roots main and subagent requests at the bare session id [0.01ms]
+(pass) Claude Code subagent session keys > declares no parent lineage for a subagent
+(pass) claudeCodeAdapter.extractWorkingDirectory > always returns undefined so the SDK falls back to a valid host path
+(pass) claudeCodeAdapter.extractWorkingDirectory > returns undefined for array system prompts too
+(pass) claudeCodeAdapter.extractWorkingDirectory > returns undefined when no system prompt is present
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > extracts CWD from a string system prompt [0.05ms]
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > extracts CWD from an array system prompt [0.02ms]
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > is case-insensitive on the 'Primary working directory:' label
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > trims trailing whitespace from the captured path
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined when the system prompt is missing
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined when the label is absent
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined for empty string system prompt
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined for empty array system prompt
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > handles a system array with non-text blocks [0.02ms]
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns the first match when multiple Primary working directory lines exist
+(pass) claudeCodeAdapter — basic configuration surface > exposes MCP config like the other passthrough-capable adapters [0.02ms]
+(pass) claudeCodeAdapter — basic configuration surface > lists Claude Code's PascalCase core tools so they're not deferred [0.02ms]
+(pass) claudeCodeAdapter — basic configuration surface > defaults to passthrough mode and honors the disable flags [0.04ms]
+(pass) claudeCodeAdapter — basic configuration surface > skips meridian's synthetic file-change tracker (Claude Code shows its own edits)
+(pass) claudeCodeAdapter — basic configuration surface > declares concurrent turns per session key (#1043)
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > flags Write tool uses as 'wrote' [0.03ms]
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > flags Edit and MultiEdit tool uses as 'edited' [0.01ms]
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > parses redirect writes from Bash commands [0.13ms]
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > returns an empty array for tools it doesn't track
+(pass) isClaudeCodeAuxiliaryRequest > recognises the classifier's shape when the request-class header is absent [0.14ms]
+(pass) isClaudeCodeAuxiliaryRequest > lets an explicit request class decide when the client sends one [0.02ms]
+(pass) isClaudeCodeAuxiliaryRequest > leaves the streaming session-start side request alone
+(pass) isClaudeCodeAuxiliaryRequest > never isolates a request that declares tools [0.01ms]
+(pass) isClaudeCodeAuxiliaryRequest > accepts omitted stage2 stops and rejects unknown supplied stops [0.02ms]
+(pass) isClaudeCodeAuxiliaryRequest > requires a Claude Code session key
+(pass) isClaudeCodeAuxiliaryRequest > rejects malformed shapes without throwing [0.02ms]
+(pass) isClaudeCodeAuxiliaryRequest > requires the classifier-specific system envelope, not ordinary XML output [0.05ms]
+(pass) isClaudeCodeAuxiliaryRequest > rejects a long malformed classifier envelope and permits empty permissions [0.05ms]
+(pass) claudeCodeAdapter.isAuxiliaryRequest > reads the request-class header from the context [0.04ms]
+
+src/__tests__/session-tree-unit.test.ts:
+(pass) SessionTreeRegistry — registration and settle-removal > tracks live requests and reports how many declared a parent [0.14ms]
+(pass) SessionTreeRegistry — registration and settle-removal > leaves nothing behind after every request settles [0.45ms]
+(pass) SessionTreeRegistry — registration and settle-removal > release is idempotent and does not disturb a sibling [0.03ms]
+(pass) SessionTreeRegistry — registration and settle-removal > keeps concurrent requests apart when the client reuses one request id [0.17ms]
+(pass) SessionTreeRegistry — subtree computation > keeps a private auxiliary leaf reachable once through either declared parent [0.08ms]
+(pass) SessionTreeRegistry — subtree computation > walks a multi-level tree transitively, nearest level first [0.06ms]
+(pass) SessionTreeRegistry — subtree computation > includes every live request sharing one child key [0.02ms]
+(pass) SessionTreeRegistry — subtree computation > terminates on a cycle stamped by the client [0.03ms]
+(pass) SessionTreeRegistry — subtree computation > ignores a self-link so a request is never its own descendant [0.02ms]
+(pass) SessionTreeRegistry — subtree computation > bounds a pathologically deep chain [0.34ms]
+(pass) SessionTreeRegistry — cancellation > aborts the whole subtree and leaves the origin request alone [0.06ms]
+(pass) SessionTreeRegistry — cancellation > counts propagations and cancelled descendants [0.02ms]
+(pass) SessionTreeRegistry — cancellation > cancels every sibling even when one abort handle throws [0.08ms]
+(pass) SessionTreeRegistry — cancellation > cancelSubtree also aborts live requests on the origin key [0.07ms]
+(pass) SessionTreeRegistry — cancellation > does not reach a request that already settled [0.02ms]
+(pass) SessionTreeRegistry — cancellation > clear() resets both the live index and the counters [0.02ms]
+(pass) truncateSessionKey > shortens long keys and leaves short ones alone [0.02ms]
+(pass) processSessionTree > is a shared registry so a parent and child on different proxy instances still link [0.03ms]
+
+src/__tests__/claude-code-session-identity.test.ts:
+(pass) Claude Code internal session identity > separates the old derived/bare collision without changing ordinary main keys [0.08ms]
+(pass) Claude Code internal session identity > escapes a main ID equal to a reserved agent key into a disjoint main key [0.03ms]
+(pass) Claude Code internal session identity > preserves separator, quote, slash, Unicode and NUL distinctions [0.05ms]
+(pass) Claude Code internal session identity > falls malformed headers back to the same escaped main key [0.03ms]
+(pass) Claude Code internal session identity > keeps account root affinity while requiring namespace ownership only on reserved keys [0.05ms]
+(pass) Claude Code internal session identity > preserves a raw public root-cancel alias and declared main ancestry [0.04ms]
+(pass) Explicit conversation cancellation is separate from automatic ancestry > reaches native agents only for explicit root cancellation, with private leaves once [0.14ms]
+(pass) Explicit conversation cancellation is separate from automatic ancestry > prefers an exact live raw root over another agent's equal-looking cancel alias [0.03ms]
+
+ 77 pass
+ 0 fail
+ 208 expect() calls
+Ran 77 tests across 4 files. [109.00ms]

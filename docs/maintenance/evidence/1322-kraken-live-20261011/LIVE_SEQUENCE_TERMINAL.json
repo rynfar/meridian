@@ -1,0 +1,39 @@
+{
+  "driverPid": 93625,
+  "profile": "kraken",
+  "head": "a7182c9b808cdda27255fd832cfa6b9dd57b3dd6",
+  "status": "HELD",
+  "stages": [
+    {
+      "name": "actual-source",
+      "startUTC": "2026-10-11T05:02:38.847131+00:00",
+      "originalPid": 90182,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-11T05:03:47.446008+00:00"
+    },
+    {
+      "name": "actual-installed",
+      "startUTC": "2026-10-11T05:03:47.446369+00:00",
+      "originalPid": 94449,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-11T05:05:09.842164+00:00"
+    },
+    {
+      "name": "e41-source",
+      "startUTC": "2026-10-11T05:05:09.842719+00:00",
+      "originalPid": 42718,
+      "exit": 2,
+      "originalJoined": true,
+      "qualified": false,
+      "finishUTC": "2026-10-11T05:06:05.404986+00:00"
+    }
+  ],
+  "wholeChangeAcceptance": "HELD",
+  "failureClass": "AssertionError",
+  "failure": "Actual flow failed; later admission stopped for original evidence inspection",
+  "finishUTC": "2026-10-11T05:06:05.405626+00:00"
+}

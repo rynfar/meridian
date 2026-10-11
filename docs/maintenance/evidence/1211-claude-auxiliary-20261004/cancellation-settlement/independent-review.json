@@ -1,0 +1,43 @@
+{
+  "reviewDate": "2026-10-04",
+  "baselineHead": "c237ab9a0d332f6cf3292fc7de2eaf0026fc2037",
+  "reviewedTest": "src/__tests__/proxy-session-tree-cancellation.test.ts",
+  "reviewedTestSha256": "3324e04a68416c06f65673c59fa7d65a7d94033d412b67db3165c0b2955b1485",
+  "reviewScope": "Complete test-only patch, original and corrected affected same-key cancellation/cleanup controls, actual stream cancel/finalizer/responseCompletion/finishRequest callers, complete report/identities/targeted logs and failed full log excerpt and totals. All six captured artifact lengths and SHA-256 values independently verified.",
+  "productionChanged": false,
+  "materialFindings": [],
+  "disposition": "No material findings; boundary-based test correction justified by source and captured first cause. Fresh full npm/typecheck/build gates remain required.",
+  "causalEvidence": {
+    "failedFullFirstStage": {
+      "pass": 5069,
+      "skip": 35,
+      "fail": 1,
+      "assertions": 26138,
+      "laterStages": "not run"
+    },
+    "failure": "Response-body cancellation returned with tracked3 after auxiliary SDK abort/main+child survival checks already passed; prior final expected tracked2 assertion failed.",
+    "actualPath": [
+      "server.ts stream cancel aborts without returning streamCompletion",
+      "async stream finally awaits abandonManagedFork and optional priorityRollbackRetirement",
+      "stream task finally resolves streamCompletion",
+      "responseCompletion.finally(finishRequest)",
+      "finishRequest releases sessionTreeRegistration"
+    ],
+    "correction": "Two-second monotonic bounded predicate observes actual registry count, yielding only while incorrect; success/throw terminates the same polling loop. Initial tracked3 assertion added; observe tracked2 before every original SDK/main/child survival assertion. Cleanup directly aborts mock SDK only after assertions, then observes tracked0 before exact-zero assertion. Legacy settle and unrelated timing assertions unchanged.",
+    "focusedReceipts": {
+      "targetedPass": 5,
+      "filtered": 12,
+      "targetedAssertions": 47,
+      "wholeFilePass": 17,
+      "wholeFileAssertions": 95,
+      "fail": 0
+    },
+    "reviewerExecutedTests": false
+  },
+  "limits": [
+    "No source edits, tests, suites, probes, models, credentials, auth or GitHub/network mutations by reviewer. Only temporary review packet written.",
+    "Focused mocked HTTP/SDK receipts are inspected evidence, not actual Linux Claude Code/installed SDK+CLI/exact served Sonnet acceptance. E71/E55 and all four E41 remain open.",
+    "No assertion that all prior SDK-mocked fixtures intercepted native auth/store boundaries; only the explicitly fenced shutdown fixture establishes that interception. Prior green/static discovery does not prove a real refresh occurred or did not occur.",
+    "Final full-suite rerun and complete final artifact manifest review not yet recorded."
+  ]
+}

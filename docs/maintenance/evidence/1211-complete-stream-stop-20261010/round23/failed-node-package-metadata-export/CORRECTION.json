@@ -1,0 +1,12 @@
+{
+  "originalSession": 93554,
+  "originalDockerBuildPid": 64714,
+  "originalJoined": true,
+  "exit": 1,
+  "failedStep": "Node SDK package metadata subpath is not exported",
+  "correctedStep": "Read public package metadata beside the supported resolved SDK entry; no SDK implementation inspected",
+  "sourceBuildCertified": true,
+  "sourceInputsUnchanged": true,
+  "sourcePackageInstallSucceeded": true,
+  "nativeQueries": 0
+}

@@ -1,0 +1,10 @@
+{
+  "bytes": 12158,
+  "sha256": "3b83df442a1e9b34131f5f516d04ab4d654176fc4c09930da06ca7a7ec86d445",
+  "mode": "0444",
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "fixture": "one actual native Agent, exact fixture SubagentHandback, correlated parent result; scripted provider responses only",
+  "scope": "Isolated no-grant/no-model native auto-mode fixture. Private public-HTTP classifier contract inspection; never SDK private-file access. Scripted allow token is tentative; fixture must actually invoke native Handback to qualify.",
+  "correction": "Use the actual public native classifier severity XML contract for harmless owned Agent/printf calls; inspect owned scripted native Handback parent/caller transport and footer binding. No real model/grant and no private SDK files."
+}

@@ -1,0 +1,20 @@
+{
+  "sourceHead": "bae7ada3995788c83f6de92e573807c447c587b5",
+  "image": "sha256:5c6c12b979458a102211392bee139ae1803c8d6d699c1d8c7d5bf6b89e5bf2d1",
+  "inputs": [
+    {
+      "path": "integrated-proxy.mjs",
+      "bytes": 14742,
+      "sha256": "b48cd3ad12186370eccd1c43d0457556e2596c31e3e025ae9ea30afcc784f05b",
+      "mode": "0444"
+    },
+    {
+      "path": "machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94",
+      "mode": "0444"
+    }
+  ],
+  "realCredentialReads": 0,
+  "modelNetworkDisabled": true
+}

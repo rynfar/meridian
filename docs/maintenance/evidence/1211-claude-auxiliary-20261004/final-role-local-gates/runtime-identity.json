@@ -1,0 +1,19 @@
+{
+  "hostUname": "Darwin 25.6.0 arm64",
+  "pythonInterpreter": {
+    "version": "3.14.6 (main, Jun 10 2026, 10:03:53) [Clang 21.0.0 (clang-2100.0.123.102)]",
+    "machine": "arm64",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "nodeProcess": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "v22.22.3"
+  },
+  "bunProcess": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "version": "1.3.14"
+  },
+  "nativeClientPlatformEstablishedByTheseGates": false
+}

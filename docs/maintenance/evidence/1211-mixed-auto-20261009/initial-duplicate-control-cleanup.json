@@ -1,0 +1,9 @@
+{
+  "atUTC": "2026-10-09T19:49:56.961040+00:00",
+  "originalParentExecSession": 65391,
+  "originalParentTerminalExit": 1,
+  "originalControlDriverExitCloseAndBothPipesJoinedBeforeFixtureRemoval": true,
+  "removedMarkedSyntheticRetainedFixtures": 1,
+  "initialFailedProofPreserved": true,
+  "nativeModelCalls": 0
+}

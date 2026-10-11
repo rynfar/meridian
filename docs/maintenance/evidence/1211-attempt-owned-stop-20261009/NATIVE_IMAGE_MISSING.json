@@ -1,0 +1,12 @@
+{
+  "atUTC": "2026-10-09T23:13:34.133355+00:00",
+  "componentCommandTerminalBeforeCreation": true,
+  "createOriginalExit": 1,
+  "noContainer": "docker inspect confirmed no such container meridian1211-component-native-source-20261009-r6",
+  "image": "sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5",
+  "imageAbsentOn": "active orbstack and local default engines; desktop-linux socket absent",
+  "noNativeQueriesOrChildrenLaunched": true,
+  "newComponentNativeCase": "UNEXECUTED",
+  "originalR5Receipts": "Remain qualified historical facts; local-image replay prerequisite currently missing",
+  "next": "Rebuild a separately identified credential-free image from current exact source/lock pins; do not call it the prior image."
+}

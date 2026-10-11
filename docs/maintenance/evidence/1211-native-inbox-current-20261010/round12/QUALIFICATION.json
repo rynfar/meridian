@@ -1,0 +1,13 @@
+{
+  "dateUTC": "2026-10-10T02:27:05.349257+00:00",
+  "priorGoalTurn": "progress: verified profile login command from current docs; no backlog mutation",
+  "changeScope": "observer, marked fixtures, pure tests and E2E documentation only",
+  "patchSHA256": "d654ed9c4b8281c27c2e2dc25c432342b7dacdf66444aad20bd89203ed3cb72e",
+  "focusedOriginalHandle": 10936,
+  "focusedExit": 0,
+  "focusedPass": 57,
+  "focusedFail": 0,
+  "typecheckOriginalHandle": 66668,
+  "typecheckExit": 0,
+  "wholeChangeAcceptance": "HELD"
+}

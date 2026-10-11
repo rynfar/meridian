@@ -1,0 +1,90 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/session-key-namespace.test.ts:
+(pass) Mapping namespace ownership > preserves ordinary unmarked main-session lookup and continuation [36.14ms]
+(pass) Mapping namespace ownership > rejects legacy authority in a namespaced lookup and leaves its bytes unchanged [3.33ms]
+(pass) Mapping namespace ownership > freshly replaces an ambiguous legacy slot without inheriting checkpoint/recovery/transcript ownership [4.76ms]
+(pass) Mapping namespace ownership > does not evict an unproven namespace or alter its synthetic transcript on cancellation [4.70ms]
+(pass) Mapping namespace ownership > fences a stale namespaced replacement and preserves the winning ordinary mapping [4.75ms]
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+(pass) Mapping namespace ownership > limits read-error memory fallback to its exact private namespace: %s [4.03ms]
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+[sessionStore] read failed: JSON Parse error: Expected '}'
+(pass) Mapping namespace ownership > limits read-error memory fallback to its exact private namespace: synthetic-keyspace:1 [3.21ms]
+
+src/__tests__/claude-code-adapter.test.ts:
+(pass) claudeCodeAdapter — identity > has name 'claude-code' [0.01ms]
+(pass) claudeCodeAdapter.getSessionId > extracts a session ID from Claude Code's JSON-string metadata [0.09ms]
+(pass) claudeCodeAdapter.getSessionId > accepts object-form metadata for compatible gateways [0.02ms]
+(pass) claudeCodeAdapter.getSessionId > keeps the key equal to session_id when parent linkage is present [0.03ms]
+(pass) claudeCodeAdapter.getSessionId > reports no parent for a root session [0.01ms]
+(pass) claudeCodeAdapter.getSessionId > falls back to fingerprinting when metadata is absent or malformed [0.06ms]
+(pass) claudeCodeAdapter.getSessionId > ignores unrelated session headers [0.02ms]
+(pass) Claude Code subagent session keys > keys the main conversation by its bare session id [0.02ms]
+(pass) Claude Code subagent session keys > keys an Agent-tool subagent by session id and agent id [0.07ms]
+(pass) Claude Code subagent session keys > gives parallel subagents distinct keys [0.06ms]
+(pass) Claude Code subagent session keys > ignores a malformed or oversized agent id [0.04ms]
+(pass) Claude Code subagent session keys > never manufactures a key from an agent id alone [0.04ms]
+(pass) Claude Code subagent session keys > roots main and subagent requests at the bare session id [0.02ms]
+(pass) Claude Code subagent session keys > declares no parent lineage for a subagent
+(pass) claudeCodeAdapter.extractWorkingDirectory > always returns undefined so the SDK falls back to a valid host path
+(pass) claudeCodeAdapter.extractWorkingDirectory > returns undefined for array system prompts too
+(pass) claudeCodeAdapter.extractWorkingDirectory > returns undefined when no system prompt is present
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > extracts CWD from a string system prompt [0.07ms]
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > extracts CWD from an array system prompt [0.05ms]
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > is case-insensitive on the 'Primary working directory:' label
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > trims trailing whitespace from the captured path
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined when the system prompt is missing
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined when the label is absent
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined for empty string system prompt
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns undefined for empty array system prompt
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > handles a system array with non-text blocks
+(pass) claudeCodeAdapter.extractClientWorkingDirectory > returns the first match when multiple Primary working directory lines exist
+(pass) claudeCodeAdapter — basic configuration surface > exposes MCP config like the other passthrough-capable adapters [0.03ms]
+(pass) claudeCodeAdapter — basic configuration surface > lists Claude Code's PascalCase core tools so they're not deferred [0.02ms]
+(pass) claudeCodeAdapter — basic configuration surface > defaults to passthrough mode and honors the disable flags [0.04ms]
+(pass) claudeCodeAdapter — basic configuration surface > skips meridian's synthetic file-change tracker (Claude Code shows its own edits)
+(pass) claudeCodeAdapter — basic configuration surface > declares concurrent turns per session key (#1043)
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > flags Write tool uses as 'wrote' [0.03ms]
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > flags Edit and MultiEdit tool uses as 'edited' [0.01ms]
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > parses redirect writes from Bash commands [0.23ms]
+(pass) claudeCodeAdapter.extractFileChangesFromToolUse > returns an empty array for tools it doesn't track [0.03ms]
+(pass) isClaudeCodeAuxiliaryRequest > recognises the classifier's shape when the request-class header is absent [0.27ms]
+(pass) isClaudeCodeAuxiliaryRequest > lets an explicit request class decide when the client sends one [0.04ms]
+(pass) isClaudeCodeAuxiliaryRequest > leaves the streaming session-start side request alone
+(pass) isClaudeCodeAuxiliaryRequest > never isolates a request that declares tools [0.01ms]
+(pass) isClaudeCodeAuxiliaryRequest > accepts omitted stage2 stops and rejects unknown supplied stops [0.03ms]
+(pass) isClaudeCodeAuxiliaryRequest > requires a Claude Code session key
+(pass) isClaudeCodeAuxiliaryRequest > rejects malformed shapes without throwing [0.02ms]
+(pass) isClaudeCodeAuxiliaryRequest > requires the classifier-specific system envelope, not ordinary XML output [0.06ms]
+(pass) isClaudeCodeAuxiliaryRequest > rejects a long malformed classifier envelope and permits empty permissions [0.08ms]
+(pass) claudeCodeAdapter.isAuxiliaryRequest > reads the request-class header from the context [0.06ms]
+
+src/__tests__/claude-subagent-isolation.test.ts:
+(pass) Claude Code Agent cancellation isolation > explicit root cancellation reaches undeclared native agents and every active classifier [836.94ms]
+(pass) Claude Code Agent cancellation isolation > keeps undeclared native agents alive when the main request signal closes [1141.18ms]
+(pass) Claude Code Agent cancellation isolation > keeps undeclared native agents alive when the main response body closes [1165.36ms]
+(pass) Claude Code Agent cancellation isolation > explicit scoped-agent cancellation leaves the main and sibling mappings untouched [2243.60ms]
+(pass) Claude Code Agent key and checkpoint isolation > resumes an ordinary arbitrary raw main ID from its unmarked legacy checkpoint [284.88ms]
+(pass) Claude Code Agent key and checkpoint isolation > separates a native agent from a bare main ID matching the old derived string [1094.25ms]
+(pass) Claude Code Agent key and checkpoint isolation > keeps a subagent classifier refusal from evicting the main and sibling checkpoints [1637.75ms]
+(pass) Claude Code Agent key and checkpoint isolation > replays an unmarked legacy reserved-key collision without inheriting its checkpoint or transcript [835.30ms]
+
+src/__tests__/claude-code-session-identity.test.ts:
+(pass) Claude Code internal session identity > separates the old derived/bare collision without changing ordinary main keys [0.16ms]
+(pass) Claude Code internal session identity > escapes a main ID equal to a reserved agent key into a disjoint main key [0.06ms]
+(pass) Claude Code internal session identity > preserves separator, quote, slash, Unicode and NUL distinctions [0.06ms]
+(pass) Claude Code internal session identity > produces scalar-safe agent tuples even when the raw root contains NUL [0.05ms]
+(pass) Claude Code internal session identity > falls malformed headers back to the same escaped main key [0.02ms]
+(pass) Claude Code internal session identity > keeps account root affinity while requiring namespace ownership only on reserved keys [0.08ms]
+(pass) Claude Code internal session identity > preserves a raw public root-cancel alias and declared main ancestry [0.05ms]
+(pass) Explicit conversation cancellation is separate from automatic ancestry > reaches native agents only for explicit root cancellation, with private leaves once [0.18ms]
+(pass) Explicit conversation cancellation is separate from automatic ancestry > prefers an exact live raw root over another agent's equal-looking cancel alias [0.05ms]
+
+ 70 pass
+ 0 fail
+ 316 expect() calls
+Ran 70 tests across 4 files. [9.72s]

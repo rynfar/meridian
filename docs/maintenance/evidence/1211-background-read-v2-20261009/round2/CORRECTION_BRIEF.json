@@ -1,0 +1,26 @@
+{
+  "priorObserverHead": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+  "priorNativeOutcomes": {
+    "baseline": "FAIL_NATIVE_RECEIPTS",
+    "source": "FAIL_NATIVE_RECEIPTS",
+    "installed": "UNEXECUTED"
+  },
+  "priorResultsRemainUnchanged": true,
+  "bothReadReportsObservedInBothPriorArms": true,
+  "correction": "Qualify only the measured cap-four counter-five first-handoff/three-single-tool-drops pattern for SDK 0.2.141/native 2.1.284 or 2.1.295; retain existing tuple, full generation IDs, exact native flag/reason, original HTTP/hook and all product/custody guards. Original foreground/strict background predicates and production caps remain unchanged.",
+  "nativeControls": {
+    "source": "../pr1211-native-turn-counter-cap4-source-20261009-round1/QUALIFICATION.json",
+    "installed": "../pr1211-native-turn-counter-cap4-installed-20261009-round1/QUALIFICATION.json",
+    "totalQueries": 16,
+    "directApiRequests": 50,
+    "realCredentialReads": 0,
+    "sourceInstalledExactGenerationBinding": true
+  },
+  "focusedGates": {
+    "pass": 12,
+    "fail": 0,
+    "expects": 233,
+    "typecheckExit": 0
+  },
+  "next": "Commit narrow correction, run full final local gates, then new zero-query and actual baseline/source/installed cohort; no unexplained green rerun or prior negative reclassification."
+}

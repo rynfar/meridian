@@ -1,0 +1,383 @@
+{
+  "kind": "native-valid-json-complexity-control",
+  "guardMode": "owned-stop",
+  "actualModelAcceptance": false,
+  "actualClientAcceptance": false,
+  "platform": "linux/x64",
+  "bun": "1.3.11",
+  "cases": [
+    {
+      "name": "json-items-8-legacy-false",
+      "inputElements": 8,
+      "jsonInputBytes": 40,
+      "completeInputPreserved": true,
+      "eofDelayMs": 0,
+      "stream": false,
+      "tools": 1,
+      "httpRequests": 2,
+      "nativeApiRounds": 2,
+      "interrupt": {
+        "mode": "non_stream",
+        "acknowledged": true,
+        "qualified": true,
+        "generations": 1,
+        "tools": 1
+      },
+      "publishedCheckpointUuidPresent": true,
+      "distinctDurableFork": true,
+      "realResultsExactlyOnce": true,
+      "noDenialTail": true,
+      "originalPublicHistoryUnchanged": true,
+      "nativeActorCensusEmpty": true
+    },
+    {
+      "name": "json-items-16380-legacy-false",
+      "inputElements": 16380,
+      "jsonInputBytes": 87194,
+      "completeInputPreserved": true,
+      "eofDelayMs": 0,
+      "stream": false,
+      "tools": 1,
+      "httpRequests": 2,
+      "nativeApiRounds": 2,
+      "interrupt": {
+        "mode": "non_stream",
+        "acknowledged": true,
+        "qualified": true,
+        "generations": 1,
+        "tools": 1
+      },
+      "publishedCheckpointUuidPresent": true,
+      "distinctDurableFork": true,
+      "realResultsExactlyOnce": true,
+      "noDenialTail": true,
+      "originalPublicHistoryUnchanged": true,
+      "nativeActorCensusEmpty": true
+    }
+  ],
+  "outcome": "FAIL",
+  "realCredentialReads": 0,
+  "sdkVersion": "0.2.141",
+  "nativeVersion": "2.1.284",
+  "identity": {
+    "targetKind": "source",
+    "runtimeBuildHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+    "currentCodeHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+    "coreSha256": "2bb9025ee1c122a541e0c9f9c17df733f3f752a985776501bc69ea5ad31440d9",
+    "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+    "nativeSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+    "actualNativeVersionMatched": true
+  },
+  "errorClass": "AssertionError",
+  "failure": "proxy HTTP request failed\n\n500 !== 200\n",
+  "cleanup": {
+    "admissionClosed": true,
+    "providerBodiesJoined": true,
+    "requestsSettled": true,
+    "backendClosed": true,
+    "listenerClosed": true,
+    "nativeActorCensusEmpty": true,
+    "residualNativeActors": [],
+    "privateRuntimeRemoved": true
+  },
+  "independentCheckpointObservers": [
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": true,
+      "calls": 1,
+      "acknowledged": true,
+      "controlSettled": true,
+      "iteratorErrorMatched": true,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": true,
+      "hookResultsMatch": true,
+      "denialResults": 1,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 1,
+      "terminalReason": "aborted_tools",
+      "fault": null,
+      "qualified": true
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": true,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": null,
+      "qualified": false
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": true,
+      "calls": 1,
+      "acknowledged": true,
+      "controlSettled": true,
+      "iteratorErrorMatched": true,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": true,
+      "hookResultsMatch": true,
+      "denialResults": 1,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 1,
+      "terminalReason": "aborted_tools",
+      "fault": null,
+      "qualified": true
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": true,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": null,
+      "qualified": false
+    },
+    {
+      "protocol": "owned-interrupt-v1",
+      "requested": false,
+      "calls": 0,
+      "acknowledged": false,
+      "controlSettled": true,
+      "iteratorErrorMatched": false,
+      "iteratorSettled": true,
+      "closeObserved": true,
+      "closeFailed": false,
+      "completeGeneration": false,
+      "hookResultsMatch": false,
+      "denialResults": 0,
+      "denialResultsBeforeHookSettlement": 0,
+      "generations": 1,
+      "tools": 0,
+      "terminalReason": null,
+      "fault": "metadata",
+      "qualified": false
+    }
+  ],
+  "requests": [
+    {
+      "case": "json-items-8-legacy-false",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    },
+    {
+      "case": "json-items-8-legacy-false",
+      "phase": "continue",
+      "toolResults": 1,
+      "errorResults": 0
+    },
+    {
+      "case": "json-items-16380-legacy-false",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    },
+    {
+      "case": "json-items-16380-legacy-false",
+      "phase": "continue",
+      "toolResults": 1,
+      "errorResults": 0
+    },
+    {
+      "case": "json-items-16384-legacy-false",
+      "phase": "tool",
+      "toolResults": 0,
+      "errorResults": 0
+    }
+  ],
+  "qualifiedInterruptions": [
+    {
+      "mode": "non_stream",
+      "acknowledged": true,
+      "qualified": true,
+      "generations": 1,
+      "tools": 1
+    },
+    {
+      "mode": "non_stream",
+      "acknowledged": true,
+      "qualified": true,
+      "generations": 1,
+      "tools": 1
+    }
+  ],
+  "queryDiagnostics": [
+    {
+      "case": "json-items-8-legacy-false",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 3993.234,
+      "interruptRequestedMs": 5426.834,
+      "interruptAcknowledgedMs": 5440.9,
+      "terminal": {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "nativeTurns": 2,
+        "publicReasonCode": "aborted_tools",
+        "errors": [
+          {
+            "characters": 35,
+            "sha256": "4efbf7e9138e75c121468762a53f3018bf8c6864587a3e7f43bf2376659487b6",
+            "ownedFixturePublicText": "Reached maximum number of turns (1)"
+          }
+        ],
+        "observedMs": 5514.379
+      },
+      "iteratorError": {
+        "characters": 73,
+        "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+        "ownedFixturePublicText": "Claude Code returned an error result: Reached maximum number of turns (1)"
+      },
+      "iteratorSettledMs": 5642.908
+    },
+    {
+      "case": "json-items-8-legacy-false",
+      "phase": "continue",
+      "maxTurns": 1,
+      "resumed": true,
+      "fork": true,
+      "admittedMs": 5759.868,
+      "terminal": {
+        "subtype": "success",
+        "isError": false,
+        "nativeTurns": 1,
+        "publicReasonCode": "completed",
+        "errors": [],
+        "observedMs": 7344.371
+      },
+      "iteratorSettledMs": 7432.435
+    },
+    {
+      "case": "json-items-16380-legacy-false",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 7488.866,
+      "interruptRequestedMs": 9014.218,
+      "interruptAcknowledgedMs": 9053.937,
+      "terminal": {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "nativeTurns": 2,
+        "publicReasonCode": "aborted_tools",
+        "errors": [
+          {
+            "characters": 35,
+            "sha256": "4efbf7e9138e75c121468762a53f3018bf8c6864587a3e7f43bf2376659487b6",
+            "ownedFixturePublicText": "Reached maximum number of turns (1)"
+          }
+        ],
+        "observedMs": 9072.44
+      },
+      "iteratorError": {
+        "characters": 73,
+        "sha256": "14dca7daa480fa1f61b6deb63d8920d226936c0cfedca6f826aec8df168176ba",
+        "ownedFixturePublicText": "Claude Code returned an error result: Reached maximum number of turns (1)"
+      },
+      "iteratorSettledMs": 9120.39
+    },
+    {
+      "case": "json-items-16380-legacy-false",
+      "phase": "continue",
+      "maxTurns": 1,
+      "resumed": true,
+      "fork": true,
+      "admittedMs": 9227.997,
+      "terminal": {
+        "subtype": "success",
+        "isError": false,
+        "nativeTurns": 1,
+        "publicReasonCode": "completed",
+        "errors": [],
+        "observedMs": 10921.945
+      },
+      "iteratorSettledMs": 10947.14
+    },
+    {
+      "case": "json-items-16384-legacy-false",
+      "phase": "tool",
+      "maxTurns": 1,
+      "resumed": false,
+      "fork": false,
+      "admittedMs": 11036.908,
+      "iteratorSettledMs": 12394.199
+    }
+  ],
+  "providerBodies": [
+    {
+      "case": "json-items-8-legacy-false",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 5348.672,
+      "bodyClosedMs": 5350.927,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "json-items-8-legacy-false",
+      "phase": "continue",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 7233.782,
+      "bodyClosedMs": 7233.867,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "json-items-16380-legacy-false",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 8831.925,
+      "bodyClosedMs": 8832.015,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "json-items-16380-legacy-false",
+      "phase": "continue",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 10781.556,
+      "bodyClosedMs": 10781.682,
+      "bodyCancelledMs": null
+    },
+    {
+      "case": "json-items-16384-legacy-false",
+      "phase": "tool",
+      "configuredEOFDelayMs": 0,
+      "messageStopWrittenMs": 12349.463,
+      "bodyClosedMs": 12349.839,
+      "bodyCancelledMs": null
+    }
+  ],
+  "liveFailureCauseEstablished": false,
+  "priorLiveFailurePreserved": true,
+  "completedAt": "2026-10-10T05:26:55.076Z"
+}

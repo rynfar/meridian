@@ -1,0 +1,83 @@
+# Claude Code native Agent layer (#1231)
+
+Prepared correction of [source #1231](https://github.com/rynfar/meridian/pull/1231), stacked on the corrected [auxiliary delivery #1279](https://github.com/rynfar/meridian/pull/1279). Native affected-flow acceptance remains open. No real model calls, credential discovery/refresh, private SDK transcript reads or releases were performed in this layer.
+
+## Final parent continuation — 2026-10-05
+
+The layer is rebased onto finalized auxiliary parent `e731a2dfae4931d0c7718e99098cc4ab4a3355a2`
+([#1279](https://github.com/rynfar/meridian/pull/1279)); the exact rebased source
+head is `1f754311a28fb148de5b04127761c2bb13d849d2`. [The supplemental rebase receipt](final-parent/REBASE.json)
+verifies all 139 non-`E2E.md` child paths and all 16 original Author/AuthorDate/subject
+triples. The only conflicts were adjacent E71/E72 table rows; the complete parent
+E71 and child E72 sections were retained. The small current-status qualification
+below records that parent E71 witness design is now settled while E72 mixed-flow
+acceptance remains open. All historical receipts and raw failures retain their
+original heads, source hashes and results. Maintainer corrections stay separate.
+
+| Original contributor commit | Final-parent authored incorporation |
+| --- | --- |
+| `28974dca1d7d2aa1f3bf0067fd97b4120938fbeb` | `9e81e4ca7e95dd762b07b2eb3a49e480a500bcfd` |
+| `91f70e64aca345da4e7e3c51efa382a11d57749a` | `683e8fefb8d2552eb2e142db0c43860983fff213` |
+| `78b40833d20b86204cfa0fdd4e15cd43f8c63a97` | `c0ec5e2a6b0fb84b318b4a9de757082e54cf59c3` |
+| `cb8d1a59a103e006359e048a9d0275cf814351ee` | `04bd6d0eeba55189315cafe8540890ccbea3b004` |
+| `50d4a59d0ca5e55e625ec801fa2a9eb187d508ed` | `f03928f8cc511624de0503642954c0f0492fe9cf` |
+
+Parent E71 now has separate exact main/classifier requested and served pins and
+an actual-target request-context witness. Its current test is `64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737`;
+older `b58d12c7` controls remain qualified to their recorded snapshot. E72's
+foreground source/test bytes remain `a4abef7637160466007d51ae37642e4947ab05a2aff2927ab35041fd94e4417a`
+and `a8fe98331b604562f1ced01c46082557c8b21bf21dc029e3f06953bcbdabe357`.
+The same five snapshot controls fail before and pass after, and the corrected
+complete synthetic harness has 27 passes / 913 assertions; those recorded checks
+precede this rebase. Fresh focused/full local gates now pass at exact clean
+`aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7`: **5,502 pass / 36 skips / 0 failures / 29,310 assertions**
+across 19 npm stages, separate typecheck and a verified certified build with
+409 matching dist artifacts. [The terminal gate escrow](final-parent/REPORT.md)
+retains all original logs, source freeze, actual Darwin/arm64 Node/Bun identities
+and independent audit. These checks and build identify tested `aff1f201`, with
+later delivery changes limited to maintenance evidence. Required exact final-head
+CI and actual Linux/client/SDK/model E72, mixed-flow, cancellation and E41 gates
+remain open.
+
+## Source boundary and contributor credit
+
+Exact contributor source `50d4a59d0ca5e55e625ec801fa2a9eb187d508ed`, GitHub base `f299fe06e72411b786380b5212edea79cd13966a`, dependency #1211 `22566e8ac0b9e079bb0d28c0eb4aa05207c56070`. The complete source diff is 15 files/10 commits; only the five actual #1231 layer commits (11 files) were cherry-picked, so the corrected dependency was not overwritten. The initial layer baseline is `076b249fd55db84ffde546a4f6bf5211efffbf69` on corrected parent `80d1ce8158dc7cd466a87863404bf6ea02754c8b`.
+
+| Source commit | Initial authored incorporation |
+| --- | --- |
+| `28974dca1d7d2aa1f3bf0067fd97b4120938fbeb` | `9b92078120f8a3202b358ce5b08adca454a77202` |
+| `91f70e64aca345da4e7e3c51efa382a11d57749a` | `890b52b18a0bb3111fabc86ded755208dea71566` |
+| `78b40833d20b86204cfa0fdd4e15cd43f8c63a97` | `a9ab5f503dbb48a41ec592d944ba574705f072cb` |
+| `cb8d1a59a103e006359e048a9d0275cf814351ee` | `c7567b020eec2d5758a34d4fe2a5dfbd190ec1ab` |
+| `50d4a59d0ca5e55e625ec801fa2a9eb187d508ed` | `076b249fd55db84ffde546a4f6bf5211efffbf69` |
+
+Noah Passalacqua's Author and AuthorDate are preserved on all five commits. Maintainer corrections are separate. Final-parent rebase mappings are recorded in the continuation above. The child delivery targets the open parent branch rather than main.
+
+## Material findings and corrections
+
+1. **Explicit root cancellation regressed.** Splitting one raw root into agent keys removed undeclared native agents from the old root cancellation target. A separate live explicit-cancel group now reaches the main, native agents and their private auxiliary leaves. Automatic HTTP-abort propagation still follows declared ancestry only, preserving intentional undeclared background-agent independence. Scoped cancellation reaches only that agent and its auxiliary leaves; unrelated sibling/main mappings and work survive.
+2. **Concatenated agent keys collide.** A native `(root=s, agent=a)` previously shared `s:agent:a` with an arbitrary bare main ID. The reserved printable `meridian-claude-code:1:` JSON tuple namespace now separates these identities; ordinary main IDs and their existing cache/routing keys remain unchanged. Reserved-prefix main IDs escape into a separate main tuple. The optional durable `keyNamespace` marker requires exact ownership equality for lineage, checkpoints and recovery. A mismatched legacy reserved slot starts fresh and can publish only under its observed CAS generation; replacement does not inherit prior SDK IDs, checkpoints or transcript locators. Atomic namespace-aware eviction cannot delete an unproven mapping. No private history migration is attempted; independently recorded lifecycle ownership remains governed by the existing GC journal. An initial literal-NUL prefix was removed after the actual SQLite scalar boundary rejected it; raw NUL within agent tuple values is JSON-escaped rather than placed in the scalar key.
+3. **Native E72 was unsafe and insufficient.** The maintained harness requires explicit immutable owner fixtures, target/client/SDK/native identities, bounded cost/query/time/output, complete protocol receipts and joined cleanup. Synthetic successes are not native acceptance. Separate static review caught SDK passthrough-name normalization, streaming request-lifetime counting, tool-result causal ordering, actual SDK alias/version-pin dialect gaps and uncorrelated tool-less final/resume rows; the harness lane preserves discriminating controls and limitations.
+4. **Dependency guards must survive.** The corrected official classifier system envelope, header authority, read-only priority placement, no mapping/checkpoint/recovery borrowing and private auxiliary cancellation leaf remain intact. The added classifier fixture uses that actual recognized system block, including stage-two omitted stops with nonstreaming requests.
+
+Internal adapter exports are outside the published package root/type graph: no public plugin registration, ProxyConfig/lifecycle or HTTP field is added. Review caught an initial optional ownership field reaching the published `SessionState`/`LineageResult` graph; it was removed and replaced with a private cache WeakMap, with exact-namespace read-error fallback controls. Public lineage state, metadata and cancellation response shapes are unchanged. The old `parent_session_id` cannot distinguish native agent parents sharing a raw root; declared main-session ancestry is preserved and no missing parent-agent wire signal is invented. A live raw-root cancellation alias takes precedence over an equal-looking scoped key. Cross-client/profile string namespaces are not redesigned. Reserved legacy IDs may fresh replay; this is the explicit narrow compatibility limit, not an authentication boundary.
+
+The separate SQLite branch must reconcile the optional `keyNamespace` field in exact codecs and facade ports before integration. Its opt-in contract is owner-approved in [#1277](https://github.com/rynfar/meridian/issues/1277); integration and native acceptance remain held. This layer does not accept or implement that branch.
+
+## Executed local evidence
+
+[Credentialless HTTP before/after controls](http-controls/REPORT.md) use the exact same final test against immutable initial layer `076b249f` and the corrected working snapshot: three baseline behavioral failures (missing four agent/auxiliary cancel targets, bare-main mapping collision, inherited unmarked previous SDK authority), then **8 passed / 144 assertions**. Failed baseline cleanup also completed; failures were not timeouts. An added legacy-main fixture assertion was corrected to recognize the existing managed-fork publication behavior, with its original failed log retained.
+
+Direct [identity/tree tests](../../../../src/__tests__/claude-code-session-identity.test.ts) and existing adapter/tree/namespace controls passed **77 / 208 assertions** after removing redundant self-comparisons. [Generic namespace tests](../../../../src/__tests__/session-key-namespace.test.ts) then passed **7 / 40 assertions**, adding malformed-store read-error fallback under exact private ownership and cross-namespace rejection without exposing a public marker. Existing concurrency controls passed **30 / 168 assertions**, declared cancellation **17 / 95**, sticky routing **5 / 15**, and priority routing **76 / 395**. After the printable-prefix correction, identity/adapter/namespace/HTTP controls passed **70 / 316 assertions**; the same direct no-NUL producer assertion failed before and passed after. [Sanitized local logs and identities](local-controls/artifact-manifest.json) retain each bounded run and its limits.
+
+[The actual unchanged SQL scalar validator](local-controls/sql-representability.json) also accepts both corrected scoped-agent keys and raw embedded-NUL tuple values. [Its exact probe](local-controls/sql-representability.ts) and [output](local-controls/sql-validator-after.log) preserve producer and validator identities. This probe imports two explicitly recorded review worktrees; it does not load a database, exercise a complete codec/facade port, or establish SQL/native acceptance. Ordinary nonreserved main IDs remain byte-identical, including preexisting unusual raw IDs; the producer control concerns derived tuple keys.
+
+[Prepared E72 harness controls](harness-controls/REPORT.md) pass **22 tests / 844 assertions**, with fake SDK/client/target fixtures, no real grants and `acceptance: false`. An initial standalone typecheck at `482ec2c5` caught the HTTP fixture's missing `blockStop` index. The fixture now explicitly closes block 0; the HTTP controls again pass **8 / 144 assertions** and standalone `npm run typecheck` passes at `6e7ee9f4`. Original and corrected logs are retained. The historical focused controls precede final-parent validation; current full npm/typecheck/build and independent audit are recorded in the continuation and terminal gate escrow above. All executed local controls are synthetic facts, not native client/model proof.
+
+The current E72 script assumes every wire/SDK/served query has the main model identity. Its foreground command uses default permission mode with preallowed Agent/Bash tools, and does not establish mixed auto-mode behavior. The official 2.1.286 classifier selector can choose `claude-sonnet-5` for a `claude-sonnet-5-5` main and later fall back to the main model. If actual ancillary/classifier traffic appears, it needs a role-aware, exact per-request model witness rather than the universal-main assumption. This is an open mixed-auto/ancillary acceptance gate; no foreground harness alteration is required when the actual scenario emits no classifier. The finalized parent E71 role-aware witness and controls are settled. Any E72 carry-over remains separately held for the actual mixed-flow qualification. Existing synthetic controls do not close the mixed-flow gate.
+
+[Independent source review](independent-review/INDEPENDENT_REVIEW.md) at exact `be60a60b` identifies no additional material production finding after the private-state, printable-key and explicit-root corrections. Its twelve source/test hashes still match, and the five actual contributor author/date tuples are preserved. The receipt remains qualified: no final-parent/full/CI/native acceptance is inferred from this read-only review.
+
+## Remaining acceptance gates
+
+Actual Linux x64 / Claude Code CLI 2.1.287 / target-installed SDK 0.2.141 / exact implicated requested and served Sonnet identity; unchanged-baseline and corrected E72 receipts; background child/main overlap; mixed auto-mode classifier and native Agent traffic; explicit root/scoped/nested cancellation and incidental parent abort independence; affected E41 four-mode proof; required exact final-head CI. Current-parent local gates are recorded above. Historical contributor observations used a `sonnet` alias and did not escrow the exact served model/native executable, so they cannot replace current proof. Background/fork-main first request still replays its inherited snapshot; later requests use their own scoped chain. Source #1231 stays open and no release is authorized.

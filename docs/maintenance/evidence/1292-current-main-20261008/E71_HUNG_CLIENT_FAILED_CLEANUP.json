@@ -1,0 +1,14 @@
+{
+  "acceptance": false,
+  "privateRuntimeRemoved": false,
+  "ownedResidualProcesses": 0,
+  "cleanupFailures": [
+    "client signal",
+    "unjoined owned work",
+    "private runtime retained after cleanup failure"
+  ],
+  "relayOperationsJoined": true,
+  "httpReceiptsJoined": true,
+  "pendingHttpReceipts": 0,
+  "pendingRelayHandlers": 0
+}

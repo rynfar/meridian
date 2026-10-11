@@ -1,0 +1,50 @@
+{
+  "pid": 49030,
+  "startUTC": "2026-10-11T04:49:41.344137+00:00",
+  "cases": [
+    {
+      "target": "source",
+      "matrix": "inputs",
+      "startUTC": "2026-10-11T04:49:41.345057+00:00",
+      "originalPid": 49035,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-11T04:50:25.067605+00:00"
+    },
+    {
+      "target": "installed",
+      "matrix": "inputs",
+      "startUTC": "2026-10-11T04:50:25.067843+00:00",
+      "originalPid": 61056,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-11T04:51:11.798326+00:00"
+    },
+    {
+      "target": "source",
+      "matrix": "eof",
+      "startUTC": "2026-10-11T04:51:11.798608+00:00",
+      "originalPid": 65442,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-11T04:51:57.478537+00:00"
+    },
+    {
+      "target": "installed",
+      "matrix": "eof",
+      "startUTC": "2026-10-11T04:51:57.478769+00:00",
+      "originalPid": 69178,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-11T04:52:53.492611+00:00"
+    }
+  ],
+  "status": "PASS_ALL_FOUR_CHANGED_MATRICES",
+  "realCredentialReads": 0,
+  "wholeChangeAcceptance": "HELD",
+  "finishUTC": "2026-10-11T04:52:53.493005+00:00"
+}

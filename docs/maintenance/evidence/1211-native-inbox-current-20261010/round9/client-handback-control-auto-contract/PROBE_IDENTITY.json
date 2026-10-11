@@ -1,0 +1,10 @@
+{
+  "bytes": 11326,
+  "sha256": "e2a8aa671f0bd132d16be39f8e0f4ba154167e738c71610761b5cde6bd983590",
+  "mode": "0444",
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "fixture": "one actual native Agent, exact fixture SubagentHandback, correlated parent result; scripted provider responses only",
+  "scope": "Isolated no-grant/no-model native auto-mode fixture. Private public-HTTP classifier contract inspection; never SDK private-file access. Scripted allow token is tentative; fixture must actually invoke native Handback to qualify.",
+  "correction": "Explicit foreground Agent input, plus bounded owned scripted-fixture public tool output; no credentials, real generated text or private transcript file access."
+}

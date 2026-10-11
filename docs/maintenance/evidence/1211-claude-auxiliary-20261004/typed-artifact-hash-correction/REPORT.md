@@ -1,0 +1,9 @@
+# Explicit compiled artifact hash guard
+
+The initial full `npm test` at clean `72b766b497eaf96069c6633499ac813e58908e1d` stopped in pretest typecheck (exit2), before any suite. Two TS2769 diagnostics at the new helper line161 rejected `string | undefined` manifest values passed to string equality assertions. [Original raw log](npm-test.log.gz), [result](npm-test-result.json) and [freeze](freeze.json) preserve the exact failure/source.
+
+The separate maintainer correction obtains both selected artifact hashes, rejects nonstring/missing values with an explicit runtime guard, then retains the original digest equality assertions. It changes no harness production path, model/ownership/cleanup criterion or native gate. No cast, suppression, nonnull assertion or test expectation is added to bypass typing. Corrected test SHA256 is64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737; script e2f and E71 instructions f441 are unchanged. Exact before/after code is in the compressed patch and corrected test snapshot, resolved through the root archive map.
+
+Standalone typecheck passed. The focused actual source and existing certified80d compiled HTTP controls passed2tests/72assertions, with32cases filtered, in5.70seconds. All eight positive/swap/unmatched/duplicate receipts and exact runners are retained; SDK/auth/executable discovery is mocked and external traffic fenced. [Focused log](focused-explicit-hash-guard.log.gz) and [result](focused-explicit-hash-guard-result.json) retain exact commands. This subset is not the complete focused suite or a substitute for the required full npm rerun. The earlier34/1124 record applies to b58 before this guard.
+
+Fresh full npm/typecheck/build on the clean correction commit and final-head CI remain pending here. Actual Linux/client/SDK/native/model acceptance remains open. No native/auth/model call or GitHub mutation occurred.

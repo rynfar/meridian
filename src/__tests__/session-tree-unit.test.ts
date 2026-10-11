@@ -101,6 +101,27 @@ describe("SessionTreeRegistry — registration and settle-removal", () => {
 })
 
 describe("SessionTreeRegistry — subtree computation", () => {
+  it("keeps a private auxiliary leaf reachable once through either declared parent", () => {
+    const registry = new SessionTreeRegistry()
+    const { aborted, entry } = tracker()
+    const main = registry.register(entry("main", "conversation", "ancestor"))
+    const auxiliary = registry.register({
+      ...entry("auxiliary", "private-request", "conversation"),
+      additionalParentKey: "ancestor",
+    })
+    expect(registry.cancelDescendants("ancestor").requestIds).toEqual(["main", "auxiliary"])
+    expect(aborted.map(value => value.requestId)).toEqual(["main", "auxiliary"])
+    expect(registry.cancelDescendants("private-request").requestIds).toEqual([])
+    main.release()
+    expect(registry.cancelDescendants("ancestor").requestIds).toEqual(["auxiliary"])
+    expect(registry.cancelDescendants("conversation").requestIds).toEqual(["auxiliary"])
+    auxiliary.release()
+    auxiliary.release()
+    expect(registry.stats().tracked).toBe(0)
+    expect(registry.descendantsOf("ancestor")).toEqual([])
+    expect(registry.descendantsOf("conversation")).toEqual([])
+  })
+
   it("walks a multi-level tree transitively, nearest level first", () => {
     const registry = new SessionTreeRegistry()
     const { entry } = tracker()

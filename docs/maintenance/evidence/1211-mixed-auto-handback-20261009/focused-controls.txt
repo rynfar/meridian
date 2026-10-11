@@ -1,0 +1,38 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/e72-mixed-auto.test.ts:
+(pass) mixed auto observer structural controls > distinguishes name normalization, changed inputs and missing owners without exposing payloads [5.81ms]
+(pass) mixed auto observer structural controls > requires the native system envelope, exact root and bounded classifier shape [1.44ms]
+(pass) mixed auto observer structural controls > quotes owned paths and rejects malformed directory inputs [4.03ms]
+(pass) mixed auto observer structural controls > physically joins both successful and rejected relay handlers [3.14ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > binds interleaved classifiers to independent sessions while preserving parent/child chains [3099.05ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > requires two final child handbacks with exact reports delivered to their own parent Agent results [5265.07ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > preserves the original mixed-v1 rejection of extra handback calls [1648.46ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation missingHandback [2030.49ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation wrongHandbackMessage [1584.47ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation handbackNotDelivered [2352.71ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation handbackNotFinal [1328.77ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation duplicateHandback [1282.18ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation handbackRecipient [1276.82ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation unknownClosingTool [1191.15ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation undeclaredHandback [1268.75ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects handback contract violation sharedParentReport [1256.36ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects wrongClassifierModel [1264.53ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects borrowedClassifierSession [1406.46ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects classifierNotIsolated [3527.01ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects classifierWait [2368.95ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects noClassifiers [1448.30ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects forgedClassifier [1531.82ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects missingWrite [1399.05ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects changedCommand [1308.57ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects noLoggerContext before accepting SDK ownership [1159.02ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects duplicateQuery before accepting SDK ownership [1151.22ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > retains failed acceptance and diagnoses unexpectedClientTool [1650.33ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > retains failed acceptance and diagnoses changedClientToolName [1349.69ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > retains failed acceptance and diagnoses changedClientToolInput [1917.81ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > holds restoration and the fixture when a rejected duplicate leaves an unconsumed SDK query [1199.76ms]
+
+ 30 pass
+ 0 fail
+ 368 expect() calls
+Ran 30 tests across 1 file. [47.04s]

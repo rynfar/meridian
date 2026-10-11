@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "historicalRecognizerSha256": "1fd752fb4b120d6505e6056bf8c81f00aae3b52cc7eddf4770263046244d4d43",
+  "currentRecognizerSha256": "a2e6f3513c17c12d604455058046912baa1b728fa3d5c4749db0a4354733bf2b",
+  "historicalActualWireFalseNegativeReproduced": true,
+  "currentActualWireRecognized": true,
+  "existingAndNegativeBoundariesPreserved": true,
+  "requestUnchanged": true,
+  "modelCalls": 0,
+  "nativeChildren": 0,
+  "scope": "Exact extracted observer functions on the preserved native wire shape; no live acceptance claim"
+}

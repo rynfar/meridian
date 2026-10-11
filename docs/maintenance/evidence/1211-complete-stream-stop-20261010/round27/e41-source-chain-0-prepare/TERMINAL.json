@@ -1,0 +1,22 @@
+{
+  "phase": "prepare",
+  "mode": "chain",
+  "stream": false,
+  "qualified": false,
+  "exit": 1,
+  "originalDriverPid": 25061,
+  "originalAttachPid": 25064,
+  "originalAttachJoined": true,
+  "hostDeadlineExceeded": false,
+  "ownedContainerRemoved": true,
+  "sourceGrantUnchanged": null,
+  "taskGrantUnchanged": true,
+  "taskGrantRemoved": true,
+  "ownedRuntimeRemoved": true,
+  "queries": 0,
+  "costUsd": 0,
+  "failureClass": "KeyError",
+  "firstFailure": "ENOENT: no such file or directory, open '/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs'",
+  "finishedUTC": "2026-10-10T04:46:30.432178+00:00",
+  "wholeChangeAcceptance": "HELD"
+}

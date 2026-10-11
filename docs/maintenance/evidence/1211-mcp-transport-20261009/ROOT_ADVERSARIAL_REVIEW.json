@@ -1,0 +1,57 @@
+{
+  "atUTC": "2026-10-09T12:19:54.570159+00:00",
+  "currentCodeHead": "69374accc89cbe00d8173db589a29c968b37ffd8",
+  "dependencySource1283": "571a671676d6b8604cde932199d77c34bc6a46f3",
+  "authoredIncorporation": "52965e1139b443139976bff93c8d482affdae335",
+  "review": "Root complete current dependency production diff, every buildQueryOptions caller/retry loop, cached-definition lifetime, pure options/schema and HTTP caption tests, source transport before/after+shared/cancellation/cleanup controls, fresh certified image/package identity. No new delegated round; prior independent1283 reviews retain their scopes.",
+  "findingResolved": "Original caption test expected one cached server. New contract caches definitions and gives every query an independent server. Concrete failed full suite is retained; corrected42cases/274assertions preserves main definition identity and independent caption definition ownership.",
+  "remainingScopedSourceBlockers": [],
+  "productionChanges": "passthroughTools caches immutable definitions/factory; query constructs per-attempt server; server comments reflect new cached object. Every streaming/nonstreaming retry rebuilds options inside its attempt loop. No exported plugin/API contract changed.",
+  "nativeFixtureScope": "Real SDK/native backend and local scripted API only; no affected external model/client acceptance. Original ChildProcess close/iterator/listener facts retained; no global descendant or per-pipe witness beyond the native close contract claimed.",
+  "focusedChecks": {
+    "mcpProtocolSchemaCoercion": {
+      "pass": 14,
+      "assertions": 39
+    },
+    "queryOptions": {
+      "pass": 93,
+      "assertions": 162
+    },
+    "toolCacheHttp": {
+      "pass": 8,
+      "assertions": 30
+    },
+    "captionConcurrencyCorrected": {
+      "pass": 42,
+      "assertions": 274
+    }
+  },
+  "buildAndTypecheck": {
+    "head": "69374accc89cbe00d8173db589a29c968b37ffd8",
+    "exit": 0
+  },
+  "fullCurrentSuite": {
+    "head": "69374accc89cbe00d8173db589a29c968b37ffd8",
+    "pass": 5774,
+    "skip": 35,
+    "fail": 0,
+    "isolatedBatches": 22,
+    "pretest": true,
+    "originalPid": 82600,
+    "originalChildJoined": true
+  },
+  "priorE71E72E41E55LiveProofs": "Prior E71/E72/E41 retain their explicit earlier heads. Current E55 source and installed frames are independently qualified at image15f; this does not establish actual-client E67 or shared MCP readiness per native inference.",
+  "wholeChange": "HELD",
+  "currentE55": {
+    "sourceAndInstalledAssertions": 11,
+    "eachQueries": 5,
+    "eachActualClientInvocations": 3,
+    "allOriginalObservedChildrenJoined": 18,
+    "grantContainersAndPrivateRuntimeRemoved": true,
+    "sourceBackend": "2.1.284",
+    "installedBackend": "2.1.295",
+    "client": "2.1.287",
+    "sdk": "0.2.141",
+    "model": "claude-sonnet-5-5"
+  }
+}

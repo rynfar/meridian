@@ -1,0 +1,28 @@
+{
+  "atUTC": "2026-10-09T11:17:09.230831+00:00",
+  "reviewer": "Root incremental adversarial; no delegation",
+  "productionNineUnchanged": true,
+  "originalE55Assertions": "All eleven remain; no predicate removed, including actual reads, resumed follow-up, no bypass/collision/4xx and cross-conversation non-inheritance. Three client argv remain unchanged.",
+  "maintainedLegacyCorrections": "Optional explicit fixture instead of ambient client/server selection; dynamic loopback port; same native argv via original Node ChildProcess handle with concurrently drained pipes; timer always clears on rejection.",
+  "additionalGates": [
+    "Explicit source/installed SDK/native inputs and pinned actual CLI versions",
+    "No credential discovery, login, refresh or credential writes; access-only, full-run expiry",
+    "Original SDK model/usage/preallocated-target/canonical success or one-turn tool witness; strict native init/terminal/exit correlation",
+    "SDK admission16, cost0.5/query8total and eight-minute execution retirement before cleanup/artifact work",
+    "Original children/stdin/stdout/stderr/iterator/socket/listener custody; no signal used as a join witness",
+    "Input hash retention; sanitized machine receipts only; no original prose/private transcripts escrowed"
+  ],
+  "materialPreNativeCorrections": [
+    "Original assertion count is eleven, not twelve",
+    "Validate native max-turn count, result target identity and original native init/terminal/exit",
+    "Observe actual close calls on original queries, including cleanup; catch deadline close failures",
+    "Clear original client timer on failures; bound streams",
+    "Reject unknown CLI switches and insecure/foreign/symlink output roots"
+  ],
+  "focusedControls": "15pass0fail, including4direct native-completion controls and11existing gateway/MCP controls; mocks establish no native acceptance",
+  "standaloneTypecheckOriginalHandle": 71746,
+  "standaloneTypecheckExit": 0,
+  "nativePreparation": "Both source and installed zero-query/networkless preparations pass",
+  "liveAcceptance": "NOT_YET_EXECUTED",
+  "limitations": "This is real Claude Code client parity through a passthrough default, not actual LiteLLM. Shared SDK MCP transport/retry readiness and historical reporter tuple remain separate."
+}

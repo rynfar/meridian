@@ -1,0 +1,19 @@
+{
+  "arm": "integrated-http-installed",
+  "image": "sha256:832db10cd5ea47922e0e5199daf383051bfa1e5c991940e8685b98b4af3bb1a9",
+  "inputs": [
+    {
+      "path": "integrated-proxy.mjs",
+      "bytes": 15295,
+      "sha256": "28b3b97ad995c0bbdb90411e9379d2281cd40d244bf75a5d54f70c47da1e0ef8"
+    },
+    {
+      "path": "machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    }
+  ],
+  "runtimeNetwork": "none",
+  "realCredentialMounts": 0,
+  "actualModelClientAcceptance": false
+}

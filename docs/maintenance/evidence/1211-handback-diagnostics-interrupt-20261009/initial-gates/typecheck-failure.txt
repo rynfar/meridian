@@ -1,0 +1,10 @@
+
+> @rynfar/meridian@1.80.0 typecheck
+> tsc --noEmit
+
+src/__tests__/e72-mixed-auto.test.ts(36,24): error TS2322: Type '{ role: string; content: string; }' is not assignable to type 'never'.
+src/__tests__/e72-mixed-auto.test.ts(36,68): error TS2322: Type '{ role: string; content: { type: string; text: string; }[]; }' is not assignable to type 'never'.
+src/__tests__/e72-mixed-auto.test.ts(36,138): error TS2322: Type '{ role: string; content: string; }' is not assignable to type 'never'.
+src/__tests__/e72-mixed-auto.test.ts(36,187): error TS2322: Type '{ role: string; content: { type: string; content: string; }[]; }' is not assignable to type 'never'.
+src/__tests__/e72-mixed-auto.test.ts(38,39): error TS2345: Argument of type '{ input: { message: string; }; parentPrompt: string; expectedMessage: string; expectedActorId: string; }' is not assignable to parameter of type '{ input: any; parentPrompt: any; parentResultContent: any; expectedMessage: any; expectedActorId: any; callerMessages?: never[] | undefined; }'.
+  Property 'parentResultContent' is missing in type '{ input: { message: string; }; parentPrompt: string; expectedMessage: string; expectedActorId: string; }' but required in type '{ input: any; parentPrompt: any; parentResultContent: any; expectedMessage: any; expectedActorId: any; callerMessages?: never[] | undefined; }'.

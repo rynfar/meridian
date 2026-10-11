@@ -1,0 +1,40 @@
+[
+  {
+    "label": "r3-typecheck",
+    "argv": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 4.405,
+    "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+  },
+  {
+    "label": "r3-classifier",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/claude-code-adapter.test.ts",
+      "src/__tests__/claude-code-progress.test.ts",
+      "src/__tests__/root-session-id.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 0.126,
+    "sha256": "b8e6d2f5eb70a9c8b2dd3716be4777ca4625177f6e430a4a964b98ae7426830a"
+  },
+  {
+    "label": "r3-proxy-concurrency-coordination",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-concurrency-coordination.test.ts"
+    ],
+    "exit": 1,
+    "joined": true,
+    "seconds": 7.925,
+    "sha256": "3383e2a201e21cb858aed529d0bbd914240d08c5769a0d6afa870d5b8d4c154e"
+  }
+]

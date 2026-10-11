@@ -1,0 +1,398 @@
+{
+  "codeHead": "49d8a0a9e91695c16076ed0a8f74f2938cf79d9f",
+  "members": [
+    {
+      "path": "GOAL_COMMAND_TURN_AUDIT.json",
+      "bytes": 272,
+      "sha256": "3a1df1494e54861dc87cd2fd887855ee11f43980cc18210491a4059835168dfa"
+    },
+    {
+      "path": "INITIAL_DIAGNOSTIC_TEST_FAILURE.json",
+      "bytes": 465,
+      "sha256": "16897a3da6411a9c298751579bbda5f5877466f14ea31401c83f680c92247db8"
+    },
+    {
+      "path": "INTERRUPT_DISPOSITION.json",
+      "bytes": 959,
+      "sha256": "b61663d5fd33a6c820e6c23c7c90a04b60e0d5dc44f22de30b302f43d5ee7061"
+    },
+    {
+      "path": "LOCAL_GATES.json",
+      "bytes": 1986,
+      "sha256": "222be6b9aed1c0517e9b5d501781529511b9649b9170ccd168ec62f39960eaea"
+    },
+    {
+      "path": "OBSERVER_IDENTITY.json",
+      "bytes": 1605,
+      "sha256": "e709326d86eb017fd1232408c4ad4dd222d5f4402953cc0cf1aa2a18f3faa392"
+    },
+    {
+      "path": "OWNER_AUTHOR_QUALIFICATION.json",
+      "bytes": 247,
+      "sha256": "24f944fce18d613fa4ccd1f885a09b7c79f88a52bac963d5d1e991bc5cf1d9da"
+    },
+    {
+      "path": "PROCESS_JOINS.json",
+      "bytes": 1661,
+      "sha256": "0394e99ba65160bcc329a71ca42b5eb24ba395d5b16ab32e03092bf44f8fa851"
+    },
+    {
+      "path": "PRODUCTION_INTERRUPT_DESIGN.md",
+      "bytes": 3596,
+      "sha256": "6d72a188583ec48c7811f1209f09acd77be1e2a749206989712b5a2e8137d703"
+    },
+    {
+      "path": "QUALIFICATION.json",
+      "bytes": 1125,
+      "sha256": "281d7a7c4cfd007030f4e8af69ea8f60c69515b9008330b3e3ed87f7ae63e367"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4560,
+      "sha256": "e3e50440ca2e6d0cffe14c8578cf2a47f1df38510fbc069022d8ed96bc8a66e3"
+    },
+    {
+      "path": "REHEARSALS.json",
+      "bytes": 113,
+      "sha256": "01d3a1ebf1b12a89bb9abf6a540f61790573cc9d4468d83f9c2ba9a3fbc0b675"
+    },
+    {
+      "path": "REHEARSAL_RECEIPTS.json",
+      "bytes": 1614,
+      "sha256": "7baa2c552f718ec8394d708e501c3deec9b8d41c0dbaddc7c438eedd25bdd851"
+    },
+    {
+      "path": "RESUME_DISCOVERY_DISPOSITION.json",
+      "bytes": 659,
+      "sha256": "f98ea5a65343bf2cd40af3f41ddb3edef2d89f22a872a2e2e0259d9686858119"
+    },
+    {
+      "path": "ROOT_REVIEW.md",
+      "bytes": 4576,
+      "sha256": "1ea56d622fa64ef50825999ce44485d8578268547821e08dfe709955d387df2c"
+    },
+    {
+      "path": "SETTLED_INTERRUPT_RACE.json",
+      "bytes": 1830,
+      "sha256": "91899b14c8526e2a9bf8b04b0b3a4a4c7a8c7d88a7f022633788f026026ecf12"
+    },
+    {
+      "path": "TYPECHECK_CORRECTION.json",
+      "bytes": 461,
+      "sha256": "b07a489c85d63dec8312529fbce47e92ddbafd23d43ae46746984986d8f7dbbf"
+    },
+    {
+      "path": "diagnostic-controls/handbackScenario-separateCallerHandback.json",
+      "bytes": 77455,
+      "sha256": "a0e65edefcf083c4cb74cd91d2554fe5593379251da9e256fc180cbe36b6fadc"
+    },
+    {
+      "path": "diagnostic-controls/handbackScenario-structuredParentHandback.json",
+      "bytes": 77441,
+      "sha256": "faed3c378d1a1e26f80bf6974e3ff4583cb927f41f795879081ba0f0c2da3b3c"
+    },
+    {
+      "path": "diagnostic-controls/handbackScenario.json",
+      "bytes": 77298,
+      "sha256": "12b3a75628d4e7b821852ed1d9a79a65a74ce875bf2172652fa0cf0d37e1b245"
+    },
+    {
+      "path": "initial-gates/build-terminal.json",
+      "bytes": 329,
+      "sha256": "87d5e7ea94e459ab1059eb66e61585cbf7a154cfde48e6e2ef05048f253befe5"
+    },
+    {
+      "path": "initial-gates/test-terminal.json",
+      "bytes": 317,
+      "sha256": "b14b3268e83ebe3c835df9b04b48f5c6dd97792b4280545f0812307346188720"
+    },
+    {
+      "path": "initial-gates/typecheck-terminal.json",
+      "bytes": 333,
+      "sha256": "0d622e001125defc92187eb7a8d2f2a35fc31c4456956f841a4d73c8d6a524af"
+    },
+    {
+      "path": "initial-gates/typecheck-failure.txt",
+      "bytes": 1350,
+      "sha256": "7f384488e5ee3404cece99dcdbad7857031d7f2871c5c39114ad48787da09ead"
+    },
+    {
+      "path": "interrupt-resume-installed/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "2dcec33776810d321f6ee25c660156d29e69418033b72c23554d576c4523b26a"
+    },
+    {
+      "path": "interrupt-resume-installed/EXPERIMENT_SCOPE.json",
+      "bytes": 313,
+      "sha256": "0033a383fcc8ded806d7bbf8e3a5b4cbec282630fbc98a77bd988e72318497a1"
+    },
+    {
+      "path": "interrupt-resume-installed/INPUTS.json",
+      "bytes": 945,
+      "sha256": "cd0d453c02bde9098445a3d984c7141afb71a1d4193c92e9e5c2744124e5437e"
+    },
+    {
+      "path": "interrupt-resume-installed/INVOCATION.json",
+      "bytes": 1220,
+      "sha256": "4a5666a339a93d1484b717fd7bab306909264dd7040042e74ba2cc56b3c96546"
+    },
+    {
+      "path": "interrupt-resume-installed/RESULTS.json",
+      "bytes": 8336,
+      "sha256": "c98777f900705f8879edcdefe89ec36fd253284aa470db2fe49f6f2160658537"
+    },
+    {
+      "path": "interrupt-resume-installed/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "06ce9b6ac41493993187c848bb54a14be3ec17a349e1df673e78a90063b5bf32"
+    },
+    {
+      "path": "interrupt-resume-installed/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "interrupt-resume-installed/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "interrupt-resume-installed/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "interrupt-resume-installed/probe/native-turn-counter.mjs",
+      "bytes": 24343,
+      "sha256": "da78054f16dbb075267079dd24c1535097d4cddec2a45dc049dd6b8eee2a4400"
+    },
+    {
+      "path": "interrupt-resume-installed/run-control.py",
+      "bytes": 3533,
+      "sha256": "125575b869f578bb304b161882559a4306e91388c3f9e0f611987efd61a0c729"
+    },
+    {
+      "path": "interrupt-resume-source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "ed98e13a8223fe81782e4a67ee27309d6c439572ca398fbd6fc3f3ff6b0bb925"
+    },
+    {
+      "path": "interrupt-resume-source/EXPERIMENT_SCOPE.json",
+      "bytes": 445,
+      "sha256": "81f66f31acbb21f21a2adbbe8cf5ca9b8eb0e24e09d780f34075180ae22f4ec9"
+    },
+    {
+      "path": "interrupt-resume-source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "cd0d453c02bde9098445a3d984c7141afb71a1d4193c92e9e5c2744124e5437e"
+    },
+    {
+      "path": "interrupt-resume-source/INVOCATION.json",
+      "bytes": 1165,
+      "sha256": "d477d7a57674a8e20bb4a8005899730613e5104cb3c9a252ae715542f1fd150c"
+    },
+    {
+      "path": "interrupt-resume-source/RESULTS.json",
+      "bytes": 8335,
+      "sha256": "c1fff992f6ae253498652254536b34d18651284a05a654d4bfe525ca11a90c1e"
+    },
+    {
+      "path": "interrupt-resume-source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "4d38d2bbf65414038c872b3290b4ceb31917ae25c62e0f4f80e6e1675bab574c"
+    },
+    {
+      "path": "interrupt-resume-source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "interrupt-resume-source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "interrupt-resume-source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "interrupt-resume-source/probe/native-turn-counter.mjs",
+      "bytes": 24343,
+      "sha256": "da78054f16dbb075267079dd24c1535097d4cddec2a45dc049dd6b8eee2a4400"
+    },
+    {
+      "path": "interrupt-resume-source/run-control.py",
+      "bytes": 3484,
+      "sha256": "5f9704260d5c17ef0e8205bc13a59a0972146989903c0eb34c15200846ea235c"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/CONTAINER_TERMINAL.json",
+      "bytes": 442,
+      "sha256": "9a126ecc906e2498d06438c16608a91084346e18f668d44c621e57c4a883d8b5"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/EXPERIMENT_SCOPE.json",
+      "bytes": 522,
+      "sha256": "ff702b63f02c52210ce115962ed7a98bec52555759eadeca597735f8a71e6b76"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "e864cfd5767d15acef0d07e52963e74f93bcbbb6260a239de72b0781034ebb68"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/INVOCATION.json",
+      "bytes": 1198,
+      "sha256": "0b6cf3578e0bb8a5db194c40353602a1cd723d47a33c75c6991e4cf362112b58"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/RESULTS.json",
+      "bytes": 4981,
+      "sha256": "debc2b946715c8f2b64d3818c3d80bd52b95180a3b869d7e5eecad8927aad1bf"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "3a561c5fe98cf8064a37c174ba154213ae090305acaa3ad16bcf7b646c407da1"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/probe/native-turn-counter.mjs",
+      "bytes": 25345,
+      "sha256": "588891aad43312b94c0dce378cd290b2ba229f1f07ac769f787aacfe101877f9"
+    },
+    {
+      "path": "interrupt-settled-qualified-source/run-control.py",
+      "bytes": 3495,
+      "sha256": "2cd31ea4edee3eddecdfc8b730d4e12ea2e1b2bd933862f9dd27507a0e87c2ac"
+    },
+    {
+      "path": "interrupt-settled-source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "9b18d6c6c7eb46605af0663cb180860a12148c791fbccbde74cf8a8e256f9b77"
+    },
+    {
+      "path": "interrupt-settled-source/EXPERIMENT_SCOPE.json",
+      "bytes": 306,
+      "sha256": "44d2ef6d8ed3eb5fc19beadfad79339fd0be4625a541a626d5f229cc9336ce0e"
+    },
+    {
+      "path": "interrupt-settled-source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "e5ce062dd0046f414b42366cb2bf0ef78736b99538e1cfbf94fc9859dee9b3fb"
+    },
+    {
+      "path": "interrupt-settled-source/INVOCATION.json",
+      "bytes": 1168,
+      "sha256": "187f3fa324b6c22a50b20d5b6835da82a69f940dcab0a55dc31311f97165dab4"
+    },
+    {
+      "path": "interrupt-settled-source/RESULTS.json",
+      "bytes": 4710,
+      "sha256": "ab546446a36e869d93b9cbd3c21506822c3f931fd68ac918396e7b44462d3f37"
+    },
+    {
+      "path": "interrupt-settled-source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "4697d31d447bf66005fe8dc4574cc8253bf70251081008ba333d11c015f11da5"
+    },
+    {
+      "path": "interrupt-settled-source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "interrupt-settled-source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "interrupt-settled-source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "interrupt-settled-source/probe/native-turn-counter.mjs",
+      "bytes": 25341,
+      "sha256": "227bc9bd122309df2b7a0b8d1e97ee2cf9f123274fb862ed6362e6da8aca84b4"
+    },
+    {
+      "path": "interrupt-settled-source/run-control.py",
+      "bytes": 3485,
+      "sha256": "7b48816ba0520dfbcba7776434871276ca683377df9e79c6b067186764e37f6f"
+    },
+    {
+      "path": "interrupt-source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "6cc8efc6a378012f5ce9350851605428bb9647851ad9892fbad050ad4e68e21b"
+    },
+    {
+      "path": "interrupt-source/EXPERIMENT_SCOPE.json",
+      "bytes": 384,
+      "sha256": "3538b7571f24ff81348ec9353ac38b28f632cdd5d1ecdae17f3eb59f70651186"
+    },
+    {
+      "path": "interrupt-source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "c7e882de43b14769fe2ec41711a21deb24380e39dedfa74d08a3c08ebcf6481a"
+    },
+    {
+      "path": "interrupt-source/INVOCATION.json",
+      "bytes": 1143,
+      "sha256": "f2a5ec9788b255e2820b4d4bd26a659f8cf326671e3d08f4a0c39cb429f1910d"
+    },
+    {
+      "path": "interrupt-source/RESULTS.json",
+      "bytes": 4510,
+      "sha256": "a15c980f1165b02b4897d12e47a6747d52b98095f469c23faf37190c28564aa3"
+    },
+    {
+      "path": "interrupt-source/TERMINAL.json",
+      "bytes": 349,
+      "sha256": "e340baa82e4c7b085b11571742cc140c347afa1d34a530d52935ac2a0eb49b30"
+    },
+    {
+      "path": "interrupt-source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "interrupt-source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "interrupt-source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "interrupt-source/probe/native-turn-counter.mjs",
+      "bytes": 20325,
+      "sha256": "b623ae9e0adec9a7b571b5c5f8f7b28264d8c6ee9a0a694c601c9bc884030ab1"
+    },
+    {
+      "path": "interrupt-source/run-control.py",
+      "bytes": 3477,
+      "sha256": "ff27e3fdd80593608c71e4a159037c9ae5a2943bb60165069bb25ebb25cf42df"
+    }
+  ],
+  "payloadFiles": 78,
+  "actualModelAcceptance": false,
+  "productionChanged": false
+}

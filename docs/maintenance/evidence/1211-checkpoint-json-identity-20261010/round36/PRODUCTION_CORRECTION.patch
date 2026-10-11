@@ -1,0 +1,68 @@
+diff --git a/src/proxy/passthroughCheckpointStop.ts b/src/proxy/passthroughCheckpointStop.ts
+index 9dcf03d4a..7804f7085 100644
+--- a/src/proxy/passthroughCheckpointStop.ts
++++ b/src/proxy/passthroughCheckpointStop.ts
+@@ -12,25 +12,46 @@ function id(value: unknown): value is string {
+ 
+ /** JSON-only identity; no customer inputs or SDK error text leave this module. */
+ function inputIdentity(value: unknown): string | undefined {
+-  let remaining = 16_384
+-  const encode = (item: unknown, depth: number): string | undefined => {
+-    if (--remaining < 0 || depth > 64) return undefined
+-    if (item === null) return "null"
+-    if (typeof item === "string" || typeof item === "boolean") return JSON.stringify(item)
+-    if (typeof item === "number") return Number.isFinite(item) ? JSON.stringify(item) : undefined
+-    const values = Array.isArray(item) ? item : object(item)
+-    if (!values) return undefined
+-    if (!Array.isArray(values) && ![Object.prototype, null].includes(Object.getPrototypeOf(values))) return undefined
+-    const parts: string[] = []
+-    for (const key of Array.isArray(values) ? Object.keys(values) : Object.keys(values).sort()) {
+-      const child = encode(Array.isArray(values) ? values[Number(key)] : values[key], depth + 1)
+-      if (child === undefined) return undefined
+-      parts.push(Array.isArray(values) ? child : `${JSON.stringify(key)}:${child}`)
++  // Native inputs are already JSON. Canonicalize iteratively so their width,
++  // depth and byte size do not introduce an undocumented tool-input boundary.
++  // Keep exact strings (including escaped lone surrogates), rather than hashes.
++  const parts: string[] = [], ancestors = new Set<object>()
++  const frames: { values: object; keys: string[]; index: number; array: boolean }[] = []
++  const append = (item: unknown): boolean => {
++    if (item === null || typeof item === "string" || typeof item === "boolean" ||
++        (typeof item === "number" && Number.isFinite(item))) {
++      parts.push(JSON.stringify(item)); return true
+     }
+-    return Array.isArray(values) ? `[${parts.join(",")}]` : `{${parts.join(",")}}`
++    if (typeof item !== "object" || item === null || ancestors.has(item)) return false
++    const array = Array.isArray(item), keys = Object.keys(item)
++    if (array) {
++      // Holes or extra properties cannot represent a JSON array identity.
++      if (keys.length !== item.length || keys.some((key, index) => key !== String(index))) return false
++    } else {
++      if (![Object.prototype, null].includes(Object.getPrototypeOf(item))) return false
++      keys.sort()
++    }
++    ancestors.add(item); frames.push({ values: item, keys, index: 0, array })
++    parts.push(array ? "[" : "{"); return true
++  }
++  try {
++    if (!append(value)) return undefined
++    while (frames.length > 0) {
++      const frame = frames[frames.length - 1]!
++      if (frame.index === frame.keys.length) {
++        parts.push(frame.array ? "]" : "}"); ancestors.delete(frame.values); frames.pop(); continue
++      }
++      const key = frame.keys[frame.index++]!
++      if (frame.index > 1) parts.push(",")
++      if (!frame.array) parts.push(JSON.stringify(key), ":")
++      const descriptor = Object.getOwnPropertyDescriptor(frame.values, key)
++      // Do not invoke accessors or serialize non-JSON coercions.
++      if (!descriptor || !("value" in descriptor) || !append(descriptor.value)) return undefined
++    }
++    return parts.join("")
++  } catch {
++    return undefined
+   }
+-  const result = encode(value, 0)
+-  return result !== undefined && result.length <= 1_048_576 ? result : undefined
+ }
+ 
+ export class PassthroughCheckpointStopError extends Error {

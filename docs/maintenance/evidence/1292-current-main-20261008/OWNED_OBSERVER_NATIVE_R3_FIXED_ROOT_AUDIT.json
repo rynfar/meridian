@@ -1,0 +1,87 @@
+{
+  "atUTC": "2026-10-09T03:48:01.720426+00:00",
+  "status": "SCOPED_NATIVE_SEQUENTIAL_HINTS1_CANDIDATE_PASS_WITH_BASELINE_DISCOVERY_AND_INHERITED_HOLDS",
+  "testedHead": "6585b66a01e26244381709e6db78825cd4056e18",
+  "candidateOriginalStatus": "PASS",
+  "candidateExit": 0,
+  "toolSession24378Joined": true,
+  "case": {
+    "status": "PASS",
+    "expectation": "fixed",
+    "before": {
+      "adapterSessionDigest": "2b479f8c600115c2ae0bb3eb57719b99874bc6dd98479fbfced1ee67097aa781",
+      "storageKeyDigest": "b88467a2d44b13583a071bdf14abe7d59018506ceac70e811069b217aec4fec2",
+      "mappingDigest": "0eef08ec8138e77c6f8633f2da9b51aba4204a5e54ef96af422e480c1cfed959",
+      "generationsDigest": "d9970a8761243cf3ab772ad6693593e88ad2923f722ca62c5d564e040de2bfb9",
+      "sdkSessionDigest": "f7baa7ef0d7f047e9cb328ff1cc6b2b432778c34c3c707f3b692286dc4608ef0",
+      "lineageDigest": "8e113ac906cc36ae38610dfb04caf7cc9423a48bb03e576ba9fcf2f562cdddec",
+      "messageCount": 5,
+      "checkpointDigest": "104b402d6a0b55b7b7b6628f7e4701a8946254642533d87aa976491fa9bc158c",
+      "pendingIdDigests": [
+        "77668747aec756a8b933d4acd4774501957d9be58785802c6861840a156604f9"
+      ],
+      "historyDigest": "723a80e0273927811d9361afb77501a16692f44e0e94f4f2ecc8a0225cee654c",
+      "historyLength": 5,
+      "sdkListed": true
+    },
+    "afterCaption": {
+      "adapterSessionDigest": "2b479f8c600115c2ae0bb3eb57719b99874bc6dd98479fbfced1ee67097aa781",
+      "storageKeyDigest": "b88467a2d44b13583a071bdf14abe7d59018506ceac70e811069b217aec4fec2",
+      "mappingDigest": "0eef08ec8138e77c6f8633f2da9b51aba4204a5e54ef96af422e480c1cfed959",
+      "generationsDigest": "d9970a8761243cf3ab772ad6693593e88ad2923f722ca62c5d564e040de2bfb9",
+      "sdkSessionDigest": "f7baa7ef0d7f047e9cb328ff1cc6b2b432778c34c3c707f3b692286dc4608ef0",
+      "lineageDigest": "8e113ac906cc36ae38610dfb04caf7cc9423a48bb03e576ba9fcf2f562cdddec",
+      "messageCount": 5,
+      "checkpointDigest": "104b402d6a0b55b7b7b6628f7e4701a8946254642533d87aa976491fa9bc158c",
+      "pendingIdDigests": [
+        "77668747aec756a8b933d4acd4774501957d9be58785802c6861840a156604f9"
+      ],
+      "historyDigest": "723a80e0273927811d9361afb77501a16692f44e0e94f4f2ecc8a0225cee654c",
+      "historyLength": 5,
+      "sdkListed": true
+    },
+    "afterWork": {
+      "adapterSessionDigest": "2b479f8c600115c2ae0bb3eb57719b99874bc6dd98479fbfced1ee67097aa781",
+      "storageKeyDigest": "b88467a2d44b13583a071bdf14abe7d59018506ceac70e811069b217aec4fec2",
+      "mappingDigest": "f7096138cbf2b1a0db051ea607e144343a020f39e9bbd343a35e6c3e5426b806",
+      "generationsDigest": "5dc230fd06f891b5f0176d5379cc90facdeb6922141360003fa196a90aed5d3b",
+      "sdkSessionDigest": "fef9ddc840b671ed96c5bab0dbc1837fc179ade657571eff08f74da20b4fd1ea",
+      "lineageDigest": "4012c0c0f24e7016e378deac05851f659082cb2a0e8163afb2964064a08a3a8a",
+      "messageCount": 11,
+      "checkpointDigest": null,
+      "pendingIdDigests": [],
+      "historyDigest": "da5947919923097caab813d8b11df88553399ff0352169ca68c159f15889d1dd",
+      "historyLength": 8,
+      "sdkListed": true
+    },
+    "sourceHistoryUnchanged": true,
+    "nextQuery": 5,
+    "checkpointResume": true,
+    "baselineMutationAndReplay": false
+  },
+  "modelVerification": {
+    "backend": "MATCH",
+    "client": "MATCH",
+    "scope": "Exact requested wire model, SDK alias, version pin, backend native context label and client label; independent of physical custody"
+  },
+  "backendQueries": 7,
+  "sourceGates": 7,
+  "directProcesses": 9,
+  "allScopedPhysicalJoinsPositive": true,
+  "grantDeleted": true,
+  "grantAbsentAfter": true,
+  "reportSHA256": "25c5e9cb9211ee67fc80315db6b83a40659cfdc752133231e93569a2ed2f6af7",
+  "settlementSHA256": "a4675e180412b77cbc04effdb00dd58ad70c40630886b6fccad7c513c80cb121",
+  "sourceLoginRefreshWrites": false,
+  "privateSdkFilesRead": false,
+  "globalSecondaryAbsence": "UNKNOWN",
+  "baselineQualification": "R3 original status MISSING at final discovery. Immediate before/after mapping/generation/history replacement, cleared checkpoint, actual next no-resume replay and real client three-Read success witnessed; supported posthoc source history unchanged. No full baseline PASS claim.",
+  "holds": [
+    "Baseline final mapped-history discovery coverage",
+    "Hints0 and both MCP overlap orders",
+    "Cancellation/private working cache/children/declared-parent coverage",
+    "E71/E72/E41/E55 relevant real flows and unknown reporter tuple",
+    "Shared-MCP transport qualification",
+    "Independently installed package and final-head CI"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "synthetic": true,
+  "nativeQueries": 0,
+  "sourceObserver": "348f90f6774b361fa9e3500f122ac6ce25b425ad",
+  "exit": 1,
+  "checks": {
+    "invocationsSucceeded": true,
+    "turnsAnswered": true,
+    "noRefusal": true,
+    "requestedModelIdentity": true,
+    "rootedWireIdentity": true,
+    "requestDecisionsComplete": true,
+    "twoMultiturnAgents": true,
+    "backgroundParallelism": true,
+    "actualAgentAndBashReceipts": false,
+    "sdkToolHookCustody": true,
+    "allQueriesCorrelated": true,
+    "distinctSessionMappings": true,
+    "subagentResume": true,
+    "mainResume": true,
+    "noCollision": true,
+    "boundedLeaseWait": true,
+    "nativeReceipts": true,
+    "costBound": true,
+    "backgroundParentChildOverlap": true
+  },
+  "queryCount": 10,
+  "expectedValidBatchingRejected": true
+}

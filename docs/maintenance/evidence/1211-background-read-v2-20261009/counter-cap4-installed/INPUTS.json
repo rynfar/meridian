@@ -1,0 +1,26 @@
+{
+  "sourceHead": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+  "image": "sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5",
+  "inputs": [
+    {
+      "path": "e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430",
+      "mode": "0444"
+    },
+    {
+      "path": "native-turn-counter.mjs",
+      "bytes": 17825,
+      "sha256": "bf0870c2c6d49113daee82e6f8d7fcda10454bf9b3af8da51dd6a8847eb32227",
+      "mode": "0444"
+    },
+    {
+      "path": "e2ePublicSdkDiagnostics.mjs",
+      "bytes": 4132,
+      "sha256": "00c97ea9f404c15889dacb795bf20a0715c8b91744dec3b9dbee59c961c123af",
+      "mode": "0444"
+    }
+  ],
+  "realCredentialReads": 0,
+  "modelNetworkDisabled": true
+}

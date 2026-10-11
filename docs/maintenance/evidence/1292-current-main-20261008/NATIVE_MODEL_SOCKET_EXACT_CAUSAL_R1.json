@@ -1,0 +1,129 @@
+{
+  "status": "PASS",
+  "runtime": "1.3.11",
+  "sourceHashes": {
+    "before": "58c61e8a33d2fa5ca2c482ae9cf1e8f8a3039489134fbae355bbdc71b3367ea0",
+    "after": "0a63004a773f654fd3559229e834601dcb304e3185608db70688d31d1d040e06"
+  },
+  "snippets": [
+    {
+      "mode": "before-proxy",
+      "sha256": "b48d0426fa5c8364c5b5988ea26588a4a095b62e56a91864b17c83fe94d41f2c"
+    },
+    {
+      "mode": "after-proxy",
+      "sha256": "c815236984d7685f1650f448cd61e1fc18373a8a780495d8656cb6157fe811ff"
+    },
+    {
+      "mode": "before-relay",
+      "sha256": "3e80f792cfad95aceb4ff640f79c6b0fb1dd24753d4162bbf312ba51d9a72cd7"
+    },
+    {
+      "mode": "after-relay",
+      "sha256": "8b5daac411aca2432f8faec2b0a60a778e2a3f1045c89e4f62c4a71de054f451"
+    }
+  ],
+  "results": [
+    {
+      "mode": "before-proxy",
+      "accepted": 1,
+      "closed": 1,
+      "listenerClose": true,
+      "listenerCallback": true,
+      "childExit": true,
+      "childClose": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "ready": true,
+      "childCode": 0,
+      "failure": "proxy-listener-sockets-close-deadline",
+      "observation": {
+        "accepted": 1,
+        "closed": 0,
+        "liveSockets": 1
+      },
+      "finalLiveSockets": 0,
+      "allOwnedJoins": true
+    },
+    {
+      "mode": "after-proxy",
+      "accepted": 1,
+      "closed": 1,
+      "listenerClose": true,
+      "listenerCallback": true,
+      "childExit": true,
+      "childClose": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "ready": true,
+      "childCode": 0,
+      "observation": {
+        "accepted": 1,
+        "closed": 1,
+        "liveSockets": 0,
+        "listenerClose": true,
+        "listenerCallback": true,
+        "childExit": true
+      },
+      "finalLiveSockets": 0,
+      "allOwnedJoins": true
+    },
+    {
+      "mode": "before-relay",
+      "accepted": 1,
+      "closed": 1,
+      "listenerClose": true,
+      "listenerCallback": true,
+      "childExit": true,
+      "childClose": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "ready": true,
+      "childCode": 0,
+      "failure": "relay-socket-close-deadline",
+      "observation": {
+        "accepted": 1,
+        "closed": 0,
+        "liveSockets": 1
+      },
+      "finalLiveSockets": 0,
+      "allOwnedJoins": true
+    },
+    {
+      "mode": "after-relay",
+      "accepted": 1,
+      "closed": 1,
+      "listenerClose": true,
+      "listenerCallback": true,
+      "childExit": true,
+      "childClose": true,
+      "stdoutEnd": true,
+      "stdoutClose": true,
+      "stderrEnd": true,
+      "stderrClose": true,
+      "ready": true,
+      "childCode": 0,
+      "observation": {
+        "accepted": 1,
+        "closed": 1,
+        "liveSockets": 0,
+        "listenerClose": true,
+        "listenerCallback": false,
+        "childExit": true
+      },
+      "finalLiveSockets": 0,
+      "allOwnedJoins": true
+    }
+  ],
+  "modelLabelLossBeforeCorrected": true,
+  "modelCustodyConflationBeforeCorrected": true,
+  "missingModelAcceptanceStillRefused": true,
+  "modelCalls": 0,
+  "scope": "Exact extracted old/current listener closure blocks with actual pinned Bun listeners and exact Node peers; model/custody helpers controlled independently. No native/model/product acceptance."
+}

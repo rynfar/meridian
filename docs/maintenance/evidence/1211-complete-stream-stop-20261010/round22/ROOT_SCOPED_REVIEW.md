@@ -1,0 +1,13 @@
+# Scoped adversarial review — completed native stream checkpoint
+
+The unchanged source/native 2.1.284 and independently installed/native 2.1.296 controls each pass four immediate-EOF cases, then fail the first 150 ms delayed EOF case at HTTP 500. Each receives a complete tool generation, exact hook/denial, acknowledged interruption, and the same public error_during_execution / aborted_streaming / one canonical tool-use diagnostic. The provider body is cancelled after message_stop. Original nine queries per target and physical cleanup are terminal; the historical actual-model failures remain causally unproven.
+
+The production correction admits only that exact one-error tuple under the existing admitted session, complete closed blocks, metadata, UUID, generation cap, owned intent, acknowledgement, exact forwarding denials, matching iterator error, live signal and retirement rules. Unrelated/extra/trailing diagnostics, wrong subtype/counter/session, absent control, missing denial and caller cancellation remain refused. Retained-hook and teardown ownership are unchanged. No cap, operator override, kill switch, public interface, package/dependency or server/session import changes.
+
+The independent observer derives the tuple directly from supported public events, without calling production or trusting its receipt. Qualification binds the row reason to the observed reason and restricts the new tuple to native 2.1.284/2.1.296; 2.1.295 remains unexecuted for this tuple. Legacy behavior is retained. Tests reject borrowing an old witness to relabel a result.
+
+The maintained credential-free EOF harness preserves the failed baseline’s twelve-case/24-query matrix, exact tools/results, public checkpoint UUID, distinct durable fork, immutable original public history, denial-tail exclusion, independent stop witness and actor/backend/HTTP/listener/body cleanup. Build identities become mandatory explicit inputs; inherited credentials are cleared and only the loopback scripted provider is used. Its direct HTTP protocol shape is not actual OpenCode-client evidence.
+
+Focused pure checks: 76 pass / zero fail / 166 assertions; HTTP checks: 12 pass / zero fail / 72 assertions. The first test failure was an incorrect new expectation for the existing foreign-session throw, corrected without altering production; the log is retained. Prior focused shell is terminal in app activity, and no matching test/typecheck actors remain. Full clean-head gates and the changed source/package native matrix must qualify separately.
+
+No material scoped source finding survives this inspection. This is a root scoped review, not delegated or whole-change acceptance. Changed-build live client/model/cancellation/reporter/platform and final-head CI holds remain.

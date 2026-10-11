@@ -1,0 +1,8 @@
+{
+  "firstFailure": "python3 is absent; standard image entrypoint substituted Node and tried to load candidate/python3; qualifier never executed",
+  "originalAttachJoined": true,
+  "stoppedOwnedContainerRemoved": true,
+  "nativeVersionProbes": 0,
+  "externalModelQueries": 0,
+  "correction": "Run builtin Bun/Node qualifier with an existing executable, preserving complete compiled artifact equality assertions."
+}

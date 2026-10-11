@@ -1,0 +1,124 @@
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.57kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/meridian1211:complete-stream-r23-corrected
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/9] FROM docker.io/library/meridian1211:complete-stream-r23-corrected
+#4 CACHED
+
+#5 [internal] load build context
+#5 transferring context: 69.48MB 0.7s done
+#5 DONE 0.7s
+
+#6 [2/9] COPY candidate.bundle SOURCE_IDENTITY.json qualify-source.py /snapshot-json/
+#6 DONE 1.2s
+
+#7 [3/9] RUN git init /opt/e71/json-corrected && git -C /opt/e71/json-corrected bundle unbundle /snapshot-json/candidate.bundle && git -C /opt/e71/json-corrected symbolic-ref HEAD refs/heads/codex/claude-sidecalls-stack-1292-20261008 && git -C /opt/e71/json-corrected update-ref HEAD ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf && chown -R 501:501 /opt/e71/json-corrected && mkdir -p /opt/e71/json-corrected-packs /opt/e71/json-corrected-installed && chown -R 501:501 /opt/e71/json-corrected-packs /opt/e71/json-corrected-installed
+#7 0.201 hint: Using 'master' as the name for the initial branch. This default branch name
+#7 0.201 hint: is subject to change. To configure the initial branch name to use in all
+#7 0.201 hint: of your new repositories, which will suppress this warning, call:
+#7 0.201 hint: 
+#7 0.201 hint: 	git config --global init.defaultBranch <name>
+#7 0.201 hint: 
+#7 0.201 hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+#7 0.201 hint: 'development'. The just-created branch can be renamed via this command:
+#7 0.201 hint: 
+#7 0.201 hint: 	git branch -m <name>
+#7 0.207 Initialized empty Git repository in /opt/e71/json-corrected/.git/
+#7 0.853 ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf HEAD
+#7 DONE 1.0s
+
+#8 [4/9] COPY --chown=501:501 candidate/ /opt/e71/json-corrected/
+#8 DONE 1.0s
+
+#9 [5/9] WORKDIR /opt/e71/json-corrected
+#9 DONE 0.1s
+
+#10 [6/9] RUN cp -a /opt/e71/corrected/node_modules node_modules && python3 /snapshot-json/qualify-source.py && npm run build
+#10 2.733 {"head": "ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf", "allCurrentTrackedFilesExact": 3935, "clean": true, "ownerCheckoutReadOnly": true}
+#10 3.599 
+#10 3.599 > @rynfar/meridian@1.80.0 build
+#10 3.599 > bun scripts/build.ts
+#10 3.599 
+#10 5.563 Bundled 565 modules in 332ms
+#10 5.563 
+#10 5.564   cli.js                          15.85 KB   (entry point)
+#10 5.564   cli-7agka5t6.js                 2.30 MB    (chunk)
+#10 5.564   cli-1s25p10d.js                 4.82 KB    (chunk)
+#10 5.564   cli-kvzyq9qz.js                 1.1 KB     (chunk)
+#10 5.564   cli-vmh8k6kq.js                 75.60 KB   (chunk)
+#10 5.564   cli-9e27vb02.js                 33.15 KB   (chunk)
+#10 5.564   cli-zh659m8r.js                 19.93 KB   (chunk)
+#10 5.564   cli-x8vwbg1f.js                 14.95 KB   (chunk)
+#10 5.564   cli-15q5qaay.js                 22.90 KB   (chunk)
+#10 5.564   cli-1jstkdj9.js                 0.82 KB    (chunk)
+#10 5.564   cli-3zwfvexc.js                 2.13 KB    (chunk)
+#10 5.564   cli-xw1vv642.js                 16.49 KB   (chunk)
+#10 5.564   cli-xcg0b6my.js                 8.25 KB    (chunk)
+#10 5.564   cli-4nmmvs9q.js                 1.58 KB    (chunk)
+#10 5.564   cli-sry5aqdj.js                 1.41 KB    (chunk)
+#10 5.564   cli-yybp09jr.js                 32.19 KB   (chunk)
+#10 5.564   cli-p9swy5t3.js                 2.35 KB    (chunk)
+#10 5.564   organizationName-g3k9h4t9.js    0.75 KB    (chunk)
+#10 5.564   socketActivation-s3xh5s16.js    256 bytes  (chunk)
+#10 5.564   profileCli-b635c0k4.js          1.33 KB    (chunk)
+#10 5.564   antigravitySetup-esmq6zee.js    10.77 KB   (chunk)
+#10 5.564   setup-rd1qe555.js               0.90 KB    (chunk)
+#10 5.564   tokenRefresh-269eckh2.js        1.0 KB     (chunk)
+#10 5.564   index-h1gbpvq6.js               487 bytes  (chunk)
+#10 5.564   statusProbe-9x9q261e.js         5.38 KB    (chunk)
+#10 5.564   cliDashboard-c0dvkj4y.js        11.59 KB   (chunk)
+#10 5.564   profiles-f04ny5y0.js            0.95 KB    (chunk)
+#10 5.564   server.js                       0.95 KB    (entry point)
+#10 5.564   meridian-v2.js                  0.69 MB    (entry point)
+#10 5.564   profilePage-mpdx0q78.js         68.1 KB    (chunk)
+#10 5.564   profileRename-a9dzdyz6.js       457 bytes  (chunk)
+#10 5.564   loginCallbackPage-bjrsnkps.js   2.1 KB     (chunk)
+#10 5.564   stats-4c4ewmdh.js               310 bytes  (chunk)
+#10 5.564   pluginPage-xbws24rt.js          17.31 KB   (chunk)
+#10 5.564 
+#10 5.744 Bundled 87 modules in 155ms
+#10 5.744 
+#10 5.744   buildObservationWorker.js  0.50 MB  (entry point)
+#10 5.744 
+#10 5.847 Bundled 3 modules in 85ms
+#10 5.847 
+#10 5.847   index.js  9.25 KB  (entry point)
+#10 5.847 
+#10 6.043 Bundled 116 modules in 177ms
+#10 6.043 
+#10 6.043   index.js  0.69 MB  (entry point)
+#10 6.043 
+#10 15.95   fixed: cli-7agka5t6.js
+#10 15.95 fix-bun-exports: patched 1 file(s)
+#10 18.15 Certified local build 1 (2920dda8-031e-48de-9f72-640335554130)
+#10 DONE 18.7s
+
+#11 [7/9] RUN npm pack --ignore-scripts --json --pack-destination /opt/e71/json-corrected-packs > /opt/e71/json-corrected-packs/PACK.json && npm install --prefix /opt/e71/json-corrected-installed --ignore-scripts --no-audit --no-fund /opt/e71/json-corrected-packs/rynfar-meridian-1.80.0.tgz && npm install --prefix /opt/e71/json-corrected-installed --ignore-scripts --no-audit --no-fund --save-exact @anthropic-ai/claude-agent-sdk@0.2.141 @anthropic-ai/claude-code@2.1.296 && node /opt/e71/json-corrected-installed/node_modules/@anthropic-ai/claude-code/install.cjs
+#11 11.37 
+#11 11.37 added 110 packages in 9s
+#11 12.70 
+#11 12.70 up to date in 812ms
+#11 DONE 14.1s
+
+#12 [8/9] COPY --chown=501:501 qualify-build.cjs /snapshot-json/
+#12 DONE 0.0s
+
+#13 [9/9] RUN node /snapshot-json/qualify-build.cjs
+#13 2.536 {"head":"ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf","clean":true,"coreSha256":"234d45e90db3f46fa23dd6c5ba527de938e522ec48e5a6434a490f1b08ab3b61","tarballSHA256":"c9aa2feed1d6929a37a303c385c87d6ca36851a567368212c98661eb1a8a2199"}
+#13 DONE 2.6s
+
+#14 exporting to image
+#14 exporting layers
+#14 exporting layers 4.8s done
+#14 writing image sha256:32711e86cdab2d9da2ce0dbcce75153937b7f9b87394101095e150f2b38acae8 done
+#14 naming to docker.io/library/meridian1211:json-identity-r36-corrected done
+#14 DONE 4.8s

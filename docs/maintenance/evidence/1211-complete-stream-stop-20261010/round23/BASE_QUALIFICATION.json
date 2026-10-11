@@ -1,0 +1,13 @@
+{
+  "baseImageId": "sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0",
+  "ownedLocalBuildTag": "meridian1211:complete-stream-r23-base",
+  "verifiedPhysicalIdBeforeBuild": true,
+  "firstOriginalSession": 69316,
+  "firstDockerBuildPid": 60676,
+  "firstOriginalJoined": true,
+  "firstExit": 1,
+  "sourceNativeQueries": 0,
+  "registryLoginNeeded": false,
+  "cause": "Dockerfile FROM image ID parsed as docker.io/library/sha256; same immutable base tagged locally",
+  "sourceInputsUnchanged": true
+}

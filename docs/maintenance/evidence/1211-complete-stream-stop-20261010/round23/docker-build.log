@@ -1,0 +1,51 @@
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.51kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/meridian1211:complete-stream-r23-base
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/9] FROM docker.io/library/meridian1211:complete-stream-r23-base
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 463.39kB 0.2s done
+#5 DONE 0.2s
+
+#6 [2/9] COPY candidate.bundle SOURCE_IDENTITY.json qualify-source.py /snapshot-corrected/
+#6 CACHED
+
+#7 [3/9] RUN git init /opt/e71/corrected && git -C /opt/e71/corrected bundle unbundle /snapshot-corrected/candidate.bundle && git -C /opt/e71/corrected symbolic-ref HEAD refs/heads/codex/claude-sidecalls-stack-1292-20261008 && git -C /opt/e71/corrected update-ref HEAD 34b49d82d9f69b1044ccca2d12a082eca05969ca && chown -R 501:501 /opt/e71/corrected && mkdir -p /opt/e71/corrected-packs /opt/e71/corrected-installed && chown -R 501:501 /opt/e71/corrected-packs /opt/e71/corrected-installed
+#7 CACHED
+
+#8 [4/9] COPY --chown=501:501 candidate/ /opt/e71/corrected/
+#8 CACHED
+
+#9 [5/9] WORKDIR /opt/e71/corrected
+#9 CACHED
+
+#10 [6/9] RUN cp -a /opt/e71/current/node_modules node_modules && python3 /snapshot-corrected/qualify-source.py && npm run build
+#10 CACHED
+
+#11 [7/9] RUN npm pack --ignore-scripts --json --pack-destination /opt/e71/corrected-packs > /opt/e71/corrected-packs/PACK.json && npm install --prefix /opt/e71/corrected-installed --ignore-scripts --no-audit --no-fund /opt/e71/corrected-packs/rynfar-meridian-1.80.0.tgz && npm install --prefix /opt/e71/corrected-installed --ignore-scripts --no-audit --no-fund --save-exact @anthropic-ai/claude-agent-sdk@0.2.141 @anthropic-ai/claude-code@2.1.296 && node /opt/e71/corrected-installed/node_modules/@anthropic-ai/claude-code/install.cjs
+#11 CACHED
+
+#12 [8/9] COPY --chown=501:501 qualify-build.cjs /snapshot-corrected/
+#12 DONE 0.1s
+
+#13 [9/9] RUN node /snapshot-corrected/qualify-build.cjs
+#13 3.768 {"head":"34b49d82d9f69b1044ccca2d12a082eca05969ca","clean":true,"coreSha256":"2bb9025ee1c122a541e0c9f9c17df733f3f752a985776501bc69ea5ad31440d9","tarballSHA256":"03e92646b80cd60c21ef2fd135b788157d353ed14a69d618d0761ff2ce76cdd4"}
+#13 DONE 3.8s
+
+#14 exporting to image
+#14 exporting layers
+#14 exporting layers 6.5s done
+#14 writing image sha256:c07ed57b13929b0bc91e0d46da574bb9bfd0bb11f8e62e84b889281394db0e68 done
+#14 naming to docker.io/library/meridian1211:complete-stream-r23-corrected 0.0s done
+#14 DONE 6.5s

@@ -1,0 +1,51 @@
+{
+  "atUTC": "2026-10-09T20:30:43.100024+00:00",
+  "status": "FAILED_ORIGINAL_RUN_PRESERVED_CAUSE_NOT_YET_ATTRIBUTED",
+  "proofSHA256": "32c2301ee6417faae07e795abb2d48a9ad24097247c8d02eb4416c2cce816c8a",
+  "productionHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "observerContentHead": "63f90fa35ed5156e942d71c2e2c5cbd84bb7bdfe",
+  "localHead": "6cb15163ee27e9489c7a91cad18465d6c9bebcf1",
+  "passedChecks": 24,
+  "failedChecks": [
+    "actualAgentAndBashReceipts",
+    "nativeReceipts"
+  ],
+  "publicFacts": {
+    "queries": 19,
+    "classifierQueries": 9,
+    "workingQueries": 10,
+    "clientInvocations": 2,
+    "expectedAgentAndBashReceipts": 7,
+    "matchedExpectedReceipts": 7,
+    "additionalUnmatchedReceipts": [
+      {
+        "number": 7,
+        "actor": 1,
+        "query": 12,
+        "name": "other",
+        "paired": false,
+        "resultMatched": false
+      },
+      {
+        "number": 8,
+        "actor": 2,
+        "query": 13,
+        "name": "other",
+        "paired": false,
+        "resultMatched": false
+      }
+    ],
+    "nativeCanonicalHttpToolTerminalFalseQueries": [
+      12,
+      13
+    ],
+    "outsideWritesCompleted": 5
+  },
+  "qualification": "The additional HTTP tools are sanitized as other; original raw names and inputs are not retained. Their SDK-to-HTTP naming/input mismatch cause and any product-vs-observer attribution remain unknown. Do not infer a PASS from the seven matched expected receipts, five writes or classifier isolation.",
+  "installedPackageCase": "UNEXECUTED_AFTER_SOURCE_AUDIT_FAILURE",
+  "unchangedBaselineCase": "UNEXECUTED_AFTER_SOURCE_AUDIT_FAILURE",
+  "wholeAcceptance": "HELD",
+  "unchangedRerun": false,
+  "newModelCallsThisStatusAudit": 0,
+  "nextAction": "Inspect tool normalization and client-visible tool path, add sanitized bounded diagnostic facts and meaningful causal controls if needed; preserve this original failure. Only a reviewed material correction with fresh local gates/rehearsal can justify a new native cohort. No silent removal of unexpected tools or larger bounds."
+}

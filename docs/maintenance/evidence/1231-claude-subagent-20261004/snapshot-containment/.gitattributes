@@ -1,0 +1,2 @@
+# Generated synthetic scenario receipts retain their original bytes for audit.
+after/full-controls/*.json -diff linguist-generated=true

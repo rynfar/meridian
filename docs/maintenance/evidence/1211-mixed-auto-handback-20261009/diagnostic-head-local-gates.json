@@ -1,0 +1,73 @@
+{
+  "atUTC": "2026-10-09T20:54:25.067554+00:00",
+  "head": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+  "counts": {
+    "pass": 5873,
+    "skip": 36,
+    "fail": 0
+  },
+  "npmBatches": 22,
+  "gates": {
+    "test": {
+      "atUTC": "2026-10-09T20:49:49.326572+00:00",
+      "head": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "driverPid": 69566,
+      "childPid": 69586,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "cleanAfter": true
+    },
+    "typecheck": {
+      "atUTC": "2026-10-09T20:36:53.748171+00:00",
+      "head": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "driverPid": 69567,
+      "childPid": 69585,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "cleanAfter": true
+    },
+    "build": {
+      "atUTC": "2026-10-09T20:36:48.517859+00:00",
+      "head": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "driverPid": 69568,
+      "childPid": 69587,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "cleanAfter": true
+    },
+    "compiled": {
+      "atUTC": "2026-10-09T20:37:54.625504+00:00",
+      "head": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "argv": [
+        "bun",
+        "test",
+        "src/__tests__/claude-auto-mode-harness.test.ts",
+        "-t",
+        "binds existing certified compiled HTTP requests"
+      ],
+      "driverPid": 75618,
+      "childPid": 75622,
+      "originalProcessJoined": true,
+      "exitCode": 0,
+      "headAfter": "0f792f161db735973e843d3f62880cbe6ea3bba6",
+      "cleanAfter": true
+    }
+  }
+}

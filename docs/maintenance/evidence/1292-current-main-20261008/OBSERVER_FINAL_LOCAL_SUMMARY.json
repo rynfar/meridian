@@ -1,0 +1,122 @@
+{
+  "testedHead": "f41a6524b55e92b61e378601912e862307462879",
+  "status": "PASS",
+  "batches": [
+    {
+      "pass": 5228,
+      "skip": 36,
+      "fail": 0
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 5,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 12,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 51,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 10,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 95,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 13,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 76,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 9,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 22,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 42,
+      "skip": 0,
+      "fail": 0
+    }
+  ],
+  "totals": {
+    "pass": 5669,
+    "skip": 36,
+    "fail": 0
+  },
+  "toolSession": 93694,
+  "joined": true,
+  "pretestAndStandaloneTypecheck": true,
+  "buildExit": 0,
+  "causalControlExit": 0,
+  "actualModelCalls": 0
+}

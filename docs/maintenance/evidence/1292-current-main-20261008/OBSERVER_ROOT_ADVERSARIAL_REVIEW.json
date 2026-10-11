@@ -1,0 +1,67 @@
+{
+  "atUTC": "2026-10-09T01:22:40.385369+00:00",
+  "classification": "FIT_FOR_SELECTED_NATIVE_OBSERVER_WITH_RUNTIME_CUSTODY_PRODUCT_PACKAGE_CI_HOLDS",
+  "reviewer": "Root adversarial review; no new delegated reviewer",
+  "productionExactB6": true,
+  "frozenHistoricalGateUnchanged": true,
+  "requestObserverExactHistoricalBytes": true,
+  "findingsCorrected": [
+    "Historical root-slot observer false PASS and false FAIL; actual adapter-derived exact profile slot and generation key now used",
+    "Canonical claudecode.ts casing and positive-control identity narrowing corrected after real typecheck failure",
+    "Historical README link absent from current branch corrected"
+  ],
+  "reviewScope": [
+    "Exact full delta from frozen native harness; all four snapshot callers",
+    "Actual selected-source adapter/state/tree bindings and pinned Hono role",
+    "Same derived identity for profile mapping and generations; no root/sibling/other-profile fallback",
+    "SDK public history reads and existing checkpoint/locator assertions retained",
+    "Only expected helper refusals classified MISSING; unrelated I/O/probe errors propagate",
+    "Digest-only public identities; no mapping namespace interface exposed",
+    "Existing native process/pipe/HTTP/writer joins, sticky first failure, tuple/provenance guards and source-only/package refusal unchanged",
+    "All six meaningful controls; exact snapshot-function false-pass/false-fail causality control"
+  ],
+  "controls": {
+    "focusedPass": 6,
+    "typecheckExit": 0,
+    "syntaxExit": 0,
+    "portableCausalityPass": true,
+    "nativeChildren": 0,
+    "modelCalls": 0
+  },
+  "files": {
+    "scripts/e2e-claude-code-progress-captions/README.md": {
+      "bytes": 5684,
+      "sha256": "be69c1ad0a4caf23161e0e0c97cfc0b20a166415838b76d13623e05e41881a61"
+    },
+    "scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs": {
+      "bytes": 80255,
+      "sha256": "c74654b436cdb9c98d479d506581c032eb3630387458de1ec5f0d0ac2b15a100"
+    },
+    "scripts/e2e-claude-code-progress-captions/historical-snapshot.txt": {
+      "bytes": 1651,
+      "sha256": "57677ad97fc91eee6bbf403c22f8cf44df344c74a4a1b341350d313a4e1c876d"
+    },
+    "scripts/e2e-claude-code-progress-captions/mapping-observer-control.mjs": {
+      "bytes": 4836,
+      "sha256": "ff4b00e440151be8f8238a3bf9294efb49a8cd257dc942ac4ac2c879427ab13e"
+    },
+    "scripts/e2e-claude-code-progress-captions/request-observer.mjs": {
+      "bytes": 503,
+      "sha256": "fac6a22604138c260311d451b10feccc01d2a527c12956a075889fc3b5a117bb"
+    },
+    "scripts/e2e-claude-code-progress-captions/working-mapping.ts": {
+      "bytes": 1010,
+      "sha256": "82138fcec662f1b9db0a03b60da2ad805513e27c17fa66d00efdcd0e1e7028d0"
+    }
+  },
+  "holds": [
+    "Current complete local checks after new harness/test",
+    "Exact Darwin arm64 Bun1.3.11 native2.1.292 SDK0.2.141/full model runtime and invocation custody",
+    "No native gate invoked; no access grant staged",
+    "Actual reporter tuple remains unknown",
+    "Both overlap orders, cancellation/live children/recovery-cache and ancestor coverage separate",
+    "Shared SDK MCP transport limitation remains qualified",
+    "E71/E72 and E41/E55 affected-client/model proof",
+    "Installed package and final delivery-head CI"
+  ]
+}

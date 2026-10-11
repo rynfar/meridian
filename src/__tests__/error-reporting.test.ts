@@ -276,19 +276,43 @@ describe("in a real process", () => {
 
   it("a crash still crashes, exactly as without the reporter, and the fatal event is delivered after the process is gone", async () => {
     const spool = join(tempDir(), "spool")
-    const baseline = await runChild({ REPORTER_SPOOL: join(tempDir(), "unused"), REPORTER_FAIL: "throw" })
-    const crashed = await runChild({ REPORTER_DSN: liveDsn(), REPORTER_SPOOL: spool, REPORTER_FAIL: "throw" })
-    expect(baseline.code).not.toBe(0)
-    expect(crashed.code).toBe(baseline.code)
-    expect(crashed.stderr).toContain("thrown")
-
-    await waitFor(() => received.length === 1 && spooled(spool).length === 0)
-    expect(received).toHaveLength(1)
-    const event = eventOf(received[0]!.body)
-    expect(event.level).toBe("fatal")
-    expect(event.exception.values[0]!.mechanism).toEqual({ type: "onuncaughtexception", handled: false })
-    for (const secret of LEAK_MARKERS) expect(received[0]!.body).not.toContain(secret)
-    expect(existsSync(spool) ? readdirSync(spool) : []).toEqual([])
+    let releaseResponse: (() => void) | undefined
+    const responseReady = new Promise<void>((resolve) => { releaseResponse = resolve })
+    const heldCollector = Bun.serve({
+      hostname: "127.0.0.1", port: 0,
+      async fetch(request) {
+        received.push({ path: new URL(request.url).pathname, auth: request.headers.get("x-sentry-auth"), body: await request.text() })
+        await responseReady
+        return new Response("{}", { status: 200 })
+      },
+    })
+    const entries = () => existsSync(spool) ? readdirSync(spool) : []
+    try {
+      const baseline = await runChild({ REPORTER_SPOOL: join(tempDir(), "unused"), REPORTER_FAIL: "throw" })
+      const crashed = await runChild({ REPORTER_DSN: `http://publickey@127.0.0.1:${heldCollector.port}/42`, REPORTER_SPOOL: spool, REPORTER_FAIL: "throw" })
+      expect(baseline.code).not.toBe(0)
+      expect(crashed.code).toBe(baseline.code)
+      expect(crashed.stderr).toContain("thrown")
+      await waitFor(() => received.length === 1)
+      expect(received).toHaveLength(1)
+      // Receiving the envelope precedes the response and claim removal.
+      // An empty .json-only view cannot establish detached delivery completion.
+      expect(spooled(spool)).toEqual([])
+      expect(entries()).toHaveLength(1)
+      expect(entries()[0]).toMatch(/\.json\.sending-\d+$/)
+      const event = eventOf(received[0]!.body)
+      expect(event.level).toBe("fatal")
+      expect(event.exception.values[0]!.mechanism).toEqual({ type: "onuncaughtexception", handled: false })
+      for (const secret of LEAK_MARKERS) expect(received[0]!.body).not.toContain(secret)
+      releaseResponse?.()
+      await waitFor(() => received.length === 1 && entries().length === 0)
+      expect(received).toHaveLength(1)
+      expect(entries()).toEqual([])
+    } finally {
+      releaseResponse?.()
+      await waitFor(() => entries().length === 0)
+      heldCollector.stop(true)
+    }
   })
 
   it("an unhandled rejection with no other listener still exits as it would without the reporter, recorded once", async () => {

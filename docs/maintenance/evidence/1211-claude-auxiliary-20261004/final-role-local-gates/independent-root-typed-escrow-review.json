@@ -1,0 +1,209 @@
+{
+  "head": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "review": "PASS for escrow, narrow typed guard, historical retention and contributor attribution; full final gates/native acceptance remain open",
+  "artifactFilesVerified": 305,
+  "gzipOriginalsVerified": 140,
+  "oldArtifactEntriesChecked": 110,
+  "relativeMarkdownLinksVerified": 29,
+  "contributorCommits": [
+    {
+      "source": "b06c0aab235ee01e9b2c17715deeabbd08c22a81",
+      "incorporation": "8f77580fc32c9e9f9bc3ffdf68ec4ed33f730884",
+      "authorDateAndSubjectMatch": true
+    },
+    {
+      "source": "b8d2bbeeeb37fa1d797981c0da17efc1d871014d",
+      "incorporation": "aea593ecbd2bcbcb23b7651ccd226bd78854a596",
+      "authorDateAndSubjectMatch": true
+    },
+    {
+      "source": "cdb7dce8299c137f0adc677d012f99e8db412f95",
+      "incorporation": "cb6c92c4a6c388c61f9e412f9809250210c0a5e7",
+      "authorDateAndSubjectMatch": true
+    },
+    {
+      "source": "76d72bac5a0482dbd4e797a7ff670fb30cde6c56",
+      "incorporation": "734f543f42c5e253048c5d56cea697d897b30479",
+      "authorDateAndSubjectMatch": true
+    },
+    {
+      "source": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+      "incorporation": "af0fad6318011520d54460dc2f11075e402a1009",
+      "authorDateAndSubjectMatch": true
+    }
+  ],
+  "typedCorrection": "runtime typeof guards before unchanged digest comparisons; no casts or suppressed checks",
+  "sourceHashes": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "64f2cba2c539440987dbf4fc1728e9a0dd7659928408a4b9403da287692c8737",
+    "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+  },
+  "originalFullGate": "preserved pretest exit2/TS2769; no suite ran",
+  "focusedReceipts": [
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/source-positive.json",
+      "sha256": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    },
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/source-swap.json",
+      "sha256": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    },
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/source-unmatched.json",
+      "sha256": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    },
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/source-duplicate.json",
+      "sha256": "c6c681024449c5235c1c6aa0349ee0dca44dc1088f4cb623969d96714314e324",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    },
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-positive.json",
+      "sha256": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    },
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-swap.json",
+      "sha256": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    },
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-unmatched.json",
+      "sha256": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    },
+    {
+      "file": "typed-artifact-hash-correction/typed-hash-guard-context/compiled-duplicate.json",
+      "sha256": "d48071f9a346a9c5f7ad65c7ad3ba972c4717abec60ed5d49dd7f381d7a9512a",
+      "type": "dict",
+      "keys": [
+        "kind",
+        "mode",
+        "statuses",
+        "observations",
+        "summary",
+        "entrySha256",
+        "modelModuleSha256",
+        "compiledSourceHead",
+        "loggerDescriptorRestored",
+        "joinedGenerators",
+        "externalFetchAttempts",
+        "authDiscovery",
+        "executableDiscovery"
+      ]
+    }
+  ],
+  "limitations": [
+    "compiled focused control targets certified80d build, not a088 final build",
+    "full npm rerun/typecheck/build and final-head CI still required",
+    "Linux actual CLI/SDK/model/client native evidence absent"
+  ]
+}

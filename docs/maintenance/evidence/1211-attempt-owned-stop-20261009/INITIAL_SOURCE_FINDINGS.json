@@ -1,0 +1,30 @@
+{
+  "reviewHead": "44ae1bc2155ae89dfbb49f3f80131c979e514024",
+  "reviewType": "root adversarial source pass; no delegated review",
+  "atUTC": "2026-10-09T23:21:18.754777+00:00",
+  "disposition": "HELD_FOR_CORRECTIONS_AND_NATIVE_VERIFICATION",
+  "findings": [
+    {
+      "id": "R6-1",
+      "priority": "P1",
+      "status": "source-confirmed",
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "behavior": "An accepted forwarded hook in a mixed SDK-owned generation calls fail(). The next event throws, replacing the original drain with a proxy error. Unsupported ownership must disable stopping for that generation and release holds while preserving the existing path. The current mixed-work unit test asserts only no interrupt, omitting failure/drain behavior."
+    },
+    {
+      "id": "R6-2",
+      "priority": "P1",
+      "status": "native-confirmed",
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "behavior": "Terminal qualification compares native num_turns with the operator cap although prior exact pinned receipts establish that two tools can count four turns at one API generation. HTTP positives manufacture num_turns equal to cap one. Native cap-one production options remain unproven and may be refused.",
+      "nativeFailure": "fresh-component-cap1/output/COUNTER_DISCOVERY.json: one API generation at cap one returns error_max_turns/is_error true/aborted_tools/num_turns two; acknowledgement, exact iterator error, both results/history and physical joins qualify but current component rejects."
+    },
+    {
+      "id": "R6-3",
+      "priority": "P2",
+      "status": "source-confirmed",
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "behavior": "Nested SDK events fail even before stop intent, although SDK-owned work should retain its existing behavior when it cannot own a checkpoint. A nested pre-intent event must suppress control without altering the original SDK error classification/drain; an event after retained intent still refuses qualification."
+    }
+  ]
+}

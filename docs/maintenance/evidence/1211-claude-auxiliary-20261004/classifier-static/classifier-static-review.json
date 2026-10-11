@@ -1,0 +1,281 @@
+{
+  "package": "@anthropic-ai/claude-code-linux-x64",
+  "version": "2.1.286",
+  "inspectedArtifactSha256": "fe503f65c6289d59c23e5b21ae44f03583f997dd33a2cbfc75ab4f96fb8fc73f",
+  "nativeExecution": false,
+  "installScriptsExecuted": false,
+  "loginOrCredentialsRead": false,
+  "nativeWireCaptured": false,
+  "nativeClassifierCompletionObserved": false,
+  "distributionReference": "distribution-manifest.json",
+  "proofKind": "static official packaged program inspection; semantic inference over linked builder functions, not runtime observation",
+  "locations": [
+    {
+      "id": "classifier-system-prefix",
+      "binaryByteOffsetStart": 206656479,
+      "binaryByteOffsetEndExclusive": 206656596,
+      "bytes": 117,
+      "sha256": "d41956ed0e8b27aa97931eebea52ddd720f8f66fa8c0f7b5a0df60f6f0a2cfb4",
+      "locateStartUtf8": "function bFe(){",
+      "locateEndUtf8": "## Context",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "bFe returns a system prompt beginning with the exact security-monitor sentence. Dynamic appended phrase is later than the opening sentence.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "permissions-wrapper",
+      "binaryByteOffsetStart": 206701161,
+      "binaryByteOffsetEndExclusive": 206701243,
+      "bytes": 82,
+      "sha256": "efdea19b8bdd1e1b0eda8159fff32e12fdc643da736162a89b300318479bb072",
+      "locateStartUtf8": "function vFe(e){return`<cc_automode_permissions>",
+      "locateEndUtf8": "function n$e()",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "vFe wraps permissions in paired newline-delimited cc_automode_permissions tags.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "classifier-system-construction",
+      "binaryByteOffsetStart": 206734467,
+      "binaryByteOffsetEndExclusive": 206735229,
+      "bytes": 762,
+      "sha256": "4d349733c1ebdc2187166c009d201e42e1f452d084fe6facdd25bc41b1b45d9b",
+      "locateStartUtf8": "async function p1o(",
+      "locateEndUtf8": "var h1o=",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "p1o uses bFe (or severity suffix replacement v1o), replaces permissions_template with vFe output and returns its full prompt as a dedicated first text block plus optional later context block.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "severity-suffix-preserves-prefix",
+      "binaryByteOffsetStart": 206737725,
+      "binaryByteOffsetEndExclusive": 206737822,
+      "bytes": 97,
+      "sha256": "4d0f6a3521f5922125f23aed1b924b3de55c439539c11f553e6a3edb69d2aa89",
+      "locateStartUtf8": "function v1o(",
+      "locateEndUtf8": "function E1o(",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "v1o replaces only the Output Format suffix; it preserves opening sentence and permissions marker.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "classifier-caller",
+      "binaryByteOffsetStart": 206752683,
+      "binaryByteOffsetEndExclusive": 206755237,
+      "bytes": 2554,
+      "sha256": "069ace97e4c86c5f123848ed467fffd06a3f860d9446bb9358c9eae2d59326ea",
+      "locateStartUtf8": "async function Nae(",
+      "locateEndUtf8": ",ro=Dy().externalSonnet5Probe",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "Nae obtains Ce=await p1o(...); passes Ce as third I1o argument. Its transcript g may contain many text blocks and optional leading context.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "stage-one-options-and-transcript-segmentation",
+      "binaryByteOffsetStart": 206741184,
+      "binaryByteOffsetEndExclusive": 206742194,
+      "bytes": 1010,
+      "sha256": "beac4bc18594aab510a16202efe059e529af9ba62ffee479e78b1db68ee1c88c",
+      "locateStartUtf8": "async function I1o(",
+      "locateEndUtf8": ",{raw:gt,usage:Ge,opts:yt}=",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "I1o uses system:r, querySource auto_mode, default non-stream SDK create; both/block or severity stage1 sets known stop; fast variant does not. Segmented mode emits every transcript block as its own user message, so one/two-message ceilings are unsupported.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "stage-two-options",
+      "binaryByteOffsetStart": 206743976,
+      "binaryByteOffsetEndExclusive": 206744195,
+      "bytes": 219,
+      "sha256": "63a44985c08b19c2c43426d5e9a9fff982a5904484f8cbe81c52189c22c101fe",
+      "locateStartUtf8": "dn={model:S,max_tokens:8192+Zn,system:r",
+      "locateEndUtf8": ",{raw:ro,usage:to,opts:ao}=",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "Stage2 uses same classifier system, querySource auto_mode and no stop_sequences/tools/stream options. A strict recognized-system gate can accept absent stop rather than collide this native static variant with main work.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "sdk-call-bridge",
+      "binaryByteOffsetStart": 206749541,
+      "binaryByteOffsetEndExclusive": 206750202,
+      "bytes": 661,
+      "sha256": "a53ca08b95fcebc00a9c8fb31081770efa5afa03f170999e9f76a00d09e34d1b",
+      "locateStartUtf8": "async function WFe(",
+      "locateEndUtf8": "function $1o(",
+      "searchRange": [
+        206600000,
+        206800000
+      ],
+      "semantics": "WFe forwards classifier options to KB with cancellation/deadline fields; no replacement system generated here.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "system-serialization",
+      "binaryByteOffsetStart": 203226471,
+      "binaryByteOffsetEndExclusive": 203227271,
+      "bytes": 800,
+      "sha256": "4fe9d31b21a714202847d2e766bac0368581c9a6bb22fe48631a378f7088a28b",
+      "locateStartUtf8": "function rPr({messages:e,system:n",
+      "locateEndUtf8": "function T5e(",
+      "searchRange": [
+        203200000,
+        203240000
+      ],
+      "semantics": "rPr with skipSystemPromptPrefix preserves input system blocks and delegates to U0. String input becomes one text block; official classifier p1o input here is array.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "billing-prepend",
+      "binaryByteOffsetStart": 203223621,
+      "binaryByteOffsetEndExclusive": 203223815,
+      "bytes": 194,
+      "sha256": "2b4bcf433c4680c7f06dcbc6d36a2ecd5673c4621cc093558278848a4922c977",
+      "locateStartUtf8": "function U0(e,n){",
+      "locateEndUtf8": "function cZ(",
+      "searchRange": [
+        203200000,
+        203240000
+      ],
+      "semantics": "U0 only prepends a separate billing text block if enabled, leaving all passed classifier system blocks intact.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "sdk-body-builder",
+      "binaryByteOffsetStart": 205756897,
+      "binaryByteOffsetEndExclusive": 205759065,
+      "bytes": 2168,
+      "sha256": "b0a145235afdff86f8f448a3e34ed95dcd6940eb3d5fc8e3f9352ff84019d619",
+      "locateStartUtf8": "async function KB(e){let{model:n,system:r",
+      "locateEndUtf8": ";if(hvn(Pn))",
+      "searchRange": [
+        205750000,
+        205765000
+      ],
+      "semantics": "KB serializes rPr result as system:Jt, messages:Un, optional tools only when supplied and stop_sequences when supplied. Body does not set stream under default options; extraBodyParams may customize body.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "sdk-create-call",
+      "binaryByteOffsetStart": 205759644,
+      "binaryByteOffsetEndExclusive": 205759786,
+      "bytes": 142,
+      "sha256": "e9f900bb7485494a2475962912038890f1bddff7ababbb1fa842e705aea31a76",
+      "locateStartUtf8": "return gr.beta.messages.create(Pn,",
+      "locateEndUtf8": ").catch((Kr)",
+      "searchRange": [
+        205750000,
+        205765000
+      ],
+      "semantics": "Final side-query path calls actual SDK beta.messages.create with serialized Pn rather than direct emulation.",
+      "sourceBytesEscrowed": false
+    },
+    {
+      "id": "query-source-request-class",
+      "binaryByteOffsetStart": 199305466,
+      "binaryByteOffsetEndExclusive": 199305641,
+      "bytes": 175,
+      "sha256": "0b48f5af38da4f5f481de20d11e20c4b65a6a2b034abcb959985844a4372b23b",
+      "locateStartUtf8": "function as(e){if(e===void 0)return;if(e.startsWith(\"repl_main_thread\")",
+      "locateEndUtf8": "function BRe(",
+      "searchRange": [
+        199300000,
+        199320000
+      ],
+      "semantics": "as maps main SDK/repl and agent subagent query sources specially and all other sources including auto_mode to auxiliary. This is a static classification fact, not a captured sent header.",
+      "sourceBytesEscrowed": false
+    }
+  ],
+  "conservativePredicate": {
+    "preserveExplicitAuxiliaryHeaderPath": true,
+    "additionalHeaderlessRequirements": [
+      "existing supported client/session key",
+      "non-stream request (omitted or false stream)",
+      "existing empty or absent tools constraint",
+      "stop_sequences omitted, or exactly one recognized classifier stop in a well-formed array; reject unknown, null, empty, malformed or mixed stop values",
+      "one system text block starts with exact shipped security-monitor sentence and contains a properly ordered paired newline-delimited cc_automode_permissions envelope in that same block"
+    ],
+    "systemPrefix": "You are a security monitor for autonomous AI coding agents.",
+    "openingTag": "<cc_automode_permissions>",
+    "closingTag": "</cc_automode_permissions>",
+    "messageCountCeilingRecommended": false,
+    "modelPinRecommended": false,
+    "semanticIdentityIsAuthentication": false
+  },
+  "negativeControls": [
+    {
+      "id": "ordinary-first-turn-xml",
+      "change": "same session key, no tools, stop </block>, one user XML request, no classifier system",
+      "expectAuxiliary": false
+    },
+    {
+      "id": "ordinary-three-turn-xml",
+      "change": "ordinary assistant/user history and same XML stop, no classifier system",
+      "expectAuxiliary": false
+    },
+    {
+      "id": "user-only-marker",
+      "change": "user message quotes complete classifier prefix and marker pair while normal system remains",
+      "expectAuxiliary": false
+    },
+    {
+      "id": "marker-without-prefix",
+      "change": "normal system happens to quote a complete marker pair",
+      "expectAuxiliary": false
+    },
+    {
+      "id": "prefix-without-envelope",
+      "change": "security-monitor opening but no paired permissions envelope",
+      "expectAuxiliary": false
+    },
+    {
+      "id": "malformed-envelope",
+      "change": "missing close, close before open, tag lookalike or partial tag",
+      "expectAuxiliary": false
+    },
+    {
+      "id": "split-system-blocks",
+      "change": "prefix/open in one system block and close in another",
+      "expectAuxiliary": false
+    },
+    {
+      "id": "normal-stop-or-tools-or-stream",
+      "change": "otherwise recognized system but supplied unknown/null/empty/malformed/mixed stop, tools, or streaming body",
+      "expectAuxiliary": false
+    }
+  ],
+  "positiveControls": [
+    "synthetic official-shaped array with separate preceding billing system block and complete classifier block; stop </block>; stream omitted",
+    "same official-shaped classifier with stop </severity>; stream false",
+    "segmented transcript greater than two user messages under same system envelope",
+    "explicit auxiliary-header path remains valid independent of shape",
+    "same official-shaped system with stop_sequences omitted and stream omitted, reflecting static stage2/fast request options"
+  ],
+  "remainingGates": [
+    "Actual Linux Claude Code/Sonnet native E71 classifier request capture and correlated headerless positive proof remain unavailable without working account credentials",
+    "Static inspection does not prove runtime feature activation, emitted header/body, model success, latency or abort correctness",
+    "Only Linux x64 GNU 2.1.286 binary inspected; 2.1.284 package metadata was acquired, not its distribution program",
+    "Registry content SHA1/SHA512 verified against metadata; signatures not independently verified; no source-authentication guarantee beyond official registry URL/content digest",
+    "Conservative fallback covers the statically recognized system dialect, not every possible auxiliary request or future client prompt revision"
+  ]
+}

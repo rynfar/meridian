@@ -1,0 +1,34 @@
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 215B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/meridian1211:complete-stream-r27-sidecars-base
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/meridian1211:complete-stream-r27-source-base
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [stage-0 1/2] FROM docker.io/library/meridian1211:complete-stream-r27-source-base
+#5 ...
+
+#6 FROM docker.io/library/meridian1211:complete-stream-r27-sidecars-base
+#6 DONE 0.3s
+
+#5 [stage-0 1/2] FROM docker.io/library/meridian1211:complete-stream-r27-source-base
+#5 DONE 0.4s
+
+#7 [stage-0 2/2] COPY --from=meridian1211:complete-stream-r27-sidecars-base /opt/e41/sidecars /opt/e41/sidecars
+#7 DONE 2.9s
+
+#8 exporting to image
+#8 exporting layers
+#8 exporting layers 1.5s done
+#8 writing image sha256:c27e49eaca56f9e5eb727ec0dc1c4c4d404d47483120309af328a7bc26b50577 done
+#8 naming to docker.io/library/meridian1211:complete-stream-r27-e41-sidecars done
+#8 DONE 1.6s

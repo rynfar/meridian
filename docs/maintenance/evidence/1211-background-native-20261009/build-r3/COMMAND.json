@@ -1,0 +1,9 @@
+{
+  "head": "4f5ecd7594046bc276a6c9bac76da1cfa44c673c",
+  "argv": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "environmentOverrides": {}
+}

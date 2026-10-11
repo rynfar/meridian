@@ -1,0 +1,18 @@
+{
+  "state": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 1,
+    "Error": "",
+    "StartedAt": "2026-10-10T00:43:27.490651255Z",
+    "FinishedAt": "2026-10-10T00:44:16.200433729Z"
+  },
+  "image": "sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0",
+  "readOnlyRoot": true,
+  "network": "bridge"
+}

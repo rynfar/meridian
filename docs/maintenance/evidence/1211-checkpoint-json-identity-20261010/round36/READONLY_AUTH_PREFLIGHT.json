@@ -1,0 +1,14 @@
+{
+  "profile": "work",
+  "readOnly": true,
+  "sourceWrites": 0,
+  "loginRefreshInvoked": false,
+  "grantStaged": false,
+  "realModelClientCalls": 0,
+  "atUTC": "2026-10-10T06:03:24.373431+00:00",
+  "readSucceeded": true,
+  "expiresUTC": "2026-10-10T13:50:01.535000+00:00",
+  "inferenceScopePresent": true,
+  "validForElevenMinuteAdmission": true,
+  "affectedFlowAdmission": "AVAILABLE_AFTER_EXACT_HEAD_GATES"
+}

@@ -1,0 +1,10 @@
+{
+  "supersedesMisstatementIn": [
+    "RECONCILIATION.json fact 4",
+    "ROOT_BACKLOG_DELIVERY_20261006.json nextAuthorizedBacklogAction at previous checkpoint"
+  ],
+  "correction": "The private WeakMap protects mapping namespace ownership. Request classification uses an internal adapter hook. Neither adds fields to public SessionState or LineageResult, and neither is covered by executable-selection approval #1319.",
+  "priorEvidenceUnmodified": true,
+  "bounded1319ApprovalAlreadyRecorded": true,
+  "approvalLocation": "https://github.com/rynfar/meridian/issues/1319"
+}

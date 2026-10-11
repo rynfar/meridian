@@ -1,0 +1,83 @@
+{
+  "atUTC": "2026-10-09T03:41:52.392059+00:00",
+  "exactMatch": true,
+  "after": {
+    "head": "446a0f1633be3a0cf36d8f1e9f222e914d2f7c83",
+    "status": " M DESIGN.md\n M E2E.md\n M apps/desktop/README.md\n M apps/desktop/src/contracts.ts\n M apps/desktop/src/core.ts\n M apps/desktop/src/main.ts\n M apps/desktop/src/manager.ts\n M apps/desktop/src/renderer.ts\n M apps/desktop/src/style.css\n M apps/desktop/src/tray.css\n M apps/desktop/src/trayRenderer.ts\n?? scripts/e2e-desktop-dock.cjs",
+    "indexSHA256": "347af071aac43d956e3fcc51f57ae7d2b06a85db69dd84fe61b47a67de5ee1a8",
+    "files": [
+      {
+        "path": "DESIGN.md",
+        "bytes": 12733,
+        "sha256": "ec9f7b77cfb97a956ae851cbb10c3dc0211b141a133c9c1906e5ea9030551f73",
+        "mode": "0o644"
+      },
+      {
+        "path": "E2E.md",
+        "bytes": 364725,
+        "sha256": "dcabe3e04245e32edf8fd4a3fe16e8e4a70d6359341c0ad0379471384f504337",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/README.md",
+        "bytes": 9348,
+        "sha256": "1f4154aa2ffa7af37fd578b89ec2c7e638906c9bae7e695e440a28dba92b273d",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/contracts.ts",
+        "bytes": 1887,
+        "sha256": "e1a5f99659f0eb4d6efc35a8bbca324f2e0e8893e5392469744478e031505437",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/core.ts",
+        "bytes": 6600,
+        "sha256": "b5dd2c55569375e5c1ab3e8991e2ec55e71dc5307dd7c18bc6f8088aa3d20414",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/main.ts",
+        "bytes": 15302,
+        "sha256": "ff689ed196a237b5d61082cef27aa3226bc1a642d82f79edf687de32a86096d3",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/manager.ts",
+        "bytes": 43069,
+        "sha256": "cda4ace16225915652d781d15f1e759c1ea7aaf895f56e8f02b897a8893e3abe",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/renderer.ts",
+        "bytes": 55476,
+        "sha256": "24b6e773ccfb7f43121b1255ef9e6b461571cf4e660fbec364672f46b4ac2742",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/style.css",
+        "bytes": 18044,
+        "sha256": "3a1a7492bbe45b93d9e842fd1dd7a12611dc12c1f6d35a8542ff51f95b3a6f46",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/tray.css",
+        "bytes": 5515,
+        "sha256": "5c9fdfc79e674d169dc9d0e4fcb6a027764270684cd474a76eb1f9193785f4ea",
+        "mode": "0o644"
+      },
+      {
+        "path": "apps/desktop/src/trayRenderer.ts",
+        "bytes": 14211,
+        "sha256": "4ad63f843271356fc5ccf1e8ebc403644d413bd7836da883d0875a4d13a8e809",
+        "mode": "0o644"
+      },
+      {
+        "path": "scripts/e2e-desktop-dock.cjs",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "mode": "0o644"
+      }
+    ]
+  }
+}

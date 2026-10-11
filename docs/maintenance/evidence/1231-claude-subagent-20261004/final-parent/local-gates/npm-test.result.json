@@ -1,0 +1,21 @@
+{
+  "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "command": [
+    "npm",
+    "test"
+  ],
+  "pid": 96125,
+  "processGroup": 96125,
+  "startedUtc": "2026-10-05T04:51:51.999132+00:00",
+  "removedEnvNames": [
+    "CLAUDE_AGENT_SDK_VERSION"
+  ],
+  "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/npm-test.log",
+  "exitCode": 0,
+  "elapsedSeconds": 629.6340323329787,
+  "completedUtc": "2026-10-05T05:02:21.618953+00:00",
+  "logBytes": 1104475,
+  "logSha256": "43637e5b478aa5d7ad372a34d59618742ced875069681e31d186856ad634d1cb",
+  "sourceUnchanged": true,
+  "terminalProcessWaitObserved": true
+}

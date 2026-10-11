@@ -1,0 +1,12 @@
+{
+  "atUTC": "2026-10-10T04:37:54.975807+00:00",
+  "filesInspected": 123,
+  "credentialPatternHits": {
+    "liveAnthropicCredential": [],
+    "privateKeyMaterial": [],
+    "oauthPairingURLWithCode": []
+  },
+  "tarballMembersInspected": 459,
+  "privateGrantsRawPrivateErrorsMachineIdsRuntimeAndBuildSourceDuplicatesExcluded": true,
+  "scanDoesNotProveUniversalSecretAbsence": true
+}

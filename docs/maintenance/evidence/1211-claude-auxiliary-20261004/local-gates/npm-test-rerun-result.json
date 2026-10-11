@@ -1,0 +1,187 @@
+{
+  "frozenHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+  "command": "npm test",
+  "exitCode": 0,
+  "pretestTypecheckPassed": true,
+  "completedStages": 19,
+  "totals": {
+    "pass": 5417,
+    "skip": 35,
+    "fail": 0,
+    "assertions": 27544,
+    "tests": 5452
+  },
+  "stages": [
+    {
+      "pass": 5070,
+      "skip": 35,
+      "fail": 0,
+      "assertions": 26140,
+      "tests": 5105,
+      "files": 315,
+      "time": "238.95s"
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 16,
+      "tests": 3,
+      "files": 1,
+      "time": "443.00ms"
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 105,
+      "tests": 24,
+      "files": 1,
+      "time": "119.00ms"
+    },
+    {
+      "pass": 5,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 21,
+      "tests": 5,
+      "files": 1,
+      "time": "72.00ms"
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 135,
+      "tests": 7,
+      "files": 1,
+      "time": "318.00ms"
+    },
+    {
+      "pass": 12,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 15,
+      "tests": 12,
+      "files": 1,
+      "time": "1215.00ms"
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 16,
+      "tests": 3,
+      "files": 1,
+      "time": "259.00ms"
+    },
+    {
+      "pass": 22,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 63,
+      "tests": 22,
+      "files": 1,
+      "time": "446.00ms"
+    },
+    {
+      "pass": 10,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 36,
+      "tests": 10,
+      "files": 1,
+      "time": "685.00ms"
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 21,
+      "tests": 11,
+      "files": 1,
+      "time": "69.00ms"
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 9,
+      "tests": 8,
+      "files": 1,
+      "time": "602.00ms"
+    },
+    {
+      "pass": 95,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 169,
+      "tests": 95,
+      "files": 1,
+      "time": "25.00ms"
+    },
+    {
+      "pass": 13,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 39,
+      "tests": 13,
+      "files": 1,
+      "time": "24.00ms"
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 37,
+      "tests": 11,
+      "files": 1,
+      "time": "309.00ms"
+    },
+    {
+      "pass": 75,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 389,
+      "tests": 75,
+      "files": 1,
+      "time": "112.44s"
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 16,
+      "tests": 7,
+      "files": 1,
+      "time": "981.00ms"
+    },
+    {
+      "pass": 9,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 28,
+      "tests": 9,
+      "files": 1,
+      "time": "178.00ms"
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 49,
+      "tests": 8,
+      "files": 1,
+      "time": "250.00ms"
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 240,
+      "tests": 24,
+      "files": 1,
+      "time": "312.00ms"
+    }
+  ]
+}

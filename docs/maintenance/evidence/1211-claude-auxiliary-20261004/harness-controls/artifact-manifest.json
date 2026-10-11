@@ -1,0 +1,21 @@
+{
+  "before-H3-H4.test.ts": "7e4e3b64345289cdf7772e58bb232428e844349dfc09979d6bba6a0b5a34e89e",
+  "diff-final-H1-H5.log": "904c4032abdd152c23098c7475d30e49f488d9dca4e254d1383f50ad4d6348b5",
+  "docs-final-H1-H5.log": "6756a43530ecca7112ba30ae120d978268ab974724a66dcd55631ceef7ab1717",
+  "typecheck-after-audit-guard.log": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+  "H5-before-controls.log": "8384617a37f857ef1e28bec64ff0a64fc2de864c78d1b97e28d6de247a588ade",
+  "REPORT.md": "ae1450c4445930230ebc0048f28543170bee4d1c6332c2c96f7dbc5159da2ef9",
+  "focused-14-pass-observed-tool-excerpt.log": "155231d9cd2442ecc44d0034b580feb80012770b96fe9c2ebb06fc542aa3216c",
+  "SSE-initial-observed-tool-excerpt.log": "362a23b1bc03c077e22d90dd48ae7b8db507cad119d5635d65772636d74f4a67",
+  "typecheck-final-H1-H5.log": "f3ee564b221a59aac9669c92ff23e0a79e321269cf3006b04b7bf52f70e96c4c",
+  "final-identities-H1-H5.json": "1d71f1c55d3d7d933c43a8a634299b15206e772b6f5459f204f2e615e1e2ce1b",
+  "before-H5.test.ts": "ff345fa940313e1d80bd28b53d56c700e026864b92a84a79468a23d7f7461cd9",
+  "H3-H4-before-controls.log": "55678c71640268519d8bab2502878c6fd84b8c62373ddf62a6023ad2e80cc553",
+  "H1-H2-before-controls.log": "fd0606e856e2c95fe84654ed735974e7ab7bdc717b34230abcdc24422d738ca1",
+  "harness-before-H5.mjs": "855d8cefb6c8a14efad4a1792849da51d9e5608de3cd07ef8b11c99ab464ee95",
+  "harness-before-H1-H2.mjs": "3935a61eb9a6d3b447f5bfefe3dde8324dccaf7a5288bdd87c0f6b39119cab6b",
+  "syntax-final-H1-H5.log": "92604f8dd82d1ba5b40295ba6f0ba5cc5097edeca3484210a433250cb8208c36",
+  "full-pretest-initial.log": "745d5b021b5d871ec4fc23ce2358a5bef9a88a9f36ad2bb9626c10a3f54424c9",
+  "before-H1-H2.test.ts": "ce7d22993a3675cbec0807523ebd71c46d29d879a4fc45df7dbe232e4da1b388",
+  "focused-final-H1-H5.log": "0c78953ea032ea99064c0fcf1cffa59b994600a2850dd6fbc6590e87b4eaabc5"
+}

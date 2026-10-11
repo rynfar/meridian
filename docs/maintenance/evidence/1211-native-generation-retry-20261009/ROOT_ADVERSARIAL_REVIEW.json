@@ -1,0 +1,77 @@
+{
+  "atUTC": "2026-10-09T19:08:33.242374+00:00",
+  "reviewer": "root adversarial pass; no delegated review claimed",
+  "scope": "Observer/test increment 021bfe2e..0cf7aa70 and exact final R3 credential-free source/installed SDK-native probe; no whole-change merge acceptance",
+  "disposition": "ACCEPT_SCOPED_DIAGNOSTICS_WITH_BASELINE_PRODUCT_CI_HOLDS",
+  "inspected": [
+    "Complete two-file diff; callers and versioned backgroundReadNativeResult unchanged",
+    "Identifier and response privacy: bounded private maps; fixed stop enum/other only; text/thinking presence booleans",
+    "Stream/assistant identity deduplication, orphan/overlap/idless/unknown/conflicting stop diagnostics, snapshot immutability",
+    "Native malformed-tool-use and normal response difference at fourth API round, both partial modes and both pinned native versions",
+    "Exact API-response/public generation ID sets, unchanged bound rejects every native overflow, source options vs installed SDK qualification",
+    "Original physical native/stdio/SDK iterator/listener/container cleanup, immutable input modes/hashes; historical failure and source R2 diagnostic failure retained"
+  ],
+  "findings": [
+    {
+      "id": "NATIVE_MAX_TURNS_MALFORMED_RETRY",
+      "severity": "material acceptance hold",
+      "status": "UPSTREAM_BEHAVIOR_REPRODUCED_NOT_PRODUCT_FIXED",
+      "evidence": "Both SDK0.2.141/native2.1.284 and2.1.295 make five directly counted local API requests at cap four after a fourth tool_use stop with no tool block; ordinary end_turn makes four. No assistant error. Existing generation guard correctly refuses the fifth generation."
+    },
+    {
+      "id": "NO_PARTIAL_STOP_REASON_ABSENCE",
+      "severity": "diagnostic correction",
+      "status": "CORRECTED_BEFORE_DELIVERY",
+      "evidence": "Source R2 correctly failed an assumption that non-partial public assistant fragments carry terminal stop reasons. R3 explicitly qualifies empty stop-reason sets for no-partial cases; new diagnostic unit control records this absence. It never invents a terminal reason."
+    },
+    {
+      "id": "HISTORICAL_CAUSAL_ATTRIBUTION",
+      "severity": "material acceptance hold",
+      "status": "OPEN",
+      "evidence": "The failed real-model baseline has the same five-generation tool-count pattern, but its frozen observer did not retain stop reasons. The scripted reproduction is a possible cause, not proof of that historical query. No retrospective PASS, raised bound or relaxed predicate is permitted."
+    }
+  ],
+  "localGates": {
+    "head": "0cf7aa708bf55c459109537bf84c468e72f91c1a",
+    "fullNpmTest": {
+      "batches": 22,
+      "pass": 5854,
+      "skip": 36,
+      "fail": 0,
+      "pretestTypecheck": true,
+      "originalProcessJoined": true,
+      "logSHA256": "4a51cc0dc8440055d54e1bf850eeb39621de32ebae5c64aa9da7162d22f496c6"
+    },
+    "compiledNodeControl": {
+      "pass": 1,
+      "fail": 0,
+      "E71_COMPILED_CONTEXT_CONTROL": "1",
+      "fourActualCompiledHttpContexts": [
+        "positive",
+        "swap",
+        "unmatched",
+        "duplicate"
+      ],
+      "reasonSeparate": "The standard full npm lane intentionally skips this opt-in certified-build control; it is explicitly enabled and executed separately against the fresh build."
+    },
+    "focusedDiagnosticAndBoundControls": {
+      "pass": 14,
+      "fail": 0
+    },
+    "standaloneTypecheck": "PASS",
+    "build": "PASS",
+    "allOriginalGateProcessesJoined": true
+  },
+  "productionUnchanged": true,
+  "liveModelClientCalls": 0,
+  "realCredentialReads": 0,
+  "inheritedHolds": [
+    "Historical baseline causality and full before-after qualification",
+    "Mixed auto/classifier tuple",
+    "root/scoped/nested cancellation and incidental parent abort",
+    "caption/reporter tuple and broader package/client/platform proof",
+    "historical9256ms wait attribution",
+    "new delivery-head CI"
+  ],
+  "nextAction": "Retain the historical baseline failure; use partial public stop diagnostics and directly owned native API custody to establish a future causal observation, or advance independent outstanding mixed/cancellation affected-flow gates. No further uninstrumented baseline rerun."
+}

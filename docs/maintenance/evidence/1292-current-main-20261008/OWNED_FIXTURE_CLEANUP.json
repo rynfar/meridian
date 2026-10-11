@@ -1,0 +1,25 @@
+{
+  "atUTC": "2026-10-09T01:13:25.130740+00:00",
+  "localToolSession": 98264,
+  "allThreeLocalCommandsJoined": true,
+  "externalCollisionProbesPreviouslyJoined": true,
+  "scope": "Only the two exact task-created fixture directories; no global PID or temporary-directory cleanup",
+  "fixtures": [
+    {
+      "path": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-dependencies-d8h0519t",
+      "ownerUID": 501,
+      "mode": "0o700",
+      "rootSymlink": false,
+      "ownedJobsJoined": true
+    },
+    {
+      "path": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-collision-probe-6c4xn3_h",
+      "ownerUID": 501,
+      "mode": "0o700",
+      "rootSymlink": false,
+      "ownedJobsJoined": true
+    }
+  ],
+  "status": "REMOVED",
+  "allExactPathsAbsent": true
+}

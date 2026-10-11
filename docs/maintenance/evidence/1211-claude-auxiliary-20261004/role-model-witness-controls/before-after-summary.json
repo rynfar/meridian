@@ -1,0 +1,127 @@
+[
+  {
+    "group": "role-model-witness",
+    "lane": "before",
+    "name": "mixed-models",
+    "code": 1,
+    "result": "FAIL",
+    "queries": 10,
+    "failedChecks": [
+      "nativeReceipts"
+    ],
+    "cleanupFailures": [],
+    "descriptorRestored": null
+  },
+  {
+    "group": "role-model-witness",
+    "lane": "after",
+    "name": "mixed-models",
+    "code": 0,
+    "result": "PASS",
+    "queries": 10,
+    "failedChecks": [],
+    "cleanupFailures": [],
+    "descriptorRestored": true
+  },
+  {
+    "group": "role-model-witness",
+    "lane": "before",
+    "name": "missing-context",
+    "code": 0,
+    "result": "PASS",
+    "queries": 10,
+    "failedChecks": [],
+    "cleanupFailures": [],
+    "descriptorRestored": null
+  },
+  {
+    "group": "role-model-witness",
+    "lane": "after",
+    "name": "missing-context",
+    "code": 1,
+    "result": "FAIL",
+    "queries": 0,
+    "failedChecks": [
+      "invocationsSucceeded",
+      "turnsAnswered",
+      "outsideToolWrites",
+      "classifierOccurred",
+      "requestDecisionsComplete",
+      "shapeIsolation",
+      "headerIsolation",
+      "nonAuxiliaryPreserved",
+      "mainResume",
+      "requestModelOwnership",
+      "nativeReceipts"
+    ],
+    "cleanupFailures": [],
+    "descriptorRestored": true
+  },
+  {
+    "group": "role-model-witness",
+    "lane": "before",
+    "name": "unmatched-context",
+    "code": 0,
+    "result": "PASS",
+    "queries": 10,
+    "failedChecks": [],
+    "cleanupFailures": [],
+    "descriptorRestored": null
+  },
+  {
+    "group": "role-model-witness",
+    "lane": "after",
+    "name": "unmatched-context",
+    "code": 1,
+    "result": "FAIL",
+    "queries": 0,
+    "failedChecks": [
+      "invocationsSucceeded",
+      "turnsAnswered",
+      "outsideToolWrites",
+      "classifierOccurred",
+      "requestDecisionsComplete",
+      "shapeIsolation",
+      "headerIsolation",
+      "nonAuxiliaryPreserved",
+      "mainResume",
+      "requestModelOwnership",
+      "nativeReceipts"
+    ],
+    "cleanupFailures": [],
+    "descriptorRestored": true
+  },
+  {
+    "group": "role-model-witness",
+    "lane": "before",
+    "name": "duplicate-request",
+    "code": 0,
+    "result": "PASS",
+    "queries": 20,
+    "failedChecks": [],
+    "cleanupFailures": [],
+    "descriptorRestored": null
+  },
+  {
+    "group": "role-model-witness",
+    "lane": "after",
+    "name": "duplicate-request",
+    "code": 1,
+    "result": "FAIL",
+    "queries": 4,
+    "failedChecks": [
+      "invocationsSucceeded",
+      "turnsAnswered",
+      "outsideToolWrites",
+      "classifierOccurred",
+      "requestDecisionsComplete",
+      "shapeIsolation",
+      "headerIsolation",
+      "nonAuxiliaryPreserved",
+      "mainResume",
+      "requestModelOwnership"
+    ],
+    "cleanupFailures": [],
+    "descriptorRestored": true
+  }
+]

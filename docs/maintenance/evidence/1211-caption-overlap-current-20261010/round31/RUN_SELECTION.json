@@ -1,0 +1,13 @@
+{
+  "case": "work-first",
+  "hints": 1,
+  "head": "537c4c8740c23d58d3835884d00b1143e5ac7366",
+  "status": "PREPARED_NOT_INVOKED",
+  "modelCalls": 0,
+  "grantStaged": false,
+  "requiresCurrentFullLocalGates": true,
+  "nativeTuple": "Darwin arm64 / Bun1.3.11 / Node22.22.3 / SDK0.2.141 / native2.1.292 / exact Opus5.5 client and 1m backend",
+  "maxBackendQueries": 24,
+  "deadlineMs": 300000,
+  "scope": "selected source fixture only, package/reporter/cancellation/private-cache/global-descendants/whole-change/CI remain held"
+}

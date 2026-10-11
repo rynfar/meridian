@@ -1,0 +1,220 @@
+diff --git a/scripts/e2e-claude-code-subagent-session.mjs b/scripts/e2e-claude-code-subagent-session.mjs
+index 0f984210b..a4f3c7d06 100644
+--- a/scripts/e2e-claude-code-subagent-session.mjs
++++ b/scripts/e2e-claude-code-subagent-session.mjs
+@@ -441,7 +441,7 @@ try {
+               row.completed = true; row.resultSubtype = ['success', 'error_max_turns', 'error_during_execution'].includes(event.subtype) ? event.subtype : 'other'
+               row.resultFlagValid = typeof event.is_error === 'boolean'
+               row.resultIsError = row.resultFlagValid ? event.is_error : null; row.nativeTurns = event.num_turns
+-              row.terminalReason = event.terminal_reason === undefined ? 'absent' : ['max_turns', 'aborted_tools'].includes(event.terminal_reason) ? event.terminal_reason : 'other'
++              row.terminalReason = event.terminal_reason === undefined ? 'absent' : ['max_turns', 'aborted_tools', 'aborted_streaming'].includes(event.terminal_reason) ? event.terminal_reason : 'other'
+               row.estimatedCostUsd = Number.isFinite(event.total_cost_usd) ? event.total_cost_usd : null
+             }
+             yield event
+diff --git a/scripts/lib/e2eOwnedCheckpoint.mjs b/scripts/lib/e2eOwnedCheckpoint.mjs
+index 49ff7eff3..2f94daeed 100644
+--- a/scripts/lib/e2eOwnedCheckpoint.mjs
++++ b/scripts/lib/e2eOwnedCheckpoint.mjs
+@@ -106,7 +106,11 @@ export function createOwnedCheckpointWitness({ maxTurns, signal, forwardedReason
+         if (terminal) fail('terminal')
+         const subtype = event.subtype === 'error_during_execution' && Number.isSafeInteger(event.num_turns) && event.num_turns > 0 || maxTurns === 1 && seen.size === 1 && event.subtype === 'error_max_turns' && event.num_turns === 2
+         const errors = Array.isArray(event.errors) && event.errors.length > 0 && event.errors.length <= 64 && event.errors.every(value => typeof value === 'string' && value.length <= 1048576) ? event.errors : undefined
+-        terminal = { matches: Boolean(intent && acknowledged && event.session_id === session && subtype && event.is_error === true && event.terminal_reason === 'aborted_tools' && errors), errors: errors?.slice() }
++        // Independently recorded public native tuple, not a production receipt.
++        // Unknown streaming errors remain unqualified even after an interrupt.
++        const completeToolStreamAbort = event.terminal_reason === 'aborted_streaming' && event.subtype === 'error_during_execution' && errors?.length === 1 && errors[0] === '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'
++        const reason = event.terminal_reason === 'aborted_tools' ? 'aborted_tools' : completeToolStreamAbort ? 'aborted_streaming' : undefined
++        terminal = { matches: Boolean(intent && acknowledged && event.session_id === session && subtype && event.is_error === true && reason && errors), reason, errors: errors?.slice() }
+       }
+     },
+     interruptRequested() {
+@@ -139,7 +143,7 @@ export function createOwnedCheckpointWitness({ maxTurns, signal, forwardedReason
+     summary() {
+       const hookResultsMatch = hooksMatch() && [...hooks.values()].every(hook => hook.returned && hook.forwarded && !hook.failed)
+       const qualified = Boolean(calls === 1 && !fault && intent && acknowledged && controlSettled && terminal?.matches && errorMatched && finished && closeCalls > 0 && !closeFailed && complete() && hookResultsMatch && results.size === intent.ids.length && intent.ids.every(tool => results.has(tool)) && intent.session === session && intent.generation === current.id && intent.uuid === current.uuid)
+-      return { protocol: 'owned-interrupt-v1', requested: calls > 0, calls, acknowledged, controlSettled, iteratorErrorMatched: errorMatched, iteratorSettled: finished, closeObserved: closeCalls > 0, closeFailed, completeGeneration: complete(), hookResultsMatch, denialResults: results.size, denialResultsBeforeHookSettlement, generations: seen.size, tools: intent?.ids.length ?? 0, fault: fault ?? null, qualified }
++      return { protocol: 'owned-interrupt-v1', requested: calls > 0, calls, acknowledged, controlSettled, iteratorErrorMatched: errorMatched, iteratorSettled: finished, closeObserved: closeCalls > 0, closeFailed, completeGeneration: complete(), hookResultsMatch, denialResults: results.size, denialResultsBeforeHookSettlement, generations: seen.size, tools: intent?.ids.length ?? 0, terminalReason: terminal?.matches ? terminal.reason : null, fault: fault ?? null, qualified }
+     },
+   }
+ }
+@@ -150,5 +154,6 @@ export function ownedCheckpointNativeResult(row, { sdkVersion, nativeVersion })
+   if (!g?.completeGenerationIds || g.overflow || g.missingGenerationIds || g.missingToolIds || g.conflictingToolOwners || g.uncorrelatedHooks || g.overlappingStreamStarts || g.uncorrelatedStopEvents || !Number.isSafeInteger(row.maxTurns) || row.maxTurns < 1 || !Number.isSafeInteger(g.distinctGenerations) || g.distinctGenerations < 1 || g.distinctGenerations > row.maxTurns || !row.resultFlagValid || !row.sdkToolHookCustody) return false
+   if (!stop || stop.protocol !== 'owned-interrupt-v1') return false
+   if (!stop.requested) return row.resultSubtype === 'success' && row.resultIsError === false
+-  return stop.qualified === true && stop.generations === g.distinctGenerations && stop.tools === row.toolCount && row.explicitlyDroppedSdkToolCount === 0 && row.canonicalHttpToolTerminal === true && row.resultIsError === true && row.terminalReason === 'aborted_tools' && (row.resultSubtype === 'error_during_execution' || row.maxTurns === 1 && row.resultSubtype === 'error_max_turns' && row.nativeTurns === 2)
++  if (row.terminalReason === 'aborted_streaming' && !['2.1.284', '2.1.296'].includes(nativeVersion)) return false
++  return stop.qualified === true && stop.generations === g.distinctGenerations && stop.tools === row.toolCount && row.explicitlyDroppedSdkToolCount === 0 && row.canonicalHttpToolTerminal === true && row.resultIsError === true && row.terminalReason === stop.terminalReason && ['aborted_tools', 'aborted_streaming'].includes(row.terminalReason) && (row.resultSubtype === 'error_during_execution' || row.terminalReason === 'aborted_tools' && row.maxTurns === 1 && row.resultSubtype === 'error_max_turns' && row.nativeTurns === 2)
+ }
+diff --git a/src/__tests__/e72-owned-checkpoint.test.ts b/src/__tests__/e72-owned-checkpoint.test.ts
+index 5a8662289..3c98e0d4a 100644
+--- a/src/__tests__/e72-owned-checkpoint.test.ts
++++ b/src/__tests__/e72-owned-checkpoint.test.ts
+@@ -29,6 +29,31 @@ function fixture(cap = 4) {
+ }
+ 
+ describe('independent owned interrupt observer', () => {
++  const diagnostic = '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'
++  function streamFinish(f: ReturnType<typeof fixture>, changes: Record<string, unknown> = {}) {
++    f.witness.interruptSettled(true); f.settle(1); f.result(1)
++    f.terminal({ subtype: 'error_during_execution', terminal_reason: 'aborted_streaming', num_turns: 3, errors: [diagnostic], ...changes })
++    f.witness.iteratorError(new Error('Claude Code returned an error result: ' + diagnostic)); f.witness.iteratorSettled(); f.witness.close()
++  }
++  it('independently binds the captured complete-stream abort without a product receipt', () => {
++    for (const cap of [1, 4]) {
++      const f = fixture(cap); f.complete(); f.intent(); streamFinish(f)
++      expect(f.witness.summary()).toMatchObject({ qualified: true, terminalReason: 'aborted_streaming', iteratorErrorMatched: true, completeGeneration: true, hookResultsMatch: true })
++    }
++  })
++  it('rejects altered or unrelated native stream-abort diagnostics', () => {
++    for (const changes of [{ errors: ['ordinary streaming error'] }, { errors: [diagnostic, 'another failure'] }, { errors: [diagnostic + ' '] }, { subtype: 'error_max_turns', num_turns: 2 }]) {
++      const f = fixture(); f.complete(); f.intent(); streamFinish(f, changes)
++      expect(f.witness.summary().qualified).toBe(false)
++    }
++  })
++  it('requires complete blocks, a retained hook and exact denial custody for the new terminal', () => {
++    const incomplete = fixture(); incomplete.complete(); incomplete.stream({ type: 'content_block_start', index: 8, content_block: { type: 'text' } }); incomplete.intent(); streamFinish(incomplete)
++    expect(incomplete.witness.summary().qualified).toBe(false)
++    const missing = fixture(); missing.complete(); missing.intent(); missing.witness.interruptSettled(true); missing.settle(1)
++    missing.terminal({ terminal_reason: 'aborted_streaming', errors: [diagnostic] }); missing.witness.iteratorError(new Error('Claude Code returned an error result: ' + diagnostic)); missing.witness.iteratorSettled(); missing.witness.close()
++    expect(missing.witness.summary().qualified).toBe(false)
++  })
+   it('binds cap-one and cap-four stops including a prefix result before intent', () => {
+     for (const cap of [1, 4]) {
+       const f = fixture(cap); f.complete(); f.intent(); f.finish()
+@@ -114,6 +139,17 @@ describe('versioned E72 qualification remains separate from legacy', () => {
+     const f = fixture(); f.complete(); f.intent(); f.finish()
+     return { ownedCheckpoint: f.witness.summary(), generations: { completeGenerationIds: true, distinctGenerations: 1 }, maxTurns: 4, resultFlagValid: true, sdkToolHookCustody: true, resultSubtype: 'error_during_execution', resultIsError: true, terminalReason: 'aborted_tools', nativeTurns: 4, canonicalHttpToolTerminal: true, explicitlyDroppedSdkToolCount: 0, toolCount: 2 }
+   }
++  it('binds the new public terminal reason to its actual witness and only qualified native pins', () => {
++    const diagnostic = '[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'
++    const f = fixture(); f.complete(); f.intent(); f.witness.interruptSettled(true); f.settle(1); f.result(1)
++    f.terminal({ terminal_reason: 'aborted_streaming', errors: [diagnostic], num_turns: 3 })
++    f.witness.iteratorError(new Error('Claude Code returned an error result: ' + diagnostic)); f.witness.iteratorSettled(); f.witness.close()
++    const value = { ...row(), ownedCheckpoint: f.witness.summary(), terminalReason: 'aborted_streaming', nativeTurns: 3 }
++    for (const nativeVersion of ['2.1.284', '2.1.296']) expect(ownedCheckpointNativeResult(value, { ...tuple, nativeVersion })).toBe(true)
++    expect(ownedCheckpointNativeResult(value, { ...tuple, nativeVersion: '2.1.295' })).toBe(false)
++    expect(ownedCheckpointNativeResult({ ...row(), terminalReason: 'aborted_streaming' }, tuple)).toBe(false)
++    expect(ownedCheckpointNativeResult({ ...value, terminalReason: 'aborted_tools' }, tuple)).toBe(false)
++  })
+   it('qualifies the recorded source/installed tuples through both independent and HTTP custody', () => { for (const nativeVersion of ['2.1.284', '2.1.295', '2.1.296']) expect(ownedCheckpointNativeResult(row(), { ...tuple, nativeVersion })).toBe(true) })
+   it('refuses receipt-only, missing HTTP/hook custody and unqualified versions', () => {
+     const value = row()
+diff --git a/src/__tests__/passthrough-checkpoint-stop-http.test.ts b/src/__tests__/passthrough-checkpoint-stop-http.test.ts
+index 75b22a7df..479b95046 100644
+--- a/src/__tests__/passthrough-checkpoint-stop-http.test.ts
++++ b/src/__tests__/passthrough-checkpoint-stop-http.test.ts
+@@ -10,7 +10,7 @@ import { resolveMockSdkSessionId } from "./helpers"
+ 
+ type Params = Parameters<typeof query>[0]
+ let calls: Params[] = [], interrupts = 0, completedHooks = 0, joined = 0
+-let terminalMode: "owned" | "unrelated" | "wrong-result" | "close-failure" | "normal" = "owned"
++let terminalMode: "owned" | "completed-stream" | "unrelated" | "wrong-result" | "close-failure" | "normal" = "owned"
+ const qualifiedLogs: unknown[] = []
+ 
+ installSdkMock(() => ({
+@@ -58,11 +58,13 @@ installSdkMock(() => ({
+       }
+       // Match the independently observed native cap-one terminal, rather
+       // than inventing a counter equal to the configured API-generation cap.
+-      yield { type: "result", session_id: sessionId, subtype: "error_max_turns", is_error: true,
+-        terminal_reason: terminalMode === "wrong-result" ? "aborted_streaming" : "aborted_tools",
+-        num_turns: 2, errors: ["fixture owned interruption"], usage: { input_tokens: 1, output_tokens: 1 } }
++      const completedStream = terminalMode === "completed-stream"
++      const nativeDiagnostic = completedStream ? "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use" : "fixture owned interruption"
++      yield { type: "result", session_id: sessionId, subtype: completedStream ? "error_during_execution" : "error_max_turns", is_error: true,
++        terminal_reason: completedStream || terminalMode === "wrong-result" ? "aborted_streaming" : "aborted_tools",
++        num_turns: completedStream ? 3 : 2, errors: [nativeDiagnostic], usage: { input_tokens: 1, output_tokens: 1 } }
+       throw new Error(terminalMode === "unrelated" ? "fixture unrelated transport failure"
+-        : "Claude Code returned an error result: fixture owned interruption")
++        : "Claude Code returned an error result: " + nativeDiagnostic)
+     })()
+     return Object.assign(sdk, {
+       interrupt: async () => { interrupts++; interrupted = true },
+@@ -110,7 +112,8 @@ describe("HTTP attempt-owned checkpoint interrupt", () => {
+   afterAll(() => { setSessionStoreDir(null); rmSync(directory, { recursive: true, force: true }) })
+ 
+   for (const stream of [false, true]) {
+-    it(`qualifies only the owned interruption, stream=${stream}`, async () => {
++    for (const mode of ["owned", "completed-stream"] as const) it(`qualifies only the owned ${mode} interruption, stream=${stream}`, async () => {
++      terminalMode = mode
+       const response = await post(stream), text = await response.text()
+       expect(response.status).toBe(200)
+       expect(text).toContain('"stop_reason":"tool_use"')
+diff --git a/src/__tests__/passthrough-checkpoint-stop.test.ts b/src/__tests__/passthrough-checkpoint-stop.test.ts
+index cacff7683..a83c30b7d 100644
+--- a/src/__tests__/passthrough-checkpoint-stop.test.ts
++++ b/src/__tests__/passthrough-checkpoint-stop.test.ts
+@@ -73,6 +73,49 @@ async function acknowledged(options: { maxTurns?: number; input?: unknown } = {}
+ }
+ 
+ describe("attempt-owned passthrough checkpoint stop", () => {
++  const completeStreamDiagnostic = "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
++  const completeStreamResult = (changes: Record<string, unknown> = {}) => result({ terminal_reason: "aborted_streaming", num_turns: 3, errors: [completeStreamDiagnostic], ...changes })
++  const completeStreamError = () => new Error("Claude Code returned an error result: " + completeStreamDiagnostic)
++
++  it("qualifies the captured completed-stream abort only after the owned complete checkpoint", async () => {
++    for (const maxTurns of [1, 4]) {
++      const state = await acknowledged({ maxTurns })
++      state.stop.observe(completeStreamResult())
++      expect(state.stop.acceptsIteratorError(completeStreamError())).toBe(true)
++      await state.stop.retire()
++      expect(state.stop.receipt).toEqual({ acknowledged: true, qualified: true, generations: 1, tools: 2 })
++      expect(state.stop.failed).toBe(false)
++    }
++  })
++  it("rejects a completed-stream signature without an owned control", async () => {
++    const state = setup(); generation(state.stop); state.stop.observe(completeStreamResult())
++    expect(state.stop.acceptsIteratorError(completeStreamError())).toBe(false)
++    await state.stop.retire()
++  })
++  it("rejects a completed-stream signature with missing denial custody or caller cancellation", async () => {
++    const missing = await ownedIntent(); missing.ack.resolve(); await missing.terminalHook
++    missing.stop.observe(completeStreamResult())
++    expect(missing.stop.acceptsIteratorError(completeStreamError())).toBe(false)
++    await missing.stop.retire()
++    const cancelled = await acknowledged(); cancelled.controller.abort(); cancelled.stop.observe(completeStreamResult())
++    expect(cancelled.stop.acceptsIteratorError(completeStreamError())).toBe(false)
++    await cancelled.stop.retire()
++  })
++  it("does not generalize the captured stream abort to unrelated or altered native diagnostics", async () => {
++    for (const change of [{ errors: ["unrelated streaming failure"] }, { errors: [completeStreamDiagnostic, "additional failure"] }, { errors: [] }, { errors: [completeStreamDiagnostic + " "] }, { subtype: "error_max_turns", num_turns: 2 }, { is_error: false }, { session_id: "other-session" }, { num_turns: 0 }]) {
++      const state = await acknowledged()
++      if ("session_id" in change) expect(() => state.stop.observe(completeStreamResult(change))).toThrow(PassthroughCheckpointStopError)
++      else state.stop.observe(completeStreamResult(change))
++      expect(state.stop.acceptsIteratorError(completeStreamError())).toBe(false)
++      await state.stop.retire()
++    }
++  })
++  it("still requires the original iterator error to match the captured terminal", async () => {
++    const state = await acknowledged(); state.stop.observe(completeStreamResult())
++    expect(state.stop.acceptsIteratorError(new Error("unrelated transport failure"))).toBe(false)
++    await state.stop.retire()
++  })
++
+   it("releases the complete serial prefix, retaining the final hook through acknowledgement", async () => {
+     const state = await ownedIntent()
+     let released = false
+diff --git a/src/proxy/passthroughCheckpointStop.ts b/src/proxy/passthroughCheckpointStop.ts
+index 7d521b3ea..9dcf03d4a 100644
+--- a/src/proxy/passthroughCheckpointStop.ts
++++ b/src/proxy/passthroughCheckpointStop.ts
+@@ -237,9 +237,18 @@ export class PassthroughCheckpointStop {
+         ? Number.isSafeInteger(message.num_turns) && (message.num_turns as number) > 0
+         : this.options.maxTurns === 1 && this.generations.size === 1 &&
+           message.subtype === "error_max_turns" && message.num_turns === 2
++      // NOTE: SDK 0.2.141/native 2.1.284 and 2.1.296 can acknowledge our
++      // complete tool checkpoint while the provider's SSE body is still open.
++      // Interrupting that transport reports aborted_streaming with this exact
++      // public diagnostic. It is not evidence of an incomplete generation:
++      // acceptsIteratorError still binds every closed block, UUID, hook and
++      // denial to the acknowledged intent before granting publication.
++      const completedToolStreamAbort = message.terminal_reason === "aborted_streaming" &&
++        message.subtype === "error_during_execution" && this.resultErrors?.length === 1 &&
++        this.resultErrors[0] === "[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use"
+       this.terminalMatches = Boolean(this.intent && this.acknowledged &&
+         message.session_id === this.intent.sessionId && resultKindMatches &&
+-        message.is_error === true && message.terminal_reason === "aborted_tools" &&
++        message.is_error === true && (message.terminal_reason === "aborted_tools" || completedToolStreamAbort) &&
+         this.generations.size <= this.options.maxTurns && this.resultErrors)
+     }
+     this.advance()

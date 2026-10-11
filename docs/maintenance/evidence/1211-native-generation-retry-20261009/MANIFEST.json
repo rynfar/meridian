@@ -1,0 +1,372 @@
+{
+  "kind": "portable-selected-diagnostic-and-native-control-evidence",
+  "codeHead": "0cf7aa708bf55c459109537bf84c468e72f91c1a",
+  "rows": [
+    {
+      "path": "BUILD_TERMINAL.json",
+      "bytes": 248,
+      "sha256": "8f59fad36f18ed356eeaeea4224400290a493036e304a991a72afdf8e333e719"
+    },
+    {
+      "path": "COMPILED_TERMINAL.json",
+      "bytes": 355,
+      "sha256": "66a33540f6eaf6e6f6dbcba5d4c2997c1b34274c28884424aa5dbffbb30014db"
+    },
+    {
+      "path": "FOCUSED_TERMINAL.json",
+      "bytes": 341,
+      "sha256": "9a6d147a326b33c8dfafe3f35fcb4b6b905e74699032353355aad41ccc885d5e"
+    },
+    {
+      "path": "FULL_LOCAL_GATES.json",
+      "bytes": 869,
+      "sha256": "41fd527f62b9e9c7b395d61cf79cd5f0328929bcd7f95b990f964b7ab4450115"
+    },
+    {
+      "path": "NATIVE_CONTROL_SUMMARY.json",
+      "bytes": 1403,
+      "sha256": "e2b838f587c595a52f3f6a6baa158e49c578c7807cd0c9f92e59a2efaab34f1b"
+    },
+    {
+      "path": "OWNER_AUTHOR_REQUALIFICATION.json",
+      "bytes": 247,
+      "sha256": "c9b5afc0a953853729df2e7a4d46270dd0971b8f988b070cf874fa2bdd616635"
+    },
+    {
+      "path": "PRIOR_HEAD_CI.json",
+      "bytes": 5466,
+      "sha256": "a29375de2324ad7a742c8b2a6611d9d6fe4de7cd302cb3b51e96d0487071ea71"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5887,
+      "sha256": "40f4529fe97bdd7646f0b679fb2d99c9d8f28271d6b4f2114318e3d56ecd3b1e"
+    },
+    {
+      "path": "ROOT_ADVERSARIAL_REVIEW.json",
+      "bytes": 4186,
+      "sha256": "ce87fc9cc89bc179c6d7d625779d1579e3bc484061e0532de93f6ebf60fc944c"
+    },
+    {
+      "path": "ROUND2_INSTALLED_UNEXECUTED.json",
+      "bytes": 158,
+      "sha256": "be35c3081f1b52e0316c0e97caf8ec59713edec532a0e2e198e46b08e5d8ff02"
+    },
+    {
+      "path": "TEST_TERMINAL.json",
+      "bytes": 236,
+      "sha256": "65a69e6a97a22d6e75b1f51e2cfb8bc2f2a502e678658f84d49cfb50cc4518cc"
+    },
+    {
+      "path": "TYPECHECK_TERMINAL.json",
+      "bytes": 252,
+      "sha256": "5153c7771ceeb7945e7ac8f2b34313747ec714aba34e3f0be87e2dae3ae3dc5c"
+    },
+    {
+      "path": "round1/installed/CONTAINER_TERMINAL.json",
+      "bytes": 441,
+      "sha256": "b221e0314e776f6098ca93cc8804efe1de5be7108b3152a9233fc6bd1025cef5"
+    },
+    {
+      "path": "round1/installed/INPUTS.json",
+      "bytes": 767,
+      "sha256": "03286484bc9204df075f3f654f0b3be8ea23ea2378facbbc010b141330049018"
+    },
+    {
+      "path": "round1/installed/INVOCATION.json",
+      "bytes": 1191,
+      "sha256": "ebcbb5ba3cdaf05b1e9909defb87e348ba3e58a5e812ab9fb90b3bb94a824ac4"
+    },
+    {
+      "path": "round1/installed/STARTED.json",
+      "bytes": 148,
+      "sha256": "e276d4ba2ed5ad22c81c5073dad2748cf52ba813bee4366145cb75280b6f2995"
+    },
+    {
+      "path": "round1/installed/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "7364f46d294ba787aa93d2a5e12bed3c2dd1f3f43ac78d5413f79ec83ab26415"
+    },
+    {
+      "path": "round1/installed/native.output.log",
+      "bytes": 2306,
+      "sha256": "e423f8f7814b08168be9bfe575977da9e3dd8a75b3ab5296e7bcd36305f2c29c"
+    },
+    {
+      "path": "round1/installed/output/COUNTER_DISCOVERY.json",
+      "bytes": 22152,
+      "sha256": "81d62a1103f0f8e9eb05775c4350a7e369a3f8d9fa98819de7da7369181b6907"
+    },
+    {
+      "path": "round1/installed/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "round1/installed/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 4132,
+      "sha256": "00c97ea9f404c15889dacb795bf20a0715c8b91744dec3b9dbee59c961c123af"
+    },
+    {
+      "path": "round1/installed/probe/native-turn-counter.mjs",
+      "bytes": 18441,
+      "sha256": "8bbf155855be2d441b044d1514762adcf911ad7bb9704e6402648d7e7fe9e1e1"
+    },
+    {
+      "path": "round1/installed/run-control.py",
+      "bytes": 3532,
+      "sha256": "627d32e1ef2a9f3771d0393b7f6f88275f0fcf6a9d1da34fc054d1d62f68d952"
+    },
+    {
+      "path": "round1/source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "b7be2ef1542491611b1e1b8a7ee02202e91cb060347e6015259c987b62b45588"
+    },
+    {
+      "path": "round1/source/INPUTS.json",
+      "bytes": 767,
+      "sha256": "03286484bc9204df075f3f654f0b3be8ea23ea2378facbbc010b141330049018"
+    },
+    {
+      "path": "round1/source/INVOCATION.json",
+      "bytes": 1136,
+      "sha256": "76b751534943b9ba851836971712155fe6d432865d238b53a03314ac218616fb"
+    },
+    {
+      "path": "round1/source/STARTED.json",
+      "bytes": 148,
+      "sha256": "4e5109ee37b2b5b640587e832f6a8b18eb485d2dabc78a02cee79bb1efd87c0b"
+    },
+    {
+      "path": "round1/source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "6bfa154ab1c8cc7b93e6cccdea01b833d48f426877e22ab637d6223cb3af05ff"
+    },
+    {
+      "path": "round1/source/native.output.log",
+      "bytes": 2307,
+      "sha256": "f6b14e2e619881dffdc6331f7f6c03121b02e48f23299c879fb712608ed56464"
+    },
+    {
+      "path": "round1/source/output/COUNTER_DISCOVERY.json",
+      "bytes": 22157,
+      "sha256": "c81cd5d9f2e96e5acb86cce87720cd960f55cdd2a4d1bdf23595d3ae7790a608"
+    },
+    {
+      "path": "round1/source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "round1/source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 4132,
+      "sha256": "00c97ea9f404c15889dacb795bf20a0715c8b91744dec3b9dbee59c961c123af"
+    },
+    {
+      "path": "round1/source/probe/native-turn-counter.mjs",
+      "bytes": 18441,
+      "sha256": "8bbf155855be2d441b044d1514762adcf911ad7bb9704e6402648d7e7fe9e1e1"
+    },
+    {
+      "path": "round1/source/run-control.py",
+      "bytes": 3483,
+      "sha256": "aaa2a18c1224da1ad8bf40b6ede8bb188de2c1322ed304c0ece3b0dd42fbd426"
+    },
+    {
+      "path": "round2/source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "611b20c32203f63095638d15fec319e4ce9779b929444395e28e064fa4bfa41a"
+    },
+    {
+      "path": "round2/source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "a81ec0f5c52ebdb913bfe69c587284ca4f63dedf33307d71ed22a37083cfa4cf"
+    },
+    {
+      "path": "round2/source/INVOCATION.json",
+      "bytes": 1136,
+      "sha256": "4a2cf39f18db4324a63085f450bffee438f032346359119026be0b2ca3ad26af"
+    },
+    {
+      "path": "round2/source/STARTED.json",
+      "bytes": 148,
+      "sha256": "305662694f7976d0a1d461c2339ec9e365a1e2ea5b491110bc7eb87ab5129569"
+    },
+    {
+      "path": "round2/source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "062553b57de3704b918f8807225bf224e32c4519ac7c6e4d69a7101f1f37c889"
+    },
+    {
+      "path": "round2/source/native.output.log",
+      "bytes": 1818,
+      "sha256": "8ea7b180c0d8c8f4443259bb594f988033d5db74888dfb54fef2953358096a52"
+    },
+    {
+      "path": "round2/source/output/COUNTER_DISCOVERY.json",
+      "bytes": 18668,
+      "sha256": "af1e58010a08e07bc1ff83d5b708692acb4f881c8d50be21081d9c4288b1e4e0"
+    },
+    {
+      "path": "round2/source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "round2/source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "round2/source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "round2/source/probe/native-turn-counter.mjs",
+      "bytes": 19569,
+      "sha256": "cdb28f598a8f8b9aa4ea6c4d03c65300cc9d079c1a55eb6d638dbf06389e8efe"
+    },
+    {
+      "path": "round2/source/run-control.py",
+      "bytes": 3483,
+      "sha256": "c9bf86ba07dbba492cdc196cd2470b492b3600eb4ba58a59708863a56db29735"
+    },
+    {
+      "path": "round3/installed/CONTAINER_TERMINAL.json",
+      "bytes": 442,
+      "sha256": "e5b2b6ed55eb18421880404db6b412d25df0e2829e4b3b20c6ba8c767517d01f"
+    },
+    {
+      "path": "round3/installed/INPUTS.json",
+      "bytes": 945,
+      "sha256": "ba117d9e9edf70c51557f4b5b605667caf8c45b31527961a18be8d27a7e8730d"
+    },
+    {
+      "path": "round3/installed/INVOCATION.json",
+      "bytes": 1191,
+      "sha256": "e730de771912bee51cbdfde8739f8c9bd7b9f2fd573b400b3e878cff377e024d"
+    },
+    {
+      "path": "round3/installed/QUALIFICATION.json",
+      "bytes": 572,
+      "sha256": "75986ac330d3998d863f3cb1b4929d33ebaba4234d9e167a206b5fbc6d905249"
+    },
+    {
+      "path": "round3/installed/STARTED.json",
+      "bytes": 148,
+      "sha256": "ee6dc7c1be7e3cea560c46222a6958c15c1ba6bedf4c081e7b01090920cad8f6"
+    },
+    {
+      "path": "round3/installed/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "1d40c0dd1fff2c036ecb28bced092a3d795511d7f866e84c3136c120f273da78"
+    },
+    {
+      "path": "round3/installed/native.output.log",
+      "bytes": 2542,
+      "sha256": "2e9fa292d9165ef4c4431e2c2d5fd67c770de036262802a683cb6464ca5e8b41"
+    },
+    {
+      "path": "round3/installed/output/COUNTER_DISCOVERY.json",
+      "bytes": 24891,
+      "sha256": "45be2bc4ba3926a92d50ca10d24436a78710c75a39467c222f961107eacbf789"
+    },
+    {
+      "path": "round3/installed/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "round3/installed/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "round3/installed/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "round3/installed/probe/native-turn-counter.mjs",
+      "bytes": 19670,
+      "sha256": "c616abf6078a6ef44fd4fa234f4ea451414910824ed6dbc078823fdd30fa29af"
+    },
+    {
+      "path": "round3/installed/run-control.py",
+      "bytes": 3532,
+      "sha256": "37b427c106c9b34585ad4d009c77d8a856dfe0ad014502471e8c7b6707a7afb8"
+    },
+    {
+      "path": "round3/source/CONTAINER_TERMINAL.json",
+      "bytes": 443,
+      "sha256": "27a51317d6308217190f86d598d09372135b292af7a4c1faab6922983c82c5b8"
+    },
+    {
+      "path": "round3/source/INPUTS.json",
+      "bytes": 945,
+      "sha256": "d89d9b27cd47cf3420ddf30d0841a24d0ebdf51495c9d31e5620253750f6116f"
+    },
+    {
+      "path": "round3/source/INVOCATION.json",
+      "bytes": 1136,
+      "sha256": "64e1621bfd656633c6ecdb950f24614b8b7cf6dbd9ced31746504dfaa8d6d2b0"
+    },
+    {
+      "path": "round3/source/QUALIFICATION.json",
+      "bytes": 571,
+      "sha256": "81324d939c585a20f2127fddc71bb6c8d7b5c334af04f0fe9220ac201d557ed0"
+    },
+    {
+      "path": "round3/source/STARTED.json",
+      "bytes": 148,
+      "sha256": "b100a430f92c58fe0112cc025f2d326b5f69dc86bfecc85fba8e5d98b90459bd"
+    },
+    {
+      "path": "round3/source/TERMINAL.json",
+      "bytes": 351,
+      "sha256": "cc2acfc031638aef22144ab0aa5f46f8a306592b501a61a1feeaeb698b656ddf"
+    },
+    {
+      "path": "round3/source/native.output.log",
+      "bytes": 2541,
+      "sha256": "876f96094e5f872ca1c4d8e88760058fb29849971534240a9d1e1f8cb20bb3d2"
+    },
+    {
+      "path": "round3/source/output/COUNTER_DISCOVERY.json",
+      "bytes": 24869,
+      "sha256": "02de4bc49f5b6474dfa3bf6a477dab2fb8642c429b30f90d6eac503fdcf6a287"
+    },
+    {
+      "path": "round3/source/probe/e2eBackgroundRead.mjs",
+      "bytes": 6338,
+      "sha256": "8ab400352a2cc8677cc1bac2d34986121cd3daa3302a2f7111ef1b201fc1a815"
+    },
+    {
+      "path": "round3/source/probe/e2eOwnedClient.mjs",
+      "bytes": 2749,
+      "sha256": "99b8fd57ca10846798b71ba5c9857e7407b64a4c8850bf25852d2c82d0bb0430"
+    },
+    {
+      "path": "round3/source/probe/e2ePublicSdkDiagnostics.mjs",
+      "bytes": 5613,
+      "sha256": "1059219b9ec849d38519d91fab04328cc1b684ce6e007905a56d477f84659685"
+    },
+    {
+      "path": "round3/source/probe/native-turn-counter.mjs",
+      "bytes": 19670,
+      "sha256": "c616abf6078a6ef44fd4fa234f4ea451414910824ed6dbc078823fdd30fa29af"
+    },
+    {
+      "path": "round3/source/run-control.py",
+      "bytes": 3483,
+      "sha256": "5c3b187d2a15c75002b65540a8ec4551ecde1353590b8fb5aec4ed8e1b82a715"
+    },
+    {
+      "path": "run-local-gate.py",
+      "bytes": 1363,
+      "sha256": "32ddfc329bf698bc2c177e845a06b4812d0caecbf6ced6f1c133baa7a7d691b5"
+    }
+  ],
+  "membersExcludingManifest": 73
+}

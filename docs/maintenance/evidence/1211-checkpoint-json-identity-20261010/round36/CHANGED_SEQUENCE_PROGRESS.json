@@ -1,0 +1,49 @@
+{
+  "pid": 75912,
+  "startUTC": "2026-10-10T06:02:15.927249+00:00",
+  "cases": [
+    {
+      "target": "source",
+      "matrix": "inputs",
+      "startUTC": "2026-10-10T06:02:15.927493+00:00",
+      "originalPid": 75914,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-10T06:02:58.317679+00:00"
+    },
+    {
+      "target": "installed",
+      "matrix": "inputs",
+      "startUTC": "2026-10-10T06:02:58.317912+00:00",
+      "originalPid": 77838,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-10T06:03:44.483333+00:00"
+    },
+    {
+      "target": "source",
+      "matrix": "eof",
+      "startUTC": "2026-10-10T06:03:44.483610+00:00",
+      "originalPid": 79706,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-10T06:04:40.164534+00:00"
+    },
+    {
+      "target": "installed",
+      "matrix": "eof",
+      "startUTC": "2026-10-10T06:04:40.165031+00:00",
+      "originalPid": 87952,
+      "exit": 0,
+      "originalJoined": true,
+      "qualified": true,
+      "finishUTC": "2026-10-10T06:05:35.472320+00:00"
+    }
+  ],
+  "status": "RUNNING",
+  "realCredentialReads": 0,
+  "wholeChangeAcceptance": "HELD"
+}

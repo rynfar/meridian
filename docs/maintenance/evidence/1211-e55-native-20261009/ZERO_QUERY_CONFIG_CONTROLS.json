@@ -1,0 +1,23 @@
+[
+  {
+    "name": "unknown-flag",
+    "exit": 1,
+    "expectedDiagnostic": "Only --prepare-only is supported",
+    "noGrantProvided": true,
+    "noNativeOrSdkStarted": true
+  },
+  {
+    "name": "unknown-client-version",
+    "exit": 1,
+    "expectedDiagnostic": "Unsupported E55 client/backend version",
+    "noGrantProvided": true,
+    "noNativeOrSdkStarted": true
+  },
+  {
+    "name": "unknown-backend-version",
+    "exit": 1,
+    "expectedDiagnostic": "Unsupported E55 client/backend version",
+    "noGrantProvided": true,
+    "noNativeOrSdkStarted": true
+  }
+]

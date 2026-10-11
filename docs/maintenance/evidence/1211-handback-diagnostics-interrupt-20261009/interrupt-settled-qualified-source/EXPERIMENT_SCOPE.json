@@ -1,0 +1,6 @@
+{
+  "trigger": "complete first generation, both hook witnesses and both owned error tool_result receipts",
+  "initialObservation": "One API round; error_during_execution / is_error true / aborted_streaming / num_turns four; first parallel checkpoint persisted. Initial aborted_tools expectation failed.",
+  "correction": "Only the explicit expected terminal reason changes to the directly observed aborted_streaming for this later-phase control. Prior failure remains immutable.",
+  "productionAcceptanceChanged": false
+}

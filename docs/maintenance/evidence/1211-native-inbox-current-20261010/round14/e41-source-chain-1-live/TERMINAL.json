@@ -1,0 +1,22 @@
+{
+  "phase": "live",
+  "mode": "chain",
+  "stream": true,
+  "qualified": true,
+  "exit": 0,
+  "originalDriverPid": 78231,
+  "originalAttachPid": 78237,
+  "originalAttachJoined": true,
+  "hostDeadlineExceeded": false,
+  "ownedContainerRemoved": true,
+  "sourceGrantUnchanged": true,
+  "taskGrantUnchanged": true,
+  "taskGrantRemoved": true,
+  "ownedRuntimeRemoved": true,
+  "queries": 5,
+  "costUsd": 0.0239428,
+  "failureClass": null,
+  "firstFailure": null,
+  "finishedUTC": "2026-10-10T02:43:48.732724+00:00",
+  "wholeChangeAcceptance": "HELD"
+}

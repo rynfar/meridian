@@ -1,0 +1,473 @@
+{
+  "kind": "credential-free-pinned-runtime-discovery",
+  "actualModelAcceptance": false,
+  "actualClientAcceptance": false,
+  "platform": "linux/x64",
+  "bun": "1.3.11",
+  "startedAt": "2026-10-09T21:53:54.165Z",
+  "cases": [
+    {
+      "name": "normal-final-text",
+      "cap": 4,
+      "firstResponseTools": 1,
+      "permission": "deny",
+      "repeatedTools": false,
+      "firstGenerationHandoff": true,
+      "apiRequests": [
+        {
+          "ordinal": 1,
+          "atMs": 5182.632,
+          "stream": true,
+          "toolResults": 0,
+          "errorToolResults": 0,
+          "scriptedToolCalls": 1,
+          "scriptedStopReason": "tool_use",
+          "thinkingOnly": false
+        },
+        {
+          "ordinal": 2,
+          "atMs": 5343.653,
+          "stream": true,
+          "toolResults": 1,
+          "errorToolResults": 1,
+          "scriptedToolCalls": 1,
+          "scriptedStopReason": "tool_use",
+          "thinkingOnly": false
+        },
+        {
+          "ordinal": 3,
+          "atMs": 5519.988,
+          "stream": true,
+          "toolResults": 2,
+          "errorToolResults": 2,
+          "scriptedToolCalls": 1,
+          "scriptedStopReason": "tool_use",
+          "thinkingOnly": false
+        },
+        {
+          "ordinal": 4,
+          "atMs": 5651.79,
+          "stream": true,
+          "toolResults": 3,
+          "errorToolResults": 3,
+          "scriptedToolCalls": 0,
+          "scriptedStopReason": "end_turn",
+          "thinkingOnly": false
+        }
+      ],
+      "modelApiRounds": 4,
+      "thinkingOnlyResponseOrdinal": null,
+      "assistantError": false,
+      "tombstones": 0,
+      "publicGenerationIdsExactlyMatchScriptedResponses": true,
+      "generations": {
+        "assistantEvents": 4,
+        "streamStarts": 4,
+        "distinctGenerations": 4,
+        "missingGenerationIds": 0,
+        "missingToolIds": 0,
+        "conflictingToolOwners": 0,
+        "overflow": false,
+        "uncorrelatedStopEvents": 0,
+        "overlappingStreamStarts": 0,
+        "completeGenerationIds": true,
+        "uncorrelatedHooks": 0,
+        "generations": [
+          {
+            "number": 1,
+            "firstEventMs": 5206.847,
+            "lastEventMs": 5215.927,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "tool_use"
+            ],
+            "textObserved": false,
+            "thinkingObserved": false,
+            "distinctTools": 1,
+            "toolHooks": 1,
+            "forwardedHooks": 1,
+            "droppedHooks": 0,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": 5240.684
+          },
+          {
+            "number": 2,
+            "firstEventMs": 5391.655,
+            "lastEventMs": 5398.361,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "tool_use"
+            ],
+            "textObserved": false,
+            "thinkingObserved": false,
+            "distinctTools": 1,
+            "toolHooks": 1,
+            "forwardedHooks": 0,
+            "droppedHooks": 1,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": 5405.781
+          },
+          {
+            "number": 3,
+            "firstEventMs": 5525.358,
+            "lastEventMs": 5533.761,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "tool_use"
+            ],
+            "textObserved": false,
+            "thinkingObserved": false,
+            "distinctTools": 1,
+            "toolHooks": 1,
+            "forwardedHooks": 0,
+            "droppedHooks": 1,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": 5536.116
+          },
+          {
+            "number": 4,
+            "firstEventMs": 5660.806,
+            "lastEventMs": 5664.403,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "end_turn"
+            ],
+            "textObserved": true,
+            "thinkingObserved": false,
+            "distinctTools": 0,
+            "toolHooks": 0,
+            "forwardedHooks": 0,
+            "droppedHooks": 0,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": null
+          }
+        ]
+      },
+      "hooks": 3,
+      "handlerCalls": 0,
+      "mcpConnected": true,
+      "sdkPartialEventsRequested": true,
+      "result": {
+        "subtype": "success",
+        "isError": false,
+        "numTurns": 4,
+        "terminalReason": "completed",
+        "atMs": 5692.043
+      },
+      "iteratorError": null,
+      "exactProcessExitOneError": false,
+      "exactPriorResultError": false,
+      "nativeResultErrorCount": null,
+      "closeError": null,
+      "iteratorSettled": true,
+      "nativeProcess": {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null
+      },
+      "existingGenerationBoundAccepted": true
+    },
+    {
+      "name": "thinking-only-end-turn-retry",
+      "cap": 4,
+      "firstResponseTools": 1,
+      "permission": "deny",
+      "repeatedTools": false,
+      "firstGenerationHandoff": true,
+      "apiRequests": [
+        {
+          "ordinal": 1,
+          "atMs": 7971.563,
+          "stream": true,
+          "toolResults": 0,
+          "errorToolResults": 0,
+          "scriptedToolCalls": 1,
+          "scriptedStopReason": "tool_use",
+          "thinkingOnly": false
+        },
+        {
+          "ordinal": 2,
+          "atMs": 8168.437,
+          "stream": true,
+          "toolResults": 1,
+          "errorToolResults": 1,
+          "scriptedToolCalls": 1,
+          "scriptedStopReason": "tool_use",
+          "thinkingOnly": false
+        },
+        {
+          "ordinal": 3,
+          "atMs": 8417.55,
+          "stream": true,
+          "toolResults": 2,
+          "errorToolResults": 2,
+          "scriptedToolCalls": 1,
+          "scriptedStopReason": "tool_use",
+          "thinkingOnly": false
+        },
+        {
+          "ordinal": 4,
+          "atMs": 8493.82,
+          "stream": true,
+          "toolResults": 3,
+          "errorToolResults": 3,
+          "scriptedToolCalls": 0,
+          "scriptedStopReason": "end_turn",
+          "thinkingOnly": true
+        },
+        {
+          "ordinal": 5,
+          "atMs": 8541.284,
+          "stream": true,
+          "toolResults": 3,
+          "errorToolResults": 3,
+          "scriptedToolCalls": 0,
+          "scriptedStopReason": "end_turn",
+          "thinkingOnly": false
+        }
+      ],
+      "modelApiRounds": 5,
+      "thinkingOnlyResponseOrdinal": 4,
+      "assistantError": false,
+      "tombstones": 0,
+      "publicGenerationIdsExactlyMatchScriptedResponses": true,
+      "generations": {
+        "assistantEvents": 5,
+        "streamStarts": 5,
+        "distinctGenerations": 5,
+        "missingGenerationIds": 0,
+        "missingToolIds": 0,
+        "conflictingToolOwners": 0,
+        "overflow": false,
+        "uncorrelatedStopEvents": 0,
+        "overlappingStreamStarts": 0,
+        "completeGenerationIds": true,
+        "uncorrelatedHooks": 0,
+        "generations": [
+          {
+            "number": 1,
+            "firstEventMs": 7997.042,
+            "lastEventMs": 8021.657,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "tool_use"
+            ],
+            "textObserved": false,
+            "thinkingObserved": false,
+            "distinctTools": 1,
+            "toolHooks": 1,
+            "forwardedHooks": 1,
+            "droppedHooks": 0,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": 8042.951
+          },
+          {
+            "number": 2,
+            "firstEventMs": 8227.105,
+            "lastEventMs": 8235.96,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "tool_use"
+            ],
+            "textObserved": false,
+            "thinkingObserved": false,
+            "distinctTools": 1,
+            "toolHooks": 1,
+            "forwardedHooks": 0,
+            "droppedHooks": 1,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": 8247.903
+          },
+          {
+            "number": 3,
+            "firstEventMs": 8422.64,
+            "lastEventMs": 8425.64,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "tool_use"
+            ],
+            "textObserved": false,
+            "thinkingObserved": false,
+            "distinctTools": 1,
+            "toolHooks": 1,
+            "forwardedHooks": 0,
+            "droppedHooks": 1,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": 8431.842
+          },
+          {
+            "number": 4,
+            "firstEventMs": 8500.447,
+            "lastEventMs": 8504.941,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "end_turn"
+            ],
+            "textObserved": false,
+            "thinkingObserved": true,
+            "distinctTools": 0,
+            "toolHooks": 0,
+            "forwardedHooks": 0,
+            "droppedHooks": 0,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": null
+          },
+          {
+            "number": 5,
+            "firstEventMs": 8547.4,
+            "lastEventMs": 8552.784,
+            "assistantEvents": 1,
+            "streamStarts": 1,
+            "stopReasons": [
+              "end_turn"
+            ],
+            "textObserved": true,
+            "thinkingObserved": false,
+            "distinctTools": 0,
+            "toolHooks": 0,
+            "forwardedHooks": 0,
+            "droppedHooks": 0,
+            "unknownHooks": 0,
+            "repeatedHookEvents": 0,
+            "firstHookMs": null
+          }
+        ]
+      },
+      "hooks": 3,
+      "handlerCalls": 0,
+      "mcpConnected": true,
+      "sdkPartialEventsRequested": true,
+      "result": {
+        "subtype": "success",
+        "isError": false,
+        "numTurns": 5,
+        "terminalReason": "completed",
+        "atMs": 8575.847
+      },
+      "iteratorError": null,
+      "exactProcessExitOneError": false,
+      "exactPriorResultError": false,
+      "nativeResultErrorCount": null,
+      "closeError": null,
+      "iteratorSettled": true,
+      "nativeProcess": {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null
+      },
+      "existingGenerationBoundAccepted": false
+    }
+  ],
+  "outcome": "DISCOVERY_COMPLETED",
+  "cliSha256": "4503bfe11a6c7fcc1e0b39b5e0d347c04248f750b03b0977b3ad6b531fe6f358",
+  "cliVersion": "2.1.295",
+  "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+  "sdkVersion": "0.2.141",
+  "otherApiRequests": 0,
+  "cleanup": {
+    "admissionClosed": true,
+    "childrenJoined": true,
+    "iteratorsJoined": true,
+    "listenerClosed": true,
+    "children": [
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null,
+        "stderrBytes": 0
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null,
+        "stderrBytes": 0
+      },
+      {
+        "spawned": true,
+        "spawnError": false,
+        "exit": true,
+        "close": true,
+        "stdoutEnd": true,
+        "stdoutClose": true,
+        "stderrEnd": true,
+        "stderrClose": true,
+        "signalAttempts": 0,
+        "signalFailures": 0,
+        "signalCoalesced": 0,
+        "signals": [],
+        "join": "JOINED",
+        "exitCode": 0,
+        "signal": null,
+        "stderrBytes": 0
+      }
+    ],
+    "privateRuntimeRemoved": true
+  },
+  "environmentRestored": true,
+  "completedAt": "2026-10-09T21:54:01.200Z",
+  "exitCode": 0
+}

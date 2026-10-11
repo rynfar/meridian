@@ -1,0 +1,33 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/e72-mixed-auto.test.ts:
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > verifies the exact native inbox and child ownership through the maintained v3 harness [875.90ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox wrongInboxActor in the maintained v3 harness [790.17ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox wrongInboxReport in the maintained v3 harness [764.20ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox wrongInboxRole in the maintained v3 harness [769.09ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox wrongInboxFooter in the maintained v3 harness [956.28ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox missingInboxReport in the maintained v3 harness [812.32ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox duplicateInboxReport in the maintained v3 harness [772.89ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox truncatedInboxReport in the maintained v3 harness [847.77ms]
+(pass) actual mixed observer against marked synthetic client, proxy and SDK > rejects native-inbox droppedSdkInbox in the maintained v3 harness [937.92ms]
+
+src/__tests__/e72-native-handback-inbox.test.ts:
+(pass) pinned native SubagentHandback inbox > binds the independently captured reference-only result to the matching complete inbox [1.05ms]
+(pass) pinned native SubagentHandback inbox > requires the client pin, exact sender, parent reference and footer target [0.08ms]
+(pass) pinned native SubagentHandback inbox > rejects caller prose, other roles, JSON, nested blocks and missing reports [0.25ms]
+(pass) pinned native SubagentHandback inbox > requires all report bytes, indentation, envelope close and permission boundary [0.14ms]
+(pass) pinned native SubagentHandback inbox > rejects duplicate or partly damaged matching-sender envelopes [0.09ms]
+(pass) pinned native SubagentHandback inbox > preserves spaces, blank lines and indented frame-like report data [0.08ms]
+(pass) pinned native SubagentHandback inbox > fails closed beyond bounded messages, text blocks and payload sizes [1.11ms]
+(pass) pinned native SubagentHandback inbox > witnesses framed SDK user input without granting the report system authority [0.96ms]
+(pass) pinned native SubagentHandback inbox > forwards original SDK user objects, joins input and excludes system instructions [0.58ms]
+(pass) pinned native SubagentHandback inbox > preserves the original input error and closes an early-returned input iterator [0.65ms]
+(pass) independently captured native parallel group > binds both complete original native envelopes and SDK input to their own parent footers [0.28ms]
+(pass) independently captured native parallel group > rejects damaged members, separators, permission boundaries, footer and trailing prose [0.07ms]
+(pass) independently captured native parallel group > rejects borrowed sender reports and duplicated grouped envelopes [0.05ms]
+
+ 22 pass
+ 38 filtered out
+ 0 fail
+ 180 expect() calls
+Ran 22 tests across 2 files. [7.63s]

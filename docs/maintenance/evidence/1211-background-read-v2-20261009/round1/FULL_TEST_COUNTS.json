@@ -1,0 +1,10 @@
+{
+  "head": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+  "pass": 5846,
+  "fail": 0,
+  "skip": 35,
+  "batches": 22,
+  "syntheticExecutionsEscrowed": 95,
+  "ReadPositiveCases": 2,
+  "ReadFaultCasesRejected": 19
+}

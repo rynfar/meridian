@@ -1,0 +1,12 @@
+{
+  "status": "FAIL",
+  "interpretation": "Held-source case had no completed rows; generic Error and query terminated in cleanup. Cause not inferred without diagnostics.",
+  "originalDriverExecSession": 67291,
+  "originalDriverExit": 1,
+  "allOriginalActorsJoined": true,
+  "containerRemoved": true,
+  "nativeQueryCount": 1,
+  "exactLoopbackRounds": "UNRECORDED in this receipt; next diagnostic attempt cannot reconstruct it",
+  "realCredentialReads": 0,
+  "actualAcceptance": false
+}

@@ -1,0 +1,24 @@
+{
+  "head": "aff1f20125e9c9b8320e2a03fc0b7f02c49ff8a7",
+  "command": [
+    "bun",
+    "test",
+    "--timeout",
+    "30000",
+    "src/__tests__/claude-subagent-harness.test.ts"
+  ],
+  "pid": 88921,
+  "processGroup": 88921,
+  "startedUtc": "2026-10-05T04:50:05.070418+00:00",
+  "removedEnvNames": [
+    "CLAUDE_AGENT_SDK_VERSION"
+  ],
+  "log": "/private/tmp/meridian-backlog-20261004/meridian/1231/delivery-finalization/gates/focused-harness.log",
+  "exitCode": 0,
+  "elapsedSeconds": 64.31636441600858,
+  "completedUtc": "2026-10-05T04:51:09.388035+00:00",
+  "logBytes": 4681,
+  "logSha256": "e96c98f8cae37f4f518fa84e9dd6de3477f9307d049ab851ca20dbf6666197cd",
+  "sourceUnchanged": true,
+  "terminalProcessWaitObserved": true
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "writable",
+  "code": 1,
+  "joined": true,
+  "contentReadAttempts": 0,
+  "selectedOpenFlags": [],
+  "networkAttempts": 0,
+  "sdkInvoked": false,
+  "result": "FAIL",
+  "acceptance": false,
+  "queryCount": 0,
+  "cleanupFailures": [],
+  "privateRuntimeRemoved": true,
+  "privateSnapshotCreated": false
+}

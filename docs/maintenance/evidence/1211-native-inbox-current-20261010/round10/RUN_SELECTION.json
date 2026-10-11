@@ -1,0 +1,20 @@
+{
+  "runtimeSourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "observerContentHead": "51cefe3c3a7874d168dd8c1e361f9cdedd982a05",
+  "onlyChangedPaths": [
+    "scripts/e2e-claude-code-subagent-session.mjs",
+    "scripts/lib/e2eMixedAuto.mjs",
+    "src/__tests__/e72-handback-encoding.test.ts",
+    "src/__tests__/e72-mixed-auto.test.ts",
+    "src/__tests__/e72-native-handback-frame.test.ts",
+    "src/__tests__/fixtures/e72-mixed-control/client.mjs",
+    "src/__tests__/fixtures/e72-native-handback-frame.txt"
+  ],
+  "productionUnchanged": true,
+  "imageId": "sha256:98bcf4655603115bf8808376120003aeb385c2dc144bcadd60958c898fa740f0",
+  "protocol": "mixed-auto-handback-v3 / native-client-frame-v1 / owned-interrupt-v1",
+  "samePromptAndBudgets": true,
+  "representationCorrection": "Strict pinned native frame decoder; full report bytes and private child ID must match; legacy v2 raw gate untouched. R3/R8/R9 failures preserved.",
+  "sourceBeforeInstalled": true,
+  "wholeChangeAcceptance": "HELD"
+}

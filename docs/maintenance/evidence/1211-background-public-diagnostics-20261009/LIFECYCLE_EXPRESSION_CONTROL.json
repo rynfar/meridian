@@ -1,0 +1,16 @@
+{
+  "pass": true,
+  "controls": 6,
+  "observerHead": "a80fac562d462bc0010a792bb62adf07cc3987d6",
+  "frozenExpressionSHA256": "e325cfe8d83c21bdf599072cae36099c9cd536b6dbad33c8406019f99ee55e8c",
+  "controlSHA256": "93f95682e1565ba522110a5ff13eb4657d1c83d6639594f00419ff928d7944cf",
+  "cases": [
+    "Positive previous-body-before-current-request with result/iterator overlapping next request",
+    "Foreign actor cannot become predecessor",
+    "First own request has no predecessor",
+    "Already settled predecessor has zero overlap",
+    "Missing settlement is unknown/null",
+    "Nonfinite result timing is unknown/null"
+  ],
+  "scope": "Exact maintained expression with synthetic inputs; does not prove native lease-release or physical shutdown"
+}

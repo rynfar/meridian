@@ -1,0 +1,108 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/claude-subagent-isolation.test.ts:
+321 |     const running: RunningRequest[] = []
+322 |     for (const flow of flows) running.push(await start(app, flow))
+323 |     const unrelated = await start(app, { sessionId: "unrelated-root", requestId: "unrelated-main" })
+324 |     expect(activeQueries).toBe(7)
+325 |     const result = await cancel(app, root)
+326 |     expect(result.requestIds.toSorted()).toEqual(flows.map(flow => flow.requestId!).toSorted())
+                                               ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "root-agent-a",
+-   "root-agent-a-aux",
+-   "root-agent-b",
+-   "root-agent-b-aux",
+    "root-main",
+    "root-main-aux",
+  ]
+
+- Expected  - 4
++ Received  + 0
+
+      at <anonymous> (/private/tmp/meridian-backlog-20261004/meridian/1231/correction-round1/final-http-baseline/src/__tests__/claude-subagent-isolation.test.ts:326:42)
+(fail) Claude Code Agent cancellation isolation > explicit root cancellation reaches undeclared native agents and every active classifier [609.99ms]
+[PROXY] Session not resumable (key=collisio…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+437 |     const publishedMain = readSessionStoreSnapshot()[sessionKey(bareMain)]
+438 |     const agentFirst = await start(app, { sessionId: root, agentId, messages: opening }, "complete")
+439 |     expect(agentFirst.call.options.resume).toBeUndefined()
+440 |     expect((await complete(agentFirst)).status).toBe(200)
+441 |     expect(agentFirst.call.sdkSessionId).not.toBe(mainFirst.call.sdkSessionId)
+442 |     expect(readSessionStoreSnapshot()[sessionKey(bareMain)]).toEqual(publishedMain)
+                                                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "claudeSessionId": "6ece9309-c9e2-4ae5-a5ee-8d3cf2a886a3",
++   "claudeSessionId": "ec21a688-74f4-4283-99c4-7dc38848e828",
+    "contextUsage": {
+      "input_tokens": 10,
+      "output_tokens": 50,
+    },
+    "createdAt": 1791169914630,
+    "currentTranscript": {
+      "configDir": "/private/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-subagent-http-yexbmQ/claude",
+-     "lifecycleGeneration": "r:bf5c3ad69a3f37a8e996567faec8ee070129a2493d77f3b67da6f3caf31170f3:1",
++     "lifecycleGeneration": "r:6d0b2840e310df822749cdf3df15a710b0196dafdf4020180ff809ba4a8fb5ce:1",
+      "projectDir": "/private/tmp/meridian-backlog-20261004/meridian/1231/correction-round1/final-http-baseline",
+-     "sessionId": "6ece9309-c9e2-4ae5-a5ee-8d3cf2a886a3",
++     "sessionId": "ec21a688-74f4-4283-99c4-7dc38848e828",
+    },
+-   "generationId": "bbde6f5c-dce1-4a21-9468-1fc3afe520ad",
+-   "lastUsedAt": 1791169914630,
++   "generationId": "7090b62c-1bb0-4db7-b5f0-28e4a26c576a",
++   "lastUsedAt": 1791169914918,
+    "lineageHash": "0ff180264db8df37f44f85c5f387a7b4",
+    "messageBlockHashes": [
+      [
+        "e3a314ea46bce250a8459144db56300a",
+      ],
+    ],
+    "messageCount": 1,
+    "messageHashes": [
+      "1b57d3db93bd83d75261cfe6a4914efc",
+    ],
+    "passthroughToolCallAssistantUuid": undefined,
+    "passthroughToolCallIds": undefined,
+-   "revision": 1,
++   "previousClaudeSessionId": "6ece9309-c9e2-4ae5-a5ee-8d3cf2a886a3",
++   "previousTranscript": {
++     "configDir": "/private/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-subagent-http-yexbmQ/claude",
++     "lifecycleGeneration": "r:bf5c3ad69a3f37a8e996567faec8ee070129a2493d77f3b67da6f3caf31170f3:1",
++     "projectDir": "/private/tmp/meridian-backlog-20261004/meridian/1231/correction-round1/final-http-baseline",
++     "sessionId": "6ece9309-c9e2-4ae5-a5ee-8d3cf2a886a3",
++   },
++   "revision": 2,
+    "sdkMessageUuids": [
+      null,
+-     "d9274baa-9a4b-4012-bc18-e15f45004f4f",
++     "66e15096-4d7c-4607-9c7f-c4ae814a8c93",
+    ],
+  }
+
+- Expected  - 7
++ Received  + 14
+
+      at <anonymous> (/private/tmp/meridian-backlog-20261004/meridian/1231/correction-round1/final-http-baseline/src/__tests__/claude-subagent-isolation.test.ts:442:62)
+(fail) Claude Code Agent key and checkpoint isolation > separates a native agent from a bare main ID matching the old derived string [577.28ms]
+519 |     expect(fresh.call.options.resume).toBeUndefined()
+520 |     expect(fresh.call.options.resumeSessionAt).toBeUndefined()
+521 |     expect((await complete(fresh)).status).toBe(200)
+522 |     const replaced = readSessionStoreSnapshot()[key]
+523 |     expect(replaced?.claudeSessionId).toBe(fresh.call.sdkSessionId)
+524 |     expect(replaced?.previousClaudeSessionId).toBeUndefined()
+                                                    ^
+error: expect(received).toBeUndefined()
+
+Received: "legacy-unmarked-sdk"
+
+      at <anonymous> (/private/tmp/meridian-backlog-20261004/meridian/1231/correction-round1/final-http-baseline/src/__tests__/claude-subagent-isolation.test.ts:524:47)
+(fail) Claude Code Agent key and checkpoint isolation > replays an unmarked legacy reserved-key collision without inheriting its checkpoint or transcript [554.93ms]
+
+ 0 pass
+ 5 filtered out
+ 3 fail
+ 25 expect() calls
+Ran 3 tests across 1 file. [1.94s]

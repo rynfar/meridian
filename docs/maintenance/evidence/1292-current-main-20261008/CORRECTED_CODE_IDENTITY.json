@@ -1,0 +1,16 @@
+{
+  "base": "74ee5515cde58a4df03a48c0ca38abb20ccad648",
+  "head": "b6a1c6eb4af95769fe753acf94c3575d4d59a44c",
+  "diffSha256": "5466f122490638d29027a29d6aa76d19b7426f42510787c6384e4d33196e41ae",
+  "productionFiles": {
+    "src/proxy/adapter.ts": "148a6b3641b5e5ea957d40d0587cc725d8df9b95d3df60d6bdb372923737a375",
+    "src/proxy/adapters/claudecode.ts": "f36ab662073946ed664483e1f35746b94dbb8e1c9f933f52878ec0ecb7835267",
+    "src/proxy/adapters/claudecodeProgress.ts": "0051140944e4f2545b0cc82fd423df4bf914c10230e4ea84f66abb49c3ee21f9",
+    "src/proxy/adapters/sessionIdentity.ts": "c698910e2b149811c3d0fb57ce3104548ec1485939c0e96fb2b8396d7a67b10c",
+    "src/proxy/server.ts": "2c11e397619afaa60d7e4ca6056cc46cfe0f689a59b67908e072fd7411445ab6",
+    "src/proxy/session/cache.ts": "470fa86e596da25e0c7593980a12f93d27f2339ebd9d6092b33d4c2d7041a9ca",
+    "src/proxy/session/lineage.ts": "75382271c1c6b1d23f624241e41df0f1f189a445eadfcbca1b48dff17111fa86",
+    "src/proxy/sessionStore.ts": "b0de6ca4abc119381ba83f035378d232376cc95377f15e05e42b8ed377fa986b",
+    "src/proxy/sessionTree.ts": "c1b3cfb6c8fb41ba3fffae254a7794c32adab201debfa058623e95c0bbc1de5a"
+  }
+}

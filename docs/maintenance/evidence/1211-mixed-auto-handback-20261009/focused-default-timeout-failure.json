@@ -1,0 +1,23 @@
+{
+  "result": "FAIL_UNDER_BARE_BUN_5000MS_TEST_DEFAULT",
+  "originalExecSession": 8783,
+  "originalExecJoinedExit": 1,
+  "testsPass": 28,
+  "testsFail": 1,
+  "focusedCommandUsedBareBunDefault": true,
+  "failedCase": "changedClientToolInput",
+  "defaultTestMilliseconds": 5000,
+  "existingControlSubprocessHardDeadlineMilliseconds": 20000,
+  "repositoryFullSuitePerTestMilliseconds": 30000,
+  "nativeQueryCostTimeBoundsUnchanged": true,
+  "casesWithCompleteProofs": 24,
+  "atUTC": "2026-10-09T21:12:52.913119+00:00",
+  "currentHarnessScriptPidMatches": 0,
+  "currentSameUserProcessesWithOwnedFixtureCwd": [],
+  "observedMarkedFakeGrantFilesRemoved": [
+    "grant.json",
+    "meridian-e72-UOvkqx/runtime-account/.credentials.json"
+  ],
+  "failedFakeFixturePreservedUnderPacket": "failed-focused-fixture",
+  "originalDriverPidNotEscrowed": "Limitation: per-case PID was not written before the five-second runner timeout. The original test process joined; code reached proof parsing after awaiting its child owner.joined. No native/model/custody acceptance inferred."
+}

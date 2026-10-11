@@ -1,0 +1,26 @@
+{
+  "atUTC": "2026-10-09T03:17:53.160340+00:00",
+  "status": "PASS_COMPLETE_LOCAL_AT_465C3589_NATIVE_PRODUCT_PACKAGE_CI_HELD",
+  "testedHead": "465c35895cbef922669a6bb745d86438f9941c4d",
+  "totals": {
+    "pass": 5684,
+    "skip": 36,
+    "fail": 0
+  },
+  "batches": 21,
+  "pretestTypecheck": true,
+  "standaloneTypecheckBuildAndThreeCausalControls": true,
+  "allSixCommandsJoined": true,
+  "runnerToolSession19888Joined": true,
+  "headUnchanged": true,
+  "worktreeClean": true,
+  "modelCalls": 0,
+  "historicalFailurePreserved": "NATIVE_BUDGET_FINAL_LOCAL_GATES.json, E71 failure and native baseline reports remain immutable",
+  "nativePreparation": "550 baseline / 566 fixed named/tracked source inputs, exact helper/SDK/context/runtime bindings; no grant staged or new native call. Inputs must be refreshed after this evidence-only commit before invocation.",
+  "holds": [
+    "Fresh before-invocation provenance and bounded custody/grant qualification",
+    "Actual baseline/candidate, hint fallback, overlap/cancellation/native parity",
+    "Unknown reporter tuple and shared-MCP transport qualification",
+    "Independently installed package and final-head CI"
+  ]
+}

@@ -1,0 +1,250 @@
+{
+  "baseline_head": "f7b81ac0f0a840b5ca833780b7eb02958ae7e22d",
+  "final_local_head_unchanged": "f7b81ac0f0a840b5ca833780b7eb02958ae7e22d",
+  "source_path": "scripts/e2e-claude-code-subagent-session.mjs",
+  "before_source_sha256": "a21992f13904d810aefd73b772922af640017d7428cdc67b0765ffc7fcb3f60f",
+  "after_source_sha256": "a4abef7637160466007d51ae37642e4947ab05a2aff2927ab35041fd94e4417a",
+  "test_path": "src/__tests__/claude-subagent-harness.test.ts",
+  "exact_test_sha256_before_after": "a8fe98331b604562f1ced01c46082557c8b21bf21dc029e3f06953bcbdabe357",
+  "original_test_body_and_assertions_byte_preserved": true,
+  "original_test_sha256": "a3343dd094da98c92ee21eb18f038dfec733b51437f7714577163a32e6353078",
+  "runtime": {
+    "python_host_probe": {
+      "system": "Darwin",
+      "machine": "x86_64"
+    },
+    "node": {
+      "version": "v22.22.3",
+      "platform": "darwin",
+      "arch": "arm64",
+      "executable": "/Users/rynfar/.hermes/node/bin/node",
+      "executable_sha256": "5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c"
+    },
+    "bun": {
+      "version": "v24.3.0",
+      "platform": "darwin",
+      "arch": "arm64",
+      "executable": "/Users/rynfar/.bun/bin/bun",
+      "executable_sha256": "e0c90ec15d33363e6b70713d56bc3b2c7585c17f40a0fe0f8fd9305901d4e233",
+      "bun_version": "1.3.14"
+    }
+  },
+  "logs": [
+    {
+      "raw_path": "before/focused.log",
+      "raw_sha256": "18055586fa95297eeb4636cb2ae35caaaf09397c0e46f12baf4bcc1f6fc32eec",
+      "archive_path": "before/focused.log.gz",
+      "archive_sha256": "51411fc3f061d02a07bc0c09c11b3ff37fe3bd10ee58aa633a279ca2bb37a992",
+      "pass": 0,
+      "fail": 5,
+      "assertions": 63
+    },
+    {
+      "raw_path": "after/focused.log",
+      "raw_sha256": "54714bb933175db9af2162d187ae900d0b1f640c4436d183b239cc1ef44e9219",
+      "archive_path": "after/focused.log.gz",
+      "archive_sha256": "baa2e4c48e4d545f5a4e6c53168513f568ce792a177f1804d1a734c74ff270c6",
+      "pass": 5,
+      "fail": 0,
+      "assertions": 69
+    },
+    {
+      "raw_path": "after/full-focused.log",
+      "raw_sha256": "91434c4d04ffc746725929255c73a47ea7796a86177139e4592bee753de661d1",
+      "archive_path": "after/full-focused.log.gz",
+      "archive_sha256": "d97003828b7a30c7ed9b29e992c04881a1bd6556698d69cd7e9adabdc52d5c3f",
+      "pass": 27,
+      "fail": 0,
+      "assertions": 913
+    }
+  ],
+  "snapshot_controls": {
+    "before": {
+      "symlink": {
+        "kind": "symlink",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 1,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      },
+      "hardlink": {
+        "kind": "hardlink",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 2,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      },
+      "writable": {
+        "kind": "writable",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 2,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      },
+      "regular": {
+        "kind": "regular",
+        "code": 0,
+        "joined": true,
+        "contentReadAttempts": 2,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "REHEARSAL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": true
+      },
+      "directory": {
+        "kind": "directory",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 1,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      }
+    },
+    "after": {
+      "symlink": {
+        "kind": "symlink",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 0,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      },
+      "hardlink": {
+        "kind": "hardlink",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 0,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      },
+      "writable": {
+        "kind": "writable",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 0,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      },
+      "regular": {
+        "kind": "regular",
+        "code": 0,
+        "joined": true,
+        "contentReadAttempts": 2,
+        "selectedOpenFlags": [
+          260,
+          260
+        ],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "REHEARSAL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": true
+      },
+      "directory": {
+        "kind": "directory",
+        "code": 1,
+        "joined": true,
+        "contentReadAttempts": 0,
+        "selectedOpenFlags": [],
+        "networkAttempts": 0,
+        "sdkInvoked": false,
+        "result": "FAIL",
+        "acceptance": false,
+        "queryCount": 0,
+        "cleanupFailures": [],
+        "privateRuntimeRemoved": true,
+        "privateSnapshotCreated": false
+      }
+    }
+  },
+  "additional_existing_synthetic_scenario_receipts": 48,
+  "actual_blocking_fifo_run": false,
+  "native_e72_acceptance": false,
+  "full_suite_typecheck_build_run": false,
+  "model_classifier_semantics_changed": false,
+  "production_files_changed": false,
+  "committed_pushed_or_rebased": false,
+  "final_narrow_checks": [
+    {
+      "argv": [
+        "node",
+        "--check",
+        "scripts/e2e-claude-code-subagent-session.mjs"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "frozen_delta_sha256": "a5d7fe9121615f481a9f4db857900021fb16b47044895025a7149e4ae0c89ad1"
+}

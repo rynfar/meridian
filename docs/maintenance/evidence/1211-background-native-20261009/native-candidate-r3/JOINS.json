@@ -1,0 +1,11 @@
+[
+  {
+    "case": "e72-source",
+    "originalAttachPid": 63114,
+    "originalAttachJoined": true,
+    "nativeExit": 1,
+    "originalAuditorPid": 67701,
+    "originalAuditorJoined": true,
+    "auditExit": 2
+  }
+]

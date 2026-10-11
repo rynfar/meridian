@@ -1,0 +1,12 @@
+{
+  "normalized": [
+    {
+      "path": "local-gates/typecheck-r1/output.log",
+      "originalSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7",
+      "publicSHA256": "1b86375c9b4a9ba86febc22023abbb8d531c97160f3bd72d6fb4e002e207bc28",
+      "change": "Trailing whitespace/blank lines only; original external output remains exact."
+    }
+  ],
+  "fullTestLog": "Only batch-summary selection escrowed; full original raw output is SHA-bound and durably retained externally.",
+  "firstPublicDiffCheck": "Rejected a typecheck log trailing blank line; formatting-only correction recorded here. No executable change or repeated gate."
+}

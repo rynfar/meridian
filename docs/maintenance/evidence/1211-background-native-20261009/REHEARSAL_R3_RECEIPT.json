@@ -1,0 +1,50 @@
+[
+  {
+    "case": "e72-source",
+    "qualified": true,
+    "observerHead": "4f5ecd7594046bc276a6c9bac76da1cfa44c673c",
+    "originalAttachPid": 15199,
+    "originalAttachJoined": true,
+    "originalExit": 0,
+    "queries": 0,
+    "networkDisabled": true,
+    "realCredentialReads": 0,
+    "privateRuntimeRemoved": true,
+    "originalOwnedClientsAndPipesJoined": true,
+    "reportSHA256": "549c34c71af974e2cc73f32cebfedd61faa56419cd4502f97fb462d34f8863aa",
+    "taskFakeGrantUnchanged": true,
+    "ownedStoppedContainerRemoved": true
+  },
+  {
+    "case": "e72-package",
+    "qualified": true,
+    "observerHead": "4f5ecd7594046bc276a6c9bac76da1cfa44c673c",
+    "originalAttachPid": 15835,
+    "originalAttachJoined": true,
+    "originalExit": 0,
+    "queries": 0,
+    "networkDisabled": true,
+    "realCredentialReads": 0,
+    "privateRuntimeRemoved": true,
+    "originalOwnedClientsAndPipesJoined": true,
+    "reportSHA256": "5730a57b8e876e59e5eed7f7f51d080c43806f91e7aaf32bcdd7a4197f5eb4b2",
+    "taskFakeGrantUnchanged": true,
+    "ownedStoppedContainerRemoved": true
+  },
+  {
+    "case": "e72-baseline",
+    "qualified": true,
+    "observerHead": "4f5ecd7594046bc276a6c9bac76da1cfa44c673c",
+    "originalAttachPid": 16360,
+    "originalAttachJoined": true,
+    "originalExit": 0,
+    "queries": 0,
+    "networkDisabled": true,
+    "realCredentialReads": 0,
+    "privateRuntimeRemoved": true,
+    "originalOwnedClientsAndPipesJoined": true,
+    "reportSHA256": "a164641de8e8b9115edc3bf40391c060304618e2b4849f78ae5133763fdf7a7a",
+    "taskFakeGrantUnchanged": true,
+    "ownedStoppedContainerRemoved": true
+  }
+]

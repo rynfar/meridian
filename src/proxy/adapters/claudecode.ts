@@ -23,6 +23,7 @@ import { type FileChange, extractFileChangesFromBash } from "../fileChanges"
 import { normalizeContent } from "../messages"
 import { BLOCKED_BUILTIN_TOOLS, CLAUDE_CODE_ONLY_TOOLS, MCP_SERVER_NAME, ALLOWED_MCP_TOOLS } from "../tools"
 import { resolvePassthrough } from "../../env"
+import { isClaudeCodeProgressSummary } from "./claudecodeProgress"
 
 /**
  * Extract Claude Code's client-local working directory from the request's
@@ -54,10 +55,9 @@ function extractClaudeCodeClientCwd(body: any): string | undefined {
 /**
  * Session identity declared in `metadata.user_id`.
  *
- * `sessionId` is the whole of the session key — nothing is appended, prefixed,
- * or normalized — because it is what every cached mapping is already stored
- * under. `parentSessionId` is additive: a client that does not stamp it gets
- * exactly the identity it got before the field existed.
+ * These are raw client IDs. Ordinary main keys remain byte-identical; native
+ * agent scoping and reserved-prefix escaping happen separately below.
+ * `parentSessionId` is additive and continues to name a declared main session.
  */
 export interface ClaudeCodeSessionIdentity {
   readonly sessionId: string
@@ -121,6 +121,135 @@ export function extractClaudeCodeParentSessionId(body: unknown): string | undefi
   return extractClaudeCodeSessionIdentity(body)?.parentSessionId
 }
 
+/** The agent context Claude Code runs a request under; absent on the main conversation. */
+export const CLAUDE_CODE_AGENT_ID_HEADER = "x-claude-code-agent-id"
+
+/** Agent ids are short opaque tokens. Anything else is ignored, never keyed. */
+const CLAUDE_CODE_AGENT_ID = /^[A-Za-z0-9_-]{1,128}$/
+
+/** Reserved internal keyspace, never written back into client metadata. */
+const CLAUDE_CODE_SESSION_PREFIX = "meridian-claude-code:1:"
+const CLAUDE_CODE_SESSION_NAMESPACE = "claude-code:1"
+
+function claudeCodeMainSessionKey(sessionId: string): string {
+  return sessionId.startsWith(CLAUDE_CODE_SESSION_PREFIX)
+    ? `${CLAUDE_CODE_SESSION_PREFIX}${JSON.stringify(["main", sessionId])}`
+    : sessionId
+}
+
+/**
+ * The session key for one Claude Code request.
+ *
+ * NOTE: agent-specific (claude-code). An Agent-tool subagent sends its parent
+ * conversation's `metadata.user_id` session id while running a multi-turn
+ * conversation of its own, and background subagents overlap the parent's
+ * turns. Under one key each history read as `unrelated-history` to the other,
+ * so neither resumed, and both queued on one turn lease. The CLI stamps
+ * `x-claude-code-agent-id` on every subagent request — stable across that
+ * subagent's turns, distinct between subagents, and sent without gateway hint
+ * headers (verified statically against 2.1.287). Agent keys use a reserved
+ * printable tuple namespace: concatenating `<sid>:agent:<agentId>` collided with a
+ * perfectly valid bare client session ID. Ordinary main IDs remain unchanged;
+ * reserved-prefix main IDs escape into a disjoint main tuple. An agent id never
+ * creates a key on its own: without a metadata session id there is none.
+ *
+ * A backgrounded main session (and a fork-of-main subagent) also gets a fresh
+ * agent id but carries the whole transcript, so its first request under the
+ * new key is one full-history replay; later turns resume on that key.
+ */
+export function claudeCodeSessionKey(agentId: string | undefined, body: unknown): string | undefined {
+  const sessionId = extractClaudeCodeSessionId(body)
+  if (sessionId === undefined) return undefined
+  if (agentId === undefined || !CLAUDE_CODE_AGENT_ID.test(agentId)) return claudeCodeMainSessionKey(sessionId)
+  return `${CLAUDE_CODE_SESSION_PREFIX}${JSON.stringify(["agent", sessionId, agentId])}`
+}
+
+/** Claude Code's own request classification (`main`, `auxiliary`, `compaction`, …). */
+export const CLAUDE_CODE_REQUEST_CLASS_HEADER = "x-claude-code-request-class"
+
+/** The auto-mode classifier's XML verdicts end at these tags. */
+const CLASSIFIER_STOP_SEQUENCES = new Set(["</block>", "</severity>"])
+
+/** Classifier-specific system envelope in the official 2.1.286 client. */
+function hasAutoModePermissions(system: unknown): boolean {
+  const texts = typeof system === "string"
+    ? [system]
+    : Array.isArray(system)
+      ? system.flatMap((block: unknown) => {
+        if (!block || typeof block !== "object") return []
+        const candidate = block as { type?: unknown; text?: unknown }
+        return candidate.type === "text" && typeof candidate.text === "string" ? [candidate.text] : []
+      })
+      : []
+  // The client prepends a billing block. Both markers must belong to the same
+  // classifier block; user text and ordinary XML output confer no authority.
+  return texts.some(text => {
+    if (!text.trimStart().startsWith("You are a security monitor for autonomous AI coding agents.")) return false
+    const opening = "\n<cc_automode_permissions>\n"
+    const closing = "\n</cc_automode_permissions>"
+    const start = text.indexOf(opening)
+    if (start < 0) return false
+    // Scan the suffix once. A regex spanning every possible opening marker
+    // repeatedly rescans malformed client input with no closing marker.
+    let end = text.indexOf(closing, start + opening.length - 1)
+    while (end >= 0) {
+      const boundary = end + closing.length
+      if (boundary === text.length || text[boundary] === "\n") return true
+      end = text.indexOf(closing, boundary)
+    }
+    return false
+  })
+}
+
+/**
+ * Is this a Claude Code side call under the conversation's session id?
+ *
+ * NOTE: agent-specific (claude-code). The CLI sends several side calls with the
+ * conversation's own `metadata.user_id` session id and a short transcript of
+ * their own: the auto-mode permission classifier, and the classifier that sums
+ * up the session's state ("Current state: … / Assistant message tail …"). Read
+ * as a turn, each classifies `unrelated-history` and overwrites the
+ * conversation's mapping, so the next real turn cannot resume.
+ *
+ * The CLI names its request class in `x-claude-code-request-class`, but sends
+ * it only with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, to a first-party base URL,
+ * or under a remote flag — through Meridian it is normally absent. When present
+ * it decides outright. Otherwise the shape does: a session key, no tools, and
+ * not streamed. Both classifiers go through the CLI's unstreamed side-query
+ * helper without tools, while the conversation loop streams its turns and
+ * keeps their tools when it retries one unstreamed. The streamed session-start
+ * request, compaction and main turns all fall outside the shape.
+ *
+ * Other clients can reach this adapter with the same tool-less unstreamed
+ * shape for real turns, so the shape alone counts only for a request from the
+ * CLI itself (`fromCli`, see isClaudeCodeClient). Otherwise retain the specific
+ * auto-mode system permissions envelope and, when supplied, exactly one known
+ * verdict stop. Ordinary XML output is not a classifier. Malformed tool/stream
+ * fields never supply fallback authority. An identified
+ * subagent's streaming progress caption has its own narrow shape in
+ * claudecodeProgress; it must also stay out of the working mapping.
+ */
+export function isClaudeCodeAuxiliaryRequest(
+  requestClass: string | undefined,
+  body: unknown,
+  agentId?: string,
+  fromCli = false,
+): boolean {
+  if (requestClass !== undefined) return requestClass === "auxiliary"
+  if (!body || typeof body !== "object") return false
+  if (extractClaudeCodeSessionId(body) === undefined) return false
+  if (agentId !== undefined && CLAUDE_CODE_AGENT_ID.test(agentId) && isClaudeCodeProgressSummary(body, fromCli)) return true
+  const request = body as { tools?: unknown; stream?: unknown; stop_sequences?: unknown; system?: unknown }
+  if (request.tools !== undefined && (!Array.isArray(request.tools) || request.tools.length > 0)) return false
+  if (request.stream !== undefined && request.stream !== false) return false
+  if (fromCli) return true
+  if (!hasAutoModePermissions(request.system)) return false
+  return request.stop_sequences === undefined || (
+    Array.isArray(request.stop_sequences) && request.stop_sequences.length === 1
+    && request.stop_sequences.every(stop => typeof stop === "string" && CLASSIFIER_STOP_SEQUENCES.has(stop))
+  )
+}
+
 /**
  * Is this request from the Claude Code CLI, whatever adapter is handling it?
  *
@@ -167,10 +296,11 @@ export const claudeCodeAdapter: AgentAdapter = {
 
   /**
    * Claude Code embeds its conversation ID in metadata.user_id rather than a
-   * session-affinity header. Fall back to fingerprint resume when absent.
+   * session-affinity header; an Agent-tool subagent adds its agent id (see
+   * `claudeCodeSessionKey`). Fall back to fingerprint resume when absent.
    */
-  getSessionId(_c: Context, body?: unknown): string | undefined {
-    return extractClaudeCodeSessionId(body)
+  getSessionId(c: Context, body?: unknown): string | undefined {
+    return claudeCodeSessionKey(c.req.header(CLAUDE_CODE_AGENT_ID_HEADER), body)
   },
 
   /**
@@ -178,7 +308,46 @@ export const claudeCodeAdapter: AgentAdapter = {
    * a declared parent always names a key derived the same way this one was.
    */
   getParentSessionId(_c: Context, body?: unknown): string | undefined {
-    return extractClaudeCodeParentSessionId(body)
+    const parent = extractClaudeCodeParentSessionId(body)
+    // The existing envelope names a main session, not a native parent agent.
+    // The CLI does not emit a parent-agent identity here; never invent one.
+    return parent === undefined ? undefined : claudeCodeMainSessionKey(parent)
+  },
+
+  /**
+   * The conversation's own `metadata.user_id` session id: the key its main
+   * requests use, and the root its Agent-tool subagents (keyed apart by agent
+   * id) share for account routing.
+   */
+  getRootSessionId(_c: Context, body?: unknown): string | undefined {
+    const sessionId = extractClaudeCodeSessionId(body)
+    return sessionId === undefined ? undefined : claudeCodeMainSessionKey(sessionId)
+  },
+
+  getRootSessionCancelKey(_c: Context, body?: unknown): string | undefined {
+    return extractClaudeCodeSessionId(body)
+  },
+
+  getSessionNamespace(c: Context, body?: unknown): string | undefined {
+    const key = claudeCodeSessionKey(c.req.header(CLAUDE_CODE_AGENT_ID_HEADER), body)
+    return key?.startsWith(CLAUDE_CODE_SESSION_PREFIX) ? CLAUDE_CODE_SESSION_NAMESPACE : undefined
+  },
+
+  getSessionCancelKey(c: Context, body?: unknown): string | undefined {
+    const agentId = c.req.header(CLAUDE_CODE_AGENT_ID_HEADER)
+    return agentId !== undefined && CLAUDE_CODE_AGENT_ID.test(agentId)
+      ? claudeCodeSessionKey(agentId, body)
+      : extractClaudeCodeSessionId(body)
+  },
+
+  /** See `isClaudeCodeAuxiliaryRequest`. */
+  isAuxiliaryRequest(c: Context, body?: unknown): boolean {
+    return isClaudeCodeAuxiliaryRequest(
+      c.req.header(CLAUDE_CODE_REQUEST_CLASS_HEADER),
+      body,
+      c.req.header(CLAUDE_CODE_AGENT_ID_HEADER),
+      isClaudeCodeClient(c),
+    )
   },
 
   /**

@@ -1,0 +1,19 @@
+{
+  "inputs": [
+    {
+      "path": "machine-id",
+      "bytes": 33,
+      "sha256": "c83d69c20d6512aa48f1d9f801c1710d536ea6beef7538a6c6f843ba3eec7fd4"
+    },
+    {
+      "path": "scripts/e2e-native-stop-eof.mjs",
+      "bytes": 24765,
+      "sha256": "b85a87e4afeaca9db9a3e2da91bae03a5b315ea0cc324764f86e5028b2a8ddfa"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 13771,
+      "sha256": "fdde06aab080db69ff99ad79b8dd793b258bd10cc4261e8e86a699f8e4d1608f"
+    }
+  ]
+}

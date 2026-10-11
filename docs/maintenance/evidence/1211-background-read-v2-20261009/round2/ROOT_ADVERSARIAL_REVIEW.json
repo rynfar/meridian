@@ -1,0 +1,159 @@
+{
+  "atUTC": "2026-10-09T18:37:49.487444+00:00",
+  "reviewedHead": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+  "incrementBase": "e5d1f7662e5997dc8f2afde64119f4020719f61e",
+  "disposition": "ACCEPT_SCOPED_NATIVE_READ_SOURCE_AND_INSTALLED_WITH_BASELINE_BUDGET_PRODUCT_AND_CI_HOLDS",
+  "reviewScope": "Root adversarial inspection of the complete four-file cap-four correction and prior live/native-counter evidence. No delegated review or whole-change landing acceptance.",
+  "productionUnchanged": true,
+  "priorUnexplainedFailures": false,
+  "priorFailuresPreserved": "Round-one baseline and source remain FAIL; both produced two correctly owned numbered-record Read reports. Their unsupported cap-four counter-five forms are now independently measured in source and installed native tuples.",
+  "materialScopedSourceFindingsRemaining": [],
+  "controlsAndConstraints": [
+    "Native runtime fixtures directly match four scripted API rounds to four public generation IDs and native counter five, with physical exit/stdio/iterator/listener custody; no real credentials/model/client/installed proxy behavior claimed.",
+    "New rule accepts only SDK 0.2.141/native 2.1.284 or 2.1.295, existing maxTurns four, canonical max-turn reason/error flag and original HTTP/hook custody.",
+    "First generation forwards exactly one to three tools; each of the three remaining generations has exactly one explicitly dropped tool and no forwarded, unknown or repeated hook. All ordinal/count/fate relationships and total dropped count three must match.",
+    "Purely dropped cases, missing/drop/late-forward/excess/missing-ID variants fail; direct and maintained-harness controls cover positive and adversarial shapes.",
+    "Original foreground and TaskOutput rule remains byte-preserved from earlier delivery; no production cap or public plugin interface changes.",
+    "Native inspector, model prose, IDs and paths remain private/in-memory. Harness does not open task/transcript/session files. Actual matched Read output is supplied by the native client public tool response.",
+    "Source and installed gates stay held until full corrected actual assertions pass; original evidence is not overwritten or silently reclassified."
+  ],
+  "focusedVerification": {
+    "testsPass": 12,
+    "testsFail": 0,
+    "expects": 233,
+    "typecheckExit": 0
+  },
+  "fullFinalGates": {
+    "full-test-r1": {
+      "head": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+      "originalPid": 27622,
+      "exit": 0,
+      "originalChildJoined": true,
+      "seconds": 860.859581708035,
+      "logSHA256": "399e9f91a4b51c17d244be66d97f3a47cf2230142132de2b61383c48d22cfe70",
+      "headAfter": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca"
+    },
+    "typecheck-r1": {
+      "head": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+      "originalPid": 2838,
+      "exit": 0,
+      "originalChildJoined": true,
+      "seconds": 18.660135333018843,
+      "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7",
+      "headAfter": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca"
+    },
+    "build-r1": {
+      "head": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+      "originalPid": 9526,
+      "exit": 0,
+      "originalChildJoined": true,
+      "seconds": 15.847492249973584,
+      "logSHA256": "f46da7beaac0820762524e77a6946ff672a4d6f4d2807e9e37827d891528bbbf",
+      "headAfter": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca"
+    }
+  },
+  "actualNative": {
+    "e72-baseline": {
+      "qualified": false,
+      "result": "FAIL",
+      "queries": 13,
+      "estimatedSdkCostUsd": 1.1943124,
+      "backgroundReadFacts": {
+        "ownedLaunchPaths": 2,
+        "uniqueLaunchPathsAndHandles": true,
+        "reads": 2,
+        "ownedReads": 2,
+        "readsAfterLaunch": 2,
+        "childCompleteBeforeRead": 2,
+        "matchedFinalReports": 2,
+        "completedReads": 2,
+        "formats": [
+          "numbered-records",
+          "numbered-records"
+        ]
+      },
+      "publicGenerationBoundsQualified": false,
+      "maintainedHarnessCustodyQualified": true
+    },
+    "e72-source": {
+      "qualified": true,
+      "result": "PASS",
+      "queries": 13,
+      "estimatedSdkCostUsd": 1.6601138,
+      "backgroundReadFacts": {
+        "ownedLaunchPaths": 2,
+        "uniqueLaunchPathsAndHandles": true,
+        "reads": 2,
+        "ownedReads": 2,
+        "readsAfterLaunch": 2,
+        "childCompleteBeforeRead": 2,
+        "matchedFinalReports": 2,
+        "completedReads": 2,
+        "formats": [
+          "numbered-records",
+          "numbered-records"
+        ]
+      },
+      "publicGenerationBoundsQualified": true,
+      "maintainedHarnessCustodyQualified": true
+    },
+    "e72-package": {
+      "qualified": true,
+      "result": "PASS",
+      "queries": 13,
+      "estimatedSdkCostUsd": 2.2573239999999997,
+      "backgroundReadFacts": {
+        "ownedLaunchPaths": 2,
+        "uniqueLaunchPathsAndHandles": true,
+        "reads": 2,
+        "ownedReads": 2,
+        "readsAfterLaunch": 2,
+        "childCompleteBeforeRead": 2,
+        "matchedFinalReports": 2,
+        "completedReads": 2,
+        "formats": [
+          "numbered-records",
+          "numbered-records"
+        ]
+      },
+      "publicGenerationBoundsQualified": true,
+      "maintainedHarnessCustodyQualified": true
+    }
+  },
+  "remainingWholeChangeHolds": [
+    "Baseline public-generation budget qualification / complete before-after acceptance",
+    "Mixed auto/classifier tuple",
+    "root/scoped/nested cancellation and parent HTTP abort independence",
+    "caption affected reporter tuple/baseline/overlap/cache/abort",
+    "broader packaging/platform/client acceptance",
+    "historical long-wait attribution",
+    "final delivery-head CI"
+  ],
+  "merge": "HELD",
+  "fullTestCounts": {
+    "head": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+    "pass": 5852,
+    "fail": 0,
+    "skip": 35,
+    "batches": 22,
+    "syntheticExecutionsEscrowed": 100,
+    "ReadPositiveCases": 3,
+    "ReadFaultCasesRejected": 23
+  },
+  "zeroQueryRehearsals": {
+    "cases": 3,
+    "allQualified": true,
+    "fakeGrantRemoved": true,
+    "queries": 0,
+    "realCredentialReads": 0
+  },
+  "runtimeFindings": [
+    {
+      "id": "R2_BASELINE_PUBLIC_GENERATION_BUDGET",
+      "status": "OPEN",
+      "fact": "One successful baseline query emitted five complete public generations while configured maxTurns was four. The versioned bound rejected it.",
+      "qualification": "No direct actual-provider API count or SDK-vs-model/root-cause attribution is established. Baseline remains FAIL, so complete before/after acceptance remains held.",
+      "trigger": "Qualify exact SDK/public-generation/native-budget behavior with actual-provider request custody; retain current bound until a justified correction is independently reviewed."
+    }
+  ]
+}

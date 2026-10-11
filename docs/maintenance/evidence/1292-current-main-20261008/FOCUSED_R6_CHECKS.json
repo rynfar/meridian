@@ -1,0 +1,26 @@
+[
+  {
+    "label": "r6-typecheck",
+    "argv": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 4.501,
+    "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+  },
+  {
+    "label": "r6-auxiliary-retry-bound",
+    "argv": [
+      "bun",
+      "test",
+      "src/__tests__/proxy-concurrency-coordination.test.ts"
+    ],
+    "exit": 0,
+    "joined": true,
+    "seconds": 7.819,
+    "sha256": "349665c7e500c98446775ef1436f62277a7dfbb6d6324a8963fd4e067e6505bc"
+  }
+]

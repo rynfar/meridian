@@ -1,0 +1,21 @@
+{
+  "result": "FAIL",
+  "passedChecks": 20,
+  "totalChecks": 27,
+  "sdkQueries": 19,
+  "estimatedCostUsd": 0.6776786,
+  "failedChecks": [
+    "actualAgentAndBashReceipts",
+    "allQueriesCorrelated",
+    "distinctSessionMappings",
+    "subagentResume",
+    "nativeReceipts",
+    "independentClassifierSessions",
+    "nativeHandbackReports"
+  ],
+  "sourceHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "observer": "51cefe3c plus explicit frozen scalar-layout overlay; not exact Git contents",
+  "finding": "Both messages literal JSON-quoted. Parent one text block349characters, no native/report marker, one actor/footer and usage marker. Query8 has an unqualified unexpected native result after interruption; child subsequent request restarts lineage. Do not loosen native errors or claim ordinary-frame control explains actual Handback path.",
+  "installedLive": "UNEXECUTED_AFTER_SOURCE_FAILURE",
+  "custody": "Original handles joined, source grant unchanged, owned runtime/task grant/container removed"
+}

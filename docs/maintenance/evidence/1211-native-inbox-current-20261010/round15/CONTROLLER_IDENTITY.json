@@ -1,0 +1,14 @@
+{
+  "run-current.py": {
+    "bytes": 9836,
+    "sha256": "91d48711e43916c8d9e3e02920656582ae24cf1142e61633dbe70e0dcf24c4fc"
+  },
+  "run-local-gates.py": {
+    "bytes": 1723,
+    "sha256": "7097e930d855763bd09d100c456bbf093ea54aed2542476a1f3b369f70e91a3d"
+  },
+  "run-e41-installed.py": {
+    "bytes": 11009,
+    "sha256": "960bdee0d2eec4f3e12c1fc060614200a54b322819e8e41c9aa0826833385768"
+  }
+}

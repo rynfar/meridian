@@ -1,0 +1,36 @@
+{
+  "head": "bae7ada3995788c83f6de92e573807c447c587b5",
+  "diffSHA256": "0ffcda945cd8246d798bec6ab9c557c95fd3e8491102073c223a9b9216fa37ca",
+  "files": [
+    {
+      "path": "src/__tests__/passthrough-checkpoint-stop-http.test.ts",
+      "bytes": 8506,
+      "sha256": "8f349e4cc1bdac44105c1b0b2aa38c32664a92f1f9d5e8a736e6d80234deaf2f",
+      "gitHEADBytesExact": true
+    },
+    {
+      "path": "src/__tests__/passthrough-checkpoint-stop-regressions.test.ts",
+      "bytes": 4392,
+      "sha256": "0b59003b53c60578b62fc9519a3457012d835d45367d149ceece213caa4fc3bd",
+      "gitHEADBytesExact": true
+    },
+    {
+      "path": "src/__tests__/passthrough-checkpoint-stop.test.ts",
+      "bytes": 16711,
+      "sha256": "8522dcd220aca7020794954c180718a78ba477ae0a222396ea1b2f3f79539e87",
+      "gitHEADBytesExact": true
+    },
+    {
+      "path": "src/proxy/passthroughCheckpointStop.ts",
+      "bytes": 17024,
+      "sha256": "f473ef2e1bf527bc6264b178859b73762a37a8a89edea487e852f501bfbe6e22",
+      "gitHEADBytesExact": true
+    },
+    {
+      "path": "src/proxy/server.ts",
+      "bytes": 561773,
+      "sha256": "935936c9a580a73a79ae02ba6abd6a0ae591b7f4e83e58c85fee4d71b3a56b33",
+      "gitHEADBytesExact": true
+    }
+  ]
+}

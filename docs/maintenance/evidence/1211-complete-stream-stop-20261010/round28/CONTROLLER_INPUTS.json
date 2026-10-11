@@ -1,0 +1,22 @@
+{
+  "sourceHead": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "inputs": [
+    {
+      "path": "run-e41-current.py",
+      "bytes": 11552,
+      "sha256": "2087eb854de1ce63f9882081b099847718340af205c5f463da51df6ecbdfc8fa"
+    },
+    {
+      "path": "run-matrix.py",
+      "bytes": 885,
+      "sha256": "dab3501ceca528bd0ef8f5096eb5d2dc5bbd8f41da76f332ffe8490b16a67152"
+    },
+    {
+      "path": "PRE_EXECUTION_REVIEW.md",
+      "bytes": 1368,
+      "sha256": "13e82a58ca4d39805fb1ff5a26cd85b5718e71b77476ed925b7247586508d863"
+    }
+  ],
+  "sdkModelQueriesBeforePreparation": 0,
+  "originalR27SetupFailurePreserved": true
+}

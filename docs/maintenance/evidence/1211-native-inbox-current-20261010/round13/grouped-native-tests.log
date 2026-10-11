@@ -1,0 +1,21 @@
+bun test v1.3.14 (0d9b296a)
+
+grouped-native-controls.test.ts:
+(pass) pinned native SubagentHandback inbox > binds the independently captured reference-only result to the matching complete inbox [0.72ms]
+(pass) pinned native SubagentHandback inbox > requires the client pin, exact sender, parent reference and footer target [0.11ms]
+(pass) pinned native SubagentHandback inbox > rejects caller prose, other roles, JSON, nested blocks and missing reports [0.21ms]
+(pass) pinned native SubagentHandback inbox > requires all report bytes, indentation, envelope close and permission boundary [0.21ms]
+(pass) pinned native SubagentHandback inbox > rejects duplicate or partly damaged matching-sender envelopes [0.11ms]
+(pass) pinned native SubagentHandback inbox > preserves spaces, blank lines and indented frame-like report data [0.16ms]
+(pass) pinned native SubagentHandback inbox > fails closed beyond bounded messages, text blocks and payload sizes [1.26ms]
+(pass) pinned native SubagentHandback inbox > witnesses framed SDK user input without granting the report system authority [0.69ms]
+(pass) pinned native SubagentHandback inbox > forwards original SDK user objects, joins input and excludes system instructions [0.60ms]
+(pass) pinned native SubagentHandback inbox > preserves the original input error and closes an early-returned input iterator [0.62ms]
+(pass) independently captured native parallel group > binds both complete original native envelopes and SDK input to their own parent footers [0.20ms]
+(pass) independently captured native parallel group > rejects damaged members, separators, permission boundaries, footer and trailing prose [0.11ms]
+(pass) independently captured native parallel group > rejects borrowed sender reports and duplicated grouped envelopes [0.07ms]
+
+ 13 pass
+ 0 fail
+ 89 expect() calls
+Ran 13 tests across 1 file. [33.00ms]

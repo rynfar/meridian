@@ -1,0 +1,37 @@
+#0 building with "orbstack" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 384B 0.0s done
+#1 DONE 0.1s
+
+#2 [internal] load metadata for docker.io/library/meridian1211:owned-observer-r8-current
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context:
+#3 transferring context: 2B done
+#3 DONE 0.1s
+
+#4 [1/5] FROM docker.io/library/meridian1211:owned-observer-r8-current
+#4 DONE 1.0s
+
+#5 [2/5] RUN mkdir -p /opt/e41/sidecars && chown 501:501 /opt/e41 /opt/e41/sidecars
+#5 DONE 0.8s
+
+#6 [3/5] WORKDIR /opt/e41
+#6 DONE 0.1s
+
+#7 [4/5] RUN npm install --prefix /opt/e41/sidecars --ignore-scripts --omit=optional --no-audit --no-fund openclaw@2026.6.11 @rynfar/meridian-plugin-openclaw-scrub@0.1.0
+#7 48.49 
+#7 48.49 added 295 packages in 47s
+#7 DONE 53.6s
+
+#8 [5/5] WORKDIR /opt/e71/current
+#8 DONE 0.1s
+
+#9 exporting to image
+#9 exporting layers
+#9 exporting layers 3.0s done
+#9 writing image sha256:d1948deed0125beec3bc8eeb31d455f6478894c70a5e716f2b152de15108112e done
+#9 naming to docker.io/library/meridian1211:e41-current-r13 0.0s done
+#9 DONE 3.0s

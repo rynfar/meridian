@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "src/__tests__/claude-auto-mode-harness.test.ts",
+    "--test-name-pattern",
+    "binds actual source|binds existing certified compiled"
+  ],
+  "exit": 0,
+  "finishedUtc": "2026-10-05T04:24:27.588664+00:00",
+  "logSha256": "1f42c14992313625b40fc04b516dcad12172c9d19d269906c66f55b6d52b9435",
+  "evidence": "/tmp/meridian-backlog-20261004/meridian/1211/final-role-local-gates/typed-hash-guard-context"
+}

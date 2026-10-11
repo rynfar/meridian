@@ -1,0 +1,14 @@
+{
+  "originalReadOnlyUsageEndpointResponses": [
+    429,
+    429
+  ],
+  "firstResponseHeadersAndBodyNotRetained": true,
+  "secondSupportedResponseRetryAfter": "0",
+  "noUsageEndpointPollingAfterSecondResponse": true,
+  "initialHoldQualification": "The early hold was an unnecessary usage-readiness prerequisite for E41; the maintained E41 observer has no usage200 precondition. E71/E72 prerequisites were not weakened. Original first-failure record is retained unchanged.",
+  "actualModelAccess": "All32 actual original SDK queries served exact Sonnet5-5 successfully with canonical capped tool checkpoints or final success; this does not establish usage endpoint recovery.",
+  "selectedSupportedSourceUnchanged": true,
+  "noSourceCredentialLoginOrRefreshWrites": true,
+  "noCredentialIdentifiersHashesOrTokensEscrowed": true
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "P2-checkpoint-valid-input-budget",
+    "severity": "P2",
+    "status": "HELD_FOR_SOURCE_CORRECTION",
+    "path": "src/proxy/passthroughCheckpointStop.ts",
+    "lines": [
+      14,
+      16,
+      32,
+      195
+    ],
+    "observed": "A valid 87KB JSON tool input crossing16,384 nodes fails before owned intent. The certified source SDK0.2.141/native2.1.284 returns HTTP500 after the first two smaller-input controls complete exact native handoff/fork/history/cleanup successfully. Pure production observer independently reproduces the same budget boundary. All source/native inputs and original controller/container custody qualify. No real credentials/models/coding clients were used.",
+    "cause": "inputIdentity counts nodes and depth/serialized length as protocol failure before checkpoint intent. The tool input budget is not the public tool-input contract. Preserve safe signature/input matching and existing controls while supporting valid JSON.",
+    "baselineQualification": "Main/published baseline not yet executed. The guard-off legacy control was a fixture FAIL because it legitimately requires a second API generation, which the single-generation provider rejected400. It proves no baseline success and is not relabeled.",
+    "rootReview": "Root source/runtime inspection only; no delegated or whole-change approval",
+    "required": "Correct valid JSON identity handling; meaningful wide/deep/malformed/mismatched negatives; maintain independent observer; exact changed-build native source/package controls and final local/live/CI gates before acceptance."
+  }
+]

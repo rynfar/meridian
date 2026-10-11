@@ -1,0 +1,10 @@
+{
+  "logsNormalized": [
+    {
+      "path": "image-build-output.log",
+      "originalSHA256": "cb3ab4abc76fd780bcb7683bbd09b96b91aac1b5fa9daed79469e91d8b942ca4",
+      "publicSHA256": "df2de7c08b41f7f319735f971ce7ff3622b2a54ef37def29a111386771eb6659",
+      "transformation": "Trailing whitespace only removed; original external log retained unchanged"
+    }
+  ]
+}

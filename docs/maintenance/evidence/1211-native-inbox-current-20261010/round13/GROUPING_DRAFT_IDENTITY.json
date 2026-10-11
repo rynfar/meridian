@@ -1,0 +1,15 @@
+{
+  "draftSHA256": "7898c97d8531be66a7cea214726862bc3f39005cd717c9c615c00a417011dcdc",
+  "draftBytes": 20643,
+  "baselineHead": "f284eed5904536baeb6fa7f4a86a67f79b4ecd1c",
+  "sourceCheckoutEdited": false,
+  "originalNativeParallelControlQualified": true,
+  "nativeApiRequests": 8,
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "pureControlsPass": 13,
+  "pureControlsFail": 0,
+  "actualR12BothCompleteReportsInSdkUserInput": true,
+  "originalR12SourceAcceptance": "FAIL25/27 preserved",
+  "wholeChangeAcceptance": "HELD"
+}

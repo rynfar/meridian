@@ -1,0 +1,21 @@
+{
+  "atUTC": "2026-10-09T20:07:19.823866+00:00",
+  "head": "63f90fa35ed5156e942d71c2e2c5cbd84bb7bdfe",
+  "originalExecSession": 59842,
+  "originalDriverPid": 65204,
+  "originalNpmPid": 65210,
+  "originalPhysicalJoin": true,
+  "exit": 1,
+  "sourceHeadAndCleanStateStayedExact": true,
+  "firstNpmBatch": {
+    "pass": 5413,
+    "skip": 36,
+    "fail": 1,
+    "files": 335
+  },
+  "laterNpmBatches": "UNEXECUTED_due_to_first_batch_failure",
+  "singleFailure": "Existing fatal-delivery test JSON-only queue wait excluded a live .sending-PID claim. Deterministic old-wait/control-fix pair preserved.",
+  "nativeModelQueries": 0,
+  "credentialSourceReads": 0,
+  "nativeAdmission": "HELD"
+}

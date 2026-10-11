@@ -1,0 +1,10 @@
+{
+  "bytes": 12863,
+  "sha256": "2a8fb3270d4cc0fb1de71e673fcaa6c7bb7d9637d3b538c2636bdd521793ce41",
+  "mode": "0444",
+  "realGrants": 0,
+  "actualModelCalls": 0,
+  "fixture": "one actual native Agent, exact fixture SubagentHandback, correlated parent result; scripted provider responses only",
+  "scope": "Isolated no-grant/no-model native auto-mode fixture. Private public-HTTP classifier contract inspection; never SDK private-file access. Scripted allow token is tentative; fixture must actually invoke native Handback to qualify.",
+  "correction": "Match actual allowedTools Agent only, classify harmless printf with the supported severity XML, and locate own scripted report/native inbox envelope in public root HTTP messages/system. No real models/grants or private SDK file reads."
+}

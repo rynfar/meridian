@@ -1,0 +1,17 @@
+{
+  "qualified": true,
+  "tuple": {
+    "sdk": "0.2.141",
+    "native": "2.1.295"
+  },
+  "scriptedQueries": 8,
+  "actualApiRequests": 25,
+  "fourRoundCounterFiveCases": 5,
+  "firstHandoffThenThreeDroppedCases": 3,
+  "purelyDroppedNegativeCases": 2,
+  "publicGenerationIdentityExactlyMatchedEveryScriptedResponse": true,
+  "originalChildrenIteratorsListenerAndContainerJoinedRemoved": true,
+  "realCredentialReads": 0,
+  "actualModelClientOrProductAcceptance": false,
+  "scope": "Native counter semantics and simulated hook phases against scripted local API/MCP. SDK/native loaded from explicit source or installed tuple; options builder remains source. No independently installed proxy behavior is claimed."
+}

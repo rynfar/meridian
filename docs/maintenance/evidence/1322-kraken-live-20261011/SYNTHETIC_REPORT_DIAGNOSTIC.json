@@ -1,0 +1,28 @@
+{
+  "currentControls": [
+    {
+      "file": "control-48.json",
+      "mode": {
+        "sdkLaterDeniedCall": true,
+        "sdkPrefixed": true,
+        "terminalSse": false
+      },
+      "exit": 0,
+      "reportChars": 29159,
+      "valid": "PASS"
+    },
+    {
+      "file": "control-49.json",
+      "mode": {
+        "sdkLaterDeniedCall": true,
+        "sdkPrefixed": true,
+        "terminalSse": true
+      },
+      "exit": 0,
+      "reportChars": 29163,
+      "valid": "PASS"
+    }
+  ],
+  "historicalCauseEstablished": false,
+  "diagnosticChangeDoesNotChangeFixtureBehavior": true
+}

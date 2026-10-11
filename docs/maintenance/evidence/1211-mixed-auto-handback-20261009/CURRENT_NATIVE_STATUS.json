@@ -1,0 +1,39 @@
+{
+  "atUTC": "2026-10-09T21:56:54.353917+00:00",
+  "observerCodeHead": "184df6c8575836047044cbf7aef56333cee7349f",
+  "productionHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "actualSourceResult": "FAIL",
+  "checksTrue": 24,
+  "checksTotal": 27,
+  "failedChecks": [
+    "actualAgentAndBashReceipts",
+    "nativeReceipts",
+    "nativeHandbackReports"
+  ],
+  "allNineNamedHTTPAndSDKToolInputsAndHooksMatch": true,
+  "exactReportContentOrEncodingCause": "UNQUALIFIED; raw messages and parent payloads were not retained. Separate private-comparison diagnostic facts are needed.",
+  "generationFailure": "Parent turn-two query17 emits five complete public generations at maxTurns4; fourth is thinking-only/end_turn, fifth has text/thinking/end_turn. Canonical-result and generation gates reject it.",
+  "queries": 19,
+  "classifiers": 9,
+  "workingQueries": 10,
+  "clientInvocations": 2,
+  "outsideWrites": 5,
+  "sdkEstimatedCostUsd": 0.9420222,
+  "costIsBillingReceipt": false,
+  "installedAndBaselineNativeFlows": "UNEXECUTED_AFTER_SOURCE_AUDIT_FAIL",
+  "emptyThinkingOfflineControls": {
+    "sourceNative": "2.1.284",
+    "installedNative": "2.1.295",
+    "SDK": "0.2.141",
+    "queries": 4,
+    "localAPIRounds": 18,
+    "realCredentials": 0,
+    "actualModelCalls": 0,
+    "normalRoundsPerTuple": 4,
+    "thinkingOnlyRoundsPerTuple": 5,
+    "guardRejectsBothOverflows": true,
+    "scope": "Pinned runtime mechanism; no claim of directly counted real-provider requests or attribution of the historical Read failure."
+  },
+  "allOriginalActorsJoinedAndPrivateRuntimeGrantStoppedContainersRemoved": true,
+  "mergeAcceptance": "HELD"
+}

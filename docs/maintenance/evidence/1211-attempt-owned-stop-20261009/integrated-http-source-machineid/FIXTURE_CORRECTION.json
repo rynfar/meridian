@@ -1,0 +1,6 @@
+{
+  "priorAttempt": "../integrated-http-source/output/INTEGRATED_HTTP.json",
+  "priorOutcome": "FAIL before model request; no source acceptance",
+  "change": "Bind one new synthetic fixture machine-id read-only inside this isolated container; kernel boot and process-start/PID-namespace checks remain real. No missing-identity bypass, source change, credentials, real model or acceptance predicate change.",
+  "observerBytesUnchanged": true
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "bun",
+    "test",
+    "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-checkpoint-json-identity-correction-20261010-round36/synthetic-report-failure-diagnostic/control.test.ts",
+    "-t",
+    "owns each forwarded call while retaining later SDK calls explicitly denied by the original hook"
+  ],
+  "scope": "One diagnostic repetition; redirect two imports and retain raw synthetic report/stdio/code before parsing. No change to maintained source. Any PASS does not explain original full-suite truncation.",
+  "realModelCredentials": false
+}

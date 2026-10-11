@@ -1,0 +1,12 @@
+{
+  "pass": 5761,
+  "skip": 35,
+  "fail": 1,
+  "batches": 21,
+  "head": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "exit": 1,
+  "originalPid": 18611,
+  "originalChildJoined": true,
+  "failure": "Caption-isolation test asserted shared working MCP server identity; contradicted per-query ownership contract. Test correction retains shared definition identity and separate caption server/definitions; no production correction needed.",
+  "correctedGate": "Not yet complete; no green claim."
+}

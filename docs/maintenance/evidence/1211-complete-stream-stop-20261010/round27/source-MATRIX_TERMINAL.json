@@ -1,0 +1,16 @@
+{
+  "target": "source",
+  "rows": [
+    {
+      "originalPid": 25061,
+      "joined": true,
+      "exit": 2,
+      "target": "source",
+      "mode": "chain",
+      "stream": "0",
+      "phase": "prepare"
+    }
+  ],
+  "qualified": false,
+  "finishedUTC": "2026-10-10T04:46:30.442432+00:00"
+}

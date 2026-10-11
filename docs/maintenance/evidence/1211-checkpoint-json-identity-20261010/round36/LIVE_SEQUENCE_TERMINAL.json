@@ -1,0 +1,13 @@
+{
+  "originalPid": 601,
+  "head": "ee3671ee8ee8f5b92321b5f559e7aa02fdc9accf",
+  "gateDriverPid": 57817,
+  "startUTC": "2026-10-10T06:07:14.929590+00:00",
+  "status": "HELD",
+  "stages": [],
+  "realModelCallsBeforeGate": 0,
+  "wholeChangeAcceptance": "HELD",
+  "failureClass": "AssertionError",
+  "failure": "",
+  "finishUTC": "2026-10-10T06:11:35.140963+00:00"
+}

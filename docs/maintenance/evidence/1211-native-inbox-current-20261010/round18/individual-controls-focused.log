@@ -1,0 +1,22 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/claude-subagent-harness.test.ts:
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with missingReadPath [1438.43ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with swappedReadPath [1486.90ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with sharedReadPath [1300.63ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with readPromptOnly [1126.51ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with readForeignFinal [1102.69ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with readPartial [1137.49ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with earlyBackgroundCompletion [1647.53ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with sdkExtraGeneration [1702.09ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background Read proof with sdkMissingGenerationId [1550.43ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background unknown task owners [1497.52ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background unbounded waits [1273.35ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background missing task completion [1444.19ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background early task completion [1914.16ms]
+
+ 13 pass
+ 58 filtered out
+ 0 fail
+ 407 expect() calls
+Ran 13 tests across 1 file. [18.81s]

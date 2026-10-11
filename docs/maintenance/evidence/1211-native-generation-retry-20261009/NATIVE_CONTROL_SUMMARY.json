@@ -1,0 +1,54 @@
+{
+  "executedCohorts": [
+    {
+      "arm": "source",
+      "round": 1,
+      "result": "DISCOVERY_COMPLETED",
+      "SDKQueries": 4,
+      "localAPIRequests": 18,
+      "originalCleanupQualified": true
+    },
+    {
+      "arm": "installed",
+      "round": 1,
+      "result": "DISCOVERY_COMPLETED",
+      "SDKQueries": 4,
+      "localAPIRequests": 18,
+      "originalCleanupQualified": true
+    },
+    {
+      "arm": "source",
+      "round": 2,
+      "result": "FAILED",
+      "SDKQueries": 3,
+      "localAPIRequests": 13,
+      "originalCleanupQualified": true
+    },
+    {
+      "arm": "source",
+      "round": 3,
+      "result": "DISCOVERY_COMPLETED",
+      "SDKQueries": 4,
+      "localAPIRequests": 18,
+      "originalCleanupQualified": true
+    },
+    {
+      "arm": "installed",
+      "round": 3,
+      "result": "DISCOVERY_COMPLETED",
+      "SDKQueries": 4,
+      "localAPIRequests": 18,
+      "originalCleanupQualified": true
+    }
+  ],
+  "totalSDKQueries": 19,
+  "directScriptedLocalApiRequests": 85,
+  "finalQualifiedCases": 8,
+  "finalAPIRequests": 36,
+  "realCredentialReads": 0,
+  "realModelCalls": 0,
+  "actualClientInvocations": 0,
+  "existingBoundsAndProductionUnchanged": true,
+  "historicalBaseline": "FAIL_UNCHANGED_CAUSE_UNATTRIBUTED",
+  "continuation": "Next affected-flow work needs native stop/API custody for causal attribution or independent mixed-auto/cancellation gates."
+}

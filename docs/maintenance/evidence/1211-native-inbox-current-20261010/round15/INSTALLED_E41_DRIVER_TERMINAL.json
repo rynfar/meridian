@@ -1,0 +1,36 @@
+{
+  "originalPid": 6079,
+  "startUTC": "2026-10-10T02:50:42.199438+00:00",
+  "finishedUTC": "2026-10-10T02:52:24.690893+00:00",
+  "children": [
+    {
+      "mode": "parallel",
+      "stream": "1",
+      "originalPid": 6141,
+      "joined": true,
+      "exit": 0
+    },
+    {
+      "mode": "parallel",
+      "stream": "0",
+      "originalPid": 7428,
+      "joined": true,
+      "exit": 0
+    },
+    {
+      "mode": "chain",
+      "stream": "0",
+      "originalPid": 8784,
+      "joined": true,
+      "exit": 0
+    },
+    {
+      "mode": "chain",
+      "stream": "1",
+      "originalPid": 10352,
+      "joined": true,
+      "exit": 0
+    }
+  ],
+  "qualified": true
+}

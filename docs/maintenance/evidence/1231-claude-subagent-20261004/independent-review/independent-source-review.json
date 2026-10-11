@@ -1,0 +1,70 @@
+{
+  "kind": "independent-source-and-evidence-review",
+  "recordedAt": "2026-10-05T03:19:50.778954+00:00",
+  "head": "be60a60b3d68814b2155a921b5cc5f0526b6ba28",
+  "parentReviewed": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+  "nativeAcceptance": false,
+  "mergeReady": false,
+  "fullFinalHeadGatesCompleted": false,
+  "reviewedSourceSha256": {
+    "src/proxy/adapter.ts": "d92e8d02e265756e5c495044c2b99f5c29ba4b918277064178ad12ecb076b58d",
+    "src/proxy/adapters/claudecode.ts": "388f4b577e6892c29bad480b7263b4355a51965b8399739b83e401336d41befa",
+    "src/proxy/server.ts": "a35637af2d382ec198ec73194a64e0f34fd861ef5f4aa5bf334325853593c40d",
+    "src/proxy/session/cache.ts": "470fa86e596da25e0c7593980a12f93d27f2339ebd9d6092b33d4c2d7041a9ca",
+    "src/proxy/sessionStore.ts": "b0de6ca4abc119381ba83f035378d232376cc95377f15e05e42b8ed377fa986b",
+    "src/proxy/sessionTree.ts": "c1b3cfb6c8fb41ba3fffae254a7794c32adab201debfa058623e95c0bbc1de5a",
+    "src/__tests__/claude-subagent-isolation.test.ts": "1ac8d3d5266dc2082fa8e6a8c68d7d3aed90c1ec61feb2b3f23c9bbe58743940",
+    "src/__tests__/session-key-namespace.test.ts": "dd6b3225ce88baa9300bdbd2e525a04dd511b77c7d566f15ca8dd09f43dff91e",
+    "src/__tests__/claude-code-session-identity.test.ts": "9aa1abfb84f75c22728d5ecf86a473545c0209a48b7305bcbd4bd2c0ec2e91be",
+    "src/__tests__/root-session-id.test.ts": "b8d105c1d97043f383c0af948c52e356535e5e525b6d87ee62b462a98f842576",
+    "src/__tests__/priority-routing-integration.test.ts": "d5bf9afc63f5b2ede181750405eb9790a383fa23e779e0a3a626ed839ce2ecf0",
+    "src/__tests__/sticky-routing-integration.test.ts": "8beb2a784681c01e87e5ae27ab9edf66bb8b37ee01c3519d805412427bd153bf"
+  },
+  "authors": [
+    {
+      "source": "28974dca1d7d2aa1f3bf0067fd97b4120938fbeb",
+      "incorporated": "9b92078120f8a3202b358ce5b08adca454a77202",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "91f70e64aca345da4e7e3c51efa382a11d57749a",
+      "incorporated": "890b52b18a0bb3111fabc86ded755208dea71566",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "78b40833d20b86204cfa0fdd4e15cd43f8c63a97",
+      "incorporated": "a9ab5f503dbb48a41ec592d944ba574705f072cb",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "cb8d1a59a103e006359e048a9d0275cf814351ee",
+      "incorporated": "c7567b020eec2d5758a34d4fe2a5dfbd190ec1ab",
+      "authorAndDatePreserved": true
+    },
+    {
+      "source": "50d4a59d0ca5e55e625ec801fa2a9eb187d508ed",
+      "incorporated": "076b249fd55db84ffde546a4f6bf5211efffbf69",
+      "authorAndDatePreserved": true
+    }
+  ],
+  "resolvedFindings": [
+    "Explicit raw root cancellation now uses separate live group; automatic ancestry retains declared-parent semantics.",
+    "Private tuple namespace resolves derived/bare key collisions; ordinary raw main keys preserved.",
+    "Namespace ownership gates durable/cache/checkpoint/recovery authority and atomic eviction; generation CAS retained.",
+    "Namespace state remains private WeakMap; published SessionState unchanged.",
+    "Literal NUL prefix corrected; actual unchanged SQL scalar validator accepts two derived-key probes.",
+    "HTTP fixture blockStop index corrected after standalone typecheck caught targeted-Bun gap."
+  ],
+  "remainingGates": [
+    "Final parent role-aware E71 model witness; dependent E72 mixed-auto/ancillary model acceptance remains qualified. E72 foreground default-permission controls do not establish mixed-auto flow.",
+    "Rebase on final parent with contributor credit retained; final local npm test/typecheck/build.",
+    "Required exact final-head CI including test.",
+    "Native Linux actual Claude Code/SDK/model before-after, background overlap, root/scoped/nested cancellation, all affected E41 modes.",
+    "Generic namespace marker full SQL facade/codec integration and native acceptance are separate, open work."
+  ],
+  "limits": [
+    "No new full suite, build, auth, model call, push, PR mutation or merge performed by this review.",
+    "Prior focused checks and causal evidence qualify only the exact snapshots recorded in their manifests.",
+    "Declared parent_session_id identifies a main session; native nested parent-agent identity remains unavailable and must not be invented."
+  ]
+}

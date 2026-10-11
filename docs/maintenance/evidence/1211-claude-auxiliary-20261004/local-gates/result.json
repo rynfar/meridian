@@ -1,0 +1,23 @@
+{
+  "testedHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b",
+  "base": "74d0a49953211eb8e2c1ccae275971aa0d624c1c",
+  "npmTest": {
+    "exit": 0,
+    "stages": 19,
+    "pass": 5417,
+    "skip": 35,
+    "fail": 0,
+    "assertions": 27544
+  },
+  "standaloneTypecheckExit": 0,
+  "buildExit": 0,
+  "finalNativeAcceptance": false,
+  "openGates": [
+    "actual Linux x64 Claude Code/SDK/CLI/served Sonnet E71",
+    "E55 gateway parity",
+    "E41 chain/parallel x stream/nonstream",
+    "exact delivery head CI including test"
+  ],
+  "sourceHeadRevalidated": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+  "sourceDiscussionChanged": false
+}

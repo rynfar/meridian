@@ -1,0 +1,15 @@
+{
+  "head": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+  "exit": 0,
+  "durationSeconds": 518.5990178585052,
+  "logSHA256": "c0dceb0f02f02b1f70ec0fdd120ee4730fff7816e966e7e291456ac3aa07ba93",
+  "originalChildJoined": true,
+  "headAfter": "c7828d8b8e1bebdf69330c52cbc5289b5001031e",
+  "pass": 5765,
+  "skip": 35,
+  "fail": 0,
+  "batchesExecuted": 22,
+  "timingAssertionUnchanged": true,
+  "originalTimingFailureRetained": true,
+  "intermittentFailureFixedClaim": false
+}

@@ -1,0 +1,51 @@
+{
+  "frozenHeadBeforeCorrection": "c237ab9a0d332f6cf3292fc7de2eaf0026fc2037",
+  "correctedTestSha256": "3324e04a68416c06f65673c59fa7d65a7d94033d412b67db3165c0b2955b1485",
+  "productionChanged": false,
+  "targeted": {
+    "pass": 5,
+    "filtered": 12,
+    "fail": 0,
+    "assertions": 47,
+    "exit": 0
+  },
+  "fullOwnTestFile": {
+    "pass": 17,
+    "fail": 0,
+    "assertions": 95,
+    "exit": 0
+  },
+  "fullNpmRerun": "required; not run by this bounded task",
+  "artifacts": [
+    {
+      "path": "test-before.ts",
+      "bytes": 28064,
+      "sha256": "13c40d3fcdcae2dd4ac3a6ad5762bb7df18ee318d285cd2304945d3032a3b038"
+    },
+    {
+      "path": "test-after.ts",
+      "bytes": 28742,
+      "sha256": "3324e04a68416c06f65673c59fa7d65a7d94033d412b67db3165c0b2955b1485"
+    },
+    {
+      "path": "test-correction.diff",
+      "bytes": 1985,
+      "sha256": "a5a1de78b00e9c776d699ec6f7f5ae35c46e9bc85049f69fefa02a4c6ddf5bbe"
+    },
+    {
+      "path": "npm-test-failed-frozen-c237ab9a.log",
+      "bytes": 963555,
+      "sha256": "d06a882d0af05c073bc8605539fc49ed69b9ad22e87c359627c0b9c7c9a31005"
+    },
+    {
+      "path": "targeted-cancellation.log",
+      "bytes": 855,
+      "sha256": "e8bcf89348b5775953bb7f579f5d0a13e1e2dc27e195a7bab14ef425a242c5d2"
+    },
+    {
+      "path": "full-own-file.log",
+      "bytes": 2186,
+      "sha256": "040fdf718003584e5757a58d49ebd36ca0e152dc4c82c843988b47f5b5131220"
+    }
+  ]
+}

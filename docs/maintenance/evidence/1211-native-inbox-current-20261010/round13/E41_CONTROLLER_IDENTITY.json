@@ -1,0 +1,5 @@
+{
+  "bytes": 10491,
+  "sha256": "e8a7cf7aeb513ab7654c6c06a2f3c708455167db4dd2c7259acf0167b52de080",
+  "auditOrigin": "Prior committed E41 complete assertions retained; fresh runtime/report/grant/custody identities checked separately; no private SDK reads"
+}

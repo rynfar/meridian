@@ -1,0 +1,59 @@
+{
+  "originalSession": 22713,
+  "originalDriverPid": 34455,
+  "originalSessionJoined": true,
+  "head": "34b49d82d9f69b1044ccca2d12a082eca05969ca",
+  "counts": {
+    "pass": 6018,
+    "skip": 36,
+    "fail": 0
+  },
+  "isolatedBatches": 22,
+  "pretestIncluded": true,
+  "checks": [
+    {
+      "name": "npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "originalPid": 34520,
+      "joined": true,
+      "exit": 0,
+      "startUTC": "2026-10-10T04:23:52.431634+00:00",
+      "endUTC": "2026-10-10T04:42:07.936375+00:00",
+      "logSHA256": "b677734e8ee2005f022153b49f6f9225e8262ab45cd9adf9226508869426f4d7"
+    },
+    {
+      "name": "typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "originalPid": 12700,
+      "joined": true,
+      "exit": 0,
+      "startUTC": "2026-10-10T04:42:07.942386+00:00",
+      "endUTC": "2026-10-10T04:42:15.104349+00:00",
+      "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "originalPid": 12910,
+      "joined": true,
+      "exit": 0,
+      "startUTC": "2026-10-10T04:42:15.105096+00:00",
+      "endUTC": "2026-10-10T04:42:20.246165+00:00",
+      "logSHA256": "fb7683549740c51877fb26e7416afa89e128412e81fdeadb6a5edbb5b67b3d68"
+    }
+  ],
+  "cleanBeforeAfter": true,
+  "headUnchanged": true,
+  "qualified": true
+}

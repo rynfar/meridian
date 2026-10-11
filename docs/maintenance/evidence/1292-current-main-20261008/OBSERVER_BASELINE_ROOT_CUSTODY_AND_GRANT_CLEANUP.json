@@ -1,0 +1,32 @@
+{
+  "atUTC": "2026-10-09T01:56:23.636133+00:00",
+  "classification": "ROOT_SUPPLEMENTAL_BOUNDED_ACCESS_INPUT_CLEANUP_QUALIFIED_NATIVE_ACCEPTANCE_HELD",
+  "parentAndWorkerExitCloseStdioJoined": true,
+  "allSixObservedDirectProcessesAndWritersJoined": true,
+  "allFourActualSourceGatePublicationExecutorJoins": true,
+  "allQueriesIteratorsAndHttpRequestsJoined": true,
+  "postWorkerExitOwnedListenerChecks": [
+    {
+      "role": "port",
+      "port": 54515,
+      "connectEx": 61,
+      "connectionRefused": true
+    },
+    {
+      "role": "relayPort",
+      "port": 54517,
+      "connectEx": 61,
+      "connectionRefused": true
+    }
+  ],
+  "originalReportPreserved": "MISSING native-caption-not-emitted; scopedOwnedJoin UNKNOWN; automatic grantCleanupAllowed false. These facts are not rewritten.",
+  "qualification": "Supplemental root audit separates missing caption/model facts and Bun socket-close event witnesses from positive observed executor/child joins plus worker termination and post-exit owned-port refusal. It authorizes only disposal of the preserved private access-only input, not product acceptance, config/session/history deletion or a global process-absence claim.",
+  "unobservedSecondaryOrGlobalAbsence": "UNKNOWN",
+  "grantPath": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1292-current-native-live-20261008/grants/access-token",
+  "grantOwnerUID": 501,
+  "grantMode": "0600",
+  "grantBytes": 109,
+  "noSourceLoginRefreshOrWrite": true,
+  "grantDeleted": true,
+  "grantAbsentAfter": true
+}

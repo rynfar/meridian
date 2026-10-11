@@ -1,0 +1,13 @@
+{
+  "originalTerminalPreserved": true,
+  "originalControlQualified": false,
+  "reason": "Controller matched a short literal failure but the Node assertion message also reports500!==200. Native failure and custody are intact.",
+  "sourceControlQualified": true,
+  "failureExactly": "proxy HTTP request failed\n\n500 !== 200\n",
+  "firstTwoCompleteControls": 2,
+  "SDKQueries": 5,
+  "independentPureBoundary": "../pr1211-caption-overlap-lineage-correction-20261010-round30/INPUT_COMPLEXITY_CONTROL.json",
+  "candidateProductAcceptance": "HELD",
+  "legacyControl": "FAIL_PROVIDER_FIXTURE_SECOND_ROUND_NOT_ADMITTED",
+  "noRerunOrDiscard": true
+}

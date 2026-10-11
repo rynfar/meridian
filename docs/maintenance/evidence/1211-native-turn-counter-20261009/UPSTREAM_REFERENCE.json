@@ -1,0 +1,8 @@
+{
+  "primarySource": "https://github.com/anthropics/claude-code/blob/602df92bf481ed904533e95c09f740f40aab5aed/CHANGELOG.md#21277",
+  "rawContentSha256": "c0b1f9aa313a8021d863ec0053c047b0acc792d74e04af9c7741d3ecd23c3d1a",
+  "sectionVersion": "2.1.277",
+  "taskOutputRemoved": true,
+  "readOnBackgroundOutputFileIsDocumentedReplacement": true,
+  "scope": "Documentation supports removal; the actual 2.1.287 catalog remains separately witnessed, and native completion remains unexecuted."
+}

@@ -1,0 +1,14 @@
+{
+  "head": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "trackedFilesMatched": 1767,
+  "compiledArtifactsMatched": 432,
+  "tarballSHA256": "968a08a39715ff7791d864ae52f801865a3e486b38fb176497ac7229be286c6f",
+  "sourceSdk": "0.2.141",
+  "installedSdk": "0.2.141",
+  "sourceNative": "2.1.284 (Claude Code)",
+  "installedNative": "2.1.295 (Claude Code)",
+  "noInstalledGit": true,
+  "actualQueries": 0,
+  "image": "sha256:5d1cc1baa71cc21f3a7046811c029b6906b684f52406c73befc5be8f4022dac1",
+  "qualification": "Every tracked source snapshot byte checked against complete clean clone after image build; original clone/build handles joined. No grant mounted or query generated."
+}

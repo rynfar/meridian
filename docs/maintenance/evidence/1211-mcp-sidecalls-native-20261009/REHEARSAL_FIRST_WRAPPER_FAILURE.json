@@ -1,0 +1,11 @@
+{
+  "originalWrapperSession": 91878,
+  "wrapperExit": 1,
+  "originalNativeAttachExit": 0,
+  "originalNativeAttachJoined": true,
+  "expectedIncorrectLabel": "REHEARSAL_PASS",
+  "actualDocumentedLabel": "REHEARSAL",
+  "allZeroQueryCustodyAssertionsPassed": true,
+  "correction": "Correct wrapper result label; audit existing first result, do not rerun it",
+  "firstReportSHA256": "cb723b083fdc65ced58fdc019c211d5e3bb0b4f62284b720950ad8f1b12bf862"
+}

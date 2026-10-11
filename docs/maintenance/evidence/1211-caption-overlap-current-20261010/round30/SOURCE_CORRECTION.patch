@@ -1,0 +1,155 @@
+diff --git a/scripts/e2e-claude-code-progress-captions/README.md b/scripts/e2e-claude-code-progress-captions/README.md
+index 09beffeb8..616192b31 100644
+--- a/scripts/e2e-claude-code-progress-captions/README.md
++++ b/scripts/e2e-claude-code-progress-captions/README.md
+@@ -14,6 +14,16 @@ mutation and subsequent replay. A successful answer without a caption fails.
+ Only the selected case is accepted; overlap, cancellation, disabled/isolation,
+ hint fallback, independently installed package, E41 and E55 remain separate.
+ 
++Both overlap orders require the selected forwarding order, two simultaneous
++native queries with two public MCP connection samples, and a later genuine
++worker Read. They also require one independent caption query, an exact fork of
++the saved working checkpoint, unchanged original supported SDK history and all
++three owned Read results exactly once in durable working history. A connection
++or successful answer alone cannot qualify working lineage. Each invocation
++admits at most 24 backend queries; its existing client turn and time bounds
++also apply. Cancellation/recovery-cache and installed-package observations stay
++separate.
++
+ Example shape (replace every absolute path with the exact selected input):
+ 
+ ```sh
+diff --git a/scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs b/scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs
+index 689ecc534..3beebabc8 100644
+--- a/scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs
++++ b/scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs
+@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
+ import { EventEmitter } from 'node:events';
+ import { createServer } from 'node:http';
+ import { selectWorkingMapping, MappingObservationError } from './working-mapping.ts';
+-import { modelLabel, exactBackendModel, queryCustodyJoined } from './native-observations.ts';
++import { modelLabel, exactBackendModel, queryCustodyJoined, checkpointResumeMatches, durableReadResultMatches } from './native-observations.ts';
+ 
+ const SELF = fileURLToPath(import.meta.url);
+ const PROFILE = 'taskoauth-token';
+@@ -552,6 +552,7 @@ async function worker(o) {
+     });
+     spyRestores.push(() => factorySpy.mockRestore());
+     const querySpy = spyOn(sdk, 'query').mockImplementation(params => {
++      need(queries.length < 24, 'backend-query-count-bound');
+       const wire = scopes.getStore();
+       const opts = params.options ?? {};
+       const q = { n: queries.length + 1, role: 'backend', wire, options: { resume: opts.resume, resumeSessionAt: opts.resumeSessionAt, forkSession: opts.forkSession, model: opts.model, sessionId: opts.sessionId }, modelPin: opts.env?.ANTHROPIC_DEFAULT_OPUS_MODEL, startAt: now(), factoryIds: [], mcpNames: Object.keys(opts.mcpServers ?? {}) };
+@@ -835,7 +836,22 @@ async function worker(o) {
+         need(overlap.proved, overlap.failure?.code ?? 'real-mcp-overlap-missing', 'MISSING');
+         await finishClient(c);
+         need(c.reads.get(2)?.at > overlap.proved.at && c.receipts.some(r => r.index === 2 && r.at > overlap.proved.at), 'new-genuine-read-after-overlap-missing', 'MISSING');
+-        report.cases[o.case] = { status: 'PASS', ...overlap.proved, genuinePostOverlapRead: true };
++        const second = o.case === 'work-first' ? pair.caption : pair.working;
++        need(first.forwardingOrder < second.forwardingOrder, 'overlap-forwarding-order-mismatch');
++        need(caption.status === 200 && !caption.clientAbortAt && caption.responseEvents?.message_stop === 1 && !caption.responseEvents?.error, 'caption-http-success-required', 'MISSING');
++        const captionQueries = queries.filter(q => q.wire === caption);
++        need(captionQueries.length === 1, 'caption-backend-query-count');
++        need(!captionQueries[0].options.resume && !captionQueries[0].options.resumeSessionAt, 'caption-had-working-resume-authority');
++        need(blocks(pair.working.body.messages).filter(b => b.type === 'tool_result' && b.tool_use_id === c.reads.get(1).id).length === 1, 'actual-second-read-result-wire-pair-once');
++        const workingQueries = queries.filter(q => q.wire === pair.working);
++        need(workingQueries.length === 1 && checkpointResumeMatches(workingQueries[0].options, before.mapping), 'working-checkpoint-not-resumed');
++        const final = await snapshot(caption);
++        report.workingSnapshots.afterWork = final.public;
++        const sourceAgain = await sdk.getSessionMessages(before.mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
++        need(digest(sourceAgain) === digest(before.history), 'source-history-mutated');
++        const finalBlocks = blocks(final.history.map(row => row.message));
++        for (const receipt of c.receipts) need(durableReadResultMatches(finalBlocks, receipt.id, c.values[receipt.index]), 'durable-real-read-result-pair-once');
++        report.cases[o.case] = { status: 'PASS', ...overlap.proved, genuinePostOverlapRead: true, requestedForwardingOrder: true, captionIndependent: true, checkpointResume: true, nextQuery: workingQueries[0].n, before: before.public, afterWork: final.public, sourceHistoryUnchanged: true, durableReadResultsOnce: c.receipts.length };
+       } else if (o.case === 'sequential') {
+         c.captionForward.resolve();
+         await bounded(caption.done.promise, 90000, 'caption-http-settlement-deadline');
+@@ -852,15 +868,14 @@ async function worker(o) {
+         need(next, 'next-real-working-request-missing', 'MISSING');
+         need(blocks(next.body.messages).filter(b => b.type === 'tool_result' && b.tool_use_id === c.reads.get(1).id).length === 1, 'actual-second-read-result-wire-pair-once');
+         const nextQuery = queries.find(q => q.wire === next); need(nextQuery, 'next-query-correlated-missing', 'MISSING');
+-        if (o.expect === 'fixed') need(nextQuery.options.resume === before.mapping.claudeSessionId && nextQuery.options.resumeSessionAt === before.mapping.passthroughToolCallAssistantUuid && nextQuery.options.forkSession, 'working-checkpoint-not-resumed');
++        if (o.expect === 'fixed') need(checkpointResumeMatches(nextQuery.options, before.mapping), 'working-checkpoint-not-resumed');
+         else need(!nextQuery.options.resume && !nextQuery.options.resumeSessionAt, 'baseline-next-working-replay-not-reproduced', 'MISSING');
+         const final = await snapshot(caption);
+         report.workingSnapshots.afterWork = final.public;
+         const sourceAgain = await sdk.getSessionMessages(before.mapping.claudeSessionId, { dir: join(privateRoot, 'backend-work') });
+         need(digest(sourceAgain) === digest(before.history), 'source-history-mutated');
+         for (const receipt of c.receipts) {
+-          const results = blocks(final.history.map(row => row.message)).filter(b => b.type === 'tool_result' && b.tool_use_id === receipt.id);
+-          need(results.length === 1 && JSON.stringify(results[0].content).includes(c.values[receipt.index]), 'durable-real-read-result-pair-once');
++          need(durableReadResultMatches(blocks(final.history.map(row => row.message)), receipt.id, c.values[receipt.index]), 'durable-real-read-result-pair-once');
+         }
+         report.cases.sequential = { status: 'PASS', expectation: o.expect, before: before.public, afterCaption: after.public, afterWork: final.public, sourceHistoryUnchanged: true, nextQuery: nextQuery.n, checkpointResume: o.expect === 'fixed', baselineMutationAndReplay: o.expect === 'baseline' };
+       } else {
+diff --git a/scripts/e2e-claude-code-progress-captions/native-observations.ts b/scripts/e2e-claude-code-progress-captions/native-observations.ts
+index 7b925a4fc..c524d63f8 100644
+--- a/scripts/e2e-claude-code-progress-captions/native-observations.ts
++++ b/scripts/e2e-claude-code-progress-captions/native-observations.ts
+@@ -41,3 +41,28 @@ export function queryCustodyJoined(query: QueryCustody): boolean {
+     && typeof query.iteratorSettledAt === "number" && Number.isSafeInteger(query.iteratorSettledAt) && query.iteratorSettledAt > 0
+     && typeof query.closeAt === "number" && Number.isSafeInteger(query.closeAt) && query.closeAt > 0
+ }
++
++/** A new working turn must consume the real saved checkpoint as a fork. */
++export function checkpointResumeMatches(
++  query: { resume?: unknown; resumeSessionAt?: unknown; forkSession?: unknown },
++  checkpoint: { claudeSessionId?: unknown; passthroughToolCallAssistantUuid?: unknown },
++): boolean {
++  return typeof checkpoint.claudeSessionId === "string" && checkpoint.claudeSessionId.length > 0
++    && typeof checkpoint.passthroughToolCallAssistantUuid === "string" && checkpoint.passthroughToolCallAssistantUuid.length > 0
++    && query.resume === checkpoint.claudeSessionId
++    && query.resumeSessionAt === checkpoint.passthroughToolCallAssistantUuid
++    && query.forkSession === true
++}
++
++/** Count all matching results before checking the one genuine owned Read. */
++export function durableReadResultMatches(
++  blocks: readonly { type?: unknown; tool_use_id?: unknown; content?: unknown; is_error?: unknown }[],
++  toolId: string,
++  ownedValue: string,
++): boolean {
++  if (!toolId || !ownedValue) return false
++  const results = blocks.filter(block => block.type === "tool_result" && block.tool_use_id === toolId)
++  const result = results[0]
++  return results.length === 1 && result !== undefined && result.is_error !== true
++    && (JSON.stringify(result.content)?.includes(ownedValue) ?? false)
++}
+diff --git a/src/__tests__/caption-native-observations.test.ts b/src/__tests__/caption-native-observations.test.ts
+index 6207d5150..2c89dfc6a 100644
+--- a/src/__tests__/caption-native-observations.test.ts
++++ b/src/__tests__/caption-native-observations.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, expect, it } from "bun:test"
+-import { modelLabel, exactBackendModel, queryCustodyJoined } from "../../scripts/e2e-claude-code-progress-captions/native-observations"
++import { modelLabel, exactBackendModel, queryCustodyJoined, checkpointResumeMatches, durableReadResultMatches } from "../../scripts/e2e-claude-code-progress-captions/native-observations"
+ 
+ const expected = { requested: "claude-opus-5-5", sdk: "opus[1m]", native: "claude-opus-5-5[1m]", version: "2.1.292" }
+ const observed = { ...expected, pin: expected.requested }
+@@ -39,4 +39,26 @@ describe("Native caption model and physical custody observations", () => {
+       expect(queryCustodyJoined({ ...query, closeAt: value })).toBe(false)
+     }
+   })
++
++  it("rejects replay, an unrelated checkpoint and an in-place resume", () => {
++    const checkpoint = { claudeSessionId: "working-session", passthroughToolCallAssistantUuid: "saved-assistant" }
++    const query = { resume: "working-session", resumeSessionAt: "saved-assistant", forkSession: true }
++    expect(checkpointResumeMatches(query, checkpoint)).toBe(true)
++    for (const change of [{ resume: undefined }, { resume: "caption-session" }, { resumeSessionAt: undefined }, { resumeSessionAt: "other-assistant" }, { forkSession: false }, { forkSession: undefined }, { forkSession: "true" }]) {
++      expect(checkpointResumeMatches({ ...query, ...change }, checkpoint)).toBe(false)
++    }
++    expect(checkpointResumeMatches({}, {})).toBe(false)
++    expect(checkpointResumeMatches({ resume: "", resumeSessionAt: "", forkSession: true }, { claudeSessionId: "", passthroughToolCallAssistantUuid: "" })).toBe(false)
++  })
++
++  it("requires the owned Read result exactly once and refuses an error copy", () => {
++    const result = { type: "tool_result", tool_use_id: "read-2", content: [{ type: "text", text: "owned-fixture-value" }] }
++    expect(durableReadResultMatches([result], "read-2", "owned-fixture-value")).toBe(true)
++    expect(durableReadResultMatches([{ ...result, tool_use_id: "unrelated" }, result], "read-2", "owned-fixture-value")).toBe(true)
++    for (const blocks of [[], [result, result], [{ ...result, is_error: true }], [{ ...result, content: "wrong fixture" }], [{ ...result, tool_use_id: "read-1" }], [{ ...result, type: "text" }], [{ ...result, content: undefined }], [result, { ...result, is_error: true }]]) {
++      expect(durableReadResultMatches(blocks, "read-2", "owned-fixture-value")).toBe(false)
++    }
++    expect(durableReadResultMatches([result], "", "owned-fixture-value")).toBe(false)
++    expect(durableReadResultMatches([result], "read-2", "")).toBe(false)
++  })
+ })

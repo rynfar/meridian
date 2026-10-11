@@ -1,0 +1,143 @@
+{
+  "stages": [
+    {
+      "pass": 5154,
+      "skip": 36,
+      "fail": 0,
+      "assertions": 27900,
+      "summary": "5190 tests across 320 files. [494.28s]"
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 16,
+      "summary": "3 tests across 1 file. [1.76s]"
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 105,
+      "summary": "24 tests across 1 file. [213.00ms]"
+    },
+    {
+      "pass": 5,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 21,
+      "summary": "5 tests across 1 file. [140.00ms]"
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 135,
+      "summary": "7 tests across 1 file. [500.00ms]"
+    },
+    {
+      "pass": 12,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 15,
+      "summary": "12 tests across 1 file. [2.43s]"
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 16,
+      "summary": "3 tests across 1 file. [577.00ms]"
+    },
+    {
+      "pass": 22,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 63,
+      "summary": "22 tests across 1 file. [751.00ms]"
+    },
+    {
+      "pass": 10,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 36,
+      "summary": "10 tests across 1 file. [1247.00ms]"
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 21,
+      "summary": "11 tests across 1 file. [134.00ms]"
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 9,
+      "summary": "8 tests across 1 file. [1137.00ms]"
+    },
+    {
+      "pass": 95,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 169,
+      "summary": "95 tests across 1 file. [25.00ms]"
+    },
+    {
+      "pass": 13,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 39,
+      "summary": "13 tests across 1 file. [25.00ms]"
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 37,
+      "summary": "11 tests across 1 file. [603.00ms]"
+    },
+    {
+      "pass": 76,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 395,
+      "summary": "76 tests across 1 file. [118.71s]"
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 16,
+      "summary": "7 tests across 1 file. [1411.00ms]"
+    },
+    {
+      "pass": 9,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 28,
+      "summary": "9 tests across 1 file. [249.00ms]"
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 49,
+      "summary": "8 tests across 1 file. [511.00ms]"
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0,
+      "assertions": 240,
+      "summary": "24 tests across 1 file. [546.00ms]"
+    }
+  ],
+  "stageCount": 19,
+  "pass": 5502,
+  "skip": 36,
+  "fail": 0,
+  "assertions": 29310,
+  "npmPretestTypecheckObserved": true
+}

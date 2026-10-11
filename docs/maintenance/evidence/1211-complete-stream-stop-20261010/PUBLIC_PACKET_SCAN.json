@@ -1,0 +1,14 @@
+{
+  "atUTC": "2026-10-10T04:52:43.018408+00:00",
+  "membersInspected": 239,
+  "forbiddenMembers": [],
+  "credentialPatternHitFiles": {
+    "liveAnthropicCredential": [],
+    "privateKeyMaterial": [],
+    "oauthPairingURLWithCode": []
+  },
+  "tarballMembersScannedPreviously": 459,
+  "noPrivateCredentialMetadataOrRawPrivateLiveErrors": true,
+  "controlledFixturePublicNativeErrorsRetained": true,
+  "scanDoesNotProveUniversalSecretAbsence": true
+}

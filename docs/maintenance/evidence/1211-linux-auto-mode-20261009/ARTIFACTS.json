@@ -1,0 +1,52 @@
+[
+  {
+    "path": "CANONICAL_HARNESS_CORRECTION.json",
+    "bytes": 774,
+    "sha256": "84e3a5015bf5d060363aef9a3335e46816597b7b76f41f6a07707e86f3f22131"
+  },
+  {
+    "path": "LOCAL_GATES.json",
+    "bytes": 1404,
+    "sha256": "20fdc0fee95a6817d5c2216210a4e01259d4d16f2dc37c7f547e9831feb692aa"
+  },
+  {
+    "path": "NATIVE_E71_PAIR_RECEIPT.json",
+    "bytes": 1182,
+    "sha256": "76f871ea20376ee5fba6f4e2eb1b95ea9f8dbb78cbbc6e673e459bbc6ea451e2"
+  },
+  {
+    "path": "README.md",
+    "bytes": 3687,
+    "sha256": "01c1406dba1df5a45ef9e20f9d7b8809a838ceff560dd431b74a6826155ea966"
+  },
+  {
+    "path": "REVIEW.md",
+    "bytes": 3938,
+    "sha256": "125a373db528380716f15eba6ece82678ff8294100e53af269c9e478a9e42f74"
+  },
+  {
+    "path": "baseline-r2.json",
+    "bytes": 17903,
+    "sha256": "ae7076ccba52c038f3d905012f5ac4d86dcde0de4c4ec49602086a3139a69c60"
+  },
+  {
+    "path": "baseline-r3.json",
+    "bytes": 17744,
+    "sha256": "fdb426089ff60965cafb7d8dfb309d0ae7a9a6dab06ea1e6650a403f9fa444e5"
+  },
+  {
+    "path": "candidate-r1.json",
+    "bytes": 17850,
+    "sha256": "205ae7e8ca09d5924a30eef2c4ddfe8c14427b78a7f7098910d63f6a2f8b59bd"
+  },
+  {
+    "path": "candidate-r2.json",
+    "bytes": 17683,
+    "sha256": "a82292172e1dd19ba61372900e9fc1cd288e98b5333a5a71ab2ab0289cf030f0"
+  },
+  {
+    "path": "npm-test.log.gz",
+    "bytes": 214954,
+    "sha256": "2822123f926f256d733a090e9eb063942a6de2770ae976370d7cd54f8c297029"
+  }
+]

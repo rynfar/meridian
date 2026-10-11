@@ -1,0 +1,59 @@
+{
+  "nativeSourceFacts": {
+    "originalGate11ChecksAllPass": true,
+    "clientExits": [
+      0,
+      0,
+      0
+    ],
+    "sdkResults": [
+      {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "maxTurns": 1,
+        "nativeTurns": 2,
+        "assistantEvents": 1,
+        "toolCalls": 1
+      },
+      {
+        "subtype": "success",
+        "isError": false,
+        "maxTurns": 1,
+        "nativeTurns": 1,
+        "assistantEvents": 1,
+        "toolCalls": 0
+      },
+      {
+        "subtype": "success",
+        "isError": false,
+        "maxTurns": 1,
+        "nativeTurns": 1,
+        "assistantEvents": 1,
+        "toolCalls": 0
+      },
+      {
+        "subtype": "error_max_turns",
+        "isError": true,
+        "maxTurns": 1,
+        "nativeTurns": 2,
+        "assistantEvents": 1,
+        "toolCalls": 1
+      },
+      {
+        "subtype": "success",
+        "isError": false,
+        "maxTurns": 1,
+        "nativeTurns": 1,
+        "assistantEvents": 1,
+        "toolCalls": 0
+      }
+    ]
+  },
+  "primaryReference": "https://code.claude.com/docs/en/agent-sdk/agent-loop",
+  "referenceScope": "The official loop documentation identifies result subtype as the primary termination state, defines maxTurns as a tool-use-round budget, and describes multiple assistant events per response sharing a message ID. The installed0.2.141 type declares num_turns as a number without an equality guarantee. Current documentation does not prove the precise counter mechanics of backend2.1.284.",
+  "incorrectObserverAssumption": "Borrowed E71 nativeTurns===1 as a universal E55 capped-result invariant, despite original E55 contract never requiring it. Both capped native results have exactly one observed assistant event/tool call and all actual client read/resume/non-inheritance checks pass.",
+  "plannedCorrection": "Preserve canonical subtype/boolean flag/model/usage/target/original process/init/exit and all11 original E55 checks. Record nativeTurns as diagnostic positive integer rather than equating it to maxTurns. Independently require exactly one original unique assistant response for a one-round tool checkpoint; preserve SDK maxTurns1 and all query/cost/lifetime bounds. Add negative control for multiple actual assistant responses.",
+  "acceptance": "Not yet corrected or re-executed; original failed frame retained.",
+  "correctionHead": "838d4a29dc4702a41c83d23dc39c4e04907c972b",
+  "correctionExecuted": "Source R2: original all11E55 checks pass, exact one original response perquery; original nativeTurns2 retained at cap. Independent installed native execution is running."
+}

@@ -1,0 +1,23 @@
+{
+  "baselineHead": "076b249fd55db84ffde546a4f6bf5211efffbf69",
+  "fixedTypedHead": "6e7ee9f4f3d003de7f1d593983bc9f3af16561cd",
+  "currentTestSha256": "1ac8d3d5266dc2082fa8e6a8c68d7d3aed90c1ec61feb2b3f23c9bbe58743940",
+  "testCorrection": "blockStop(0), no production assertion relaxed",
+  "archiveSha256": "0cd0d52f67840e9903c6ba887f23f8c5d4504b1990f7b85a3f1f015bca7e6f1d",
+  "scope": "Same final typed HTTP fixture on immutable initial authored source; synthetic SDK and owned isolated config",
+  "baselineExit": 1,
+  "baselineFailedTests": 3,
+  "baselineAssertions": 25,
+  "fixedExit": 0,
+  "fixedPassedTests": 8,
+  "fixedAssertions": 144,
+  "final-typed-http-baseline.log": {
+    "bytes": 5124,
+    "sha256": "8a09d05cf4b395219b959fda26bba33b91aff0e6986689dbc4b7cff65067441e"
+  },
+  "final-typed-http-corrected.log": {
+    "bytes": 1318,
+    "sha256": "702bdd6dfb625741c331140849e2896de55cc4ea8cfdd78c3c8f4b96330180f5"
+  },
+  "sameFinalTypedFixtureBothRuns": true
+}

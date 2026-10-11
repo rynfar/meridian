@@ -1,0 +1,85 @@
+{
+  "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "frames": [
+    {
+      "originalAttachPid": 18700,
+      "originalAttachJoined": true,
+      "exit": 0,
+      "seconds": 5.230800208984874,
+      "containerId": "308c50582b654d173cd6e96bad3ee2c094cf90c5355d33a90937470b46f6f83c",
+      "specificCauseAndOriginalJoinsVerified": true,
+      "ownedStoppedContainerRemoved": true,
+      "case": "overlap",
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e"
+    },
+    {
+      "originalAttachPid": 18990,
+      "originalAttachJoined": true,
+      "exit": 1,
+      "seconds": 4.255764500005171,
+      "containerId": "d856e80399f72cb8597cb20c19c484343bf9efda3e512e9edfb25a2502adc990",
+      "specificCauseAndOriginalJoinsVerified": true,
+      "ownedStoppedContainerRemoved": true,
+      "case": "overlap",
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e"
+    },
+    {
+      "originalAttachPid": 20236,
+      "originalAttachJoined": true,
+      "exit": 0,
+      "seconds": 2.6939063340541907,
+      "containerId": "99c408bd8db0323f1af2faffbb35a8606ef855d0ebb105738dd724f6fd01b52e",
+      "specificCauseAndOriginalJoinsVerified": true,
+      "ownedStoppedContainerRemoved": true,
+      "case": "cancel",
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e"
+    },
+    {
+      "originalAttachPid": 20314,
+      "originalAttachJoined": true,
+      "exit": 1,
+      "seconds": 1.9407818750478327,
+      "containerId": "e358af5aeec1db076de17dbb39376905d94d88844303a889dfba4f9a49c0bd7a",
+      "specificCauseAndOriginalJoinsVerified": true,
+      "ownedStoppedContainerRemoved": true,
+      "case": "pre-request-failure",
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e"
+    },
+    {
+      "originalAttachPid": 20390,
+      "originalAttachJoined": true,
+      "exit": 1,
+      "seconds": 2.72415754199028,
+      "containerId": "b4aad283be2d660a0a6d19bd61641f7aec05558b1d65ea0de15cb0c114632d4c",
+      "specificCauseAndOriginalJoinsVerified": true,
+      "ownedStoppedContainerRemoved": true,
+      "case": "init-timeout",
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e"
+    },
+    {
+      "originalAttachPid": 20520,
+      "originalAttachJoined": true,
+      "exit": 1,
+      "seconds": 3.723209624993615,
+      "containerId": "86e6bcceb31a0c27bf61b3334a0497fd4bd7506f8be62df2b82a766f08dd248e",
+      "specificCauseAndOriginalJoinsVerified": true,
+      "ownedStoppedContainerRemoved": true,
+      "case": "uncooperative",
+      "externalModelQueries": 0,
+      "grantStaged": false,
+      "sourceOverlayHead": "15f44351bbc8ddfd669db3254eac86736b61a02e"
+    }
+  ],
+  "externalModelQueries": 0,
+  "actualAffectedClientAcceptance": false
+}

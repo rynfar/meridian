@@ -1,0 +1,15 @@
+{
+  "compiledSourceHead": "d3676c64ea16c87d183b551462f9f97b51224df7",
+  "image": "sha256:5d1cc1baa71cc21f3a7046811c029b6906b684f52406c73befc5be8f4022dac1",
+  "overlayQualification": "Two task-owned maintained harness files mounted read-only over known image paths; production source and independently installed target bytes remain the prior certified snapshot. Current harness is not claimed part of that old image snapshot.",
+  "files": [
+    {
+      "path": "e2e-passthrough-claude-code-native.mjs",
+      "sha256": "25ecef6adec56241be9aa8635a28f1633fbaaae1477481c964c452c2fef254f1"
+    },
+    {
+      "path": "e2e-passthrough-claude-code-session.mjs",
+      "sha256": "ccb105e5243e0e5c9df12d9547ca4d73bfd4724a933d663c9d12fd035bb1cc73"
+    }
+  ]
+}

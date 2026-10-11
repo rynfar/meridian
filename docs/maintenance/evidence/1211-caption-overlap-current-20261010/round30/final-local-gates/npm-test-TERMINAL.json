@@ -1,0 +1,13 @@
+{
+  "name": "npm-test",
+  "argv": [
+    "npm",
+    "test"
+  ],
+  "originalPid": 99658,
+  "joined": true,
+  "exit": 0,
+  "startUTC": "2026-10-10T05:11:36.153122+00:00",
+  "endUTC": "2026-10-10T05:23:58.953089+00:00",
+  "logSHA256": "eaaec7fcb73f2d967aa9ebe4a3c3ed244be5c8427a6a3bfed7b123de7d41967f"
+}

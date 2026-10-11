@@ -1,0 +1,10 @@
+{
+  "head": "cbc47d3e2402cac6a690a9bac1fe0b6140f31b2e",
+  "argv": [
+    "npm",
+    "test"
+  ],
+  "environmentOverrides": {
+    "E71_COMPILED_CONTEXT_CONTROL": "1"
+  }
+}

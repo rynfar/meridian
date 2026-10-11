@@ -1,0 +1,11 @@
+FROM meridian1211:checkpoint-r6-corrected-tagged
+USER root
+COPY candidate.bundle SOURCE_IDENTITY.json qualify-source.py /snapshot/
+RUN git init /opt/e71/current && git -C /opt/e71/current bundle unbundle /snapshot/candidate.bundle && git -C /opt/e71/current symbolic-ref HEAD refs/heads/codex/claude-sidecalls-stack-1292-20261008 && git -C /opt/e71/current update-ref HEAD 6d773781ac03359df22f1226807becd95b28005b && chown -R 501:501 /opt/e71/current && mkdir -p /opt/e71/client287 /opt/e71/current-packs /opt/e71/current-installed && chown -R 501:501 /opt/e71/client287 /opt/e71/current-packs /opt/e71/current-installed
+COPY --chown=501:501 candidate/ /opt/e71/current/
+USER meridianfixture
+WORKDIR /opt/e71/current
+RUN cp -a /opt/e71/candidate/node_modules node_modules && python3 /snapshot/qualify-source.py && npm run build
+RUN npm install --prefix /opt/e71/client287 --ignore-scripts --no-audit --no-fund --save-exact @anthropic-ai/claude-code@2.1.287 && node /opt/e71/client287/node_modules/@anthropic-ai/claude-code/install.cjs && /opt/e71/client287/node_modules/@anthropic-ai/claude-code/bin/claude.exe --version
+RUN npm pack --ignore-scripts --json --pack-destination /opt/e71/current-packs > /opt/e71/current-packs/PACK.json && npm install --prefix /opt/e71/current-installed --ignore-scripts --no-audit --no-fund /opt/e71/current-packs/rynfar-meridian-1.80.0.tgz && node /opt/e71/current-installed/node_modules/@anthropic-ai/claude-code/install.cjs
+RUN node -e "const fs=require('fs'),crypto=require('crypto');const root='/opt/e71/current-installed/node_modules/';const r={sdkVersion:require(root+'@anthropic-ai/claude-agent-sdk/package.json').version,nativeVersion:require(root+'@anthropic-ai/claude-code/package.json').version,meridianVersion:require(root+'@rynfar/meridian/package.json').version,tarballSHA256:crypto.createHash('sha256').update(fs.readFileSync('/opt/e71/current-packs/rynfar-meridian-1.80.0.tgz')).digest('hex')};fs.writeFileSync('/opt/e71/CURRENT_INSTALLED_IDENTITY.json',JSON.stringify(r)+'\n');if(r.sdkVersion!=='0.2.141'||r.nativeVersion!=='2.1.296')throw new Error('Unqualified installed SDK/native tuple');console.log('CURRENT_INSTALLED_IDENTITY:'+JSON.stringify(r));"

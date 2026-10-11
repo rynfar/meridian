@@ -1,0 +1,9 @@
+# Preserve full generated E71 scenario receipts byte-for-byte while keeping
+# maintained code, reviews, summaries and manifests visible in ordinary diffs.
+docs/maintenance/evidence/1211-claude-auxiliary-20261004/requested-model-controls/before-*.json -diff linguist-generated=true
+docs/maintenance/evidence/1211-claude-auxiliary-20261004/requested-model-controls/after-*.json -diff linguist-generated=true
+docs/maintenance/evidence/1211-claude-auxiliary-20261004/role-model-witness-controls/before-*.json -diff linguist-generated=true
+docs/maintenance/evidence/1211-claude-auxiliary-20261004/role-model-witness-controls/after-*.json -diff linguist-generated=true
+docs/maintenance/evidence/1211-claude-auxiliary-20261004/role-model-witness-controls/before-after-summary.json diff linguist-generated=false
+docs/maintenance/evidence/1211-claude-auxiliary-20261004/role-model-witness-controls/*/clone-*.json -diff linguist-generated=true
+docs/maintenance/evidence/1211-claude-auxiliary-20261004/role-model-witness-controls/http-receipt-join-controls/*-proof.json -diff linguist-generated=true

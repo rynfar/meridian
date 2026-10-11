@@ -1,0 +1,70 @@
+{
+  "atUTC": "2026-10-09T03:32:02.457124+00:00",
+  "status": "LIVE_PAGINATED_QUEUE_DISCOVERY",
+  "accountReposDiscovered": 164,
+  "orgs": [
+    {
+      "org": "Centeva",
+      "count": 107,
+      "gap": false
+    },
+    {
+      "org": "pylon-code",
+      "count": 3,
+      "gap": false
+    }
+  ],
+  "candidateRepos": [
+    "rynfar/hudscrub",
+    "rynfar/meridian",
+    "rynfar/meridian-plugin-hermes-scrub",
+    "rynfar/meridian-plugin-openclaw-scrub",
+    "rynfar/meridian-plugin-opencode-scrub",
+    "rynfar/meridian-plugin-pi-scrub"
+  ],
+  "managedRepos": 6,
+  "coverage": [
+    {
+      "repo": "rynfar/hudscrub",
+      "archived": false,
+      "openPRs": 0,
+      "realOpenIssues": 0
+    },
+    {
+      "repo": "rynfar/meridian",
+      "archived": false,
+      "openPRs": 27,
+      "realOpenIssues": 21
+    },
+    {
+      "repo": "rynfar/meridian-plugin-hermes-scrub",
+      "archived": false,
+      "openPRs": 0,
+      "realOpenIssues": 0
+    },
+    {
+      "repo": "rynfar/meridian-plugin-openclaw-scrub",
+      "archived": false,
+      "openPRs": 0,
+      "realOpenIssues": 0
+    },
+    {
+      "repo": "rynfar/meridian-plugin-opencode-scrub",
+      "archived": false,
+      "openPRs": 3,
+      "realOpenIssues": 1
+    },
+    {
+      "repo": "rynfar/meridian-plugin-pi-scrub",
+      "archived": false,
+      "openPRs": 1,
+      "realOpenIssues": 0
+    }
+  ],
+  "readGaps": [],
+  "openPRs": 31,
+  "realOpenIssues": 22,
+  "scope": "Live queue discovery only, not behavior dispositions, CI gate polling or execution acceptance.",
+  "ownerAffiliationReposDiscovered": 52,
+  "discoveryQualification": "Full unfiltered account repository pagination plus accessible organization pagination. Owner-affiliation-only intermediate count retained separately; matching repositories unchanged."
+}

@@ -1,0 +1,13 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/claude-subagent-harness.test.ts:
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background unknown task owners [2440.94ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background unbounded waits [1738.39ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background missing task completion [1516.09ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects background early task completion [2031.66ms]
+
+ 4 pass
+ 67 filtered out
+ 0 fail
+ 128 expect() calls
+Ran 4 tests across 1 file. [7.93s]

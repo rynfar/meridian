@@ -1,0 +1,1 @@
+{"outcome":"FAIL","cases":0,"failure":"ENOENT: no such file or directory, open '/opt/e71/current/dist/claude-proxy-core.js'","cleanup":{"admissionClosed":true,"providerBodiesJoined":true,"requestsSettled":true,"backendClosed":true,"listenerClosed":true,"nativeActorCensusEmpty":true,"residualNativeActors":[],"privateRuntimeRemoved":true}}

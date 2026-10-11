@@ -1,0 +1,35 @@
+{
+  "spawn": true,
+  "exit": true,
+  "close": true,
+  "stdoutEnd": true,
+  "stdoutClose": true,
+  "stderrEnd": true,
+  "stderrClose": true,
+  "timeout": false,
+  "signals": [],
+  "workerReport": true,
+  "scopedWorkerJoin": "JOINED",
+  "workerGrantCleanupAllowed": true,
+  "globalDescendantAbsence": "UNKNOWN",
+  "code": 0,
+  "signal": null,
+  "raw": {
+    "stdout": {
+      "bytes": 0,
+      "discarded": 0,
+      "flushed": true,
+      "format": "selected-line-metadata; raw content not retained"
+    },
+    "stderr": {
+      "bytes": 0,
+      "discarded": 0,
+      "flushed": true,
+      "format": "selected-line-metadata; raw content not retained"
+    }
+  },
+  "parentJoin": "JOINED",
+  "grantCleanupAllowed": true,
+  "grantCleanupScope": "root may review removal of the preserved access-only task input after the observed source-case handles, SDK gates, iterators and local HTTP resources joined; no global descendant/config/session/history cleanup claim",
+  "grantDeleted": false
+}

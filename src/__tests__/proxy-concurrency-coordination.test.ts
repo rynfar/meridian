@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:te
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
+import { progressBody, PROGRESS_FIRST_PROMPT, PROGRESS_WORK } from "./fixtures/claude-code-progress"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -25,8 +26,10 @@ let activeQueries = 0
 let maxActiveQueries = 0
 let queryCalls = 0
 let controls: AttemptControl[] = []
-let capturedParams: Array<{ options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; env?: Record<string, string> } }> = []
+let capturedParams: Array<{ options?: { resume?: string; resumeSessionAt?: string; sessionId?: string; model?: string; env?: Record<string, string> } }> = []
 let rateLimitWorkQueries = false
+let autoCompleteQueries = false
+let queryFailures = new Map<number, string>()
 
 function deferredAttempt(): AttemptControl & { wait: Promise<void>; markStarted: () => void } {
   let release = () => {}
@@ -40,6 +43,7 @@ installSdkMock(() => ({
   query: (params: { options?: { resume?: string; sessionId?: string; env?: Record<string, string> } }) => {
     capturedParams.push(params)
     queryCalls++
+    const queryNumber = queryCalls
     const control = deferredAttempt()
     controls.push(control)
     const sessionId = resolveMockSdkSessionId(params.options, `sdk-concurrency-${queryCalls}`)
@@ -48,11 +52,13 @@ installSdkMock(() => ({
       maxActiveQueries = Math.max(maxActiveQueries, activeQueries)
       control.markStarted()
       try {
+        const failure = queryFailures.get(queryNumber)
+        if (failure) throw new Error(failure)
         if (rateLimitWorkQueries && params.options?.env?.CLAUDE_CONFIG_DIR?.includes("hot-work")) {
           throw new Error("429 rate limit reached for this account")
         }
         yield { ...messageStart(), session_id: sessionId }
-        await control.wait
+        if (!autoCompleteQueries) await control.wait
         yield { ...textBlockStart(0), session_id: sessionId }
         yield { ...textDelta(0, "ok"), session_id: sessionId }
         yield { ...blockStop(0), session_id: sessionId }
@@ -65,7 +71,7 @@ installSdkMock(() => ({
     })()
     return Object.assign(generator, { close: () => {} })
   },
-  createSdkMcpServer: () => ({ type: "sdk", name: "test", instance: {} }),
+  createSdkMcpServer: (config: { tools: Array<{ name: string }> }) => ({ type: "sdk", name: "test", instance: { tools: config.tools } }),
   tool: () => ({}),
 }), "proxy-concurrency-coordination.test.ts")
 
@@ -85,7 +91,10 @@ const { setSessionStoreDir, storeSharedSession, readSessionStoreSnapshot } = awa
 const { processSessionTurns } = await import("../proxy/session/turnCoordinator")
 const { computeLineageHash, computeMessageHashes, verifyLineage } = await import("../proxy/session/lineage")
 const { deriveToolLoopSessionId, openAiAdapter } = await import("../proxy/adapters/openai")
+const { claudeCodeSessionKey } = await import("../proxy/adapters/claudecode")
 const { translateOpenAiToAnthropic } = await import("../proxy/openai")
+const { storeSession } = await import("../proxy/session/cache")
+const { lookupSharedSessionResult } = await import("../proxy/sessionStore")
 
 function request(
   messages: Array<{ role: string; content: unknown }>,
@@ -140,6 +149,8 @@ function claudeCodeRequest(
   messages: Array<{ role: string; content: unknown }>,
   sessionId: string,
   extraHeaders: Record<string, string> = {},
+  stream = false,
+  extraBody: Record<string, unknown> = {},
 ): Request {
   return new Request("http://localhost/v1/messages", {
     method: "POST",
@@ -151,8 +162,79 @@ function claudeCodeRequest(
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       max_tokens: 128,
-      stream: false,
+      stream,
       messages,
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+      ...extraBody,
+    }),
+  })
+}
+
+/**
+ * Claude Code's auto-mode permission classifier: the conversation's own
+ * session id, no tools, not streamed, and stop sequences closing its verdict.
+ */
+function claudeCodeClassifierRequest(sessionId: string, extraHeaders: Record<string, string> = {}): Request {
+  return new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-agent": "claude-cli/2.1.286",
+      ...extraHeaders,
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 64,
+      stream: false,
+      system: [{ type: "text", text: "You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\nfixture permissions\n</cc_automode_permissions>" }],
+      stop_sequences: ["</block>"],
+      messages: [
+        { role: "user", content: "<transcript>User: run the tests</transcript>" },
+        { role: "user", content: "Should this action be blocked?" },
+      ],
+      metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+    }),
+  })
+}
+
+/**
+ * A Claude Code Agent-tool subagent turn: the parent conversation's own
+ * metadata session id plus the subagent's `x-claude-code-agent-id`.
+ */
+function claudeCodeSubagentRequest(
+  messages: Array<{ role: string; content: unknown }>,
+  sessionId: string,
+  agentId: string,
+): Request {
+  return claudeCodeRequest(messages, sessionId, { "x-claude-code-agent-id": agentId })
+}
+
+function claudeCodeSubagentKey(sessionId: string, agentId: string): string {
+  const key = claudeCodeSessionKey(agentId, { metadata: { user_id: JSON.stringify({ session_id: sessionId }) } })
+  if (key === undefined) throw new Error("test subagent key did not derive")
+  return key
+}
+
+/**
+ * Claude Code's session-state classifier: the conversation's own session id,
+ * one user message summing up the session, no tools, no stop sequence, and
+ * not streamed.
+ */
+function claudeCodeStateCardRequest(sessionId: string): Request {
+  return new Request("http://localhost/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "user-agent": "claude-cli/2.1.291",
+      "x-claude-code-session-id": "b2004dfc-6042-48d9-9c23-b4475f64b6f5",
+    },
+    body: JSON.stringify({
+      model: "claude-opus-4-8",
+      max_tokens: 1024,
+      messages: [{
+        role: "user",
+        content: "Current state: working (for 2m)\nTool calls so far: Bash\nUser's most recent ask: \"Run the tests\"\n\nAssistant message tail (last 15 chars):\nRunning tests.",
+      }],
       metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
     }),
   })
@@ -212,6 +294,8 @@ describe("SDK and Session concurrency coordination", () => {
     controls = []
     capturedParams = []
     rateLimitWorkQueries = false
+    autoCompleteQueries = false
+    queryFailures = new Map()
     clearSessionCache()
     resetProcessSdkSemaphoreForTests()
     telemetryStore.clear()
@@ -471,6 +555,489 @@ describe("SDK and Session concurrency coordination", () => {
     expect(queryCalls).toBe(2)
     expect(capturedParams[1]?.options?.resume).toBeUndefined()
     expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+  })
+
+  it("keeps a Claude Code conversation resumable across an auto-mode classifier request", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-aux-${crypto.randomUUID()}`
+    const opening = [{ role: "user", content: "Run the tests" }]
+
+    const firstP = app.fetch(claudeCodeRequest(opening, sessionId))
+    ;(await waitForControl(0)).release()
+    expect((await firstP).status).toBe(200)
+    const published = readSessionStoreSnapshot()[sessionId]
+    expect(published?.messageCount).toBe(1)
+
+    const auxP = app.fetch(claudeCodeClassifierRequest(sessionId))
+    ;(await waitForControl(1)).release()
+    expect((await auxP).status).toBe(200)
+    // Answered on its own body, and the conversation's mapping is untouched.
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(readSessionStoreSnapshot()[sessionId]).toEqual(published)
+
+    const nextP = app.fetch(claudeCodeRequest([
+      ...opening,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ], sessionId))
+    ;(await waitForControl(2)).release()
+    expect((await nextP).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  })
+
+  it("keeps a Claude Code conversation resumable across a session-state classifier request", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-state-${crypto.randomUUID()}`
+    const opening = [{ role: "user", content: "Run the tests" }]
+
+    const firstP = app.fetch(claudeCodeRequest(opening, sessionId))
+    ;(await waitForControl(0)).release()
+    expect((await firstP).status).toBe(200)
+    const published = readSessionStoreSnapshot()[sessionId]
+    expect(published?.messageCount).toBe(1)
+
+    const cardP = app.fetch(claudeCodeStateCardRequest(sessionId))
+    ;(await waitForControl(1)).release()
+    expect((await cardP).status).toBe(200)
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(readSessionStoreSnapshot()[sessionId]).toEqual(published)
+
+    const nextP = app.fetch(claudeCodeRequest([
+      ...opening,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ], sessionId))
+    ;(await waitForControl(2)).release()
+    expect((await nextP).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  })
+
+  it("never queues a classifier request behind the conversation's running turn", async () => {
+    // Two SDK permits, so only the session lease could make the side call wait.
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-aux-lease-${crypto.randomUUID()}`
+    const opening = [{ role: "user", content: "Run the tests" }]
+
+    const mainP = app.fetch(claudeCodeRequest(opening, sessionId))
+    const mainControl = await waitForControl(0)
+    // The main turn is inside the SDK and holds the session lease.
+    const auxP = app.fetch(claudeCodeClassifierRequest(sessionId))
+    const auxControl = await waitForControl(1)
+    auxControl.release()
+    expect((await auxP).status).toBe(200)
+    expect(telemetryStore.getRecent().find(m => m.sessionQueueWaitMs !== undefined && m.sessionQueueWaitMs > 50))
+      .toBeUndefined()
+
+    // The main turn still commits normally after the side call finished first.
+    mainControl.release()
+    expect((await mainP).status).toBe(200)
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(1)
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+  })
+
+  it("preserves a subagent's working mapping across a streaming progress summary", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-progress-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const key = claudeCodeSubagentKey(sessionId, agentId)
+    const firstP = app.fetch(claudeCodeSubagentRequest(PROGRESS_WORK, sessionId, agentId))
+    ;(await waitForControl(0)).release()
+    expect((await firstP).status).toBe(200)
+    const published = readSessionStoreSnapshot()[key]
+    expect(published?.messageCount).toBe(3)
+
+    const summaryP = app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.287", "x-claude-code-agent-id": agentId },
+      body: JSON.stringify(progressBody(sessionId)),
+    }))
+    ;(await waitForControl(1)).release()
+    const summary = await summaryP
+    expect(summary.status).toBe(200)
+    expect(await summary.text()).toContain("message_stop")
+    expect(readSessionStoreSnapshot()[key]).toEqual(published)
+
+    const nextP = app.fetch(claudeCodeSubagentRequest([
+      ...PROGRESS_WORK,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ], sessionId, agentId))
+    ;(await waitForControl(2)).release()
+    expect((await nextP).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  })
+
+  /** A subagent's streaming caption request carrying the given history. */
+  function claudeCodeCaptionRequest(
+    messages: Array<{ role: string; content: unknown }>,
+    sessionId: string,
+    agentId: string,
+  ): Request {
+    return new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.287", "x-claude-code-agent-id": agentId },
+      body: JSON.stringify({ ...progressBody(sessionId), messages }),
+    })
+  }
+
+  async function expectCaptionLeavesSubagentSession(
+    work: Array<{ role: string; content: unknown }>,
+    caption: Array<{ role: string; content: unknown }>,
+    next: Array<{ role: string; content: unknown }>,
+  ) {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-progress-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const key = claudeCodeSubagentKey(sessionId, agentId)
+    const workP = app.fetch(claudeCodeSubagentRequest(work, sessionId, agentId))
+    ;(await waitForControl(0)).release()
+    expect((await workP).status).toBe(200)
+    const published = readSessionStoreSnapshot()[key]
+    expect(published?.messageCount).toBe(work.length)
+
+    const captionP = app.fetch(claudeCodeCaptionRequest(caption, sessionId, agentId))
+    ;(await waitForControl(1)).release()
+    const captionResponse = await captionP
+    expect(captionResponse.status).toBe(200)
+    expect(await captionResponse.text()).toContain("message_stop")
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(readSessionStoreSnapshot()[key]).toEqual(published)
+
+    const nextP = app.fetch(claudeCodeSubagentRequest(next, sessionId, agentId))
+    ;(await waitForControl(2)).release()
+    expect((await nextP).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  }
+
+  it("resumes the subagent session after a caption sent as its own user message", async () => {
+    const answered = [...PROGRESS_WORK, { role: "assistant", content: "alpha.txt contains ALPHA." }]
+    await expectCaptionLeavesSubagentSession(
+      answered,
+      [...answered, { role: "user", content: PROGRESS_FIRST_PROMPT }],
+      [...answered, { role: "user", content: "continue" }],
+    )
+  })
+
+  it("resumes the subagent session after a caption appended after tool results and text", async () => {
+    const lastUser = [
+      { type: "tool_result", tool_use_id: "read-1", content: "ALPHA" },
+      { type: "text", text: "Note: alpha.txt is a plain text file." },
+    ]
+    const work = [...PROGRESS_WORK.slice(0, -1), { role: "user", content: lastUser }]
+    await expectCaptionLeavesSubagentSession(
+      work,
+      [...work.slice(0, -1), { role: "user", content: [...lastUser, { type: "text", text: PROGRESS_FIRST_PROMPT }] }],
+      [...work, { role: "assistant", content: "ok" }, { role: "user", content: "continue" }],
+    )
+  })
+
+  // An SDK MCP server instance accepts one transport at a time: a second query
+  // connecting the same instance fails and runs without the client's tools.
+  it("isolates each caption and working query's server while retaining the working tool definitions", async () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `progress-mcp-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const toolServer = (index: number) => {
+      const options = capturedParams[index]?.options as {
+        mcpServers?: Record<string, { type?: unknown; name?: unknown; instance?: { tools?: Array<{ name: string }> } }>
+      } | undefined
+      return Object.values(options?.mcpServers ?? {})
+        .find(server => server.type === "sdk" && server.name !== "opencode")
+    }
+    const answered = [...PROGRESS_WORK, { role: "assistant", content: "ok" }]
+    const firstP = app.fetch(claudeCodeCaptionRequest(PROGRESS_WORK, sessionId, agentId))
+    ;(await waitForControl(0)).release()
+    await (await firstP).text()
+
+    const workP = app.fetch(claudeCodeCaptionRequest([...answered, { role: "user", content: "continue" }], sessionId, agentId))
+    const work = await waitForControl(1)
+    const captionP = app.fetch(claudeCodeCaptionRequest(progressBody(sessionId).messages, sessionId, agentId))
+    ;(await waitForControl(2)).release()
+    await (await captionP).text()
+    work.release()
+    await (await workP).text()
+
+    expect(toolServer(0)).toBeDefined()
+    expect(toolServer(1)).not.toBe(toolServer(0))
+    expect(toolServer(0)?.instance?.tools?.map(tool => tool.name)).toEqual(["Read"])
+    expect(toolServer(1)?.instance?.tools).toBe(toolServer(0)?.instance?.tools)
+    expect(toolServer(2)).toBeDefined()
+    expect(toolServer(2)).not.toBe(toolServer(1))
+    expect(toolServer(2)?.instance?.tools).not.toBe(toolServer(1)?.instance?.tools)
+
+    const nextP = app.fetch(claudeCodeCaptionRequest([...answered, { role: "user", content: "continue" }, { role: "assistant", content: "ok" }, { role: "user", content: "next" }], sessionId, agentId))
+    ;(await waitForControl(3)).release()
+    await (await nextP).text()
+    expect(toolServer(3)).not.toBe(toolServer(0))
+    expect(toolServer(3)).not.toBe(toolServer(1))
+    expect(toolServer(3)).not.toBe(toolServer(2))
+    expect(toolServer(3)?.instance?.tools).toBe(toolServer(0)?.instance?.tools)
+  })
+
+  it("does not queue a progress summary behind its subagent's running turn", async () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-progress-lease-${crypto.randomUUID()}`
+    const agentId = "progress-agent"
+    const key = claudeCodeSubagentKey(sessionId, agentId)
+    const mainP = app.fetch(claudeCodeSubagentRequest(PROGRESS_WORK, sessionId, agentId))
+    const mainControl = await waitForControl(0)
+    const summaryP = app.fetch(new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "claude-cli/2.1.287", "x-claude-code-agent-id": agentId },
+      body: JSON.stringify(progressBody(sessionId)),
+    }))
+    try {
+      ;(await waitForControl(1)).release()
+      const summary = await summaryP
+      expect(summary.status).toBe(200)
+      await summary.text()
+      expect(readSessionStoreSnapshot()[key]).toBeUndefined()
+      expect(maxActiveQueries).toBe(2)
+    } finally {
+      mainControl.release()
+      await mainP
+    }
+    expect(readSessionStoreSnapshot()[key]?.messageCount).toBe(3)
+  })
+
+  it("treats a declared non-auxiliary request class as a normal turn", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-main-class-${crypto.randomUUID()}`
+    const reqP = app.fetch(claudeCodeClassifierRequest(sessionId, { "x-claude-code-request-class": "main" }))
+    ;(await waitForControl(0)).release()
+    expect((await reqP).status).toBe(200)
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(2)
+  })
+
+  for (const stream of [false, true]) {
+    for (const refusalCount of [0, 1, 2]) {
+      it(`keeps a header-labelled auxiliary independent of a complete checkpoint (stream=${stream}, refusals=${refusalCount})`, async () => {
+        autoCompleteQueries = true
+        const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+        const sessionId = `claude-code-checkpoint-aux-${crypto.randomUUID()}`
+        const opening = [{ role: "user", content: "read the fixture" }]
+        const continuation = [
+          ...opening,
+          { role: "assistant", content: [{ type: "tool_use", id: "toolu-checkpoint", name: "Read", input: { file_path: "fixture.txt" } }] },
+          { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu-checkpoint", content: "fixture receipt" }] },
+        ]
+        expect(storeSession(sessionId, opening, "main-checkpoint", undefined, [null], undefined,
+          "checkpoint-uuid", ["toolu-checkpoint"])).toBeTruthy()
+        const original = lookupSharedSessionResult(sessionId)
+        expect(original.status).toBe("found")
+        if (original.status !== "found") throw new Error("Checkpoint fixture was not published")
+        for (let attempt = 1; attempt <= refusalCount; attempt++) {
+          queryFailures.set(attempt, "No message found with message.uuid of: checkpoint-uuid")
+        }
+
+        const auxiliary = await app.fetch(claudeCodeRequest(continuation, sessionId, {
+          "x-claude-code-request-class": "auxiliary",
+        }, stream))
+        expect(auxiliary.status).toBe(refusalCount === 2 && !stream ? 500 : 200)
+        const auxiliaryWire = await auxiliary.text()
+        if (refusalCount === 2 && stream) expect(auxiliaryWire).toContain("event: error")
+        // Even a complete known tool batch cannot promote a side call. A
+        // refusal from its own fresh target cannot evict the main checkpoint.
+        expect(capturedParams.length).toBe(refusalCount > 0 ? 2 : 1)
+        for (const call of capturedParams) expect(call.options?.resume).toBeUndefined()
+        expect(lookupSharedSessionResult(sessionId)).toEqual(original)
+
+        // The identical complete batch is still valid for an ordinary turn.
+        const mainIndex = capturedParams.length
+        const main = await app.fetch(claudeCodeRequest(continuation, sessionId, {}, stream))
+        expect(main.status).toBe(200)
+        await main.text()
+        expect(capturedParams[mainIndex]?.options?.resume).toBe("main-checkpoint")
+        const published = lookupSharedSessionResult(sessionId)
+        expect(published.status).toBe("found")
+        if (published.status !== "found") throw new Error("Normal continuation did not publish")
+        expect(published.generation).not.toBe(original.generation)
+      })
+    }
+  }
+
+  for (const stream of [false, true]) {
+    for (const failure of ["checkpoint", "extended-context"] as const) {
+      it(`retries a fresh namespaced request without evicting a colliding legacy mapping (stream=${stream}, failure=${failure})`, async () => {
+        const { resetExtendedContextUnavailable } = await import("../proxy/models")
+        resetExtendedContextUnavailable()
+        try {
+          autoCompleteQueries = true
+          const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+          const sessionId = `collision-retry-${crypto.randomUUID()}`
+          const agentId = "retry-agent"
+          const opening = [{ role: "user", content: "read a fixture" }]
+          const key = claudeCodeSubagentKey(sessionId, agentId)
+          expect(storeSession(key, opening, "legacy-unproven-sdk", undefined, ["legacy-uuid"])).toBeTruthy()
+          queryFailures.set(1, failure === "checkpoint"
+            ? "No message found with message.uuid of: checkpoint-uuid"
+            : "Extra usage required for 1m")
+          const response = await app.fetch(claudeCodeRequest(opening, sessionId, {
+            "x-claude-code-agent-id": agentId,
+          }, stream, failure === "extended-context" ? { model: "claude-opus-4-6" } : {}))
+          expect(response.status).toBe(200)
+          const wire = await response.text()
+          expect(wire).not.toContain("event: error")
+          expect(capturedParams).toHaveLength(2)
+          for (const call of capturedParams) expect(call.options?.resume).toBeUndefined()
+          if (failure === "extended-context") {
+            expect(capturedParams[0]?.options?.model).toContain("[1m]")
+            expect(capturedParams[1]?.options?.model).not.toContain("[1m]")
+          }
+          const stored = readSessionStoreSnapshot()[key]
+          expect(stored?.claudeSessionId).not.toBe("legacy-unproven-sdk")
+          expect(stored?.previousClaudeSessionId).toBeUndefined()
+          expect(stored?.keyNamespace).toBeDefined()
+        } finally {
+          resetExtendedContextUnavailable()
+        }
+      })
+    }
+  }
+
+  it("publishes and resumes ordinary XML-stopped Claude Code conversations", async () => {
+    autoCompleteQueries = true
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `ordinary-xml-${crypto.randomUUID()}`
+    const opening = [{ role: "user", content: "Write an XML block" }]
+    const xml = { system: "Return XML ending at </block>.", stop_sequences: ["</block>"] }
+    const first = await app.fetch(claudeCodeRequest(opening, sessionId, {}, false, xml))
+    expect(first.status).toBe(200)
+    await first.text()
+    const stored = readSessionStoreSnapshot()[sessionId]
+    expect(stored?.messageCount).toBe(1)
+    expect(stored?.claudeSessionId).toBe(capturedParams[0]?.options?.sessionId)
+    const next = await app.fetch(claudeCodeRequest([
+      ...opening, { role: "assistant", content: "ok" }, { role: "user", content: "Write another XML block" },
+    ], sessionId, {}, false, xml))
+    expect(next.status).toBe(200)
+    await next.text()
+    expect(capturedParams[1]?.options?.resume).toBe(stored?.claudeSessionId)
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(3)
+  })
+
+  it("never queues a Claude Code subagent turn behind its parent's running turn", async () => {
+    // Two SDK permits, so only the session lease could make the subagent wait.
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-subagent-lease-${crypto.randomUUID()}`
+
+    const parentP = app.fetch(claudeCodeRequest([{ role: "user", content: "Spawn a reviewer" }], sessionId))
+    const parentControl = await waitForControl(0)
+    // The parent turn is inside the SDK and holds its session lease. Queued
+    // behind it, the subagent would never reach the SDK and this would time out.
+    const subP = app.fetch(claudeCodeSubagentRequest(
+      [{ role: "user", content: "Review the diff" }], sessionId, "a4a81dc1bbf7ee837",
+    ))
+    const subControl = await waitForControl(1)
+    subControl.release()
+    expect((await subP).status).toBe(200)
+    parentControl.release()
+    expect((await parentP).status).toBe(200)
+
+    expect(telemetryStore.getRecent().find(m => m.sessionQueueWaitMs !== undefined && m.sessionQueueWaitMs > 50))
+      .toBeUndefined()
+    expect(telemetryStore.getRecent().filter(m => m.error === "session_turn_conflict")).toHaveLength(0)
+  })
+
+  it("resumes a Claude Code parent and its subagent each on their own session", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-subagent-${crypto.randomUUID()}`
+    const agentId = "a9b1a8c1cf8639b90"
+    const subagentKey = claudeCodeSubagentKey(sessionId, agentId)
+    const parentOpening = [{ role: "user", content: "Spawn a reviewer" }]
+    const subagentOpening = [{ role: "user", content: "Review the diff" }]
+
+    const parentFirst = app.fetch(claudeCodeRequest(parentOpening, sessionId))
+    ;(await waitForControl(0)).release()
+    expect((await parentFirst).status).toBe(200)
+
+    const subagentFirst = app.fetch(claudeCodeSubagentRequest(subagentOpening, sessionId, agentId))
+    ;(await waitForControl(1)).release()
+    expect((await subagentFirst).status).toBe(200)
+    // A subagent's first turn starts a session of its own and leaves the
+    // parent's mapping exactly as the parent left it.
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(1)
+    expect(readSessionStoreSnapshot()[subagentKey]?.messageCount).toBe(1)
+
+    const subagentNext = app.fetch(claudeCodeSubagentRequest([
+      ...subagentOpening,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "the diff looks fine" },
+    ], sessionId, agentId))
+    ;(await waitForControl(2)).release()
+    expect((await subagentNext).status).toBe(200)
+    expect(capturedParams[2]?.options?.resume).toBe(capturedParams[1]?.options?.sessionId)
+
+    const parentNext = app.fetch(claudeCodeRequest([
+      ...parentOpening,
+      { role: "assistant", content: "ok" },
+      { role: "user", content: "continue" },
+    ], sessionId))
+    ;(await waitForControl(3)).release()
+    expect((await parentNext).status).toBe(200)
+    expect(capturedParams[3]?.options?.resume).toBe(capturedParams[0]?.options?.sessionId)
+  })
+
+  it("runs two parallel subagents of one conversation without serializing them", async () => {
+    process.env.MERIDIAN_MAX_CONCURRENT = "2"
+    resetProcessSdkSemaphoreForTests()
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-parallel-${crypto.randomUUID()}`
+
+    const firstP = app.fetch(claudeCodeSubagentRequest(
+      [{ role: "user", content: "Review alpha" }], sessionId, "a9b1a8c1cf8639b90",
+    ))
+    const firstControl = await waitForControl(0)
+    const secondP = app.fetch(claudeCodeSubagentRequest(
+      [{ role: "user", content: "Review beta" }], sessionId, "a974a04cc37ab3ce8",
+    ))
+    const secondControl = await waitForControl(1)
+    expect(maxActiveQueries).toBe(2)
+    secondControl.release()
+    firstControl.release()
+    expect((await firstP).status).toBe(200)
+    expect((await secondP).status).toBe(200)
+  })
+
+  it("isolates a subagent's classifier call as auxiliary", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-subagent-aux-${crypto.randomUUID()}`
+    const agentId = "a4a81dc1bbf7ee837"
+    const subagentKey = claudeCodeSubagentKey(sessionId, agentId)
+
+    const subagentFirst = app.fetch(claudeCodeSubagentRequest(
+      [{ role: "user", content: "Review the diff" }], sessionId, agentId,
+    ))
+    ;(await waitForControl(0)).release()
+    expect((await subagentFirst).status).toBe(200)
+    const published = readSessionStoreSnapshot()[subagentKey]
+    expect(published?.messageCount).toBe(1)
+
+    const auxP = app.fetch(claudeCodeClassifierRequest(sessionId, { "x-claude-code-agent-id": agentId }))
+    ;(await waitForControl(1)).release()
+    expect((await auxP).status).toBe(200)
+    expect(capturedParams[1]?.options?.resume).toBeUndefined()
+    expect(readSessionStoreSnapshot()[subagentKey]).toEqual(published)
+  })
+
+  it("keeps the shared key when the agent id is malformed", async () => {
+    const app = createProxyServer({ port: 0, host: "127.0.0.1", silent: true }).app
+    const sessionId = `claude-code-bad-agent-${crypto.randomUUID()}`
+
+    const reqP = app.fetch(claudeCodeSubagentRequest([{ role: "user", content: "hello" }], sessionId, "not a valid id"))
+    ;(await waitForControl(0)).release()
+    expect((await reqP).status).toBe(200)
+    expect(readSessionStoreSnapshot()[sessionId]?.messageCount).toBe(1)
+    expect(Object.keys(readSessionStoreSnapshot()).some(key => key.startsWith(`${sessionId}:agent:`))).toBe(false)
   })
 
   it("replays a declared-flow loser instead of rewinding the turn it lost to (#870)", async () => {

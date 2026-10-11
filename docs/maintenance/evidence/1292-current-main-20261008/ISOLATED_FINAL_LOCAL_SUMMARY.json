@@ -1,0 +1,129 @@
+{
+  "testedHead": "3cd230cc1e32bc6753a5946d0231abbbbb63c0c8",
+  "status": "PASS",
+  "npmBatches": [
+    {
+      "pass": 5222,
+      "skip": 36,
+      "fail": 0
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 5,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 12,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 3,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 51,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 10,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 95,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 13,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 11,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 76,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 7,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 9,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 8,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 24,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 22,
+      "skip": 0,
+      "fail": 0
+    },
+    {
+      "pass": 42,
+      "skip": 0,
+      "fail": 0
+    }
+  ],
+  "totals": {
+    "pass": 5663,
+    "skip": 36,
+    "fail": 0
+  },
+  "pretestTypecheck": true,
+  "standaloneTypecheckExit": 0,
+  "buildExit": 0,
+  "toolSession": 98264,
+  "toolSessionJoined": true,
+  "actualModelCalls": 0,
+  "holds": [
+    "native affected-client/model/platform E71/E72",
+    "both overlap orders and cancellation custody",
+    "E41/E55 parity",
+    "independently installed package",
+    "final delivery-head CI"
+  ]
+}

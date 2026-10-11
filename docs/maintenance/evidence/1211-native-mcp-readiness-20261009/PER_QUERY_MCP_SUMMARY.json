@@ -1,0 +1,54 @@
+[
+  {
+    "case": "e71-source",
+    "queryCount": 10,
+    "declaredServerQueries": 7,
+    "toolFreeQueries": 3,
+    "allReadinessTrue": true,
+    "catalogSizes": [
+      0,
+      20
+    ],
+    "sdkToolsObserved": 0,
+    "laterCanonicalDrops": 0
+  },
+  {
+    "case": "e71-package",
+    "queryCount": 10,
+    "declaredServerQueries": 7,
+    "toolFreeQueries": 3,
+    "allReadinessTrue": true,
+    "catalogSizes": [
+      0,
+      20
+    ],
+    "sdkToolsObserved": 0,
+    "laterCanonicalDrops": 0
+  },
+  {
+    "case": "e72-source",
+    "queryCount": 9,
+    "declaredServerQueries": 9,
+    "toolFreeQueries": 0,
+    "allReadinessTrue": true,
+    "catalogSizes": [
+      18,
+      20
+    ],
+    "sdkToolsObserved": 13,
+    "laterCanonicalDrops": 7
+  },
+  {
+    "case": "e72-package",
+    "queryCount": 9,
+    "declaredServerQueries": 9,
+    "toolFreeQueries": 0,
+    "allReadinessTrue": true,
+    "catalogSizes": [
+      18,
+      20
+    ],
+    "sdkToolsObserved": 11,
+    "laterCanonicalDrops": 5
+  }
+]

@@ -1,0 +1,38 @@
+[
+  {
+    "case": "e71-source",
+    "nativeAttachPid": 99397,
+    "nativeAttachJoined": true,
+    "nativeExit": 0,
+    "auditPid": 2145,
+    "auditorJoined": true,
+    "auditExit": 0
+  },
+  {
+    "case": "e71-package",
+    "nativeAttachPid": 2150,
+    "nativeAttachJoined": true,
+    "nativeExit": 0,
+    "auditPid": 3701,
+    "auditorJoined": true,
+    "auditExit": 0
+  },
+  {
+    "case": "e72-source",
+    "nativeAttachPid": 3706,
+    "nativeAttachJoined": true,
+    "nativeExit": 0,
+    "auditPid": 4255,
+    "auditorJoined": true,
+    "auditExit": 0
+  },
+  {
+    "case": "e72-package",
+    "nativeAttachPid": 4260,
+    "nativeAttachJoined": true,
+    "nativeExit": 0,
+    "auditPid": 11681,
+    "auditorJoined": true,
+    "auditExit": 0
+  }
+]

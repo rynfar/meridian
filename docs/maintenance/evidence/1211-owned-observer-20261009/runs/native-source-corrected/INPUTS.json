@@ -1,0 +1,24 @@
+{
+  "arm": "integrated-http-source-textdecode",
+  "image": "sha256:5c6c12b979458a102211392bee139ae1803c8d6d699c1d8c7d5bf6b89e5bf2d1",
+  "inputs": [
+    {
+      "path": "e2eOwnedCheckpoint.mjs",
+      "bytes": 12134,
+      "sha256": "404952b27455731e540ade5038b4a096bad5d49fe96e80f71e78a9e2cc3df60a"
+    },
+    {
+      "path": "integrated-proxy.mjs",
+      "bytes": 17491,
+      "sha256": "da3b8acacd7faf4f9077a2b8bb2feebdce50dd785ada0c5bc2cb74d78a25f70f"
+    },
+    {
+      "path": "machine-id",
+      "bytes": 33,
+      "sha256": "c017ba1338da3967ef36be3a32dc90f07c24ce903516ada4077a7204d53f8d94"
+    }
+  ],
+  "runtimeNetwork": "none",
+  "realCredentialMounts": 0,
+  "actualModelClientAcceptance": false
+}

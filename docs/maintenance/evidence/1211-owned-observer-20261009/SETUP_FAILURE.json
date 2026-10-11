@@ -1,0 +1,6 @@
+{
+  "phase": "probe-copy",
+  "cause": "copied frozen probe directory retained 0555 permissions; first new helper copy refused",
+  "nativeQueries": 0,
+  "correction": "make only the new owned copy writable before editing; replay freezes it again"
+}

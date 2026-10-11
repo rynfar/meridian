@@ -1,0 +1,29 @@
+{
+  "atUTC": "2026-10-09T03:25:56.775686+00:00",
+  "status": "BASELINE_R2_MISSING_AFTER_CAPTION_SESSION_NOT_LISTED_ALL_SCOPED_JOINS_POSITIVE",
+  "outerToolSession52665Joined": true,
+  "firstFailurePreserved": {
+    "code": "owned-sdk-session-not-listed",
+    "status": "MISSING",
+    "at": 1791516291711
+  },
+  "modelVerification": {
+    "backend": "MATCH",
+    "client": "MATCH",
+    "scope": "Exact requested wire model, SDK alias, version pin, backend native context label and client label; independent of physical custody"
+  },
+  "backendQueries": 4,
+  "directProcesses": 6,
+  "sourceGates": 4,
+  "nativeCaptionRecognized": true,
+  "scope": "Only preserved access-only task input removed after explicit source gate/executor/query/direct process/pipe/writer/listener/socket/parent joins. No config/session/history or global process cleanup.",
+  "grantDeleted": true,
+  "grantAbsentAfter": true,
+  "sourceLoginRefreshWrites": false,
+  "globalOrSecondaryAbsence": "UNKNOWN",
+  "originalReportsUnchanged": true,
+  "reportSHA256": "9f4a728108ebf00434375b0d5fdf128c3710a4b0bdfae82176ce81c861799f57",
+  "settlementSHA256": "4aee1fe1094907295ce9a39b50956c2219c16b6c28d3da59c0944424afe2fa56",
+  "candidate": "NOT_STARTED",
+  "nextAction": "Use only supported public SDK APIs and owned public product-store snapshot to diagnose the post-caption session locator; preserve current first failure."
+}

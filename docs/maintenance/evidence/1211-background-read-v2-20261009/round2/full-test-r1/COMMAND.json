@@ -1,0 +1,11 @@
+{
+  "head": "3da52f210fdc602a2d7f063f8371a7fb0e98d4ca",
+  "argv": [
+    "npm",
+    "test"
+  ],
+  "environmentOverrides": {
+    "E71_COMPILED_CONTEXT_CONTROL": "1",
+    "E72_ESCROW_SYNTHETIC_DIR": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-background-read-v2-20261009-round2/synthetic-controls"
+  }
+}

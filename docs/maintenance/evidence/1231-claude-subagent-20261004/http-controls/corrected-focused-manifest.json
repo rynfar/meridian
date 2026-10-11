@@ -1,0 +1,34 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "--timeout",
+    "15000",
+    "src/__tests__/claude-subagent-isolation.test.ts"
+  ],
+  "exitCode": 0,
+  "repositoryHead": "076b249fd55db84ffde546a4f6bf5211efffbf69",
+  "dirtyCorrectionSnapshot": true,
+  "sha256Before": {
+    "src/__tests__/claude-subagent-isolation.test.ts": "763458afb412e8aab18140b4ec7db062bf1277836cbb923859fbfe6e2ba0ee22",
+    "src/proxy/adapter.ts": "d92e8d02e265756e5c495044c2b99f5c29ba4b918277064178ad12ecb076b58d",
+    "src/proxy/adapters/claudecode.ts": "e2bf7f425a4908b8898f29279c65075b96c84372e8527354b032bbb14cf0969c",
+    "src/proxy/server.ts": "a35637af2d382ec198ec73194a64e0f34fd861ef5f4aa5bf334325853593c40d",
+    "src/proxy/session/cache.ts": "bdb0cf87b92065e73979c20bb61409aab19f0239edbcd675f39fb53984cd045c",
+    "src/proxy/session/lineage.ts": "0fb34623a57cc85fcebaebc83073f0acbf0ddc1b474a20126cab4720d9872c5d",
+    "src/proxy/sessionStore.ts": "b0de6ca4abc119381ba83f035378d232376cc95377f15e05e42b8ed377fa986b",
+    "src/proxy/sessionTree.ts": "667ff9d00f68aec4e447c2c376fab34d8a21166b8dea6bfcd70d2ae2ca52a9fa"
+  },
+  "sha256After": {
+    "src/__tests__/claude-subagent-isolation.test.ts": "763458afb412e8aab18140b4ec7db062bf1277836cbb923859fbfe6e2ba0ee22",
+    "src/proxy/adapter.ts": "d92e8d02e265756e5c495044c2b99f5c29ba4b918277064178ad12ecb076b58d",
+    "src/proxy/adapters/claudecode.ts": "e2bf7f425a4908b8898f29279c65075b96c84372e8527354b032bbb14cf0969c",
+    "src/proxy/server.ts": "a35637af2d382ec198ec73194a64e0f34fd861ef5f4aa5bf334325853593c40d",
+    "src/proxy/session/cache.ts": "bdb0cf87b92065e73979c20bb61409aab19f0239edbcd675f39fb53984cd045c",
+    "src/proxy/session/lineage.ts": "0fb34623a57cc85fcebaebc83073f0acbf0ddc1b474a20126cab4720d9872c5d",
+    "src/proxy/sessionStore.ts": "b0de6ca4abc119381ba83f035378d232376cc95377f15e05e42b8ed377fa986b",
+    "src/proxy/sessionTree.ts": "667ff9d00f68aec4e447c2c376fab34d8a21166b8dea6bfcd70d2ae2ca52a9fa"
+  },
+  "testedFilesUnchangedDuringRun": true,
+  "scope": "Credentialless mocked-SDK HTTP controls; no native E2E acceptance claim"
+}

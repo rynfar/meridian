@@ -1,0 +1,10 @@
+{
+  "nativeVersion": "2.1.295",
+  "sdkVersion": "0.2.141",
+  "queryOptionsRoot": "frozen source /opt/e71/candidate",
+  "proxyEntryExecuted": false,
+  "installedProxyAcceptance": false,
+  "probeByteIdentity": "same as interrupt-resume-source before freeze",
+  "networkDisabled": true,
+  "realCredentialReads": 0
+}

@@ -1,0 +1,38 @@
+{
+  "status": "SCOPED_SOURCE_CORRECTION_FIT_FULL_LOCAL_AND_NATIVE_ACCEPTANCE_HELD",
+  "reviewer": "Root adversarial pass, no new delegated independent review",
+  "parentHead": "f41a6524b55e92b61e378601912e862307462879",
+  "finding": "Actual native 2.1.292 caption followed by one exact system task-budget frame was rejected by headerless product fallback and caption observer.",
+  "correction": "Only the existing identified native CLI boundary skips exactly one bounded exact string frame. Original caption/tools/stream/session/agent and explicit-class precedence remain.",
+  "checks": {
+    "productRed": "2 new positives fail before correction",
+    "focusedPureAdapterMapping": "66 pass / 0 fail",
+    "mockedHttp": "128 pass / 0 fail, both caption success/error preserve working checkpoint and next ordinary resume",
+    "observerControl": "Exact old/current functions reproduce old false negative; current recognizes captured shape and retains malformed, non-native, repeated, duplicate-id and ordinary turn negatives"
+  },
+  "inspected": [
+    "Exact transport metadata, no request mutation",
+    "Existing explicit main overrides caption fallback",
+    "No arbitrary trailing system text, LF, array, repeated frame or invalid token count skips",
+    "One real agent mapping remains isolated on HTTP success and failure",
+    "No public plugin or routing interface changes",
+    "First native failure and incomplete socket/model observations remain durable",
+    "No acceptance inferred from generic public history or local mocks"
+  ],
+  "sourceIdentity": {
+    "src/proxy/adapters/claudecodeProgress.ts": "c00094c263510854e58086579265a8c450eabef4c6e7ec9420e883206e94cf0b",
+    "src/proxy/adapters/claudecode.ts": "3cac905b5b1f299e66ec4236e71a5c74f460a781a160027537396b63961cdc55",
+    "src/__tests__/claude-code-progress.test.ts": "7d727da67378b1252a7d715f5b5f3b2fbfcd3425e7c435e2534045416835a882",
+    "src/__tests__/passthrough-early-stop-integration.test.ts": "1c0b037d9e5e310c571875addfbbd9c7da4214ff4bb8f5247b9027c59da8f0b1",
+    "scripts/e2e-claude-code-progress-captions/caption-native-gate.mjs": "58c61e8a33d2fa5ca2c482ae9cf1e8f8a3039489134fbae355bbdc71b3367ea0",
+    "scripts/e2e-claude-code-progress-captions/caption-shape-control.mjs": "94e42c9b4b7167a6f2daad1f8f07ebe80b754e348cd589fb0caad81092f9b2c3",
+    "scripts/e2e-claude-code-progress-captions/historical-caption-shape.txt": "1fd752fb4b120d6505e6056bf8c81f00aae3b52cc7eddf4770263046244d4d43"
+  },
+  "holds": [
+    "New complete local npm/type/build checks",
+    "Model label and socket custody observer corrections",
+    "Actual affected-flow baseline/candidate proof, overlap orders and cancellation",
+    "Reporter tuple, shared-MCP, independently installed package and final-head CI"
+  ],
+  "modelCallsThisCorrection": 0
+}

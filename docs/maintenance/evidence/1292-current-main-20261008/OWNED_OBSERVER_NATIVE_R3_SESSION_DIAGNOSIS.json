@@ -1,0 +1,65 @@
+{
+  "sourceHistoryUnchanged": true,
+  "operation": "SUPPORTED_OWNED_SDK_AND_PRODUCT_STORE_DIAGNOSIS",
+  "mappings": [
+    {
+      "keyDigest": "5ee4431210283a2867bcf91b44797083c2fd8096b63288d3d052ce336a24e5f3",
+      "sessionDigest": "67a6cda02176bc8377cff3fcfbbbb775e0b9db2872e543537f9abf8cf7be6ffa",
+      "mappingDigest": "9a2ab42f661dd1df94bef23e13fd4fa0d8e0d4cfc5aa0d93bf4d7d779da8e88c",
+      "messageCount": 5,
+      "checkpointDigest": null,
+      "pendingIdDigests": [],
+      "currentListed": false,
+      "currentHistoryLength": 2,
+      "currentHistoryDigest": "b56bbb7884ce3b8a0e7a913b8a68f197640289bee8dc29fe6d731f23b549903b"
+    }
+  ],
+  "sessions": [
+    {
+      "sessionDigest": "acc0b29e951feb360af7c799cb722b0c07c1621bd548f32fe6cb4172e7281330",
+      "historyLength": 5,
+      "historyDigest": "5b0e6767731d60fb44bc36ca2d8fc5ecb38c8abe5ca836b6de0ea94d4a28995e",
+      "checkpointRows": [
+        {
+          "uuidDigest": "c7a6d56315020fa18f159019f1c08431b29d079932dd86c64590d68b40a8d18c",
+          "type": "assistant"
+        }
+      ],
+      "captionTextPresent": false,
+      "models": [
+        "claude-opus-5-5"
+      ]
+    },
+    {
+      "sessionDigest": "21ffcf641038b2bd246d2e28a27b586311ccf1453999197314366cee01892ef6",
+      "historyLength": 3,
+      "historyDigest": "a814924e6f81d020d99036b2cd8adb8014d72f922de1fb8e1d38da7286df97f6",
+      "checkpointRows": [
+        {
+          "uuidDigest": "c7a6d56315020fa18f159019f1c08431b29d079932dd86c64590d68b40a8d18c",
+          "type": "assistant"
+        }
+      ],
+      "captionTextPresent": false,
+      "models": [
+        "claude-opus-5-5"
+      ]
+    },
+    {
+      "sessionDigest": "3da5281fdb443d72475ce17f01c6c6cabcab30cd14c390c06f429ec23ef0c21a",
+      "historyLength": 3,
+      "historyDigest": "531a831e66cd633ad68bad852f1b252fb0673bf33a6276e3efdc97f0ebcd66d5",
+      "checkpointRows": [],
+      "captionTextPresent": false,
+      "models": [
+        "claude-opus-5-5"
+      ]
+    }
+  ],
+  "modelCalls": 0,
+  "privateSdkFilesRead": false,
+  "rawTranscriptsPrinted": false,
+  "storeWrites": false,
+  "sourceCredentialOperations": false,
+  "diagnosticProcessJoined": true
+}

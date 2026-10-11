@@ -1,0 +1,65 @@
+{
+  "frozenHead": "f11e60e5b2480bd76a6d5921b8386f58ae53856c",
+  "base": "74d0a49953211eb8e2c1ccae275971aa0d624c1c",
+  "initialCorrectionHead": "931c5fd4",
+  "rebasePreservedAllCorrectionBlobs": true,
+  "verifiedPaths": 67,
+  "contributorCommits": [
+    {
+      "source": "b06c0aab235ee01e9b2c17715deeabbd08c22a81",
+      "initialIncorporation": "65b3b7d24ba4914e42a24942b6c34add7bea4fbe",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:13:30-05:00",
+      "subject": "fix(session): add an auxiliary-request independence cause",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "8f77580fc32c9e9f9bc3ffdf68ec4ed33f730884"
+    },
+    {
+      "source": "b8d2bbeeeb37fa1d797981c0da17efc1d871014d",
+      "initialIncorporation": "6b7c430e822909e89a52c1353bea3a80bcce11e8",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:16:40-05:00",
+      "subject": "fix(claude-code): detect auto-mode classifier side requests",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "aea593ecbd2bcbcb23b7651ccd226bd78854a596"
+    },
+    {
+      "source": "cdb7dce8299c137f0adc677d012f99e8db412f95",
+      "initialIncorporation": "43b5435d4f0f7b38747099b1700c861d73257bca",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:20:53-05:00",
+      "subject": "fix(session): keep Claude Code classifier requests off the session mapping and lease",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "cb6c92c4a6c388c61f9e412f9809250210c0a5e7"
+    },
+    {
+      "source": "76d72bac5a0482dbd4e797a7ff670fb30cde6c56",
+      "initialIncorporation": "2d7499f3587377cb0b9a34f3d1435e8c7ee6cee7",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T19:37:55-05:00",
+      "subject": "test: live gate for Claude Code auto-mode session isolation",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "734f543f42c5e253048c5d56cea697d897b30479"
+    },
+    {
+      "source": "22566e8ac0b9e079bb0d28c0eb4aa05207c56070",
+      "initialIncorporation": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+      "author": "Noah Passalacqua",
+      "email": "noah@passabilities.dev",
+      "authorDate": "2026-09-30T21:11:01-05:00",
+      "subject": "docs: record live acceptance and correct the auxiliary hook contract",
+      "authorAndDatePreserved": true,
+      "rebasedIncorporation": "af0fad6318011520d54460dc2f11075e402a1009"
+    }
+  ],
+  "runtime": {
+    "bun": "1.3.14",
+    "node": "v22.22.3",
+    "npm": "10.9.8"
+  },
+  "cleanBeforeGates": true
+}

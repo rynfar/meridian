@@ -1,0 +1,569 @@
+{
+  "kind": "E41_DIRECT_HTTP_NATIVE_GATE",
+  "e41": {
+    "mode": "parallel",
+    "stream": true,
+    "requestedModel": "claude-sonnet-5-5",
+    "requiredServedModel": "claude-sonnet-5-5",
+    "requiredNativeVersion": "2.1.284",
+    "client": "Owned OpenCode protocol fixture; not an actual OpenCode/OpenClaw client",
+    "helpersImported": true,
+    "verdict": {
+      "batches": [
+        3
+      ],
+      "realAnswers": 3,
+      "immutableParents": 2,
+      "distinctContinuations": 2,
+      "cachedPrefixFloor": 0.95,
+      "actualModel": "claude-sonnet-5-5",
+      "savedForkFollowup": true
+    }
+  },
+  "expectation": "candidate",
+  "platform": "linux",
+  "architecture": "x64",
+  "bun": "1.3.11",
+  "nodeRuntime": "v24.21.0",
+  "firstFailure": null,
+  "commands": [
+    {
+      "name": "node-version",
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      },
+      "stdoutBytes": 9,
+      "stdoutDigest": "f2ec568164f99546161909b0189b57bb5be3e80f8e2ccd8a51a4aed8c4055a04"
+    },
+    {
+      "name": "native-version",
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      },
+      "stdoutBytes": 22,
+      "stdoutDigest": "3a5495706ad266f8675071284ae47afcf75aec014b4d93ad164de16cf4d01c42"
+    },
+    {
+      "name": "client-version",
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      },
+      "stdoutBytes": 29,
+      "stdoutDigest": "a4fa3c303e25cdea9ab6bcc7b076b25efc1c1e4532d8d8716936d5aa07f8f8f9"
+    }
+  ],
+  "queries": [
+    {
+      "phase": "e41-parallel-turn-1",
+      "model": "sonnet",
+      "resume": false,
+      "rollback": false,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "748032aa1a14d647b6bd2c723742b68754c1898e5535fbc90362c07442a419dd"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5",
+        "claude-sonnet-5-5",
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 7878,
+      "outputTokens": 72,
+      "resultCompleted": true,
+      "resultSubtype": "error_max_turns",
+      "resultIsError": true,
+      "estimatedCostUsd": 0.0099938,
+      "targetSessionDigest": "d25a45b8ce2fc30dfc7b9c5d1fc0f6a5e0fa2b5512675abfc29fd6321aead8d7",
+      "inputToolPair": false,
+      "originalPid": 54,
+      "terminalSessionMatched": true
+    },
+    {
+      "phase": "e41-parallel-turn-2",
+      "model": "sonnet",
+      "resume": true,
+      "rollback": true,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "425307b3f9b1eee7fdefa1e5447cbe638bfe2051291cc35e9ea7577cf0b92d1b"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 3077,
+      "outputTokens": 123,
+      "resultCompleted": true,
+      "resultSubtype": "success",
+      "resultIsError": false,
+      "estimatedCostUsd": 0.013556600000000002,
+      "targetSessionDigest": "c00c5eb834cab302ba0b738f0226d23bd1fbc8226f93cad37823e84651b02d44",
+      "originalPid": 95,
+      "inputToolPair": false,
+      "terminalSessionMatched": true
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "model": "sonnet",
+      "resume": true,
+      "rollback": false,
+      "privateGrantMatched": true,
+      "configOwned": true,
+      "cwdOwned": true,
+      "inputMarker": false,
+      "inputReceipt": false,
+      "inputDigests": [
+        "3d1c37c71c35adc490111a1970f1254d3f024c0157e5a5d39275720c01cf534c"
+      ],
+      "constructed": true,
+      "iteratorSettled": true,
+      "closeCalled": true,
+      "publicSpawn": true,
+      "actualModels": [
+        "claude-sonnet-5-5"
+      ],
+      "inputUsageTokens": 3214,
+      "outputTokens": 4,
+      "resultCompleted": true,
+      "resultSubtype": "success",
+      "resultIsError": false,
+      "estimatedCostUsd": 0.014759600000000001,
+      "targetSessionDigest": "b6419db2b4e1bc6064ab0a6c7a5ea51b032fe0e73c4eb83a1a658cddcd40564a",
+      "inputToolPair": false,
+      "originalPid": 135,
+      "terminalSessionMatched": true
+    }
+  ],
+  "requests": [
+    {
+      "phase": "e41-parallel-turn-1",
+      "mode": "noop",
+      "rawCount": 1,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "06dd141f7be0bfc9db246b7612d631e93ba2c723a42e2da6766dc4e333983535",
+      "status": 200,
+      "responseJoined": true
+    },
+    {
+      "phase": "e41-parallel-turn-2",
+      "mode": "noop",
+      "rawCount": 3,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "99279aceb70fcf85e767573ce38905bb0ce3f48971090ba80c1fad99b6a07778",
+      "status": 200,
+      "responseJoined": true
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "mode": "noop",
+      "rawCount": 5,
+      "toolCount": 1,
+      "model": "claude-sonnet-5-5",
+      "stream": true,
+      "bodyDigest": "0d7388b951746bbaedcca0fe07882b3caa26c75dcaabdf7877bc8732c8effb12",
+      "status": 200,
+      "responseJoined": true
+    }
+  ],
+  "pluginObservations": [
+    {
+      "phase": "e41-parallel-turn-1",
+      "mode": "noop",
+      "rawCount": 1,
+      "effectiveCount": 1,
+      "rawDigest": "d793486dfa8778a088dbe79dfe515f78d4c13112bc9fcec9baa3b2b48eb05852",
+      "effectiveDigest": "d793486dfa8778a088dbe79dfe515f78d4c13112bc9fcec9baa3b2b48eb05852",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-parallel-turn-1",
+      "kind": "session",
+      "lineage": "diverged",
+      "incomingCount": 1,
+      "sessionKeyDigest": "5721086bc60226e159c11afde6deb5745231f7f3395e7e2137e081e2b856b45e"
+    },
+    {
+      "phase": "e41-parallel-turn-2",
+      "mode": "noop",
+      "rawCount": 3,
+      "effectiveCount": 3,
+      "rawDigest": "6ac47e60d8893d297f26d3b5d29f5387d1d98c499a208df6224f44081e49e9d1",
+      "effectiveDigest": "6ac47e60d8893d297f26d3b5d29f5387d1d98c499a208df6224f44081e49e9d1",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-parallel-turn-2",
+      "kind": "session",
+      "lineage": "continuation",
+      "incomingCount": 3,
+      "sessionKeyDigest": "5721086bc60226e159c11afde6deb5745231f7f3395e7e2137e081e2b856b45e"
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "mode": "noop",
+      "rawCount": 5,
+      "effectiveCount": 5,
+      "rawDigest": "9ca9ccae0263924d59884e613723453a2a189768a1a178f3593fc59ed50e5093",
+      "effectiveDigest": "9ca9ccae0263924d59884e613723453a2a189768a1a178f3593fc59ed50e5093",
+      "rawMarker": false,
+      "markerRequested": false
+    },
+    {
+      "phase": "e41-saved-fork-followup",
+      "kind": "session",
+      "lineage": "continuation",
+      "incomingCount": 5,
+      "sessionKeyDigest": "5721086bc60226e159c11afde6deb5745231f7f3395e7e2137e081e2b856b45e"
+    }
+  ],
+  "stages": [
+    {
+      "stage": "e41-parallel-turn-1",
+      "rawCount": 1,
+      "lineage": "diverged",
+      "cacheRead": 749,
+      "cacheWrite": 1875,
+      "workingSessionDigest": "d25a45b8ce2fc30dfc7b9c5d1fc0f6a5e0fa2b5512675abfc29fd6321aead8d7",
+      "historyDigest": "970f4d37c86d33f3c66ada545bcabc351e871629f6a002cb603316c18ac537eb",
+      "responseJoined": true
+    },
+    {
+      "stage": "e41-parallel-turn-2",
+      "rawCount": 3,
+      "lineage": "continuation",
+      "cacheRead": 2624,
+      "cacheWrite": 451,
+      "workingSessionDigest": "c00c5eb834cab302ba0b738f0226d23bd1fbc8226f93cad37823e84651b02d44",
+      "historyDigest": "0186af498893e1ad2a475c30c405c800449705185228e964d15145913e75692d",
+      "responseJoined": true
+    },
+    {
+      "stage": "e41-saved-fork-followup",
+      "rawCount": 5,
+      "lineage": "continuation",
+      "cacheRead": 3075,
+      "cacheWrite": 135,
+      "workingSessionDigest": "b6419db2b4e1bc6064ab0a6c7a5ea51b032fe0e73c4eb83a1a658cddcd40564a",
+      "historyDigest": "81a82b48d8fc9fbc09180158ee851f1f68f27f1f1f5c0b9265f6e64fae93b0a4",
+      "responseJoined": true
+    }
+  ],
+  "children": [
+    {
+      "kind": "client-node-version",
+      "phase": "preparation",
+      "originalPid": 20,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "client-native-version",
+      "phase": "preparation",
+      "originalPid": 22,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "client-client-version",
+      "phase": "preparation",
+      "originalPid": 23,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "execFile",
+      "phase": "e41-parallel-turn-1",
+      "originalPid": 45,
+      "nativeInit": [],
+      "nativeTerminal": [],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-parallel-turn-1",
+      "originalPid": 54,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "error_max_turns",
+          "isError": true
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 1,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-parallel-turn-2",
+      "originalPid": 95,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "success",
+          "isError": false
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    },
+    {
+      "kind": "sdk-gate",
+      "phase": "e41-saved-fork-followup",
+      "originalPid": 135,
+      "nativeInit": [
+        {
+          "model": "claude-sonnet-5-5",
+          "version": "2.1.284"
+        }
+      ],
+      "nativeTerminal": [
+        {
+          "subtype": "success",
+          "isError": false
+        }
+      ],
+      "stdinClosed": true,
+      "closure": {
+        "exitSeen": true,
+        "closeSeen": true,
+        "stdoutClosed": true,
+        "stderrClosed": true,
+        "spawnFailed": false,
+        "exitCode": 0,
+        "exitSignal": null,
+        "joined": true,
+        "termSent": false,
+        "killSent": false,
+        "signalFailure": null
+      }
+    }
+  ],
+  "supportedHistoryReads": [
+    {
+      "sessionDigest": "d25a45b8ce2fc30dfc7b9c5d1fc0f6a5e0fa2b5512675abfc29fd6321aead8d7",
+      "settled": true,
+      "rows": 7
+    },
+    {
+      "sessionDigest": "c00c5eb834cab302ba0b738f0226d23bd1fbc8226f93cad37823e84651b02d44",
+      "settled": true,
+      "rows": 6
+    },
+    {
+      "sessionDigest": "b6419db2b4e1bc6064ab0a6c7a5ea51b032fe0e73c4eb83a1a658cddcd40564a",
+      "settled": true,
+      "rows": 8
+    },
+    {
+      "sessionDigest": "d25a45b8ce2fc30dfc7b9c5d1fc0f6a5e0fa2b5512675abfc29fd6321aead8d7",
+      "settled": true,
+      "rows": 7
+    },
+    {
+      "sessionDigest": "c00c5eb834cab302ba0b738f0226d23bd1fbc8226f93cad37823e84651b02d44",
+      "settled": true,
+      "rows": 6
+    }
+  ],
+  "actorScope": "Original observed child handles, SDK factory/iterator/close, and owned HTTP resources. External/global descendant absence is unknown.",
+  "classifierAcceptance": "HELD: undisclosed current trigger and fresh same-window off/on/off controls are missing.",
+  "actualProviderQueries": 3,
+  "grantRead": true,
+  "sourceCredentialLoginRefreshWrites": false,
+  "inputFiles": {
+    "MERIDIAN_ENTRY": {
+      "path": "/opt/e71/candidate/dist/server.js",
+      "sha256": "f113ca8beb9fe262af774147051fba05d20782c81e74fd23c0f371268ca6f218"
+    },
+    "SDK_ENTRY": {
+      "path": "/opt/e71/candidate/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs",
+      "sha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97"
+    },
+    "NATIVE_BIN": {
+      "path": "/opt/e71/candidate/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+      "sha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f"
+    },
+    "OPENCLAW_BIN": {
+      "path": "/opt/e41/sidecars/node_modules/openclaw/openclaw.mjs",
+      "sha256": "f1f1c6ae5745ba0cb71bfbb72f4ae43f9b3bdb5ca0af84d5fcdf60eb5ab71430"
+    },
+    "SCRUB_ENTRY": {
+      "path": "/opt/e41/sidecars/node_modules/@rynfar/meridian-plugin-openclaw-scrub/dist/index.js",
+      "sha256": "f8d987dfaf15a19b2ea203c0cb26e907182f6411867433ccd47b15341dcbfb48"
+    }
+  },
+  "nativeVersion": "2.1.284 (Claude Code)",
+  "clientVersion": "OpenClaw 2026.6.11 (e085fa1)",
+  "sdkVersion": "0.2.141",
+  "nativeModelInitWitnesses": [
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.284"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.284"
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "version": "2.1.284"
+    }
+  ],
+  "scrubHook": {
+    "invocations": 3,
+    "errors": 0,
+    "totalMs": 0.030498999998599174
+  },
+  "startupSettled": true,
+  "httpWitnesses": {
+    "proxyCloseSeen": true,
+    "proxyListening": false,
+    "relayListening": false,
+    "remainingSockets": 0,
+    "remainingHandlers": 0,
+    "observedSocketCount": 1
+  },
+  "httpJoined": true,
+  "queryJoins": true,
+  "disposition": "PASS_E41_PARALLEL_STREAM"
+}

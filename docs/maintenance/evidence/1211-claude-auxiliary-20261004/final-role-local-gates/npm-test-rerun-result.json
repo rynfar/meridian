@@ -1,0 +1,11 @@
+{
+  "head": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "command": [
+    "npm",
+    "test"
+  ],
+  "exit": 0,
+  "finishedUtc": "2026-10-05T04:36:25.938100+00:00",
+  "logSha256": "3232f4d135d9748892b6f1682ac471f116ecc64f38190477c03bec723784dfc2",
+  "cleanAfter": true
+}

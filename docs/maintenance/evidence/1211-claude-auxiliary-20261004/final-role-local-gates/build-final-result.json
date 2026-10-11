@@ -1,0 +1,16 @@
+{
+  "head": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "tree": "f8cbaa6e8aca90a62157f68dd66a1c3134aa0cca",
+  "cleanBefore": true,
+  "command": [
+    "npm",
+    "run",
+    "build"
+  ],
+  "startedUtc": "2026-10-05T04:37:20.051510+00:00",
+  "finishedUtc": "2026-10-05T04:37:24.607073+00:00",
+  "exit": 0,
+  "logSha256": "8be4e98f63f7034013a0299ba3f45a0cc2ec00d9edb65fe273c09f06f3646c33",
+  "headAfter": "a088de329febb62b147eb4af82f570ccf3b879bc",
+  "cleanAfter": true
+}

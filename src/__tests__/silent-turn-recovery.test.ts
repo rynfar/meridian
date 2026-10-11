@@ -13,6 +13,8 @@ import { describe, it, expect, mock, beforeAll, beforeEach, afterEach } from "bu
 import { installSdkMock } from "./sdkMock"
 import { installLoggerMock } from "./loggerMock"
 import { installMcpToolsMock } from "./mcpToolsMock"
+import { settlementBarrier, withTestDeadline } from "./fixtures/settlement"
+import { claudeCodeSessionKey } from "../proxy/adapters/claudecode"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -46,22 +48,37 @@ installSdkMock(() => ({
       const returnedSessionId = resolveMockSdkSessionId(params.options, mockBaseSessionId)
       const preHook = params.options?.hooks?.PreToolUse?.[0]?.hooks?.[0]
       const hookPromises: Promise<unknown>[] = []
-      for (const m of messages) {
-        if (m?.__preTool) {
-          if (preHook) hookPromises.push(Promise.resolve(preHook({
-            tool_name: m.name,
-            tool_use_id: m.id,
-            tool_input: m.input,
-          }, undefined, { signal: new AbortController().signal })))
-          continue
+      let notifySettled: (() => void) | undefined
+      try {
+        for (const m of messages) {
+          if (m?.__preTool) {
+            if (preHook) hookPromises.push(Promise.resolve(preHook({
+              tool_name: m.name,
+              tool_use_id: m.id,
+              tool_input: m.input,
+            }, undefined, { signal: new AbortController().signal })))
+            continue
+          }
+          if (m?.__untilAbort) {
+            // The SDK ends its stream without an error when the request is
+            // aborted mid-turn: no terminal events, no throw.
+            const signal: AbortSignal | undefined = params.options?.abortController?.signal
+            if (!signal) throw new Error("missing SDK abort signal")
+            notifySettled = m.__onSettled
+            m.__onReady?.()
+            if (!signal.aborted) await new Promise(resolve => signal.addEventListener("abort", resolve, { once: true }))
+            return
+          }
+          if (m?.__throw) {
+            await Promise.allSettled(hookPromises)
+            throw new Error("scripted recovery interruption")
+          }
+          yield { ...m, session_id: returnedSessionId }
         }
-        if (m?.__throw) {
-          await Promise.allSettled(hookPromises)
-          throw new Error("scripted recovery interruption")
-        }
-        yield { ...m, session_id: returnedSessionId }
+        await Promise.allSettled(hookPromises)
+      } finally {
+        notifySettled?.()
       }
-      await Promise.allSettled(hookPromises)
     })()
   },
   createSdkMcpServer: () => ({
@@ -71,8 +88,9 @@ installSdkMock(() => ({
   tool: () => ({}),
 }), "silent-turn-recovery.test.ts")
 
+let loggedEvents: Array<{ event: string; data: any }> = []
 installLoggerMock(() => ({
-  claudeLog: () => {},
+  claudeLog: (event: string, data: any) => { loggedEvents.push({ event, data }) },
   withClaudeLogContext: (_ctx: any, fn: any) => fn(),
 }))
 
@@ -85,6 +103,7 @@ installMcpToolsMock(() => ({
 
 const { createProxyServer } = await import("../proxy/server")
 const { diagnosticLog, telemetryStore } = await import("../telemetry")
+const { processSessionTree } = await import("../proxy/sessionTree")
 
 const ev = (event: any) => ({
   type: "stream_event", event, parent_tool_use_id: null,
@@ -197,6 +216,7 @@ describe("silent-turn recovery", () => {
     savedSwitch = process.env.MERIDIAN_SILENT_TURN_RECOVERY
     delete process.env.MERIDIAN_SILENT_TURN_RECOVERY
     queryCalls = []
+    loggedEvents = []
     scripted = []
     queryMutation = undefined
     mockBaseSessionId = `test-session-${crypto.randomUUID()}`
@@ -408,6 +428,106 @@ describe("silent-turn recovery", () => {
       .find((entry: any) => entry.requestId === requestId)
     expect(row).toBeDefined()
     expect(row!.contentBlocks).toBe(0)
+  })
+
+  describe("an auxiliary request", () => {
+    const thinkingOpen = () => [
+      msgStart(),
+      ev({ type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } }),
+      ev({ type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "" } }),
+    ]
+    const errorsFor = (since: number) => diagnosticLog.getRecent({ since, category: "error" }).map(entry => entry.message)
+
+    // A socket client that hangs up aborts the request signal; the response
+    // body is not cancelled until a later write fails. Abort without reading.
+    // This double does not reproduce the abort-then-recovery ordering of the
+    // real SDK; it guards that an aborted side call leaves the working state.
+    const CAPTION = "Describe your most recent action in 3-5 words using present tense (-ing)."
+    const auxiliaryRequest = (sessionId: string, signal?: AbortSignal) => new Request("http://localhost/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "user-agent": "claude-cli/2.1.291 (external, sdk-cli)",
+        "x-claude-code-agent-id": "silent-agent",
+        "x-claude-code-request-class": "auxiliary",
+      },
+      body: JSON.stringify({
+        ...REQUEST,
+        metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+        messages: [
+          { role: "user", content: "run the steps" },
+          { role: "assistant", content: "running" },
+          { role: "user", content: CAPTION },
+        ],
+      }),
+      signal,
+    })
+
+    async function seedWorkingSession(sessionId: string) {
+      scripted = [[msgStart(), ...textBlock(0, "working response"), ...msgEnd()]]
+      const request = auxiliaryRequest(sessionId)
+      const headers = new Headers(request.headers)
+      headers.set("x-claude-code-request-class", "main")
+      const response = await app.fetch(new Request(request, { headers }))
+      expect(response.status).toBe(200)
+      await read(response)
+      const workingKey = claudeCodeSessionKey("silent-agent", {
+        metadata: { user_id: JSON.stringify({ session_id: sessionId }) },
+      })!
+      const working = lookupSharedSession(workingKey)
+      expect(working).toBeDefined()
+      // The real HTTP publication supplies the private namespace. Count only
+      // the subsequent side call, without seeding an unrelated legacy key.
+      queryCalls = []
+      return { workingKey, working }
+    }
+
+    it("delivers an auxiliary request's silent turn as is, without forking the working session", async () => {
+      const sessionId = `silent-aux-${crypto.randomUUID()}`
+      const { workingKey, working } = await seedWorkingSession(sessionId)
+      scripted = [
+        [msgStart(), ...thinkingBlock(), ...emptyTextBlock(1), ...msgEnd()],
+        [msgStart(), ...textBlock(0, "must not be requested"), ...msgEnd()],
+      ]
+      const response = await app.fetch(auxiliaryRequest(sessionId))
+      const body = await read(response)
+      expect(response.status).toBe(200)
+      expect(body).toContain("message_stop")
+      expect(queryCalls.length).toBe(1)
+      expect(lookupSharedSession(workingKey)).toEqual(working)
+      expect(loggedEvents.filter(entry => entry.event.startsWith("response.silent_turn_recovery"))).toEqual([])
+    })
+
+    it("closes an aborted auxiliary request without reaching the working session's recovery state", async () => {
+      const since = Date.now()
+      const sessionId = `silent-aux-abort-${crypto.randomUUID()}`
+      const { workingKey, working } = await seedWorkingSession(sessionId)
+      const ready = settlementBarrier()
+      const settled = settlementBarrier()
+      scripted = [[...thinkingOpen(), { __untilAbort: true, __onReady: ready.resolve, __onSettled: settled.resolve }],
+        [msgStart(), ...textBlock(0, "must not be requested"), ...msgEnd()]]
+      const abort = new AbortController()
+      const childAbort = new AbortController()
+      const child = processSessionTree.register({ requestId: "working-child", sessionKey: `${sessionId}-child`,
+        parentKey: workingKey, abort: reason => childAbort.abort(reason) })
+      try {
+        const pending = await withTestDeadline(app.fetch(auxiliaryRequest(sessionId, abort.signal)), "caption HTTP response")
+        await withTestDeadline(ready.promise, "caption waiting for abort after thinking")
+        abort.abort("client left")
+        await withTestDeadline(settled.promise, "caption SDK iterator finalizer")
+        const body = await withTestDeadline(read(pending), "aborted caption response body")
+        expect(pending.status).toBe(200)
+        expect(body).toContain("message_stop")
+        expect(childAbort.signal.aborted).toBe(false)
+      } finally {
+        abort.abort("test cleanup")
+        child.release()
+      }
+      expect(queryCalls.length).toBe(1)
+      expect(errorsFor(since).join("\n")).not.toContain("Session mapping changed before silent recovery fork preparation")
+      expect(lookupSharedSession(workingKey)).toEqual(working)
+      expect(loggedEvents.filter(entry => entry.event.startsWith("response.silent_turn_recovery"))).toEqual([])
+    })
   })
 
   it("kill switch keeps detection but skips the extra turn", async () => {

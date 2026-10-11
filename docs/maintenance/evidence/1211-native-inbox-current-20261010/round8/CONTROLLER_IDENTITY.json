@@ -1,0 +1,11 @@
+{
+  "files": [
+    {
+      "path": "run-current.py",
+      "bytes": 8955,
+      "sha256": "c6f1b8a8d0ce44131e44ef4ae4625daf51dc1a435dcc23d2adda164df24bec46",
+      "mode": "0444"
+    }
+  ],
+  "scopedReview": "Fresh source/image/harness identities; full TTL/query/cost bound; access-only grant; no source refresh/login writes; source failure cannot admit installed run; original wait and owned stopped-container removal; no actual model claim from rehearsal"
+}

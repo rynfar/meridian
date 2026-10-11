@@ -1,0 +1,197 @@
+{
+  "utc": "2026-10-09T15:43:27.042449+00:00",
+  "reviewer": "Root adversarial review; no delegation",
+  "base": "444b7bbc72921bbd4eb642aef513174e2ab47450",
+  "increment": "Public read-only SDK/client diagnostic observations and direct controls only",
+  "files": [
+    {
+      "path": "E2E.md",
+      "sha256": "808135071446286527cac3f7e09519025374416036cbaf9c5d81102a21ec774b"
+    },
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "sha256": "8bc992d3dcc6006d61cfe0327dad4ecfd0a30bcb42c41a21929edaa9b5062b4b"
+    },
+    {
+      "path": "scripts/lib/e2ePublicSdkDiagnostics.mjs",
+      "sha256": "00c97ea9f404c15889dacb795bf20a0715c8b91744dec3b9dbee59c961c123af"
+    },
+    {
+      "path": "src/__tests__/e72-public-sdk-diagnostics.test.ts",
+      "sha256": "91346b0f0f1f26ee8934ea07cc0d104277af4205d95af363990c5866d481be3f"
+    },
+    {
+      "path": "src/__tests__/claude-subagent-harness.test.ts",
+      "sha256": "4af3af35b0ebf422719ed8503255be4cc166f800fe07decb9c1d49f6387e35ec"
+    }
+  ],
+  "inspected": [
+    "Distinct model message IDs across streamed starts/assistant fragments; envelope UUIDs never count as generations",
+    "Missing IDs, conflicts, repeated hook observations, bounded generation/tool maps, init array bound and overflow qualification",
+    "Private event/message/tool payloads excluded from summaries; capability names converted to fixed booleans",
+    "Original SDK close arguments/receiver/throw behavior retained; close observation is not a physical shutdown witness",
+    "Same-actor incoming request/public result/iterator overlap; no asserted lease release timestamp or counter correction",
+    "Existing twenty background gates and canonical max-turn predicate unchanged; complete distinct-generation diagnosis does not qualify num_turns=2 against cap=1",
+    "Returned summaries cloned; no target source or SDK mutation; production unchanged",
+    "Existing client-census/pipe joins and failure retention continue independently"
+  ],
+  "corrections": [
+    "Bound native init capability snapshots to sixteen per query, with explicit overflow marker",
+    "Typecheck found missing synthetic Mode declarations after focused runtime controls passed; declarations corrected and fresh typecheck passes"
+  ],
+  "survivingMaterialSourceFindings": [],
+  "runtimeFindings": [
+    "Pinned actual client advertised Read and omitted TaskOutput in all eleven requests; no TaskOutput acceptance possible in this catalog",
+    "Four cap-one child queries each expose one distinct generation and a reported num_turns of two; raw result counter is not the observed distinct-generation count",
+    "Earlier 9256ms wait did not recur; remains unattributed",
+    "Actual background/package acceptance remains held; no original gate altered"
+  ],
+  "focusedFirstResult": {
+    "pass": 6,
+    "fail": 0,
+    "assertions": 93
+  },
+  "typecheckFirstResult": {
+    "exit": 2,
+    "cause": "Two missing synthetic Mode property declarations; no runtime or production defect claim"
+  },
+  "correctedTypecheckExit": 0,
+  "codeHead": "a80fac562d462bc0010a792bb62adf07cc3987d6",
+  "focusedCompleteResult": {
+    "pass": 46,
+    "fail": 0,
+    "assertions": 2288,
+    "seconds": 100.66,
+    "originalRunnerSession": 2419,
+    "originalRunnerJoined": true,
+    "logSHA256": "a53e513121da48e74ee604661efaacd87420a02c54b2997c1faac6ee5e8b3960"
+  },
+  "lifecycleExpressionControl": {
+    "pass": true,
+    "controls": 6,
+    "observerHead": "a80fac562d462bc0010a792bb62adf07cc3987d6",
+    "frozenExpressionSHA256": "e325cfe8d83c21bdf599072cae36099c9cd536b6dbad33c8406019f99ee55e8c",
+    "controlSHA256": "93f95682e1565ba522110a5ff13eb4657d1c83d6639594f00419ff928d7944cf",
+    "cases": [
+      "Positive previous-body-before-current-request with result/iterator overlapping next request",
+      "Foreign actor cannot become predecessor",
+      "First own request has no predecessor",
+      "Already settled predecessor has zero overlap",
+      "Missing settlement is unknown/null",
+      "Nonfinite result timing is unknown/null"
+    ],
+    "scope": "Exact maintained expression with synthetic inputs; does not prove native lease-release or physical shutdown"
+  },
+  "rehearsals": {
+    "cases": 2,
+    "allQualified": true,
+    "fakeGrantRemoved": true,
+    "queries": 0,
+    "realCredentialReads": 0
+  },
+  "nativeObservations": {
+    "utc": "2026-10-09T16:06:06.474709+00:00",
+    "diagnosticObservationsQualified": true,
+    "backgroundAcceptance": "NOT_ACCEPTED",
+    "originalDriverSession": 2662,
+    "originalDriverPid": 16503,
+    "originalDriverJoined": true,
+    "originalAttachAndAuditorJoined": true,
+    "codeObserverHead": "a80fac562d462bc0010a792bb62adf07cc3987d6",
+    "productionHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+    "identity": {
+      "targetKind": "source",
+      "sourceHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+      "packageVersion": "1.80.0",
+      "proxyEntrySha256": "220b1e7ec4800998f9b1debc88f49b2568a87e169bad9bcaf89dc8f4fe5b1c80",
+      "sdkVersion": "0.2.141",
+      "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+      "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+      "nativeCliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+      "clientVersion": "2.1.287",
+      "nativeCliVersion": "2.1.284"
+    },
+    "platform": "linux/x64",
+    "readinessStatus": 200,
+    "sdkQueries": 11,
+    "actualClientInvocations": 2,
+    "sdkEstimatedCostUsd": 0.6057170000000001,
+    "all11ClientCatalogsValidReadPresentTaskOutputAbsent": true,
+    "all11SdkNativeInitCatalogsValidClientMcpReadPresentTaskOutputAbsent": true,
+    "allQueryGenerationsCompleteAndPrivateIdsNotExported": true,
+    "cappedOneGenerationReportedTwoTurns": [
+      {
+        "query": 2,
+        "maxTurns": 1,
+        "numTurns": 2,
+        "distinctGenerations": 1,
+        "assistantEvents": 1,
+        "streamStarts": 1
+      },
+      {
+        "query": 3,
+        "maxTurns": 1,
+        "numTurns": 2,
+        "distinctGenerations": 1,
+        "assistantEvents": 1,
+        "streamStarts": 1
+      },
+      {
+        "query": 5,
+        "maxTurns": 1,
+        "numTurns": 2,
+        "distinctGenerations": 1,
+        "assistantEvents": 1,
+        "streamStarts": 1
+      },
+      {
+        "query": 6,
+        "maxTurns": 1,
+        "numTurns": 2,
+        "distinctGenerations": 1,
+        "assistantEvents": 1,
+        "streamStarts": 1
+      }
+    ],
+    "allSameActorPriorResultAndIteratorOverlapsZero": true,
+    "maximumObservedLeaseWaitMs": 7,
+    "historical9256msWait": "NOT_REPRODUCED; not attributed or fixed",
+    "checks": {
+      "invocationsSucceeded": true,
+      "turnsAnswered": true,
+      "noRefusal": true,
+      "requestedModelIdentity": true,
+      "rootedWireIdentity": true,
+      "requestDecisionsComplete": true,
+      "twoMultiturnAgents": true,
+      "backgroundParallelism": true,
+      "actualAgentAndBashReceipts": false,
+      "sdkToolHookCustody": true,
+      "allQueriesCorrelated": true,
+      "distinctSessionMappings": true,
+      "subagentResume": true,
+      "mainResume": true,
+      "noCollision": true,
+      "boundedLeaseWait": true,
+      "nativeReceipts": false,
+      "costBound": true,
+      "backgroundParentChildOverlap": true,
+      "nativeMcpReadiness": true
+    },
+    "noAcceptanceGateRelaxed": true,
+    "originalOwnedCustody": {
+      "allCreatedOwnedContainersStoppedAndRemoved": true,
+      "allObservedOriginalAttachesAndAuditorsJoined": true,
+      "sourceSerializationUnchangedThisCohort": true,
+      "taskGrantUnchangedBeforeRemoval": true,
+      "taskAccessOnlyGrantAndPrivateQualificationRemoved": true,
+      "actualCases": 1,
+      "nextCaseAfterAuditFailure": false,
+      "wholeChangeAcceptance": "HELD"
+    },
+    "observerBytesAndModesUnchanged": true,
+    "reportSHA256": "51472315099762f2fa6b313b3e7aa8eef93af353a6520125aceb518cf92fd5c1",
+    "package": "UNEXECUTED; source audit failed",
+    "nextAction": "Establish pinned SDK/CLI counter semantics with a network-disabled scripted API control; then define a separately versioned actual-client background completion proof using its advertised mechanism while preserving child/parent overlap, owned handles, terminal ordering, model/MCP/custody and budget assertions. Preserve original strict TaskOutput failure and historical wait; do not call a rerun a correction."
+  }
+}

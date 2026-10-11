@@ -1,0 +1,46 @@
+{
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-e71-owned-controls-ec24afbc",
+  "modelCalls": 0,
+  "status": "PASS",
+  "checks": [
+    {
+      "label": "e71-owned-full-focused",
+      "argv": [
+        "bun",
+        "test",
+        "--timeout",
+        "30000",
+        "src/__tests__/e71-owned-client-process.test.ts",
+        "src/__tests__/claude-auto-mode-harness.test.ts"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 68.937,
+      "sha256": "da8cc8adbdafe56aef9b783db7f932ff37f166d25f06475b16b7247f33775037"
+    },
+    {
+      "label": "e71-owned-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 7.003,
+      "sha256": "172c72be53806f5bcec98d00a341de376e68a7eb3dfaa60e8b14c70326c9f0bc"
+    },
+    {
+      "label": "e71-owned-syntax",
+      "argv": [
+        "node",
+        "--check",
+        "scripts/e2e-claude-code-auto-mode.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.028,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

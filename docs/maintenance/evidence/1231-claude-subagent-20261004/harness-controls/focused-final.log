@@ -1,0 +1,30 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/claude-subagent-harness.test.ts:
+(pass) E72 native harness containment and meaningful subagent receipts > reserves exclusive proof output before reading a grant or invoking SDK [139.81ms]
+(pass) E72 native harness containment and meaningful subagent receipts > pairs two observed parallel foreground agents with exact Agent/Bash SDK, HTTP and result receipts [1076.46ms]
+(pass) E72 native harness containment and meaningful subagent receipts > pairs the exact supported SDK MCP namespace and rejects another namespace or tool name [2810.14ms]
+(pass) E72 native harness containment and meaningful subagent receipts > measures streamed child body overlap after staggered headers and rejects serial children [2806.28ms]
+(pass) E72 native harness containment and meaningful subagent receipts > accepts managed fork identities whose resume chain stays with each own actor [964.94ms]
+(pass) E72 native harness containment and meaningful subagent receipts > owns every tool-less final/resumed query and rejects equal-count swapped resume chains or ambiguous output [1860.68ms]
+(pass) E72 native harness containment and meaningful subagent receipts > requires the same meaningful baseline defects and rejects a fixed expected-unfixed target [2870.75ms]
+(pass) E72 native harness containment and meaningful subagent receipts > refuses a client that answers successfully without real multi-turn Agent tool use and parallel wire traffic [2821.67ms]
+(pass) E72 native harness containment and meaningful subagent receipts > requires complete one-to-one routing receipts and explicit finite lease waits [2874.77ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects borrowed root identities and shared agent wire identities [1917.05ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects tool claims without exact commands, returned execution results or paired terminals [3827.95ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rejects tool IDs reused across SDK owners or repeated HTTP terminals [1845.59ms]
+(pass) E72 native harness containment and meaningful subagent receipts > accepts only an exact full SDK model or a Sonnet tier alias with the explicit version pin [3821.73ms]
+(pass) E72 native harness containment and meaningful subagent receipts > requires exact served model, positive real usage and canonical boolean result flags [3820.55ms]
+(pass) E72 native harness containment and meaningful subagent receipts > accepts complete ordered SSE receipts and rejects partial or early terminals [3832.36ms]
+(pass) E72 native harness containment and meaningful subagent receipts > enforces cost, request count and incoming body limits independently of client claims [3122.52ms]
+(pass) E72 native harness containment and meaningful subagent receipts > zero-query rehearsal starts and closes the private proxy without starting client generation [521.10ms]
+(pass) E72 native harness containment and meaningful subagent receipts > rehearsal fences unexpected target startup SDK calls before invoking the fake dependency [530.45ms]
+(pass) E72 native harness containment and meaningful subagent receipts > cleans private immutable account after a post-copy failure without generation [160.53ms]
+(pass) E72 native harness containment and meaningful subagent receipts > joins hanging clients and ignored-TERM startup children on owned failure paths [4055.82ms]
+(pass) E72 native harness containment and meaningful subagent receipts > handles a throwing SDK close without escaping joined cleanup or deleting its retained fixture [3180.80ms]
+(pass) E72 native harness containment and meaningful subagent receipts > retains isolated runtime and closes acceptance when startup cannot be joined [3682.58ms]
+
+ 22 pass
+ 0 fail
+ 844 expect() calls
+Ran 22 tests across 1 file. [52.58s]

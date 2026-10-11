@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "kind": "independent root final E71 candidate source and exact evidence review",
+  "date": "2026-10-05T04:12:00.387910+00:00",
+  "publishedBase": "cd8b5063a1e001f61eb610f82c05e8bd6e20974a",
+  "currentMainVerified": "74d0a49953211eb8e2c1ccae275971aa0d624c1c",
+  "sourceSha256": {
+    "scripts/e2e-claude-code-auto-mode.mjs": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+    "src/__tests__/claude-auto-mode-harness.test.ts": "b58d12c799865f2213c0eb0fb790e347fba6377256f45bb1f835a30e8292eda5",
+    "E2E.md": "f44104224ef1cadd107d6f4a9ab32648edf5e75214424f48c5037d492cdf5496"
+  },
+  "workerFinalManifestSha256": "99a68840ac38161d302b1b8aa99266da8c19fa10ee59d0e1d798364343d4d4ed",
+  "manifestFilesVerified": 123,
+  "rootFullRead": [
+    "complete E71 executable",
+    "new role/model synthetic modes and actual source/compiled control",
+    "new descriptor/cancel/snapshot controls",
+    "E71-only E2E delta and independent final report"
+  ],
+  "reviewFindings": {
+    "distinctMainClassifierPinsSupported": true,
+    "nativeSelectorNotForcedOrAssumedEqual": true,
+    "exactRelayLoggerSdkOwnership": true,
+    "nativeAlsReceiverStoreArgumentsReturnThrowSemanticsPreserved": true,
+    "unmatchedNestedLoggerCannotBorrowOuterWitness": true,
+    "restorationAssignedFromActualDescriptorRestoration": true,
+    "grantMetadataValidatedBeforeReadWithNoFollowDescriptor": true,
+    "relayAdmissionClosedAndHandlersJoinedBeforeReceipts": true,
+    "pendingCancelRetainsFixtureAndRestorationFalse": true,
+    "existingH1H5ReceiptsAndBudgetsPreserved": true
+  },
+  "finalFocused": {
+    "pass": 34,
+    "fail": 0,
+    "skip": 0,
+    "assertions": 1124,
+    "logSha256": "0811be3c547f9ad91229d0f580f1772e306e2b381b4789d5b68a93d637d9a969"
+  },
+  "actualTargetControls": {
+    "final-cancel-entry-context/source-positive.json": {
+      "sha256": "d01ba073f32dd7091f4e8a3ffad29491bba380c1c7f15470d38288dfdb1ac92f",
+      "statuses": [
+        200,
+        200
+      ],
+      "compiledSourceHead": null
+    },
+    "final-cancel-entry-context/source-swap.json": {
+      "sha256": "e9fd25d1e92a764d22fac17fd889a8e6dbb2af70b77dc910095073898dbea0e1",
+      "statuses": [
+        500,
+        500
+      ],
+      "compiledSourceHead": null
+    },
+    "final-cancel-entry-context/source-unmatched.json": {
+      "sha256": "552d3291b3acaf7b89ab6d887819d12e1f0c239fbefcfe9e03feeb1e5eb89ec2",
+      "statuses": [
+        200,
+        500
+      ],
+      "compiledSourceHead": null
+    },
+    "final-cancel-entry-context/source-duplicate.json": {
+      "sha256": "c6c681024449c5235c1c6aa0349ee0dca44dc1088f4cb623969d96714314e324",
+      "statuses": [
+        500,
+        200
+      ],
+      "compiledSourceHead": null
+    },
+    "final-cancel-entry-context/compiled-positive.json": {
+      "sha256": "d75cf40bb95dd161ec5d0ed53675757be22cc6ae18ac6eaac3a88d5b8b510445",
+      "statuses": [
+        200,
+        200
+      ],
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b"
+    },
+    "final-cancel-entry-context/compiled-swap.json": {
+      "sha256": "5b692e8c64fa57f602885c4ec680650001c60a8491337eb623a89c36dd6fe006",
+      "statuses": [
+        500,
+        500
+      ],
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b"
+    },
+    "final-cancel-entry-context/compiled-unmatched.json": {
+      "sha256": "c66eafc954bbc43a09714c406b33755f36d324ea4b014850460865627ed04efa",
+      "statuses": [
+        200,
+        500
+      ],
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b"
+    },
+    "final-cancel-entry-context/compiled-duplicate.json": {
+      "sha256": "89c7876981269a6cab41d5828852aa0480c907f57123ec431f7383c63c470046",
+      "statuses": [
+        500,
+        200
+      ],
+      "compiledSourceHead": "80d1ce8158dc7cd466a87863404bf6ea02754c8b"
+    }
+  },
+  "samePreloadCausalJoin": [
+    {
+      "lane": "before",
+      "code": 1,
+      "result": "FAIL",
+      "acceptance": false,
+      "queries": 10,
+      "cloneReceiptEntered": true,
+      "cloneCancellationEntered": true,
+      "loggerContextDescriptorRestored": true,
+      "privateRuntimeRemoved": true,
+      "relayOperationsJoined": null,
+      "pendingRelayHandlers": null,
+      "httpReceiptsJoined": null,
+      "pendingHttpReceipts": null,
+      "cleanupFailures": [],
+      "ownedResidualProcesses": 0,
+      "entrySha256": "8d50248a6a8eaea377a5bd0e55a21a5929ec4ac48c0385c0865b2bf53eace0bd",
+      "sharedPreloadSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+    },
+    {
+      "lane": "after",
+      "code": 1,
+      "result": "FAIL",
+      "acceptance": false,
+      "queries": 10,
+      "cloneReceiptEntered": true,
+      "cloneCancellationEntered": true,
+      "loggerContextDescriptorRestored": false,
+      "privateRuntimeRemoved": false,
+      "relayOperationsJoined": true,
+      "pendingRelayHandlers": 0,
+      "httpReceiptsJoined": false,
+      "pendingHttpReceipts": 1,
+      "cleanupFailures": [
+        "HTTP receipt join",
+        "logger context retained after unjoined work",
+        "private runtime retained after cleanup failure"
+      ],
+      "ownedResidualProcesses": 0,
+      "entrySha256": "e2f58e5ace65183ed61be17e107545ab3c63b42635d882cdf2f9cdb9a59e0765",
+      "sharedPreloadSha256": "32700e7a5fa084f2dada5874494ee8bab42ef4cd63009d8679ddc803bf0a114f"
+    }
+  ],
+  "historicalQualifications": [
+    "cd8/prejoin8d role-model before/after is separate from final e2f/b58",
+    "33/1067 controls precede HTTP observer joins",
+    "34/1122 historical run demonstrates pending read, not entered cancellation",
+    "MERIDIAN-prefixed original opt-in compiled control was skipped; authoritative finalE71-prefixed run executes it",
+    "compiled actual-target receipts consume certified80d production build; final clean-head build still required",
+    "root initial metadata inspection assumed an object but causal summaries are lists; corrected read verified original records without test rerun"
+  ],
+  "decision": "PASS for this frozen narrow correction, no further material source finding. Authorize durable escrow/source commit and final local gates; keep native and final-head CI as independent draft gates.",
+  "limits": [
+    "synthetic Darwinarm64/mocked SDK evidence; no actual LinuxCLI/model acceptance",
+    "same-model identity relies on verified target logger provenance",
+    "one-query-per-wire benchmark conservatively rejects legitimate internal retries",
+    "owner grant remains unavailable; no model/auth operation by root",
+    "full npm test/typecheck/build and new exact-head CI not yet passed"
+  ]
+}

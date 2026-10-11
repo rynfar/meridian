@@ -1,0 +1,60 @@
+{
+  "head": "f41a6524b55e92b61e378601912e862307462879",
+  "startedUTC": "2026-10-09T01:23:05.011581+00:00",
+  "runnerPID": 86335,
+  "fixture": "/var/folders/ks/xnz659y11jl44j80b_lfws6r0000gn/T/meridian-1292-observer-checks-gvulg5_6",
+  "expectedNpmBatches": 21,
+  "modelCalls": 0,
+  "checks": [
+    {
+      "label": "observer-final-npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 629.228,
+      "sha256": "f7fee8515b779de872022b73cb7053334d0a2e956855c55048e35441222b8a4a"
+    },
+    {
+      "label": "observer-final-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 5.104,
+      "sha256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "label": "observer-final-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 4.059,
+      "sha256": "3fbfd0a4cb03d9a1f034fb1749c1106adc64944f3c88452c99ce532b2ae083da"
+    },
+    {
+      "label": "observer-final-causal-control",
+      "argv": [
+        "bun",
+        "scripts/e2e-claude-code-progress-captions/mapping-observer-control.mjs"
+      ],
+      "exit": 0,
+      "joined": true,
+      "seconds": 0.04,
+      "sha256": "7d783e1161a4ddd9099c3128b5cc85dd8c20a0d76752e29fc7be3fcb3ccddf21"
+    }
+  ],
+  "status": "PASS",
+  "headUnchanged": true,
+  "worktreeClean": true,
+  "finishedUTC": "2026-10-09T01:33:43.544019+00:00"
+}

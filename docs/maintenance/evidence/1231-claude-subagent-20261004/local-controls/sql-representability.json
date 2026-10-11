@@ -1,0 +1,18 @@
+{
+  "producerHead": "f361cc24a661ee6cfce2c5383bd77bd6008f61b3",
+  "producerSha256": "388f4b577e6892c29bad480b7263b4355a51965b8399739b83e401336d41befa",
+  "actualSqlBoundarySha256": "7acbf442b929bd11aa73a6e1208eeb7a2e2f1087ecff2ced1dc7e1bff11fad20",
+  "scriptSha256": "c413560749124a573d83d1b35c57527ecadfcaf395f5c4cea26e9f4cfc553cbb",
+  "exitCode": 0,
+  "controls": [
+    "ordinary scoped agent",
+    "raw embedded NUL encoded in tuple"
+  ],
+  "scope": "Actual producer and actual SQLite scalar validator only; no model, database, runtime or generic marker SQL acceptance",
+  "beforeObservation": {
+    "toolChunkId": "b33253",
+    "exitCode": 1,
+    "keyContainsNul": true,
+    "message": "bookkeeping scalar TEXT cannot contain U+0000; encode payload as JSON"
+  }
+}

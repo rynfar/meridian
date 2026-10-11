@@ -1,0 +1,20 @@
+{
+  "head": "4cd004cce0da93f5028a63e4a770cb10c3a278fa",
+  "command": [
+    "bun",
+    "test",
+    "--timeout",
+    "10000",
+    "src/__tests__/proxy-session-tree-cancellation.test.ts",
+    "--test-name-pattern",
+    "same-key Claude|same-key auxiliary|declared Claude subagent|declared subagent's auxiliary"
+  ],
+  "exit": 0,
+  "fileSha256": {
+    "src/proxy/server.ts": "b01c4dfad1cc29d2664c0d371cf6d3cc20722e0527a1a9beb163d5f1da005084",
+    "src/proxy/sessionTree.ts": "dd3ce916a8af8fd0b109dfda23c616faa769446eac210ef5cc879ca31f2edab9",
+    "src/__tests__/proxy-session-tree-cancellation.test.ts": "13c40d3fcdcae2dd4ac3a6ad5762bb7df18ee318d285cd2304945d3032a3b038"
+  },
+  "sourceStableDuringRun": true,
+  "change": "Normalize Hono Response|Promise<Response> via Promise.resolve; assertions unchanged. Typecheck remains root-owned."
+}

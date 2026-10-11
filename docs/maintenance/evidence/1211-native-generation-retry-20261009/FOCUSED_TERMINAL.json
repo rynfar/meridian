@@ -1,0 +1,14 @@
+{
+  "atUTC": "2026-10-09T19:06:23.229608+00:00",
+  "head": "0cf7aa708bf55c459109537bf84c468e72f91c1a",
+  "argv": [
+    "bun",
+    "test",
+    "src/__tests__/e72-public-sdk-diagnostics.test.ts",
+    "src/__tests__/e72-background-read.test.ts"
+  ],
+  "driverPid": 69403,
+  "childPid": 69520,
+  "originalProcessJoined": true,
+  "exitCode": 0
+}

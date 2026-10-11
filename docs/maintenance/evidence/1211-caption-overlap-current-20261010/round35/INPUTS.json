@@ -1,0 +1,22 @@
+{
+  "inputs": [
+    {
+      "path": "machine-id",
+      "bytes": 33,
+      "sha256": "c10b98af414325731b3c397d97a106ff579f7bc3210d65a034d5b42a3d915cad"
+    },
+    {
+      "path": "scripts/e2e-native-stop-eof.mjs",
+      "bytes": 23748,
+      "sha256": "2cc79ed81198f4dcfc261adc3ee65944ae000864661e9f057d59f9f70302c4ec"
+    },
+    {
+      "path": "scripts/lib/e2eOwnedCheckpoint.mjs",
+      "bytes": 13056,
+      "sha256": "46f75f601770b75684eb533a94b3cb8f40897e7aa4a83f029296c02622073283"
+    }
+  ],
+  "diagnosticOverlay": true,
+  "originalMaintainedHarnessSHA256": "31d3dc880ca864aeacdae0dcff271b84bdd0b89d23ef7c7795fa4e6146c08661",
+  "scope": "valid array input on zero-delay single-tool nonstream case, exact complete inputs and all prior continuation/history/custody assertions preserved; legacy guard-off negative control separately labeled"
+}

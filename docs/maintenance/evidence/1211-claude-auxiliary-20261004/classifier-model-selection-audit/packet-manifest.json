@@ -1,0 +1,39 @@
+{
+  "files": [
+    {
+      "path": "REPORT.md",
+      "bytes": 9337,
+      "sha256": "3fc3bd9489ee264c6e631ba8ee9c71d995b79d89b035fba021f4d4c9deedc2a1"
+    },
+    {
+      "path": "classifier-model-selection-static.json",
+      "bytes": 17898,
+      "sha256": "93069ae72b637a286db769e826171c59a103d1c253d7090df31ce9ad53855fc4"
+    },
+    {
+      "path": "distribution-manifest.json",
+      "bytes": 1680,
+      "sha256": "529a15d2fd71d07eda7f567ee197ad3f69048251a5caf21f7573b63a0aa44ab5"
+    },
+    {
+      "path": "inspect-claude-classifier-static.py",
+      "bytes": 1727,
+      "sha256": "d9c9f207ea0fa16b25fbf8588a4b109827ce8c8eaf8ae253efddee7b3104bf0b"
+    },
+    {
+      "path": "npm-2.1.286.json",
+      "bytes": 3271,
+      "sha256": "9a7b893c8afcf8138b80963f31400af8f2a8c3f2aec958f0ce691efd0d6abae9"
+    },
+    {
+      "path": "npm-linux-x64-2.1.286.json",
+      "bytes": 2301,
+      "sha256": "f85fff1e4c155310e85407908f58acc557a66dc4d80e1007e293823b548234f2"
+    },
+    {
+      "path": "verification.log",
+      "bytes": 205,
+      "sha256": "a55861cd6802a11a8d61debb02dbf1ad254eb52f26641def21b47d812f042065"
+    }
+  ]
+}

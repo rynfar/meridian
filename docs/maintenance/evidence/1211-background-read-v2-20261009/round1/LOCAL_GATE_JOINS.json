@@ -1,0 +1,20 @@
+[
+  {
+    "kind": "test",
+    "originalGateDriverPid": 66223,
+    "joined": true,
+    "exit": 0
+  },
+  {
+    "kind": "typecheck",
+    "originalGateDriverPid": 67628,
+    "joined": true,
+    "exit": 0
+  },
+  {
+    "kind": "build",
+    "originalGateDriverPid": 69491,
+    "joined": true,
+    "exit": 0
+  }
+]

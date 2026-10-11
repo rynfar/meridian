@@ -1,0 +1,20 @@
+[
+  {
+    "case": "e71-source",
+    "nativeAttachPid": 6363,
+    "nativeAttachJoined": true,
+    "nativeExit": 0,
+    "auditPid": 15416,
+    "auditorJoined": true,
+    "auditExit": 0
+  },
+  {
+    "case": "e71-package",
+    "nativeAttachPid": 15424,
+    "nativeAttachJoined": true,
+    "nativeExit": 0,
+    "auditPid": 17763,
+    "auditorJoined": true,
+    "auditExit": 0
+  }
+]

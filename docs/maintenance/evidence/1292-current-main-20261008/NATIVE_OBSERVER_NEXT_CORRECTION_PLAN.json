@@ -1,0 +1,41 @@
+{
+  "createdUTC": "2026-10-09T02:13:29.522173+00:00",
+  "status": "PREPARED_OBSERVER_CORRECTION_NOT_IMPLEMENTED_NO_NEW_NATIVE_ATTEMPT",
+  "immutableFailedAttempt": "baseline-sequential-hints1/report.json",
+  "sourceHead": "d3aadd12a1274d9d0983294f27ef379b17d6eb38",
+  "modelCorrection": {
+    "finding": "Generic safeName discards legitimate [1m] labels; model acceptance is also folded into physical cleanup predicates.",
+    "requiredFacts": [
+      "Preserve bounded full native model ID plus optional exact [1m] suffix",
+      "Preserve bounded actual SDK alias and the exact requested native wire model",
+      "Bind observed native model to the actual SDK alias and exact ANTHROPIC_DEFAULT_OPUS_MODEL pin; retain context labels in receipt",
+      "Require the same full Opus 5.5 core model and separately account for main/worker extended-context labels",
+      "Do not silently permit another model or context downgrade",
+      "Keep strict model mismatch as first-failure acceptance finding while evaluating physical ownership independently"
+    ],
+    "oldAttemptQualification": "Canonical assistant model Opus 5.5 was observed via supported owned SDK history; backend option/init labels were not retained. Historical exact backend context remains UNKNOWN."
+  },
+  "physicalCleanupCorrection": {
+    "observedControl": "BUN_1311_OWNED_SOCKET_CLOSE_CAUSAL_CONTROL.json",
+    "requiredFacts": [
+      "Retire admission and abort/settle owned request work first",
+      "Call existing public proxy close; destroy only the explicitly tracked accepted sockets under bounded shutdown",
+      "For relay, close listener before closing explicitly tracked accepted sockets",
+      "Await every socket close event, listener event/callback, exact child exit/close and stdout/stderr ends/closes",
+      "Source SDK gates require actual executor/query/handle/publication and iterator joins; no model equality as custody surrogate",
+      "Keep incomplete/unobserved secondary or global process absence UNKNOWN",
+      "Do not authorize private config/session/history deletion"
+    ],
+    "controlResult": "Pinned Bun 1.3.11: idle/all listener close alone left server accepted-socket event unobserved; explicit tracked destroy witnessed closure. All three arms subsequently joined all exact Node peers/pipes/sockets."
+  },
+  "beforeNextNative": [
+    "Implement narrowly scoped model/custody observer corrections",
+    "Execute exact old/new predicate negative controls with first-failure sticky",
+    "Review complete observer diff adversarially",
+    "Prepare fresh exact source/harness/runtime/Hono provenance",
+    "Read only supported credential-store API and stage a fresh access-only grant only after qualification",
+    "Use new unique attempt output; do not alter or reuse terminal baseline attempt"
+  ],
+  "nativeModelCalls": 0,
+  "currentFullSuite": "41996 RUNNING; no worktree mutation during execution"
+}

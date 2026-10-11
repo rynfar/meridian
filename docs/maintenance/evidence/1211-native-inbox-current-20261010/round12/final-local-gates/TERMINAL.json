@@ -1,0 +1,49 @@
+{
+  "head": "f284eed5904536baeb6fa7f4a86a67f79b4ecd1c",
+  "headUnchanged": true,
+  "cleanBeforeAfter": true,
+  "checks": [
+    {
+      "name": "npm-test",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "originalPid": 7751,
+      "joined": true,
+      "exit": 0,
+      "startUTC": "2026-10-10T02:27:37.047839+00:00",
+      "endUTC": "2026-10-10T02:45:42.536224+00:00",
+      "logSHA256": "979b49d76ee49c318dc0bdfc5f56bd5633789772c8ad0952708328146af0aaf0"
+    },
+    {
+      "name": "typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "originalPid": 92172,
+      "joined": true,
+      "exit": 0,
+      "startUTC": "2026-10-10T02:45:42.540708+00:00",
+      "endUTC": "2026-10-10T02:45:49.427406+00:00",
+      "logSHA256": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "originalPid": 92898,
+      "joined": true,
+      "exit": 0,
+      "startUTC": "2026-10-10T02:45:49.428391+00:00",
+      "endUTC": "2026-10-10T02:45:55.601503+00:00",
+      "logSHA256": "3f95946d1e574f6609d699bfce4d4b9bc62bd6ed19fbd694f6a9c5e51008c364"
+    }
+  ],
+  "qualified": true
+}

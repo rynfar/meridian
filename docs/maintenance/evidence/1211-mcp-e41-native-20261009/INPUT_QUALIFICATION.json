@@ -1,0 +1,15 @@
+{
+  "sourceHead": "15f44351bbc8ddfd669db3254eac86736b61a02e",
+  "codeTestHead": "69374accc89cbe00d8173db589a29c968b37ffd8",
+  "deliveryHead": "4535e09a6f519a5ab4b893c6d097db7b7456bde2",
+  "immutableImage": "sha256:f1db2086f5f9bec7a0ad7bc034288d18093d943ba444d7f8d47e12792b421eb5",
+  "newer1283DependencyOfOldest1211": true,
+  "nativeHarnessUnchangedFromPriorQualifiedE41": true,
+  "priorPackageQualification": "/Users/rynfar/repos/meridian-review-evidence-20261006/pr1211-mcp-transport-20261009-round1/FRESH_PACKAGE_QUALIFICATION.json",
+  "priorQualifiedTarballSHA256": "9196379796dcc354115dbe0f4772308551e4100d48fa2c703afb1839ffe5e9c0",
+  "actualAffectedOpenCodeOrOpenClawClient": "NOT_THIS_E41_FIXTURE",
+  "queriesBoundMaxPerCase": 8,
+  "budgetUsdMaxPerCase": 4,
+  "cases": 8,
+  "estimatedBudgetUsdMaxTotal": 32
+}

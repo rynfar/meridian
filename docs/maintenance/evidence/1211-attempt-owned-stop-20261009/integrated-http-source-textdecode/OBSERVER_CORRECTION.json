@@ -1,0 +1,5 @@
+{
+  "priorAttempt": "../integrated-http-source-machineid/output/INTEGRATED_HTTP.json",
+  "priorOutcome": "FAIL after both nonstream cases and first stream continuation completed; remaining assertions/case were not executed.",
+  "change": "Observer decode now appends SSE text_delta to its text block before checking the unchanged exact continuation response. No production or native fixture response/predicate/cap change."
+}

@@ -1,0 +1,33 @@
+{
+  "atUTC": "2026-10-10T03:26:36.008641+00:00",
+  "codeHead": "58f3055e17e90df0da1bb3ff056b7feffd151894",
+  "runtimeBuildHead": "6d773781ac03359df22f1226807becd95b28005b",
+  "runtimeToCurrentProductionPackagePluginAndLockDelta": [],
+  "lastChangeTestBoundaryOnly": true,
+  "r16r17ExactObserverGitContent": false,
+  "r16r17ObserverGitBaseline": "ed3ecbf62b2ee1fdb0d9979a4e67c01c2366cec2",
+  "observedMainHarnessDiagnosticOverlay": true,
+  "identities": [
+    {
+      "path": "scripts/lib/e2eMixedAuto.mjs",
+      "bytes": 20643,
+      "sha256": "7898c97d8531be66a7cea214726862bc3f39005cd717c9c615c00a417011dcdc"
+    },
+    {
+      "path": "scripts/e2e-claude-code-subagent-session.mjs",
+      "bytes": 82339,
+      "sha256": "a1129e3dd9f877fa61d7d2c5f61adb2cdd92ac6635abdbc636d458a36a0436dc"
+    },
+    {
+      "path": "scripts/e2e-openclaw-native.mjs",
+      "bytes": 47727,
+      "sha256": "b9f73192d5e96141a4fb6d136fcb50375abdfb5d66cda9defed67b5369621cb3"
+    },
+    {
+      "path": "src/__tests__/claude-subagent-harness.test.ts",
+      "bytes": 58587,
+      "sha256": "f3b61a7cdf639b1651140937be30825823f0eeedec9dce043daaa0b4369ca245"
+    }
+  ],
+  "wholeChangeAcceptance": "HELD"
+}

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "npm",
+    "run",
+    "typecheck"
+  ],
+  "head": "052c6449ea1d9055164212d32c63bdea1388caaa",
+  "headAfter": "052c6449ea1d9055164212d32c63bdea1388caaa",
+  "originalProcessPid": 48198,
+  "originalProcessJoined": true,
+  "exit": 0,
+  "startUTC": "2026-10-10T00:22:13.189473+00:00",
+  "endUTC": "2026-10-10T00:22:19.451101+00:00"
+}

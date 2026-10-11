@@ -108,6 +108,35 @@ describe("divergence reason on the request line", () => {
   const warnings = (): string[] => warnSpy.mock.calls.map((c: any) => String(c[0]))
     .filter((l: string) => l.includes("Client-driven tool loop with no session identity"))
 
+  const CLASSIFIER = {
+    system: [{ type: "text", text: "You are a security monitor for autonomous AI coding agents.\n<cc_automode_permissions>\nfixture permissions\n</cc_automode_permissions>" }],
+    model: "claude-sonnet-4-6",
+    max_tokens: 64,
+    stream: false,
+    stop_sequences: ["</severity>"],
+    messages: [
+      { role: "user", content: "<transcript>User: deploy</transcript>" },
+      { role: "user", content: "Grade the action." },
+    ],
+    metadata: { user_id: JSON.stringify({ session_id: "aux-log-session" }) },
+  }
+
+  it("names an auto-mode classifier request as auxiliary", async () => {
+    const app = createTestApp()
+    await (await post(app, CLASSIFIER, { "user-agent": "claude-cli/2.1.286" })).json()
+    expect(lastRequestLine()).toContain("diverged=independent-request:auxiliary-request")
+  })
+
+  it("names it from the request-class header too", async () => {
+    const app = createTestApp()
+    const { stop_sequences: _omitted, ...unshaped } = CLASSIFIER
+    await (await post(app, unshaped, {
+      "user-agent": "claude-cli/2.1.286",
+      "x-claude-code-request-class": "auxiliary",
+    })).json()
+    expect(lastRequestLine()).toContain("diverged=independent-request:auxiliary-request")
+  })
+
   // THE REPORTED CASE. pi sends no session header, and every agentic turn ends
   // in a tool_result, so this fires on every round of every conversation.
   it("names the headerless tool-result bypass", async () => {

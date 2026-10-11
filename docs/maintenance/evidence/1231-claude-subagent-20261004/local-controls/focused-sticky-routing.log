@@ -1,0 +1,79 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/sticky-routing-integration.test.ts:
+[PROXY] 27571d7a-4b35-4c64-b09c-b63efca3a9be OpenCode request without the Meridian plugin's agent headers (session sess-a…). OpenCode runs its internal title/summary agents under your session id, so Meridian cannot tell them apart from your conversation: concurrent turns are admitted rather than refused, but the one that loses the race replays against a cold prompt cache — slower and billed as uncached input. Fix: meridian setup (or update the plugin).
+[PROXY] 27571d7a-4b35-4c64-b09c-b63efca3a9be adapter=opencode profile=personal model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=26ms msgCount=1 msgs=user[string]
+[PROXY] 27571d7a-4b35-4c64-b09c-b63efca3a9be usage: input=10 output=50 cache=0%
+[PROXY] 162364e5-71ef-40b7-b15a-33f443c6738a OpenCode request without the Meridian plugin's agent headers (session sess-b…). OpenCode runs its internal title/summary agents under your session id, so Meridian cannot tell them apart from your conversation: concurrent turns are admitted rather than refused, but the one that loses the race replays against a cold prompt cache — slower and billed as uncached input. Fix: meridian setup (or update the plugin).
+[PROXY] 162364e5-71ef-40b7-b15a-33f443c6738a adapter=opencode profile=personal model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 162364e5-71ef-40b7-b15a-33f443c6738a usage: input=10 output=50 cache=0%
+[PROXY] 2d4b64ac-e0f7-475b-a8a3-10decbb0a659 OpenCode request without the Meridian plugin's agent headers (session sess-c…). OpenCode runs its internal title/summary agents under your session id, so Meridian cannot tell them apart from your conversation: concurrent turns are admitted rather than refused, but the one that loses the race replays against a cold prompt cache — slower and billed as uncached input. Fix: meridian setup (or update the plugin).
+[PROXY] 2d4b64ac-e0f7-475b-a8a3-10decbb0a659 adapter=opencode profile=personal model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 2d4b64ac-e0f7-475b-a8a3-10decbb0a659 usage: input=10 output=50 cache=0%
+(pass) Integration: sticky profile routing (#383) > GOLDEN: without MERIDIAN_ROUTING every session lands on the first profile (current behavior) [295.99ms]
+[PROXY] aecc6d3c-02b4-4a25-990e-c2facafb0619 adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] aecc6d3c-02b4-4a25-990e-c2facafb0619 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=personal…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 8c46c00a-8cc5-496f-8428-d219aede1727 adapter=opencode profile=personal(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 8c46c00a-8cc5-496f-8428-d219aede1727 SESSION RECOVERY: previous conversation available. Run: claude --resume 3c4bdd22-5bd4-4ffd-9c80-9f1c290036f0
+[PROXY] 8c46c00a-8cc5-496f-8428-d219aede1727 usage: input=10 output=50 cache=0%
+[PROXY] 09046b6c-34aa-44d4-9e72-26e338fdde33 adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 09046b6c-34aa-44d4-9e72-26e338fdde33 usage: input=10 output=50 cache=0%
+[PROXY] 5268b463-1f43-4c7a-93ea-3a5272330afe OpenCode request without the Meridian plugin's agent headers (session sess-d…). OpenCode runs its internal title/summary agents under your session id, so Meridian cannot tell them apart from your conversation: concurrent turns are admitted rather than refused, but the one that loses the race replays against a cold prompt cache — slower and billed as uncached input. Fix: meridian setup (or update the plugin).
+[PROXY] 5268b463-1f43-4c7a-93ea-3a5272330afe adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 5268b463-1f43-4c7a-93ea-3a5272330afe usage: input=10 output=50 cache=0%
+[PROXY] 76fe9012-d284-4b8d-95ae-701ad5fd5a02 OpenCode request without the Meridian plugin's agent headers (session sess-e…). OpenCode runs its internal title/summary agents under your session id, so Meridian cannot tell them apart from your conversation: concurrent turns are admitted rather than refused, but the one that loses the race replays against a cold prompt cache — slower and billed as uncached input. Fix: meridian setup (or update the plugin).
+[PROXY] 76fe9012-d284-4b8d-95ae-701ad5fd5a02 adapter=opencode profile=personal(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 76fe9012-d284-4b8d-95ae-701ad5fd5a02 usage: input=10 output=50 cache=0%
+[PROXY] 575f9f26-1e8a-43b1-a5b6-d51f42144f40 OpenCode request without the Meridian plugin's agent headers (session sess-f…). OpenCode runs its internal title/summary agents under your session id, so Meridian cannot tell them apart from your conversation: concurrent turns are admitted rather than refused, but the one that loses the race replays against a cold prompt cache — slower and billed as uncached input. Fix: meridian setup (or update the plugin).
+[PROXY] 575f9f26-1e8a-43b1-a5b6-d51f42144f40 adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 575f9f26-1e8a-43b1-a5b6-d51f42144f40 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=work:ses…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 3b2b343e-db4e-4de6-8da0-ca8be9353ef8 adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 3b2b343e-db4e-4de6-8da0-ca8be9353ef8 SESSION RECOVERY: previous conversation available. Run: claude --resume 2e2f56cb-1ab6-4709-a33a-e43c07588933
+[PROXY] 3b2b343e-db4e-4de6-8da0-ca8be9353ef8 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=personal…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] cb3a1219-3172-4ab6-b64e-f26321ce99d6 adapter=opencode profile=personal(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] cb3a1219-3172-4ab6-b64e-f26321ce99d6 SESSION RECOVERY: previous conversation available. Run: claude --resume 3c4bdd22-5bd4-4ffd-9c80-9f1c290036f0
+[PROXY] cb3a1219-3172-4ab6-b64e-f26321ce99d6 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=work:ses…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] e2a296d7-c6b9-4098-8cb5-8731e28949d5 adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] e2a296d7-c6b9-4098-8cb5-8731e28949d5 SESSION RECOVERY: previous conversation available. Run: claude --resume 1f173686-6dcc-4efe-bbd0-91863203318f
+[PROXY] e2a296d7-c6b9-4098-8cb5-8731e28949d5 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=work:ses…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 06810ac1-ffe9-47f8-bedd-d4b525ea4be7 adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 06810ac1-ffe9-47f8-bedd-d4b525ea4be7 SESSION RECOVERY: previous conversation available. Run: claude --resume f11f4af1-9758-44b4-bc0b-06f886ff4a07
+[PROXY] 06810ac1-ffe9-47f8-bedd-d4b525ea4be7 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=personal…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 8b235dca-c784-48ce-9181-5bfe61aac111 adapter=opencode profile=personal(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 8b235dca-c784-48ce-9181-5bfe61aac111 SESSION RECOVERY: previous conversation available. Run: claude --resume 2e8f4b8e-4f7e-4932-956c-8133083fc6cd
+[PROXY] 8b235dca-c784-48ce-9181-5bfe61aac111 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=work:ses…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] c8ec853f-ca1b-46a9-9093-dc362abbeaa0 adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] c8ec853f-ca1b-46a9-9093-dc362abbeaa0 SESSION RECOVERY: previous conversation available. Run: claude --resume 115105de-5bd5-410d-88cc-3d54a3e2f246
+[PROXY] c8ec853f-ca1b-46a9-9093-dc362abbeaa0 usage: input=10 output=50 cache=0%
+(pass) Integration: sticky profile routing (#383) > sticky: sessions distribute across profiles and stay sticky [428.30ms]
+[PROXY] Session not resumable (key=personal…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 0b97a087-f343-49f0-aadc-3822df3953b6 adapter=opencode profile=personal(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 0b97a087-f343-49f0-aadc-3822df3953b6 SESSION RECOVERY: previous conversation available. Run: claude --resume a7203362-d113-4d0d-914e-88c63fcae492
+[PROXY] 0b97a087-f343-49f0-aadc-3822df3953b6 usage: input=10 output=50 cache=0%
+(pass) Integration: sticky profile routing (#383) > sticky: x-meridian-profile header still wins [22.84ms]
+[PROXY] Session not resumable (key=work:ses…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 45273a4d-0d97-4c4d-b23d-1124e8f590fa adapter=opencode profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 45273a4d-0d97-4c4d-b23d-1124e8f590fa SESSION RECOVERY: previous conversation available. Run: claude --resume 2e2f56cb-1ab6-4709-a33a-e43c07588933
+[PROXY] 45273a4d-0d97-4c4d-b23d-1124e8f590fa usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=work:ses…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 53dae72b-b4dc-4734-9457-79f6c3124692 adapter=opencode source=subagent-scout profile=work(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request agent=subagent sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 53dae72b-b4dc-4734-9457-79f6c3124692 SESSION RECOVERY: previous conversation available. Run: claude --resume 5c4765e2-5da9-48ed-b652-0917265c5853
+[PROXY] 53dae72b-b4dc-4734-9457-79f6c3124692 usage: input=10 output=50 cache=0%
+(pass) Integration: sticky profile routing (#383) > sticky: subagent requests with the same session header share the arm [46.50ms]
+[PROXY] a634c204-a9bb-4a29-835b-4b4c9eab6ee6 adapter=claude-code profile=personal(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] a634c204-a9bb-4a29-835b-4b4c9eab6ee6 usage: input=10 output=50 cache=0%
+[PROXY] 9785cd8a-ebc0-45fc-8747-3bfda1945c00 adapter=claude-code profile=personal(sticky) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] 9785cd8a-ebc0-45fc-8747-3bfda1945c00 usage: input=10 output=50 cache=0%
+(pass) Integration: sticky profile routing (#383) > sticky: a Claude Code subagent keyed apart from its parent shares the parent's arm [55.60ms]
+
+ 5 pass
+ 0 fail
+ 15 expect() calls
+Ran 5 tests across 1 file. [1224.00ms]
