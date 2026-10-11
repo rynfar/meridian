@@ -1,0 +1,16 @@
+{
+  "case": "logged-out",
+  "context": "default",
+  "workerExit": 0,
+  "workerSignal": null,
+  "spawnFailed": false,
+  "exitSeen": true,
+  "closeSeen": true,
+  "stdoutClosed": true,
+  "stderrClosed": true,
+  "discardedPrivateStdoutBytes": 0,
+  "discardedPrivateStderrBytes": 0,
+  "joinFailure": false,
+  "resultFile": "/Users/rynfar/repos/meridian-review-evidence-20261006/auth-logout-1323-20261010-round1/native-default-after/result.json",
+  "payloadScope": "actual-native-auth-only; SDK/model query count asserted zero; no whole-OS claim"
+}

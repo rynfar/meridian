@@ -1,3 +1,41 @@
+## Telemetry #1328 bounded correction — 2026-10-10
+
+The authored source `f1418967` is incorporated as `a996d282`; maintainer source/escrow checkpoint `52ebd351` preserves contributor credit and fixes fixture joins plus the per-write blocking description. The identical short-lock control fails current main; 26 focused tests pass. Full local gates pass 5,562 tests / zero failures / 35 skips, standalone typecheck and build with Bun 1.3.11 / Node 22.22.3. Real Linux x64 denial-path HTTP controls retain 1/6 contended rows before versus 6/6 after, with 2/2 ordinary rows on both sides. The same final escrow/source hashes were executed, all direct children/pipes joined, and final counts follow shutdown. Stronger stress and startup failures are preserved explicitly. [Evidence and root adversarial review](evidence/1328-telemetry-busy.md) qualify the remaining long-lock/drop/latency limits; no actual OpenCode-client or successful-model claim is made.
+
+Current delivery branch `codex/telemetry-busy-1328-20261010`, worktree `/Users/rynfar/repos/meridian-telemetry-busy-1328-20261010`, base `85db81fee`. Final-head CI, merge, contributor credit on the landed commit and unchanged source closure remain required. No release is authorized.
+
+Logout #1331 is delivered as `85db81fee`: its landed tree exactly matches reviewed `19420c341`, all seven executed final-head CI checks succeeded, GitHub recognizes Nowaker's human credit, and unchanged source #1323 was closed. The clean auth worktree was removed and validated head archived. Extra Usage #1327's separate corrected checkpoint `15dc930e` passes 5,572 local tests plus typecheck/build but retains real-provider/final-CI holds; its clean worktree was removed while its branch and `refs/archive/extra-usage1327/checkpoint-20261010` retain every commit. #1211/#1322 remain owner-deferred. The unfinished #1219 native WIP stays preserved in its existing worktree. Owner checkout/index/dirty bytes remain unchanged. The latest managed snapshot before this integration has 32 PRs and 22 issues across six discovered repositories; this is not a cleared queue.
+
+## Active credentialless logout integration — 2026-10-10
+
+Selected #1323 after current oldest-item revalidation: #917/#933 have no new
+attributable failure (latest 30 main CI runs succeeded), the older Antigravity
+#1073/#1317 retains a real repeated-write failure, and #1261 retains rejected
+root-wide deletion/ownership/admission semantics. #1219's unfinished native
+changes are preserved in their existing branch and external patch; stopping
+scope expansion is a prioritization correction, not a claim it needs login.
+#1211/#1322 remain owner-deferred. The oldest-first queue remains the policy;
+this item has a complete auth-only verification path without an owner login.
+
+Source #1323 `5163d998` is incorporated from fresh main `11dc1556` with both
+Nowaker authors/dates/full messages preserved (`bd3aa844`→`c9c31091`,
+`5163d998`→`77d0fa76`). Isolated branch
+`codex/auth-logout-1323-20261010`, worktree
+`/Users/rynfar/repos/meridian-auth-logout-1323-20261010`.
+Four unchanged regression assertions fail main and pass corrected source.
+Real official Claude CLI 2.1.284 empty-directory native checks fail before and
+pass after in default and named-profile contexts, with exit/close/both pipes
+joined, no token, absent credential files and zero SDK generations. Root's
+whole-diff adversarial review also corrected PowerShell's string-false coercion;
+six actual PowerShell acceptance controls pass. See
+[evidence and review](evidence/1323-auth-logout.md).
+
+Full local npm test passes 5,560 / 0 fail / 35 skip across 21 invocations;
+standalone typecheck/build pass (Bun 1.3.11 / Node 22.22.3). Certified independent
+package default/profile native controls both pass, all 428 dist files match,
+zero model calls. Final-head CI remains pending. No merge, source closure or
+release is claimed. Owner checkout/index/dirty bytes are unchanged.
+
 # Upstream review handoff
 
 ## Owner-deferred #1211 / draft #1322 (2026-10-10 UTC)

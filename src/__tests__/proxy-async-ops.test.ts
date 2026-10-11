@@ -27,10 +27,10 @@ describe("proxy async ops", () => {
     expect(typeof body.status).toBe("string")
     expect(body.backend).toBe("claude")
     expect(typeof body.version).toBe("string")
-    expect(typeof body.mode).toBe("string")
     expect(["healthy", "degraded", "unhealthy"]).toContain(body.status)
 
     if (body.status === "healthy") {
+      expect(typeof body.mode).toBe("string")
       expect(typeof body.auth.loggedIn).toBe("boolean")
       expect(body.auth.loggedIn).toBe(true)
       // claudeExecutable is present when the resolver has run (lazy init —
@@ -62,6 +62,7 @@ describe("proxy async ops", () => {
     }
 
     if (body.status === "degraded") {
+      expect(typeof body.mode).toBe("string")
       expect(typeof body.error).toBe("string")
       expect(Object.keys(body).sort()).toEqual(["backend", "build", "error", "mode", "status", "version"])
     }

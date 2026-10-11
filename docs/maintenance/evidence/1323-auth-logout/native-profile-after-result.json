@@ -1,0 +1,106 @@
+{
+  "result": "PASS",
+  "case": "logged-out",
+  "context": "profile",
+  "platform": "darwin/arm64",
+  "bun": "1.3.11",
+  "nodeCompatibility": "24.3.0",
+  "entryPath": "/Users/rynfar/repos/meridian-auth-logout-1323-20261010/src/proxy/server.ts",
+  "nativePath": "/Users/rynfar/repos/meridian-auth-logout-1323-20261010/node_modules/@anthropic-ai/claude-code-darwin-arm64/claude",
+  "nativeVersion": "2.1.284 (Claude Code)",
+  "entrySha256": "79538ba837a0918ef62b125d82d673b553e68bf14c2d23f97c6c5b1d71ce489c",
+  "harnessSha256": "44e0d37ecd03b8b5f0461a530b181df3c6f584c93a81abd82083d0157abde0e9",
+  "nativeSha256": "50a14c2f50f56668380fdda490167f1d3630d5cc18fb8aed3073c2c7ea7314fe",
+  "queryCount": 0,
+  "http": [
+    {
+      "label": "cold-health-1",
+      "path": "/health",
+      "status": 200,
+      "ms": 5081,
+      "health": "degraded",
+      "loggedIn": null
+    },
+    {
+      "label": "cold-health-2",
+      "path": "/health",
+      "status": 200,
+      "ms": 5083,
+      "health": "degraded",
+      "loggedIn": null
+    },
+    {
+      "label": "cold-list",
+      "path": "/profiles/list",
+      "status": 200,
+      "ms": 5084,
+      "loggedIn": false,
+      "provenance": "never",
+      "lastSuccessObserved": false
+    },
+    {
+      "label": "late-health",
+      "path": "/health",
+      "status": 503,
+      "ms": 0,
+      "health": "unhealthy",
+      "loggedIn": false
+    },
+    {
+      "label": "late-list",
+      "path": "/profiles/list",
+      "status": 200,
+      "ms": 0,
+      "loggedIn": false,
+      "provenance": "live",
+      "lastSuccessObserved": false
+    }
+  ],
+  "native": [
+    {
+      "id": "5e3fae69-6d15-4d7a-a7dd-f2594c9f0bd1",
+      "event": "native_joined",
+      "elapsedMs": 8151,
+      "exitSeen": true,
+      "closeSeen": true,
+      "stdoutClosed": true,
+      "stderrClosed": true,
+      "writesFlushed": true,
+      "code": 1,
+      "signal": null,
+      "stdoutBytes": 411,
+      "stderrBytes": 0,
+      "firstStdoutMs": 8147,
+      "loggedIn": false,
+      "authMethod": "none",
+      "configMatches": true
+    }
+  ],
+  "wrapper": [
+    {
+      "callback": true,
+      "exit": true,
+      "close": true,
+      "stdoutClose": true,
+      "stderrClose": true,
+      "code": 1,
+      "signal": null,
+      "pid": 3249
+    }
+  ],
+  "warnings": {
+    "total": 1,
+    "loggedOutExit": 1
+  },
+  "controls": {
+    "loggedOut": "actual-native-false-exit-1-maps-to-observed-logout-without-login-success"
+  },
+  "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+  "sdkVersion": "0.2.141",
+  "firstFailure": null,
+  "entryUnchanged": true,
+  "harnessUnchanged": true,
+  "nativeUnchanged": true,
+  "tokenInputUnchanged": null,
+  "taskCredentialFilesAbsent": true
+}

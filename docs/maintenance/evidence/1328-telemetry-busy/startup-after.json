@@ -1,0 +1,10 @@
+{
+  "platform": "linux",
+  "arch": "x64",
+  "bun": "1.3.11",
+  "phases": [],
+  "failure": "Error: Real server or SQLite telemetry did not start",
+  "writeFailures": 0,
+  "childrenJoined": true,
+  "pass": false
+}

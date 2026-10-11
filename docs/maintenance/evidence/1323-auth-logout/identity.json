@@ -1,0 +1,25 @@
+{
+  "ownerUnchanged": {
+    "head": true,
+    "status": true,
+    "index": true,
+    "dirtyFiles": true
+  },
+  "authorMapping": [
+    {
+      "source": "bd3aa8447740f855f0896e70c5a21b4244b492d5",
+      "incorporated": "c9c31091b4e36b6e69d9efdaa5927d684da216dd",
+      "rawAuthorAndAuthorDatePreserved": true,
+      "fullMessagePreserved": true
+    },
+    {
+      "source": "5163d99816af7e1de0653e0d352a05904a908286",
+      "incorporated": "77d0fa760540df1c4ffcc529b2a5e1b5c810a230",
+      "rawAuthorAndAuthorDatePreserved": true,
+      "fullMessagePreserved": true
+    }
+  ],
+  "base": "11dc1556363ba0b0e5786d999b9fcc30aa169364",
+  "sourceHead": "5163d99816af7e1de0653e0d352a05904a908286",
+  "initialStatusVerifierCorrection": "Use rstrip newline, preserving Git status leading space; no source or owner change."
+}

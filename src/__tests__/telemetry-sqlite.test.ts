@@ -319,6 +319,73 @@ describe("SqliteTelemetryStore error handling", () => {
   })
 })
 
+describe("SqliteTelemetryStore beside another writer", () => {
+  it("gives up on a held lock and records normally after its release", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "meridian-test-"))
+    const dbPath = join(tmpDir, "held.db")
+    const stores = createSqliteStores(dbPath, 7)
+    const writer = new Database(dbPath)
+    try {
+      writer.exec("BEGIN IMMEDIATE")
+      const start = performance.now()
+      stores.telemetry.record(makeMetric({ requestId: "held" }))
+      const elapsed = performance.now() - start
+      expect(elapsed).toBeGreaterThanOrEqual(750)
+      expect(elapsed).toBeLessThan(3000)
+      expect(stores.telemetry.size).toBe(0)
+
+      writer.exec("ROLLBACK")
+      stores.telemetry.record(makeMetric({ requestId: "released" }))
+      expect(stores.telemetry.getRecent().map(m => m.requestId)).toEqual(["released"])
+    } finally {
+      writer.close()
+      stores.close()
+      rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  it("records a request while another process briefly holds the write lock", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "meridian-test-"))
+    const dbPath = join(tmpDir, "shared.db")
+    const stores = createSqliteStores(dbPath, 7)
+    // A second process takes the database's write lock, says so, holds it
+    // for 150ms and commits - what an import or an operator's sqlite3 does.
+    const holder = Bun.spawn([process.execPath, "-e", `
+      const Database = require(${JSON.stringify(Bun.resolveSync("libsql", import.meta.dir))})
+      const db = new Database(process.env.HOLD_DB)
+      db.exec("BEGIN IMMEDIATE")
+      db.prepare("INSERT INTO diagnostic_logs (timestamp, level, category, message) VALUES (1, 'info', 'test', 'held')").run()
+      console.log("locked")
+      Bun.sleepSync(150)
+      db.exec("COMMIT")
+    `], { env: { ...process.env, HOLD_DB: dbPath }, stdout: "pipe", stderr: "pipe" })
+    // Drain both pipes and join the holder before releasing its database.
+    const stderr = new Response(holder.stderr).text()
+    const reader = holder.stdout.getReader()
+    try {
+      const { value } = await reader.read()
+      expect(new TextDecoder().decode(value)).toContain("locked")
+      stores.telemetry.record(makeMetric({ requestId: "while-locked" }))
+
+      expect(await holder.exited).toBe(0)
+      expect(stores.telemetry.getRecent().map(m => m.requestId)).toEqual(["while-locked"])
+    } finally {
+      holder.kill()
+      await holder.exited
+      try {
+        await Promise.all([
+          (async () => { while (!(await reader.read()).done) { /* drain to EOF */ } })(),
+          stderr,
+        ])
+      } finally {
+        reader.releaseLock()
+        stores.close()
+        rmSync(tmpDir, { recursive: true, force: true })
+      }
+    }
+  })
+})
+
 describe("SqliteTelemetryStore retention", () => {
   it("cleanup removes rows older than retention period", () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "meridian-test-"))

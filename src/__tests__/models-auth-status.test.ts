@@ -34,7 +34,7 @@ import { join } from "node:path"
  * "hang" models a spawn stalled on a loaded host: the callback is parked in
  * `hungSpawns` until the test settles it with `releaseHungSpawns`.
  */
-let authBehavior: "success" | "fail" | "hang" | "timeout" | "exit1" | "exit2" = "success"
+let authBehavior: "success" | "fail" | "hang" | "timeout" | "exit1" | "exit2" | "logout-killed" | "logout-signal" | "logout-truncated" | "logout-exit2" = "success"
 let execFileCalls = 0
 /** Options the probe passed to execFile, so spawn flags can be asserted. */
 let execFileOptions: realChildProcess.ExecFileOptions | undefined
@@ -120,6 +120,14 @@ mock.module("child_process", () => ({
         const stdout = JSON.stringify({ loggedIn: false, email: "private@test.com" })
         // Node's callback error does not carry stdout: only promisify adds it.
         complete(Object.assign(new Error("Command failed: /fake/claude auth status\n"), { killed: false, signal: null, code: 1 }), { stdout, stderr: "" }); return
+      }
+      if (authBehavior.startsWith("logout-")) {
+        const stdout = authBehavior === "logout-truncated" ? '{"loggedIn":false' : JSON.stringify({ loggedIn: false })
+        complete(Object.assign(new Error("Unavailable auth probe"), {
+          killed: authBehavior === "logout-killed",
+          signal: authBehavior === "logout-signal" ? "SIGTERM" : null,
+          code: authBehavior === "logout-exit2" ? 2 : 1,
+        }), { stdout, stderr: "" }); return
       }
       if (authBehavior === "exit2") {
         complete(Object.assign(new Error("Command failed: /fake/claude auth status\n"), { killed: false, signal: null, code: 2, stdout: "not json" }), { stdout: "not json", stderr: "" }); return
@@ -757,6 +765,66 @@ describe("auth-status warnings", () => {
     expect(warnings().join("\n")).not.toContain("private@test.com")
     expect(warnings().join("\n")).not.toContain('"loggedIn":false')
     expect(warnings().join("\n")).not.toContain('"email"')
+  })
+
+  it("replaces a remembered login when the CLI explicitly reports logged out", async () => {
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    const verifiedAt = getAuthCacheInfo(p).lastSuccessAt
+
+    authBehavior = "exit1"
+    await failAgain(p)
+
+    expect((await getClaudeAuthStatusAsync(p))?.loggedIn).toBe(false)
+    expect(getAuthCacheInfo(p).lastSuccessAt).toBe(verifiedAt)
+    expect(getAuthCacheInfo(p).isFailure).toBe(false)
+  })
+
+  it("keeps an explicit logout when the following check times out", async () => {
+    const p = nextProfile()
+    await getClaudeAuthStatusAsync(p)
+    authBehavior = "exit1"
+    await failAgain(p)
+
+    authBehavior = "timeout"
+    await failAgain(p)
+
+    expect((await getClaudeAuthStatusAsync(p))?.loggedIn).toBe(false)
+  })
+
+  it("reports a cold explicit logout rather than an unknown status", async () => {
+    authBehavior = "exit1"
+
+    const status = await getClaudeAuthStatusAsync(nextProfile())
+
+    expect(status?.loggedIn).toBe(false)
+  })
+
+  for (const behavior of ["logout-killed", "logout-signal", "logout-truncated", "logout-exit2"] as const) {
+    it(`preserves the previous login for an unavailable negative answer (${behavior})`, async () => {
+      const p = nextProfile()
+      await getClaudeAuthStatusAsync(p)
+      const verifiedAt = getAuthCacheInfo(p).lastSuccessAt
+      authBehavior = behavior
+      await failAgain(p)
+      expect((await getClaudeAuthStatusAsync(p))?.loggedIn).toBe(true)
+      expect(getAuthCacheInfo(p).isFailure).toBe(true)
+      expect(getAuthCacheInfo(p).lastSuccessAt).toBe(verifiedAt)
+    })
+  }
+
+  it("does not advance the default account's successful-check time on logout", async () => {
+    await getClaudeAuthStatusAsync()
+    const verifiedAt = getAuthCacheInfo().lastSuccessAt
+    setSystemTime(verifiedAt + 60_000)
+    authBehavior = "exit1"
+    expireAuthStatusCache()
+
+    await getClaudeAuthStatusAsync()
+    await pendingAuthStatusRefresh()
+
+    expect((await getClaudeAuthStatusAsync())?.loggedIn).toBe(false)
+    expect(getAuthCacheInfo().lastSuccessAt).toBe(verifiedAt)
   })
 
   it("reports a non-zero exit whose output is not JSON by its code alone", async () => {

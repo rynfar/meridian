@@ -158,6 +158,7 @@ let cachedAuthStatus: ClaudeAuthStatus | null = null
  *  so model selection doesn't degrade from sonnet[1m] to sonnet. */
 let lastKnownGoodAuthStatus: ClaudeAuthStatus | null = null
 let cachedAuthStatusAt = 0
+let cachedAuthStatusLastSuccessAt = 0
 let cachedAuthStatusIsFailure = false
 let cachedAuthStatusFailures = 0
 let cachedAuthStatusPromise: Promise<ClaudeAuthStatus | null> | null = null
@@ -568,7 +569,7 @@ function attachAuthOwner(refresh: AuthRefresh, owner?: AuthStatusOwnerState): vo
  * @param profileId - Profile ID to look up (uses default cache when omitted) */
 export function getAuthCacheInfo(profileId?: string): { lastCheckedAt: number; lastSuccessAt: number; isFailure: boolean } {
   if (!profileId) {
-    return { lastCheckedAt: cachedAuthStatusAt, lastSuccessAt: cachedAuthStatusIsFailure ? 0 : cachedAuthStatusAt, isFailure: cachedAuthStatusIsFailure }
+    return { lastCheckedAt: cachedAuthStatusAt, lastSuccessAt: cachedAuthStatusLastSuccessAt, isFailure: cachedAuthStatusIsFailure }
   }
   const cache = profileAuthCaches.get(profileId)
   if (!cache) return { lastCheckedAt: 0, lastSuccessAt: 0, isFailure: false }
@@ -766,11 +767,32 @@ function startAuthStatusRefresh(
       } else {
         cachedAuthStatus = parsed; lastKnownGoodAuthStatus = parsed
         cachedAuthStatusAt = Date.now(); cachedAuthStatusIsFailure = false; cachedAuthStatusFailures = 0
+        cachedAuthStatusLastSuccessAt = cachedAuthStatusAt
         cachedAuthStatusCredMtimeMs = credMtime
       }
       return parsed
     } catch (err) {
       if (generation !== authCacheGeneration || state.cancelled) return cache ? cache.lastKnownGood : lastKnownGoodAuthStatus
+      // Exit 1 with a complete negative answer is a logout, not an unavailable
+      // probe. Keeping the last login here resurrects a credential the CLI has
+      // explicitly rejected. A killed/failed process still keeps its fallback.
+      if (err instanceof Error && "code" in err && err.code === 1
+        && !("killed" in err && err.killed === true)
+        && !("signal" in err && err.signal != null)
+        && "stdout" in err && reportedLoggedIn(err.stdout) === false) {
+        const status: ClaudeAuthStatus = { ...(cache ? cache.lastKnownGood : lastKnownGoodAuthStatus), loggedIn: false }
+        console.warn(`[PROXY] Claude auth status for ${authContextLabel(profileId)} exited with code 1 reporting loggedIn: false; login required`)
+        if (cache) {
+          cache.status = status; cache.lastKnownGood = status
+          cache.at = Date.now(); cache.isFailure = false; cache.failures = 0
+          cache.credMtimeMs = credMtime
+        } else {
+          cachedAuthStatus = status; lastKnownGoodAuthStatus = status
+          cachedAuthStatusAt = Date.now(); cachedAuthStatusIsFailure = false; cachedAuthStatusFailures = 0
+          cachedAuthStatusCredMtimeMs = credMtime
+        }
+        return status
+      }
       const failures = (cache ? cache.failures : cachedAuthStatusFailures) + 1
       const everAnswered = Boolean(cache ? cache.lastKnownGood : lastKnownGoodAuthStatus)
       const retryInMs = authStatusFailureTtlMs(failures)
@@ -1515,6 +1537,7 @@ export function resetCachedClaudeAuthStatus(): void {
   cachedAuthStatus = null
   lastKnownGoodAuthStatus = null
   cachedAuthStatusAt = 0
+  cachedAuthStatusLastSuccessAt = 0
   cachedAuthStatusIsFailure = false
   cachedAuthStatusFailures = 0
   cachedAuthStatusPromise = null

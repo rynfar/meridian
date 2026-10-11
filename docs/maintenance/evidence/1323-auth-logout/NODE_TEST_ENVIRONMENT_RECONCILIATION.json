@@ -1,0 +1,17 @@
+[
+  {
+    "label": "baseline-node22.0",
+    "exit": 1,
+    "tail": "parseAgRequest} from ${JSON.stringify(moduleUrl)};\n17 |       const data=Buffer.alloc(4*1024*1024).toString('base64');\n18 |       parseAgRequest({model:'fixture',messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/png',data}}]}]});`\n19 |     const result = spawnSync(\"node\", [\"--experimental-transform-types\", \"--input-type=module\", \"-e\", script], { encoding: \"utf8\", timeout: 10000 })\n20 |     expect(result.status, result.stderr).toBe(0)\n                                              ^\nerror: node: bad option: --experimental-transform-types\n\n\nExpected: 0\nReceived: 9\n\n      at <anonymous> (/Users/rynfar/repos/meridian-review-evidence-20261006/auth-logout-1323-20261010-round1/baseline-main/src/__tests__/antigravity-attachments.test.ts:20:42)\n(fail) Antigravity image attachments > parses a multi-megabyte attachment in production Node without regex stack overflow [23.04ms]\n\n 0 pass\n 2 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [78.00ms]\n"
+  },
+  {
+    "label": "baseline-node22.22",
+    "exit": 0,
+    "tail": "bun test v1.3.11 (af24e281)\n\nsrc/__tests__/antigravity-attachments.test.ts:\n(pass) Antigravity image attachments > parses a multi-megabyte attachment in production Node without regex stack overflow [100.09ms]\n\n 1 pass\n 2 filtered out\n 0 fail\n 1 expect() calls\nRan 1 test across 1 file. [140.00ms]\n"
+  },
+  {
+    "label": "candidate-node22.22",
+    "exit": 0,
+    "tail": "bun test v1.3.11 (af24e281)\n\nsrc/__tests__/antigravity-attachments.test.ts:\n(pass) Antigravity image attachments > parses a multi-megabyte attachment in production Node without regex stack overflow [81.94ms]\n\n 1 pass\n 2 filtered out\n 0 fail\n 1 expect() calls\nRan 1 test across 1 file. [129.00ms]\n"
+  }
+]

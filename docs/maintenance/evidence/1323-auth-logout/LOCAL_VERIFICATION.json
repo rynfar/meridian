@@ -1,0 +1,78 @@
+{
+  "sourceCodeHead": "8bbba6021157e2282f11fbf5f8af9e2c6b2a2edc",
+  "certifiedPackageHead": "20664d1cc88085850cb536b7fe5ea7378e3dac06",
+  "qualification": "Gate observer captured starting HEAD8bb; checkout subsequently gained docs and the separately exercised Windows predicate only. Runtime, tests, and native harness match both commits byte-for-byte. Final-head CI remains required.",
+  "runtimeAndTestBytesUnchanged": {
+    "src/proxy/models.ts": true,
+    "src/__tests__/models-auth-status.test.ts": true,
+    "src/__tests__/proxy-async-ops.test.ts": true,
+    "scripts/e2e-auth-status-native.mjs": true
+  },
+  "counts": {
+    "pass": 5560,
+    "fail": 0,
+    "skip": 35,
+    "isolatedInvocations": 21
+  },
+  "gates": [
+    {
+      "name": "npm-test-node22.22",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "head": "8bbba6021157e2282f11fbf5f8af9e2c6b2a2edc",
+      "exit": 0,
+      "elapsedSeconds": 467.14,
+      "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/auth-logout-1323-20261010-round1/npm-test-node22.22.log"
+    },
+    {
+      "name": "typecheck-node22.22",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "head": "8bbba6021157e2282f11fbf5f8af9e2c6b2a2edc",
+      "exit": 0,
+      "elapsedSeconds": 4.35,
+      "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/auth-logout-1323-20261010-round1/typecheck-node22.22.log"
+    },
+    {
+      "name": "build-node22.22",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "head": "8bbba6021157e2282f11fbf5f8af9e2c6b2a2edc",
+      "exit": 0,
+      "elapsedSeconds": 3.65,
+      "log": "/Users/rynfar/repos/meridian-review-evidence-20261006/auth-logout-1323-20261010-round1/build-node22.22.log"
+    }
+  ],
+  "gateLogSHA256": {
+    "npm-test-node22.22": "1268c0f8d938c6edd67de504f1c5e0379143a3eadc6077b2bea585406e065960",
+    "typecheck-node22.22": "4577701e0ce9d7fb5a8c4e1e711f870ac27c0fac7953559cb4275bd9afaba0b7",
+    "build-node22.22": "bb480ac5f0e9cf3b6826b843ec83c82f3b56a2b9c2f13895f57c017de2619846"
+  },
+  "environment": {
+    "bun": "1.3.11",
+    "node": "22.22.3",
+    "sdk": "0.2.141",
+    "nativeClaude": "2.1.284",
+    "platform": "darwin/arm64"
+  },
+  "powerShellPredicate": {
+    "exit": 0,
+    "casesPassed": 6
+  },
+  "installedNativeControls": {
+    "default": "PASS",
+    "profile": "PASS",
+    "generations": 0,
+    "observedRolesJoined": true
+  },
+  "finalHeadCI": "PENDING",
+  "publication": false
+}

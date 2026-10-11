@@ -158,3 +158,10 @@ evidence root in the `pr1285-native-live-preparation-20261007`,
 `pr1285-independent-package-preparation-20261007` namespaces. This committed
 record and runnable harness preserve the acceptance facts beyond those local
 paths. The owner checkout and its 12 dirty paths remain unchanged.
+
+## Later logout correction
+
+The absent-token behavior above is historical. The #1323 correction records a
+joined CLI exit 1 with complete `loggedIn: false` as an observed logout. The
+current native harness now asserts that behavior; its process ownership, delay
+and positive-login controls are retained. See [the logout proof](1323-auth-logout.md).

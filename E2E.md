@@ -366,6 +366,24 @@ This proves controlled Mac auth delay, not memory paging, Linux/Windows, owner
 store enrichment, provider entitlement, coding-client/model behavior or whole-OS
 custody. Refresh actual CI/source status before merging.
 
+## Explicit logout auth status
+
+The `logged-out` case in `scripts/e2e-auth-status-native.mjs` needs no token.
+Use the native gate command above with `--case=logged-out`, omit the input/token
+arguments, and run both `--context=default` and `--context=profile` in new task
+directories. After the actual CLI exits 1 with JSON `loggedIn: false`, `/health`
+must be unhealthy/503 and `/profiles/list` must report false with live provenance
+and no successful-login timestamp. Pending checks still read degraded/never.
+The gate retains process exit, close and both captured-pipe joins and requires
+zero SDK generations. Its unchanged assertion fails on pre-#1323 main.
+
+This supersedes only the historical #1285 absent-token expectation that a
+complete negative answer remained unknown. See the [logout proof and adversarial
+review](docs/maintenance/evidence/1323-auth-logout.md). Cache-transition tests
+also retain explicit logout through a later unavailable probe; killed, signalled,
+truncated and other-exit answers must preserve the preceding observation.
+This auth-only behavior has no implicated inference model or coding-client turn.
+
 ## Local build provenance
 
 ```sh
@@ -8422,3 +8440,10 @@ check set with `nix eval --no-update-lock-file --json .#checks.aarch64-darwin
 [Before/after proof and platform limits](docs/maintenance/evidence/home-manager-isolation-1305.md)
 retain the native failed-before missing-service assertion and the corrected build.
 No model/credential flow is implicated by this generated-unit-only change.
+
+
+### Credentialless telemetry contention (#1328)
+
+`scripts/e2e-telemetry-busy.mjs` runs the actual CLI/SDK denial path with isolated state in a Linux namespace containing only loopback. Supply a valid task-owned machine-id, locked dependencies, Node 22.22.3 and Bun 1.3.11. It refuses non-loopback networking. Run `bun scripts/e2e-telemetry-busy.mjs "$PWD" /evidence`; retain its JSON and child logs. Both ordinary requests must yield 401 and produce two rows. During six further 401 requests a real second process holds SQLite writes for 400 ms with 100 ms gaps. Require six new rows after holder release and joined server shutdown. The unchanged main baseline loses rows; the correction preserves six. Source and escrow hashes, failed controls and scope are in [the durable review](docs/maintenance/evidence/1328-telemetry-busy.md).
+
+This verifies transient contention for error-request storage without outbound model access. It does not assert successful-model or actual OpenCode-client behavior, physical-host latency, or lossless writes during held/starving locks. The 1,000 ms synchronous wait applies to each write, including diagnostic logs, and can add across writes while blocking the event loop.
