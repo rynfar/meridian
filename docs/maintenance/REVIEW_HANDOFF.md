@@ -1,3 +1,24 @@
+## #1322 resumed with kraken — 2026-10-11
+
+Owner login deferral is lifted for the requested live checks. The third profile
+`kraken` is verified usable; `work` and `personal` are excluded from isolated
+actual runs. Candidate `a7182c9b` includes current main `6e510dbc`; all original
+contributor commits remain intact. Local npm/typecheck/build pass (6,047 tests,
+zero failures, 36 skips). Source and installed actual mixed-auto/Agent-handback
+checks each pass27/27, with exact native/model and physical custody receipts.
+Source E41 chain/nonstreaming passes; source chain/streaming fails at resumed
+turn2 with an error terminal. Its exact subtype/cause was discarded by the
+observer, so no quota/stream-stop/regression attribution is made. Later E41 and
+caption admission stops, all original actors join, and grants are removed.
+
+The existing #1322 stays OPEN DRAFT. The new E41 failure and all inherited
+whole-change/native/caption/reporter/platform/CI holds remain; historical green
+proofs do not replace current missing cases. The historical local synthetic EOF
+failure remains unexplained despite passing current controls. See the
+[current live record](evidence/1322-kraken-live-20261011/README.md). No new PR,
+source closure, release or community comment. Next: retain raw safe native
+terminal classification in the observer before any causal diagnostic rerun.
+
 ## Telemetry #1328 bounded correction — 2026-10-10
 
 The authored source `f1418967` is incorporated as `a996d282`; maintainer source/escrow checkpoint `52ebd351` preserves contributor credit and fixes fixture joins plus the per-write blocking description. The identical short-lock control fails current main; 26 focused tests pass. Full local gates pass 5,562 tests / zero failures / 35 skips, standalone typecheck and build with Bun 1.3.11 / Node 22.22.3. Real Linux x64 denial-path HTTP controls retain 1/6 contended rows before versus 6/6 after, with 2/2 ordinary rows on both sides. The same final escrow/source hashes were executed, all direct children/pipes joined, and final counts follow shutdown. Stronger stress and startup failures are preserved explicitly. [Evidence and root adversarial review](evidence/1328-telemetry-busy.md) qualify the remaining long-lock/drop/latency limits; no actual OpenCode-client or successful-model claim is made.

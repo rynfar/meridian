@@ -1,0 +1,20 @@
+{
+  "actualClientSourceInstalled": "PASS27of27each",
+  "nativeFailure": "SOURCE_E41_CHAIN_STREAM_TURN2_ERROR_TERMINAL",
+  "requestedModel": "claude-sonnet-5-5",
+  "actualModels": [
+    "claude-sonnet-5-5"
+  ],
+  "inputUsageTokens": 2712,
+  "outputTokens": 24,
+  "resultCompleted": true,
+  "terminalSessionMatched": true,
+  "resultSubtypeRecorded": "unexpected-result",
+  "resultIsError": true,
+  "observerLimitation": "Observer maps every non-success/non-max-turns subtype to unexpected-result. Exact original subtype/cause was not preserved; do not infer aborted_streaming, quota or a software regression.",
+  "failureGate": "e41-native-completion-model-usage-receipt-missing",
+  "allOriginalStagesJoined": true,
+  "noBlindRerun": true,
+  "installedE41AndCaptions": "UNEXECUTED_AFTER_STOP",
+  "wholeChangeAcceptance": "HELD"
+}

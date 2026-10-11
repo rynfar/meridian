@@ -1,3 +1,12 @@
+## Current #1322 kraken evidence — 2026-10-11
+
+The owner's renewed third profile removes the login hold. Current source and
+independently installed actual mixed-auto/Agent handback checks each pass27/27
+on the explicit Sonnet/SDK/client/native tuple. Source E41 chain/nonstreaming
+passes, but chain/streaming resumed turn2 returns an error terminal and remains
+unqualified. Later E41/caption cases are unexecuted; no whole-change acceptance.
+See [the current evidence](docs/maintenance/evidence/1322-kraken-live-20261011/README.md).
+
 # End-to-End Testing
 
 ## Owner-deferred #1211/#1322 current qualification

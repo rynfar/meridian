@@ -1,0 +1,91 @@
+[
+  {
+    "kind": "source",
+    "qualified": true,
+    "checksPassed": 27,
+    "checksTotal": 27,
+    "sdkQueries": 19,
+    "estimatedCostUsd": 1.0765879999999999,
+    "requestedMainModel": "claude-sonnet-5-5",
+    "requestedClassifierModel": "claude-sonnet-5",
+    "actualModelSets": [
+      "claude-sonnet-5",
+      "claude-sonnet-5-5"
+    ],
+    "identity": {
+      "targetKind": "source",
+      "sourceHead": "a7182c9b808cdda27255fd832cfa6b9dd57b3dd6",
+      "packageVersion": "1.80.0",
+      "proxyEntrySha256": "f1454ed8ba1cddfded3e14628a902aea810c84cfaedba0fd4fab0b942b5d21b9",
+      "sdkVersion": "0.2.141",
+      "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+      "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+      "nativeCliSha256": "5cd90aabd83f8a15136c35aa37bb1d92b348993573316643dc3fe4e04afbf88f",
+      "clientVersion": "2.1.287",
+      "nativeCliVersion": "2.1.284"
+    },
+    "custody": {
+      "phase": "live",
+      "case": "source",
+      "qualified": true,
+      "originalDriverPid": 90182,
+      "originalAttachPid": 90190,
+      "originalAttachJoined": true,
+      "exit": 0,
+      "hostDeadlineExceeded": false,
+      "ownedContainerStoppedAndRemoved": true,
+      "sourceGrantUnchanged": true,
+      "taskGrantUnchanged": true,
+      "taskAccessOnlyGrantRemoved": true,
+      "modelCalls": "see exact SDK receipts",
+      "sourceWrites": 0,
+      "failureClass": null,
+      "finishedUTC": "2026-10-11T05:03:47.437467+00:00",
+      "wholeChangeAcceptance": "HELD"
+    }
+  },
+  {
+    "kind": "installed",
+    "qualified": true,
+    "checksPassed": 27,
+    "checksTotal": 27,
+    "sdkQueries": 19,
+    "estimatedCostUsd": 1.1306429,
+    "requestedMainModel": "claude-sonnet-5-5",
+    "requestedClassifierModel": "claude-sonnet-5",
+    "actualModelSets": [
+      "claude-sonnet-5",
+      "claude-sonnet-5-5"
+    ],
+    "identity": {
+      "targetKind": "installed-package",
+      "packageVersion": "1.80.0",
+      "proxyEntrySha256": "f1454ed8ba1cddfded3e14628a902aea810c84cfaedba0fd4fab0b942b5d21b9",
+      "sdkVersion": "0.2.141",
+      "sdkEntrySha256": "48bde6aeabf7e71ad5528bf52c8feb1642c21f505ea2495c70f39db7df226d97",
+      "clientSha256": "3920489a5109cff5786a1a392c25277408ff22bc796d5edb9c16a60e5a1718f0",
+      "nativeCliSha256": "24972e3bc859fab2b46ed4c1e51f7d6130f06d3bd550811a114640de3370d0de",
+      "clientVersion": "2.1.287",
+      "nativeCliVersion": "2.1.296"
+    },
+    "custody": {
+      "phase": "live",
+      "case": "installed",
+      "qualified": true,
+      "originalDriverPid": 94449,
+      "originalAttachPid": 99661,
+      "originalAttachJoined": true,
+      "exit": 0,
+      "hostDeadlineExceeded": false,
+      "ownedContainerStoppedAndRemoved": true,
+      "sourceGrantUnchanged": true,
+      "taskGrantUnchanged": true,
+      "taskAccessOnlyGrantRemoved": true,
+      "modelCalls": "see exact SDK receipts",
+      "sourceWrites": 0,
+      "failureClass": null,
+      "finishedUTC": "2026-10-11T05:05:09.827989+00:00",
+      "wholeChangeAcceptance": "HELD"
+    }
+  }
+]
