@@ -413,6 +413,84 @@ describe("coalesceCompleteToolResultContinuation", () => {
       { role: "assistant", content: [{ type: "text", text: "late" }] },
     ], ["t1"])).toBeUndefined()
   })
+
+  describe("per-call echo/result pairs from a Responses-API client", () => {
+    const echo = (...ids: string[]) => ({
+      role: "assistant",
+      content: ids.map(id => ({ type: "tool_use", id, name: "read", input: {} })),
+    })
+
+    it("coalesces [echo A, result A, echo B, result B] into one settled batch", () => {
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1")] },
+        echo("t2"),
+        { role: "user", content: [result("t2"), { type: "text", text: "note" }] },
+      ], ["t1", "t2"])).toEqual([{
+        role: "user",
+        content: [result("t1"), result("t2"), { type: "text", text: "note" }],
+      }])
+    })
+
+    it("rejects pairs that leave the batch unsettled or name other calls", () => {
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1")] },
+        echo("t2"),
+      ], ["t1", "t2"])).toBeUndefined()
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1")] },
+        echo("t3"),
+        { role: "user", content: [result("t2")] },
+      ], ["t1", "t2"])).toBeUndefined()
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1")] },
+        echo("t1"),
+        { role: "user", content: [result("t2")] },
+      ], ["t1", "t2"])).toBeUndefined()
+    })
+
+    it("rejects a result that arrives before its own echo", () => {
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1"), result("t2")] },
+        echo("t2"),
+      ], ["t1", "t2"])).toBeUndefined()
+    })
+
+    it("rejects a later echo after user text or once the batch is settled", () => {
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1"), { type: "text", text: "queued" }] },
+        echo("t2"),
+        { role: "user", content: [result("t2")] },
+      ], ["t1", "t2"])).toBeUndefined()
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1")] },
+        echo("t1"),
+      ], ["t1"])).toBeUndefined()
+    })
+
+    it("rejects a later echo when the batch had no leading echo", () => {
+      expect(coalesceCompleteToolResultContinuation([
+        { role: "user", content: [result("t1")] },
+        echo("t2"),
+        { role: "user", content: [result("t2")] },
+      ], ["t1", "t2"])).toBeUndefined()
+    })
+
+    it("rejects a later echo that also carries assistant text", () => {
+      expect(coalesceCompleteToolResultContinuation([
+        echo("t1"),
+        { role: "user", content: [result("t1")] },
+        { role: "assistant", content: [{ type: "text", text: "and next" }, { type: "tool_use", id: "t2", name: "read", input: {} }] },
+        { role: "user", content: [result("t2")] },
+      ], ["t1", "t2"])).toBeUndefined()
+    })
+  })
 })
 
 describe("findCompleteToolResultCheckpoint", () => {

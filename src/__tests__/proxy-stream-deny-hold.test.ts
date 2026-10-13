@@ -302,4 +302,28 @@ describe("streaming deny-hold (#552 root cause v2)", () => {
     expect(denyUuids).not.toContain(capturedResumeSessionAt!)
     expect(capturedForkSession).toBe(true)
   })
+  it("RESUMES when the client returns the batch as one echo/result pair per call", async () => {
+    // A Responses-API client that records each output right after its own call
+    // arrives here as [assistant tb1, user tb1, assistant tg1, user tg1]. It
+    // settles the same checkpoint, so it must not cost a full uncached replay.
+    const app = createProxyServer({ port: 0, host: "127.0.0.1" }).app
+    await postStream(app, "hold-4", [{ role: "user", content: "test tools" }])
+    const initialSessionId = capturedSessionId
+    if (!initialSessionId) throw new Error("missing caller-selected session ID")
+    const deadline = Date.now() + 5_000
+    while (!timeline.includes("canonical_result") && Date.now() < deadline) await sleep(10)
+
+    capturedResume = undefined
+    await postStream(app, "hold-4", [
+      { role: "user", content: "test tools" },
+      { role: "assistant", content: [{ type: "tool_use", id: "tb1", name: "bash", input: { command: "ls /tmp" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "tb1", content: "ok" }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "tg1", name: "glob", input: { pattern: "*.md" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "tg1", content: "ok" }] },
+    ])
+    expect(capturedResume ?? "(fresh)").toBe(initialSessionId)
+    expect(capturedResumeSessionAt).toBe(assistantToolUuids[1])
+    expect(timeline).not.toContain("log:passthrough.checkpoint_replay")
+  })
 })
+
