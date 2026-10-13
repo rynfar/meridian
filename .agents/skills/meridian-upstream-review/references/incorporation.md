@@ -13,7 +13,7 @@ Use the sections for the current phase.
 Follow [Contributor pull requests](../../../references/contributing.md#contributor-pull-requests). The contributor must end up as `Author` of the commit on `main`, with their PR shown as merged.
 
 - Work on their PR, not a copy of it. `gh pr checkout <N>` in a fresh isolated worktree; do not switch or reset the user's checkout or disturb existing worktrees. Do not create a `codex/` or other maintainer branch holding their commits, and do not open a maintainer PR for their change.
-- Push maintainer corrections to their branch as separate signed commits, and resolve conflicts by merging `main` into it; do not wait on the contributor for either. Do not amend, squash, rebase or force-push their commits.
+- Push maintainer corrections to their branch as separate signed commits, and resolve conflicts by merging `main` into it; do not wait on the contributor for either. Do not amend, squash, rebase or force-push their commits. Keep evidence, harnesses and handoff notes off their branch, in a separate maintainer PR, so the maintainer is co-author only of a change the maintainer actually altered.
 - Check `mergeStateStatus` rather than assuming signed-commit protection blocks a fork PR. `CLEAN` merges directly. When unsigned commits are the only block and every check on the exact head is green, merge with `--admin` as step 3 of the contributor rules allows.
 - If their PR cannot carry the change, stop and ask the owner. Do not fall back to a maintainer integration PR.
 - Repository settings verified 2026-09-08: PR_TITLE / BLANK. Do not use `--admin` outside that unsigned-commit case, push directly to main, or change those settings.

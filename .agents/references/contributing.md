@@ -54,6 +54,13 @@ From March to October 2026 that happened to 137 contributor PRs
    maintainer edits), and resolve conflicts by merging `main` into their branch.
    The squash then names the contributor as Author and the maintainer as
    co-author. Add commits; do not rewrite or force-push theirs.
+   Co-author has to mean the maintainer changed what shipped. Put a commit on
+   their branch only when it changes the fix or is needed to merge it: a
+   correction, a conflict resolution, a test the change broke. Live harnesses,
+   evidence records, handoff notes and unrelated cleanup go in a separate
+   maintainer PR. When the only maintainer commit is a conflict-free merge of
+   `main`, merge with an explicit `--body` so the squash carries no maintainer
+   `Co-authored-by` line, and check the landed message.
 3. `main` requires signed commits, which blocks a PR only when it holds an
    unsigned commit. Check `mergeStateStatus` before assuming a block: a fully
    signed fork PR is `CLEAN` and merges directly. When unsigned commits are the

@@ -7968,15 +7968,25 @@ needs `E2E_OPENCODE_BIN`, the independently installed OpenCode scrub as
 
 Two attached archives grow one conversation past 200k tokens. The proxy is then
 replaced by a fresh one with an empty session store, so the third turn is a full
-replay. The client config says 200k, so only the plugin's discovery of
-`/v1/models` can raise the window. Run it against unchanged `main` and against
+replay. The client config carries no window for the model, so it can only come
+from the plugin's discovery of `/v1/models`. Run it against unchanged `main` and against
 the change: `main` must fail the advertised-window check and either compact in
 the client or trim the replay, while the change passes every check, including
 more than 200k input tokens reaching the model on the replayed turn.
 
 Assertions are on requests, headers, the diagnostic log and token counts, never
-on the model's wording. One run costs roughly 600k Sonnet input tokens.
+on the model's wording. One run costs roughly 700k Sonnet input tokens.
 `E2E_FILL_CHARS` set small rehearses the wiring cheaply; the token check then
 cannot pass. This gate covers the OpenCode V2 catalog and replay paths for the
 canonical Sonnet pin. It does not cover Sonnet 4.x `sonnet[1m]` billing or other
 clients.
+
+## Per-call tool results on `/v1/responses` (#1201)
+
+`bun scripts/e2e-responses-per-call-results.mjs` asks a real model for two tool
+calls in one response, then answers the batch three ways on separate
+conversations: grouped (control), one call/output pair per call, and per call
+with an output missing. The control and the per-call order must resume the
+checkpoint; the incomplete history must not. Unchanged `main` before #1201 fails
+the per-call check. Assertions are on the resume flag and HTTP status only. Run
+before releases touching the passthrough checkpoint matcher.
