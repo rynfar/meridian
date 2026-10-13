@@ -44,6 +44,8 @@ export interface MeridianSettings {
    *  profiles.json order. MERIDIAN_PROFILE_ORDER env var takes precedence. */
   profileOrder?: string[]
   priorityFailback?: PriorityFailbackPolicy
+  /** Prefer included capacity at safe priority-routing boundaries. */
+  priorityOverage?: "last-resort" | "always"
 
   /**
    * Keep telemetry in SQLite instead of memory, so it survives a restart.

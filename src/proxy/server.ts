@@ -105,6 +105,7 @@ import { requireAuth, authEnabled } from "./auth"
 import { detectAdapter } from "./adapters/detect"
 import { buildQueryOptions, isCliThinkingDisplay, resolveQueryConfigDir, singleTurnCapLiftRaisesBudget, type QueryContext } from "./query"
 import { normalizeEffort } from "./effort"
+import { hasIncludedCapacityExhaustion, preferIncludedCapacity } from "./overageRouting"
 import { parseOutputFormat, structuredOutputText } from "./structuredOutput"
 import { runTransformHook, buildPipeline, createRequestContext } from "./transform"
 import { inspectExecutionHistory } from "./executionHistory"
@@ -2262,6 +2263,33 @@ function createProxyServerWithAuthOwner(config: Partial<ProxyConfig>, authOwner:
                 candidates = retainOnlyProfile
                   ? [retainOnlyProfile]
                   : [first, ...order.filter(id => id !== first && !priorityExhaustion.isExhausted(id))]
+              }
+              // Cost preference may move only a new conversation or a proven
+              // new human turn. Same-turn tool/hidden work must retain its route;
+              // an overage observation is not authority to move its transcript.
+              const newHumanTurn = assignment !== undefined
+                && durableRoute !== undefined
+                && routeMappingIsCurrent
+                && shouldPromotePriorityAssignment({
+                  policy: "next-user-turn",
+                  assignment,
+                  requestId: promotionTurn?.turnId,
+                  requestKind: promotionTurn?.kind,
+                })
+              const overagePolicy = process.env.MERIDIAN_PRIORITY_OVERAGE ?? getSetting("priorityOverage")
+              if (routingMode === "priority" && overagePolicy !== "always"
+                && !retainOnlyProfile && (assignment === undefined || newHumanTurn)) {
+                const now = Date.now()
+                candidates = preferIncludedCapacity(candidates, id => {
+                  const sdk = rateLimitStore.getAll(id).map(entry => ({
+                    ...entry, type: entry.rateLimitType ?? "default",
+                  }))
+                  const oauth = peekOAuthUsage(id)
+                  const windows = oauth && !oauth.stale
+                    ? oauth.windows.map(window => ({ ...window, observedAt: oauth.fetchedAt }))
+                    : []
+                  return hasIncludedCapacityExhaustion([...sdk, ...windows], now)
+                })
               }
               return dispatchPriority({
                 context: c,

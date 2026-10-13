@@ -1,0 +1,42 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/priority-routing-integration.test.ts:
+[PROXY] Claude auth status for profile "work" exited with code 1 reporting loggedIn: false; login required
+[PROXY] 017cab7b-2f66-416a-b60d-7bc1cd186b60 adapter=opencode profile=work(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 017cab7b-2f66-416a-b60d-7bc1cd186b60 usage: input=10 output=50 cache=0%
+472 |           stream, content: `new overage-aware conversation ${stream}`,
+473 |         })
+474 |         expect(response.status).toBe(200)
+475 |         await response.text()
+476 |         expect(capturedEnvs).toHaveLength(1)
+477 |         expect(capturedEnvs[0]).toContain("prof-personal")
+                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "prof-personal"
+Received: "/tmp/meridian-test-prof-work"
+
+      at <anonymous> (/Users/rynfar/repos/meridian-priority-routing-1338-20261012/src/__tests__/priority-routing-integration.test.ts:477:33)
+(fail) priority routing > prefers included capacity over a successful overage account (stream=false) [319.11ms]
+[PROXY] 291b7434-c545-4993-8bac-bc5d358c3c67 adapter=opencode profile=work(priority) model=sonnet stream=true tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 291b7434-c545-4993-8bac-bc5d358c3c67 usage: input=10 output=50 cache=0%
+472 |           stream, content: `new overage-aware conversation ${stream}`,
+473 |         })
+474 |         expect(response.status).toBe(200)
+475 |         await response.text()
+476 |         expect(capturedEnvs).toHaveLength(1)
+477 |         expect(capturedEnvs[0]).toContain("prof-personal")
+                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "prof-personal"
+Received: "/tmp/meridian-test-prof-work"
+
+      at <anonymous> (/Users/rynfar/repos/meridian-priority-routing-1338-20261012/src/__tests__/priority-routing-integration.test.ts:477:33)
+(fail) priority routing > prefers included capacity over a successful overage account (stream=true) [43.81ms]
+
+ 0 pass
+ 73 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [1.53s]

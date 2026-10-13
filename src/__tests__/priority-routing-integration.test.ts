@@ -457,12 +457,14 @@ beforeEach(() => {
   capturedSdkCalls = []
   capturePhase = 0
   testTurnClock.clear()
+  rateLimitStore.clear()
   savedPriorityFailbackSetting = loadSettings().priorityFailback
   saveSettings({ priorityFailback: undefined })
   __setFetchOAuthUsageOverride(async () => null)
 })
 
 afterEach(() => {
+  rateLimitStore.clear()
   saveSettings({ priorityFailback: savedPriorityFailbackSetting })
   __setFetchOAuthUsageOverride(null)
 })
@@ -482,6 +484,8 @@ describe("priority routing", () => {
     resetActiveProfile()
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
+    savedEnv.MERIDIAN_PRIORITY_OVERAGE = process.env.MERIDIAN_PRIORITY_OVERAGE
+    delete process.env.MERIDIAN_PRIORITY_OVERAGE
     savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK
     savedEnv.MERIDIAN_OPENCODE_ATTESTATION_KEY = process.env.MERIDIAN_OPENCODE_ATTESTATION_KEY
     process.env.MERIDIAN_OPENCODE_ATTESTATION_KEY = PRIORITY_ATTESTATION_TEST_KEY.toString("base64url")
@@ -516,6 +520,82 @@ describe("priority routing", () => {
     expect(res.headers.get("x-claude-session-id")).not.toBeNull()
     expect(capturedEnvs).toHaveLength(1)
     expect(capturedEnvs[0]).toContain("prof-work")
+  })
+
+  for (const stream of [false, true]) {
+    it(`prefers included capacity over a successful overage account (stream=${stream})`, async () => {
+      rateLimitStore.record("work", {
+        status: "allowed", rateLimitType: "five_hour", isUsingOverage: true,
+        utilization: 1, resetsAt: Date.now() + 60_000,
+      })
+      rateLimitStore.record("personal", {
+        status: "allowed", rateLimitType: "five_hour", isUsingOverage: false,
+        utilization: 0.1, resetsAt: Date.now() + 60_000,
+      })
+      try {
+        const response = await postMessages(createTestApp(), {
+          stream, content: `new overage-aware conversation ${stream}`,
+        })
+        expect(response.status).toBe(200)
+        await response.text()
+        expect(capturedEnvs).toHaveLength(1)
+        expect(capturedEnvs[0]).toContain("prof-personal")
+      } finally {
+        rateLimitStore.clear()
+      }
+    })
+  }
+
+  const markOverage = (id: string) => rateLimitStore.record(id, {
+    status: "allowed", rateLimitType: "five_hour", isUsingOverage: true,
+    utilization: 1, resetsAt: Date.now() + 60_000,
+  })
+
+  for (const control of ["all-spent", "explicit-pin", "always", "active+priority", "expired"] as const) {
+    it(`overage preference preserves ${control}`, async () => {
+      markOverage("work")
+      if (control === "all-spent") markOverage("personal")
+      if (control === "always") process.env.MERIDIAN_PRIORITY_OVERAGE = "always"
+      if (control === "active+priority") process.env.MERIDIAN_ROUTING = "active+priority"
+      if (control === "expired") rateLimitStore.record("work", {
+        status: "allowed", rateLimitType: "five_hour", isUsingOverage: true,
+        resetsAt: Date.now() - 1,
+      })
+      const response = await post(createTestApp(),
+        control === "explicit-pin" ? { "x-meridian-profile": "work" } : {},
+        `overage control ${control}`)
+      expect(response.status).toBe(200)
+      await response.text()
+      expect(capturedEnvs).toHaveLength(1)
+      expect(capturedEnvs[0]).toContain("prof-work")
+    })
+  }
+
+  it("moves an overage assignment only on a new authenticated human turn", async () => {
+    const app = createTestApp()
+    const sessionId = "overage-authenticated-boundary"
+    const firstHeaders = trustedOpenCodeTurnHeaders(sessionId, "human-1")
+    await (await post(app, firstHeaders, OPENING_MESSAGE)).text()
+    expect(durableRoute(sessionId).profileId).toBe("work")
+    markOverage("work")
+    capturedEnvs = []
+    const sameTurn = await post(app, firstHeaders, OPENING_MESSAGE)
+    expect(sameTurn.status).toBe(200)
+    await sameTurn.text()
+    expect(capturedEnvs.length).toBeGreaterThan(0)
+    expect(capturedEnvs.every(dir => dir.includes("prof-work"))).toBe(true)
+    expect(durableRoute(sessionId).profileId).toBe("work")
+    capturedEnvs = []
+    const response = await post(app, trustedOpenCodeTurnHeaders(sessionId, "human-2"), [
+      { role: "user", content: OPENING_MESSAGE },
+      { role: "assistant", content: "ok from /tmp/meridian-test-prof-work" },
+      { role: "user", content: "next human turn" },
+    ])
+    expect(response.status).toBe(200)
+    await response.text()
+    expect(capturedEnvs).toHaveLength(1)
+    expect(capturedEnvs[0]).toContain("prof-personal")
+    expect(durableRoute(sessionId).profileId).toBe("personal")
   })
 
   it("fails over per request when the preferred profile is rate-limited", async () => {
@@ -2096,6 +2176,10 @@ describe("priority cooldown resolution", () => {
     failingDirs = new Set()
     clearSessionCache()
     resetActiveProfile()
+    // These cases measure reactive refusal cooldowns, so deliberately attempt
+    // the spent profile instead of bypassing it under the cost preference.
+    savedEnv.MERIDIAN_PRIORITY_OVERAGE = process.env.MERIDIAN_PRIORITY_OVERAGE
+    process.env.MERIDIAN_PRIORITY_OVERAGE = "always"
     savedEnv.MERIDIAN_ROUTING = process.env.MERIDIAN_ROUTING
     savedEnv.MERIDIAN_PROFILE_ORDER = process.env.MERIDIAN_PROFILE_ORDER
     savedEnv.MERIDIAN_PRIORITY_FAILBACK = process.env.MERIDIAN_PRIORITY_FAILBACK

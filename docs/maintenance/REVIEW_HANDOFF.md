@@ -1,3 +1,13 @@
+## Priority overage #1347 — refresh after stale CI notification
+
+The notification named old heade5c2882; live head was79035ae8 with passing CI
+but a main-branch conflict. Main e0f9feab is being merged into the same feature
+branch without rewriting history. Only the review handoff required manual
+resolution; current main history and the earlier routing qualification are both
+retained below. Auto-merged routing changes need renewed focused/full checks.
+Actual account/client/model acceptance with matching plugins remains missing;
+#1347 remains draft and issue#1338 stays open. No account refresh or model call.
+
 ## Current Nix runtime integration — #1342 → #1357
 
 Authored current-main incorporation26e2dd4a5/dd4bf666 preserves Connor Grady's
@@ -584,6 +594,61 @@ loaded path/hook before inference, and requires successful real request-hook
 invocations afterward. No new live access, refresh, account change or paid usage
 occurred in this correction. The current #1338 delivery is draft #1347 with final
 local gates in progress; do not inherit the old quota-blocker assumption there.
+
+## Historical overage preparation before main refresh
+
+## Draft 1347 local qualification completed — 2026-10-12
+
+Paid-overage routing final local gates pass 5,650 tests / 35 skips / zero failures,
+standalone typecheck and build. Five original cooldown fixtures now explicitly
+select `priorityOverage=always` to preserve their intended reactive-refusal path;
+all assertions remain. Default-policy regressions still require avoiding the
+spent account. Delivery #1347 remains draft for real affected-flow acceptance.
+
+Do not inherit the prior streaming/Extra Usage account-quota hold: those recent
+OpenCode harnesses omitted server scrub. Their PR bodies now carry the correction.
+The current read-only default-account usage check shows 9% five-hour and 8% weekly
+utilization, Extra Usage disabled, valid scope/expiry and unchanged source record.
+This is readiness, not proof of model entitlement. Harness correction and fresh
+properly configured acceptance are underway separately.
+
+## Impact-prioritized queue continuation — 2026-10-12
+
+Owner renewed the backlog goal: consequential fixes first, then good features.
+Live paginated discovery covers Meridian and five owner-managed scrub repos,
+including hudscrub; three accessible organizations add no scrub candidates.
+Snapshot: 57 open items, including 30 Meridian PRs and 21 Meridian issues.
+The owner explicitly reaffirmed matching client and scrub plugins for every
+actual harness; preserve config/load/route evidence before interpreting refusals.
+
+Priority: paid-overage #1338; missing passthrough tools #1283; streaming #1294/
+#1344; OpenCode scrub #23/#22; SSE failover #1214; image amplification #1310;
+OpenCode checkpoint #1301; narrow no-op writes #1303 and held SDK joins #1334.
+High-value later features: AGY idle retention #1341, managed detached lifecycle
+#1302, neutral agent headers #1311. Preserve prior owner deferrals, especially
+#1193 and the Claude-side-call stack, and all drafts. Do not waive source/client
+acceptance gates to clear queue counts. No new release authorization is inferred.
+
+#1338 implementation is isolated on `codex/priority-routing-1338-20261012`, base
+`16fac4c6b`. Both JSON/SSE regressions fail unchanged main and pass candidate;
+16 focused controls pass, with no live model/credential requests. See
+[evidence and remaining scope](evidence/1338-overage-routing/README.md).
+Final local gates and real affected-flow acceptance are separate from these
+controls. The original issue stays open until qualified completion. An unrelated
+npm-lock mismatch makes `npm ci` fail on baseline; frozen Bun install succeeds.
+
+#1283 source remains `571a6716`, non-draft with no comments/reviews. Recovered
+preparation `codex/mcp-current-main-1283-20261008` at `b43067491` already contains
+24+ authored/correction commits and durable seven-case native transport proof.
+Do not restart or blindly merge its 97-file aggregate diff: actual Linux/OpenCode/
+Opus retry/tool/history, guardian/custody, E41/E42 and final-head CI remain held.
+Its preserved REVIEW.md records matching client AND scrub plugin evidence and
+an earlier failed missing-scrub arm. No new actual-client call occurred here.
+
+Live refresh confirms Extra Usage #1346 merged at `16fac4c6b` and source #1327
+closed. Polytoken #1343 merged at `a48a8498`; source #1339 closed. Both are after
+published 1.81.0, whose fresh-install Haiku evidence is recorded below. This
+supersedes older pending-CI/merge notes without erasing their historical evidence.
 
 ## Haiku release completed — 2026-10-12
 

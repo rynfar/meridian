@@ -1,0 +1,14 @@
+{
+  "pass": 5650,
+  "fail": 0,
+  "skip": 35,
+  "testCommand": "npm exec --yes --package=bun@1.3.11 -- sh -c \"npm test\"",
+  "testExit": 0,
+  "batches": 21,
+  "typecheckExit": 0,
+  "buildExit": 0,
+  "productCommit": "6ad7c53e",
+  "node": "22.22.3",
+  "bun": "1.3.11",
+  "liveAcceptance": false
+}

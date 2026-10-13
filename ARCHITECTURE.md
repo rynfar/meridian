@@ -174,6 +174,15 @@ Agent (OpenCode) ──► HTTP POST /v1/messages ──► Proxy Server
 Agent (OpenCode) ◄── SSE Response ◄─────────────────┘
 ```
 
+## Priority overage preference
+
+`proxy/overageRouting.ts` is a pure leaf: it classifies bounded, profile-scoped
+quota evidence and stably partitions routing candidates. `server.ts` supplies
+SDK/cached OAuth observations and enforces existing authenticated human-turn
+authority before reordering an assigned conversation. Evidence creates no hard
+exhaustion marks, performs no network or credential I/O, and never authorizes
+mid-turn migration.
+
 ## Module Map
 
 Selected modules are shown below; the [development guide](docs/development.md#architecture) provides source entry points for the other adapters and protocol routes.

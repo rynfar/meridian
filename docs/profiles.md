@@ -243,3 +243,31 @@ Related environment variables:
 
 - `MERIDIAN_ROUTING=sticky` — enable [sticky session routing](#sticky-session-routing) across profiles (default `active`)
 - `MERIDIAN_ADAPTER_INSTANCES='{...}'` — define [adapter instances](agents.md#adapter-instances) inline instead of via `~/.config/meridian/adapter-instances.json`
+
+### Included capacity before paid overage
+
+Priority routing prefers accounts without recent evidence that their included
+capacity is spent. SDK `isUsingOverage` and exhausted global five-hour/seven-day
+windows from the SDK or cached OAuth usage supply that evidence. Team OAuth
+`extra_usage.isEnabled` is not used because organization overage can be active
+even when that field is false. No additional usage poll, login refresh or
+generation is performed to make the choice.
+
+The preference applies to new conversations and authenticated new OpenCode human
+turns. In-flight requests, same-turn tool continuations, unsigned existing durable
+routes and existing legacy assignments retain their account until ordinary
+failover; a quota hint does not authorize moving their transcript. Other clients
+benefit when starting new conversations. Explicit profile pins, active, sticky
+and active+priority routing retain their existing behavior. Moving to another
+account can cost a fresh history replay, which is intentional at these boundaries.
+
+Known spent accounts remain last-resort candidates; when every candidate is
+spent, their existing order is retained. Unknown quota is eligible, not proof of
+free capacity. Evidence expires at its reset or after five minutes, whichever is
+sooner; model-specific windows are not applied to unrelated requests. This is
+a routing preference, not a billing cap or a guarantee that a request cannot
+incur overage. Account-side spend limits remain authoritative.
+
+Set `MERIDIAN_PRIORITY_OVERAGE=always` or `"priorityOverage": "always"` in
+settings JSON to retain prior priority/affinity behavior. The default is
+`last-resort`; the environment takes precedence.

@@ -1,0 +1,13 @@
+{
+  "head": "7ccc3ea1f97a55ae7a2b44a4e175bf196b0dbb15",
+  "command": "npm test && npm run typecheck && npm run build",
+  "exit": 0,
+  "counts": {
+    "pass": 5768,
+    "skip": 35,
+    "fail": 0
+  },
+  "isolatedGroups": 23,
+  "logSha256": "1b307ed582c8dbed9ee178427cb14b51ae85202b450d2e7a28ee3c7d9f019d3e",
+  "acceptance": "Local gates only. Two-account actual routing verification remains deferred at user request; no account refresh, switch, inference, or Extra Usage activation performed."
+}

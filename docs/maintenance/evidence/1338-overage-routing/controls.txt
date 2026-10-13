@@ -1,0 +1,51 @@
+bun test v1.3.14 (0d9b296a)
+
+src/__tests__/priority-routing-integration.test.ts:
+[PROXY] Claude auth status for profile "personal" exited with code 1 reporting loggedIn: false; login required
+[PROXY] 1ae02d8b-8847-4826-af65-16e5102a7b73 adapter=opencode profile=personal(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 1ae02d8b-8847-4826-af65-16e5102a7b73 usage: input=10 output=50 cache=0%
+(pass) priority routing > prefers included capacity over a successful overage account (stream=false) [280.20ms]
+[PROXY] dda4e067-2edb-4c9f-91ba-e1ec6b7f51e1 adapter=opencode profile=personal(priority) model=sonnet stream=true tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] dda4e067-2edb-4c9f-91ba-e1ec6b7f51e1 usage: input=10 output=50 cache=0%
+(pass) priority routing > prefers included capacity over a successful overage account (stream=true) [47.74ms]
+[PROXY] Claude auth status for profile "work" exited with code 1 reporting loggedIn: false; login required
+[PROXY] c03bb7c5-4cef-42e4-aacf-f8cc0cf7c8cd adapter=opencode profile=work(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] c03bb7c5-4cef-42e4-aacf-f8cc0cf7c8cd usage: input=10 output=50 cache=0%
+(pass) priority routing > overage preference preserves all-spent [166.77ms]
+[PROXY] a4fbd290-43c2-4a79-a43c-b187f1740f4f adapter=opencode profile=work model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] a4fbd290-43c2-4a79-a43c-b187f1740f4f usage: input=10 output=50 cache=0%
+(pass) priority routing > overage preference preserves explicit-pin [22.59ms]
+[PROXY] 2284c0f9-a4d4-48ec-b2f3-ba47706bcd7d adapter=opencode profile=work(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 2284c0f9-a4d4-48ec-b2f3-ba47706bcd7d usage: input=10 output=50 cache=0%
+(pass) priority routing > overage preference preserves always [21.84ms]
+[PROXY] d76b2420-f45d-41d8-9f2e-8b055fd71f89 adapter=opencode profile=work(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] d76b2420-f45d-41d8-9f2e-8b055fd71f89 usage: input=10 output=50 cache=0%
+(pass) priority routing > overage preference preserves active+priority [22.26ms]
+[PROXY] 15cb927f-9fd6-4d52-af87-83667bec3bb2 adapter=opencode profile=work(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 15cb927f-9fd6-4d52-af87-83667bec3bb2 usage: input=10 output=50 cache=0%
+(pass) priority routing > overage preference preserves expired [26.24ms]
+[PROXY] a2a25b94-e799-471c-b9f4-451c13deb635 adapter=opencode profile=work(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=not-found agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=1 msgs=user[string]
+[PROXY] a2a25b94-e799-471c-b9f4-451c13deb635 usage: input=10 output=50 cache=0%
+[PROXY] Session not resumable (key=work:ove…): reason=replayed-request, prefix overlap 0/1, incoming 1 msgs. Starting fresh replay.
+[PROXY] 888e50cf-ed1f-40e8-8fc6-f6193451173a adapter=opencode profile=work(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=replayed-request agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=0ms msgCount=1 msgs=user[string]
+[PROXY] 888e50cf-ed1f-40e8-8fc6-f6193451173a SESSION RECOVERY: previous conversation available. Run: claude --resume d5c457bd-4966-4051-b7ea-9096d33a5932
+[PROXY] 888e50cf-ed1f-40e8-8fc6-f6193451173a usage: input=10 output=50 cache=0%
+[PROXY] dc33ff18-7d89-4d39-8725-59aef78cf432 adapter=opencode profile=personal(priority) model=sonnet stream=false tools=0 lineage=new session=new diverged=priority-failback agent=primary sdkActive=0/10 sdkQueued=0 sessionWait=1ms msgCount=3 msgs=user[string] → assistant[string] → user[string]
+[PROXY] dc33ff18-7d89-4d39-8725-59aef78cf432 usage: input=10 output=50 cache=0%
+(pass) priority routing > moves an overage assignment only on a new authenticated human turn [73.33ms]
+
+src/__tests__/overage-routing.test.ts:
+(pass) included-capacity evidence > accepts current global exhaustion and explicit overage [0.50ms]
+(pass) included-capacity evidence > does not infer exhaustion from absent or partial usage [0.04ms]
+(pass) included-capacity evidence > expires evidence at either reset or maximum age [0.03ms]
+(pass) included-capacity evidence > uses the newest observation per global window without mutating input [0.06ms]
+(pass) included-capacity evidence > does not apply another model's quota or an unknown window globally [0.03ms]
+(pass) included-capacity evidence > replaces an older explicit overage observation [0.01ms]
+(pass) included-capacity evidence > bounds missing-reset evidence too [0.02ms]
+(pass) included-capacity evidence > retains paid fallback and stable order within each group [0.04ms]
+
+ 16 pass
+ 73 filtered out
+ 0 fail
+ 51 expect() calls
+Ran 16 tests across 2 files. [1114.00ms]
