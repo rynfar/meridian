@@ -158,5 +158,10 @@ there is no Google API-key or model-SDK fallback.
 For Antigravity reports, include your OS, `agy` and client versions, the failing
 flow and redacted diagnostics.
 
+Accepted PRs are merged as your own PR with you as the commit author; fixes we
+need are pushed to your branch. Signing your commits lets us merge without
+touching them. Earlier PRs that were not handled this way are listed in the
+[attribution ledger](docs/maintenance/ATTRIBUTION_LEDGER.md).
+
 Meridian is [MIT licensed](https://opensource.org/license/mit). Claude and Antigravity are trademarks of
 their respective owners. [Provider asset credits](assets/providers/README.md).
