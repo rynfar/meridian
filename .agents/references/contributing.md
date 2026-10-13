@@ -30,8 +30,8 @@ Paths are relative to repository root. Read when committing, opening a PR, or in
 Squash keeps changelog entries one per PR. Preserve repository settings
 `squash_merge_commit_title=PR_TITLE` and `squash_merge_commit_message=BLANK`;
 do not paste intermediate conventional-commit subjects into the squash body.
-No AI attribution. Do not routinely use `--admin` or bypass checks. Never run
-`git push origin main` directly.
+No AI attribution. Do not use `--admin` or bypass checks, except for the
+unsigned-commit case in step 3 below. Never run `git push origin main` directly.
 
 ### Contributor pull requests
 
@@ -48,20 +48,25 @@ From March to October 2026 that happened to 137 contributor PRs
    Never cherry-pick, rebase or retype it into a maintainer PR. The
    `Attribution` check fails any maintainer PR that carries someone else's
    commits; do not work around it.
-2. Put maintainer corrections on the contributor's branch as separate signed
-   commits (`gh pr checkout <their-PR>`, commit, push; every open contributor PR
-   allows maintainer edits). The squash then names the contributor as Author and
-   the maintainer as co-author. Add commits; do not rewrite theirs.
+2. Do not wait on the contributor for work the maintainer can do. Put
+   maintainer corrections on their branch as separate signed commits
+   (`gh pr checkout <their-PR>`, commit, push; every open contributor PR allows
+   maintainer edits), and resolve conflicts by merging `main` into their branch.
+   The squash then names the contributor as Author and the maintainer as
+   co-author. Add commits; do not rewrite or force-push theirs.
 3. `main` requires signed commits, which blocks a PR only when it holds an
    unsigned commit. Check `mergeStateStatus` before assuming a block: a fully
-   signed fork PR is `CLEAN` and merges directly. For a `BLOCKED` PR, ask the
-   contributor to sign their commits. Re-signing them on their branch keeps
-   their Author but force-pushes someone else's branch, so do it only when the
-   owner approves it for that PR: record the original head SHA in the PR first
-   and push with `--force-with-lease`.
-4. If their PR cannot be used at all (fork deleted, maintainer edits disabled,
-   contributor unreachable), stop and ask the owner. Any fallback must keep the
-   contributor as Author on `main`; a squashed maintainer PR never does.
+   signed fork PR is `CLEAN` and merges directly. When unsigned commits are the
+   **only** block, merge with
+   `gh pr merge <their-PR> --squash --admin --match-head-commit <verified-SHA>`.
+   GitHub signs the squash and names the contributor as Author, so nobody has
+   to re-sign anything. `--admin` is allowed for this case alone, and only
+   after every check on that exact head is green: nothing else stops it from
+   merging a red or untested head. It is never a way past a failing check, a
+   missing gate or the `Attribution` check.
+4. If their PR cannot be used at all (fork deleted, maintainer edits
+   disabled), stop and ask the owner. Any fallback must keep the contributor as
+   Author on `main`; a squashed maintainer PR never does.
 5. After merging, confirm it:
    `git log -1 --format='%an <%ae>' <landed-SHA>` on `origin/main` must name
    the contributor. Tell a contributor their authorship was preserved only
